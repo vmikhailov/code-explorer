@@ -24,7 +24,12 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
             OntologyConstants.NodeLabels.Interface,
             OntologyConstants.NodeLabels.Function, 
             OntologyConstants.NodeLabels.Variable, 
-            OntologyConstants.NodeLabels.Package 
+            OntologyConstants.NodeLabels.Package,
+            OntologyConstants.NodeLabels.DB,
+            OntologyConstants.NodeLabels.DataSet,
+            OntologyConstants.NodeLabels.Table,
+            OntologyConstants.NodeLabels.Procedure,
+            OntologyConstants.NodeLabels.Query
         };
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
         
@@ -39,6 +44,15 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
             {
                 await Console.Error.WriteLineAsync($"Warning creating index for {kind}: {ex.Message}");
             }
+        }
+
+        try
+        {
+            await session.RunAsync("CREATE INDEX ON :Entity(id);");
+        }
+        catch (Exception ex)
+        {
+            await Console.Error.WriteLineAsync($"Warning creating index for Entity: {ex.Message}");
         }
 
         try
@@ -97,7 +111,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
                 batch.Add(props);
             }
 
-            var query = $"UNWIND $batch AS row MERGE (n:{kind} {{ id: row.id }}) SET n = row";
+            var query = $"UNWIND $batch AS row MERGE (n:{kind} {{ id: row.id }}) SET n:Entity, n = row";
             await session.ExecuteWriteAsync(async tx =>
             {
                 await tx.RunAsync(query, new { batch });
@@ -126,7 +140,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
                     ["to"] = r.To
                 }).ToList();
 
-                var query = $"UNWIND $batch AS row MATCH (from {{ id: row.from }}), (to {{ id: row.to }}) MERGE (from)-[:{kind}]->(to)";
+                var query = $"UNWIND $batch AS row MATCH (from:Entity {{ id: row.from }}), (to:Entity {{ id: row.to }}) MERGE (from)-[:{kind}]->(to)";
                 await session.ExecuteWriteAsync(async tx =>
                 {
                     await tx.RunAsync(query, new { batch = chunk });

@@ -8,7 +8,7 @@ public class PythonParser : IProjectParser, IFileParser
 
     public string ProjectType => "python";
 
-    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "venv", ".venv", "__pycache__" };
+    public IReadOnlyCollection<string> ExcludedFolders => new[] { "venv", ".venv", "__pycache__" };
 
     public bool CanParse(string fileExtension)
     {
@@ -19,7 +19,7 @@ public class PythonParser : IProjectParser, IFileParser
     {
         foreach (var file in filesInDirectory)
         {
-            var fileName = System.IO.Path.GetFileName(file).ToLowerInvariant();
+            var fileName = Path.GetFileName(file).ToLowerInvariant();
             if (fileName == "requirements.txt" || fileName == "pyproject.toml" || fileName == "setup.py")
             {
                 return true;
@@ -122,12 +122,12 @@ public class PythonParser : IProjectParser, IFileParser
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
-        var pyprojectPath = System.IO.Path.Combine(projectDirectory, "pyproject.toml");
-        if (System.IO.File.Exists(pyprojectPath))
+        var pyprojectPath = Path.Combine(projectDirectory, "pyproject.toml");
+        if (File.Exists(pyprojectPath))
         {
             try
             {
-                var lines = await System.IO.File.ReadAllLinesAsync(pyprojectPath);
+                var lines = await File.ReadAllLinesAsync(pyprojectPath);
                 string? name = null;
                 string version = "1.0.0";
                 
@@ -177,12 +177,12 @@ public class PythonParser : IProjectParser, IFileParser
             }
         }
 
-        var setupPyPath = System.IO.Path.Combine(projectDirectory, "setup.py");
-        if (System.IO.File.Exists(setupPyPath))
+        var setupPyPath = Path.Combine(projectDirectory, "setup.py");
+        if (File.Exists(setupPyPath))
         {
             try
             {
-                var content = await System.IO.File.ReadAllTextAsync(setupPyPath);
+                var content = await File.ReadAllTextAsync(setupPyPath);
                 var nameMatch = System.Text.RegularExpressions.Regex.Match(content, @"name\s*=\s*['""]([^'""]+)['""]");
                 if (nameMatch.Success)
                 {
@@ -208,12 +208,12 @@ public class PythonParser : IProjectParser, IFileParser
         var externalPackages = new List<ProducedPackageInfo>();
 
         // 1. Try parsing pyproject.toml dependencies
-        var pyprojectPath = System.IO.Path.Combine(projectDirectory, "pyproject.toml");
-        if (System.IO.File.Exists(pyprojectPath))
+        var pyprojectPath = Path.Combine(projectDirectory, "pyproject.toml");
+        if (File.Exists(pyprojectPath))
         {
             try
             {
-                var lines = await System.IO.File.ReadAllLinesAsync(pyprojectPath);
+                var lines = await File.ReadAllLinesAsync(pyprojectPath);
                 bool inDependencies = false;
                 foreach (var rawLine in lines)
                 {
@@ -253,12 +253,12 @@ public class PythonParser : IProjectParser, IFileParser
         // 2. Try parsing requirements.txt dependencies if externalPackages is empty
         if (externalPackages.Count == 0)
         {
-            var reqPath = System.IO.Path.Combine(projectDirectory, "requirements.txt");
-            if (System.IO.File.Exists(reqPath))
+            var reqPath = Path.Combine(projectDirectory, "requirements.txt");
+            if (File.Exists(reqPath))
             {
                 try
                 {
-                    var lines = await System.IO.File.ReadAllLinesAsync(reqPath);
+                    var lines = await File.ReadAllLinesAsync(reqPath);
                     foreach (var rawLine in lines)
                     {
                         var line = rawLine.Trim();

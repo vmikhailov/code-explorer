@@ -8,7 +8,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public string ProjectType => "javascript";
 
-    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "node_modules", "dist", "build", ".next", "out" };
+    public IReadOnlyCollection<string> ExcludedFolders => new[] { "node_modules", "dist", "build", ".next", "out" };
 
     public bool CanParse(string fileExtension)
     {
@@ -20,7 +20,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
     {
         foreach (var file in filesInDirectory)
         {
-            var fileName = System.IO.Path.GetFileName(file).ToLowerInvariant();
+            var fileName = Path.GetFileName(file).ToLowerInvariant();
             if (fileName == "package.json" || fileName == "jsconfig.json" || fileName == "tsconfig.json")
             {
                 return true;
@@ -123,12 +123,12 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
-        var packageJsonPath = System.IO.Path.Combine(projectDirectory, "package.json");
-        if (!System.IO.File.Exists(packageJsonPath)) return null;
+        var packageJsonPath = Path.Combine(projectDirectory, "package.json");
+        if (!File.Exists(packageJsonPath)) return null;
 
         try
         {
-            var content = await System.IO.File.ReadAllTextAsync(packageJsonPath);
+            var content = await File.ReadAllTextAsync(packageJsonPath);
             using var doc = System.Text.Json.JsonDocument.Parse(content);
             var root = doc.RootElement;
 
@@ -170,15 +170,15 @@ public class JavaScriptParser : IProjectParser, IFileParser
         var localProjectPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
 
-        var packageJsonPath = System.IO.Path.Combine(projectDirectory, "package.json");
-        if (!System.IO.File.Exists(packageJsonPath))
+        var packageJsonPath = Path.Combine(projectDirectory, "package.json");
+        if (!File.Exists(packageJsonPath))
         {
             return new ProjectDependencyInfo(localProjectPaths, externalPackages);
         }
 
         try
         {
-            var content = await System.IO.File.ReadAllTextAsync(packageJsonPath);
+            var content = await File.ReadAllTextAsync(packageJsonPath);
             using var doc = System.Text.Json.JsonDocument.Parse(content);
             var root = doc.RootElement;
 
@@ -198,7 +198,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
                             var relativePath = packageVersion.Substring(packageVersion.IndexOf(':') + 1);
                             if (!string.IsNullOrEmpty(relativePath))
                             {
-                                var referencedDir = System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(packageJsonPath)!, relativePath)).Replace('\\', '/');
+                                var referencedDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!, relativePath)).Replace('\\', '/');
                                 localProjectPaths.Add(referencedDir);
                                 continue;
                             }

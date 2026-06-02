@@ -74,7 +74,7 @@ public class WorkspaceParser
         // 4. Complete persistence channel & await background consumer
         sharedChannel.Writer.Complete();
         await consumerTask;
-        await Console.Error.WriteLineAsync("[WorkspaceParser] All background channel persistence writes completed successfully!");
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] All background channel persistence writes completed! Total parsed: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
 
         // 5. Upload local cross-project dependencies
         if (ctx.GlobalProjectDependencies.Count > 0)

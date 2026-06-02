@@ -90,11 +90,7 @@ public class ParsingContext
         lock (this)
         {
             _nodesPersisted += count;
-            if (_nodesPersisted - _lastReportedNodes >= 500)
-            {
-                Console.Error.WriteLine($"[PersistenceProgress] Saved {_nodesPersisted} nodes to database...");
-                _lastReportedNodes = _nodesPersisted;
-            }
+            ReportProgressIfNeeded();
         }
     }
 
@@ -103,11 +99,17 @@ public class ParsingContext
         lock (this)
         {
             _relsPersisted += count;
-            if (_relsPersisted - _lastReportedRels >= 500)
-            {
-                Console.Error.WriteLine($"[PersistenceProgress] Saved {_relsPersisted} relationships to database...");
-                _lastReportedRels = _relsPersisted;
-            }
+            ReportProgressIfNeeded();
+        }
+    }
+
+    private void ReportProgressIfNeeded()
+    {
+        if (_nodesPersisted - _lastReportedNodes >= 500 || _relsPersisted - _lastReportedRels >= 500)
+        {
+            Console.Error.WriteLine($"[PersistenceProgress] Saved: {_nodesPersisted} nodes, {_relsPersisted} relationships to database...");
+            _lastReportedNodes = _nodesPersisted;
+            _lastReportedRels = _relsPersisted;
         }
     }
 

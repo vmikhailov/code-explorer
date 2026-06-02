@@ -44,10 +44,11 @@ public class FileLevelParser
 
             // 1. Create and register the File Node
             var fileNodeId = $"file:{_ctx.AbsoluteWorkspacePath}:{relativePath}";
-            var fileNode = new CodeExplorer.Database.Node(fileNodeId, OntologyConstants.NodeLabels.File, new Dictionary<string, object>
+            var fileNode = new Database.Node(fileNodeId, OntologyConstants.NodeLabels.File, new Dictionary<string, object>
             {
                 ["path"] = Path.GetFileName(_filePath),
-                ["name"] = Path.GetFileName(_filePath)
+                ["name"] = Path.GetFileName(_filePath),
+                ["full_path"] = _filePath
             });
             fileCtx.Nodes.Add(fileNode);
 
@@ -120,7 +121,7 @@ public class FileLevelParser
                 ["file_path"] = Path.GetFileName(ctx.FilePath)
             };
 
-            ctx.Nodes.Add(new CodeExplorer.Database.Node(symbolId, kind, properties));
+            ctx.Nodes.Add(new Database.Node(symbolId, kind, properties));
             ctx.Relationships.Add(new Relationship(parentId, symbolId, OntologyConstants.Relationships.Contains));
             currentParentId = symbolId;
         }

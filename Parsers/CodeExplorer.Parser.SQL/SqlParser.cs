@@ -60,6 +60,23 @@ public class SqlParser : IProjectParser, IFileParser
 
     public async Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx)
     {
+        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
+        var fileNodeId = $"file:{ctx.AbsoluteWorkspacePath}:{relativePath}";
+
+        var fileNode = new Node(fileNodeId, OntologyConstants.NodeLabels.File, new Dictionary<string, object>
+        {
+            ["path"] = Path.GetFileName(filePath),
+            ["name"] = Path.GetFileName(filePath),
+            ["full_path"] = filePath
+        });
+        await ctx.EnqueueUploadNodesAsync(new List<Node> { fileNode });
+        ctx.IncrementNodeKind(OntologyConstants.NodeLabels.File);
+        ctx.AddNodesCount(1);
+
+        var fileRel = new Relationship(parentNodeId, fileNodeId, OntologyConstants.Relationships.Contains);
+        await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { fileRel });
+        ctx.AddRelsCount(1);
+
         var sqlText = await File.ReadAllTextAsync(filePath);
 
         // 1. Clean SQL comments to avoid false matches
@@ -92,7 +109,7 @@ public class SqlParser : IProjectParser, IFileParser
         ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DB);
         ctx.AddNodesCount(1);
 
-        var dbRel = new Relationship(parentNodeId, dbNodeId, OntologyConstants.Relationships.Contains);
+        var dbRel = new Relationship(parentNodeId, dbNodeId, OntologyConstants.Relationships.UsesDb);
         await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { dbRel });
         ctx.AddRelsCount(1);
 
@@ -244,60 +261,119 @@ public class SqlParser : IProjectParser, IFileParser
             }
         }
 
-        // 6. Analyze Procedure Bodies for References & Calls
-        for (int i = 0; i < procedures.Count; i++)
+        // 6. Split statements and extract Query nodes (both inside procedures and top-level)
+        var statements = cleanSql.Split(new[] { ';', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Trim())
+            .Where(s => !string.IsNullOrEmpty(s))
+            .ToList();
+
+        // File node creation is managed above, so we just use the existing fileNodeId as the fallback parent
+        
+        int queryCounter = 0;
+        int currentSearchIndex = 0;
+        foreach (var statement in statements)
         {
-            var currentProc = procedures[i];
-            int start = currentProc.StartIndex;
-            int end = (i + 1 < procedures.Count) ? procedures[i + 1].StartIndex : cleanSql.Length;
-            var bodyText = cleanSql.Substring(start, end - start);
+            var firstWord = statement.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault()?.ToUpperInvariant();
 
-            // A. Detect calls to other procedures (EXEC / EXECUTE)
-            var execMatches = Regex.Matches(bodyText, @"EXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
-            foreach (Match execMatch in execMatches)
+            if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE")
             {
-                var targetProcRaw = execMatch.Groups[1].Value;
-                var targetProcParts = targetProcRaw.Split('.');
-                var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"') : targetProcRaw.Trim('[', ']', '"');
+                queryCounter++;
+                var queryName = $"{firstWord} Query #{queryCounter}";
                 
-                var reference = new Reference(currentProc.Id, targetProcName, OntologyConstants.Relationships.Calls);
-                ctx.AddGlobalReferences(new[] { reference });
-            }
-
-            // B. Detect local table dependencies (DependsOn)
-            foreach (var tableKvp in tables)
-            {
-                var tableName = tableKvp.Key;
-                var tableId = tableKvp.Value;
-
-                var pattern = $@"\b{Regex.Escape(tableName)}\b";
-                if (Regex.IsMatch(bodyText, pattern, RegexOptions.IgnoreCase))
+                // Find statement character index in cleanSql (searching forward to handle duplicates)
+                var indexInCleanSql = cleanSql.IndexOf(statement, currentSearchIndex);
+                if (indexInCleanSql != -1)
                 {
-                    var depRel = new Relationship(currentProc.Id, tableId, OntologyConstants.Relationships.DependsOn);
-                    await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { depRel });
-                    ctx.AddRelsCount(1);
+                    currentSearchIndex = indexInCleanSql + statement.Length;
                 }
-            }
-
-            // C. Register potential external table dependencies for deferred global resolution
-            var words = Regex.Matches(bodyText, @"\b[a-zA-Z0-9_]+\b");
-            var uniqueWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (Match wm in words)
-            {
-                uniqueWords.Add(wm.Value);
-            }
-
-            var tableReferences = new List<Reference>();
-            foreach (var word in uniqueWords)
-            {
-                if (!tables.ContainsKey(word))
+                else
                 {
-                    tableReferences.Add(new Reference(currentProc.Id, word, OntologyConstants.Relationships.DependsOn));
+                    indexInCleanSql = cleanSql.IndexOf(statement);
                 }
-            }
-            if (tableReferences.Count > 0)
-            {
-                ctx.AddGlobalReferences(tableReferences);
+                
+                string containingParentId = fileNodeId;
+
+                // Check if this query statement is enclosed in any procedure body
+                for (int i = 0; i < procedures.Count; i++)
+                {
+                    var currentProc = procedures[i];
+                    int start = currentProc.StartIndex;
+                    
+                    var nextGo = cleanSql.IndexOf("GO", start, StringComparison.OrdinalIgnoreCase);
+                    int end = (nextGo != -1) ? nextGo : ((i + 1 < procedures.Count) ? procedures[i + 1].StartIndex : cleanSql.Length);
+
+                    if (indexInCleanSql >= start && indexInCleanSql < end)
+                    {
+                        containingParentId = currentProc.Id;
+                        break;
+                    }
+                }
+
+                // Create the Query Node
+                var queryNodeId = $"{containingParentId}:query:{queryCounter}";
+                var queryNode = new Node(queryNodeId, OntologyConstants.NodeLabels.Query, new Dictionary<string, object>
+                {
+                    ["name"] = queryName,
+                    ["query_text"] = statement.Length > 200 ? statement.Substring(0, 197) + "..." : statement,
+                    ["path"] = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
+                });
+                await ctx.EnqueueUploadNodesAsync(new List<Node> { queryNode });
+                ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Query);
+                ctx.AddNodesCount(1);
+
+                // Containment relation from Procedure or File
+                var containmentRel = new Relationship(containingParentId, queryNodeId, OntologyConstants.Relationships.Contains);
+                await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { containmentRel });
+                ctx.AddRelsCount(1);
+
+                // A. Parse Calls dependencies (EXEC / EXECUTE)
+                var execMatches = Regex.Matches(statement, @"EXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
+                foreach (Match execMatch in execMatches)
+                {
+                    var targetProcRaw = execMatch.Groups[1].Value;
+                    var targetProcParts = targetProcRaw.Split('.');
+                    var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"') : targetProcRaw.Trim('[', ']', '"');
+                    
+                    var reference = new Reference(queryNodeId, targetProcName, OntologyConstants.Relationships.Calls);
+                    ctx.AddGlobalReferences(new[] { reference });
+                }
+
+                // B. Parse Local Table dependencies (DependsOn)
+                foreach (var tableKvp in tables)
+                {
+                    var tableName = tableKvp.Key;
+                    var tableId = tableKvp.Value;
+
+                    var pattern = $@"\b{Regex.Escape(tableName)}\b";
+                    if (Regex.IsMatch(statement, pattern, RegexOptions.IgnoreCase))
+                    {
+                        var depRel = new Relationship(queryNodeId, tableId, OntologyConstants.Relationships.DependsOn);
+                        await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { depRel });
+                        ctx.AddRelsCount(1);
+                    }
+                }
+
+                // C. Parse potential external table dependencies for deferred global resolution
+                var words = Regex.Matches(statement, @"\b[a-zA-Z0-9_]+\b");
+                var uniqueWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (Match wm in words)
+                {
+                    uniqueWords.Add(wm.Value);
+                }
+
+                var tableReferences = new List<Reference>();
+                foreach (var word in uniqueWords)
+                {
+                    if (!tables.ContainsKey(word))
+                    {
+                        tableReferences.Add(new Reference(queryNodeId, word, OntologyConstants.Relationships.DependsOn));
+                    }
+                }
+                if (tableReferences.Count > 0)
+                {
+                    ctx.AddGlobalReferences(tableReferences);
+                }
             }
         }
     }

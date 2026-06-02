@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeExplorer.Database;
 using CodeExplorer.Mcp.Models;
 using CodeExplorer.Parser;
@@ -79,4 +80,55 @@ public class WorkspacesController : ControllerBase
             return StatusCode(500, ex.Message);
         }
     }
+
+    [HttpPost("query")]
+    public async Task<IActionResult> ExecuteCustomQueryAsync([FromBody] CustomQueryRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Query))
+            {
+                return BadRequest(new { error = "Query is required." });
+            }
+
+            var resultJson = await _client.ExecuteQueryAsync(request.Query, request.Parameters);
+            return Content(resultJson, "application/json");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+
+
+    [HttpGet("taxonomy")]
+    public async Task<IActionResult> GetTaxonomyAsync()
+    {
+        try
+        {
+            var query =
+                "MATCH (n)-[r]->(m) WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] " +
+                "AS toLabel RETURN fromLabel, relType, toLabel";
+            var resultJson = await _client.ExecuteQueryAsync(query);
+            var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? [];
+
+            var propQuery = "MATCH (n) UNWIND labels(n) AS label UNWIND keys(n) AS key RETURN DISTINCT label, key";
+            var propJson = await _client.ExecuteQueryAsync(propQuery);
+            var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? [];
+
+            var taxonomy = Mcp.McpServer.BuildTaxonomy(parsedTriplets, parsedProperties);
+            return Content(JsonSerializer.Serialize(new { taxonomy }), "application/json");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+}
+
+public class CustomQueryRequest
+{
+    public string Query { get; set; } = string.Empty;
+    public Dictionary<string, object?>? Parameters { get; set; }
 }

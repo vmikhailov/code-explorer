@@ -1,7 +1,9 @@
+using System.Threading;
 using CodeExplorer.Database;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Mcp;
@@ -11,14 +13,14 @@ public class SseMcpServer(MemgraphClient dbClient, int port)
     public async Task StartAsync()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Logging.AddFilter("Microsoft", Microsoft.Extensions.Logging.LogLevel.Warning);
-        builder.Logging.AddFilter("System", Microsoft.Extensions.Logging.LogLevel.Warning);
+        builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+        builder.Logging.AddFilter("System", LogLevel.Warning);
         
         builder.Services.AddCors(options => options.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
         
         // Explicitly register controllers assembly to ensure discovery in multi-project setup
         builder.Services.AddControllers()
-            .AddApplicationPart(typeof(CodeExplorer.Mcp.Controllers.McpController).Assembly);
+            .AddApplicationPart(typeof(Controllers.McpController).Assembly);
             
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
@@ -53,9 +55,17 @@ public class SseMcpServer(MemgraphClient dbClient, int port)
         // Redirect root to /swagger for developer convenience
         app.MapGet("/", HandleRootRedirect);
 
+        app.Urls.Add($"http://0.0.0.0:{port}");
+
+        Console.CancelKeyPress += (sender, e) =>
+        {
+            Console.Error.WriteLine("Ctrl+C detected. Shutting down web server...");
+            Environment.Exit(0);
+        };
+
         await Console.Error.WriteLineAsync($"Starting Unified CodeExplorer Web Service (MCP + REST Management) on http://localhost:{port}...");
         await Console.Error.WriteLineAsync($"Swagger UI available at http://localhost:{port}/swagger");
-        await app.RunAsync($"http://0.0.0.0:{port}");
+        await app.RunAsync();
     }
 
     private static Task HandleRootRedirect(HttpContext context)

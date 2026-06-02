@@ -8,7 +8,7 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public string ProjectType => "csharp";
 
-    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "bin", "obj", ".vs" };
+    public IReadOnlyCollection<string> ExcludedFolders => new[] { "bin", "obj", ".vs" };
 
     public bool CanParse(string fileExtension)
     {
@@ -19,7 +19,7 @@ public class CSharpParser : IProjectParser, IFileParser
     {
         foreach (var file in filesInDirectory)
         {
-            var ext = System.IO.Path.GetExtension(file).ToLowerInvariant();
+            var ext = Path.GetExtension(file).ToLowerInvariant();
             if (ext == ".csproj")
             {
                 return true;
@@ -130,13 +130,13 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
-        var csprojFiles = System.IO.Directory.GetFiles(projectDirectory, "*.csproj");
+        var csprojFiles = Directory.GetFiles(projectDirectory, "*.csproj");
         if (csprojFiles.Length == 0) return null;
 
         var csprojFile = csprojFiles[0];
         try
         {
-            var content = await System.IO.File.ReadAllTextAsync(csprojFile);
+            var content = await File.ReadAllTextAsync(csprojFile);
             var doc = System.Xml.Linq.XDocument.Parse(content);
 
             // Check IsPackable
@@ -162,7 +162,7 @@ public class CSharpParser : IProjectParser, IFileParser
 
             var packageId = doc.Descendants("PackageId").FirstOrDefault()?.Value 
                          ?? doc.Descendants("AssemblyName").FirstOrDefault()?.Value 
-                         ?? System.IO.Path.GetFileNameWithoutExtension(csprojFile);
+                         ?? Path.GetFileNameWithoutExtension(csprojFile);
 
             var version = doc.Descendants("Version").FirstOrDefault()?.Value 
                        ?? doc.Descendants("PackageVersion").FirstOrDefault()?.Value 
@@ -181,12 +181,12 @@ public class CSharpParser : IProjectParser, IFileParser
         var localProjectPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
 
-        var csprojFiles = System.IO.Directory.GetFiles(projectDirectory, "*.csproj");
+        var csprojFiles = Directory.GetFiles(projectDirectory, "*.csproj");
         foreach (var csprojFile in csprojFiles)
         {
             try
             {
-                var content = await System.IO.File.ReadAllTextAsync(csprojFile);
+                var content = await File.ReadAllTextAsync(csprojFile);
                 var doc = System.Xml.Linq.XDocument.Parse(content);
 
                 // Extract local project references
@@ -196,8 +196,8 @@ public class CSharpParser : IProjectParser, IFileParser
                     var include = pref.Attribute("Include")?.Value;
                     if (string.IsNullOrEmpty(include)) continue;
 
-                    var referencedCsprojPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(csprojFile)!, include)).Replace('\\', '/');
-                    var referencedProjectDir = System.IO.Path.GetFullPath(System.IO.Path.GetDirectoryName(referencedCsprojPath)!).Replace('\\', '/');
+                    var referencedCsprojPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(csprojFile)!, include)).Replace('\\', '/');
+                    var referencedProjectDir = Path.GetFullPath(Path.GetDirectoryName(referencedCsprojPath)!).Replace('\\', '/');
                     localProjectPaths.Add(referencedProjectDir);
                 }
 

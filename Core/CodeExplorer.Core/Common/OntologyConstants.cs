@@ -18,6 +18,7 @@ public static class OntologyConstants
         public const string DataSet = "DataSet";
         public const string Table = "Table";
         public const string Procedure = "Procedure";
+        public const string Query = "Query";
     }
 
     public static class Relationships
@@ -30,5 +31,6 @@ public static class OntologyConstants
         public const string InheritsFrom = "INHERITS_FROM";
         public const string PotentialType = "POTENTIAL_TYPE";
         public const string ImplementedBy = "IMPLEMENTED_BY";
+        public const string UsesDb = "USES_DB";
     }
 }

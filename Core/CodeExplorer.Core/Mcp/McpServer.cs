@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using CodeExplorer.Database;
 
@@ -66,190 +67,30 @@ public class McpServer(MemgraphClient dbClient)
                 break;
 
             case "tools/list":
-                responseResult = new
+                try
                 {
-                    tools = new object[]
+                    var jsonPath = Path.Combine(AppContext.BaseDirectory, "Mcp", "mcp_tools.json");
+                    if (!File.Exists(jsonPath))
                     {
-                        new
-                        {
-                            name = "find_symbol",
-                            description = "Finds coordinates (symbol ID and file path) of a function or class.",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    name = new
-                                    {
-                                        type = "string",
-                                        description = "The name of the function or class to search for."
-                                    },
-                                    type = new
-                                    {
-                                        type = "string",
-                                        description = "Optional. Filter by symbol type: 'Function' or 'Class'.",
-                                        @enum = new[] { "Function", "Class" }
-                                    }
-                                },
-                                required = new[] { "name" }
-                            }
-                        },
-                        new
-                        {
-                            name = "get_project_structure",
-                            description = "Retrieves files and their declared classes in a specific project (module).",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    projectName = new
-                                    {
-                                        type = "string",
-                                        description = "The name of the project (e.g. folder name) to view."
-                                    }
-                                },
-                                required = new[] { "projectName" }
-                            }
-                        },
-                        new
-                        {
-                            name = "get_call_chain",
-                            description = "Traces the calling sequence of functions from a start function to an end function.",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    startFunction = new
-                                    {
-                                        type = "string",
-                                        description = "The unique fullName (symbol ID) of the starting function."
-                                    },
-                                    endFunction = new
-                                    {
-                                        type = "string",
-                                        description = "The unique fullName (symbol ID) of the target ending function."
-                                    },
-                                    maxDepth = new
-                                    {
-                                        type = "integer",
-                                        description = "Optional. Maximum call depth to trace (default 5, max 10)."
-                                    }
-                                },
-                                required = new[] { "startFunction", "endFunction" }
-                            }
-                        },
-                        new
-                        {
-                            name = "resolve_interface",
-                            description = "Lists all concrete implementations and methods of a specified interface contract.",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    interfaceName = new
-                                    {
-                                        type = "string",
-                                        description = "The name of the interface class to resolve."
-                                    }
-                                },
-                                required = new[] { "interfaceName" }
-                            }
-                        },
-                        new
-                        {
-                            name = "get_impact_zone",
-                            description = "Analyzes which code elements or files directly depend on or call the target symbol.",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    symbolName = new
-                                    {
-                                        type = "string",
-                                        description = "The unique fullName (symbol ID) of the class or function to analyze."
-                                    }
-                                },
-                                required = new[] { "symbolName" }
-                            }
-                        },
-                        new
-                        {
-                            name = "find_dead_code",
-                            description = "Finds orphan functions within a project that have no incoming call references.",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    projectName = new
-                                    {
-                                        type = "string",
-                                        description = "The name of the project to scan."
-                                    }
-                                },
-                                required = new[] { "projectName" }
-                            }
-                        },
-                        new
-                        {
-                            name = "execute_custom_cypher",
-                            description = "Runs a custom read-only Cypher query against Memgraph for complex, custom analysis.",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    query = new
-                                    {
-                                        type = "string",
-                                        description = "The read-only Cypher query to execute."
-                                    }
-                                },
-                                required = new[] { "query" }
-                            }
-                        },
-                        new
-                        {
-                            name = "fetch_code_snippets",
-                            description = "Reads precise surgical source code snippets from the local filesystem for the specified list of nodes.",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    nodes_json = new
-                                    {
-                                        type = "string",
-                                        description = "A JSON string containing an array of node definitions. Each node object should contain properties: 'file_path', 'start_line' (0-indexed integer), and 'end_line' (0-indexed integer)."
-                                    }
-                                },
-                                required = new[] { "nodes_json" }
-                            }
-                        },
-                        new
-                        {
-                             name = "get_node_definition",
-                             description = "Retrieves the structural purpose, meaning, properties, and relationships of a specified database node kind/label in the CodeExplorer ontology (e.g. 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package').",
-                             inputSchema = new
-                             {
-                                 type = "object",
-                                 properties = new
-                                 {
-                                     kind = new
-                                     {
-                                         type = "string",
-                                         description = "The database node label/kind to query (e.g. 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package')."
-                                     }
-                                 },
-                                required = new[] { "kind" }
-                            }
-                        }
+                        jsonPath = Path.Combine(AppContext.BaseDirectory, "mcp_tools.json");
                     }
-                };
+                    var jsonText = File.ReadAllText(jsonPath);
+                    using var toolDoc = JsonDocument.Parse(jsonText);
+                    var toolsArray = toolDoc.RootElement.GetProperty("mcp_tools").Clone();
+
+                    responseResult = new
+                    {
+                        tools = toolsArray
+                    };
+                }
+                catch (Exception ex)
+                {
+                    await Console.Error.WriteLineAsync($"[McpServer] Error loading mcp_tools.json: {ex.Message}");
+                    responseResult = new
+                    {
+                        tools = Array.Empty<object>()
+                    };
+                }
                 break;
 
             case "tools/call":
@@ -259,15 +100,19 @@ public class McpServer(MemgraphClient dbClient)
 
                 responseResult = toolName switch
                 {
+                    "get_architecture_map" => await HandleGetArchitectureMapAsync(args),
+                    "get_project_dependencies" => await HandleGetProjectDependenciesAsync(args),
+                    "get_file_outline" => await HandleGetFileOutlineAsync(args),
                     "find_symbol" => await HandleFindSymbolAsync(args),
-                    "get_project_structure" => await HandleGetProjectStructureAsync(args),
                     "get_call_chain" => await HandleGetCallChainAsync(args),
-                    "resolve_interface" => await HandleResolveInterfaceAsync(args),
-                    "get_impact_zone" => await HandleGetImpactZoneAsync(args),
-                    "find_dead_code" => await HandleFindDeadCodeAsync(args),
-                    "execute_custom_cypher" => await HandleExecuteCustomCypherAsync(args),
+                    "resolve_call_target" => await HandleResolveCallTargetAsync(args),
+                    "analyze_code_impact" => await HandleAnalyzeCodeImpactAsync(args),
+                    "inspect_data_lineage" => await HandleInspectDataLineageAsync(args),
+                    "get_project_entry_points" => await HandleGetProjectEntryPointsAsync(args),
+                    "find_refactoring_opportunities" => await HandleFindRefactoringOpportunitiesAsync(args),
+                    "execute_custom_read_cypher" => await HandleExecuteCustomReadCypherAsync(args),
                     "fetch_code_snippets" => HandleFetchCodeSnippets(args),
-                    "get_node_definition" => HandleGetNodeDefinition(args),
+                    "get_taxonomy" => await HandleGetTaxonomyAsync(args),
                     _ => new { isError = true, content = new[] { new { type = "text", text = $"Unknown tool: {toolName}" } } }
                 };
                 break;
@@ -292,11 +137,14 @@ public class McpServer(MemgraphClient dbClient)
         try
         {
             var resultJson = await dbClient.ExecuteQueryAsync(query, parameters);
+            using var doc = JsonDocument.Parse(resultJson);
+            var wrappedJson = JsonSerializer.Serialize(new { results = doc.RootElement }, new JsonSerializerOptions { WriteIndented = true });
+
             return new
             {
                 content = new[]
                 {
-                    new { type = "text", text = resultJson }
+                    new { type = "text", text = wrappedJson }
                 }
             };
         }
@@ -313,6 +161,65 @@ public class McpServer(MemgraphClient dbClient)
         }
     }
 
+    private async Task<object> HandleGetArchitectureMapAsync(JsonElement args)
+    {
+        string query;
+        var parameters = new Dictionary<string, object>();
+        if (args.TryGetProperty("projectName", out var projEl) && projEl.ValueKind == JsonValueKind.String)
+        {
+            parameters["projectName"] = projEl.GetString()!;
+            query = "MATCH (p:Project {name: $projectName}) " +
+                    "OPTIONAL MATCH (p)-[:USES_DB]->(db:DB) " +
+                    "OPTIONAL MATCH (p)-[:CONTAINS*1..]->(pf:ProjectFolder) " +
+                    "RETURN p.name AS project, p.project_type AS type, db.name AS dbName, collect(DISTINCT pf.name) AS folders";
+        }
+        else
+        {
+            query = "MATCH (w:Workspace) " +
+                    "OPTIONAL MATCH (w)-[:CONTAINS*1..]->(wf:WorkspaceFolder) " +
+                    "OPTIONAL MATCH (w)-[:CONTAINS*1..]->(p:Project) " +
+                    "OPTIONAL MATCH (p)-[:USES_DB]->(db:DB) " +
+                    "RETURN w.name AS workspace, w.path AS path, collect(DISTINCT wf.name) AS workspaceFolders, collect(DISTINCT p.name) AS projects, collect(DISTINCT db.name) AS dbNames";
+        }
+        return await ExecuteAndFormatQueryAsync(query, parameters);
+    }
+
+    private async Task<object> HandleGetProjectDependenciesAsync(JsonElement args)
+    {
+        string query;
+        var parameters = new Dictionary<string, object>();
+        if (args.TryGetProperty("projectFilter", out var filterEl) && filterEl.ValueKind == JsonValueKind.String)
+        {
+            parameters["projectFilter"] = filterEl.GetString()!;
+            query = "MATCH (p:Project {name: $projectFilter}) " +
+                    "OPTIONAL MATCH (p)-[:DEPENDS_ON]->(out) " +
+                    "OPTIONAL MATCH (in)-[:DEPENDS_ON]->(p) " +
+                    "RETURN p.name AS project, collect(DISTINCT out.name) AS outgoingDependencies, collect(DISTINCT in.name) AS incomingDependencies";
+        }
+        else
+        {
+            query = "MATCH (p:Project)-[:DEPENDS_ON]->(dep) " +
+                    "RETURN p.name AS project, dep.name AS dependency, labels(dep)[0] AS dependencyType";
+        }
+        return await ExecuteAndFormatQueryAsync(query, parameters);
+    }
+
+    private async Task<object> HandleGetFileOutlineAsync(JsonElement args)
+    {
+        if (!args.TryGetProperty("filePath", out var pathEl) || pathEl.ValueKind != JsonValueKind.String)
+        {
+            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'filePath' argument." } } };
+        }
+        var filePath = pathEl.GetString()!;
+        var query = "MATCH (f:File) WHERE f.path ENDS_WITH $filePath OR f.file_path = $filePath " +
+                    "OPTIONAL MATCH (f)-[:CONTAINS*1..]->(child) " +
+                    "WHERE child:Class OR child:Interface OR child:Function OR child:Variable OR child:Query " +
+                    "RETURN child.name AS name, labels(child)[0] AS type, child.start_line AS startLine, child.end_line AS endLine, child.symbol AS symbol " +
+                    "ORDER BY child.start_line";
+        var parameters = new Dictionary<string, object> { ["filePath"] = filePath };
+        return await ExecuteAndFormatQueryAsync(query, parameters);
+    }
+
     private async Task<object> HandleFindSymbolAsync(JsonElement args)
     {
         if (!args.TryGetProperty("name", out var nameEl) || nameEl.ValueKind != JsonValueKind.String)
@@ -321,7 +228,7 @@ public class McpServer(MemgraphClient dbClient)
         }
         var name = nameEl.GetString()!;
         string? type = null;
-        if (args.TryGetProperty("type", out var typeEl) && typeEl.ValueKind == JsonValueKind.String)
+        if (args.TryGetProperty("symbolType", out var typeEl) && typeEl.ValueKind == JsonValueKind.String)
         {
             type = typeEl.GetString();
         }
@@ -377,22 +284,6 @@ public class McpServer(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    private async Task<object> HandleGetProjectStructureAsync(JsonElement args)
-    {
-        if (!args.TryGetProperty("projectName", out var projectEl) || projectEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'projectName' argument." } } };
-        }
-        var projectName = projectEl.GetString()!;
-        var query = "MATCH (p:Project {name: $projectName})<-[:CONTAINS*1..]-(w:Workspace) " +
-                    "MATCH fileDir = (w)-[:CONTAINS*1..]->(f:File) " +
-                    "WHERE (p)-[:CONTAINS*1..]->(f) " +
-                    "MATCH (f)-[:CONTAINS]->(c:Class) " +
-                    "RETURN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path AS file, collect(c.name) AS classes";
-        var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
-        return await ExecuteAndFormatQueryAsync(query, parameters);
-    }
-
     private async Task<object> HandleGetCallChainAsync(JsonElement args)
     {
         if (!args.TryGetProperty("startFunction", out var startEl) || startEl.ValueKind != JsonValueKind.String ||
@@ -419,30 +310,38 @@ public class McpServer(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    private async Task<object> HandleResolveInterfaceAsync(JsonElement args)
+    private async Task<object> HandleResolveCallTargetAsync(JsonElement args)
     {
-        if (!args.TryGetProperty("interfaceName", out var interfaceEl) || interfaceEl.ValueKind != JsonValueKind.String)
+        if (!args.TryGetProperty("interfaceName", out var interfaceEl) || interfaceEl.ValueKind != JsonValueKind.String ||
+            !args.TryGetProperty("methodName", out var methodEl) || methodEl.ValueKind != JsonValueKind.String)
         {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'interfaceName' argument." } } };
+            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'interfaceName' or 'methodName' argument." } } };
         }
         var interfaceName = interfaceEl.GetString()!;
-        var query = "MATCH (i:Interface {name: $interfaceName})<-[:IMPLEMENTS]-(impl:Class)-[:CONTAINS]->(f:Function) " +
-                    "RETURN impl.name AS className, f.name AS methodName";
-        var parameters = new Dictionary<string, object> { ["interfaceName"] = interfaceName };
+        var methodName = methodEl.GetString()!;
+
+        var query = "MATCH (i:Interface {name: $interfaceName})<-[:IMPLEMENTS]-(impl:Class)-[:CONTAINS]->(f:Function {name: $methodName}) " +
+                    "RETURN impl.name AS className, f.name AS methodName, f.symbol AS methodSymbol, f.file_path AS filePath, f.start_line AS startLine";
+        var parameters = new Dictionary<string, object>
+        {
+            ["interfaceName"] = interfaceName,
+            ["methodName"] = methodName
+        };
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    private async Task<object> HandleGetImpactZoneAsync(JsonElement args)
+    private async Task<object> HandleAnalyzeCodeImpactAsync(JsonElement args)
     {
         if (!args.TryGetProperty("symbolName", out var symbolEl) || symbolEl.ValueKind != JsonValueKind.String)
         {
             return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'symbolName' argument." } } };
         }
         var symbolName = symbolEl.GetString()!;
-        var query = "MATCH (target {symbol: $symbolName})<-[:USES_TYPE|CALLS]-(dependent) " +
+        var query = "MATCH (target) WHERE (target:Class OR target:Interface OR target:Function) AND (target.symbol = $symbolName OR target.name = $symbolName) " +
+                    "MATCH (target)<-[:USES_TYPE|CALLS]-(dependent) " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(dependent) " +
                     "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
-                    "RETURN labels(dependent)[0] AS depType, dependent.name AS depName, " +
+                    "RETURN labels(dependent)[0] AS dependentType, dependent.name AS dependentName, dependent.symbol AS dependentSymbol, " +
                     "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
                     "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
                     "     ELSE null " +
@@ -451,33 +350,119 @@ public class McpServer(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    private async Task<object> HandleFindDeadCodeAsync(JsonElement args)
+    private async Task<object> HandleInspectDataLineageAsync(JsonElement args)
+    {
+        if (!args.TryGetProperty("tableName", out var tableEl) || tableEl.ValueKind != JsonValueKind.String)
+        {
+            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'tableName' argument." } } };
+        }
+        var tableName = tableEl.GetString()!;
+        var query = "MATCH (t:Table {name: $tableName}) " +
+                    "OPTIONAL MATCH (q:Query)-[:DEPENDS_ON]->(t) " +
+                    "OPTIONAL MATCH (parent)-[:CONTAINS]->(q) " +
+                    "OPTIONAL MATCH (caller)-[:CALLS|DEPENDS_ON*0..]->(parent) " +
+                    "RETURN t.name AS tableName, q.name AS queryName, q.query_text AS queryText, q.path AS filePath, " +
+                    "collect(DISTINCT parent.name) AS parentName, labels(parent)[0] AS parentType, " +
+                    "collect(DISTINCT caller.name) AS callingSymbols";
+        var parameters = new Dictionary<string, object> { ["tableName"] = tableName };
+        return await ExecuteAndFormatQueryAsync(query, parameters);
+    }
+
+    private async Task<object> HandleGetProjectEntryPointsAsync(JsonElement args)
     {
         if (!args.TryGetProperty("projectName", out var projectEl) || projectEl.ValueKind != JsonValueKind.String)
         {
             return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'projectName' argument." } } };
         }
         var projectName = projectEl.GetString()!;
-        var query = "MATCH (p:Project {name: $projectName})<-[:CONTAINS*1..]-(w:Workspace) " +
-                    "MATCH fileDir = (w)-[:CONTAINS*1..]->(file:File) " +
-                    "WHERE (p)-[:CONTAINS*1..]->(file) " +
-                    "MATCH (file)-[:CONTAINS*1..]->(f:Function) " +
-                    "OPTIONAL MATCH (caller)-[:CALLS]->(f) " +
-                    "WITH w, fileDir, file, f, caller " +
-                    "WHERE caller IS NULL " +
-                    "RETURN f.name AS unusedFunction, " +
-                    "w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + file.path AS file";
+        var query = "MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File) " +
+                    "MATCH (f)-[:CONTAINS*1..]->(func:Function) " +
+                    "WHERE f.path CONTAINS 'Controller' OR f.path CONTAINS 'Endpoint' OR f.path CONTAINS 'Handler' OR f.path CONTAINS 'Resolver' " +
+                    "OR func.name STARTS WITH 'On' OR func.name STARTS WITH 'Handle' " +
+                    "OPTIONAL MATCH (class:Class)-[:CONTAINS]->(func) " +
+                    "RETURN func.name AS entryPoint, func.symbol AS symbol, class.name AS className, f.path AS filePath, func.start_line AS startLine";
         var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    private async Task<object> HandleExecuteCustomCypherAsync(JsonElement args)
+    private async Task<object> HandleFindRefactoringOpportunitiesAsync(JsonElement args)
+    {
+        if (!args.TryGetProperty("projectName", out var projectEl) || projectEl.ValueKind != JsonValueKind.String)
+        {
+            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'projectName' argument." } } };
+        }
+        var projectName = projectEl.GetString()!;
+        var metricType = "all";
+        if (args.TryGetProperty("metricType", out var metricEl) && metricEl.ValueKind == JsonValueKind.String)
+        {
+            metricType = metricEl.GetString()!;
+        }
+
+        var results = new List<object>();
+
+        if (metricType == "dead_code" || metricType == "all")
+        {
+            var deadCodeQuery = "MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File) " +
+                                "MATCH (f)-[:CONTAINS*1..]->(item) " +
+                                "WHERE (item:Function OR item:Class) " +
+                                "OPTIONAL MATCH (caller:Entity)-[:CALLS|USES_TYPE]->(item) " +
+                                "WITH f, item, caller " +
+                                "WHERE caller IS NULL " +
+                                "RETURN item.name AS name, labels(item)[0] AS type, f.path AS filePath, 'dead_code' AS anomalyType, item.symbol AS symbol LIMIT 50";
+            
+            var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
+            var res = await dbClient.ExecuteQueryAsync(deadCodeQuery, parameters);
+            using var doc = JsonDocument.Parse(res);
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                results.Add(item.Clone());
+            }
+        }
+
+        if (metricType == "god_objects" || metricType == "all")
+        {
+            var godObjectsQuery = "MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File) " +
+                                  "MATCH (f)-[:CONTAINS*1..]->(c:Class) " +
+                                  "MATCH (c)-[:CONTAINS]->(member) " +
+                                  "WITH c, f, count(member) AS memberCount " +
+                                  "WHERE memberCount > 15 " +
+                                  "RETURN c.name AS name, 'Class' AS type, f.path AS filePath, 'god_object' AS anomalyType, memberCount AS metricValue, c.symbol AS symbol " +
+                                  "ORDER BY memberCount DESC LIMIT 20";
+            
+            var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
+            var res = await dbClient.ExecuteQueryAsync(godObjectsQuery, parameters);
+            using var doc = JsonDocument.Parse(res);
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                results.Add(item.Clone());
+            }
+        }
+
+        var wrappedJson = JsonSerializer.Serialize(new { results }, new JsonSerializerOptions { WriteIndented = true });
+        return new
+        {
+            content = new[]
+            {
+                new { type = "text", text = wrappedJson }
+            }
+        };
+    }
+
+    private async Task<object> HandleExecuteCustomReadCypherAsync(JsonElement args)
     {
         if (!args.TryGetProperty("query", out var queryEl) || queryEl.ValueKind != JsonValueKind.String)
         {
             return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'query' argument." } } };
         }
         var query = queryEl.GetString()!;
+        
+        var lowerQuery = query.ToLowerInvariant();
+        if (lowerQuery.Contains("create") || lowerQuery.Contains("delete") || lowerQuery.Contains("set") || 
+            lowerQuery.Contains("merge") || lowerQuery.Contains("remove") || lowerQuery.Contains("drop") || lowerQuery.Contains("detach"))
+        {
+            return new { isError = true, content = new[] { new { type = "text", text = "Security violation: Mutating queries are not allowed." } } };
+        }
+
         return await ExecuteAndFormatQueryAsync(query);
     }
 
@@ -749,5 +734,81 @@ public class McpServer(MemgraphClient dbClient)
         }
 
         return output.Count == 0 ? "No valid code contexts retrieved." : string.Join("\n\n", output);
+    }
+
+
+
+    private async Task<object> HandleGetTaxonomyAsync(JsonElement args)
+    {
+        try
+        {
+            var query = "MATCH (n)-[r]->(m) WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] AS toLabel RETURN fromLabel, relType, toLabel";
+            var resultJson = await dbClient.ExecuteQueryAsync(query);
+            var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? new();
+
+            var propQuery = "MATCH (n) UNWIND labels(n) AS label UNWIND keys(n) AS key RETURN DISTINCT label, key";
+            var propJson = await dbClient.ExecuteQueryAsync(propQuery);
+            var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? new();
+
+            var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
+
+            return new
+            {
+                content = new[]
+                {
+                    new { type = "text", text = JsonSerializer.Serialize(new { taxonomy }, new JsonSerializerOptions { WriteIndented = true }) }
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new
+            {
+                isError = true,
+                content = new[] { new { type = "text", text = ex.Message } }
+            };
+        }
+    }
+
+    internal static object BuildTaxonomy(List<Dictionary<string, string>> triplets, List<Dictionary<string, string>> properties)
+    {
+        var nodes = new Dictionary<string, (List<string> properties, HashSet<(string relationship, string target)> outgoing, HashSet<(string relationship, string source)> incoming)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var prop in properties)
+        {
+            if (prop.TryGetValue("label", out var label) && prop.TryGetValue("key", out var key))
+            {
+                if (!nodes.ContainsKey(label)) nodes[label] = (new List<string>(), new(), new());
+                nodes[label].properties.Add(key);
+            }
+        }
+
+        foreach (var triplet in triplets)
+        {
+            if (triplet.TryGetValue("fromLabel", out var from) &&
+                triplet.TryGetValue("relType", out var rel) &&
+                triplet.TryGetValue("toLabel", out var to))
+            {
+                if (!nodes.ContainsKey(from)) nodes[from] = (new List<string>(), new(), new());
+                if (!nodes.ContainsKey(to)) nodes[to] = (new List<string>(), new(), new());
+
+                nodes[from].outgoing.Add((rel, to));
+                nodes[to].incoming.Add((rel, from));
+            }
+        }
+
+        var result = new List<object>();
+        foreach (var kvp in nodes.OrderBy(k => k.Key))
+        {
+            result.Add(new
+            {
+                label = kvp.Key,
+                properties = kvp.Value.properties.OrderBy(p => p).ToList(),
+                outgoing = kvp.Value.outgoing.OrderBy(x => x.relationship).Select(x => new { relationship = x.relationship, target = x.target }).ToList(),
+                incoming = kvp.Value.incoming.OrderBy(x => x.relationship).Select(x => new { relationship = x.relationship, source = x.source }).ToList()
+            });
+        }
+
+        return result;
     }
 }

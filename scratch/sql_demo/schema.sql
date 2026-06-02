@@ -39,3 +39,10 @@ BEGIN
     EXEC Inventory.NotifyStockLevel @ProductId;
 END;
 GO
+
+-- Loose/Top-Level SQL Queries
+SELECT * FROM Inventory.Products;
+GO
+
+INSERT INTO Inventory.Orders (OrderId, ProductId, Quantity) VALUES (1, 1, 10);
+GO
