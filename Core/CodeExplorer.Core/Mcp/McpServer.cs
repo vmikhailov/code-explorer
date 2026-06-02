@@ -229,6 +229,24 @@ public class McpServer(MemgraphClient dbClient)
                                 },
                                 required = new[] { "nodes_json" }
                             }
+                        },
+                        new
+                        {
+                            name = "get_node_definition",
+                            description = "Retrieves the structural purpose, meaning, properties, and relationships of a specified database node kind/label in the CodeExplorer ontology (e.g. 'Solution', 'SolutionFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable').",
+                            inputSchema = new
+                            {
+                                type = "object",
+                                properties = new
+                                {
+                                    kind = new
+                                    {
+                                        type = "string",
+                                        description = "The database node label/kind to query (e.g. 'Solution', 'SolutionFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable')."
+                                    }
+                                },
+                                required = new[] { "kind" }
+                            }
                         }
                     }
                 };
@@ -249,6 +267,7 @@ public class McpServer(MemgraphClient dbClient)
                     "find_dead_code" => await HandleFindDeadCodeAsync(args),
                     "execute_custom_cypher" => await HandleExecuteCustomCypherAsync(args),
                     "fetch_code_snippets" => HandleFetchCodeSnippets(args),
+                    "get_node_definition" => HandleGetNodeDefinition(args),
                     _ => new { isError = true, content = new[] { new { type = "text", text = $"Unknown tool: {toolName}" } } }
                 };
                 break;
@@ -448,6 +467,123 @@ public class McpServer(MemgraphClient dbClient)
                 }
             };
         }
+    }
+
+    private object HandleGetNodeDefinition(JsonElement args)
+    {
+        if (!args.TryGetProperty("kind", out var kindEl) || kindEl.ValueKind != JsonValueKind.String)
+        {
+            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'kind' argument." } } };
+        }
+        var kind = kindEl.GetString()!.Trim();
+        var kindLower = kind.ToLowerInvariant();
+
+        string text = kindLower switch
+        {
+            "solution" => 
+                "### Kind: Solution\n" +
+                "**Purpose**: Represents the absolute root of the workspace directory hierarchy.\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The workspace root folder name.\n" +
+                "  - `path` (string): The absolute filesystem path of the workspace.\n" +
+                "**Relationships**:\n" +
+                "  - `(Solution)-[:CONTAINS]->(SolutionFolder)`\n" +
+                "  - `(Solution)-[:CONTAINS]->(Project)`\n" +
+                "  - `(Solution)-[:CONTAINS]->(File)` (if a source file sits at the root directory)",
+
+            "solutionfolder" =>
+                "### Kind: SolutionFolder\n" +
+                "**Purpose**: Represents a directory located at the top-level Solution hierarchy (outside of any specific code project). Used for high-level structure and organization.\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The folder name.\n" +
+                "  - `path` (string): The relative path of the directory from the solution root.\n" +
+                "**Relationships**:\n" +
+                "  - `(Solution)-[:CONTAINS]->(SolutionFolder)`\n" +
+                "  - `(SolutionFolder)-[:CONTAINS]->(SolutionFolder)`\n" +
+                "  - `(SolutionFolder)-[:CONTAINS]->(Project)`",
+
+            "project" =>
+                "### Kind: Project\n" +
+                "**Purpose**: Represents a dynamic buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The project folder name.\n" +
+                "  - `path` (string): The relative path of the project from the solution root.\n" +
+                "  - `project_type` (string): The language/signature identifier (e.g., 'csharp', 'go', 'python', 'typescript').\n" +
+                "**Relationships**:\n" +
+                "  - `(SolutionFolder|Solution)-[:CONTAINS]->(Project)`\n" +
+                "  - `(Project)-[:CONTAINS]->(ProjectFolder)`\n" +
+                "  - `(Project)-[:CONTAINS]->(File)`",
+
+            "projectfolder" =>
+                "### Kind: ProjectFolder\n" +
+                "**Purpose**: Represents a subdirectory located *inside* a `Project` directory structure. Used for internal modular directory organization.\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The folder name.\n" +
+                "  - `path` (string): The relative path of the folder from the solution root.\n" +
+                "**Relationships**:\n" +
+                "  - `(Project)-[:CONTAINS]->(ProjectFolder)`\n" +
+                "  - `(ProjectFolder)-[:CONTAINS]->(ProjectFolder)`\n" +
+                "  - `(ProjectFolder)-[:CONTAINS]->(File)`",
+
+            "file" =>
+                "### Kind: File\n" +
+                "**Purpose**: Represents a source code file containing parsable content.\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The filename basename.\n" +
+                "  - `path` (string): The relative path of the file from the solution root.\n" +
+                "**Relationships**:\n" +
+                "  - `(Solution|SolutionFolder|Project|ProjectFolder)-[:CONTAINS]->(File)`\n" +
+                "  - `(File)-[:CONTAINS]->(Class)`\n" +
+                "  - `(File)-[:CONTAINS]->(Function)`",
+
+            "class" =>
+                "### Kind: Class\n" +
+                "**Purpose**: Represents a parsed OOP class, interface, struct, or type definition.\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The name of the class.\n" +
+                "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
+                "  - `start_line` / `end_line` (integer): The bounds of the class definition.\n" +
+                "  - `file_path` (string): The relative path of the declaring file.\n" +
+                "**Relationships**:\n" +
+                "  - `(File)-[:CONTAINS]->(Class)`\n" +
+                "  - `(Class)-[:USES_TYPE]->(Class)`\n" +
+                "  - `(Class)-[:IMPLEMENTS]->(Class)`\n" +
+                "  - `(Class)-[:INHERITS_FROM]->(Class)`",
+
+            "function" =>
+                "### Kind: Function\n" +
+                "**Purpose**: Represents a parsed method, function, subroutine, or procedure.\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The name of the function.\n" +
+                "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
+                "  - `start_line` / `end_line` (integer): The bounds of the function definition.\n" +
+                "  - `file_path` (string): The relative path of the declaring file.\n" +
+                "**Relationships**:\n" +
+                "  - `(File|Class)-[:CONTAINS]->(Function)`\n" +
+                "  - `(Function)-[:CALLS]->(Function)`\n" +
+                "  - `(Function)-[:USES_TYPE]->(Class)`",
+
+            "variable" =>
+                "### Kind: Variable\n" +
+                "**Purpose**: Represents a declared field, variable, parameter, or property parsed from the AST.\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The name of the variable.\n" +
+                "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
+                "  - `start_line` / `end_line` (integer): The bounds of the variable declaration.\n" +
+                "  - `file_path` (string): The relative path of the declaring file.\n" +
+                "**Relationships**:\n" +
+                "  - `(Class|Function)-[:CONTAINS]->(Variable)`",
+
+            _ => $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Solution', 'SolutionFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable'."
+        };
+
+        return new
+        {
+            content = new[]
+            {
+                new { type = "text", text }
+            }
+        };
     }
 
 
