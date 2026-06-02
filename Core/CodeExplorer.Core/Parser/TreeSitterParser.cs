@@ -20,11 +20,12 @@ public class SolutionParser
     private static void Scan(
         string currentDir, 
         string absoluteWorkspacePath, 
-        List<string> collectedFiles, 
+        string currentParentId,
+        List<Database.Node> structuralNodes,
+        List<Database.Relationship> structuralRelationships,
+        Dictionary<string, List<string>> projectFiles,
         HashSet<string> detectedProjectTypes,
         Dictionary<string, (string Id, string Kind)> visitedDirs,
-        List<Database.Node> allNodes,
-        List<Database.Relationship> allRelationships,
         bool insideProject,
         GitIgnoreMatcher gitignore)
     {
@@ -59,24 +60,21 @@ public class SolutionParser
         bool isProject = false;
         string? projectType = null;
 
-        lock (Parsers)
+        if (!insideProject)
         {
-            foreach (var parser in Parsers)
+            lock (Parsers)
             {
-                if (parser.IsProjectDirectory(currentDir, filesInDir))
+                foreach (var parser in Parsers)
                 {
-                    newlyDetectedTypes.Add(parser.ProjectType);
-                    isProject = true;
-                    projectType = parser.ProjectType;
-                    Console.Error.WriteLine($"[SolutionParser] Project: Detected {parser.ProjectType} project signature at '{relativeDir}'");
+                    if (parser.IsProjectDirectory(currentDir, filesInDir))
+                    {
+                        newlyDetectedTypes.Add(parser.ProjectType);
+                        isProject = true;
+                        projectType = parser.ProjectType;
+                        Console.Error.WriteLine($"[SolutionParser] Project: Detected {parser.ProjectType} project signature at '{relativeDir}'");
+                    }
                 }
             }
-        }
-
-        // A project cannot contain another project.
-        if (isProject && insideProject)
-        {
-            isProject = false;
         }
 
         // Propagate whether we are inside a project to subdirectories
@@ -120,15 +118,14 @@ public class SolutionParser
             return;
         }
 
-        // Register current directory in visitedDirs and allNodes
+        // Register current directory in visitedDirs and structuralNodes
         string currentId;
         string currentKind;
 
         if (string.IsNullOrEmpty(relativeDir))
         {
-            // Root directory
-            currentId = $"root:{absoluteWorkspacePath}";
-            currentKind = "Root";
+            currentId = $"solution:{absoluteWorkspacePath}";
+            currentKind = "Solution";
             visitedDirs[relativeDir] = (currentId, currentKind);
         }
         else
@@ -137,7 +134,7 @@ public class SolutionParser
             {
                 currentId = $"project:{absoluteWorkspacePath}:{relativeDir}";
                 currentKind = "Project";
-                allNodes.Add(new Database.Node(currentId, "Project", new Dictionary<string, object> 
+                structuralNodes.Add(new Database.Node(currentId, "Project", new Dictionary<string, object> 
                 { 
                     ["name"] = dirName,
                     ["path"] = relativeDir,
@@ -149,7 +146,7 @@ public class SolutionParser
             {
                 currentId = $"folder:{absoluteWorkspacePath}:{relativeDir}";
                 currentKind = "Folder";
-                allNodes.Add(new Database.Node(currentId, "Folder", new Dictionary<string, object> 
+                structuralNodes.Add(new Database.Node(currentId, "Folder", new Dictionary<string, object> 
                 { 
                     ["name"] = dirName,
                     ["path"] = relativeDir 
@@ -165,9 +162,11 @@ public class SolutionParser
 
             if (visitedDirs.TryGetValue(parentRelative, out var parentInfo))
             {
-                allRelationships.Add(new Database.Relationship(parentInfo.Id, currentId, "CONTAINS"));
+                structuralRelationships.Add(new Database.Relationship(parentInfo.Id, currentId, "CONTAINS"));
             }
         }
+
+        string nextParentId = isProject ? currentId : currentParentId;
 
         // Add matching source files in this folder
         foreach (var file in filesInDir)
@@ -180,12 +179,20 @@ public class SolutionParser
             }
 
             var ext = Path.GetExtension(file).ToLowerInvariant();
+            bool canParse = false;
             lock (Parsers)
             {
-                if (Parsers.Any(p => p.CanParse(ext)))
+                canParse = Parsers.Any(p => p.CanParse(ext));
+            }
+
+            if (canParse)
+            {
+                if (!projectFiles.TryGetValue(nextParentId, out var fileList))
                 {
-                    collectedFiles.Add(file);
+                    fileList = new List<string>();
+                    projectFiles[nextParentId] = fileList;
                 }
+                fileList.Add(file);
             }
         }
 
@@ -193,155 +200,250 @@ public class SolutionParser
         var subDirs = Directory.GetDirectories(currentDir);
         foreach (var subDir in subDirs)
         {
-            // We pass a copy of detectedProjectTypes so that subdirectories inherit active project types
             var subProjectTypes = new HashSet<string>(detectedProjectTypes);
-            Scan(subDir, absoluteWorkspacePath, collectedFiles, subProjectTypes, visitedDirs, allNodes, allRelationships, currentInsideProject, gitignore);
+            Scan(subDir, absoluteWorkspacePath, nextParentId, structuralNodes, structuralRelationships, projectFiles, subProjectTypes, visitedDirs, currentInsideProject, gitignore);
         }
     }
 
-    public static (List<Database.Node> Nodes, List<Database.Relationship> Relationships) ParseDirectory(string dirPath)
+    public static async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexDirectoryAsync(
+        string dirPath, 
+        Database.MemgraphClient dbClient, 
+        bool clear)
     {
-        var allNodes = new List<Database.Node>();
-        var allRelationships = new List<Database.Relationship>();
-        var allReferences = new List<Reference>();
-
         var absoluteWorkspacePath = Path.GetFullPath(dirPath).Replace('\\', '/');
+        
+        // 1. Clear previous workspace data surgically if clear option is enabled
+        if (clear)
+        {
+            Console.Error.WriteLine($"[SolutionParser] Clearing workspace data for path '{absoluteWorkspacePath}'...");
+            await dbClient.ClearWorkspaceAsync(absoluteWorkspacePath);
+        }
+
+        // 2. Ensure database indexes exist
+        await dbClient.CreateIndicesAsync();
+
         var folderName = Path.GetFileName(absoluteWorkspacePath);
         if (string.IsNullOrEmpty(folderName)) folderName = absoluteWorkspacePath;
-        var rootNodeId = $"root:{absoluteWorkspacePath}";
+        var solutionNodeId = $"solution:{absoluteWorkspacePath}";
 
-        allNodes.Add(new Database.Node(
-            rootNodeId,
-            "Root",
+        // Create the Solution Node immediately and upload it!
+        var solutionNode = new Database.Node(
+            solutionNodeId,
+            "Solution",
             new Dictionary<string, object>
             {
                 ["path"] = absoluteWorkspacePath,
                 ["name"] = folderName
             }
-        ));
+        );
+        Console.Error.WriteLine($"[SolutionParser] Uploading Solution node for '{absoluteWorkspacePath}'...");
+        await dbClient.UploadNodesAsync(new List<Database.Node> { solutionNode });
 
-        // Use custom directory scanning that detects project types and handles exclusions
-        var files = new List<string>();
+        // Prepare lists for structural discovery
+        var structuralNodes = new List<Database.Node>();
+        var structuralRelationships = new List<Database.Relationship>();
+        var projectFiles = new Dictionary<string, List<string>>();
         var detectedProjectTypes = new HashSet<string>();
         var visitedDirs = new Dictionary<string, (string Id, string Kind)>();
         var gitignore = new GitIgnoreMatcher(absoluteWorkspacePath);
-        Scan(absoluteWorkspacePath, absoluteWorkspacePath, files, detectedProjectTypes, visitedDirs, allNodes, allRelationships, false, gitignore);
 
-        foreach (var file in files)
+        // Run structural scanning to map folders, projects, and group files
+        Console.Error.WriteLine("[SolutionParser] Scanning workspace directory structure...");
+        Scan(absoluteWorkspacePath, absoluteWorkspacePath, solutionNodeId, structuralNodes, structuralRelationships, projectFiles, detectedProjectTypes, visitedDirs, false, gitignore);
+
+        // Upload all structural nodes (Folder, Project) and structural relationships (CONTAINS)
+        if (structuralNodes.Count > 0)
         {
-            var ext = Path.GetExtension(file).ToLower();
-
-            ILanguageParser? langParser = null;
-            lock (Parsers)
-            {
-                langParser = Parsers.FirstOrDefault(p => p.CanParse(ext));
-            }
-            if (langParser == null) continue;
-
-            var relativePath = Path.GetRelativePath(dirPath, file).Replace('\\', '/');
-            Console.Error.WriteLine($"[SolutionParser] Parsing file '{relativePath}' using {langParser.LanguageName} parser...");
-
-            try
-            {
-                using var language = new Language(langParser.LanguageName);
-                using var parser = new global::TreeSitter.Parser(language);
-
-                var sourceText = File.ReadAllText(file);
-                using var tree = parser.Parse(sourceText);
-
-                if (tree == null || tree.RootNode == null) continue;
-
-                var ctx = new FileContext(absoluteWorkspacePath, relativePath, sourceText, langParser);
-
-                // Add File Node
-                var fileNodeId = $"file:{absoluteWorkspacePath}:{relativePath}";
-                ctx.Nodes.Add(new Database.Node(
-                    fileNodeId,
-                    "File",
-                    new Dictionary<string, object>
-                    {
-                        ["path"] = relativePath,
-                        ["name"] = Path.GetFileName(file)
-                    }
-                ));
-
-                // Find the parent directory node info from visitedDirs
-                var parentDir = Path.GetDirectoryName(file)!.Replace('\\', '/');
-                var parentRelative = Path.GetRelativePath(dirPath, parentDir).Replace('\\', '/');
-                if (parentRelative == ".") parentRelative = "";
-
-                string parentNodeId = rootNodeId;
-                if (visitedDirs.TryGetValue(parentRelative, out var parentInfo))
-                {
-                    parentNodeId = parentInfo.Id;
-                }
-
-                // Relate Parent Node (Folder, Project, or Root) contains File
-                allRelationships.Add(new Database.Relationship(parentNodeId, fileNodeId, "CONTAINS"));
-
-                // Traverse AST
-                TraverseNode(tree.RootNode, fileNodeId, ctx);
-
-                allNodes.AddRange(ctx.Nodes);
-                allRelationships.AddRange(ctx.Relationships);
-                allReferences.AddRange(ctx.References);
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Error parsing file {file}: {ex.Message}");
-            }
+            Console.Error.WriteLine($"[SolutionParser] Uploading {structuralNodes.Count} structural directory nodes...");
+            await dbClient.UploadNodesAsync(structuralNodes);
+        }
+        if (structuralRelationships.Count > 0)
+        {
+            Console.Error.WriteLine($"[SolutionParser] Uploading {structuralRelationships.Count} structural CONTAINS relationships...");
+            await dbClient.UploadRelationshipsAsync(structuralRelationships);
         }
 
-        // Perform global semantic resolution
-        var definedSymbolsByKindAndName = allNodes
-            .Where(n => n.Kind is "Class" or "Function")
-            .GroupBy(n => (n.Kind, Name: (string)n.Properties["name"]))
-            .ToDictionary(g => g.Key, g => g.First());
+        // Track indexing statistics
+        int totalNodesCount = 1 + structuralNodes.Count; // 1 for the Solution node itself
+        int totalRelsCount = structuralRelationships.Count;
+        var nodesByKind = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Solution"] = 1
+        };
+        foreach (var node in structuralNodes)
+        {
+            if (!nodesByKind.ContainsKey(node.Kind)) nodesByKind[node.Kind] = 0;
+            nodesByKind[node.Kind]++;
+        }
 
-        foreach (var refItem in allReferences)
+        // Global symbols and references for inter-project resolution
+        var globalSymbols = new Dictionary<(string Kind, string Name), string>();
+        var globalReferences = new List<Reference>();
+
+        // 3. Process and parse files project-by-project/group-by-group, flushing them immediately
+        foreach (var entry in projectFiles)
+        {
+            var projectOrSolutionId = entry.Key;
+            var filePaths = entry.Value;
+
+            var groupNodes = new List<Database.Node>();
+            var groupRelationships = new List<Database.Relationship>();
+            var groupReferences = new List<Reference>();
+
+            foreach (var file in filePaths)
+            {
+                var ext = Path.GetExtension(file).ToLower();
+
+                ILanguageParser? langParser = null;
+                lock (Parsers)
+                {
+                    langParser = Parsers.FirstOrDefault(p => p.CanParse(ext));
+                }
+                if (langParser == null) continue;
+
+                var relativePath = Path.GetRelativePath(dirPath, file).Replace('\\', '/');
+                Console.Error.WriteLine($"[SolutionParser] Parsing file '{relativePath}' using {langParser.LanguageName} parser...");
+
+                try
+                {
+                    using var language = new Language(langParser.LanguageName);
+                    using var parser = new global::TreeSitter.Parser(language);
+
+                    var sourceText = File.ReadAllText(file);
+                    using var tree = parser.Parse(sourceText);
+
+                    if (tree == null || tree.RootNode == null) continue;
+
+                    var ctx = new FileContext(absoluteWorkspacePath, relativePath, sourceText, langParser);
+
+                    // Add File Node
+                    var fileNodeId = $"file:{absoluteWorkspacePath}:{relativePath}";
+                    ctx.Nodes.Add(new Database.Node(
+                        fileNodeId,
+                        "File",
+                        new Dictionary<string, object>
+                        {
+                            ["path"] = relativePath,
+                            ["name"] = Path.GetFileName(file)
+                        }
+                    ));
+
+                    // Find the parent directory node info from visitedDirs
+                    var parentDir = Path.GetDirectoryName(file)!.Replace('\\', '/');
+                    var parentRelative = Path.GetRelativePath(dirPath, parentDir).Replace('\\', '/');
+                    if (parentRelative == ".") parentRelative = "";
+
+                    string parentNodeId = solutionNodeId;
+                    if (visitedDirs.TryGetValue(parentRelative, out var parentInfo))
+                    {
+                        parentNodeId = parentInfo.Id;
+                    }
+
+                    // Relate Parent Node to File Node
+                    groupRelationships.Add(new Database.Relationship(parentNodeId, fileNodeId, "CONTAINS"));
+
+                    // Traverse AST
+                    TraverseNode(tree.RootNode, fileNodeId, ctx);
+
+                    groupNodes.AddRange(ctx.Nodes);
+                    groupRelationships.AddRange(ctx.Relationships);
+                    groupReferences.AddRange(ctx.References);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"Error parsing file {file}: {ex.Message}");
+                }
+            }
+
+            // Immediately flush this project/group's files and AST nodes to the database
+            if (groupNodes.Count > 0)
+            {
+                await dbClient.UploadNodesAsync(groupNodes);
+                totalNodesCount += groupNodes.Count;
+
+                foreach (var node in groupNodes)
+                {
+                    if (!nodesByKind.ContainsKey(node.Kind)) nodesByKind[node.Kind] = 0;
+                    nodesByKind[node.Kind]++;
+
+                    // Track symbols globally for inter-project/solution reference resolution
+                    if (node.Kind is "Class" or "Function")
+                    {
+                        if (node.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
+                        {
+                            globalSymbols[(node.Kind, nameStr)] = node.Id;
+                        }
+                    }
+                }
+            }
+
+            if (groupRelationships.Count > 0)
+            {
+                await dbClient.UploadRelationshipsAsync(groupRelationships);
+                totalRelsCount += groupRelationships.Count;
+            }
+
+            // Collect references globally
+            globalReferences.AddRange(groupReferences);
+
+            Console.Error.WriteLine($"[SolutionParser] Flushed group '{projectOrSolutionId}' to graph database. File count: {filePaths.Count}");
+        }
+
+        // 4. Deferred Global Reference Resolution & Final Reference Upload
+        Console.Error.WriteLine($"[SolutionParser] Resolving {globalReferences.Count} global cross-references...");
+        var referenceRelationships = new List<Database.Relationship>();
+
+        foreach (var refItem in globalReferences)
         {
             if (refItem.Kind == "CALLS")
             {
-                if (definedSymbolsByKindAndName.TryGetValue(("Function", refItem.TargetName), out var targetNode))
+                if (globalSymbols.TryGetValue(("Function", refItem.TargetName), out var targetNodeId))
                 {
-                    allRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNode.Id, "CALLS"));
+                    referenceRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNodeId, "CALLS"));
                 }
             }
             else if (refItem.Kind == "USES_TYPE")
             {
-                if (definedSymbolsByKindAndName.TryGetValue(("Class", refItem.TargetName), out var targetNode))
+                if (globalSymbols.TryGetValue(("Class", refItem.TargetName), out var targetNodeId))
                 {
-                    allRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNode.Id, "USES_TYPE"));
+                    referenceRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNodeId, "USES_TYPE"));
                 }
             }
             else if (refItem.Kind == "IMPLEMENTS" || refItem.Kind == "INHERITS_FROM")
             {
-                if (definedSymbolsByKindAndName.TryGetValue(("Class", refItem.TargetName), out var targetNode))
+                if (globalSymbols.TryGetValue(("Class", refItem.TargetName), out var targetNodeId))
                 {
-                    allRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNode.Id, refItem.Kind));
+                    referenceRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNodeId, refItem.Kind));
                 }
             }
             else if (refItem.Kind == "POTENTIAL_TYPE")
             {
-                if (definedSymbolsByKindAndName.TryGetValue(("Class", refItem.TargetName), out var targetNode))
+                if (globalSymbols.TryGetValue(("Class", refItem.TargetName), out var targetNodeId))
                 {
-                    if (refItem.ScopeSymbolId != targetNode.Id)
+                    if (refItem.ScopeSymbolId != targetNodeId)
                     {
-                        bool hasInheritance = allRelationships.Any(r =>
+                        bool hasInheritance = referenceRelationships.Any(r =>
                             r.From == refItem.ScopeSymbolId &&
-                            r.To == targetNode.Id &&
+                            r.To == targetNodeId &&
                             (r.Kind == "IMPLEMENTS" || r.Kind == "INHERITS_FROM"));
 
                         if (!hasInheritance)
                         {
-                            allRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNode.Id, "USES_TYPE"));
+                            referenceRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNodeId, "USES_TYPE"));
                         }
                     }
                 }
             }
         }
 
-        return (allNodes, allRelationships);
+        if (referenceRelationships.Count > 0)
+        {
+            Console.Error.WriteLine($"[SolutionParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
+            await dbClient.UploadRelationshipsAsync(referenceRelationships);
+            totalRelsCount += referenceRelationships.Count;
+        }
+
+        return (totalNodesCount, totalRelsCount, nodesByKind);
     }
 
     private static void TraverseNode(Node node, string parentId, FileContext ctx)

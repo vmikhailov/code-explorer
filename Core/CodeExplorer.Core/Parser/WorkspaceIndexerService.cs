@@ -17,25 +17,6 @@ public class WorkspaceIndexerService(MemgraphClient dbClient)
 
         var absolutePath = Path.GetFullPath(dirPath).Replace('\\', '/');
 
-        // 1. Parse directory and construct AST tree with TreeSitter
-        var (nodes, relationships) = SolutionParser.ParseDirectory(absolutePath);
-
-        // 2. Clear previous workspace data surgically if clear option is enabled
-        if (clear)
-        {
-            await dbClient.ClearWorkspaceAsync(absolutePath);
-        }
-
-        // 3. Ensure database indexes exist
-        await dbClient.CreateIndicesAsync();
-
-        // 4. Bulk upload nodes and relationships
-        await dbClient.UploadNodesAsync(nodes);
-        await dbClient.UploadRelationshipsAsync(relationships);
-
-        // Calculate statistics of nodes by kind
-        var nodesByKind = nodes.GroupBy(n => n.Kind).ToDictionary(g => g.Key, g => g.Count());
-
-        return (nodes.Count, relationships.Count, nodesByKind);
+        return await SolutionParser.IndexDirectoryAsync(absolutePath, dbClient, clear);
     }
 }

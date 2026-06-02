@@ -44,7 +44,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         await session.ExecuteWriteAsync(async tx =>
         {
             await tx.RunAsync(
-                "MATCH (r:Root {path: $workspacePath})-[:CONTAINS*0..]->(n) DETACH DELETE n",
+                "MATCH (r:Solution {path: $workspacePath})-[:CONTAINS*0..]->(n) DETACH DELETE n",
                 new { workspacePath }
             );
         });
