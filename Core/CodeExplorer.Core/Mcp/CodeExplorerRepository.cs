@@ -3,44 +3,22 @@ using CodeExplorer.Database;
 
 namespace CodeExplorer.Mcp;
 
-public class McpGraphRepository(MemgraphClient dbClient)
+public class CodeExplorerRepository(MemgraphClient dbClient)
 {
-    private async Task<object> ExecuteAndFormatQueryAsync(string query, object? parameters = null)
+    private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null)
     {
-        try
-        {
-            var resultJson = await dbClient.ExecuteQueryAsync(query, parameters);
-            using var doc = JsonDocument.Parse(resultJson);
-            var wrappedJson = JsonSerializer.Serialize(new { results = doc.RootElement }, new JsonSerializerOptions { WriteIndented = true });
-
-            return new
-            {
-                content = new[]
-                {
-                    new { type = "text", text = wrappedJson }
-                }
-            };
-        }
-        catch (Exception ex)
-        {
-            return new
-            {
-                isError = true,
-                content = new[]
-                {
-                    new { type = "text", text = ex.Message }
-                }
-            };
-        }
+        var resultJson = await dbClient.ExecuteQueryAsync(query, parameters);
+        using var doc = JsonDocument.Parse(resultJson);
+        return JsonSerializer.Serialize(new { results = doc.RootElement }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public async Task<object> GetArchitectureMapAsync(JsonElement args)
+    public async Task<string> GetArchitectureMapAsync(string? projectName = null)
     {
         string query;
         var parameters = new Dictionary<string, object>();
-        if (args.TryGetProperty("projectName", out var projEl) && projEl.ValueKind == JsonValueKind.String)
+        if (!string.IsNullOrEmpty(projectName))
         {
-            parameters["projectName"] = projEl.GetString()!;
+            parameters["projectName"] = projectName;
             query = "MATCH (p:Project {name: $projectName}) " +
                     "OPTIONAL MATCH (p)-[:USES_DB]->(db:DB) " +
                     "OPTIONAL MATCH (p)-[:CONTAINS*1..]->(pf:ProjectFolder) " +
@@ -57,13 +35,13 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> GetProjectDependenciesAsync(JsonElement args)
+    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null)
     {
         string query;
         var parameters = new Dictionary<string, object>();
-        if (args.TryGetProperty("projectFilter", out var filterEl) && filterEl.ValueKind == JsonValueKind.String)
+        if (!string.IsNullOrEmpty(projectFilter))
         {
-            parameters["projectFilter"] = filterEl.GetString()!;
+            parameters["projectFilter"] = projectFilter;
             query = "MATCH (p:Project {name: $projectFilter}) " +
                     "OPTIONAL MATCH (p)-[:DEPENDS_ON]->(out) " +
                     "OPTIONAL MATCH (in)-[:DEPENDS_ON]->(p) " +
@@ -77,13 +55,8 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> GetFileOutlineAsync(JsonElement args)
+    public async Task<string> GetFileOutlineAsync(string filePath)
     {
-        if (!args.TryGetProperty("filePath", out var pathEl) || pathEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'filePath' argument." } } };
-        }
-        var filePath = pathEl.GetString()!;
         var query = "MATCH (f:File) WHERE f.path ENDS_WITH $filePath OR f.file_path = $filePath " +
                     "OPTIONAL MATCH (f)-[:CONTAINS*1..]->(child) " +
                     "WHERE child:Class OR child:Interface OR child:Function OR child:Variable OR child:Query " +
@@ -93,23 +66,12 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> FindSymbolAsync(JsonElement args)
+    public async Task<string> FindSymbolAsync(string name, string? symbolType = null)
     {
-        if (!args.TryGetProperty("name", out var nameEl) || nameEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'name' argument." } } };
-        }
-        var name = nameEl.GetString()!;
-        string? type = null;
-        if (args.TryGetProperty("symbolType", out var typeEl) && typeEl.ValueKind == JsonValueKind.String)
-        {
-            type = typeEl.GetString();
-        }
-
         string query;
         var parameters = new Dictionary<string, object> { ["name"] = name };
 
-        if (type == "Function")
+        if (symbolType == "Function")
         {
             query = "MATCH (n:Function) WHERE n.name CONTAINS $name " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
@@ -120,7 +82,7 @@ public class McpGraphRepository(MemgraphClient dbClient)
                     "     ELSE n.file_path " +
                     "END AS filePath LIMIT 10";
         }
-        else if (type == "Class")
+        else if (symbolType == "Class")
         {
             query = "MATCH (n:Class) WHERE n.name CONTAINS $name " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
@@ -131,7 +93,7 @@ public class McpGraphRepository(MemgraphClient dbClient)
                     "     ELSE n.file_path " +
                     "END AS filePath LIMIT 10";
         }
-        else if (type == "Interface")
+        else if (symbolType == "Interface")
         {
             query = "MATCH (n:Interface) WHERE n.name CONTAINS $name " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
@@ -157,22 +119,9 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> GetCallChainAsync(JsonElement args)
+    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5)
     {
-        if (!args.TryGetProperty("startFunction", out var startEl) || startEl.ValueKind != JsonValueKind.String ||
-            !args.TryGetProperty("endFunction", out var endEl) || endEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'startFunction' or 'endFunction' argument." } } };
-        }
-        var startFunction = startEl.GetString()!;
-        var endFunction = endEl.GetString()!;
-
-        int depth = 5;
-        if (args.TryGetProperty("maxDepth", out var depthEl) && depthEl.ValueKind == JsonValueKind.Number)
-        {
-            depth = Math.Max(1, Math.Min(10, depthEl.GetInt32()));
-        }
-
+        var depth = Math.Max(1, Math.Min(10, maxDepth));
         var query = $"MATCH path = (src:Function {{symbol: $startFunction}})-[:CALLS*1..{depth}]->(tgt:Function {{symbol: $endFunction}}) " +
                     "RETURN nodes(path) AS chain";
         var parameters = new Dictionary<string, object> 
@@ -183,16 +132,8 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> ResolveCallTargetAsync(JsonElement args)
+    public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName)
     {
-        if (!args.TryGetProperty("interfaceName", out var interfaceEl) || interfaceEl.ValueKind != JsonValueKind.String ||
-            !args.TryGetProperty("methodName", out var methodEl) || methodEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'interfaceName' or 'methodName' argument." } } };
-        }
-        var interfaceName = interfaceEl.GetString()!;
-        var methodName = methodEl.GetString()!;
-
         var query = "MATCH (i:Interface {name: $interfaceName})<-[:IMPLEMENTS]-(impl:Class)-[:CONTAINS]->(f:Function {name: $methodName}) " +
                     "RETURN impl.name AS className, f.name AS methodName, f.symbol AS methodSymbol, f.file_path AS filePath, f.start_line AS startLine";
         var parameters = new Dictionary<string, object>
@@ -203,13 +144,8 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> AnalyzeCodeImpactAsync(JsonElement args)
+    public async Task<string> AnalyzeCodeImpactAsync(string symbolName)
     {
-        if (!args.TryGetProperty("symbolName", out var symbolEl) || symbolEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'symbolName' argument." } } };
-        }
-        var symbolName = symbolEl.GetString()!;
         var query = "MATCH (target) WHERE (target:Class OR target:Interface OR target:Function) AND (target.symbol = $symbolName OR target.name = $symbolName) " +
                     "MATCH (target)<-[:USES_TYPE|CALLS]-(dependent) " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(dependent) " +
@@ -223,13 +159,8 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> InspectDataLineageAsync(JsonElement args)
+    public async Task<string> InspectDataLineageAsync(string tableName)
     {
-        if (!args.TryGetProperty("tableName", out var tableEl) || tableEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'tableName' argument." } } };
-        }
-        var tableName = tableEl.GetString()!;
         var query = "MATCH (t:Table {name: $tableName}) " +
                     "OPTIONAL MATCH (q:Query)-[:DEPENDS_ON]->(t) " +
                     "OPTIONAL MATCH (parent)-[:CONTAINS]->(q) " +
@@ -241,13 +172,8 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> GetProjectEntryPointsAsync(JsonElement args)
+    public async Task<string> GetProjectEntryPointsAsync(string projectName)
     {
-        if (!args.TryGetProperty("projectName", out var projectEl) || projectEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'projectName' argument." } } };
-        }
-        var projectName = projectEl.GetString()!;
         var query = "MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File) " +
                     "MATCH (f)-[:CONTAINS*1..]->(func:Function) " +
                     "WHERE f.path CONTAINS 'Controller' OR f.path CONTAINS 'Endpoint' OR f.path CONTAINS 'Handler' OR f.path CONTAINS 'Resolver' " +
@@ -258,19 +184,8 @@ public class McpGraphRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<object> FindRefactoringOpportunitiesAsync(JsonElement args)
+    public async Task<string> FindRefactoringOpportunitiesAsync(string projectName, string metricType = "all")
     {
-        if (!args.TryGetProperty("projectName", out var projectEl) || projectEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'projectName' argument." } } };
-        }
-        var projectName = projectEl.GetString()!;
-        var metricType = "all";
-        if (args.TryGetProperty("metricType", out var metricEl) && metricEl.ValueKind == JsonValueKind.String)
-        {
-            metricType = metricEl.GetString()!;
-        }
-
         var results = new List<object>();
 
         if (metricType == "dead_code" || metricType == "all")
@@ -311,76 +226,45 @@ public class McpGraphRepository(MemgraphClient dbClient)
             }
         }
 
-        var wrappedJson = JsonSerializer.Serialize(new { results }, new JsonSerializerOptions { WriteIndented = true });
-        return new
-        {
-            content = new[]
-            {
-                new { type = "text", text = wrappedJson }
-            }
-        };
+        return JsonSerializer.Serialize(new { results }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public async Task<object> ExecuteCustomReadCypherAsync(JsonElement args)
+    public async Task<string> ExecuteCustomReadCypherAsync(string query)
     {
-        if (!args.TryGetProperty("query", out var queryEl) || queryEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'query' argument." } } };
-        }
-        var query = queryEl.GetString()!;
-        
         var lowerQuery = query.ToLowerInvariant();
         if (lowerQuery.Contains("create") || lowerQuery.Contains("delete") || lowerQuery.Contains("set") || 
             lowerQuery.Contains("merge") || lowerQuery.Contains("remove") || lowerQuery.Contains("drop") || lowerQuery.Contains("detach"))
         {
-            return new { isError = true, content = new[] { new { type = "text", text = "Security violation: Mutating queries are not allowed." } } };
+            throw new InvalidOperationException("Security violation: Mutating queries are not allowed.");
         }
 
         return await ExecuteAndFormatQueryAsync(query);
     }
 
-    public async Task<object> GetTaxonomyAsync(JsonElement args)
+    public async Task<string> GetTaxonomyAsync()
     {
-        try
-        {
-            var query = "MATCH (n)-[r]->(m) WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] AS toLabel RETURN fromLabel, relType, toLabel";
-            var resultJson = await dbClient.ExecuteQueryAsync(query);
-            var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? new();
+        var query = "MATCH (n)-[r]->(m) WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] AS toLabel RETURN fromLabel, relType, toLabel";
+        var resultJson = await dbClient.ExecuteQueryAsync(query);
+        var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? new();
 
-            var propQuery = "MATCH (n) UNWIND labels(n) AS label UNWIND keys(n) AS key RETURN DISTINCT label, key";
-            var propJson = await dbClient.ExecuteQueryAsync(propQuery);
-            var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? new();
+        var propQuery = "MATCH (n) UNWIND labels(n) AS label UNWIND keys(n) AS key RETURN DISTINCT label, key";
+        var propJson = await dbClient.ExecuteQueryAsync(propQuery);
+        var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? new();
 
-            var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
-
-            return new
-            {
-                content = new[]
-                {
-                    new { type = "text", text = JsonSerializer.Serialize(new { taxonomy }, new JsonSerializerOptions { WriteIndented = true }) }
-                }
-            };
-        }
-        catch (Exception ex)
-        {
-            return new
-            {
-                isError = true,
-                content = new[] { new { type = "text", text = ex.Message } }
-            };
-        }
+        var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
+        return JsonSerializer.Serialize(new { taxonomy }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public object GetNodeDefinition(JsonElement args)
+    public string FetchCodeSnippets(string nodesJson)
     {
-        if (!args.TryGetProperty("kind", out var kindEl) || kindEl.ValueKind != JsonValueKind.String)
-        {
-            return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'kind' argument." } } };
-        }
-        var kind = kindEl.GetString()!.Trim();
-        var kindLower = kind.ToLowerInvariant();
+        return FetchCodeSnippetsDirectly(nodesJson);
+    }
 
-        string text = kindLower switch
+    public string GetNodeDefinition(string kind)
+    {
+        var kindLower = kind.Trim().ToLowerInvariant();
+
+        return kindLower switch
         {
             "workspace" => 
                 "### Kind: Workspace\n" +
@@ -503,14 +387,101 @@ public class McpGraphRepository(MemgraphClient dbClient)
 
             _ => $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package'."
         };
+    }
 
-        return new
+    private static string FetchCodeSnippetsDirectly(string nodesJSON)
+    {
+        List<McpRAGNode>? nodes = null;
+
+        try
         {
-            content = new[]
+            nodes = JsonSerializer.Deserialize<List<McpRAGNode>>(nodesJSON);
+        }
+        catch
+        {
+            try
             {
-                new { type = "text", text }
+                var single = JsonSerializer.Deserialize<McpRAGNode>(nodesJSON);
+                if (single != null) nodes = new List<McpRAGNode> { single };
             }
-        };
+            catch
+            {
+                try
+                {
+                    var nestedNodes = JsonSerializer.Deserialize<List<NestedMcpRAGNode>>(nodesJSON);
+                    if (nestedNodes != null)
+                    {
+                        nodes = nestedNodes.Where(n => n.props != null).Select(n => n.props!).ToList();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return $"Error parsing nodes JSON: {ex.Message}";
+                }
+            }
+        }
+
+        if (nodes == null || nodes.Count == 0)
+        {
+            return "No valid code contexts retrieved.";
+        }
+
+        const string workspaceRoot = "/Users/slava/Projects/Personal/CodeExplorer";
+        var output = new List<string>();
+
+        foreach (var node in nodes)
+        {
+            if (string.IsNullOrEmpty(node.file_path) || node.start_line == null || node.end_line == null)
+            {
+                continue;
+            }
+
+            var joinedPath = Path.Combine(workspaceRoot, node.file_path);
+            var absPath = Path.GetFullPath(joinedPath);
+            var absRoot = Path.GetFullPath(workspaceRoot);
+
+            if (!absPath.StartsWith(absRoot))
+            {
+                output.Add($"### Access Denied: `{node.file_path}` is outside the workspace root.");
+                continue;
+            }
+
+            if (!File.Exists(absPath))
+            {
+                output.Add($"### File Not Found: `{node.file_path}`");
+                continue;
+            }
+
+            try
+            {
+                var lines = File.ReadAllLines(absPath);
+                int sIdx = Math.Max(0, node.start_line.Value);
+                if (sIdx > lines.Length) sIdx = lines.Length;
+
+                int eIdx = Math.Min(lines.Length, node.end_line.Value + 1);
+                if (eIdx < sIdx) eIdx = sIdx;
+
+                var snippet = string.Join("\n", lines.Skip(sIdx).Take(eIdx - sIdx));
+
+                var ext = Path.GetExtension(node.file_path).ToLower();
+                var lang = ext.TrimStart('.');
+                lang = lang switch
+                {
+                    "ts" or "tsx" => "typescript",
+                    "js" or "jsx" => "javascript",
+                    "cs" => "csharp",
+                    _ => lang
+                };
+
+                output.Add($"### File: `{node.file_path}` (Lines {sIdx + 1}-{eIdx})\n```{lang}\n{snippet}\n```");
+            }
+            catch (Exception ex)
+            {
+                output.Add($"### Error reading `{node.file_path}`: {ex.Message}");
+            }
+        }
+
+        return output.Count == 0 ? "No valid code contexts retrieved." : string.Join("\n\n", output);
     }
 
     public static object BuildTaxonomy(List<Dictionary<string, string>> triplets, List<Dictionary<string, string>> properties)

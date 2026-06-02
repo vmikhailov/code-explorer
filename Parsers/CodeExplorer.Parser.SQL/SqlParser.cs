@@ -1,12 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using CodeExplorer.Database;
 using CodeExplorer.Common;
-using TreeSitter;
 using Node = CodeExplorer.Database.Node;
 
 namespace CodeExplorer.Parser;
