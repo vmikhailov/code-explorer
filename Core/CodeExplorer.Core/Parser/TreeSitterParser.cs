@@ -34,6 +34,7 @@ public class SolutionParser
         // 1. Check GitIgnore exclusions first
         if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
         {
+            Console.Error.WriteLine($"[SolutionParser] GitIgnore: Ignoring directory '{relativeDir}'");
             return;
         }
 
@@ -48,6 +49,7 @@ public class SolutionParser
         var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea" };
         if (genericExclusions.Contains(dirNameLower))
         {
+            Console.Error.WriteLine($"[SolutionParser] Generic: Skipping VCS/IDE folder '{relativeDir}'");
             return;
         }
 
@@ -66,6 +68,7 @@ public class SolutionParser
                     newlyDetectedTypes.Add(parser.ProjectType);
                     isProject = true;
                     projectType = parser.ProjectType;
+                    Console.Error.WriteLine($"[SolutionParser] Project: Detected {parser.ProjectType} project signature at '{relativeDir}'");
                 }
             }
         }
@@ -87,6 +90,8 @@ public class SolutionParser
 
         // 5. Check if current directory name should be excluded based on active project types and language exclusions
         bool shouldExclude = false;
+        string? matchedExclusionFolder = null;
+        string? matchedExclusionType = null;
         lock (Parsers)
         {
             foreach (var type in detectedProjectTypes)
@@ -99,6 +104,8 @@ public class SolutionParser
                         if (folder.Equals(dirNameLower, StringComparison.OrdinalIgnoreCase))
                         {
                             shouldExclude = true;
+                            matchedExclusionFolder = folder;
+                            matchedExclusionType = type;
                             break;
                         }
                     }
@@ -109,6 +116,7 @@ public class SolutionParser
 
         if (shouldExclude)
         {
+            Console.Error.WriteLine($"[SolutionParser] Exclusion: Skipping directory '{relativeDir}' (matches language exclusion '{matchedExclusionFolder}' for '{matchedExclusionType}' project type)");
             return;
         }
 
@@ -129,21 +137,22 @@ public class SolutionParser
             {
                 currentId = $"project:{absoluteWorkspacePath}:{relativeDir}";
                 currentKind = "Project";
-                allNodes.Add(new Database.Node(currentId, "Project", new Dictionary<string, object>
-                {
+                allNodes.Add(new Database.Node(currentId, "Project", new Dictionary<string, object> 
+                { 
                     ["name"] = dirName,
                     ["path"] = relativeDir,
                     ["project_type"] = projectType ?? "unknown"
                 }));
+                Console.Error.WriteLine($"[SolutionParser] Mapping directory '{relativeDir}' as Project Node");
             }
             else
             {
                 currentId = $"folder:{absoluteWorkspacePath}:{relativeDir}";
                 currentKind = "Folder";
-                allNodes.Add(new Database.Node(currentId, "Folder", new Dictionary<string, object>
-                {
+                allNodes.Add(new Database.Node(currentId, "Folder", new Dictionary<string, object> 
+                { 
                     ["name"] = dirName,
-                    ["path"] = relativeDir
+                    ["path"] = relativeDir 
                 }));
             }
 
@@ -166,6 +175,7 @@ public class SolutionParser
             var relativeFile = Path.GetRelativePath(absoluteWorkspacePath, file).Replace('\\', '/');
             if (gitignore.IsIgnored(relativeFile, false))
             {
+                Console.Error.WriteLine($"[SolutionParser] GitIgnore: Ignoring file '{relativeFile}'");
                 continue;
             }
 
@@ -228,6 +238,9 @@ public class SolutionParser
             }
             if (langParser == null) continue;
 
+            var relativePath = Path.GetRelativePath(dirPath, file).Replace('\\', '/');
+            Console.Error.WriteLine($"[SolutionParser] Parsing file '{relativePath}' using {langParser.LanguageName} parser...");
+
             try
             {
                 using var language = new Language(langParser.LanguageName);
@@ -238,7 +251,6 @@ public class SolutionParser
 
                 if (tree == null || tree.RootNode == null) continue;
 
-                var relativePath = Path.GetRelativePath(dirPath, file).Replace('\\', '/');
                 var ctx = new FileContext(absoluteWorkspacePath, relativePath, sourceText, langParser);
 
                 // Add File Node
