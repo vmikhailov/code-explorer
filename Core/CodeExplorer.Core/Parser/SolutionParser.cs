@@ -168,13 +168,26 @@ public class SolutionParser
             }
             else
             {
-                currentId = $"folder:{_absoluteWorkspacePath}:{relativeDir}";
-                currentKind = "Folder";
-                _structuralNodes.Add(new Database.Node(currentId, "Folder", new Dictionary<string, object> 
-                { 
-                    ["name"] = dirName,
-                    ["path"] = relativeDir 
-                }));
+                if (insideProject)
+                {
+                    currentId = $"projectfolder:{_absoluteWorkspacePath}:{relativeDir}";
+                    currentKind = "ProjectFolder";
+                    _structuralNodes.Add(new Database.Node(currentId, "ProjectFolder", new Dictionary<string, object> 
+                    { 
+                        ["name"] = dirName,
+                        ["path"] = relativeDir 
+                    }));
+                }
+                else
+                {
+                    currentId = $"solutionfolder:{_absoluteWorkspacePath}:{relativeDir}";
+                    currentKind = "SolutionFolder";
+                    _structuralNodes.Add(new Database.Node(currentId, "SolutionFolder", new Dictionary<string, object> 
+                    { 
+                        ["name"] = dirName,
+                        ["path"] = relativeDir 
+                    }));
+                }
             }
 
             _visitedDirs[relativeDir] = (currentId, currentKind);

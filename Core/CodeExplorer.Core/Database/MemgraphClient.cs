@@ -12,7 +12,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
 
     public async Task CreateIndicesAsync()
     {
-        var kinds = new[] { "Project", "File", "Class", "Function", "Variable" };
+        var kinds = new[] { "SolutionFolder", "ProjectFolder", "Project", "File", "Class", "Function", "Variable" };
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
         
         foreach (var kind in kinds)
