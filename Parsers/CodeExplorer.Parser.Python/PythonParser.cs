@@ -28,9 +28,9 @@ public class PythonParser : ILanguageParser
         return false;
     }
 
-    public string? MapNodeType(string nodeType)
+    public string? MapNodeType(Node node)
     {
-        return nodeType switch
+        return node.Type switch
         {
             "class_definition" => "Class",
 
@@ -117,6 +117,88 @@ public class PythonParser : ILanguageParser
             var attrChild = expr.GetChildForField("attribute");
             if (attrChild != null && attrChild.Id != IntPtr.Zero) return attrChild.Text;
         }
+        return null;
+    }
+
+    public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
+    {
+        var pyprojectPath = System.IO.Path.Combine(projectDirectory, "pyproject.toml");
+        if (System.IO.File.Exists(pyprojectPath))
+        {
+            try
+            {
+                var lines = await System.IO.File.ReadAllLinesAsync(pyprojectPath);
+                string? name = null;
+                string version = "1.0.0";
+                
+                bool inProjectSection = false;
+                foreach (var rawLine in lines)
+                {
+                    var line = rawLine.Trim();
+                    if (line.StartsWith("[project]") || line.StartsWith("[tool.poetry]"))
+                    {
+                        inProjectSection = true;
+                        continue;
+                    }
+                    else if (line.StartsWith("[") && line.EndsWith("]"))
+                    {
+                        inProjectSection = false;
+                    }
+
+                    if (inProjectSection)
+                      {
+                        if (line.StartsWith("name"))
+                        {
+                            var parts = line.Split('=', 2);
+                            if (parts.Length == 2)
+                            {
+                                name = parts[1].Trim(' ', '"', '\'');
+                            }
+                        }
+                        else if (line.StartsWith("version"))
+                        {
+                            var parts = line.Split('=', 2);
+                            if (parts.Length == 2)
+                            {
+                                version = parts[1].Trim(' ', '"', '\'');
+                            }
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(name))
+                {
+                    return new ProducedPackageInfo(name, version, "pip");
+                }
+            }
+            catch
+            {
+                // Ignore
+            }
+        }
+
+        var setupPyPath = System.IO.Path.Combine(projectDirectory, "setup.py");
+        if (System.IO.File.Exists(setupPyPath))
+        {
+            try
+            {
+                var content = await System.IO.File.ReadAllTextAsync(setupPyPath);
+                var nameMatch = System.Text.RegularExpressions.Regex.Match(content, @"name\s*=\s*['""]([^'""]+)['""]");
+                if (nameMatch.Success)
+                {
+                    var name = nameMatch.Groups[1].Value;
+                    var versionMatch = System.Text.RegularExpressions.Regex.Match(content, @"version\s*=\s*['""]([^'""]+)['""]");
+                    var version = versionMatch.Success ? versionMatch.Groups[1].Value : "1.0.0";
+
+                    return new ProducedPackageInfo(name, version, "pip");
+                }
+            }
+            catch
+            {
+                // Ignore
+            }
+        }
+
         return null;
     }
 }

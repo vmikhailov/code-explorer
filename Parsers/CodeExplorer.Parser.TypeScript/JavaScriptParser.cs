@@ -2,18 +2,18 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public class TypeScriptParser : ILanguageParser
+public class JavaScriptParser : ILanguageParser
 {
-    public string LanguageName => "typescript";
+    public string LanguageName => "javascript";
 
-    public string ProjectType => "typescript";
+    public string ProjectType => "javascript";
 
-    public IReadOnlyCollection<string> ExcludedFolders => new[] { "node_modules", "dist", "build", ".next", "out" };
+    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "node_modules", "dist", "build", ".next", "out" };
 
     public bool CanParse(string fileExtension)
     {
-        return fileExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
-               fileExtension.Equals(".tsx", StringComparison.OrdinalIgnoreCase);
+        return fileExtension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+               fileExtension.Equals(".jsx", StringComparison.OrdinalIgnoreCase);
     }
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
@@ -21,7 +21,7 @@ public class TypeScriptParser : ILanguageParser
         foreach (var file in filesInDirectory)
         {
             var fileName = System.IO.Path.GetFileName(file).ToLowerInvariant();
-            if (fileName == "package.json" || fileName == "tsconfig.json")
+            if (fileName == "package.json" || fileName == "jsconfig.json" || fileName == "tsconfig.json")
             {
                 return true;
             }

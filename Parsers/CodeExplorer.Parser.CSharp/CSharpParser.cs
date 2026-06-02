@@ -28,14 +28,15 @@ public class CSharpParser : ILanguageParser
         return false;
     }
 
-    public string? MapNodeType(string nodeType)
+    public string? MapNodeType(Node node)
     {
-        return nodeType switch
+        return node.Type switch
         {
             "class_declaration" or
-            "interface_declaration" or
             "struct_declaration" or
             "record_declaration" => "Class",
+
+            "interface_declaration" => "Interface",
 
             "method_declaration" or
             "function_declaration" or
@@ -125,5 +126,53 @@ public class CSharpParser : ILanguageParser
             if (nameChild != null && nameChild.Id != IntPtr.Zero) return nameChild.Text;
         }
         return null;
+    }
+
+    public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
+    {
+        var csprojFiles = System.IO.Directory.GetFiles(projectDirectory, "*.csproj");
+        if (csprojFiles.Length == 0) return null;
+
+        var csprojFile = csprojFiles[0];
+        try
+        {
+            var content = await System.IO.File.ReadAllTextAsync(csprojFile);
+            var doc = System.Xml.Linq.XDocument.Parse(content);
+
+            // Check IsPackable
+            var isPackableStr = doc.Descendants("IsPackable").FirstOrDefault()?.Value;
+            if (!string.IsNullOrEmpty(isPackableStr) && bool.TryParse(isPackableStr, out var isPackable) && !isPackable)
+            {
+                return null;
+            }
+
+            // Check OutputType (if Exe and not packable, return null)
+            var outputType = doc.Descendants("OutputType").FirstOrDefault()?.Value;
+            var hasGeneratePackageOnBuild = doc.Descendants("GeneratePackageOnBuild").FirstOrDefault()?.Value;
+            bool generateOnBuild = !string.IsNullOrEmpty(hasGeneratePackageOnBuild) && 
+                                   bool.TryParse(hasGeneratePackageOnBuild, out var gen) && gen;
+
+            bool explicitPackable = !string.IsNullOrEmpty(isPackableStr) && 
+                                    bool.TryParse(isPackableStr, out var p) && p;
+
+            if (string.Equals(outputType, "Exe", StringComparison.OrdinalIgnoreCase) && !generateOnBuild && !explicitPackable)
+            {
+                return null;
+            }
+
+            var packageId = doc.Descendants("PackageId").FirstOrDefault()?.Value 
+                         ?? doc.Descendants("AssemblyName").FirstOrDefault()?.Value 
+                         ?? System.IO.Path.GetFileNameWithoutExtension(csprojFile);
+
+            var version = doc.Descendants("Version").FirstOrDefault()?.Value 
+                       ?? doc.Descendants("PackageVersion").FirstOrDefault()?.Value 
+                       ?? "1.0.0";
+
+            return new ProducedPackageInfo(packageId, version, "nuget");
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

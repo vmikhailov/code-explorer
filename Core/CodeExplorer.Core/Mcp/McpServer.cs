@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Common;
 using CodeExplorer.Database;
 
 namespace CodeExplorer.Mcp;
@@ -232,19 +233,19 @@ public class McpServer(MemgraphClient dbClient)
                         },
                         new
                         {
-                            name = "get_node_definition",
-                            description = "Retrieves the structural purpose, meaning, properties, and relationships of a specified database node kind/label in the CodeExplorer ontology (e.g. 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable').",
-                            inputSchema = new
-                            {
-                                type = "object",
-                                properties = new
-                                {
-                                    kind = new
-                                    {
-                                        type = "string",
-                                        description = "The database node label/kind to query (e.g. 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable')."
-                                    }
-                                },
+                             name = "get_node_definition",
+                             description = "Retrieves the structural purpose, meaning, properties, and relationships of a specified database node kind/label in the CodeExplorer ontology (e.g. 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package').",
+                             inputSchema = new
+                             {
+                                 type = "object",
+                                 properties = new
+                                 {
+                                     kind = new
+                                     {
+                                         type = "string",
+                                         description = "The database node label/kind to query (e.g. 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package')."
+                                     }
+                                 },
                                 required = new[] { "kind" }
                             }
                         }
@@ -331,15 +332,47 @@ public class McpServer(MemgraphClient dbClient)
 
         if (type == "Function")
         {
-            query = "MATCH (n:Function) WHERE n.name CONTAINS $name RETURN 'Function' AS type, n.name AS name, n.symbol AS fullName, n.file_path AS filePath LIMIT 10";
+            query = "MATCH (n:Function) WHERE n.name CONTAINS $name " +
+                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
+                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "RETURN 'Function' AS type, n.name AS name, n.symbol AS fullName, " +
+                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
+                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     ELSE n.file_path " +
+                    "END AS filePath LIMIT 10";
         }
         else if (type == "Class")
         {
-            query = "MATCH (n:Class) WHERE n.name CONTAINS $name RETURN 'Class' AS type, n.name AS name, n.symbol AS fullName, n.file_path AS filePath LIMIT 10";
+            query = "MATCH (n:Class) WHERE n.name CONTAINS $name " +
+                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
+                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "RETURN 'Class' AS type, n.name AS name, n.symbol AS fullName, " +
+                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
+                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     ELSE n.file_path " +
+                    "END AS filePath LIMIT 10";
+        }
+        else if (type == "Interface")
+        {
+            query = "MATCH (n:Interface) WHERE n.name CONTAINS $name " +
+                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
+                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "RETURN 'Interface' AS type, n.name AS name, n.symbol AS fullName, " +
+                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
+                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     ELSE n.file_path " +
+                    "END AS filePath LIMIT 10";
         }
         else
         {
-            query = "MATCH (n) WHERE (n:Function OR n:Class) AND n.name CONTAINS $name RETURN labels(n)[0] AS type, n.name AS name, n.symbol AS fullName, n.file_path AS filePath LIMIT 10";
+            query = "MATCH (n) WHERE (n:Function OR n:Class OR n:Interface) AND n.name CONTAINS $name " +
+                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
+                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "RETURN labels(n)[0] AS type, n.name AS name, n.symbol AS fullName, " +
+                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
+                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     ELSE n.file_path " +
+                    "END AS filePath LIMIT 10";
         }
 
         return await ExecuteAndFormatQueryAsync(query, parameters);
@@ -352,8 +385,11 @@ public class McpServer(MemgraphClient dbClient)
             return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'projectName' argument." } } };
         }
         var projectName = projectEl.GetString()!;
-        var query = "MATCH (p:Project {name: $projectName})-[:CONTAINS]->(f:File)-[:CONTAINS]->(c:Class) " +
-                    "RETURN f.path AS file, collect(c.name) AS classes";
+        var query = "MATCH (p:Project {name: $projectName})<-[:CONTAINS*1..]-(w:Workspace) " +
+                    "MATCH fileDir = (w)-[:CONTAINS*1..]->(f:File) " +
+                    "WHERE (p)-[:CONTAINS*1..]->(f) " +
+                    "MATCH (f)-[:CONTAINS]->(c:Class) " +
+                    "RETURN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path AS file, collect(c.name) AS classes";
         var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -391,7 +427,7 @@ public class McpServer(MemgraphClient dbClient)
             return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'interfaceName' argument." } } };
         }
         var interfaceName = interfaceEl.GetString()!;
-        var query = "MATCH (i:Class {name: $interfaceName})<-[:IMPLEMENTS]-(impl:Class)-[:CONTAINS]->(f:Function) " +
+        var query = "MATCH (i:Interface {name: $interfaceName})<-[:IMPLEMENTS]-(impl:Class)-[:CONTAINS]->(f:Function) " +
                     "RETURN impl.name AS className, f.name AS methodName";
         var parameters = new Dictionary<string, object> { ["interfaceName"] = interfaceName };
         return await ExecuteAndFormatQueryAsync(query, parameters);
@@ -405,8 +441,13 @@ public class McpServer(MemgraphClient dbClient)
         }
         var symbolName = symbolEl.GetString()!;
         var query = "MATCH (target {symbol: $symbolName})<-[:USES_TYPE|CALLS]-(dependent) " +
-                    "OPTIONAL MATCH (dependent)<-[:CONTAINS*1..2]-(f:File) " +
-                    "RETURN labels(dependent)[0] AS depType, dependent.name AS depName, f.path AS filePath";
+                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(dependent) " +
+                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "RETURN labels(dependent)[0] AS depType, dependent.name AS depName, " +
+                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
+                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     ELSE null " +
+                    "END AS filePath";
         var parameters = new Dictionary<string, object> { ["symbolName"] = symbolName };
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -418,11 +459,15 @@ public class McpServer(MemgraphClient dbClient)
             return new { isError = true, content = new[] { new { type = "text", text = "Missing or invalid 'projectName' argument." } } };
         }
         var projectName = projectEl.GetString()!;
-        var query = "MATCH (p:Project {name: $projectName})-[:CONTAINS*2..3]->(f:Function) " +
+        var query = "MATCH (p:Project {name: $projectName})<-[:CONTAINS*1..]-(w:Workspace) " +
+                    "MATCH fileDir = (w)-[:CONTAINS*1..]->(file:File) " +
+                    "WHERE (p)-[:CONTAINS*1..]->(file) " +
+                    "MATCH (file)-[:CONTAINS*1..]->(f:Function) " +
                     "OPTIONAL MATCH (caller)-[:CALLS]->(f) " +
-                    "WITH f, caller " +
+                    "WITH w, fileDir, file, f, caller " +
                     "WHERE caller IS NULL " +
-                    "RETURN f.name AS unusedFunction, f.file_path AS file";
+                    "RETURN f.name AS unusedFunction, " +
+                    "w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + file.path AS file";
         var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -493,52 +538,64 @@ public class McpServer(MemgraphClient dbClient)
 
             "workspacefolder" =>
                 "### Kind: WorkspaceFolder\n" +
-                "**Purpose**: Represents a directory located at the top-level Workspace hierarchy (outside of any specific code project). Used for high-level structure and organization.\n" +
+                "**Purpose**: Represents a subdirectory inside a Workspace, housing projects or other folders outside projects. Cannot contain files directly (files outside projects are ignored).\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The folder name.\n" +
-                "  - `path` (string): The relative path of the directory from the workspace root.\n" +
+                "  - `path` (string): The local folder name relative to its immediate parent container.\n" +
                 "**Relationships**:\n" +
-                "  - `(Workspace)-[:CONTAINS]->(WorkspaceFolder)`\n" +
-                "  - `(WorkspaceFolder)-[:CONTAINS]->(WorkspaceFolder)`\n" +
+                "  - `(Workspace|WorkspaceFolder)-[:CONTAINS]->(WorkspaceFolder)`\n" +
                 "  - `(WorkspaceFolder)-[:CONTAINS]->(Project)`",
 
             "project" =>
                 "### Kind: Project\n" +
-                "**Purpose**: Represents a dynamic buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).\n" +
+                "**Purpose**: Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).\n" +
                 "**Key Properties**:\n" +
-                "  - `name` (string): The project folder name.\n" +
-                "  - `path` (string): The relative path of the project from the workspace root.\n" +
+                "  - `name` (string): The project name.\n" +
+                "  - `path` (string): The local project folder name relative to its parent container (empty string at root).\n" +
                 "  - `project_type` (string): The language/signature identifier (e.g., 'csharp', 'go', 'python', 'typescript').\n" +
                 "**Relationships**:\n" +
-                "  - `(WorkspaceFolder|Workspace)-[:CONTAINS]->(Project)`\n" +
+                "  - `(Workspace|WorkspaceFolder)-[:CONTAINS]->(Project)`\n" +
                 "  - `(Project)-[:CONTAINS]->(ProjectFolder)`\n" +
-                "  - `(Project)-[:CONTAINS]->(File)`",
+                "  - `(Project)-[:CONTAINS]->(File)`\n" +
+                "  - `(Project)-[:DEPENDS_ON]->(Project)`\n" +
+                "  - `(Project)-[:DEPENDS_ON]->(Package)`",
 
             "projectfolder" =>
                 "### Kind: ProjectFolder\n" +
-                "**Purpose**: Represents a subdirectory located *inside* a `Project` directory structure. Used for internal modular directory organization.\n" +
+                "**Purpose**: Represents a subdirectory inside a Project, containing files and other project folders.\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The folder name.\n" +
-                "  - `path` (string): The relative path of the folder from the workspace root.\n" +
+                "  - `path` (string): The local folder name relative to its immediate parent container.\n" +
                 "**Relationships**:\n" +
-                "  - `(Project)-[:CONTAINS]->(ProjectFolder)`\n" +
-                "  - `(ProjectFolder)-[:CONTAINS]->(ProjectFolder)`\n" +
+                "  - `(Project|ProjectFolder)-[:CONTAINS]->(ProjectFolder)`\n" +
                 "  - `(ProjectFolder)-[:CONTAINS]->(File)`",
+
+            "package" =>
+                "### Kind: Package\n" +
+                "**Purpose**: Represents an external dependency package or workspace package referenced or produced by projects.\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The package name (e.g. 'neo4j.driver', 'react', 'CodeExplorer.Core').\n" +
+                "  - `version` (string): The package version.\n" +
+                "  - `type` (string): The package type identifier ('nuget', 'npm', 'go').\n" +
+                "**Relationships**:\n" +
+                "  - `(Project)-[:DEPENDS_ON]->(Package)`\n" +
+                "  - `(Package)-[:IMPLEMENTED_BY]->(Project)`",
 
             "file" =>
                 "### Kind: File\n" +
                 "**Purpose**: Represents a source code file containing parsable content.\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The filename basename.\n" +
-                "  - `path` (string): The relative path of the file from the workspace root.\n" +
+                "  - `path` (string): The filename relative to its immediate parent container folder.\n" +
                 "**Relationships**:\n" +
-                "  - `(Workspace|WorkspaceFolder|Project|ProjectFolder)-[:CONTAINS]->(File)`\n" +
+                "  - `(Project|ProjectFolder)-[:CONTAINS]->(File)`\n" +
                 "  - `(File)-[:CONTAINS]->(Class)`\n" +
+                "  - `(File)-[:CONTAINS]->(Interface)`\n" +
                 "  - `(File)-[:CONTAINS]->(Function)`",
 
             "class" =>
                 "### Kind: Class\n" +
-                "**Purpose**: Represents a parsed OOP class, interface, struct, or type definition.\n" +
+                "**Purpose**: Represents a parsed OOP class, struct, or concrete type definition.\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The name of the class.\n" +
                 "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
@@ -546,9 +603,22 @@ public class McpServer(MemgraphClient dbClient)
                 "  - `file_path` (string): The relative path of the declaring file.\n" +
                 "**Relationships**:\n" +
                 "  - `(File)-[:CONTAINS]->(Class)`\n" +
-                "  - `(Class)-[:USES_TYPE]->(Class)`\n" +
-                "  - `(Class)-[:IMPLEMENTS]->(Class)`\n" +
+                "  - `(Class)-[:USES_TYPE]->(Class|Interface)`\n" +
+                "  - `(Class)-[:IMPLEMENTS]->(Interface)`\n" +
                 "  - `(Class)-[:INHERITS_FROM]->(Class)`",
+
+            "interface" =>
+                "### Kind: Interface\n" +
+                "**Purpose**: Represents a parsed OOP interface contract (e.g. C# interface, Go interface, TypeScript interface).\n" +
+                "**Key Properties**:\n" +
+                "  - `name` (string): The name of the interface.\n" +
+                "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
+                "  - `start_line` / `end_line` (integer): The bounds of the interface definition.\n" +
+                "  - `file_path` (string): The relative path of the declaring file.\n" +
+                "**Relationships**:\n" +
+                "  - `(File)-[:CONTAINS]->(Interface)`\n" +
+                "  - `(Class)-[:IMPLEMENTS]->(Interface)`\n" +
+                "  - `(Interface)-[:INHERITS_FROM]->(Interface)`",
 
             "function" =>
                 "### Kind: Function\n" +
@@ -559,9 +629,9 @@ public class McpServer(MemgraphClient dbClient)
                 "  - `start_line` / `end_line` (integer): The bounds of the function definition.\n" +
                 "  - `file_path` (string): The relative path of the declaring file.\n" +
                 "**Relationships**:\n" +
-                "  - `(File|Class)-[:CONTAINS]->(Function)`\n" +
+                "  - `(File|Class|Interface)-[:CONTAINS]->(Function)`\n" +
                 "  - `(Function)-[:CALLS]->(Function)`\n" +
-                "  - `(Function)-[:USES_TYPE]->(Class)`",
+                "  - `(Function)-[:USES_TYPE]->(Class|Interface)`",
 
             "variable" =>
                 "### Kind: Variable\n" +
@@ -572,9 +642,9 @@ public class McpServer(MemgraphClient dbClient)
                 "  - `start_line` / `end_line` (integer): The bounds of the variable declaration.\n" +
                 "  - `file_path` (string): The relative path of the declaring file.\n" +
                 "**Relationships**:\n" +
-                "  - `(Class|Function)-[:CONTAINS]->(Variable)`",
+                "  - `(Class|Interface|Function)-[:CONTAINS]->(Variable)`",
 
-            _ => $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable'."
+            _ => $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package'."
         };
 
         return new

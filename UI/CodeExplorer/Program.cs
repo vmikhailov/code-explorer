@@ -14,6 +14,7 @@ class Program
         WorkspaceParser.Register(new GoParser());
         WorkspaceParser.Register(new PythonParser());
         WorkspaceParser.Register(new TypeScriptParser());
+        WorkspaceParser.Register(new JavaScriptParser());
 
         return await CommandLineParser.Default.ParseArguments<IngestOptions, QueryOptions, McpOptions>(args)
             .MapResult(

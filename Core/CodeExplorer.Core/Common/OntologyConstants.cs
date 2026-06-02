@@ -1,0 +1,30 @@
+namespace CodeExplorer.Common;
+
+public static class OntologyConstants
+{
+    public static class NodeLabels
+    {
+        public const string Workspace = "Workspace";
+        public const string WorkspaceFolder = "WorkspaceFolder";
+        public const string ProjectFolder = "ProjectFolder";
+        public const string Project = "Project";
+        public const string File = "File";
+        public const string Class = "Class";
+        public const string Interface = "Interface";
+        public const string Function = "Function";
+        public const string Variable = "Variable";
+        public const string Package = "Package";
+    }
+
+    public static class Relationships
+    {
+        public const string Contains = "CONTAINS";
+        public const string DependsOn = "DEPENDS_ON";
+        public const string Calls = "CALLS";
+        public const string UsesType = "USES_TYPE";
+        public const string Implements = "IMPLEMENTS";
+        public const string InheritsFrom = "INHERITS_FROM";
+        public const string PotentialType = "POTENTIAL_TYPE";
+        public const string ImplementedBy = "IMPLEMENTED_BY";
+    }
+}

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Common;
 using Neo4j.Driver;
 
 namespace CodeExplorer.Database;
@@ -12,7 +13,19 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
 
     public async Task CreateIndicesAsync()
     {
-        var kinds = new[] { "WorkspaceFolder", "ProjectFolder", "Project", "File", "Class", "Function", "Variable" };
+        var kinds = new[] 
+        { 
+            OntologyConstants.NodeLabels.Workspace, 
+            OntologyConstants.NodeLabels.WorkspaceFolder, 
+            OntologyConstants.NodeLabels.ProjectFolder,
+            OntologyConstants.NodeLabels.Project, 
+            OntologyConstants.NodeLabels.File, 
+            OntologyConstants.NodeLabels.Class, 
+            OntologyConstants.NodeLabels.Interface,
+            OntologyConstants.NodeLabels.Function, 
+            OntologyConstants.NodeLabels.Variable, 
+            OntologyConstants.NodeLabels.Package 
+        };
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
         
         foreach (var kind in kinds)
@@ -26,6 +39,15 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
             {
                 Console.Error.WriteLine($"Warning creating index for {kind}: {ex.Message}");
             }
+        }
+
+        try
+        {
+            await session.RunAsync($"CREATE INDEX ON :{OntologyConstants.NodeLabels.Workspace}(path);");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Warning creating path index for Workspace: {ex.Message}");
         }
     }
 
@@ -44,7 +66,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         await session.ExecuteWriteAsync(async tx =>
         {
             await tx.RunAsync(
-                "MATCH (r:Workspace {path: $workspacePath})-[:CONTAINS*0..]->(n) DETACH DELETE n",
+                $"MATCH (r:{OntologyConstants.NodeLabels.Workspace} {{path: $workspacePath}})-[:{OntologyConstants.Relationships.Contains}*0..]->(n) DETACH DELETE n",
                 new { workspacePath }
             );
         });

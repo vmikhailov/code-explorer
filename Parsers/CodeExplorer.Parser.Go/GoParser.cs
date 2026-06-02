@@ -28,14 +28,26 @@ public class GoParser : ILanguageParser
         return false;
     }
 
-    public string? MapNodeType(string nodeType)
+    public string? MapNodeType(Node node)
     {
-        return nodeType switch
+        if (node.Type == "type_spec")
         {
-            "type_spec" or
+            foreach (var child in node.Children)
+            {
+                if (child.Type == "interface_type")
+                {
+                    return "Interface";
+                }
+            }
+            return "Class";
+        }
+
+        return node.Type switch
+        {
             "type_declaration" or
-            "struct_type" or
-            "interface_type" => "Class",
+            "struct_type" => "Class",
+
+            "interface_type" => "Interface",
 
             "function_declaration" or
             "method_declaration" => "Function",
@@ -108,6 +120,32 @@ public class GoParser : ILanguageParser
             var fieldChild = expr.GetChildForField("field");
             if (fieldChild != null && fieldChild.Id != IntPtr.Zero) return fieldChild.Text;
         }
+        return null;
+    }
+
+    public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
+    {
+        var goModPath = System.IO.Path.Combine(projectDirectory, "go.mod");
+        if (!System.IO.File.Exists(goModPath)) return null;
+
+        try
+        {
+            var lines = await System.IO.File.ReadAllLinesAsync(goModPath);
+            var moduleLine = lines.FirstOrDefault(l => l.Trim().StartsWith("module "));
+            if (moduleLine != null)
+            {
+                var modName = moduleLine.Trim().Substring("module ".Length).Trim();
+                if (!string.IsNullOrEmpty(modName))
+                {
+                    return new ProducedPackageInfo(modName, "1.0.0", "go");
+                }
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
         return null;
     }
 }
