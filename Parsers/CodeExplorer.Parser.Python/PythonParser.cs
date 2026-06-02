@@ -7,9 +7,26 @@ public class PythonParser : ILanguageParser
 {
     public string LanguageName => "python";
 
+    public string ProjectType => "python";
+
+    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "venv", ".venv", "__pycache__" };
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".py", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
+    {
+        foreach (var file in filesInDirectory)
+        {
+            var fileName = System.IO.Path.GetFileName(file).ToLowerInvariant();
+            if (fileName == "requirements.txt" || fileName == "pyproject.toml" || fileName == "setup.py")
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public string? MapNodeType(string nodeType)

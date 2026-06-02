@@ -7,12 +7,29 @@ public class TypeScriptParser : ILanguageParser
 {
     public string LanguageName => "typescript";
 
+    public string ProjectType => "typescript";
+
+    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "node_modules", "dist", "build", ".next", "out" };
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
                fileExtension.Equals(".tsx", StringComparison.OrdinalIgnoreCase) ||
                fileExtension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
                fileExtension.Equals(".jsx", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
+    {
+        foreach (var file in filesInDirectory)
+        {
+            var fileName = System.IO.Path.GetFileName(file).ToLowerInvariant();
+            if (fileName == "package.json" || fileName == "tsconfig.json")
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public string? MapNodeType(string nodeType)

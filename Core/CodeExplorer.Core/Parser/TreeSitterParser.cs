@@ -47,40 +47,22 @@ public class TreeSitterParser
             return;
         }
 
-        // 2. Scan current folder for project signature files to detect project types
+        // 2. Scan current folder for project signatures by querying registered language parsers
         var filesInDir = Directory.GetFiles(currentDir);
         var newlyDetectedTypes = new HashSet<string>();
         bool isProject = false;
         string? projectType = null;
 
-        foreach (var file in filesInDir)
+        lock (Parsers)
         {
-            var fileNameLower = Path.GetFileName(file).ToLowerInvariant();
-            var ext = Path.GetExtension(file).ToLowerInvariant();
-
-            if (ext == ".csproj" || ext == ".sln")
+            foreach (var parser in Parsers)
             {
-                newlyDetectedTypes.Add("csharp");
-                isProject = true;
-                projectType = "csharp";
-            }
-            else if (fileNameLower == "go.mod")
-            {
-                newlyDetectedTypes.Add("go");
-                isProject = true;
-                projectType = "go";
-            }
-            else if (fileNameLower == "package.json" || fileNameLower == "tsconfig.json")
-            {
-                newlyDetectedTypes.Add("typescript");
-                isProject = true;
-                projectType = "typescript";
-            }
-            else if (fileNameLower == "requirements.txt" || fileNameLower == "pyproject.toml" || fileNameLower == "setup.py")
-            {
-                newlyDetectedTypes.Add("python");
-                isProject = true;
-                projectType = "python";
+                if (parser.IsProjectDirectory(currentDir, filesInDir))
+                {
+                    newlyDetectedTypes.Add(parser.ProjectType);
+                    isProject = true;
+                    projectType = parser.ProjectType;
+                }
             }
         }
 
@@ -90,20 +72,29 @@ public class TreeSitterParser
             detectedProjectTypes.Add(type);
         }
 
-        // 4. Check if current directory name should be excluded based on the active/detected project types
-        if (detectedProjectTypes.Contains("csharp") && (dirNameLower == "bin" || dirNameLower == "obj" || dirNameLower == ".vs"))
+        // 4. Check if current directory name should be excluded based on active project types and language exclusions
+        bool shouldExclude = false;
+        lock (Parsers)
         {
-            return;
+            foreach (var type in detectedProjectTypes)
+            {
+                var parser = Parsers.FirstOrDefault(p => p.ProjectType == type);
+                if (parser != null)
+                {
+                    foreach (var folder in parser.ExcludedFolders)
+                    {
+                        if (folder.Equals(dirNameLower, StringComparison.OrdinalIgnoreCase))
+                        {
+                            shouldExclude = true;
+                            break;
+                        }
+                    }
+                }
+                if (shouldExclude) break;
+            }
         }
-        if (detectedProjectTypes.Contains("typescript") && (dirNameLower == "node_modules" || dirNameLower == "dist" || dirNameLower == "build" || dirNameLower == ".next" || dirNameLower == "out"))
-        {
-            return;
-        }
-        if (detectedProjectTypes.Contains("go") && dirNameLower == "vendor")
-        {
-            return;
-        }
-        if (detectedProjectTypes.Contains("python") && (dirNameLower == "venv" || dirNameLower == ".venv" || dirNameLower == "__pycache__"))
+
+        if (shouldExclude)
         {
             return;
         }

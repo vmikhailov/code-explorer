@@ -7,9 +7,26 @@ public class GoParser : ILanguageParser
 {
     public string LanguageName => "go";
 
+    public string ProjectType => "go";
+
+    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "vendor" };
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".go", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
+    {
+        foreach (var file in filesInDirectory)
+        {
+            var fileName = System.IO.Path.GetFileName(file).ToLowerInvariant();
+            if (fileName == "go.mod")
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public string? MapNodeType(string nodeType)

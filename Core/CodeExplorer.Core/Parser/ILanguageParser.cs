@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TreeSitter;
 
 namespace CodeExplorer.Parser;
@@ -13,6 +14,21 @@ public interface ILanguageParser
     /// Determines if this parser handles the given file extension.
     /// </summary>
     bool CanParse(string fileExtension);
+
+    /// <summary>
+    /// Checks if the given directory contains a project for this language, based on files in it.
+    /// </summary>
+    bool IsProjectDirectory(string directoryPath, string[] filesInDirectory);
+
+    /// <summary>
+    /// The project type/language identifier (e.g., "csharp", "go", "python", "typescript").
+    /// </summary>
+    string ProjectType { get; }
+
+    /// <summary>
+    /// The directory names that should be excluded when this language's project type is active.
+    /// </summary>
+    IReadOnlyCollection<string> ExcludedFolders { get; }
 
     /// <summary>
     /// Maps a Tree-sitter AST node type to a CodeExplorer ontological kind (Class, Function, Variable, or null).

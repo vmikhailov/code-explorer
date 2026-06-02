@@ -7,9 +7,26 @@ public class CSharpParser : ILanguageParser
 {
     public string LanguageName => "c-sharp";
 
+    public string ProjectType => "csharp";
+
+    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "bin", "obj", ".vs" };
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".cs", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
+    {
+        foreach (var file in filesInDirectory)
+        {
+            var ext = System.IO.Path.GetExtension(file).ToLowerInvariant();
+            if (ext == ".csproj" || ext == ".sln")
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public string? MapNodeType(string nodeType)
