@@ -11,6 +11,7 @@ public class ParsingContext
     public string AbsoluteWorkspacePath { get; }
     public MemgraphClient DbClient { get; }
     public Channel<Func<Task>> SharedChannel { get; }
+    public bool Clear { get; }
     
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
     public List<Reference> GlobalReferences { get; }
@@ -24,6 +25,7 @@ public class ParsingContext
         string absoluteWorkspacePath, 
         MemgraphClient dbClient, 
         Channel<Func<Task>> sharedChannel,
+        bool clear = false,
         Dictionary<(string Kind, string Name), string>? globalSymbols = null,
         List<Reference>? globalReferences = null,
         List<Relationship>? globalProjectDependencies = null)
@@ -31,6 +33,7 @@ public class ParsingContext
         AbsoluteWorkspacePath = absoluteWorkspacePath.Replace('\\', '/');
         DbClient = dbClient;
         SharedChannel = sharedChannel;
+        Clear = clear;
         GlobalSymbols = globalSymbols ?? new Dictionary<(string Kind, string Name), string>();
         GlobalReferences = globalReferences ?? new List<Reference>();
         GlobalProjectDependencies = globalProjectDependencies ?? new List<Relationship>();
