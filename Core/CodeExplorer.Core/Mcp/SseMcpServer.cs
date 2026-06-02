@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using CodeExplorer.Database;
 
 namespace CodeExplorer.Mcp;
@@ -10,6 +11,8 @@ public class SseMcpServer(MemgraphClient dbClient, int port)
     public async Task StartAsync()
     {
         var builder = WebApplication.CreateBuilder();
+        builder.Logging.AddFilter("Microsoft", Microsoft.Extensions.Logging.LogLevel.Warning);
+        builder.Logging.AddFilter("System", Microsoft.Extensions.Logging.LogLevel.Warning);
         
         builder.Services.AddCors(options => options.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
         
