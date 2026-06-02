@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace CodeExplorer.Common;
 
 public record ClassNode(
-    [property: JsonIgnore] string Id,
+    string Id,
     string Name,
     string Symbol,
     string FilePath,
@@ -11,9 +11,9 @@ public record ClassNode(
     int EndLine,
     int StartCol,
     int EndCol,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyNode
+    Dictionary<string, string>? Extensions = null
+) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public string Kind => OntologyConstants.NodeLabels.Class;
+    public override string Kind => OntologyConstants.NodeLabels.Class;
 }

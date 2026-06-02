@@ -3,13 +3,13 @@ using System.Text.Json.Serialization;
 namespace CodeExplorer.Common;
 
 public record EntryPointNode(
-    [property: JsonIgnore] string Id,
+    string Id,
     string Name,
     string Protocol,
     string RouteOrTopic,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyNode
+    Dictionary<string, string>? Extensions = null
+) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public string Kind => OntologyConstants.NodeLabels.EntryPoint;
+    public override string Kind => OntologyConstants.NodeLabels.EntryPoint;
 }

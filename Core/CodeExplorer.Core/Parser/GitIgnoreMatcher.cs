@@ -14,14 +14,14 @@ public class GitIgnoreMatcher
             var trimmed = line.Trim();
             if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
 
-            bool isDirectoryOnly = false;
+            var isDirectoryOnly = false;
             if (trimmed.EndsWith('/'))
             {
                 isDirectoryOnly = true;
                 trimmed = trimmed.Substring(0, trimmed.Length - 1);
             }
 
-            bool isAnchored = false;
+            var isAnchored = false;
             if (trimmed.StartsWith('/'))
             {
                 isAnchored = true;

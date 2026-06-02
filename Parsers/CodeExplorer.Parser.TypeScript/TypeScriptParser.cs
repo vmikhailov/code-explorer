@@ -1,4 +1,5 @@
 using TreeSitter;
+using CodeExplorer.Common;
 
 namespace CodeExplorer.Parser;
 
@@ -219,5 +220,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx) => throw new NotSupportedException();
+    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    {
+        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
+        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+    }
 }

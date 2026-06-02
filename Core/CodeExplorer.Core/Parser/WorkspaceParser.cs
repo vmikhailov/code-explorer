@@ -168,7 +168,7 @@ public class WorkspaceParser
                         {
                             if (refItem.ScopeSymbolId != targetNodeId)
                             {
-                                bool hasInheritance = referenceRelationships.Any(r =>
+                                var hasInheritance = referenceRelationships.Any(r =>
                                     r.From == refItem.ScopeSymbolId &&
                                     r.To == targetNodeId &&
                                     (r.Kind == OntologyConstants.Relationships.Implements || r.Kind == OntologyConstants.Relationships.InheritsFrom));

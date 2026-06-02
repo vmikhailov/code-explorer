@@ -3,12 +3,12 @@ using System.Text.Json.Serialization;
 namespace CodeExplorer.Common;
 
 public record WorkspaceFolderNode(
-    [property: JsonIgnore] string Id,
+    string Id,
     string Name,
     string Path,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyNode
+    Dictionary<string, string>? Extensions = null
+) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public string Kind => OntologyConstants.NodeLabels.WorkspaceFolder;
+    public override string Kind => OntologyConstants.NodeLabels.WorkspaceFolder;
 }

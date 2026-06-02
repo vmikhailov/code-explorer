@@ -455,10 +455,10 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             try
             {
                 var lines = File.ReadAllLines(absPath);
-                int sIdx = Math.Max(0, node.start_line.Value);
+                var sIdx = Math.Max(0, node.start_line.Value);
                 if (sIdx > lines.Length) sIdx = lines.Length;
 
-                int eIdx = Math.Min(lines.Length, node.end_line.Value + 1);
+                var eIdx = Math.Min(lines.Length, node.end_line.Value + 1);
                 if (eIdx < sIdx) eIdx = sIdx;
 
                 var snippet = string.Join("\n", lines.Skip(sIdx).Take(eIdx - sIdx));

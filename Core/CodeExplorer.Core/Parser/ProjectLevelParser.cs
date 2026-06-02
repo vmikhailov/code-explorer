@@ -1,5 +1,10 @@
 using CodeExplorer.Common;
 using CodeExplorer.Database;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace CodeExplorer.Parser;
 
@@ -26,36 +31,38 @@ public class ProjectLevelParser
     {
         var folderName = Path.GetFileName(_projectDir);
         if (string.IsNullOrEmpty(folderName)) folderName = _projectDir;
+
+        var projectNode = await ParseProjectAsync();
+
+        // Upload the entire project node tree using OntologyUploader
+        await OntologyUploader.UploadNodeTreeAsync(projectNode, _parentContainerId, _ctx);
+    }
+
+    public async Task<ProjectNode> ParseProjectAsync()
+    {
+        var folderName = Path.GetFileName(_projectDir);
+        if (string.IsNullOrEmpty(folderName)) folderName = _projectDir;
         await Console.Error.WriteLineAsync($"[WorkspaceParser] Starting scan of project '{folderName}'...");
 
-        // 1. Create and Upload Project node
-        var projectNode = Node.FromNode(new ProjectNode(
+        var projectNode = new ProjectNode(
             _projectNodeId,
             folderName,
             Path.GetRelativePath(_ctx.AbsoluteWorkspacePath, _projectDir).Replace('\\', '/'),
             _projectParser.ProjectType
-        ));
-        await _ctx.EnqueueUploadNodesAsync(new List<Node> { projectNode });
+        );
 
-        // 2. Relate Parent to Project
-        var parentRel = Relationship.FromRelationship(new ContainsRelationship(_parentContainerId, _projectNodeId));
-        await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { parentRel });
+        // 1. Scan directory recursively and build the rich node tree
+        await ScanDirectoryAsync(_projectDir, projectNode);
 
-        _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Project);
-        _ctx.AddNodesCount(1);
-        _ctx.AddRelsCount(1);
-
-        // 3. Scan directory recursively
-        await ScanDirectoryAsync(_projectDir, _projectNodeId);
-
-        // 4. Parse dependencies and produced packages
-        await ParseDependenciesAsync();
-        await LinkProducedPackageAsync();
+        // 2. Parse dependencies and produced packages
+        await ParseDependenciesAsync(projectNode);
+        await LinkProducedPackageAsync(projectNode);
 
         await Console.Error.WriteLineAsync($"[WorkspaceParser] Completed scan of project '{folderName}'.");
+        return projectNode;
     }
 
-    private async Task ScanDirectoryAsync(string currentDir, string currentParentId)
+    private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode)
     {
         var relativeDir = Path.GetRelativePath(_ctx.AbsoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
@@ -75,31 +82,21 @@ public class ProjectLevelParser
             }
         }
 
-        string currentId;
-        if (currentDir == _projectDir)
-        {
-            currentId = _projectNodeId;
-        }
-        else
+        var currentParentNode = parentNode;
+        if (currentDir != _projectDir)
         {
             var dirName = Path.GetFileName(currentDir);
-            currentId = $"projectfolder:{_ctx.AbsoluteWorkspacePath}:{relativeDir}";
+            var folderId = $"projectfolder:{_ctx.AbsoluteWorkspacePath}:{relativeDir}";
             
-            var folderNode = Node.FromNode(new ProjectFolderNode(currentId, dirName, relativeDir));
-            await _ctx.EnqueueUploadNodesAsync(new List<Node> { folderNode });
-
-            var rel = Relationship.FromRelationship(new ContainsRelationship(currentParentId, currentId));
-            await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { rel });
-
-            _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.ProjectFolder);
-            _ctx.AddNodesCount(1);
-            _ctx.AddRelsCount(1);
+            var folderNode = new ProjectFolderNode(folderId, dirName, relativeDir);
+            parentNode.Children.Add(folderNode);
+            currentParentNode = folderNode;
         }
 
         // Recurse directories
         foreach (var subDir in Directory.GetDirectories(currentDir))
         {
-            await ScanDirectoryAsync(subDir, currentId);
+            await ScanDirectoryAsync(subDir, currentParentNode);
         }
 
         // Process files
@@ -123,13 +120,16 @@ public class ProjectLevelParser
 
             if (fileParser != null)
             {
-                var flParser = new FileLevelParser(_ctx, file, currentId, fileParser);
-                await flParser.ParseAsync();
+                var fileNode = await fileParser.ParseAsync(file, currentParentNode.Id, _ctx);
+                if (fileNode != null)
+                {
+                    currentParentNode.Children.Add(fileNode);
+                }
             }
         }
     }
 
-    private async Task ParseDependenciesAsync()
+    private async Task ParseDependenciesAsync(ProjectNode projectNode)
     {
         try
         {
@@ -148,15 +148,8 @@ public class ProjectLevelParser
                 foreach (var extPack in depInfo.ExternalPackages)
                 {
                     var packageNodeId = $"package:{extPack.Name.ToLowerInvariant()}";
-                    var packageNode = Node.FromNode(new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type));
-
-                    await _ctx.EnqueueUploadNodesAsync(new List<Node> { packageNode });
-                    var rel = Relationship.FromRelationship(new DependsOnRelationship(_projectNodeId, packageNodeId));
-                    await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { rel });
-
-                    _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Package);
-                    _ctx.AddNodesCount(1);
-                    _ctx.AddRelsCount(1);
+                    var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type);
+                    projectNode.Children.Add(packageNode);
                 }
             }
         }
@@ -166,23 +159,21 @@ public class ProjectLevelParser
         }
     }
 
-    private async Task LinkProducedPackageAsync()
+    private async Task LinkProducedPackageAsync(ProjectNode projectNode)
     {
-        bool packageDetected = false;
+        var packageDetected = false;
         try
         {
             var producedPackage = await _projectParser.GetProducedPackageAsync(_projectDir);
             if (producedPackage != null)
             {
                 var packageNodeId = $"package:{producedPackage.Name.ToLowerInvariant()}";
-                var packageNode = Node.FromNode(new PackageNode(packageNodeId, producedPackage.Name, producedPackage.Version, producedPackage.Type));
+                var packageNode = new PackageNode(packageNodeId, producedPackage.Name, producedPackage.Version, producedPackage.Type);
 
-                await _ctx.EnqueueUploadNodesAsync(new List<Node> { packageNode });
+                projectNode.Children.Add(packageNode);
+
                 var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, _projectNodeId));
                 await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { implRel });
-
-                _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Package);
-                _ctx.AddNodesCount(1);
                 _ctx.AddRelsCount(1);
 
                 packageDetected = true;
@@ -199,14 +190,12 @@ public class ProjectLevelParser
             if (!string.IsNullOrEmpty(dirName))
             {
                 var packageNodeId = $"package:{dirName.ToLowerInvariant()}";
-                var packageNode = Node.FromNode(new PackageNode(packageNodeId, dirName, "1.0.0", "unknown"));
+                var packageNode = new PackageNode(packageNodeId, dirName, "1.0.0", "unknown");
 
-                await _ctx.EnqueueUploadNodesAsync(new List<Node> { packageNode });
+                projectNode.Children.Add(packageNode);
+
                 var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, _projectNodeId));
                 await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { implRel });
-
-                _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Package);
-                _ctx.AddNodesCount(1);
                 _ctx.AddRelsCount(1);
             }
         }

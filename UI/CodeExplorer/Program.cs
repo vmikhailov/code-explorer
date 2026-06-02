@@ -10,9 +10,11 @@ using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer;
 
-class Program
+public class Program
 {
-    static async Task<int> Main(string[] args)
+    public static WebApplication? App { get; private set; }
+
+    public static async Task<int> Main(string[] args)
     {
         WorkspaceParser.Register(new CSharpParser());
         WorkspaceParser.Register(new GoParser());
@@ -120,6 +122,7 @@ class Program
 #pragma warning restore MCP9004
 
             var app = builder.Build();
+            App = app;
             app.UseCors();
             app.UseSwagger();
             app.UseSwaggerUI(c =>

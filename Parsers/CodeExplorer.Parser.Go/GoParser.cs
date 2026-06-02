@@ -1,4 +1,5 @@
 using TreeSitter;
+using CodeExplorer.Common;
 
 namespace CodeExplorer.Parser;
 
@@ -163,7 +164,7 @@ public class GoParser : IProjectParser, IFileParser
         try
         {
             var lines = await File.ReadAllLinesAsync(goModPath);
-            bool inRequireBlock = false;
+            var inRequireBlock = false;
 
             foreach (var rawLine in lines)
             {
@@ -212,5 +213,9 @@ public class GoParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx) => throw new NotSupportedException();
+    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    {
+        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
+        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+    }
 }

@@ -1,4 +1,5 @@
 using TreeSitter;
+using CodeExplorer.Common;
 
 namespace CodeExplorer.Parser;
 
@@ -149,11 +150,11 @@ public class CSharpParser : IProjectParser, IFileParser
             // Check OutputType (if Exe and not packable, return null)
             var outputType = doc.Descendants("OutputType").FirstOrDefault()?.Value;
             var hasGeneratePackageOnBuild = doc.Descendants("GeneratePackageOnBuild").FirstOrDefault()?.Value;
-            bool generateOnBuild = !string.IsNullOrEmpty(hasGeneratePackageOnBuild) && 
-                                   bool.TryParse(hasGeneratePackageOnBuild, out var gen) && gen;
+            var generateOnBuild = !string.IsNullOrEmpty(hasGeneratePackageOnBuild) && 
+                                  bool.TryParse(hasGeneratePackageOnBuild, out var gen) && gen;
 
-            bool explicitPackable = !string.IsNullOrEmpty(isPackableStr) && 
-                                    bool.TryParse(isPackableStr, out var p) && p;
+            var explicitPackable = !string.IsNullOrEmpty(isPackableStr) && 
+                                   bool.TryParse(isPackableStr, out var p) && p;
 
             if (string.Equals(outputType, "Exe", StringComparison.OrdinalIgnoreCase) && !generateOnBuild && !explicitPackable)
             {
@@ -222,5 +223,9 @@ public class CSharpParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx) => throw new NotSupportedException();
+    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    {
+        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
+        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+    }
 }

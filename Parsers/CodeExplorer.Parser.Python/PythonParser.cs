@@ -1,4 +1,5 @@
 using TreeSitter;
+using CodeExplorer.Common;
 
 namespace CodeExplorer.Parser;
 
@@ -129,9 +130,9 @@ public class PythonParser : IProjectParser, IFileParser
             {
                 var lines = await File.ReadAllLinesAsync(pyprojectPath);
                 string? name = null;
-                string version = "1.0.0";
+                var version = "1.0.0";
                 
-                bool inProjectSection = false;
+                var inProjectSection = false;
                 foreach (var rawLine in lines)
                 {
                     var line = rawLine.Trim();
@@ -214,7 +215,7 @@ public class PythonParser : IProjectParser, IFileParser
             try
             {
                 var lines = await File.ReadAllLinesAsync(pyprojectPath);
-                bool inDependencies = false;
+                var inDependencies = false;
                 foreach (var rawLine in lines)
                 {
                     var line = rawLine.Trim();
@@ -286,5 +287,9 @@ public class PythonParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx) => throw new NotSupportedException();
+    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    {
+        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
+        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+    }
 }

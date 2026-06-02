@@ -3,13 +3,13 @@ using System.Text.Json.Serialization;
 namespace CodeExplorer.Common;
 
 public record PackageNode(
-    [property: JsonIgnore] string Id,
+    string Id,
     string Name,
     string Version,
     string Type,
-    [property: JsonIgnore] Dictionary<string, string>? Extensions = null
-) : IOntologyNode
+    Dictionary<string, string>? Extensions = null
+) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public string Kind => OntologyConstants.NodeLabels.Package;
+    public override string Kind => OntologyConstants.NodeLabels.Package;
 }

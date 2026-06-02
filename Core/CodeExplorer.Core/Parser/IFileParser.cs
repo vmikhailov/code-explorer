@@ -1,4 +1,5 @@
 using TreeSitter;
+using CodeExplorer.Common;
 
 namespace CodeExplorer.Parser;
 
@@ -20,6 +21,11 @@ public interface IFileParser
     bool UsesTreeSitter { get; }
 
     /// <summary>
+    /// Parses the file and returns a rich FileNode with all child symbols nested.
+    /// </summary>
+    Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx);
+
+    /// <summary>
     /// Maps a Tree-sitter AST node to a CodeExplorer ontological kind (Class, Interface, Function, Variable, or null).
     /// </summary>
     string? MapNodeType(Node node);
@@ -33,9 +39,4 @@ public interface IFileParser
     /// Analyzes an AST node inside a containing scope and extracts any referenced symbols (calls, type uses, base classes).
     /// </summary>
     void CollectReferences(Node node, string scopeSymbolId, List<Reference> references);
-
-    /// <summary>
-    /// Executes custom non-Tree-Sitter parsing logic for this file.
-    /// </summary>
-    Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx);
 }

@@ -11,7 +11,7 @@ public class SqlParser : IProjectParser, IFileParser
 
     public string ProjectType => "sql";
 
-    public IReadOnlyCollection<string> ExcludedFolders => Array.Empty<string>();
+    public IReadOnlyCollection<string> ExcludedFolders => [];
 
     public bool CanParse(string fileExtension)
     {
@@ -52,20 +52,12 @@ public class SqlParser : IProjectParser, IFileParser
 
     public bool UsesTreeSitter => false;
 
-    public async Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    public async Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
     {
         var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileNodeId = $"file:{ctx.AbsoluteWorkspacePath}:{relativePath}";
 
-        var fileNode = Node.FromNode(new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath));
-        await ctx.EnqueueUploadNodesAsync(new List<Node> { fileNode });
-        ctx.IncrementNodeKind(OntologyConstants.NodeLabels.File);
-        ctx.AddNodesCount(1);
-
-        var fileRel = Relationship.FromRelationship(new ContainsRelationship(parentNodeId, fileNodeId));
-        await ctx.EnqueueUploadRelationshipsAsync([fileRel]);
-        ctx.AddRelsCount(1);
-
+        var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
         var sqlText = await File.ReadAllTextAsync(filePath);
 
         // 1. Clean SQL comments to avoid false matches
@@ -89,43 +81,30 @@ public class SqlParser : IProjectParser, IFileParser
             dbNodeId = $"db:{dbName.ToLowerInvariant()}";
         }
 
-        var dbNode = Node.FromNode(new DbNode(dbNodeId, dbName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
-        await ctx.EnqueueUploadNodesAsync(new List<Node> { dbNode });
-        ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DB);
-        ctx.AddNodesCount(1);
-
-        var dbRel = Relationship.FromRelationship(new UsesDbRelationship(parentNodeId, dbNodeId));
-        await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { dbRel });
-        ctx.AddRelsCount(1);
+        var dbNode = new DbNode(dbNodeId, dbName, relativePath);
+        fileNode.Children.Add(dbNode);
 
         // 3. Identify Schema (DataSet)
         var schemaMatches = Regex.Matches(cleanSql, @"CREATE\s+SCHEMA\s+([a-zA-Z0-9_\[\]""#@]+)", RegexOptions.IgnoreCase);
-        var datasets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var datasets = new Dictionary<string, DataSetNode>(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in schemaMatches)
         {
             var schemaName = match.Groups[1].Value.Trim('[', ']', '"');
             var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
-            datasets[schemaName] = schemaNodeId;
-
-            var schemaNode = Node.FromNode(new DataSetNode(schemaNodeId, schemaName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
-            await ctx.EnqueueUploadNodesAsync(new List<Node> { schemaNode });
-            ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DataSet);
-            ctx.AddNodesCount(1);
-
-            var schemaRel = Relationship.FromRelationship(new ContainsRelationship(dbNodeId, schemaNodeId));
-            await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { schemaRel });
-            ctx.AddRelsCount(1);
+            var schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
+            datasets[schemaName] = schemaNode;
+            dbNode.Children.Add(schemaNode);
         }
 
         // 4. Identify Tables
         var tableMatches = Regex.Matches(cleanSql, @"CREATE\s+TABLE\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
-        var tables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var tables = new Dictionary<string, TableNode>(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in tableMatches)
         {
             var rawTableName = match.Groups[1].Value;
             var parts = rawTableName.Split('.');
-            string schemaName = "dbo";
-            string tableName = rawTableName;
+            var schemaName = "dbo";
+            var tableName = rawTableName;
             if (parts.Length > 1)
             {
                 schemaName = parts[0].Trim('[', ']', '"');
@@ -137,31 +116,18 @@ public class SqlParser : IProjectParser, IFileParser
             }
 
             var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
-            if (!datasets.ContainsKey(schemaName))
+            if (!datasets.TryGetValue(schemaName, out var schemaNode))
             {
-                datasets[schemaName] = schemaNodeId;
-                var schemaNode = Node.FromNode(new DataSetNode(schemaNodeId, schemaName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
-                await ctx.EnqueueUploadNodesAsync(new List<Node> { schemaNode });
-                ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DataSet);
-                ctx.AddNodesCount(1);
-
-                var schemaRel = Relationship.FromRelationship(new ContainsRelationship(dbNodeId, schemaNodeId));
-                await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { schemaRel });
-                ctx.AddRelsCount(1);
+                schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
+                datasets[schemaName] = schemaNode;
+                dbNode.Children.Add(schemaNode);
             }
 
             var tableNodeId = $"{schemaNodeId}:table:{tableName.ToLowerInvariant()}";
-            tables[tableName] = tableNodeId;
-            tables[rawTableName] = tableNodeId;
-
-            var tableNode = Node.FromNode(new TableNode(tableNodeId, tableName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
-            await ctx.EnqueueUploadNodesAsync(new List<Node> { tableNode });
-            ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Table);
-            ctx.AddNodesCount(1);
-
-            var tableRel = Relationship.FromRelationship(new ContainsRelationship(schemaNodeId, tableNodeId));
-            await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { tableRel });
-            ctx.AddRelsCount(1);
+            var tableNode = new TableNode(tableNodeId, tableName, relativePath);
+            tables[tableName] = tableNode;
+            tables[rawTableName] = tableNode;
+            schemaNode.Children.Add(tableNode);
 
             // Register global table symbol
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Table, tableName, tableNodeId);
@@ -173,15 +139,15 @@ public class SqlParser : IProjectParser, IFileParser
 
         // 5. Identify Procedures / Functions
         var procMatches = Regex.Matches(cleanSql, @"CREATE\s+(?:PROCEDURE|PROC|FUNCTION)\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
-        var procedures = new List<(string Name, string RawName, string Id, int StartIndex)>();
+        var procedures = new List<(string Name, string RawName, string Id, int StartIndex, ProcedureNode Node)>();
 
-        for (int i = 0; i < procMatches.Count; i++)
+        for (var i = 0; i < procMatches.Count; i++)
         {
             var match = procMatches[i];
             var rawProcName = match.Groups[1].Value;
             var parts = rawProcName.Split('.');
-            string schemaName = "dbo";
-            string procName = rawProcName;
+            var schemaName = "dbo";
+            var procName = rawProcName;
             if (parts.Length > 1)
             {
                 schemaName = parts[0].Trim('[', ']', '"');
@@ -193,30 +159,17 @@ public class SqlParser : IProjectParser, IFileParser
             }
 
             var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
-            if (!datasets.ContainsKey(schemaName))
+            if (!datasets.TryGetValue(schemaName, out var schemaNode))
             {
-                datasets[schemaName] = schemaNodeId;
-                var schemaNode = Node.FromNode(new DataSetNode(schemaNodeId, schemaName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
-                await ctx.EnqueueUploadNodesAsync(new List<Node> { schemaNode });
-                ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DataSet);
-                ctx.AddNodesCount(1);
-
-                var schemaRel = Relationship.FromRelationship(new ContainsRelationship(dbNodeId, schemaNodeId));
-                await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { schemaRel });
-                ctx.AddRelsCount(1);
+                schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
+                datasets[schemaName] = schemaNode;
+                dbNode.Children.Add(schemaNode);
             }
 
             var procNodeId = $"{schemaNodeId}:procedure:{procName.ToLowerInvariant()}";
-            procedures.Add((procName, rawProcName, procNodeId, match.Index));
-
-            var procNode = Node.FromNode(new ProcedureNode(procNodeId, procName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
-            await ctx.EnqueueUploadNodesAsync(new List<Node> { procNode });
-            ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Procedure);
-            ctx.AddNodesCount(1);
-
-            var procRel = Relationship.FromRelationship(new ContainsRelationship(schemaNodeId, procNodeId));
-            await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { procRel });
-            ctx.AddRelsCount(1);
+            var procNode = new ProcedureNode(procNodeId, procName, relativePath);
+            procedures.Add((procName, rawProcName, procNodeId, match.Index, procNode));
+            schemaNode.Children.Add(procNode);
 
             // Register global procedure symbol
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Procedure, procName, procNodeId);
@@ -227,18 +180,16 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         // 6. Split statements and extract Query nodes (both inside procedures and top-level)
-        var statements = cleanSql.Split(new[] { ';', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+        var statements = cleanSql.Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .Select(s => s.Trim())
             .Where(s => !string.IsNullOrEmpty(s))
             .ToList();
 
-        // File node creation is managed above, so we just use the existing fileNodeId as the fallback parent
-        
-        int queryCounter = 0;
-        int currentSearchIndex = 0;
+        var queryCounter = 0;
+        var currentSearchIndex = 0;
         foreach (var statement in statements)
         {
-            var firstWord = statement.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            var firstWord = statement.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
                 .FirstOrDefault()?.ToUpperInvariant();
 
             if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE")
@@ -246,7 +197,6 @@ public class SqlParser : IProjectParser, IFileParser
                 queryCounter++;
                 var queryName = $"{firstWord} Query #{queryCounter}";
                 
-                // Find statement character index in cleanSql (searching forward to handle duplicates)
                 var indexInCleanSql = cleanSql.IndexOf(statement, currentSearchIndex);
                 if (indexInCleanSql != -1)
                 {
@@ -257,19 +207,21 @@ public class SqlParser : IProjectParser, IFileParser
                     indexInCleanSql = cleanSql.IndexOf(statement);
                 }
                 
-                string containingParentId = fileNodeId;
+                IOntologyNode containingParentNode = fileNode;
+                var containingParentId = fileNodeId;
 
                 // Check if this query statement is enclosed in any procedure body
-                for (int i = 0; i < procedures.Count; i++)
+                for (var i = 0; i < procedures.Count; i++)
                 {
                     var currentProc = procedures[i];
-                    int start = currentProc.StartIndex;
+                    var start = currentProc.StartIndex;
                     
                     var nextGo = cleanSql.IndexOf("GO", start, StringComparison.OrdinalIgnoreCase);
-                    int end = (nextGo != -1) ? nextGo : ((i + 1 < procedures.Count) ? procedures[i + 1].StartIndex : cleanSql.Length);
+                    var end = (nextGo != -1) ? nextGo : ((i + 1 < procedures.Count) ? procedures[i + 1].StartIndex : cleanSql.Length);
 
                     if (indexInCleanSql >= start && indexInCleanSql < end)
                     {
+                        containingParentNode = currentProc.Node;
                         containingParentId = currentProc.Id;
                         break;
                     }
@@ -277,20 +229,13 @@ public class SqlParser : IProjectParser, IFileParser
 
                 // Create the Query Node
                 var queryNodeId = $"{containingParentId}:query:{queryCounter}";
-                var queryNode = Node.FromNode(new QueryNode(
+                var queryNode = new QueryNode(
                     queryNodeId,
                     queryName,
                     statement.Length > 200 ? statement.Substring(0, 197) + "..." : statement,
-                    Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
-                ));
-                await ctx.EnqueueUploadNodesAsync(new List<Node> { queryNode });
-                ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Query);
-                ctx.AddNodesCount(1);
-
-                // Containment relation from Procedure or File
-                var containmentRel = Relationship.FromRelationship(new ContainsRelationship(containingParentId, queryNodeId));
-                await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { containmentRel });
-                ctx.AddRelsCount(1);
+                    relativePath
+                );
+                containingParentNode.Children.Add(queryNode);
 
                 // A. Parse Calls dependencies (EXEC / EXECUTE)
                 var execMatches = Regex.Matches(statement, @"EXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
@@ -300,22 +245,19 @@ public class SqlParser : IProjectParser, IFileParser
                     var targetProcParts = targetProcRaw.Split('.');
                     var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"') : targetProcRaw.Trim('[', ']', '"');
                     
-                    var reference = new Reference(queryNodeId, targetProcName, OntologyConstants.Relationships.Calls);
-                    ctx.AddGlobalReferences(new[] { reference });
+                    queryNode.References.Add(new Reference(queryNodeId, targetProcName, OntologyConstants.Relationships.Calls));
                 }
 
                 // B. Parse Local Table dependencies (DependsOn)
                 foreach (var tableKvp in tables)
                 {
                     var tableName = tableKvp.Key;
-                    var tableId = tableKvp.Value;
+                    var tableNode = tableKvp.Value;
 
                     var pattern = $@"\b{Regex.Escape(tableName)}\b";
                     if (Regex.IsMatch(statement, pattern, RegexOptions.IgnoreCase))
                     {
-                        var depRel = Relationship.FromRelationship(new DependsOnRelationship(queryNodeId, tableId));
-                        await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { depRel });
-                        ctx.AddRelsCount(1);
+                        queryNode.References.Add(new Reference(queryNodeId, tableName, OntologyConstants.Relationships.DependsOn));
                     }
                 }
 
@@ -327,19 +269,16 @@ public class SqlParser : IProjectParser, IFileParser
                     uniqueWords.Add(wm.Value);
                 }
 
-                var tableReferences = new List<Reference>();
                 foreach (var word in uniqueWords)
                 {
                     if (!tables.ContainsKey(word))
                     {
-                        tableReferences.Add(new Reference(queryNodeId, word, OntologyConstants.Relationships.DependsOn));
+                        queryNode.References.Add(new Reference(queryNodeId, word, OntologyConstants.Relationships.DependsOn));
                     }
-                }
-                if (tableReferences.Count > 0)
-                {
-                    ctx.AddGlobalReferences(tableReferences);
                 }
             }
         }
+
+        return fileNode;
     }
 }

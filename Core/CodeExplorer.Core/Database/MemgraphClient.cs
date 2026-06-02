@@ -132,7 +132,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
             var relList = group.ToList();
 
             const int batchSize = 1000;
-            for (int i = 0; i < relList.Count; i += batchSize)
+            for (var i = 0; i < relList.Count; i += batchSize)
             {
                 var chunk = relList.Skip(i).Take(batchSize).Select(r => new Dictionary<string, object>
                 {

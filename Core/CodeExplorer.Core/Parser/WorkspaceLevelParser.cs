@@ -1,5 +1,11 @@
 using CodeExplorer.Common;
 using CodeExplorer.Database;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace CodeExplorer.Parser;
 
@@ -48,18 +54,17 @@ public class WorkspaceLevelParser
             var folderName = Path.GetFileName(_absoluteWorkspacePath);
             if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
 
-            var workspaceNode = Node.FromNode(new WorkspaceNode(
+            var workspaceNode = new WorkspaceNode(
                 _workspaceNodeId,
                 folderName,
                 _absoluteWorkspacePath
-            ));
-            await _ctx.EnqueueUploadNodesAsync(new List<Node> { workspaceNode });
-
-            _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Workspace);
-            _ctx.AddNodesCount(1);
+            );
 
             // Recursively scan, discovering projects inline!
-            await ScanDirectoryAsync(_absoluteWorkspacePath, _workspaceNodeId, new HashSet<string>());
+            await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode, new HashSet<string>());
+
+            // Upload the entire Workspace Node tree using OntologyUploader
+            await OntologyUploader.UploadNodeTreeAsync(workspaceNode, null, _ctx);
         }
         else
         {
@@ -76,7 +81,6 @@ public class WorkspaceLevelParser
 
             if (matchedParser == null)
             {
-                // Fallback to C# or first registered if none detected, or construct ProjectLevelParser with dummy/fallback
                 lock (WorkspaceParser.ProjectParsers)
                 {
                     matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault();
@@ -91,7 +95,7 @@ public class WorkspaceLevelParser
         }
     }
 
-    private async Task ScanDirectoryAsync(string currentDir, string currentParentId, HashSet<string> activeProjectTypes)
+    private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode, HashSet<string> activeProjectTypes)
     {
         if (_excludedSubdirectories.Contains(currentDir))
         {
@@ -105,10 +109,14 @@ public class WorkspaceLevelParser
 
             if (matchedParser != null)
             {
-                var projectParser = new ProjectLevelParser(_ctx, currentDir, currentParentId, matchedParser);
-                await projectParser.ParseAsync();
+                var projectParser = new ProjectLevelParser(_ctx, currentDir, parentNode.Id, matchedParser);
+                var projectNode = await projectParser.ParseProjectAsync();
+                if (projectNode != null)
+                {
+                    parentNode.Children.Add(projectNode);
+                }
             }
-            return; // Bypasses recursing deeper since the ProjectLevelParser will map it recursively!
+            return;
         }
 
         var relativeDir = Path.GetRelativePath(_absoluteWorkspacePath, currentDir).Replace('\\', '/');
@@ -147,7 +155,6 @@ public class WorkspaceLevelParser
             }
         }
 
-        // Propagate exclusions
         var subProjectTypes = new HashSet<string>(activeProjectTypes);
         foreach (var type in newlyDetectedTypes)
         {
@@ -155,7 +162,7 @@ public class WorkspaceLevelParser
         }
 
         // Check if excluded based on active project types and language exclusions
-        bool shouldExclude = false;
+        var shouldExclude = false;
         string? matchedExclusionFolder = null;
         string? matchedExclusionType = null;
         lock (WorkspaceParser.ProjectParsers)
@@ -187,29 +194,19 @@ public class WorkspaceLevelParser
         }
 
         // Register current directory in structural nodes
-        string currentId;
-        if (string.IsNullOrEmpty(relativeDir))
+        var currentParentNode = parentNode;
+        if (!string.IsNullOrEmpty(relativeDir))
         {
-            currentId = _workspaceNodeId;
-        }
-        else
-        {
-            currentId = $"workspacefolder:{_absoluteWorkspacePath}:{relativeDir}";
-            var folderNode = Node.FromNode(new WorkspaceFolderNode(currentId, dirName, relativeDir));
-            await _ctx.EnqueueUploadNodesAsync(new List<Node> { folderNode });
-            
-            var rel = Relationship.FromRelationship(new ContainsRelationship(currentParentId, currentId));
-            await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { rel });
-
-            _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.WorkspaceFolder);
-            _ctx.AddNodesCount(1);
-            _ctx.AddRelsCount(1);
+            var folderId = $"workspacefolder:{_absoluteWorkspacePath}:{relativeDir}";
+            var folderNode = new WorkspaceFolderNode(folderId, dirName, relativeDir);
+            parentNode.Children.Add(folderNode);
+            currentParentNode = folderNode;
         }
 
         // Recurse into subdirectories
         foreach (var subDir in Directory.GetDirectories(currentDir))
         {
-            await ScanDirectoryAsync(subDir, currentId, subProjectTypes);
+            await ScanDirectoryAsync(subDir, currentParentNode, subProjectTypes);
         }
 
         // Scan root level loose files
@@ -232,8 +229,11 @@ public class WorkspaceLevelParser
 
             if (fileParser != null)
             {
-                var flParser = new FileLevelParser(_ctx, file, currentId, fileParser);
-                await flParser.ParseAsync();
+                var fileNode = await fileParser.ParseAsync(file, currentParentNode.Id, _ctx);
+                if (fileNode != null)
+                {
+                    currentParentNode.Children.Add(fileNode);
+                }
             }
         }
     }
@@ -242,7 +242,7 @@ public class WorkspaceLevelParser
     {
         var projectDirs = new List<string>();
         var rootFiles = Directory.GetFiles(_absoluteWorkspacePath);
-        bool rootIsProject = false;
+        var rootIsProject = false;
         lock (WorkspaceParser.ProjectParsers)
         {
             foreach (var parser in WorkspaceParser.ProjectParsers)
@@ -279,7 +279,7 @@ public class WorkspaceLevelParser
         }
 
         var filesInDir = Directory.GetFiles(currentDir);
-        bool isProject = false;
+        var isProject = false;
         lock (WorkspaceParser.ProjectParsers)
         {
             foreach (var parser in WorkspaceParser.ProjectParsers)

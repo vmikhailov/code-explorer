@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using CodeExplorer.Database;
+using CodeExplorer.Common;
 
 namespace CodeExplorer.Parser;
 
