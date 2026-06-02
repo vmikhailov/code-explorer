@@ -25,8 +25,14 @@ public class TreeSitterParser
         string currentDir, 
         string absoluteWorkspacePath, 
         List<string> collectedFiles, 
-        HashSet<string> detectedProjectTypes)
+        HashSet<string> detectedProjectTypes,
+        Dictionary<string, (string Id, string Kind)> visitedDirs,
+        List<Database.Node> allNodes,
+        List<Database.Relationship> allRelationships)
     {
+        var relativeDir = Path.GetRelativePath(absoluteWorkspacePath, currentDir).Replace('\\', '/');
+        if (relativeDir == ".") relativeDir = "";
+
         var dirName = Path.GetFileName(currentDir);
         if (string.IsNullOrEmpty(dirName))
         {
@@ -44,6 +50,8 @@ public class TreeSitterParser
         // 2. Scan current folder for project signature files to detect project types
         var filesInDir = Directory.GetFiles(currentDir);
         var newlyDetectedTypes = new HashSet<string>();
+        bool isProject = false;
+        string? projectType = null;
 
         foreach (var file in filesInDir)
         {
@@ -53,18 +61,26 @@ public class TreeSitterParser
             if (ext == ".csproj" || ext == ".sln")
             {
                 newlyDetectedTypes.Add("csharp");
+                isProject = true;
+                projectType = "csharp";
             }
             else if (fileNameLower == "go.mod")
             {
                 newlyDetectedTypes.Add("go");
+                isProject = true;
+                projectType = "go";
             }
             else if (fileNameLower == "package.json" || fileNameLower == "tsconfig.json")
             {
                 newlyDetectedTypes.Add("typescript");
+                isProject = true;
+                projectType = "typescript";
             }
             else if (fileNameLower == "requirements.txt" || fileNameLower == "pyproject.toml" || fileNameLower == "setup.py")
             {
                 newlyDetectedTypes.Add("python");
+                isProject = true;
+                projectType = "python";
             }
         }
 
@@ -92,6 +108,54 @@ public class TreeSitterParser
             return;
         }
 
+        // Register current directory in visitedDirs and allNodes
+        string currentId;
+        string currentKind;
+
+        if (string.IsNullOrEmpty(relativeDir))
+        {
+            // Root directory
+            currentId = $"root:{absoluteWorkspacePath}";
+            currentKind = "Root";
+            visitedDirs[relativeDir] = (currentId, currentKind);
+        }
+        else
+        {
+            if (isProject)
+            {
+                currentId = $"project:{absoluteWorkspacePath}:{relativeDir}";
+                currentKind = "Project";
+                allNodes.Add(new Database.Node(currentId, "Project", new Dictionary<string, object> 
+                { 
+                    ["name"] = dirName,
+                    ["path"] = relativeDir,
+                    ["project_type"] = projectType ?? "unknown"
+                }));
+            }
+            else
+            {
+                currentId = $"folder:{absoluteWorkspacePath}:{relativeDir}";
+                currentKind = "Folder";
+                allNodes.Add(new Database.Node(currentId, "Folder", new Dictionary<string, object> 
+                { 
+                    ["name"] = dirName,
+                    ["path"] = relativeDir 
+                }));
+            }
+
+            visitedDirs[relativeDir] = (currentId, currentKind);
+
+            // Establish relationship from Parent Directory to Current Directory
+            var parentPath = Path.GetDirectoryName(currentDir)!.Replace('\\', '/');
+            var parentRelative = Path.GetRelativePath(absoluteWorkspacePath, parentPath).Replace('\\', '/');
+            if (parentRelative == ".") parentRelative = "";
+
+            if (visitedDirs.TryGetValue(parentRelative, out var parentInfo))
+            {
+                allRelationships.Add(new Database.Relationship(parentInfo.Id, currentId, "CONTAINS"));
+            }
+        }
+
         // Add matching source files in this folder
         foreach (var file in filesInDir)
         {
@@ -111,7 +175,7 @@ public class TreeSitterParser
         {
             // We pass a copy of detectedProjectTypes so that subdirectories inherit active project types
             var subProjectTypes = new HashSet<string>(detectedProjectTypes);
-            ScanDirectory(subDir, absoluteWorkspacePath, collectedFiles, subProjectTypes);
+            ScanDirectory(subDir, absoluteWorkspacePath, collectedFiles, subProjectTypes, visitedDirs, allNodes, allRelationships);
         }
     }
 
@@ -139,7 +203,8 @@ public class TreeSitterParser
         // Use custom directory scanning that detects project types and handles exclusions
         var files = new List<string>();
         var detectedProjectTypes = new HashSet<string>();
-        ScanDirectory(absoluteWorkspacePath, absoluteWorkspacePath, files, detectedProjectTypes);
+        var visitedDirs = new Dictionary<string, (string Id, string Kind)>();
+        ScanDirectory(absoluteWorkspacePath, absoluteWorkspacePath, files, detectedProjectTypes, visitedDirs, allNodes, allRelationships);
 
         foreach (var file in files)
         {
@@ -177,26 +242,19 @@ public class TreeSitterParser
                     }
                 ));
 
-                // Add Project Node based on top directory name
-                var parts = relativePath.Split('/');
-                var projectName = parts.Length > 1 ? parts[0] : "root";
-                var projectId = $"project:{absoluteWorkspacePath}:{projectName}";
+                // Find the parent directory node info from visitedDirs
+                var parentDir = Path.GetDirectoryName(file)!.Replace('\\', '/');
+                var parentRelative = Path.GetRelativePath(dirPath, parentDir).Replace('\\', '/');
+                if (parentRelative == ".") parentRelative = "";
 
-                // Ensure Project node is defined once globally
-                if (!allNodes.Any(n => n.Id == projectId))
+                string parentNodeId = rootNodeId;
+                if (visitedDirs.TryGetValue(parentRelative, out var parentInfo))
                 {
-                    allNodes.Add(new Database.Node(
-                        projectId,
-                        "Project",
-                        new Dictionary<string, object> { ["name"] = projectName }
-                    ));
-
-                    // Relate Root contains Project
-                    allRelationships.Add(new Database.Relationship(rootNodeId, projectId, "CONTAINS"));
+                    parentNodeId = parentInfo.Id;
                 }
 
-                // Relate Project contains File
-                allRelationships.Add(new Database.Relationship(projectId, fileNodeId, "CONTAINS"));
+                // Relate Parent Node (Folder, Project, or Root) contains File
+                allRelationships.Add(new Database.Relationship(parentNodeId, fileNodeId, "CONTAINS"));
 
                 // Traverse AST
                 TraverseNode(tree.RootNode, fileNodeId, ctx);
