@@ -6,7 +6,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public class TreeSitterParser
+public class SolutionParser
 {
     private static readonly List<ILanguageParser> Parsers = new();
 
@@ -21,14 +21,15 @@ public class TreeSitterParser
         }
     }
 
-    private static void ScanDirectory(
-        string currentDir, 
-        string absoluteWorkspacePath, 
-        List<string> collectedFiles, 
+    private static void Scan(
+        string currentDir,
+        string absoluteWorkspacePath,
+        List<string> collectedFiles,
         HashSet<string> detectedProjectTypes,
         Dictionary<string, (string Id, string Kind)> visitedDirs,
         List<Database.Node> allNodes,
-        List<Database.Relationship> allRelationships)
+        List<Database.Relationship> allRelationships,
+        bool insideProject)
     {
         var relativeDir = Path.GetRelativePath(absoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
@@ -65,6 +66,15 @@ public class TreeSitterParser
                 }
             }
         }
+
+        // A project cannot contain another project.
+        if (isProject && insideProject)
+        {
+            isProject = false;
+        }
+
+        // Propagate whether we are inside a project to subdirectories
+        bool currentInsideProject = insideProject || isProject;
 
         // 3. Add to detected project types
         foreach (var type in newlyDetectedTypes)
@@ -116,8 +126,8 @@ public class TreeSitterParser
             {
                 currentId = $"project:{absoluteWorkspacePath}:{relativeDir}";
                 currentKind = "Project";
-                allNodes.Add(new Database.Node(currentId, "Project", new Dictionary<string, object> 
-                { 
+                allNodes.Add(new Database.Node(currentId, "Project", new Dictionary<string, object>
+                {
                     ["name"] = dirName,
                     ["path"] = relativeDir,
                     ["project_type"] = projectType ?? "unknown"
@@ -127,10 +137,10 @@ public class TreeSitterParser
             {
                 currentId = $"folder:{absoluteWorkspacePath}:{relativeDir}";
                 currentKind = "Folder";
-                allNodes.Add(new Database.Node(currentId, "Folder", new Dictionary<string, object> 
-                { 
+                allNodes.Add(new Database.Node(currentId, "Folder", new Dictionary<string, object>
+                {
                     ["name"] = dirName,
-                    ["path"] = relativeDir 
+                    ["path"] = relativeDir
                 }));
             }
 
@@ -166,7 +176,7 @@ public class TreeSitterParser
         {
             // We pass a copy of detectedProjectTypes so that subdirectories inherit active project types
             var subProjectTypes = new HashSet<string>(detectedProjectTypes);
-            ScanDirectory(subDir, absoluteWorkspacePath, collectedFiles, subProjectTypes, visitedDirs, allNodes, allRelationships);
+            Scan(subDir, absoluteWorkspacePath, collectedFiles, subProjectTypes, visitedDirs, allNodes, allRelationships, currentInsideProject);
         }
     }
 
@@ -195,12 +205,12 @@ public class TreeSitterParser
         var files = new List<string>();
         var detectedProjectTypes = new HashSet<string>();
         var visitedDirs = new Dictionary<string, (string Id, string Kind)>();
-        ScanDirectory(absoluteWorkspacePath, absoluteWorkspacePath, files, detectedProjectTypes, visitedDirs, allNodes, allRelationships);
+        Scan(absoluteWorkspacePath, absoluteWorkspacePath, files, detectedProjectTypes, visitedDirs, allNodes, allRelationships, false);
 
         foreach (var file in files)
         {
             var ext = Path.GetExtension(file).ToLower();
-            
+
             ILanguageParser? langParser = null;
             lock (Parsers)
             {
@@ -212,10 +222,10 @@ public class TreeSitterParser
             {
                 using var language = new Language(langParser.LanguageName);
                 using var parser = new global::TreeSitter.Parser(language);
-                
+
                 var sourceText = File.ReadAllText(file);
                 using var tree = parser.Parse(sourceText);
-                
+
                 if (tree == null || tree.RootNode == null) continue;
 
                 var relativePath = Path.GetRelativePath(dirPath, file).Replace('\\', '/');
@@ -295,11 +305,11 @@ public class TreeSitterParser
                 {
                     if (refItem.ScopeSymbolId != targetNode.Id)
                     {
-                        bool hasInheritance = allRelationships.Any(r => 
-                            r.From == refItem.ScopeSymbolId && 
-                            r.To == targetNode.Id && 
+                        bool hasInheritance = allRelationships.Any(r =>
+                            r.From == refItem.ScopeSymbolId &&
+                            r.To == targetNode.Id &&
                             (r.Kind == "IMPLEMENTS" || r.Kind == "INHERITS_FROM"));
-                            
+
                         if (!hasInheritance)
                         {
                             allRelationships.Add(new Database.Relationship(refItem.ScopeSymbolId, targetNode.Id, "USES_TYPE"));

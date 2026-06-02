@@ -15,9 +15,9 @@ public class WorkspaceIndexerService(MemgraphClient dbClient)
         }
 
         var absolutePath = Path.GetFullPath(dirPath).Replace('\\', '/');
-        
+
         // 1. Parse directory and construct AST tree with TreeSitter
-        var (nodes, relationships) = TreeSitterParser.ParseDirectory(absolutePath);
+        var (nodes, relationships) = SolutionParser.ParseDirectory(absolutePath);
 
         // 2. Clear previous workspace data surgically if clear option is enabled
         if (clear)

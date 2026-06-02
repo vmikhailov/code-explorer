@@ -21,7 +21,7 @@ public class CSharpParser : ILanguageParser
         foreach (var file in filesInDirectory)
         {
             var ext = System.IO.Path.GetExtension(file).ToLowerInvariant();
-            if (ext == ".csproj" || ext == ".sln")
+            if (ext == ".csproj")
             {
                 return true;
             }

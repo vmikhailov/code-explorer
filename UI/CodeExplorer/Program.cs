@@ -14,10 +14,10 @@ class Program
     static async Task<int> Main(string[] args)
     {
         // Dynamically register the dialect parsers
-        TreeSitterParser.Register(new CSharpParser());
-        TreeSitterParser.Register(new GoParser());
-        TreeSitterParser.Register(new PythonParser());
-        TreeSitterParser.Register(new TypeScriptParser());
+        SolutionParser.Register(new CSharpParser());
+        SolutionParser.Register(new GoParser());
+        SolutionParser.Register(new PythonParser());
+        SolutionParser.Register(new TypeScriptParser());
 
         return await CommandLineParser.Default.ParseArguments<IngestOptions, QueryOptions, McpOptions>(args)
             .MapResult(
@@ -34,16 +34,16 @@ class Program
         {
             Console.WriteLine($"Scanning and parsing directory: {opts.Dir}...");
             await using var client = new MemgraphClient(opts.BoltUrl, opts.Username, opts.Password);
-            
+
             if (opts.ClearAll)
             {
                 Console.WriteLine("Performing a global database clear...");
                 await client.ClearDatabaseAsync();
             }
-            
+
             var indexer = new WorkspaceIndexerService(client);
             var (nodesCount, relsCount) = await indexer.IndexWorkspaceAsync(opts.Dir, opts.Clear && !opts.ClearAll);
-            
+
             Console.WriteLine($"Parsed and uploaded {nodesCount} nodes and {relsCount} relationships successfully!");
             return 0;
         }
@@ -73,7 +73,7 @@ class Program
     private static async Task<int> HandleMcpAsync(McpOptions opts)
     {
         await using var client = new MemgraphClient(opts.BoltUrl, opts.Username, opts.Password);
-        
+
         if (opts.Port > 0)
         {
             var sseServer = new SseMcpServer(client, opts.Port);
@@ -84,7 +84,7 @@ class Program
             var stdioServer = new McpServer(client);
             await stdioServer.StartAsync();
         }
-        
+
         return 0;
     }
 }
