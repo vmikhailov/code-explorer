@@ -39,9 +39,14 @@ class Program
             }
 
             var indexer = new WorkspaceIndexerService(client);
-            var (nodesCount, relsCount) = await indexer.IndexWorkspaceAsync(opts.Dir, opts.Clear && !opts.ClearAll);
+            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexWorkspaceAsync(opts.Dir, opts.Clear && !opts.ClearAll);
 
             Console.WriteLine($"Parsed and uploaded {nodesCount} nodes and {relsCount} relationships successfully!");
+            Console.WriteLine("Nodes breakdown by kind:");
+            foreach (var kvp in nodesByKind)
+            {
+                Console.WriteLine($"  - {kvp.Key}: {kvp.Value}");
+            }
             return 0;
         }
         catch (Exception ex)

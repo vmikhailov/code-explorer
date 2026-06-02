@@ -22,13 +22,14 @@ public class WorkspacesController : ControllerBase
         try
         {
             var indexer = new WorkspaceIndexerService(_client);
-            var (nodesCount, relsCount) = await indexer.IndexWorkspaceAsync(request.Dir, request.Clear);
+            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexWorkspaceAsync(request.Dir, request.Clear);
             return Ok(new
             {
                 message = "Workspace indexed successfully.",
                 directory = request.Dir,
                 nodesCount,
-                relationshipsCount = relsCount
+                relationshipsCount = relsCount,
+                nodesByKind
             });
         }
         catch (DirectoryNotFoundException ex)

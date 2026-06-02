@@ -1,10 +1,14 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.IO;
+using System.Threading.Tasks;
 using CodeExplorer.Database;
 
 namespace CodeExplorer.Parser;
 
 public class WorkspaceIndexerService(MemgraphClient dbClient)
 {
-    public async Task<(int NodesCount, int RelationshipsCount)> IndexWorkspaceAsync(string dirPath, bool clear)
+    public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexWorkspaceAsync(string dirPath, bool clear)
     {
         if (!Directory.Exists(dirPath))
         {
@@ -29,6 +33,9 @@ public class WorkspaceIndexerService(MemgraphClient dbClient)
         await dbClient.UploadNodesAsync(nodes);
         await dbClient.UploadRelationshipsAsync(relationships);
 
-        return (nodes.Count, relationships.Count);
+        // Calculate statistics of nodes by kind
+        var nodesByKind = nodes.GroupBy(n => n.Kind).ToDictionary(g => g.Key, g => g.Count());
+
+        return (nodes.Count, relationships.Count, nodesByKind);
     }
 }
