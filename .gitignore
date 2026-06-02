@@ -1,0 +1,29 @@
+# --- .NET Build & Publish Outputs ---
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# --- IDE Config & User Settings ---
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.userprefs
+*.pidb
+*.pyc
+
+# --- OS-specific files ---
+.DS_Store
+Thumbs.db
+db.log
+
+# --- Local Environment & Secrets ---
+.env
+.env.*
+appsettings.Development.json
+appsettings.local.json
+.Build/
