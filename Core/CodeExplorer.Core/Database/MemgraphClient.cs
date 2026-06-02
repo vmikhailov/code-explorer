@@ -12,7 +12,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
 
     public async Task CreateIndicesAsync()
     {
-        var kinds = new[] { "SolutionFolder", "ProjectFolder", "Project", "File", "Class", "Function", "Variable" };
+        var kinds = new[] { "WorkspaceFolder", "ProjectFolder", "Project", "File", "Class", "Function", "Variable" };
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
         
         foreach (var kind in kinds)
@@ -44,7 +44,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         await session.ExecuteWriteAsync(async tx =>
         {
             await tx.RunAsync(
-                "MATCH (r:Solution {path: $workspacePath})-[:CONTAINS*0..]->(n) DETACH DELETE n",
+                "MATCH (r:Workspace {path: $workspacePath})-[:CONTAINS*0..]->(n) DETACH DELETE n",
                 new { workspacePath }
             );
         });

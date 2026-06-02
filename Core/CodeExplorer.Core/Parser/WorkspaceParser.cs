@@ -2,7 +2,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public class SolutionParser
+public class WorkspaceParser
 {
     private static readonly List<ILanguageParser> Parsers = new();
 
@@ -21,7 +21,7 @@ public class SolutionParser
     private readonly string _absoluteWorkspacePath;
     private readonly Database.MemgraphClient _dbClient;
     private readonly bool _clear;
-    private readonly string _solutionNodeId;
+    private readonly string _workspaceNodeId;
 
     private readonly List<Database.Node> _structuralNodes = new();
     private readonly List<Database.Relationship> _structuralRelationships = new();
@@ -36,7 +36,7 @@ public class SolutionParser
     private int _totalNodesCount;
     private int _totalRelsCount;
 
-    public SolutionParser(string dirPath, Database.MemgraphClient dbClient, bool clear)
+    public WorkspaceParser(string dirPath, Database.MemgraphClient dbClient, bool clear)
     {
         _absoluteWorkspacePath = Path.GetFullPath(dirPath).Replace('\\', '/');
         _dbClient = dbClient;
@@ -45,10 +45,10 @@ public class SolutionParser
 
         var folderName = Path.GetFileName(_absoluteWorkspacePath);
         if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
-        _solutionNodeId = $"solution:{_absoluteWorkspacePath}";
+        _workspaceNodeId = $"workspace:{_absoluteWorkspacePath}";
 
-        _nodesByKind["Solution"] = 1;
-        _totalNodesCount = 1; // Solution node
+        _nodesByKind["Workspace"] = 1;
+        _totalNodesCount = 1; // Workspace node
     }
 
     private void Scan(string currentDir, string currentParentId, HashSet<string> activeProjectTypes, bool insideProject)
@@ -59,7 +59,7 @@ public class SolutionParser
         // 1. Check GitIgnore exclusions first
         if (!string.IsNullOrEmpty(relativeDir) && _gitignore.IsIgnored(relativeDir, true))
         {
-            Console.Error.WriteLine($"[SolutionParser] GitIgnore: Ignoring directory '{relativeDir}'");
+            Console.Error.WriteLine($"[WorkspaceParser] GitIgnore: Ignoring directory '{relativeDir}'");
             return;
         }
 
@@ -74,7 +74,7 @@ public class SolutionParser
         var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea" };
         if (genericExclusions.Contains(dirNameLower))
         {
-            Console.Error.WriteLine($"[SolutionParser] Generic: Skipping VCS/IDE folder '{relativeDir}'");
+            Console.Error.WriteLine($"[WorkspaceParser] Generic: Skipping VCS/IDE folder '{relativeDir}'");
             return;
         }
 
@@ -95,7 +95,7 @@ public class SolutionParser
                         newlyDetectedTypes.Add(parser.ProjectType);
                         isProject = true;
                         projectType = parser.ProjectType;
-                        Console.Error.WriteLine($"[SolutionParser] Project: Detected {parser.ProjectType} project signature at '{relativeDir}'");
+                        Console.Error.WriteLine($"[WorkspaceParser] Project: Detected {parser.ProjectType} project signature at '{relativeDir}'");
                     }
                 }
             }
@@ -138,7 +138,7 @@ public class SolutionParser
 
         if (shouldExclude)
         {
-            Console.Error.WriteLine($"[SolutionParser] Exclusion: Skipping directory '{relativeDir}' (matches language exclusion '{matchedExclusionFolder}' for '{matchedExclusionType}' project type)");
+            Console.Error.WriteLine($"[WorkspaceParser] Exclusion: Skipping directory '{relativeDir}' (matches language exclusion '{matchedExclusionFolder}' for '{matchedExclusionType}' project type)");
             return;
         }
 
@@ -158,13 +158,13 @@ public class SolutionParser
                     ["path"] = "",
                     ["project_type"] = projectType ?? "unknown"
                 }));
-                _structuralRelationships.Add(new Database.Relationship(_solutionNodeId, currentId, "CONTAINS"));
-                Console.Error.WriteLine($"[SolutionParser] Mapping root directory as Project Node: '{currentId}'");
+                _structuralRelationships.Add(new Database.Relationship(_workspaceNodeId, currentId, "CONTAINS"));
+                Console.Error.WriteLine($"[WorkspaceParser] Mapping root directory as Project Node: '{currentId}'");
             }
             else
             {
-                currentId = _solutionNodeId;
-                currentKind = "Solution";
+                currentId = _workspaceNodeId;
+                currentKind = "Workspace";
             }
             _visitedDirs[relativeDir] = (currentId, currentKind);
         }
@@ -180,7 +180,7 @@ public class SolutionParser
                     ["path"] = relativeDir,
                     ["project_type"] = projectType ?? "unknown"
                 }));
-                Console.Error.WriteLine($"[SolutionParser] Mapping directory '{relativeDir}' as Project Node");
+                Console.Error.WriteLine($"[WorkspaceParser] Mapping directory '{relativeDir}' as Project Node");
             }
             else
             {
@@ -196,9 +196,9 @@ public class SolutionParser
                 }
                 else
                 {
-                    currentId = $"solutionfolder:{_absoluteWorkspacePath}:{relativeDir}";
-                    currentKind = "SolutionFolder";
-                    _structuralNodes.Add(new Database.Node(currentId, "SolutionFolder", new Dictionary<string, object> 
+                    currentId = $"workspacefolder:{_absoluteWorkspacePath}:{relativeDir}";
+                    currentKind = "WorkspaceFolder";
+                    _structuralNodes.Add(new Database.Node(currentId, "WorkspaceFolder", new Dictionary<string, object> 
                     { 
                         ["name"] = dirName,
                         ["path"] = relativeDir 
@@ -227,7 +227,7 @@ public class SolutionParser
             var relativeFile = Path.GetRelativePath(_absoluteWorkspacePath, file).Replace('\\', '/');
             if (_gitignore.IsIgnored(relativeFile, false))
             {
-                Console.Error.WriteLine($"[SolutionParser] GitIgnore: Ignoring file '{relativeFile}'");
+                Console.Error.WriteLine($"[WorkspaceParser] GitIgnore: Ignoring file '{relativeFile}'");
                 continue;
             }
 
@@ -263,7 +263,7 @@ public class SolutionParser
         // 1. Clear previous workspace data surgically if clear option is enabled
         if (_clear)
         {
-            Console.Error.WriteLine($"[SolutionParser] Clearing workspace data for path '{_absoluteWorkspacePath}'...");
+            Console.Error.WriteLine($"[WorkspaceParser] Clearing workspace data for path '{_absoluteWorkspacePath}'...");
             await _dbClient.ClearWorkspaceAsync(_absoluteWorkspacePath);
         }
 
@@ -273,32 +273,32 @@ public class SolutionParser
         var folderName = Path.GetFileName(_absoluteWorkspacePath);
         if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
 
-        // Create the Solution Node immediately and upload it!
-        var solutionNode = new Database.Node(
-            _solutionNodeId,
-            "Solution",
+        // Create the Workspace Node immediately and upload it!
+        var workspaceNode = new Database.Node(
+            _workspaceNodeId,
+            "Workspace",
             new Dictionary<string, object>
             {
                 ["path"] = _absoluteWorkspacePath,
                 ["name"] = folderName
             }
         );
-        Console.Error.WriteLine($"[SolutionParser] Uploading Solution node for '{_absoluteWorkspacePath}'...");
-        await _dbClient.UploadNodesAsync(new List<Database.Node> { solutionNode });
+        Console.Error.WriteLine($"[WorkspaceParser] Uploading Workspace node for '{_absoluteWorkspacePath}'...");
+        await _dbClient.UploadNodesAsync(new List<Database.Node> { workspaceNode });
 
         // Run structural scanning to map folders, projects, and group files
-        Console.Error.WriteLine("[SolutionParser] Scanning workspace directory structure...");
-        Scan(_absoluteWorkspacePath, _solutionNodeId, new HashSet<string>(), false);
+        Console.Error.WriteLine("[WorkspaceParser] Scanning workspace directory structure...");
+        Scan(_absoluteWorkspacePath, _workspaceNodeId, new HashSet<string>(), false);
 
         // Upload all structural nodes (Folder, Project) and structural relationships (CONTAINS)
         if (_structuralNodes.Count > 0)
         {
-            Console.Error.WriteLine($"[SolutionParser] Uploading {_structuralNodes.Count} structural directory nodes...");
+            Console.Error.WriteLine($"[WorkspaceParser] Uploading {_structuralNodes.Count} structural directory nodes...");
             await _dbClient.UploadNodesAsync(_structuralNodes);
         }
         if (_structuralRelationships.Count > 0)
         {
-            Console.Error.WriteLine($"[SolutionParser] Uploading {_structuralRelationships.Count} structural CONTAINS relationships...");
+            Console.Error.WriteLine($"[WorkspaceParser] Uploading {_structuralRelationships.Count} structural CONTAINS relationships...");
             await _dbClient.UploadRelationshipsAsync(_structuralRelationships);
         }
 
@@ -314,7 +314,7 @@ public class SolutionParser
         // 3. Process and parse files project-by-project/group-by-group, flushing them immediately
         foreach (var entry in _projectFiles)
         {
-            var projectOrSolutionId = entry.Key;
+            var projectOrWorkspaceId = entry.Key;
             var filePaths = entry.Value;
 
             var groupNodes = new List<Database.Node>();
@@ -333,7 +333,7 @@ public class SolutionParser
                 if (langParser == null) continue;
 
                 var relativePath = Path.GetRelativePath(_absoluteWorkspacePath, file).Replace('\\', '/');
-                Console.Error.WriteLine($"[SolutionParser] Parsing file '{relativePath}' using {langParser.LanguageName} parser...");
+                Console.Error.WriteLine($"[WorkspaceParser] Parsing file '{relativePath}' using {langParser.LanguageName} parser...");
 
                 try
                 {
@@ -364,7 +364,7 @@ public class SolutionParser
                     var parentRelative = Path.GetRelativePath(_absoluteWorkspacePath, parentDir).Replace('\\', '/');
                     if (parentRelative == ".") parentRelative = "";
 
-                    string parentNodeId = _solutionNodeId;
+                    string parentNodeId = _workspaceNodeId;
                     if (_visitedDirs.TryGetValue(parentRelative, out var parentInfo))
                     {
                         parentNodeId = parentInfo.Id;
@@ -397,7 +397,7 @@ public class SolutionParser
                     if (!_nodesByKind.ContainsKey(node.Kind)) _nodesByKind[node.Kind] = 0;
                     _nodesByKind[node.Kind]++;
 
-                    // Track symbols globally for inter-project/solution reference resolution
+                    // Track symbols globally for inter-project/workspace reference resolution
                     if (node.Kind is "Class" or "Function")
                     {
                         if (node.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
@@ -417,11 +417,11 @@ public class SolutionParser
             // Collect references globally
             _globalReferences.AddRange(groupReferences);
 
-            Console.Error.WriteLine($"[SolutionParser] Flushed group '{projectOrSolutionId}' to graph database. File count: {filePaths.Count}");
+            Console.Error.WriteLine($"[WorkspaceParser] Flushed group '{projectOrWorkspaceId}' to graph database. File count: {filePaths.Count}");
         }
 
         // 4. Deferred Global Reference Resolution & Final Reference Upload
-        Console.Error.WriteLine($"[SolutionParser] Resolving {_globalReferences.Count} global cross-references...");
+        Console.Error.WriteLine($"[WorkspaceParser] Resolving {_globalReferences.Count} global cross-references...");
         var referenceRelationships = new List<Database.Relationship>();
 
         foreach (var refItem in _globalReferences)
@@ -469,7 +469,7 @@ public class SolutionParser
 
         if (referenceRelationships.Count > 0)
         {
-            Console.Error.WriteLine($"[SolutionParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
+            Console.Error.WriteLine($"[WorkspaceParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
             await _dbClient.UploadRelationshipsAsync(referenceRelationships);
             _totalRelsCount += referenceRelationships.Count;
         }

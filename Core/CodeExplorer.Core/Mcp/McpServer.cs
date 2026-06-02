@@ -233,7 +233,7 @@ public class McpServer(MemgraphClient dbClient)
                         new
                         {
                             name = "get_node_definition",
-                            description = "Retrieves the structural purpose, meaning, properties, and relationships of a specified database node kind/label in the CodeExplorer ontology (e.g. 'Solution', 'SolutionFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable').",
+                            description = "Retrieves the structural purpose, meaning, properties, and relationships of a specified database node kind/label in the CodeExplorer ontology (e.g. 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable').",
                             inputSchema = new
                             {
                                 type = "object",
@@ -242,7 +242,7 @@ public class McpServer(MemgraphClient dbClient)
                                     kind = new
                                     {
                                         type = "string",
-                                        description = "The database node label/kind to query (e.g. 'Solution', 'SolutionFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable')."
+                                        description = "The database node label/kind to query (e.g. 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable')."
                                     }
                                 },
                                 required = new[] { "kind" }
@@ -480,37 +480,37 @@ public class McpServer(MemgraphClient dbClient)
 
         string text = kindLower switch
         {
-            "solution" => 
-                "### Kind: Solution\n" +
+            "workspace" => 
+                "### Kind: Workspace\n" +
                 "**Purpose**: Represents the absolute root of the workspace directory hierarchy.\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The workspace root folder name.\n" +
                 "  - `path` (string): The absolute filesystem path of the workspace.\n" +
                 "**Relationships**:\n" +
-                "  - `(Solution)-[:CONTAINS]->(SolutionFolder)`\n" +
-                "  - `(Solution)-[:CONTAINS]->(Project)`\n" +
-                "  - `(Solution)-[:CONTAINS]->(File)` (if a source file sits at the root directory)",
+                "  - `(Workspace)-[:CONTAINS]->(WorkspaceFolder)`\n" +
+                "  - `(Workspace)-[:CONTAINS]->(Project)`\n" +
+                "  - `(Workspace)-[:CONTAINS]->(File)` (if a source file sits at the root directory)",
 
-            "solutionfolder" =>
-                "### Kind: SolutionFolder\n" +
-                "**Purpose**: Represents a directory located at the top-level Solution hierarchy (outside of any specific code project). Used for high-level structure and organization.\n" +
+            "workspacefolder" =>
+                "### Kind: WorkspaceFolder\n" +
+                "**Purpose**: Represents a directory located at the top-level Workspace hierarchy (outside of any specific code project). Used for high-level structure and organization.\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The folder name.\n" +
-                "  - `path` (string): The relative path of the directory from the solution root.\n" +
+                "  - `path` (string): The relative path of the directory from the workspace root.\n" +
                 "**Relationships**:\n" +
-                "  - `(Solution)-[:CONTAINS]->(SolutionFolder)`\n" +
-                "  - `(SolutionFolder)-[:CONTAINS]->(SolutionFolder)`\n" +
-                "  - `(SolutionFolder)-[:CONTAINS]->(Project)`",
+                "  - `(Workspace)-[:CONTAINS]->(WorkspaceFolder)`\n" +
+                "  - `(WorkspaceFolder)-[:CONTAINS]->(WorkspaceFolder)`\n" +
+                "  - `(WorkspaceFolder)-[:CONTAINS]->(Project)`",
 
             "project" =>
                 "### Kind: Project\n" +
                 "**Purpose**: Represents a dynamic buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The project folder name.\n" +
-                "  - `path` (string): The relative path of the project from the solution root.\n" +
+                "  - `path` (string): The relative path of the project from the workspace root.\n" +
                 "  - `project_type` (string): The language/signature identifier (e.g., 'csharp', 'go', 'python', 'typescript').\n" +
                 "**Relationships**:\n" +
-                "  - `(SolutionFolder|Solution)-[:CONTAINS]->(Project)`\n" +
+                "  - `(WorkspaceFolder|Workspace)-[:CONTAINS]->(Project)`\n" +
                 "  - `(Project)-[:CONTAINS]->(ProjectFolder)`\n" +
                 "  - `(Project)-[:CONTAINS]->(File)`",
 
@@ -519,7 +519,7 @@ public class McpServer(MemgraphClient dbClient)
                 "**Purpose**: Represents a subdirectory located *inside* a `Project` directory structure. Used for internal modular directory organization.\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The folder name.\n" +
-                "  - `path` (string): The relative path of the folder from the solution root.\n" +
+                "  - `path` (string): The relative path of the folder from the workspace root.\n" +
                 "**Relationships**:\n" +
                 "  - `(Project)-[:CONTAINS]->(ProjectFolder)`\n" +
                 "  - `(ProjectFolder)-[:CONTAINS]->(ProjectFolder)`\n" +
@@ -530,9 +530,9 @@ public class McpServer(MemgraphClient dbClient)
                 "**Purpose**: Represents a source code file containing parsable content.\n" +
                 "**Key Properties**:\n" +
                 "  - `name` (string): The filename basename.\n" +
-                "  - `path` (string): The relative path of the file from the solution root.\n" +
+                "  - `path` (string): The relative path of the file from the workspace root.\n" +
                 "**Relationships**:\n" +
-                "  - `(Solution|SolutionFolder|Project|ProjectFolder)-[:CONTAINS]->(File)`\n" +
+                "  - `(Workspace|WorkspaceFolder|Project|ProjectFolder)-[:CONTAINS]->(File)`\n" +
                 "  - `(File)-[:CONTAINS]->(Class)`\n" +
                 "  - `(File)-[:CONTAINS]->(Function)`",
 
@@ -574,7 +574,7 @@ public class McpServer(MemgraphClient dbClient)
                 "**Relationships**:\n" +
                 "  - `(Class|Function)-[:CONTAINS]->(Variable)`",
 
-            _ => $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Solution', 'SolutionFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable'."
+            _ => $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable'."
         };
 
         return new

@@ -10,11 +10,10 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
-        // Dynamically register the dialect parsers
-        SolutionParser.Register(new CSharpParser());
-        SolutionParser.Register(new GoParser());
-        SolutionParser.Register(new PythonParser());
-        SolutionParser.Register(new TypeScriptParser());
+        WorkspaceParser.Register(new CSharpParser());
+        WorkspaceParser.Register(new GoParser());
+        WorkspaceParser.Register(new PythonParser());
+        WorkspaceParser.Register(new TypeScriptParser());
 
         return await CommandLineParser.Default.ParseArguments<IngestOptions, QueryOptions, McpOptions>(args)
             .MapResult(
