@@ -164,4 +164,57 @@ public class JavaScriptParser : ILanguageParser
 
         return null;
     }
+
+    public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    {
+        var localProjectPaths = new List<string>();
+        var externalPackages = new List<ProducedPackageInfo>();
+
+        var packageJsonPath = System.IO.Path.Combine(projectDirectory, "package.json");
+        if (!System.IO.File.Exists(packageJsonPath))
+        {
+            return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+        }
+
+        try
+        {
+            var content = await System.IO.File.ReadAllTextAsync(packageJsonPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            var root = doc.RootElement;
+
+            var depProperties = new[] { "dependencies", "devDependencies" };
+            foreach (var propName in depProperties)
+            {
+                if (root.TryGetProperty(propName, out var depsObj) && depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var prop in depsObj.EnumerateObject())
+                    {
+                        var packageName = prop.Name;
+                        var packageVersion = prop.Value.GetString() ?? "unknown";
+
+                        // Check if it is a local workspace project reference
+                        if (packageVersion.StartsWith("file:") || packageVersion.StartsWith("workspace:"))
+                        {
+                            var relativePath = packageVersion.Substring(packageVersion.IndexOf(':') + 1);
+                            if (!string.IsNullOrEmpty(relativePath))
+                            {
+                                var referencedDir = System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(packageJsonPath)!, relativePath)).Replace('\\', '/');
+                                localProjectPaths.Add(referencedDir);
+                                continue;
+                            }
+                        }
+
+                        // Treat as npm package reference
+                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm"));
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+    }
 }

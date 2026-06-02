@@ -148,4 +148,66 @@ public class GoParser : ILanguageParser
 
         return null;
     }
+
+    public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    {
+        var localProjectPaths = new List<string>();
+        var externalPackages = new List<ProducedPackageInfo>();
+
+        var goModPath = System.IO.Path.Combine(projectDirectory, "go.mod");
+        if (!System.IO.File.Exists(goModPath))
+        {
+            return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+        }
+
+        try
+        {
+            var lines = await System.IO.File.ReadAllLinesAsync(goModPath);
+            bool inRequireBlock = false;
+
+            foreach (var rawLine in lines)
+            {
+                var line = rawLine.Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+
+                // Handle single-line require
+                if (line.StartsWith("require ") && !line.EndsWith("("))
+                {
+                    var content = line.Substring("require ".Length).Trim();
+                    var parts = content.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 1)
+                    {
+                        var name = parts[0];
+                        var version = parts.Length >= 2 ? parts[1] : "1.0.0";
+                        externalPackages.Add(new ProducedPackageInfo(name, version, "go"));
+                    }
+                }
+                else if (line.StartsWith("require ("))
+                {
+                    inRequireBlock = true;
+                }
+                else if (line == ")")
+                {
+                    inRequireBlock = false;
+                }
+                else if (inRequireBlock)
+                {
+                    // Line inside require block
+                    var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 1)
+                    {
+                        var name = parts[0];
+                        var version = parts.Length >= 2 ? parts[1] : "1.0.0";
+                        externalPackages.Add(new ProducedPackageInfo(name, version, "go"));
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+    }
 }

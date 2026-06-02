@@ -29,6 +29,7 @@ public class WorkspaceParser
     private readonly Database.MemgraphClient _dbClient;
     private readonly bool _clear;
     private readonly string _workspaceNodeId;
+    private readonly bool _isSubProject;
 
     private readonly List<Database.Node> _structuralNodes = new();
     private readonly List<Database.Relationship> _structuralRelationships = new();
@@ -63,15 +64,17 @@ public class WorkspaceParser
 
         var folderName = Path.GetFileName(_absoluteWorkspacePath);
         if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
-        _workspaceNodeId = $"workspace:{_absoluteWorkspacePath}";
+        
+        _isSubProject = true;
+        _workspaceNodeId = $"project:{_absoluteWorkspacePath}:";
 
         _sharedChannel = sharedChannel;
         _globalSymbols = globalSymbols;
         _globalReferences = globalReferences;
         _globalProjectDependencies = globalProjectDependencies;
 
-        _nodesByKind[OntologyConstants.NodeLabels.Workspace] = 1;
-        _totalNodesCount = 1; // Workspace node
+        _nodesByKind[OntologyConstants.NodeLabels.Project] = 1;
+        _totalNodesCount = 1; // Project node
     }
 
     public WorkspaceParser(string dirPath, Database.MemgraphClient dbClient, bool clear)
@@ -83,6 +86,8 @@ public class WorkspaceParser
 
         var folderName = Path.GetFileName(_absoluteWorkspacePath);
         if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
+        
+        _isSubProject = false;
         _workspaceNodeId = $"workspace:{_absoluteWorkspacePath}";
 
         _sharedChannel = Channel.CreateUnbounded<Func<Task>>(
@@ -217,7 +222,7 @@ public class WorkspaceParser
             else
             {
                 currentId = _workspaceNodeId;
-                currentKind = OntologyConstants.NodeLabels.Workspace;
+                currentKind = _isSubProject ? OntologyConstants.NodeLabels.Project : OntologyConstants.NodeLabels.Workspace;
             }
             _visitedDirs[relativeDir] = (currentId, currentKind);
         }
@@ -376,132 +381,66 @@ public class WorkspaceParser
 
     private async Task ParseProjectDependenciesAsync(string projectDir, string projectNodeId)
     {
-        // 1. Parse C# csproj files
-        var csprojFiles = Directory.GetFiles(projectDir, "*.csproj", SearchOption.AllDirectories);
-        foreach (var csprojFile in csprojFiles)
+        // 1. Query all active parsers to extract project-specific dependencies
+        List<ILanguageParser> activeParsers;
+        lock (Parsers)
         {
-            try
-            {
-                var content = await File.ReadAllTextAsync(csprojFile);
-                var doc = System.Xml.Linq.XDocument.Parse(content);
-                
-                // Extract local project references
-                var projectRefs = doc.Descendants("ProjectReference");
-                foreach (var pref in projectRefs)
-                {
-                    var include = pref.Attribute("Include")?.Value;
-                    if (string.IsNullOrEmpty(include)) continue;
-
-                    var referencedCsprojPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(csprojFile)!, include)).Replace('\\', '/');
-                    var referencedProjectDir = Path.GetFullPath(Path.GetDirectoryName(referencedCsprojPath)!).Replace('\\', '/');
-                    var targetProjectNodeId = $"project:{referencedProjectDir}:";
-
-                    lock (_globalProjectDependencies)
-                    {
-                        _globalProjectDependencies.Add(new Database.Relationship(projectNodeId, targetProjectNodeId, OntologyConstants.Relationships.DependsOn));
-                    }
-                }
-
-                // Extract NuGet package references
-                var packageRefs = doc.Descendants("PackageReference");
-                foreach (var packRef in packageRefs)
-                {
-                    var name = packRef.Attribute("Include")?.Value;
-                    var version = packRef.Attribute("Version")?.Value ?? packRef.Element("Version")?.Value ?? "unknown";
-                    if (string.IsNullOrEmpty(name)) continue;
-
-                    var packageNodeId = $"package:{name.ToLowerInvariant()}";
-                    var packageNode = new Database.Node(packageNodeId, OntologyConstants.NodeLabels.Package, new Dictionary<string, object>
-                    {
-                        ["name"] = name,
-                        ["version"] = version,
-                        ["type"] = "nuget"
-                    });
-
-                    // Queue node and relationship
-                    await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(new List<Database.Node> { packageNode }));
-                    var rel = new Database.Relationship(projectNodeId, packageNodeId, OntologyConstants.Relationships.DependsOn);
-                    await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadRelationshipsAsync(new List<Database.Relationship> { rel }));
-                    
-                    lock (_nodesByKind)
-                    {
-                        if (!_nodesByKind.ContainsKey(OntologyConstants.NodeLabels.Package)) _nodesByKind[OntologyConstants.NodeLabels.Package] = 0;
-                        _nodesByKind[OntologyConstants.NodeLabels.Package]++;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[WorkspaceParser] Error parsing C# dependencies in '{csprojFile}': {ex.Message}");
-            }
+            activeParsers = new List<ILanguageParser>(Parsers);
         }
 
-        // 2. Parse JS/TS package.json files
-        var packageJsonFiles = Directory.GetFiles(projectDir, "package.json", SearchOption.AllDirectories);
-        foreach (var packageJsonFile in packageJsonFiles)
+        foreach (var parser in activeParsers)
         {
             try
             {
-                var content = await File.ReadAllTextAsync(packageJsonFile);
-                using var doc = System.Text.Json.JsonDocument.Parse(content);
-                var root = doc.RootElement;
-
-                var depProperties = new[] { "dependencies", "devDependencies" };
-                foreach (var propName in depProperties)
+                var depInfo = await parser.ParseDependenciesAsync(projectDir);
+                if (depInfo != null)
                 {
-                    if (root.TryGetProperty(propName, out var depsObj) && depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    // A. Process local project dependencies (DependsOn relationships)
+                    foreach (var localPath in depInfo.LocalProjectPaths)
                     {
-                        foreach (var prop in depsObj.EnumerateObject())
+                        var targetDir = Path.GetFullPath(localPath).Replace('\\', '/');
+                        var targetProjectNodeId = $"project:{targetDir}:";
+                        lock (_globalProjectDependencies)
                         {
-                            var packageName = prop.Name;
-                            var packageVersion = prop.Value.GetString() ?? "unknown";
+                            _globalProjectDependencies.Add(new Database.Relationship(projectNodeId, targetProjectNodeId, OntologyConstants.Relationships.DependsOn));
+                        }
+                    }
 
-                            // Check if it is a local workspace project reference
-                            if (packageVersion.StartsWith("file:") || packageVersion.StartsWith("workspace:"))
-                            {
-                                // Local relative reference, we can try to resolve it if possible
-                                var relativePath = packageVersion.Substring(packageVersion.IndexOf(':') + 1);
-                                if (!string.IsNullOrEmpty(relativePath))
-                                {
-                                    var referencedDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonFile)!, relativePath)).Replace('\\', '/');
-                                    var targetProjectNodeId = $"project:{referencedDir}:";
-                                    lock (_globalProjectDependencies)
-                                    {
-                                        _globalProjectDependencies.Add(new Database.Relationship(projectNodeId, targetProjectNodeId, OntologyConstants.Relationships.DependsOn));
-                                    }
-                                    continue;
-                                }
-                            }
+                    // B. Process external package dependencies
+                    foreach (var extPack in depInfo.ExternalPackages)
+                    {
+                        var packageNodeId = $"package:{extPack.Name.ToLowerInvariant()}";
+                        var packageNode = new Database.Node(packageNodeId, OntologyConstants.NodeLabels.Package, new Dictionary<string, object>
+                        {
+                            ["name"] = extPack.Name,
+                            ["version"] = extPack.Version,
+                            ["type"] = extPack.Type
+                        });
 
-                            // Treat as npm package reference
-                            var packageNodeId = $"package:{packageName.ToLowerInvariant()}";
-                            var packageNode = new Database.Node(packageNodeId, OntologyConstants.NodeLabels.Package, new Dictionary<string, object>
-                            {
-                                ["name"] = packageName,
-                                ["version"] = packageVersion,
-                                ["type"] = "npm"
-                            });
+                        await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(new List<Database.Node> { packageNode }));
+                        var rel = new Database.Relationship(projectNodeId, packageNodeId, OntologyConstants.Relationships.DependsOn);
+                        await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadRelationshipsAsync(new List<Database.Relationship> { rel }));
 
-                            await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(new List<Database.Node> { packageNode }));
-                            var npmRel = new Database.Relationship(projectNodeId, packageNodeId, OntologyConstants.Relationships.DependsOn);
-                            await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadRelationshipsAsync(new List<Database.Relationship> { npmRel }));
-
-                            lock (_nodesByKind)
-                            {
-                                if (!_nodesByKind.ContainsKey(OntologyConstants.NodeLabels.Package)) _nodesByKind[OntologyConstants.NodeLabels.Package] = 0;
-                                _nodesByKind[OntologyConstants.NodeLabels.Package]++;
-                            }
+                        lock (_nodesByKind)
+                        {
+                            if (!_nodesByKind.ContainsKey(OntologyConstants.NodeLabels.Package)) _nodesByKind[OntologyConstants.NodeLabels.Package] = 0;
+                            _nodesByKind[OntologyConstants.NodeLabels.Package]++;
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[WorkspaceParser] Error parsing JS/TS dependencies in '{packageJsonFile}': {ex.Message}");
+                Console.Error.WriteLine($"[WorkspaceParser] Error parsing dependencies for {parser.ProjectType} in '{projectDir}': {ex.Message}");
             }
         }
 
-        // 3. Delegate produced package extraction to all active parsers
+        // 2. Delegate produced package extraction (already language-agnostic!)
+        await DetectAndLinkProducedPackageAsync(projectDir, projectNodeId);
+    }
+
+    private async Task DetectAndLinkProducedPackageAsync(string projectDir, string projectNodeId)
+    {
         bool packageDetected = false;
         List<ILanguageParser> activeParsers;
         lock (Parsers)
@@ -543,7 +482,6 @@ public class WorkspaceParser
             }
         }
 
-        // 4. Default project folder package name fallback (if no parser detected any produced package)
         if (!packageDetected)
         {
             var dirName = Path.GetFileName(projectDir);
@@ -570,35 +508,50 @@ public class WorkspaceParser
         }
     }
 
-    private async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexProjectInternalAsync()
+    private async Task ClearPreviousProjectDataAsync()
     {
-        // 1. Clear previous project workspace data surgically if clear option is enabled
         if (_clear)
         {
             Console.Error.WriteLine($"[WorkspaceParser] Clearing project workspace data for path '{_absoluteWorkspacePath}'...");
             await _dbClient.ClearWorkspaceAsync(_absoluteWorkspacePath);
         }
+    }
 
-        var folderName = Path.GetFileName(_absoluteWorkspacePath);
-        if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
+    private async Task CreateAndUploadRootNodeAsync(string folderName)
+    {
+        if (!_isSubProject)
+        {
+            var workspaceNode = new Database.Node(
+                _workspaceNodeId,
+                OntologyConstants.NodeLabels.Workspace,
+                new Dictionary<string, object>
+                {
+                    ["path"] = _absoluteWorkspacePath,
+                    ["name"] = folderName
+                }
+            );
+            await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(new List<Database.Node> { workspaceNode }));
+        }
+        else
+        {
+            var projectNode = new Database.Node(
+                _workspaceNodeId,
+                OntologyConstants.NodeLabels.Project,
+                new Dictionary<string, object>
+                {
+                    ["name"] = folderName,
+                    ["path"] = "",
+                    ["project_type"] = "unknown"
+                }
+            );
+            await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(new List<Database.Node> { projectNode }));
+        }
+    }
 
-        // Create the Workspace Node immediately and upload it!
-        var workspaceNode = new Database.Node(
-            _workspaceNodeId,
-            OntologyConstants.NodeLabels.Workspace,
-            new Dictionary<string, object>
-            {
-                ["path"] = _absoluteWorkspacePath,
-                ["name"] = folderName
-            }
-        );
-        
-        await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(new List<Database.Node> { workspaceNode }));
+    private async Task MapStructuralHierarchyAsync()
+    {
+        Scan(_absoluteWorkspacePath, _workspaceNodeId, new HashSet<string>(), _isSubProject);
 
-        // Run structural scanning to map folders, projects, and group files
-        Scan(_absoluteWorkspacePath, _workspaceNodeId, new HashSet<string>(), false);
-
-        // Upload all structural nodes (Folder, Project) and structural relationships (CONTAINS)
         if (_structuralNodes.Count > 0)
         {
             await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(_structuralNodes));
@@ -608,7 +561,6 @@ public class WorkspaceParser
             await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadRelationshipsAsync(_structuralRelationships));
         }
 
-        // Track indexing statistics
         _totalNodesCount += _structuralNodes.Count;
         _totalRelsCount += _structuralRelationships.Count;
         foreach (var node in _structuralNodes)
@@ -616,8 +568,10 @@ public class WorkspaceParser
             if (!_nodesByKind.ContainsKey(node.Kind)) _nodesByKind[node.Kind] = 0;
             _nodesByKind[node.Kind]++;
         }
+    }
 
-        // Process and parse files project-by-project/group-by-group, flushing them immediately
+    private async Task ParseSourceFilesAsync()
+    {
         var activeLanguages = new Dictionary<string, Language>();
         var activeParsers = new Dictionary<string, global::TreeSitter.Parser>();
 
@@ -625,7 +579,6 @@ public class WorkspaceParser
         {
             foreach (var entry in _projectFiles)
             {
-                var projectOrWorkspaceId = entry.Key;
                 var filePaths = entry.Value;
 
                 var groupNodes = new List<Database.Node>();
@@ -634,114 +587,10 @@ public class WorkspaceParser
 
                 foreach (var file in filePaths)
                 {
-                    var ext = Path.GetExtension(file).ToLower();
-
-                    ILanguageParser? langParser = null;
-                    lock (Parsers)
-                    {
-                        langParser = Parsers.FirstOrDefault(p => p.CanParse(ext));
-                    }
-                    if (langParser == null) continue;
-
-                    var relativePath = Path.GetRelativePath(_absoluteWorkspacePath, file).Replace('\\', '/');
-
-                    try
-                    {
-                        if (!activeLanguages.TryGetValue(langParser.LanguageName, out var language))
-                        {
-                            language = new Language(langParser.LanguageName);
-                            activeLanguages[langParser.LanguageName] = language;
-                        }
-
-                        if (!activeParsers.TryGetValue(langParser.LanguageName, out var parser))
-                        {
-                            parser = new global::TreeSitter.Parser(language);
-                            activeParsers[langParser.LanguageName] = parser;
-                        }
-
-                        Console.Error.WriteLine($"[WorkspaceParser] Parsing file: '{relativePath}' ({langParser.ProjectType})");
-                        var sourceText = File.ReadAllText(file);
-                        using var tree = parser.Parse(sourceText);
-
-                        if (tree == null || tree.RootNode == null) continue;
-
-                        var ctx = new FileContext(_absoluteWorkspacePath, relativePath, sourceText, langParser);
-
-                        // Add File Node
-                        var fileNodeId = $"file:{_absoluteWorkspacePath}:{relativePath}";
-                         ctx.Nodes.Add(new Database.Node(
-                            fileNodeId,
-                            OntologyConstants.NodeLabels.File,
-                            new Dictionary<string, object>
-                            {
-                                ["path"] = Path.GetFileName(file),
-                                ["name"] = Path.GetFileName(file)
-                            }
-                        ));
-
-                        // Find the parent directory node info from _visitedDirs
-                        var parentDir = Path.GetDirectoryName(file)!.Replace('\\', '/');
-                        var parentRelative = Path.GetRelativePath(_absoluteWorkspacePath, parentDir).Replace('\\', '/');
-                        if (parentRelative == ".") parentRelative = "";
-
-                        string parentNodeId = _workspaceNodeId;
-                        if (_visitedDirs.TryGetValue(parentRelative, out var parentInfo))
-                        {
-                            parentNodeId = parentInfo.Id;
-                        }
-
-                        // Relate Parent Node to File Node
-                        groupRelationships.Add(new Database.Relationship(parentNodeId, fileNodeId, OntologyConstants.Relationships.Contains));
-
-                        // Traverse AST
-                        TraverseNode(tree.RootNode, fileNodeId, ctx);
-
-                        groupNodes.AddRange(ctx.Nodes);
-                        groupRelationships.AddRange(ctx.Relationships);
-                        groupReferences.AddRange(ctx.References);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine($"Error parsing file {file}: {ex.Message}");
-                    }
+                    await ParseSingleFileAsync(file, activeLanguages, activeParsers, groupNodes, groupRelationships, groupReferences);
                 }
 
-                if (groupNodes.Count > 0)
-                {
-                    var nodesToUpload = groupNodes;
-                    await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(nodesToUpload));
-                    _totalNodesCount += groupNodes.Count;
-
-                    foreach (var node in groupNodes)
-                    {
-                        if (!_nodesByKind.ContainsKey(node.Kind)) _nodesByKind[node.Kind] = 0;
-                        _nodesByKind[node.Kind]++;
-
-                        // Track symbols globally for inter-project/workspace reference resolution
-                        if (node.Kind == OntologyConstants.NodeLabels.Class || node.Kind == OntologyConstants.NodeLabels.Interface || node.Kind == OntologyConstants.NodeLabels.Function)
-                        {
-                            if (node.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
-                            {
-                                lock (_globalSymbols)
-                                {
-                                    _globalSymbols[(node.Kind, nameStr)] = node.Id;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (groupRelationships.Count > 0)
-                {
-                    var relsToUpload = groupRelationships;
-                    await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadRelationshipsAsync(relsToUpload));
-                    _totalRelsCount += groupRelationships.Count;
-                }
-
-                lock (_globalReferences)
-                {
-                    _globalReferences.AddRange(groupReferences);
-                }
+                await FlushParsedGroupDataAsync(groupNodes, groupRelationships, groupReferences);
             }
         }
         finally
@@ -755,10 +604,145 @@ public class WorkspaceParser
                 language.Dispose();
             }
         }
+    }
+
+    private async Task ParseSingleFileAsync(
+        string file,
+        Dictionary<string, Language> activeLanguages,
+        Dictionary<string, global::TreeSitter.Parser> activeParsers,
+        List<Database.Node> groupNodes,
+        List<Database.Relationship> groupRelationships,
+        List<Reference> groupReferences)
+    {
+        var ext = Path.GetExtension(file).ToLower();
+
+        ILanguageParser? langParser = null;
+        lock (Parsers)
+        {
+            langParser = Parsers.FirstOrDefault(p => p.CanParse(ext));
+        }
+        if (langParser == null) return;
+
+        var relativePath = Path.GetRelativePath(_absoluteWorkspacePath, file).Replace('\\', '/');
+
+        try
+        {
+            if (!activeLanguages.TryGetValue(langParser.LanguageName, out var language))
+            {
+                language = new Language(langParser.LanguageName);
+                activeLanguages[langParser.LanguageName] = language;
+            }
+
+            if (!activeParsers.TryGetValue(langParser.LanguageName, out var parser))
+            {
+                parser = new global::TreeSitter.Parser(language);
+                activeParsers[langParser.LanguageName] = parser;
+            }
+
+            Console.Error.WriteLine($"[WorkspaceParser] Parsing file: '{relativePath}' ({langParser.ProjectType})");
+            var sourceText = File.ReadAllText(file);
+            using var tree = parser.Parse(sourceText);
+
+            if (tree == null || tree.RootNode == null) return;
+
+            var ctx = new FileContext(_absoluteWorkspacePath, relativePath, sourceText, langParser);
+
+            // Add File Node
+            var fileNodeId = $"file:{_absoluteWorkspacePath}:{relativePath}";
+            ctx.Nodes.Add(new Database.Node(
+                fileNodeId,
+                OntologyConstants.NodeLabels.File,
+                new Dictionary<string, object>
+                {
+                    ["path"] = Path.GetFileName(file),
+                    ["name"] = Path.GetFileName(file)
+                }
+            ));
+
+            // Find the parent directory node info from _visitedDirs
+            var parentDir = Path.GetDirectoryName(file)!.Replace('\\', '/');
+            var parentRelative = Path.GetRelativePath(_absoluteWorkspacePath, parentDir).Replace('\\', '/');
+            if (parentRelative == ".") parentRelative = "";
+
+            string parentNodeId = _workspaceNodeId;
+            if (_visitedDirs.TryGetValue(parentRelative, out var parentInfo))
+            {
+                parentNodeId = parentInfo.Id;
+            }
+
+            // Relate Parent Node to File Node
+            groupRelationships.Add(new Database.Relationship(parentNodeId, fileNodeId, OntologyConstants.Relationships.Contains));
+
+            // Traverse AST
+            TraverseNode(tree.RootNode, fileNodeId, ctx);
+
+            groupNodes.AddRange(ctx.Nodes);
+            groupRelationships.AddRange(ctx.Relationships);
+            groupReferences.AddRange(ctx.References);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error parsing file {file}: {ex.Message}");
+        }
+    }
+
+    private async Task FlushParsedGroupDataAsync(
+        List<Database.Node> groupNodes,
+        List<Database.Relationship> groupRelationships,
+        List<Reference> groupReferences)
+    {
+        if (groupNodes.Count > 0)
+        {
+            await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadNodesAsync(groupNodes));
+            _totalNodesCount += groupNodes.Count;
+
+            foreach (var node in groupNodes)
+            {
+                if (!_nodesByKind.ContainsKey(node.Kind)) _nodesByKind[node.Kind] = 0;
+                _nodesByKind[node.Kind]++;
+
+                // Track symbols globally for inter-project/workspace reference resolution
+                if (node.Kind == OntologyConstants.NodeLabels.Class || node.Kind == OntologyConstants.NodeLabels.Interface || node.Kind == OntologyConstants.NodeLabels.Function)
+                {
+                    if (node.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
+                    {
+                        lock (_globalSymbols)
+                        {
+                            _globalSymbols[(node.Kind, nameStr)] = node.Id;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (groupRelationships.Count > 0)
+        {
+            await _sharedChannel.Writer.WriteAsync(() => _dbClient.UploadRelationshipsAsync(groupRelationships));
+            _totalRelsCount += groupRelationships.Count;
+        }
+
+        lock (_globalReferences)
+        {
+            _globalReferences.AddRange(groupReferences);
+        }
+    }
+
+    private async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexProjectInternalAsync()
+    {
+        await ClearPreviousProjectDataAsync();
+
+        var folderName = Path.GetFileName(_absoluteWorkspacePath);
+        if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
+        Console.Error.WriteLine($"[WorkspaceParser] >>> Starting scan of project '{folderName}'...");
+
+        await CreateAndUploadRootNodeAsync(folderName);
+        await MapStructuralHierarchyAsync();
+        await ParseSourceFilesAsync();
 
         // Extract and parse dependencies (C# ProjectReferences, PackageReferences, and NPM package.json)
         await ParseProjectDependenciesAsync(_absoluteWorkspacePath, $"project:{_absoluteWorkspacePath}:");
 
+        Console.Error.WriteLine($"[WorkspaceParser] Completed scan of project '{folderName}'.");
         return (_totalNodesCount, _totalRelsCount, _nodesByKind);
     }
 
@@ -807,8 +791,9 @@ public class WorkspaceParser
                 await _dbClient.ClearWorkspaceAsync(_absoluteWorkspacePath);
             }
 
-            // Index all projects in parallel
-            var projectTasks = projectDirs.Select(async projectDir =>
+            // Index all projects sequentially
+            var projectResults = new List<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)>();
+            foreach (var projectDir in projectDirs)
             {
                 var projectParser = new WorkspaceParser(
                     projectDir,
@@ -819,10 +804,9 @@ public class WorkspaceParser
                     _globalReferences,
                     _globalProjectDependencies
                 );
-                return await projectParser.IndexProjectInternalAsync();
-            }).ToList();
-
-            var projectResults = await Task.WhenAll(projectTasks);
+                var result = await projectParser.IndexProjectInternalAsync();
+                projectResults.Add(result);
+            }
 
             // Index any residual files at the root level outside any project
             Console.Error.WriteLine("[WorkspaceParser] Ingesting root files outside of any detected project...");
@@ -901,6 +885,7 @@ public class WorkspaceParser
                                 activeParsers[langParser.LanguageName] = parser;
                             }
 
+                            Console.Error.WriteLine($"[WorkspaceParser] Parsing file: '{relativePath}' ({langParser.ProjectType})");
                             var sourceText = File.ReadAllText(file);
                             using var tree = parser.Parse(sourceText);
 

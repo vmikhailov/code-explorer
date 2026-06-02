@@ -201,4 +201,87 @@ public class PythonParser : ILanguageParser
 
         return null;
     }
+
+    public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    {
+        var localProjectPaths = new List<string>();
+        var externalPackages = new List<ProducedPackageInfo>();
+
+        // 1. Try parsing pyproject.toml dependencies
+        var pyprojectPath = System.IO.Path.Combine(projectDirectory, "pyproject.toml");
+        if (System.IO.File.Exists(pyprojectPath))
+        {
+            try
+            {
+                var lines = await System.IO.File.ReadAllLinesAsync(pyprojectPath);
+                bool inDependencies = false;
+                foreach (var rawLine in lines)
+                {
+                    var line = rawLine.Trim();
+                    if (string.IsNullOrEmpty(line)) continue;
+
+                    if (line.StartsWith("[project.dependencies]") || line.StartsWith("[tool.poetry.dependencies]"))
+                    {
+                        inDependencies = true;
+                        continue;
+                    }
+                    else if (line.StartsWith("[") && line.EndsWith("]"))
+                    {
+                        inDependencies = false;
+                    }
+
+                    if (inDependencies)
+                    {
+                        var parts = line.Split('=', 2);
+                        if (parts.Length >= 1)
+                        {
+                            var name = parts[0].Trim();
+                            if (name.ToLowerInvariant() == "python") continue; // skip python version constraint
+
+                            var version = parts.Length == 2 ? parts[1].Trim(' ', '"', '\'') : "unknown";
+                            externalPackages.Add(new ProducedPackageInfo(name, version, "pip"));
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore
+            }
+        }
+
+        // 2. Try parsing requirements.txt dependencies if externalPackages is empty
+        if (externalPackages.Count == 0)
+        {
+            var reqPath = System.IO.Path.Combine(projectDirectory, "requirements.txt");
+            if (System.IO.File.Exists(reqPath))
+            {
+                try
+                {
+                    var lines = await System.IO.File.ReadAllLinesAsync(reqPath);
+                    foreach (var rawLine in lines)
+                    {
+                        var line = rawLine.Trim();
+                        if (string.IsNullOrEmpty(line) || line.StartsWith("#") || line.StartsWith("-")) continue;
+
+                        // Parse package name and specifier, e.g. requests>=2.25.1 -> name = requests, version = >=2.25.1
+                        var match = System.Text.RegularExpressions.Regex.Match(line, @"^([a-zA-Z0-9_\-\[\]]+)(.*)$");
+                        if (match.Success)
+                        {
+                            var name = match.Groups[1].Value;
+                            var versionSpec = match.Groups[2].Value.Trim();
+                            var version = string.IsNullOrEmpty(versionSpec) ? "unknown" : versionSpec;
+                            externalPackages.Add(new ProducedPackageInfo(name, version, "pip"));
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore
+                }
+            }
+        }
+
+        return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+    }
 }

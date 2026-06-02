@@ -175,4 +175,49 @@ public class CSharpParser : ILanguageParser
             return null;
         }
     }
+
+    public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    {
+        var localProjectPaths = new List<string>();
+        var externalPackages = new List<ProducedPackageInfo>();
+
+        var csprojFiles = System.IO.Directory.GetFiles(projectDirectory, "*.csproj");
+        foreach (var csprojFile in csprojFiles)
+        {
+            try
+            {
+                var content = await System.IO.File.ReadAllTextAsync(csprojFile);
+                var doc = System.Xml.Linq.XDocument.Parse(content);
+
+                // Extract local project references
+                var projectRefs = doc.Descendants("ProjectReference");
+                foreach (var pref in projectRefs)
+                {
+                    var include = pref.Attribute("Include")?.Value;
+                    if (string.IsNullOrEmpty(include)) continue;
+
+                    var referencedCsprojPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(csprojFile)!, include)).Replace('\\', '/');
+                    var referencedProjectDir = System.IO.Path.GetFullPath(System.IO.Path.GetDirectoryName(referencedCsprojPath)!).Replace('\\', '/');
+                    localProjectPaths.Add(referencedProjectDir);
+                }
+
+                // Extract NuGet package references
+                var packageRefs = doc.Descendants("PackageReference");
+                foreach (var packRef in packageRefs)
+                {
+                    var name = packRef.Attribute("Include")?.Value;
+                    var version = packRef.Attribute("Version")?.Value ?? packRef.Element("Version")?.Value ?? "unknown";
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    externalPackages.Add(new ProducedPackageInfo(name, version, "nuget"));
+                }
+            }
+            catch
+            {
+                // Ignore
+            }
+        }
+
+        return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+    }
 }

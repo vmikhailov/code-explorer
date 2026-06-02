@@ -49,4 +49,9 @@ public interface ILanguageParser
     /// Checks if the project in the given directory produces a package, and returns details if so.
     /// </summary>
     Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory);
+
+    /// <summary>
+    /// Parses the project dependencies (local project directory paths and external packages) in the given directory.
+    /// </summary>
+    Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory);
 }
