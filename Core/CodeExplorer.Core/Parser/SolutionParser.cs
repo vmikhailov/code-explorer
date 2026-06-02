@@ -148,8 +148,24 @@ public class SolutionParser
 
         if (string.IsNullOrEmpty(relativeDir))
         {
-            currentId = _solutionNodeId;
-            currentKind = "Solution";
+            if (isProject)
+            {
+                currentId = $"project:{_absoluteWorkspacePath}:";
+                currentKind = "Project";
+                _structuralNodes.Add(new Database.Node(currentId, "Project", new Dictionary<string, object> 
+                { 
+                    ["name"] = dirName,
+                    ["path"] = "",
+                    ["project_type"] = projectType ?? "unknown"
+                }));
+                _structuralRelationships.Add(new Database.Relationship(_solutionNodeId, currentId, "CONTAINS"));
+                Console.Error.WriteLine($"[SolutionParser] Mapping root directory as Project Node: '{currentId}'");
+            }
+            else
+            {
+                currentId = _solutionNodeId;
+                currentKind = "Solution";
+            }
             _visitedDirs[relativeDir] = (currentId, currentKind);
         }
         else
