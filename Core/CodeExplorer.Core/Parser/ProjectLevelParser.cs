@@ -32,7 +32,7 @@ public class ProjectLevelParser
     {
         var folderName = Path.GetFileName(_projectDir);
         if (string.IsNullOrEmpty(folderName)) folderName = _projectDir;
-        Console.Error.WriteLine($"[WorkspaceParser] >>> Starting scan of project '{folderName}'...");
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Starting scan of project '{folderName}'...");
 
         // 1. Create and Upload Project node
         var projectNode = new Node(_projectNodeId, OntologyConstants.NodeLabels.Project, new Dictionary<string, object>
@@ -41,11 +41,11 @@ public class ProjectLevelParser
             ["path"] = Path.GetRelativePath(_ctx.AbsoluteWorkspacePath, _projectDir).Replace('\\', '/'),
             ["project_type"] = _languageParser.ProjectType
         });
-        await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadNodesAsync(new List<Node> { projectNode }));
+        await _ctx.EnqueueUploadNodesAsync(new List<Node> { projectNode });
 
         // 2. Relate Parent to Project
         var parentRel = new Relationship(_parentContainerId, _projectNodeId, OntologyConstants.Relationships.Contains);
-        await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadRelationshipsAsync(new List<Relationship> { parentRel }));
+        await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { parentRel });
 
         lock (_ctx.NodesByKind)
         {
@@ -62,7 +62,7 @@ public class ProjectLevelParser
         await ParseDependenciesAsync();
         await LinkProducedPackageAsync();
 
-        Console.Error.WriteLine($"[WorkspaceParser] Completed scan of project '{folderName}'.");
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Completed scan of project '{folderName}'.");
     }
 
     private async Task ScanDirectoryAsync(string currentDir, string currentParentId)
@@ -100,10 +100,10 @@ public class ProjectLevelParser
                 ["name"] = dirName,
                 ["path"] = relativeDir
             });
-            await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadNodesAsync(new List<Node> { folderNode }));
+            await _ctx.EnqueueUploadNodesAsync(new List<Node> { folderNode });
 
             var rel = new Relationship(currentParentId, currentId, OntologyConstants.Relationships.Contains);
-            await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadRelationshipsAsync(new List<Relationship> { rel }));
+            await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { rel });
 
             lock (_ctx.NodesByKind)
             {
@@ -129,7 +129,7 @@ public class ProjectLevelParser
 
             if (_gitignore.IsIgnored(relativeFile, false))
             {
-                Console.Error.WriteLine($"[WorkspaceParser] GitIgnore: Ignoring file '{relativeFile}'");
+                await Console.Error.WriteLineAsync($"[WorkspaceParser] GitIgnore: Ignoring file '{relativeFile}'");
                 continue;
             }
 
@@ -170,9 +170,9 @@ public class ProjectLevelParser
                         ["type"] = extPack.Type
                     });
 
-                    await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadNodesAsync(new List<Node> { packageNode }));
+                    await _ctx.EnqueueUploadNodesAsync(new List<Node> { packageNode });
                     var rel = new Relationship(_projectNodeId, packageNodeId, OntologyConstants.Relationships.DependsOn);
-                    await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadRelationshipsAsync(new List<Relationship> { rel }));
+                    await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { rel });
 
                     lock (_ctx.NodesByKind)
                     {
@@ -186,7 +186,7 @@ public class ProjectLevelParser
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[WorkspaceParser] Error parsing dependencies for {_languageParser.ProjectType} in '{_projectDir}': {ex.Message}");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Error parsing dependencies for {_languageParser.ProjectType} in '{_projectDir}': {ex.Message}");
         }
     }
 
@@ -206,9 +206,9 @@ public class ProjectLevelParser
                     ["type"] = producedPackage.Type
                 });
 
-                await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadNodesAsync(new List<Node> { packageNode }));
+                await _ctx.EnqueueUploadNodesAsync(new List<Node> { packageNode });
                 var implRel = new Relationship(packageNodeId, _projectNodeId, OntologyConstants.Relationships.ImplementedBy);
-                await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadRelationshipsAsync(new List<Relationship> { implRel }));
+                await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { implRel });
 
                 lock (_ctx.NodesByKind)
                 {
@@ -223,7 +223,7 @@ public class ProjectLevelParser
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[WorkspaceParser] Error getting produced package from {_languageParser.ProjectType} parser in '{_projectDir}': {ex.Message}");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Error getting produced package from {_languageParser.ProjectType} parser in '{_projectDir}': {ex.Message}");
         }
 
         if (!packageDetected)
@@ -239,9 +239,9 @@ public class ProjectLevelParser
                     ["type"] = "unknown"
                 });
 
-                await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadNodesAsync(new List<Node> { packageNode }));
+                await _ctx.EnqueueUploadNodesAsync(new List<Node> { packageNode });
                 var implRel = new Relationship(packageNodeId, _projectNodeId, OntologyConstants.Relationships.ImplementedBy);
-                await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadRelationshipsAsync(new List<Relationship> { implRel }));
+                await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { implRel });
 
                 lock (_ctx.NodesByKind)
                 {

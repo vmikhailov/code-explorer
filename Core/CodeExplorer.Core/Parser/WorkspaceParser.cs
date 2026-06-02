@@ -43,6 +43,7 @@ public class WorkspaceParser
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false }
         );
 
+        await Console.Error.WriteLineAsync("[WorkspaceParser] Starting background database persistence loop...");
         var consumerTask = Task.Run(async () =>
         {
             await foreach (var writeFunc in sharedChannel.Reader.ReadAllAsync())
@@ -53,7 +54,7 @@ public class WorkspaceParser
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"[PersistenceConsumer] Error writing to database: {ex.Message}");
+                    await Console.Error.WriteLineAsync($"[PersistenceConsumer] Error writing to database: {ex.Message}");
                 }
             }
         });
@@ -66,18 +67,18 @@ public class WorkspaceParser
         // 4. Complete persistence channel & await background consumer
         sharedChannel.Writer.Complete();
         await consumerTask;
-        Console.Error.WriteLine("[WorkspaceParser] All background channel persistence writes completed successfully!");
+        await Console.Error.WriteLineAsync("[WorkspaceParser] All background channel persistence writes completed successfully!");
 
         // 5. Upload local cross-project dependencies
         if (ctx.GlobalProjectDependencies.Count > 0)
         {
-            Console.Error.WriteLine($"[WorkspaceParser] Uploading {ctx.GlobalProjectDependencies.Count} local project dependency relationships...");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Uploading {ctx.GlobalProjectDependencies.Count} local project dependency relationships...");
             await _dbClient.UploadRelationshipsAsync(ctx.GlobalProjectDependencies);
             ctx.TotalRelsCount += ctx.GlobalProjectDependencies.Count;
         }
 
         // 6. Deferred Global Reference Resolution & Final Reference Upload
-        Console.Error.WriteLine($"[WorkspaceParser] Resolving {ctx.GlobalReferences.Count} global cross-references...");
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Resolving {ctx.GlobalReferences.Count} global cross-references...");
         var referenceRelationships = new List<Relationship>();
 
         lock (ctx.GlobalReferences)
@@ -158,7 +159,7 @@ public class WorkspaceParser
 
         if (referenceRelationships.Count > 0)
         {
-            Console.Error.WriteLine($"[WorkspaceParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
             await _dbClient.UploadRelationshipsAsync(referenceRelationships);
             ctx.TotalRelsCount += referenceRelationships.Count;
         }

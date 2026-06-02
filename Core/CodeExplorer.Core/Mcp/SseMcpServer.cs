@@ -53,8 +53,8 @@ public class SseMcpServer(MemgraphClient dbClient, int port)
         // Redirect root to /swagger for developer convenience
         app.MapGet("/", HandleRootRedirect);
 
-        Console.Error.WriteLine($"Starting Unified CodeExplorer Web Service (MCP + REST Management) on http://localhost:{port}...");
-        Console.Error.WriteLine($"Swagger UI available at http://localhost:{port}/swagger");
+        await Console.Error.WriteLineAsync($"Starting Unified CodeExplorer Web Service (MCP + REST Management) on http://localhost:{port}...");
+        await Console.Error.WriteLineAsync($"Swagger UI available at http://localhost:{port}/swagger");
         await app.RunAsync($"http://0.0.0.0:{port}");
     }
 

@@ -18,8 +18,126 @@ public class ParsingContext
     public List<Relationship> GlobalProjectDependencies { get; }
     
     public Dictionary<string, int> NodesByKind { get; } = new(StringComparer.OrdinalIgnoreCase);
-    public int TotalNodesCount { get; set; }
-    public int TotalRelsCount { get; set; }
+
+    private int _totalNodesCount;
+    private int _totalRelsCount;
+
+    public int TotalNodesCount
+    {
+        get { lock (this) return _totalNodesCount; }
+        set { lock (this) _totalNodesCount = value; }
+    }
+
+    public int TotalRelsCount
+    {
+        get { lock (this) return _totalRelsCount; }
+        set { lock (this) _totalRelsCount = value; }
+    }
+
+    public void IncrementNodeKind(string kind)
+    {
+        lock (NodesByKind)
+        {
+            if (!NodesByKind.TryGetValue(kind, out var count)) count = 0;
+            NodesByKind[kind] = count + 1;
+        }
+    }
+
+    public void AddNodesCount(int count)
+    {
+        lock (this)
+        {
+            _totalNodesCount += count;
+        }
+    }
+
+    public void AddRelsCount(int count)
+    {
+        lock (this)
+        {
+            _totalRelsCount += count;
+        }
+    }
+
+    public void AddGlobalSymbol(string kind, string name, string id)
+    {
+        lock (GlobalSymbols)
+        {
+            GlobalSymbols[(kind, name)] = id;
+        }
+    }
+
+    public void AddGlobalReferences(IEnumerable<Reference> references)
+    {
+        lock (GlobalReferences)
+        {
+            GlobalReferences.AddRange(references);
+        }
+    }
+
+    public void AddGlobalProjectDependency(Relationship dependency)
+    {
+        lock (GlobalProjectDependencies)
+        {
+            GlobalProjectDependencies.Add(dependency);
+        }
+    }
+
+    private int _nodesPersisted;
+    private int _relsPersisted;
+    private int _lastReportedNodes;
+    private int _lastReportedRels;
+
+    public void RecordNodesPersisted(int count)
+    {
+        lock (this)
+        {
+            _nodesPersisted += count;
+            if (_nodesPersisted - _lastReportedNodes >= 500)
+            {
+                Console.Error.WriteLine($"[PersistenceProgress] Saved {_nodesPersisted} nodes to database...");
+                _lastReportedNodes = _nodesPersisted;
+            }
+        }
+    }
+
+    public void RecordRelationshipsPersisted(int count)
+    {
+        lock (this)
+        {
+            _relsPersisted += count;
+            if (_relsPersisted - _lastReportedRels >= 500)
+            {
+                Console.Error.WriteLine($"[PersistenceProgress] Saved {_relsPersisted} relationships to database...");
+                _lastReportedRels = _relsPersisted;
+            }
+        }
+    }
+
+    public int GetTotalNodesPersisted() => _nodesPersisted;
+    public int GetTotalRelsPersisted() => _relsPersisted;
+
+    public async Task EnqueueUploadNodesAsync(List<Node> nodes)
+    {
+        if (nodes == null || nodes.Count == 0) return;
+        var copy = new List<Node>(nodes);
+        await SharedChannel.Writer.WriteAsync(async () =>
+        {
+            await DbClient.UploadNodesAsync(copy);
+            RecordNodesPersisted(copy.Count);
+        });
+    }
+
+    public async Task EnqueueUploadRelationshipsAsync(List<Relationship> rels)
+    {
+        if (rels == null || rels.Count == 0) return;
+        var copy = new List<Relationship>(rels);
+        await SharedChannel.Writer.WriteAsync(async () =>
+        {
+            await DbClient.UploadRelationshipsAsync(copy);
+            RecordRelationshipsPersisted(copy.Count);
+        });
+    }
 
     public ParsingContext(
         string absoluteWorkspacePath, 

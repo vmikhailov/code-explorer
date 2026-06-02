@@ -51,7 +51,7 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Ingestion Error: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Ingestion Error: {ex.Message}");
             return 1;
         }
     }
@@ -67,7 +67,7 @@ class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Query Error: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Query Error: {ex.Message}");
             return 1;
         }
     }

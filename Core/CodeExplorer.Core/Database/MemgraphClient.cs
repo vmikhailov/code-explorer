@@ -37,7 +37,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Warning creating index for {kind}: {ex.Message}");
+                await Console.Error.WriteLineAsync($"Warning creating index for {kind}: {ex.Message}");
             }
         }
 
@@ -47,7 +47,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Warning creating path index for Workspace: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Warning creating path index for Workspace: {ex.Message}");
         }
     }
 

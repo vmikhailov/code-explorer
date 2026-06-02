@@ -33,44 +33,23 @@ public class WorkspaceLevelParser
         // 2. Sequential upfront clearances to avoid transaction lock contention
         if (_ctx.Clear)
         {
-            Console.Error.WriteLine("[WorkspaceParser] Clearing project workspaces sequentially to avoid database lock contention...");
+            await Console.Error.WriteLineAsync("[WorkspaceParser] Clearing project workspaces sequentially to avoid database lock contention...");
             foreach (var projectDir in projectDirs)
             {
-                Console.Error.WriteLine($"[WorkspaceParser] Clearing previous project data for '{projectDir}'...");
+                await Console.Error.WriteLineAsync($"[WorkspaceParser] Clearing previous project data for '{projectDir}'...");
                 await _ctx.DbClient.ClearWorkspaceAsync(projectDir);
             }
-            Console.Error.WriteLine($"[WorkspaceParser] Clearing previous root workspace data for '{_absoluteWorkspacePath}'...");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Clearing previous root workspace data for '{_absoluteWorkspacePath}'...");
             await _ctx.DbClient.ClearWorkspaceAsync(_absoluteWorkspacePath);
         }
 
         if (projectDirs.Count > 1 || (projectDirs.Count == 1 && projectDirs[0] != _absoluteWorkspacePath))
         {
-            Console.Error.WriteLine($"[WorkspaceParser] Multi-project workspace detected. Discovering {projectDirs.Count} projects...");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Multi-project workspace detected. Discovering {projectDirs.Count} projects...");
             foreach (var projectDir in projectDirs)
             {
                 _excludedSubdirectories.Add(projectDir);
             }
-
-            // Index all projects sequentially
-            foreach (var projectDir in projectDirs)
-            {
-                // Find matching language parser for project signature
-                var filesInDir = Directory.GetFiles(projectDir);
-                ILanguageParser? matchedParser = null;
-                lock (WorkspaceParser.Parsers)
-                {
-                    matchedParser = WorkspaceParser.Parsers.FirstOrDefault(p => p.IsProjectDirectory(projectDir, filesInDir));
-                }
-
-                if (matchedParser != null)
-                {
-                    var projectParser = new ProjectLevelParser(_ctx, projectDir, _workspaceNodeId, matchedParser);
-                    await projectParser.ParseAsync();
-                }
-            }
-
-            // Index any residual files at the root level outside any project
-            Console.Error.WriteLine("[WorkspaceParser] Ingesting root files outside of any detected project...");
 
             var folderName = Path.GetFileName(_absoluteWorkspacePath);
             if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
@@ -84,7 +63,7 @@ public class WorkspaceLevelParser
                     ["name"] = folderName
                 }
             );
-            await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadNodesAsync(new List<Node> { workspaceNode }));
+            await _ctx.EnqueueUploadNodesAsync(new List<Node> { workspaceNode });
 
             lock (_ctx.NodesByKind)
             {
@@ -93,12 +72,13 @@ public class WorkspaceLevelParser
             }
             _ctx.TotalNodesCount++;
 
+            // Recursively scan, discovering projects inline!
             await ScanDirectoryAsync(_absoluteWorkspacePath, _workspaceNodeId, new HashSet<string>());
         }
         else
         {
             // Single project or root workspace is a project. Just index it as a project!
-            Console.Error.WriteLine("[WorkspaceParser] Single project workspace detected.");
+            await Console.Error.WriteLineAsync("[WorkspaceParser] Single project workspace detected.");
             
             var projectDir = _absoluteWorkspacePath;
             var filesInDir = Directory.GetFiles(projectDir);
@@ -129,8 +109,20 @@ public class WorkspaceLevelParser
     {
         if (_excludedSubdirectories.Contains(currentDir))
         {
-            Console.Error.WriteLine($"[WorkspaceParser] Master: Skipping project directory '{currentDir}' (will be indexed independently)");
-            return;
+            // Find matching language parser for project signature
+            var projectFilesInDir = Directory.GetFiles(currentDir);
+            ILanguageParser? matchedParser = null;
+            lock (WorkspaceParser.Parsers)
+            {
+                matchedParser = WorkspaceParser.Parsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, projectFilesInDir));
+            }
+
+            if (matchedParser != null)
+            {
+                var projectParser = new ProjectLevelParser(_ctx, currentDir, currentParentId, matchedParser);
+                await projectParser.ParseAsync();
+            }
+            return; // Bypasses recursing deeper since the ProjectLevelParser will map it recursively!
         }
 
         var relativeDir = Path.GetRelativePath(_absoluteWorkspacePath, currentDir).Replace('\\', '/');
@@ -139,7 +131,7 @@ public class WorkspaceLevelParser
         // 1. Check GitIgnore exclusions first
         if (!string.IsNullOrEmpty(relativeDir) && _gitignore.IsIgnored(relativeDir, true))
         {
-            Console.Error.WriteLine($"[WorkspaceParser] GitIgnore: Ignoring directory '{relativeDir}'");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] GitIgnore: Ignoring directory '{relativeDir}'");
             return;
         }
 
@@ -151,7 +143,7 @@ public class WorkspaceLevelParser
         var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea" };
         if (genericExclusions.Contains(dirNameLower))
         {
-            Console.Error.WriteLine($"[WorkspaceParser] Generic: Skipping VCS/IDE folder '{relativeDir}'");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Generic: Skipping VCS/IDE folder '{relativeDir}'");
             return;
         }
 
@@ -204,7 +196,7 @@ public class WorkspaceLevelParser
 
         if (shouldExclude)
         {
-            Console.Error.WriteLine($"[WorkspaceParser] Exclusion: Skipping directory '{relativeDir}' (matches language exclusion '{matchedExclusionFolder}' for '{matchedExclusionType}' project type)");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Exclusion: Skipping directory '{relativeDir}' (matches language exclusion '{matchedExclusionFolder}' for '{matchedExclusionType}' project type)");
             return;
         }
 
@@ -222,10 +214,10 @@ public class WorkspaceLevelParser
                 ["name"] = dirName,
                 ["path"] = relativeDir
             });
-            await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadNodesAsync(new List<Node> { folderNode }));
+            await _ctx.EnqueueUploadNodesAsync(new List<Node> { folderNode });
             
             var rel = new Relationship(currentParentId, currentId, OntologyConstants.Relationships.Contains);
-            await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadRelationshipsAsync(new List<Relationship> { rel }));
+            await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { rel });
 
             lock (_ctx.NodesByKind)
             {
@@ -250,7 +242,7 @@ public class WorkspaceLevelParser
 
             if (_gitignore.IsIgnored(relativeFile, false))
             {
-                Console.Error.WriteLine($"[WorkspaceParser] GitIgnore: Ignoring file '{relativeFile}'");
+                await Console.Error.WriteLineAsync($"[WorkspaceParser] GitIgnore: Ignoring file '{relativeFile}'");
                 continue;
             }
 

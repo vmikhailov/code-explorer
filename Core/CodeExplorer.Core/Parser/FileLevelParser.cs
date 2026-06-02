@@ -27,7 +27,7 @@ public class FileLevelParser
     public async Task ParseAsync()
     {
         var relativePath = Path.GetRelativePath(_ctx.AbsoluteWorkspacePath, _filePath).Replace('\\', '/');
-        Console.Error.WriteLine($"[WorkspaceParser] Parsing file: '{relativePath}' ({_languageParser.ProjectType})");
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Parsing file: '{relativePath}' ({_languageParser.ProjectType})");
 
         try
         {
@@ -59,7 +59,7 @@ public class FileLevelParser
             // 4. Flush Mapped File Data to Persistence Channel & Update Global Stats
             if (fileCtx.Nodes.Count > 0)
             {
-                await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadNodesAsync(fileCtx.Nodes));
+                await _ctx.EnqueueUploadNodesAsync(fileCtx.Nodes);
                 lock (_ctx.NodesByKind)
                 {
                     foreach (var node in fileCtx.Nodes)
@@ -85,7 +85,7 @@ public class FileLevelParser
 
             if (fileCtx.Relationships.Count > 0)
             {
-                await _ctx.SharedChannel.Writer.WriteAsync(() => _ctx.DbClient.UploadRelationshipsAsync(fileCtx.Relationships));
+                await _ctx.EnqueueUploadRelationshipsAsync(fileCtx.Relationships);
                 _ctx.TotalRelsCount += fileCtx.Relationships.Count;
             }
 
@@ -99,7 +99,7 @@ public class FileLevelParser
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error parsing file {_filePath}: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Error parsing file {_filePath}: {ex.Message}");
         }
     }
 

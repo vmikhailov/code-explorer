@@ -9,7 +9,7 @@ public class McpServer(MemgraphClient dbClient)
     public async Task StartAsync()
     {
         Console.SetError(new StreamWriter(Console.OpenStandardError()) { AutoFlush = true });
-        Console.Error.WriteLine("Starting CodeExplorer C# MCP Server over Stdio...");
+        await Console.Error.WriteLineAsync("Starting CodeExplorer C# MCP Server over Stdio...");
 
         Console.InputEncoding = System.Text.Encoding.UTF8;
         Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -31,7 +31,7 @@ public class McpServer(MemgraphClient dbClient)
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error handling MCP request: {ex.Message}");
+                await Console.Error.WriteLineAsync($"Error handling MCP request: {ex.Message}");
             }
         }
     }
@@ -274,7 +274,7 @@ public class McpServer(MemgraphClient dbClient)
                 break;
 
             default:
-                Console.Error.WriteLine($"Unsupported method: {method}");
+                await Console.Error.WriteLineAsync($"Unsupported method: {method}");
                 return null;
         }
 
