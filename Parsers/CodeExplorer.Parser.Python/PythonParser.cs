@@ -2,7 +2,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public class PythonParser : ILanguageParser
+public class PythonParser : IProjectParser, IFileParser
 {
     public string LanguageName => "python";
 

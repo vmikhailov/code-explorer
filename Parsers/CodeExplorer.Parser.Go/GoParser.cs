@@ -2,7 +2,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public class GoParser : ILanguageParser
+public class GoParser : IProjectParser, IFileParser
 {
     public string LanguageName => "go";
 

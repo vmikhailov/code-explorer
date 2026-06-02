@@ -8,16 +8,16 @@ public class ProjectLevelParser
     private readonly ParsingContext _ctx;
     private readonly string _projectDir;
     private readonly string _parentContainerId;
-    private readonly ILanguageParser _languageParser;
+    private readonly IProjectParser _projectParser;
     private readonly string _projectNodeId;
     private readonly GitIgnoreMatcher _gitignore;
 
-    public ProjectLevelParser(ParsingContext ctx, string projectDir, string parentContainerId, ILanguageParser languageParser)
+    public ProjectLevelParser(ParsingContext ctx, string projectDir, string parentContainerId, IProjectParser projectParser)
     {
         _ctx = ctx;
         _projectDir = projectDir.Replace('\\', '/');
         _parentContainerId = parentContainerId;
-        _languageParser = languageParser;
+        _projectParser = projectParser;
         _projectNodeId = $"project:{_projectDir}:";
         _gitignore = new GitIgnoreMatcher(_projectDir);
     }
@@ -33,7 +33,7 @@ public class ProjectLevelParser
         {
             ["name"] = folderName,
             ["path"] = Path.GetRelativePath(_ctx.AbsoluteWorkspacePath, _projectDir).Replace('\\', '/'),
-            ["project_type"] = _languageParser.ProjectType
+            ["project_type"] = _projectParser.ProjectType
         });
         await _ctx.EnqueueUploadNodesAsync(new List<Node> { projectNode });
 
@@ -68,8 +68,8 @@ public class ProjectLevelParser
             var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea", "node_modules", "bin", "obj" };
             if (genericExclusions.Contains(dirNameLower)) return;
 
-            // Language specific exlusions
-            foreach (var folder in _languageParser.ExcludedFolders)
+            // Language specific exclusions
+            foreach (var folder in _projectParser.ExcludedFolders)
             {
                 if (folder.Equals(dirNameLower, StringComparison.OrdinalIgnoreCase)) return;
             }
@@ -119,9 +119,15 @@ public class ProjectLevelParser
                 continue;
             }
 
-            if (_languageParser.CanParse(ext))
+            IFileParser? fileParser = null;
+            lock (WorkspaceParser.FileParsers)
             {
-                var flParser = new FileLevelParser(_ctx, file, currentId, _languageParser);
+                fileParser = WorkspaceParser.FileParsers.FirstOrDefault(p => p.CanParse(ext));
+            }
+
+            if (fileParser != null)
+            {
+                var flParser = new FileLevelParser(_ctx, file, currentId, fileParser);
                 await flParser.ParseAsync();
             }
         }
@@ -131,7 +137,7 @@ public class ProjectLevelParser
     {
         try
         {
-            var depInfo = await _languageParser.ParseDependenciesAsync(_projectDir);
+            var depInfo = await _projectParser.ParseDependenciesAsync(_projectDir);
             if (depInfo != null)
             {
                 // A. Process local project dependencies (DependsOn relationships)
@@ -165,7 +171,7 @@ public class ProjectLevelParser
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Error parsing dependencies for {_languageParser.ProjectType} in '{_projectDir}': {ex.Message}");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Error parsing dependencies for {_projectParser.ProjectType} in '{_projectDir}': {ex.Message}");
         }
     }
 
@@ -174,7 +180,7 @@ public class ProjectLevelParser
         bool packageDetected = false;
         try
         {
-            var producedPackage = await _languageParser.GetProducedPackageAsync(_projectDir);
+            var producedPackage = await _projectParser.GetProducedPackageAsync(_projectDir);
             if (producedPackage != null)
             {
                 var packageNodeId = $"package:{producedPackage.Name.ToLowerInvariant()}";
@@ -198,7 +204,7 @@ public class ProjectLevelParser
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Error getting produced package from {_languageParser.ProjectType} parser in '{_projectDir}': {ex.Message}");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Error getting produced package from {_projectParser.ProjectType} parser in '{_projectDir}': {ex.Message}");
         }
 
         if (!packageDetected)

@@ -72,18 +72,18 @@ public class WorkspaceLevelParser
             
             var projectDir = _absoluteWorkspacePath;
             var filesInDir = Directory.GetFiles(projectDir);
-            ILanguageParser? matchedParser = null;
-            lock (WorkspaceParser.Parsers)
+            IProjectParser? matchedParser = null;
+            lock (WorkspaceParser.ProjectParsers)
             {
-                matchedParser = WorkspaceParser.Parsers.FirstOrDefault(p => p.IsProjectDirectory(projectDir, filesInDir));
+                matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(projectDir, filesInDir));
             }
 
             if (matchedParser == null)
             {
                 // Fallback to C# or first registered if none detected, or construct ProjectLevelParser with dummy/fallback
-                lock (WorkspaceParser.Parsers)
+                lock (WorkspaceParser.ProjectParsers)
                 {
-                    matchedParser = WorkspaceParser.Parsers.FirstOrDefault();
+                    matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault();
                 }
             }
 
@@ -101,10 +101,10 @@ public class WorkspaceLevelParser
         {
             // Find matching language parser for project signature
             var projectFilesInDir = Directory.GetFiles(currentDir);
-            ILanguageParser? matchedParser = null;
-            lock (WorkspaceParser.Parsers)
+            IProjectParser? matchedParser = null;
+            lock (WorkspaceParser.ProjectParsers)
             {
-                matchedParser = WorkspaceParser.Parsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, projectFilesInDir));
+                matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, projectFilesInDir));
             }
 
             if (matchedParser != null)
@@ -140,9 +140,9 @@ public class WorkspaceLevelParser
         // 3. Scan folder for project signatures to propagate exclusions
         var filesInDir = Directory.GetFiles(currentDir);
         var newlyDetectedTypes = new HashSet<string>();
-        lock (WorkspaceParser.Parsers)
+        lock (WorkspaceParser.ProjectParsers)
         {
-            foreach (var parser in WorkspaceParser.Parsers)
+            foreach (var parser in WorkspaceParser.ProjectParsers)
             {
                 if (parser.IsProjectDirectory(currentDir, filesInDir))
                 {
@@ -162,11 +162,11 @@ public class WorkspaceLevelParser
         bool shouldExclude = false;
         string? matchedExclusionFolder = null;
         string? matchedExclusionType = null;
-        lock (WorkspaceParser.Parsers)
+        lock (WorkspaceParser.ProjectParsers)
         {
             foreach (var type in subProjectTypes)
             {
-                var parser = WorkspaceParser.Parsers.FirstOrDefault(p => p.ProjectType == type);
+                var parser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.ProjectType == type);
                 if (parser != null)
                 {
                     foreach (var folder in parser.ExcludedFolders)
@@ -232,10 +232,10 @@ public class WorkspaceLevelParser
                 continue;
             }
 
-            ILanguageParser? fileParser = null;
-            lock (WorkspaceParser.Parsers)
+            IFileParser? fileParser = null;
+            lock (WorkspaceParser.FileParsers)
             {
-                fileParser = WorkspaceParser.Parsers.FirstOrDefault(p => p.CanParse(ext));
+                fileParser = WorkspaceParser.FileParsers.FirstOrDefault(p => p.CanParse(ext));
             }
 
             if (fileParser != null)
@@ -251,9 +251,9 @@ public class WorkspaceLevelParser
         var projectDirs = new List<string>();
         var rootFiles = Directory.GetFiles(_absoluteWorkspacePath);
         bool rootIsProject = false;
-        lock (WorkspaceParser.Parsers)
+        lock (WorkspaceParser.ProjectParsers)
         {
-            foreach (var parser in WorkspaceParser.Parsers)
+            foreach (var parser in WorkspaceParser.ProjectParsers)
             {
                 if (parser.IsProjectDirectory(_absoluteWorkspacePath, rootFiles))
                 {
@@ -288,9 +288,9 @@ public class WorkspaceLevelParser
 
         var filesInDir = Directory.GetFiles(currentDir);
         bool isProject = false;
-        lock (WorkspaceParser.Parsers)
+        lock (WorkspaceParser.ProjectParsers)
         {
-            foreach (var parser in WorkspaceParser.Parsers)
+            foreach (var parser in WorkspaceParser.ProjectParsers)
             {
                 if (parser.IsProjectDirectory(currentDir, filesInDir))
                 {

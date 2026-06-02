@@ -2,7 +2,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public class JavaScriptParser : ILanguageParser
+public class JavaScriptParser : IProjectParser, IFileParser
 {
     public string LanguageName => "javascript";
 

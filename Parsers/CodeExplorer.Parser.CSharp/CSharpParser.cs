@@ -2,7 +2,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public class CSharpParser : ILanguageParser
+public class CSharpParser : IProjectParser, IFileParser
 {
     public string LanguageName => "c-sharp";
 

@@ -1,8 +1,10 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public interface ILanguageParser
+public interface IFileParser
 {
     /// <summary>
     /// The exact Tree-sitter language binding name (e.g., "c-sharp", "go", "python", "typescript").
@@ -15,19 +17,9 @@ public interface ILanguageParser
     bool CanParse(string fileExtension);
 
     /// <summary>
-    /// Checks if the given directory contains a project for this language, based on files in it.
+    /// Indicates whether this parser uses Tree-Sitter for AST-level parsing.
     /// </summary>
-    bool IsProjectDirectory(string directoryPath, string[] filesInDirectory);
-
-    /// <summary>
-    /// The project type/language identifier (e.g., "csharp", "go", "python", "typescript").
-    /// </summary>
-    string ProjectType { get; }
-
-    /// <summary>
-    /// The directory names that should be excluded when this language's project type is active.
-    /// </summary>
-    IReadOnlyCollection<string> ExcludedFolders { get; }
+    bool UsesTreeSitter { get; }
 
     /// <summary>
     /// Maps a Tree-sitter AST node to a CodeExplorer ontological kind (Class, Interface, Function, Variable, or null).
@@ -43,21 +35,6 @@ public interface ILanguageParser
     /// Analyzes an AST node inside a containing scope and extracts any referenced symbols (calls, type uses, base classes).
     /// </summary>
     void CollectReferences(Node node, string scopeSymbolId, List<Reference> references);
-
-    /// <summary>
-    /// Checks if the project in the given directory produces a package, and returns details if so.
-    /// </summary>
-    Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory);
-
-    /// <summary>
-    /// Parses the project dependencies (local project directory paths and external packages) in the given directory.
-    /// </summary>
-    Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory);
-
-    /// <summary>
-    /// Indicates whether this parser uses Tree-Sitter for AST-level parsing.
-    /// </summary>
-    bool UsesTreeSitter { get; }
 
     /// <summary>
     /// Executes custom non-Tree-Sitter parsing logic for this file.

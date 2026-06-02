@@ -11,7 +11,7 @@ using Node = CodeExplorer.Database.Node;
 
 namespace CodeExplorer.Parser;
 
-public class SqlParser : ILanguageParser
+public class SqlParser : IProjectParser, IFileParser
 {
     public string LanguageName => "sql";
 

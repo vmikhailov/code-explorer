@@ -9,38 +9,38 @@ public class FileLevelParser
     private readonly ParsingContext _ctx;
     private readonly string _filePath;
     private readonly string _parentFolderOrProjectId;
-    private readonly ILanguageParser _languageParser;
+    private readonly IFileParser _fileParser;
 
-    public FileLevelParser(ParsingContext ctx, string filePath, string parentFolderOrProjectId, ILanguageParser languageParser)
+    public FileLevelParser(ParsingContext ctx, string filePath, string parentFolderOrProjectId, IFileParser fileParser)
     {
         _ctx = ctx;
         _filePath = filePath.Replace('\\', '/');
         _parentFolderOrProjectId = parentFolderOrProjectId;
-        _languageParser = languageParser;
+        _fileParser = fileParser;
     }
 
     public async Task ParseAsync()
     {
         var relativePath = Path.GetRelativePath(_ctx.AbsoluteWorkspacePath, _filePath).Replace('\\', '/');
-        await Console.Error.WriteLineAsync($"[WorkspaceParser] Parsing file: '{relativePath}' ({_languageParser.ProjectType})");
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Parsing file: '{relativePath}' ({_fileParser.LanguageName})");
 
         try
         {
-            if (!_languageParser.UsesTreeSitter)
+            if (!_fileParser.UsesTreeSitter)
             {
-                await _languageParser.ParseCustomAsync(_filePath, _parentFolderOrProjectId, _ctx);
+                await _fileParser.ParseCustomAsync(_filePath, _parentFolderOrProjectId, _ctx);
                 return;
             }
 
             var sourceText = await File.ReadAllTextAsync(_filePath);
 
-            using var language = new Language(_languageParser.LanguageName);
+            using var language = new Language(_fileParser.LanguageName);
             using var parser = new TreeSitter.Parser(language);
             using var tree = parser.Parse(sourceText);
 
             if (tree == null || tree.RootNode == null) return;
 
-            var fileCtx = new FileContext(_ctx.AbsoluteWorkspacePath, relativePath, sourceText, _languageParser);
+            var fileCtx = new FileContext(_ctx.AbsoluteWorkspacePath, relativePath, sourceText, _fileParser);
 
             // 1. Create and register the File Node
             var fileNodeId = $"file:{_ctx.AbsoluteWorkspacePath}:{relativePath}";

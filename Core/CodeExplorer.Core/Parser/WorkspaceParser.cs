@@ -6,14 +6,26 @@ namespace CodeExplorer.Parser;
 
 public class WorkspaceParser
 {
-    internal static readonly List<ILanguageParser> Parsers = new();
+    internal static readonly List<IProjectParser> ProjectParsers = new();
+    internal static readonly List<IFileParser> FileParsers = new();
 
-    public static void Register(ILanguageParser parser)
+    public static void Register(object parser)
     {
-        lock (Parsers)
+        if (parser is IProjectParser projectParser)
         {
-            if (!Parsers.Any(p => p.GetType() == parser.GetType()))
-                Parsers.Add(parser);
+            lock (ProjectParsers)
+            {
+                if (!ProjectParsers.Any(p => p.GetType() == projectParser.GetType()))
+                    ProjectParsers.Add(projectParser);
+            }
+        }
+        if (parser is IFileParser fileParser)
+        {
+            lock (FileParsers)
+            {
+                if (!FileParsers.Any(p => p.GetType() == fileParser.GetType()))
+                    FileParsers.Add(fileParser);
+            }
         }
     }
 

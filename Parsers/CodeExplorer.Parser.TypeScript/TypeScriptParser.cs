@@ -2,7 +2,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
-public class TypeScriptParser : ILanguageParser
+public class TypeScriptParser : IProjectParser, IFileParser
 {
     public string LanguageName => "typescript";
 
