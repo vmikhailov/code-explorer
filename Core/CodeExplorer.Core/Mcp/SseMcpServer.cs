@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using System.Threading.Tasks;
 using CodeExplorer.Database;
 
 namespace CodeExplorer.Mcp;

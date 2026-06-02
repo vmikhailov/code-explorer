@@ -1,10 +1,6 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using CodeExplorer.Database;
 
 namespace CodeExplorer.Mcp.Controllers;
 

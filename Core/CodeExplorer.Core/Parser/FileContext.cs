@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace CodeExplorer.Parser;
 
 internal class FileContext(string workspacePath, string filePath, string sourceText, ILanguageParser parser)

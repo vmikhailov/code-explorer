@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using TreeSitter;
 
 namespace CodeExplorer.Parser;
@@ -22,17 +18,24 @@ public class SolutionParser
     }
 
     private static void Scan(
-        string currentDir,
-        string absoluteWorkspacePath,
-        List<string> collectedFiles,
+        string currentDir, 
+        string absoluteWorkspacePath, 
+        List<string> collectedFiles, 
         HashSet<string> detectedProjectTypes,
         Dictionary<string, (string Id, string Kind)> visitedDirs,
         List<Database.Node> allNodes,
         List<Database.Relationship> allRelationships,
-        bool insideProject)
+        bool insideProject,
+        GitIgnoreMatcher gitignore)
     {
         var relativeDir = Path.GetRelativePath(absoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
+
+        // 1. Check GitIgnore exclusions first
+        if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
+        {
+            return;
+        }
 
         var dirName = Path.GetFileName(currentDir);
         if (string.IsNullOrEmpty(dirName))
@@ -41,14 +44,14 @@ public class SolutionParser
         }
         var dirNameLower = dirName.ToLowerInvariant();
 
-        // 1. Generic default exclusions
+        // 2. Generic default exclusions
         var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea" };
         if (genericExclusions.Contains(dirNameLower))
         {
             return;
         }
 
-        // 2. Scan current folder for project signatures by querying registered language parsers
+        // 3. Scan current folder for project signatures by querying registered language parsers
         var filesInDir = Directory.GetFiles(currentDir);
         var newlyDetectedTypes = new HashSet<string>();
         bool isProject = false;
@@ -76,13 +79,13 @@ public class SolutionParser
         // Propagate whether we are inside a project to subdirectories
         bool currentInsideProject = insideProject || isProject;
 
-        // 3. Add to detected project types
+        // 4. Add to detected project types
         foreach (var type in newlyDetectedTypes)
         {
             detectedProjectTypes.Add(type);
         }
 
-        // 4. Check if current directory name should be excluded based on active project types and language exclusions
+        // 5. Check if current directory name should be excluded based on active project types and language exclusions
         bool shouldExclude = false;
         lock (Parsers)
         {
@@ -160,6 +163,12 @@ public class SolutionParser
         // Add matching source files in this folder
         foreach (var file in filesInDir)
         {
+            var relativeFile = Path.GetRelativePath(absoluteWorkspacePath, file).Replace('\\', '/');
+            if (gitignore.IsIgnored(relativeFile, false))
+            {
+                continue;
+            }
+
             var ext = Path.GetExtension(file).ToLowerInvariant();
             lock (Parsers)
             {
@@ -176,7 +185,7 @@ public class SolutionParser
         {
             // We pass a copy of detectedProjectTypes so that subdirectories inherit active project types
             var subProjectTypes = new HashSet<string>(detectedProjectTypes);
-            Scan(subDir, absoluteWorkspacePath, collectedFiles, subProjectTypes, visitedDirs, allNodes, allRelationships, currentInsideProject);
+            Scan(subDir, absoluteWorkspacePath, collectedFiles, subProjectTypes, visitedDirs, allNodes, allRelationships, currentInsideProject, gitignore);
         }
     }
 
@@ -205,7 +214,8 @@ public class SolutionParser
         var files = new List<string>();
         var detectedProjectTypes = new HashSet<string>();
         var visitedDirs = new Dictionary<string, (string Id, string Kind)>();
-        Scan(absoluteWorkspacePath, absoluteWorkspacePath, files, detectedProjectTypes, visitedDirs, allNodes, allRelationships, false);
+        var gitignore = new GitIgnoreMatcher(absoluteWorkspacePath);
+        Scan(absoluteWorkspacePath, absoluteWorkspacePath, files, detectedProjectTypes, visitedDirs, allNodes, allRelationships, false, gitignore);
 
         foreach (var file in files)
         {
@@ -367,6 +377,88 @@ public class SolutionParser
         foreach (var child in node.Children)
         {
             TraverseNode(child, currentParentId, ctx);
+        }
+    }
+
+    private class GitIgnoreMatcher
+    {
+        private readonly List<(string Pattern, System.Text.RegularExpressions.Regex Regex, bool IsDirectoryOnly)> _rules = new();
+
+        public GitIgnoreMatcher(string workspaceRoot)
+        {
+            var gitignorePath = Path.Combine(workspaceRoot, ".gitignore");
+            if (!File.Exists(gitignorePath)) return;
+
+            foreach (var line in File.ReadLines(gitignorePath))
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
+
+                bool isDirectoryOnly = false;
+                if (trimmed.EndsWith('/'))
+                {
+                    isDirectoryOnly = true;
+                    trimmed = trimmed.Substring(0, trimmed.Length - 1);
+                }
+
+                bool isAnchored = false;
+                if (trimmed.StartsWith('/'))
+                {
+                    isAnchored = true;
+                    trimmed = trimmed.Substring(1);
+                }
+
+                var escaped = System.Text.RegularExpressions.Regex.Escape(trimmed);
+                var regexPattern = escaped
+                    .Replace("\\*", ".*")
+                    .Replace("\\?", ".");
+
+                if (isAnchored)
+                {
+                    regexPattern = "^" + regexPattern;
+                }
+                else
+                {
+                    regexPattern = "(^|/)" + regexPattern;
+                }
+
+                if (isDirectoryOnly)
+                {
+                    regexPattern += "($|/)";
+                }
+                else
+                {
+                    regexPattern += "($|/|\\.)";
+                }
+
+                try
+                {
+                    var regex = new System.Text.RegularExpressions.Regex(regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+                    _rules.Add((trimmed, regex, isDirectoryOnly));
+                }
+                catch
+                {
+                    // Ignore malformed patterns
+                }
+            }
+        }
+
+        public bool IsIgnored(string relativePath, bool isDirectory)
+        {
+            relativePath = relativePath.Replace('\\', '/').Trim('/');
+            if (string.IsNullOrEmpty(relativePath)) return false;
+
+            foreach (var rule in _rules)
+            {
+                if (rule.IsDirectoryOnly && !isDirectory) continue;
+
+                if (rule.Regex.IsMatch(relativePath))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using TreeSitter;
 
 namespace CodeExplorer.Parser;
