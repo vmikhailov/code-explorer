@@ -1,10 +1,5 @@
-using System;
-using CodeExplorer.Common;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Threading.Channels;
-using System.Threading.Tasks;
+using CodeExplorer.Common;
 using CodeExplorer.Database;
 
 namespace CodeExplorer.Parser;
@@ -92,6 +87,20 @@ public class WorkspaceParser
                         if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Function, refItem.TargetName), out var targetNodeId))
                         {
                             referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetNodeId, OntologyConstants.Relationships.Calls));
+                        }
+                        else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Procedure, refItem.TargetName), out var targetProcId))
+                        {
+                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetProcId, OntologyConstants.Relationships.Calls));
+                        }
+                    }
+                }
+                else if (refItem.Kind == OntologyConstants.Relationships.DependsOn)
+                {
+                    lock (ctx.GlobalSymbols)
+                    {
+                        if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Table, refItem.TargetName), out var targetTableId))
+                        {
+                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetTableId, OntologyConstants.Relationships.DependsOn));
                         }
                     }
                 }

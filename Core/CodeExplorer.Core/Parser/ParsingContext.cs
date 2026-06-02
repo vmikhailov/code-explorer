@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 using CodeExplorer.Database;
 
 namespace CodeExplorer.Parser;

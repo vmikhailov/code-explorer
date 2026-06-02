@@ -1,6 +1,6 @@
 using CodeExplorer.Database;
-using CodeExplorer.Parser;
 using CodeExplorer.Mcp;
+using CodeExplorer.Parser;
 using CommandLine;
 using CommandLineParser = CommandLine.Parser;
 
@@ -15,6 +15,7 @@ class Program
         WorkspaceParser.Register(new PythonParser());
         WorkspaceParser.Register(new TypeScriptParser());
         WorkspaceParser.Register(new JavaScriptParser());
+        WorkspaceParser.Register(new SqlParser());
 
         return await CommandLineParser.Default.ParseArguments<IngestOptions, QueryOptions, McpOptions>(args)
             .MapResult(

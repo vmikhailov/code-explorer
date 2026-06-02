@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Channels;
-using System.Threading.Tasks;
-using CodeExplorer.Database;
 using CodeExplorer.Common;
+using CodeExplorer.Database;
 
 namespace CodeExplorer.Parser;
 
@@ -65,12 +59,8 @@ public class WorkspaceLevelParser
             );
             await _ctx.EnqueueUploadNodesAsync(new List<Node> { workspaceNode });
 
-            lock (_ctx.NodesByKind)
-            {
-                if (!_ctx.NodesByKind.ContainsKey(OntologyConstants.NodeLabels.Workspace)) _ctx.NodesByKind[OntologyConstants.NodeLabels.Workspace] = 0;
-                _ctx.NodesByKind[OntologyConstants.NodeLabels.Workspace]++;
-            }
-            _ctx.TotalNodesCount++;
+            _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Workspace);
+            _ctx.AddNodesCount(1);
 
             // Recursively scan, discovering projects inline!
             await ScanDirectoryAsync(_absoluteWorkspacePath, _workspaceNodeId, new HashSet<string>());
@@ -219,13 +209,9 @@ public class WorkspaceLevelParser
             var rel = new Relationship(currentParentId, currentId, OntologyConstants.Relationships.Contains);
             await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { rel });
 
-            lock (_ctx.NodesByKind)
-            {
-                if (!_ctx.NodesByKind.ContainsKey(OntologyConstants.NodeLabels.WorkspaceFolder)) _ctx.NodesByKind[OntologyConstants.NodeLabels.WorkspaceFolder] = 0;
-                _ctx.NodesByKind[OntologyConstants.NodeLabels.WorkspaceFolder]++;
-            }
-            _ctx.TotalNodesCount++;
-            _ctx.TotalRelsCount++;
+            _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.WorkspaceFolder);
+            _ctx.AddNodesCount(1);
+            _ctx.AddRelsCount(1);
         }
 
         // Recurse into subdirectories

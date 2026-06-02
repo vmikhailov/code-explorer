@@ -14,6 +14,10 @@ public static class OntologyConstants
         public const string Function = "Function";
         public const string Variable = "Variable";
         public const string Package = "Package";
+        public const string DB = "DB";
+        public const string DataSet = "DataSet";
+        public const string Table = "Table";
+        public const string Procedure = "Procedure";
     }
 
     public static class Relationships

@@ -1,11 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Channels;
-using System.Threading.Tasks;
-using TreeSitter;
-using CodeExplorer.Database;
 using CodeExplorer.Common;
+using CodeExplorer.Database;
+using TreeSitter;
 
 namespace CodeExplorer.Parser;
 
@@ -31,6 +26,12 @@ public class FileLevelParser
 
         try
         {
+            if (!_languageParser.UsesTreeSitter)
+            {
+                await _languageParser.ParseCustomAsync(_filePath, _parentFolderOrProjectId, _ctx);
+                return;
+            }
+
             var sourceText = await File.ReadAllTextAsync(_filePath);
 
             using var language = new Language(_languageParser.LanguageName);
@@ -60,41 +61,31 @@ public class FileLevelParser
             if (fileCtx.Nodes.Count > 0)
             {
                 await _ctx.EnqueueUploadNodesAsync(fileCtx.Nodes);
-                lock (_ctx.NodesByKind)
+                foreach (var node in fileCtx.Nodes)
                 {
-                    foreach (var node in fileCtx.Nodes)
-                    {
-                        if (!_ctx.NodesByKind.ContainsKey(node.Kind)) _ctx.NodesByKind[node.Kind] = 0;
-                        _ctx.NodesByKind[node.Kind]++;
+                    _ctx.IncrementNodeKind(node.Kind);
 
-                        // Map global symbols for reference resolution
-                        if (node.Kind == OntologyConstants.NodeLabels.Class || node.Kind == OntologyConstants.NodeLabels.Interface || node.Kind == OntologyConstants.NodeLabels.Function)
+                    // Map global symbols for reference resolution
+                    if (node.Kind == OntologyConstants.NodeLabels.Class || node.Kind == OntologyConstants.NodeLabels.Interface || node.Kind == OntologyConstants.NodeLabels.Function)
+                    {
+                        if (node.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
                         {
-                            if (node.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
-                            {
-                                lock (_ctx.GlobalSymbols)
-                                {
-                                    _ctx.GlobalSymbols[(node.Kind, nameStr)] = node.Id;
-                                }
-                            }
+                            _ctx.AddGlobalSymbol(node.Kind, nameStr, node.Id);
                         }
                     }
                 }
-                _ctx.TotalNodesCount += fileCtx.Nodes.Count;
+                _ctx.AddNodesCount(fileCtx.Nodes.Count);
             }
 
             if (fileCtx.Relationships.Count > 0)
             {
                 await _ctx.EnqueueUploadRelationshipsAsync(fileCtx.Relationships);
-                _ctx.TotalRelsCount += fileCtx.Relationships.Count;
+                _ctx.AddRelsCount(fileCtx.Relationships.Count);
             }
 
             if (fileCtx.References.Count > 0)
             {
-                lock (_ctx.GlobalReferences)
-                {
-                    _ctx.GlobalReferences.AddRange(fileCtx.References);
-                }
+                _ctx.AddGlobalReferences(fileCtx.References);
             }
         }
         catch (Exception ex)

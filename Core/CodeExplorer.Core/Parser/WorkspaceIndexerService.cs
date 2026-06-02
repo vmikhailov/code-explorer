@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.IO;
-using System.Threading.Tasks;
 using CodeExplorer.Database;
 
 namespace CodeExplorer.Parser;

@@ -1,5 +1,4 @@
 using TreeSitter;
-using System.Threading.Tasks;
 
 namespace CodeExplorer.Parser;
 
@@ -54,4 +53,14 @@ public interface ILanguageParser
     /// Parses the project dependencies (local project directory paths and external packages) in the given directory.
     /// </summary>
     Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory);
+
+    /// <summary>
+    /// Indicates whether this parser uses Tree-Sitter for AST-level parsing.
+    /// </summary>
+    bool UsesTreeSitter { get; }
+
+    /// <summary>
+    /// Executes custom non-Tree-Sitter parsing logic for this file.
+    /// </summary>
+    Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx);
 }

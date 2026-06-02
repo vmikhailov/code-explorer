@@ -220,4 +220,7 @@ public class CSharpParser : ILanguageParser
 
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
     }
+
+    public bool UsesTreeSitter => true;
+    public Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx) => throw new NotSupportedException();
 }

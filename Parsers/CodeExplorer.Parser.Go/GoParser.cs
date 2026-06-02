@@ -8,7 +8,7 @@ public class GoParser : ILanguageParser
 
     public string ProjectType => "go";
 
-    public System.Collections.Generic.IReadOnlyCollection<string> ExcludedFolders => new[] { "vendor" };
+    public IReadOnlyCollection<string> ExcludedFolders => new[] { "vendor" };
 
     public bool CanParse(string fileExtension)
     {
@@ -19,7 +19,7 @@ public class GoParser : ILanguageParser
     {
         foreach (var file in filesInDirectory)
         {
-            var fileName = System.IO.Path.GetFileName(file).ToLowerInvariant();
+            var fileName = Path.GetFileName(file).ToLowerInvariant();
             if (fileName == "go.mod")
             {
                 return true;
@@ -125,12 +125,12 @@ public class GoParser : ILanguageParser
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
-        var goModPath = System.IO.Path.Combine(projectDirectory, "go.mod");
-        if (!System.IO.File.Exists(goModPath)) return null;
+        var goModPath = Path.Combine(projectDirectory, "go.mod");
+        if (!File.Exists(goModPath)) return null;
 
         try
         {
-            var lines = await System.IO.File.ReadAllLinesAsync(goModPath);
+            var lines = await File.ReadAllLinesAsync(goModPath);
             var moduleLine = lines.FirstOrDefault(l => l.Trim().StartsWith("module "));
             if (moduleLine != null)
             {
@@ -154,15 +154,15 @@ public class GoParser : ILanguageParser
         var localProjectPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
 
-        var goModPath = System.IO.Path.Combine(projectDirectory, "go.mod");
-        if (!System.IO.File.Exists(goModPath))
+        var goModPath = Path.Combine(projectDirectory, "go.mod");
+        if (!File.Exists(goModPath))
         {
             return new ProjectDependencyInfo(localProjectPaths, externalPackages);
         }
 
         try
         {
-            var lines = await System.IO.File.ReadAllLinesAsync(goModPath);
+            var lines = await File.ReadAllLinesAsync(goModPath);
             bool inRequireBlock = false;
 
             foreach (var rawLine in lines)
@@ -210,4 +210,7 @@ public class GoParser : ILanguageParser
 
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
     }
+
+    public bool UsesTreeSitter => true;
+    public Task ParseCustomAsync(string filePath, string parentNodeId, ParsingContext ctx) => throw new NotSupportedException();
 }
