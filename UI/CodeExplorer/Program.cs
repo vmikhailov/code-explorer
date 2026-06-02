@@ -84,7 +84,8 @@ class Program
         }
         else
         {
-            var stdioServer = new McpServer(client);
+            var graphRepository = new McpGraphRepository(client);
+            var stdioServer = new McpServer(graphRepository);
             await stdioServer.StartAsync();
         }
 

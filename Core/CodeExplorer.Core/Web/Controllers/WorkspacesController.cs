@@ -117,7 +117,7 @@ public class WorkspacesController : ControllerBase
             var propJson = await _client.ExecuteQueryAsync(propQuery);
             var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? [];
 
-            var taxonomy = Mcp.McpServer.BuildTaxonomy(parsedTriplets, parsedProperties);
+            var taxonomy = Mcp.McpGraphRepository.BuildTaxonomy(parsedTriplets, parsedProperties);
             return Content(JsonSerializer.Serialize(new { taxonomy }), "application/json");
         }
         catch (Exception ex)

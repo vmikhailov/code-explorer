@@ -44,16 +44,11 @@ public class FileLevelParser
 
             // 1. Create and register the File Node
             var fileNodeId = $"file:{_ctx.AbsoluteWorkspacePath}:{relativePath}";
-            var fileNode = new Database.Node(fileNodeId, OntologyConstants.NodeLabels.File, new Dictionary<string, object>
-            {
-                ["path"] = Path.GetFileName(_filePath),
-                ["name"] = Path.GetFileName(_filePath),
-                ["full_path"] = _filePath
-            });
-            fileCtx.Nodes.Add(fileNode);
+            var fileNode = new FileNode(fileNodeId, Path.GetFileName(_filePath), relativePath, _filePath);
+            fileCtx.Nodes.Add(Database.Node.FromNode(fileNode));
 
             // 2. Link File Node to Parent (WorkspaceFolder or ProjectFolder or Project)
-            fileCtx.Relationships.Add(new Relationship(_parentFolderOrProjectId, fileNodeId, OntologyConstants.Relationships.Contains));
+            fileCtx.Relationships.Add(Relationship.FromRelationship(new ContainsRelationship(_parentFolderOrProjectId, fileNodeId)));
 
             // 3. Traverse the AST
             TraverseNode(tree.RootNode, fileNodeId, fileCtx);
@@ -110,19 +105,17 @@ public class FileLevelParser
         if (kind != null && !string.IsNullOrEmpty(name))
         {
             var symbolId = $"symbol:{ctx.WorkspacePath}:{ctx.FilePath}:{kind}:{name}:{node.StartPosition.Row}";
-            var properties = new Dictionary<string, object>
+            IOntologyNode typedNode = kind switch
             {
-                ["name"] = name,
-                ["symbol"] = symbolId,
-                ["start_line"] = node.StartPosition.Row,
-                ["start_col"] = node.StartPosition.Column,
-                ["end_line"] = node.EndPosition.Row,
-                ["end_col"] = node.EndPosition.Column,
-                ["file_path"] = Path.GetFileName(ctx.FilePath)
+                OntologyConstants.NodeLabels.Class => new ClassNode(symbolId, name, symbolId, Path.GetFileName(ctx.FilePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, Path.GetFileName(ctx.FilePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, Path.GetFileName(ctx.FilePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                OntologyConstants.NodeLabels.Variable => new VariableNode(symbolId, name, symbolId, Path.GetFileName(ctx.FilePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
             };
 
-            ctx.Nodes.Add(new Database.Node(symbolId, kind, properties));
-            ctx.Relationships.Add(new Relationship(parentId, symbolId, OntologyConstants.Relationships.Contains));
+            ctx.Nodes.Add(Database.Node.FromNode(typedNode));
+            ctx.Relationships.Add(Relationship.FromRelationship(new ContainsRelationship(parentId, symbolId)));
             currentParentId = symbolId;
         }
 

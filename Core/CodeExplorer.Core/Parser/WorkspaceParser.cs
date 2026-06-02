@@ -98,11 +98,11 @@ public class WorkspaceParser
                     {
                         if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Function, refItem.TargetName), out var targetNodeId))
                         {
-                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetNodeId, OntologyConstants.Relationships.Calls));
+                            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
                         }
                         else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Procedure, refItem.TargetName), out var targetProcId))
                         {
-                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetProcId, OntologyConstants.Relationships.Calls));
+                            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetProcId)));
                         }
                     }
                 }
@@ -112,7 +112,7 @@ public class WorkspaceParser
                     {
                         if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Table, refItem.TargetName), out var targetTableId))
                         {
-                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetTableId, OntologyConstants.Relationships.DependsOn));
+                            referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId)));
                         }
                     }
                 }
@@ -122,11 +122,11 @@ public class WorkspaceParser
                     {
                         if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Interface, refItem.TargetName), out var targetNodeId))
                         {
-                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetNodeId, OntologyConstants.Relationships.UsesType));
+                            referenceRelationships.Add(Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId, targetNodeId)));
                         }
                         else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Class, refItem.TargetName), out var targetClassId))
                         {
-                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetClassId, OntologyConstants.Relationships.UsesType));
+                            referenceRelationships.Add(Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId, targetClassId)));
                         }
                     }
                 }
@@ -136,11 +136,17 @@ public class WorkspaceParser
                     {
                         if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Interface, refItem.TargetName), out var targetNodeId))
                         {
-                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetNodeId, refItem.Kind));
+                            IOntologyRelationship rel = refItem.Kind == OntologyConstants.Relationships.Implements
+                                ? new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId)
+                                : new InheritsFromRelationship(refItem.ScopeSymbolId, targetNodeId);
+                            referenceRelationships.Add(Relationship.FromRelationship(rel));
                         }
                         else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Class, refItem.TargetName), out var targetClassId))
                         {
-                            referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetClassId, refItem.Kind));
+                            IOntologyRelationship rel = refItem.Kind == OntologyConstants.Relationships.Implements
+                                ? new ImplementsRelationship(refItem.ScopeSymbolId, targetClassId)
+                                : new InheritsFromRelationship(refItem.ScopeSymbolId, targetClassId);
+                            referenceRelationships.Add(Relationship.FromRelationship(rel));
                         }
                     }
                 }
@@ -169,7 +175,7 @@ public class WorkspaceParser
 
                                 if (!hasInheritance)
                                 {
-                                    referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, targetNodeId, OntologyConstants.Relationships.UsesType));
+                                    referenceRelationships.Add(Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId, targetNodeId)));
                                 }
                             }
                         }

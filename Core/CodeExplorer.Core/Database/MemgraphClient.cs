@@ -137,10 +137,11 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
                 var chunk = relList.Skip(i).Take(batchSize).Select(r => new Dictionary<string, object>
                 {
                     ["from"] = r.From,
-                    ["to"] = r.To
+                    ["to"] = r.To,
+                    ["properties"] = r.Properties
                 }).ToList();
 
-                var query = $"UNWIND $batch AS row MATCH (from:Entity {{ id: row.from }}), (to:Entity {{ id: row.to }}) MERGE (from)-[:{kind}]->(to)";
+                var query = $"UNWIND $batch AS row MATCH (from:Entity {{ id: row.from }}), (to:Entity {{ id: row.to }}) MERGE (from)-[r:{kind}]->(to) SET r = row.properties";
                 await session.ExecuteWriteAsync(async tx =>
                 {
                     await tx.RunAsync(query, new { batch = chunk });

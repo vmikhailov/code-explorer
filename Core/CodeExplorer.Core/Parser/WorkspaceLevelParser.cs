@@ -48,15 +48,11 @@ public class WorkspaceLevelParser
             var folderName = Path.GetFileName(_absoluteWorkspacePath);
             if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
 
-            var workspaceNode = new Node(
+            var workspaceNode = Node.FromNode(new WorkspaceNode(
                 _workspaceNodeId,
-                OntologyConstants.NodeLabels.Workspace,
-                new Dictionary<string, object>
-                {
-                    ["path"] = _absoluteWorkspacePath,
-                    ["name"] = folderName
-                }
-            );
+                folderName,
+                _absoluteWorkspacePath
+            ));
             await _ctx.EnqueueUploadNodesAsync(new List<Node> { workspaceNode });
 
             _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Workspace);
@@ -199,14 +195,10 @@ public class WorkspaceLevelParser
         else
         {
             currentId = $"workspacefolder:{_absoluteWorkspacePath}:{relativeDir}";
-            var folderNode = new Node(currentId, OntologyConstants.NodeLabels.WorkspaceFolder, new Dictionary<string, object>
-            {
-                ["name"] = dirName,
-                ["path"] = relativeDir
-            });
+            var folderNode = Node.FromNode(new WorkspaceFolderNode(currentId, dirName, relativeDir));
             await _ctx.EnqueueUploadNodesAsync(new List<Node> { folderNode });
             
-            var rel = new Relationship(currentParentId, currentId, OntologyConstants.Relationships.Contains);
+            var rel = Relationship.FromRelationship(new ContainsRelationship(currentParentId, currentId));
             await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { rel });
 
             _ctx.IncrementNodeKind(OntologyConstants.NodeLabels.WorkspaceFolder);

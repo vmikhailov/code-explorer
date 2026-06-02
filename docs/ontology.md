@@ -30,7 +30,6 @@ graph TD
     File -->|CONTAINS| Interface[Interface]
     File -->|CONTAINS| Function[Function]
     File -->|CONTAINS| Variable[Variable]
-    File -->|CONTAINS| ETLPipeline[ETLPipeline]
     
     Class -->|CONTAINS| Function
     Class -->|CONTAINS| Variable
@@ -50,32 +49,33 @@ graph TD
     Function -->|USES_TYPE| Interface
 
     %% Database Hierarchy
-    ProjectFolder -->|USES_DB| DB[DB]
+    Project -->|USES_DB| DB[DB]
+    Class -->|USES_DB| DB[DB]
     DB -->|CONTAINS| DataSet[DataSet]
     DataSet -->|CONTAINS| Table[Table]
     DataSet -->|CONTAINS| Procedure[Procedure]
-    Table -->|CONTAINS| Column[Column]
     Procedure -->|CONTAINS| Query[Query]
     File -->|CONTAINS| Query
     
+    %% Ingress & Routing
+    Project -->|EXPOSES| EntryPoint[EntryPoint]
+    EntryPoint -->|TRIGGERS| Function
+
     %% Messaging & Event Primitives
     Function -->|PUBLISHES_TO| Queue[Queue]
     Queue -->|TRIGGERS| Function
+    Function -->|PUBLISHES_TO| CloudService[CloudService]
+    
+    %% Egress & Integration
+    Function -->|CALLS| ExternalService[ExternalService]
+    Function -->|CALLS| CloudService
+    Function -->|DEPENDS_ON| CloudService
     
     %% Data Lineage & DB Links
     Query -->|DEPENDS_ON| Table
-    Query -->|DEPENDS_ON| Column
     Function -->|CALLS| Procedure
     Function -->|DEPENDS_ON| Table
-    Column -->|REFERENCES| Column
-    
-    %% ETL Pipeline Lineage Links
-    ETLPipeline -->|READS_FROM| Table
-    ETLPipeline -->|READS_FROM| Column
-    ETLPipeline -->|WRITES_TO| Table
-    ETLPipeline -->|WRITES_TO| Column
     Table -->|TRANSFORMS_TO| Table
-    Column -->|TRANSFORMS_TO| Column
 ```
 
 ---
@@ -185,14 +185,6 @@ graph TD
     * `id` (string): Fully qualified table name (`db.schema.table`).
     * `name` (string): Unqualified table name.
     * `path` (string): Source file path defining the schema (e.g. `.dbml`, `.edmx`, `.sql` script).
-* **`Column`**
-  * **Description**: Database table column.
-  * **Properties collected**:
-    * `id` (string): Fully qualified column name (`db.schema.table.column`).
-    * `name` (string): Column name.
-    * `data_type` (string): SQL data type (e.g., `bigint`, `nvarchar(50)`).
-    * `is_primary_key` (bool): True if this column is part of the table's primary key.
-    * `can_be_null` (bool): True if the column is nullable.
 * **`Procedure`**
   * **Description**: Database stored procedures, views, or functions.
   * **Properties collected**:
@@ -207,19 +199,33 @@ graph TD
     * `query_text` (string): Raw SQL/ORM query string (truncated if exceeding bounds).
     * `path` (string): File path where the query is embedded.
 
-### Level 7: ETL Pipelines & Message Broker Nodes
-* **`ETLPipeline`**
-  * **Description**: Data migration or Extract-Transform-Load (ETL) pipeline (e.g. SSIS `.dtsx` package, data factory mapping).
-  * **Properties collected**:
-    * `id` (string): Unique path-based pipeline ID.
-    * `name` (string): Pipeline/Package name.
-    * `path` (string): Relative path to the `.dtsx` package.
+### Level 7: Message Broker Nodes
 * **`Queue`**
   * **Description**: Message queue or publish-subscribe channel (e.g. RabbitMQ queue, Kafka topic, or internal in-memory queue like C# `InMemQueue`).
   * **Properties collected**:
     * `id` (string): Unique queue ID.
     * `name` (string): Queue or topic name.
     * `type` (string): Broker type (`rabbitmq`, `kafka`, `in-memory`).
+* **`EntryPoint`**
+  * **Description**: HTTP routes, RPC stubs, CLI commands, or queue consumers exposed by projects.
+  * **Properties collected**:
+    * `id` (string): Unique entry point ID (`entrypoint:{projectName}:{protocol}:{route_or_topic}`).
+    * `name` (string): Name or identifier.
+    * `protocol` (string): Protocol type (`http`, `grpc`, `event`, `cli`).
+    * `route_or_topic` (string): Target URL path or topic name.
+* **`CloudService`**
+  * **Description**: External managed cloud services (e.g. AWS S3 bucket, GCP BigQuery dataset, Azure Table Storage).
+  * **Properties collected**:
+    * `id` (string): Unique service ID (`cloudservice:{type}:{resourceName}`).
+    * `name` (string): Resource or service instance name.
+    * `type` (string): Cloud service type (e.g., `aws_s3`, `gcp_bigquery`).
+* **`ExternalService`**
+  * **Description**: Remote microservices or third-party API hosts invoked by code.
+  * **Properties collected**:
+    * `id` (string): Unique service ID (`externalservice:{protocol}:{domain_or_service_name}`).
+    * `name` (string): Domain name or logical service name.
+    * `protocol` (string): Remote communication protocol (`http`, `grpc`).
+    * `domain_or_service` (string): Remote endpoint host name.
 
 ---
 
@@ -242,11 +248,12 @@ To guarantee uniqueness across multi-project workspaces and multiple database in
 | **`DB`** | `db:{dbKind}:{databaseName}` | Global DB | `db:pg:defaultdb` or `db:mssql:orders_db` (forced lowercase) |
 | **`DataSet`** | `db:{dbKind}:{databaseName}:dataset:{schemaName}` | Database | `db:mssql:defaultdb:dataset:dbo` (forced lowercase schema name) |
 | **`Table`** | `db:{dbKind}:{databaseName}:dataset:{schemaName}:table:{tableName}` | Schema | `db:mssql:defaultdb:dataset:dbo:table:orders` (forced lowercase table name) |
-| **`Column`** | `db:{dbKind}:{databaseName}:dataset:{schemaName}:table:{tableName}:column:{columnName}` | Table | `db:mssql:defaultdb:dataset:dbo:table:orders:column:id` |
 | **`Procedure`** | `db:{dbKind}:{databaseName}:dataset:{schemaName}:procedure:{procedureName}` | Schema | `db:mssql:defaultdb:dataset:dbo:procedure:get_orders` |
 | **`Query`** | `{containingParentId}:query:{queryCounter}` | Parent Scope | `db:mssql:defaultdb:dataset:dbo:procedure:get_orders:query:1` (for queries nested inside stored procedures) or `file:/Users/slava/Projects/Personal/CodeExplorer:sql/query.sql:query:1` (for files) |
-| **`ETLPipeline`** | `etlpipeline:{absoluteWorkspacePath}:{relativeFilePath}` | Workspace | `etlpipeline:/Users/slava/Projects/DA/Kiron/BetManVSBS:VSBS.DataWarehouse/Dimensions.dtsx` |
 | **`Queue`** | `queue:{type}:{queueName}` | Workspace | `queue:rabbitmq:FinalizeSlip` or `queue:in-memory:EventPending` |
+| **`EntryPoint`** | `entrypoint:{projectName}:{protocol}:{route_or_topic}` | Project | `entrypoint:BillingService:http:POST:/charge` |
+| **`CloudService`** | `cloudservice:{type}:{resourceName}` | Global | `cloudservice:aws_s3:slip-attachments` |
+| **`ExternalService`** | `externalservice:{protocol}:{domain_or_service_name}` | Global | `externalservice:http:api.stripe.com` |
 
 ---
 
@@ -263,13 +270,13 @@ CodeExplorer's graph relationships are detailed below, organized by their **Sour
 | | `EXPOSES` | `EntryPoint` | HTTP endpoints, RPC service stubs, CLI verbs. |
 | | `USES_DB` | `DB` | Main database schema connections configured. |
 | **`ProjectFolder`** | `CONTAINS` | `ProjectFolder`, `File` | Nested directory scopes inside projects. |
-| | `USES_DB` | `DB` | DB configs scoped to specific subdirectory. |
 | **`Package`** | `IMPLEMENTED_BY` | `Project` | Links external package dependency to internal source project if available. |
-| **`File`** | `CONTAINS` | `Class`, `Interface`, `Function`, `Variable`, `Query`, `ETLPipeline` | AST structures, declarations, inline queries, or ETL configurations. |
+| **`File`** | `CONTAINS` | `Class`, `Interface`, `Function`, `Variable`, `Query` | AST structures, declarations, inline queries. |
 | **`Class`** | `CONTAINS` | `Function`, `Variable` | Class methods and public member fields/properties. |
 | | `IMPLEMENTS` | `Interface` | Concrete class implementing abstract interface contract. |
 | | `INHERITS_FROM` | `Class` | Base class inheritance link. |
 | | `USES_TYPE` | `Class`, `Interface` | Structural references (field declarations, instantiation). |
+| | `USES_DB` | `DB` | Database context or configuration reference (e.g., repository or DbContext). |
 | **`Interface`** | `CONTAINS` | `Function`, `Variable` | Interface method and property declarations. |
 | | `INHERITS_FROM` | `Interface` | Interface inheritance/extensions. |
 | | `USES_TYPE` | `Class`, `Interface` | Structural types referenced in contract parameters. |
@@ -284,14 +291,9 @@ CodeExplorer's graph relationships are detailed below, organized by their **Sour
 | **`Queue`** | `TRIGGERS` | `Function` | Queue consumer triggering code handler functions. |
 | **`DB`** | `CONTAINS` | `DataSet` | Databases scoping logical datasets/schemas. |
 | **`DataSet`** | `CONTAINS` | `Table`, `Procedure` | Schemas containing tables and stored procedures. |
-| **`Table`** | `CONTAINS` | `Column` | Database table columns. |
-| | `TRANSFORMS_TO` | `Table` | High-level data lineage mapping source table to target table. |
-| **`Column`** | `REFERENCES` | `Column` | Foreign key relationship between columns. |
-| | `TRANSFORMS_TO` | `Column` | Granular data lineage mapping source column to target column. |
+| **`Table`** | `TRANSFORMS_TO` | `Table` | High-level data lineage mapping source table to target table. |
 | **`Procedure`** | `CONTAINS` | `Query` | SQL statements contained inside a database stored procedure. |
-| **`Query`** | `DEPENDS_ON` | `Table`, `Column` | Static SQL statements reading/writing to tables and columns. |
-| **`ETLPipeline`** | `READS_FROM` | `Table`, `Column` | ETL input sources. |
-| | `WRITES_TO` | `Table`, `Column` | ETL output/target warehouse tables and columns. |
+| **`Query`** | `DEPENDS_ON` | `Table` | Static SQL statements reading/writing to tables. |
 
 ---
 
@@ -341,28 +343,11 @@ To capture logical scopes, decorator patterns, and advanced constructs, we propo
 
 To support enterprise databases, data warehousing, and ETL lineage:
 
-1.  **`Column`**
-    *   *Purpose*: Database table columns, tracking names, data types, and nullability.
-    *   *URN Scheme*: `{tableNodeId}:column:{columnName}`
-    *   *Relationships*:
-        *   `(Table)-[:CONTAINS]->(Column)`
-        *   `(Query)-[:DEPENDS_ON]->(Column)` (tracks column-level data lineage)
-        *   `(Column)-[:REFERENCES]->(Column)` (tracks foreign-key constraints/associations)
+1.  **Schema Mappings via XML DBML / EDMX**
+    *   *Purpose*: Parses database table definitions statically from LINQ-to-SQL `.dbml` and Entity Framework `.edmx` files, avoiding raw SQL schema script parsing.
+    *   *Mapping*: Creates `Table` nodes based on `<Table>` elements in the XML files.
 
-2.  **`ETLPipeline`**
-    *   *Purpose*: Traces data migration paths, warehouse transformations, and ETL package runs (e.g. SSIS `.dtsx` packages).
-    *   *URN Scheme*: `etlpipeline:{workspacePath}:{relativeFilePath}`
-    *   *Relationships*:
-        *   `(File)-[:CONTAINS]->(ETLPipeline)`
-        *   `(ETLPipeline)-[:READS_FROM]->(Table|Column)`
-        *   `(ETLPipeline)-[:WRITES_TO]->(Table|Column)`
-        *   `(Table|Column)-[:TRANSFORMS_TO]->(Table|Column)` (transitive lineage edge representing data flow)
-
-3.  **Schema Mappings via XML DBML / EDMX**
-    *   *Purpose*: Parses database table, column, and foreign key definitions statically from LINQ-to-SQL `.dbml` and Entity Framework `.edmx` files, avoiding raw SQL schema script parsing.
-    *   *Mapping*: Creates `Table` and `Column` nodes and `Column -[:REFERENCES]-> Column` relationships based on `<Table>` elements and `<Association>` elements in the XML files.
-
-4.  **Stored Procedure Attributes Mapping**
+2.  **Stored Procedure Attributes Mapping**
     *   *Purpose*: Connects C# DbContext stub methods to physical SQL stored procedures using C# metadata attributes (e.g. `[Function(Name = "dbo.rep_RequestLogs")]`).
     *   *Mapping*: Creates a `(Function)-[:CALLS]->(Procedure)` edge when the static analyzer matches a method decorated with `[Function]` (or similar ORM attributes) to the corresponding `Procedure` node.
 
@@ -370,7 +355,7 @@ To support enterprise databases, data warehousing, and ETL lineage:
 
 ## 6. DB & Cloud Services Detection Strategy
 
-To map the connection between code functions and external resources (Databases, Cloud Services, and ETL Pipelines), we use static analysis heuristics based on package imports, client type instantiations, configuration usages, and string literal parsing.
+To map the connection between code functions and external resources (Databases and Cloud Services), we use static analysis heuristics based on package imports, client type instantiations, configuration usages, and string literal parsing.
 
 ### A. Database (DB) Detection Heuristics
 
@@ -378,7 +363,7 @@ We track data access lineages using four main signals:
 
 1.  **Static SQL Parsing (String Literal Scanning)**:
     *   **Action**: Scan AST string literals inside functions for standard SQL keywords (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `FROM`, `JOIN`).
-    *   **Table Resolution**: Extract matching tokens following `FROM` or `JOIN` to map table/column dependencies:
+    *   **Table Resolution**: Extract matching tokens following `FROM` or `JOIN` to map table dependencies:
         *   `MATCH (q:Query)-[:DEPENDS_ON]->(t:Table)`
     *   **Query Scope**: Connect the query node to its enclosing code block:
         *   `(Function)-[:CONTAINS]->(Query)`
@@ -388,8 +373,7 @@ We track data access lineages using four main signals:
         *   `(Function)-[:DEPENDS_ON]->(Table)` (if table type can be resolved from ORM generic arguments like `DbSet<Order>`).
 3.  **Static Schema Extraction (DBML / EDMX)**:
     *   **Action**: Parse DBML (`.dbml`) and Entity Framework (`.edmx`) XML files for `<Table>` and `<Association>` elements.
-    *   **Table/Column Extraction**: Populate the database topology with exact tables, column schemas, types, nullability, and primary keys.
-    *   **ForeignKey Extraction**: Link tables and columns using `Column -[:REFERENCES]-> Column` edges.
+    *   **Table Extraction**: Populate the database topology with exact tables.
 4.  **Connection Configuration Analysis**:
     *   **Action**: Parse app configuration files (e.g. `appsettings.json`, `.env`, YAML charts) for database connection keys (`ConnectionStrings:DefaultConnection`, `DATABASE_URL`, `DB_HOST`).
     *   **Instance Linking**: Match these configurations to the project to instantiate a `DB` node and associate it:
@@ -420,24 +404,7 @@ We represent external cloud services and messaging channels using `CloudService`
     *   **Resource Mapping**: Resolve the configuration value to name the specific resource:
         *   A function reading `config.Get("S3_BUCKET_NAME")` is linked directly: `(Function)-[:DEPENDS_ON]->(CloudService { type: "aws_s3", name: resolvedBucketName })`.
 
-### C. SSIS ETL Pipeline Detection Heuristics
 
-To trace database data lineage across multiple database boundaries (such as transaction databases feeding transactional data warehouses):
-
-1.  **DTSX XML Package Parsing**:
-    *   **Action**: Parse SQL Server Integration Services (SSIS) `.dtsx` files to find connection managers, data flow executables (`Microsoft.Pipeline`), sources (`Microsoft.OLEDBSource`), destinations (`Microsoft.OLEDBDestination`), and transformation steps.
-2.  **Connection-to-DB Resolution**:
-    *   **Action**: Map OLEDB/ADO.NET Connection Managers to their target `DB` nodes using connection string catalog values (e.g., `Initial Catalog=VSBS_BetManager` maps to `db:vsbs_betmanager`).
-3.  **Data Lineage Mapping**:
-    *   **Action**: For every data flow component:
-        *   Extract source query (`SqlCommand` property) or source table (`OpenRowset` property) and map to source table columns.
-        *   Extract destination table (`OpenRowset` property) and map destination columns.
-        *   Generate lineage edges:
-            *   `(ETLPipeline)-[:READS_FROM]->(SourceTable)`
-            *   `(ETLPipeline)-[:WRITES_TO]->(DestinationTable)`
-            *   `(SourceColumn)-[:TRANSFORMS_TO]->(DestinationColumn)` (derived from the output-column to input-column connections in the pipeline XML)
-
----
 
 ## 7. Project Ingress & Egress (External Interfaces)
 

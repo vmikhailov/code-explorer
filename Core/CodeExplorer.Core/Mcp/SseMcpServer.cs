@@ -35,6 +35,7 @@ public class SseMcpServer(MemgraphClient dbClient, int port)
 
         // Register dependencies in DI container
         builder.Services.AddSingleton(dbClient);
+        builder.Services.AddSingleton<McpGraphRepository>();
         builder.Services.AddSingleton<McpServer>();
 
         var app = builder.Build();

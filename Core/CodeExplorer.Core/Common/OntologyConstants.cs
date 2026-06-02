@@ -19,6 +19,10 @@ public static class OntologyConstants
         public const string Table = "Table";
         public const string Procedure = "Procedure";
         public const string Query = "Query";
+        public const string Queue = "Queue";
+        public const string EntryPoint = "EntryPoint";
+        public const string CloudService = "CloudService";
+        public const string ExternalService = "ExternalService";
     }
 
     public static class Relationships
@@ -32,5 +36,9 @@ public static class OntologyConstants
         public const string PotentialType = "POTENTIAL_TYPE";
         public const string ImplementedBy = "IMPLEMENTED_BY";
         public const string UsesDb = "USES_DB";
+        public const string TransformsTo = "TRANSFORMS_TO";
+        public const string PublishesTo = "PUBLISHES_TO";
+        public const string Triggers = "TRIGGERS";
+        public const string Exposes = "EXPOSES";
     }
 }

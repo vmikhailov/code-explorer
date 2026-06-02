@@ -63,18 +63,13 @@ public class SqlParser : IProjectParser, IFileParser
         var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileNodeId = $"file:{ctx.AbsoluteWorkspacePath}:{relativePath}";
 
-        var fileNode = new Node(fileNodeId, OntologyConstants.NodeLabels.File, new Dictionary<string, object>
-        {
-            ["path"] = Path.GetFileName(filePath),
-            ["name"] = Path.GetFileName(filePath),
-            ["full_path"] = filePath
-        });
+        var fileNode = Node.FromNode(new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath));
         await ctx.EnqueueUploadNodesAsync(new List<Node> { fileNode });
         ctx.IncrementNodeKind(OntologyConstants.NodeLabels.File);
         ctx.AddNodesCount(1);
 
-        var fileRel = new Relationship(parentNodeId, fileNodeId, OntologyConstants.Relationships.Contains);
-        await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { fileRel });
+        var fileRel = Relationship.FromRelationship(new ContainsRelationship(parentNodeId, fileNodeId));
+        await ctx.EnqueueUploadRelationshipsAsync([fileRel]);
         ctx.AddRelsCount(1);
 
         var sqlText = await File.ReadAllTextAsync(filePath);
@@ -100,16 +95,12 @@ public class SqlParser : IProjectParser, IFileParser
             dbNodeId = $"db:{dbName.ToLowerInvariant()}";
         }
 
-        var dbNode = new Node(dbNodeId, OntologyConstants.NodeLabels.DB, new Dictionary<string, object>
-        {
-            ["name"] = dbName,
-            ["path"] = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
-        });
+        var dbNode = Node.FromNode(new DbNode(dbNodeId, dbName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
         await ctx.EnqueueUploadNodesAsync(new List<Node> { dbNode });
         ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DB);
         ctx.AddNodesCount(1);
 
-        var dbRel = new Relationship(parentNodeId, dbNodeId, OntologyConstants.Relationships.UsesDb);
+        var dbRel = Relationship.FromRelationship(new UsesDbRelationship(parentNodeId, dbNodeId));
         await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { dbRel });
         ctx.AddRelsCount(1);
 
@@ -122,16 +113,12 @@ public class SqlParser : IProjectParser, IFileParser
             var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
             datasets[schemaName] = schemaNodeId;
 
-            var schemaNode = new Node(schemaNodeId, OntologyConstants.NodeLabels.DataSet, new Dictionary<string, object>
-            {
-                ["name"] = schemaName,
-                ["path"] = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
-            });
+            var schemaNode = Node.FromNode(new DataSetNode(schemaNodeId, schemaName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
             await ctx.EnqueueUploadNodesAsync(new List<Node> { schemaNode });
             ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DataSet);
             ctx.AddNodesCount(1);
 
-            var schemaRel = new Relationship(dbNodeId, schemaNodeId, OntologyConstants.Relationships.Contains);
+            var schemaRel = Relationship.FromRelationship(new ContainsRelationship(dbNodeId, schemaNodeId));
             await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { schemaRel });
             ctx.AddRelsCount(1);
         }
@@ -159,16 +146,12 @@ public class SqlParser : IProjectParser, IFileParser
             if (!datasets.ContainsKey(schemaName))
             {
                 datasets[schemaName] = schemaNodeId;
-                var schemaNode = new Node(schemaNodeId, OntologyConstants.NodeLabels.DataSet, new Dictionary<string, object>
-                {
-                    ["name"] = schemaName,
-                    ["path"] = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
-                });
+                var schemaNode = Node.FromNode(new DataSetNode(schemaNodeId, schemaName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
                 await ctx.EnqueueUploadNodesAsync(new List<Node> { schemaNode });
                 ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DataSet);
                 ctx.AddNodesCount(1);
 
-                var schemaRel = new Relationship(dbNodeId, schemaNodeId, OntologyConstants.Relationships.Contains);
+                var schemaRel = Relationship.FromRelationship(new ContainsRelationship(dbNodeId, schemaNodeId));
                 await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { schemaRel });
                 ctx.AddRelsCount(1);
             }
@@ -177,16 +160,12 @@ public class SqlParser : IProjectParser, IFileParser
             tables[tableName] = tableNodeId;
             tables[rawTableName] = tableNodeId;
 
-            var tableNode = new Node(tableNodeId, OntologyConstants.NodeLabels.Table, new Dictionary<string, object>
-            {
-                ["name"] = tableName,
-                ["path"] = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
-            });
+            var tableNode = Node.FromNode(new TableNode(tableNodeId, tableName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
             await ctx.EnqueueUploadNodesAsync(new List<Node> { tableNode });
             ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Table);
             ctx.AddNodesCount(1);
 
-            var tableRel = new Relationship(schemaNodeId, tableNodeId, OntologyConstants.Relationships.Contains);
+            var tableRel = Relationship.FromRelationship(new ContainsRelationship(schemaNodeId, tableNodeId));
             await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { tableRel });
             ctx.AddRelsCount(1);
 
@@ -223,16 +202,12 @@ public class SqlParser : IProjectParser, IFileParser
             if (!datasets.ContainsKey(schemaName))
             {
                 datasets[schemaName] = schemaNodeId;
-                var schemaNode = new Node(schemaNodeId, OntologyConstants.NodeLabels.DataSet, new Dictionary<string, object>
-                {
-                    ["name"] = schemaName,
-                    ["path"] = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
-                });
+                var schemaNode = Node.FromNode(new DataSetNode(schemaNodeId, schemaName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
                 await ctx.EnqueueUploadNodesAsync(new List<Node> { schemaNode });
                 ctx.IncrementNodeKind(OntologyConstants.NodeLabels.DataSet);
                 ctx.AddNodesCount(1);
 
-                var schemaRel = new Relationship(dbNodeId, schemaNodeId, OntologyConstants.Relationships.Contains);
+                var schemaRel = Relationship.FromRelationship(new ContainsRelationship(dbNodeId, schemaNodeId));
                 await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { schemaRel });
                 ctx.AddRelsCount(1);
             }
@@ -240,16 +215,12 @@ public class SqlParser : IProjectParser, IFileParser
             var procNodeId = $"{schemaNodeId}:procedure:{procName.ToLowerInvariant()}";
             procedures.Add((procName, rawProcName, procNodeId, match.Index));
 
-            var procNode = new Node(procNodeId, OntologyConstants.NodeLabels.Procedure, new Dictionary<string, object>
-            {
-                ["name"] = procName,
-                ["path"] = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
-            });
+            var procNode = Node.FromNode(new ProcedureNode(procNodeId, procName, Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')));
             await ctx.EnqueueUploadNodesAsync(new List<Node> { procNode });
             ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Procedure);
             ctx.AddNodesCount(1);
 
-            var procRel = new Relationship(schemaNodeId, procNodeId, OntologyConstants.Relationships.Contains);
+            var procRel = Relationship.FromRelationship(new ContainsRelationship(schemaNodeId, procNodeId));
             await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { procRel });
             ctx.AddRelsCount(1);
 
@@ -312,18 +283,18 @@ public class SqlParser : IProjectParser, IFileParser
 
                 // Create the Query Node
                 var queryNodeId = $"{containingParentId}:query:{queryCounter}";
-                var queryNode = new Node(queryNodeId, OntologyConstants.NodeLabels.Query, new Dictionary<string, object>
-                {
-                    ["name"] = queryName,
-                    ["query_text"] = statement.Length > 200 ? statement.Substring(0, 197) + "..." : statement,
-                    ["path"] = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
-                });
+                var queryNode = Node.FromNode(new QueryNode(
+                    queryNodeId,
+                    queryName,
+                    statement.Length > 200 ? statement.Substring(0, 197) + "..." : statement,
+                    Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/')
+                ));
                 await ctx.EnqueueUploadNodesAsync(new List<Node> { queryNode });
                 ctx.IncrementNodeKind(OntologyConstants.NodeLabels.Query);
                 ctx.AddNodesCount(1);
 
                 // Containment relation from Procedure or File
-                var containmentRel = new Relationship(containingParentId, queryNodeId, OntologyConstants.Relationships.Contains);
+                var containmentRel = Relationship.FromRelationship(new ContainsRelationship(containingParentId, queryNodeId));
                 await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { containmentRel });
                 ctx.AddRelsCount(1);
 
@@ -348,7 +319,7 @@ public class SqlParser : IProjectParser, IFileParser
                     var pattern = $@"\b{Regex.Escape(tableName)}\b";
                     if (Regex.IsMatch(statement, pattern, RegexOptions.IgnoreCase))
                     {
-                        var depRel = new Relationship(queryNodeId, tableId, OntologyConstants.Relationships.DependsOn);
+                        var depRel = Relationship.FromRelationship(new DependsOnRelationship(queryNodeId, tableId));
                         await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { depRel });
                         ctx.AddRelsCount(1);
                     }
