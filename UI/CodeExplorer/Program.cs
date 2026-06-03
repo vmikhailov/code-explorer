@@ -93,7 +93,7 @@ public class Program
 
             // Explicitly register controllers assembly to ensure discovery of REST controllers
             builder.Services.AddControllers()
-                .AddApplicationPart(typeof(CodeExplorer.Web.Controllers.WorkspacesController).Assembly);
+                .AddApplicationPart(typeof(Web.Controllers.WorkspacesController).Assembly);
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>

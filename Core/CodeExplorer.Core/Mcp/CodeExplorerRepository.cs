@@ -255,9 +255,9 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         return JsonSerializer.Serialize(new { taxonomy }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public string FetchCodeSnippets(string nodesJson)
+    public async Task<string> FetchCodeSnippetsAsync(string nodesJson)
     {
-        return FetchCodeSnippetsDirectly(nodesJson);
+        return await FetchCodeSnippetsDirectlyAsync(nodesJson);
     }
 
     public string GetNodeDefinition(string kind)
@@ -389,7 +389,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         };
     }
 
-    private static string FetchCodeSnippetsDirectly(string nodesJSON)
+    private async Task<string> FetchCodeSnippetsDirectlyAsync(string nodesJSON)
     {
         List<McpRAGNode>? nodes = null;
 
@@ -426,7 +426,46 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             return "No valid code contexts retrieved.";
         }
 
-        const string workspaceRoot = "/Users/slava/Projects/Personal/CodeExplorer";
+        string hostWorkspacePath = "";
+        try
+        {
+            var workspaceResultJson = await dbClient.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.path AS path LIMIT 1");
+            using var doc = JsonDocument.Parse(workspaceResultJson);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+            {
+                var row = doc.RootElement[0];
+                if (row.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
+                {
+                    hostWorkspacePath = pathProp.GetString() ?? "";
+                }
+            }
+        }
+        catch
+        {
+            // Ignore database query errors and proceed with empty path
+        }
+
+        string? workspaceRoot = Environment.GetEnvironmentVariable("WORKSPACE_ROOT");
+        if (string.IsNullOrEmpty(workspaceRoot))
+        {
+            workspaceRoot = CodeExplorer.Common.PathTools.TranslateHostPathToContainerPath(hostWorkspacePath);
+
+            if (string.IsNullOrEmpty(workspaceRoot))
+            {
+                var current = Directory.GetCurrentDirectory();
+                while (!string.IsNullOrEmpty(current))
+                {
+                    if (File.Exists(Path.Combine(current, "CodeExplorer.sln")))
+                    {
+                        workspaceRoot = current;
+                        break;
+                    }
+                    current = Path.GetDirectoryName(current);
+                }
+                workspaceRoot ??= Directory.GetCurrentDirectory();
+            }
+        }
+
         var output = new List<string>();
 
         foreach (var node in nodes)
@@ -436,7 +475,9 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                 continue;
             }
 
-            var joinedPath = Path.Combine(workspaceRoot, node.file_path);
+            string relativePath = CodeExplorer.Common.PathTools.GetRelativePath(node.file_path, hostWorkspacePath);
+
+            var joinedPath = Path.Combine(workspaceRoot, relativePath);
             var absPath = Path.GetFullPath(joinedPath);
             var absRoot = Path.GetFullPath(workspaceRoot);
 

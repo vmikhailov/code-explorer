@@ -4,9 +4,6 @@ services:
     ports:
       - "7687:7687"
       - "9091:9091"
-    environment:
-      - MEMGRAPH_USER=
-      - MEMGRAPH_PASSWORD=
     restart: always
 
   codeexplorer:
@@ -17,8 +14,9 @@ services:
     ports:
       - "8085:8085"
     environment:
-      - MEMGRAPH_USER=
-      - MEMGRAPH_PASSWORD=
+      - WORKSPACE_ROOT=${WORKSPACE_ROOT:-}
+    volumes:
+      - ${HOST_ROOT:-/}:/host
     command: ["mcp", "--port", "8085", "--bolt-url", "bolt://memgraph:7687"]
     depends_on:
       - memgraph

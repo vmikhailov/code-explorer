@@ -53,7 +53,8 @@ public class WorkspacesController : ControllerBase
 
             if (!string.IsNullOrEmpty(workspacePath))
             {
-                var absolutePath = Path.GetFullPath(workspacePath).Replace('\\', '/');
+                var resolvedPath = CodeExplorer.Common.PathTools.TranslateHostPathToContainerPath(workspacePath);
+                var absolutePath = Path.GetFullPath(resolvedPath).Replace('\\', '/');
                 parameters["workspacePath"] = absolutePath;
                 parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
 
@@ -119,6 +120,47 @@ public class WorkspacesController : ControllerBase
 
             var taxonomy = Mcp.CodeExplorerRepository.BuildTaxonomy(parsedTriplets, parsedProperties);
             return Content(JsonSerializer.Serialize(new { taxonomy }), "application/json");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("test-files")]
+    public IActionResult TestFiles([FromQuery] string dir)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(dir))
+            {
+                return BadRequest(new { error = "Directory parameter 'dir' is required." });
+            }
+
+            var resolvedPath = Common.PathTools.TranslateHostPathToContainerPath(dir);
+            if (!Directory.Exists(resolvedPath))
+            {
+                return NotFound(new { 
+                    error = $"Directory does not exist.",
+                    inputDir = dir,
+                    resolvedDir = resolvedPath,
+                    inContainer = Common.PathTools.InContainer,
+                    hostExists = Directory.Exists("/host")
+                });
+            }
+
+            var files = Directory.EnumerateFiles(resolvedPath, "*", SearchOption.AllDirectories)
+                .Take(100)
+                .Select(f => Path.GetRelativePath(resolvedPath, f).Replace('\\', '/'))
+                .ToList();
+
+            return Ok(new
+            {
+                inputDir = dir,
+                resolvedDir = resolvedPath,
+                filesCount = files.Count,
+                files
+            });
         }
         catch (Exception ex)
         {

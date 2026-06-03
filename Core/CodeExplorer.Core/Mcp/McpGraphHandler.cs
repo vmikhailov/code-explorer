@@ -204,14 +204,14 @@ public class McpGraphHandler(CodeExplorerRepository repository)
     [UsedImplicitly]
     [McpServerTool]
     [Description("Fetches the actual source code snippets for the given list of URN/node contexts. Receives a serialized JSON string containing one or more nodes with 'file_path', 'start_line', and 'end_line' specified.")]
-    public CallToolResult FetchCodeSnippets(
+    public async Task<CallToolResult> FetchCodeSnippets(
         [Description("JSON string representing the RAG node(s) to fetch snippets for.")] string nodesJson)
     {
         if (string.IsNullOrEmpty(nodesJson))
         {
             return WrapError("Missing 'nodesJson' argument.");
         }
-        return Execute(() => repository.FetchCodeSnippets(nodesJson));
+        return await ExecuteAsync(() => repository.FetchCodeSnippetsAsync(nodesJson));
     }
 
     [UsedImplicitly]
