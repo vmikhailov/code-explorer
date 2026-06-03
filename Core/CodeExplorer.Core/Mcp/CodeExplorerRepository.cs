@@ -448,7 +448,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         string? workspaceRoot = Environment.GetEnvironmentVariable("WORKSPACE_ROOT");
         if (string.IsNullOrEmpty(workspaceRoot))
         {
-            workspaceRoot = CodeExplorer.Common.PathTools.TranslateHostPathToContainerPath(hostWorkspacePath);
+            workspaceRoot = Common.PathTools.TranslateHostPathToContainerPath(hostWorkspacePath);
 
             if (string.IsNullOrEmpty(workspaceRoot))
             {
@@ -475,7 +475,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                 continue;
             }
 
-            string relativePath = CodeExplorer.Common.PathTools.GetRelativePath(node.file_path, hostWorkspacePath);
+            string relativePath = Common.PathTools.GetRelativePath(node.file_path, hostWorkspacePath);
 
             var joinedPath = Path.Combine(workspaceRoot, relativePath);
             var absPath = Path.GetFullPath(joinedPath);
@@ -495,7 +495,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
 
             try
             {
-                var lines = File.ReadAllLines(absPath);
+                var lines = await File.ReadAllLinesAsync(absPath);
                 var sIdx = Math.Max(0, node.start_line.Value);
                 if (sIdx > lines.Length) sIdx = lines.Length;
 

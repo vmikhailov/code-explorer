@@ -1,11 +1,21 @@
 services:
   memgraph:
-    image: memgraph/memgraph-platform:latest
+    image: ${MEMGRAPH_IMAGE:-memgraph/memgraph-mage:latest}
     ports:
       - "7687:7687"
       - "9091:9091"
-      - "3000:3000"
       - "7444:7444"
+    restart: always
+
+  lab:
+    image: memgraph/lab:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - QUICK_CONNECT_MG_HOST=memgraph
+      - QUICK_CONNECT_MG_PORT=7687
+    depends_on:
+      - memgraph
     restart: always
 
   codeexplorer:

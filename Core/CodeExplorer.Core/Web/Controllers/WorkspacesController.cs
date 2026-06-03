@@ -53,7 +53,7 @@ public class WorkspacesController : ControllerBase
 
             if (!string.IsNullOrEmpty(workspacePath))
             {
-                var resolvedPath = CodeExplorer.Common.PathTools.TranslateHostPathToContainerPath(workspacePath);
+                var resolvedPath = Common.PathTools.TranslateHostPathToContainerPath(workspacePath);
                 var absolutePath = Path.GetFullPath(resolvedPath).Replace('\\', '/');
                 parameters["workspacePath"] = absolutePath;
                 parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
