@@ -22,7 +22,7 @@ It also serves as a **Model Context Protocol (MCP)** server, allowing AI agents 
     *   **Go** (`.go`)
     *   **Python** (`.py`)
     *   **SQL & Embedded SQL** (`.sql` scripts, as well as SQL strings embedded inside C#, JS, TS, Python, and Go code)
-*   **Rich Ontology Extraction**: Extracts and maps:
+*   **Rich Ontology Extraction**: Extracts and maps codebases into structured semantic hierarchies. For a detailed specification, see the [Ontology Specification](docs/ontology.md). Maps:
     *   *Structural*: Workspaces, Projects, Folders, Files.
     *   *Code Elements*: Classes, Interfaces, Functions, Procedures.
     *   *Data/Database*: Tables, Database nodes, Schemas/DataSets, SQL queries (inserts, selects, deletes, updates, etc.).
@@ -106,16 +106,24 @@ dotnet run --project UI/CodeExplorer/CodeExplorer.csproj -- mcp --port 8085
 
 ## 🤖 Model Context Protocol (MCP) Tools
 
-Once the MCP server is running (e.g. on port `8085`), it registers the following tools for AI assistants:
+Once the MCP server is running (e.g. on port `8085`), it registers the following tools for AI assistants. The graph database schema and relationship models used by these tools are described in the [Ontology Specification](docs/ontology.md).
 
 | Tool Name | Parameters | Description |
 | :--- | :--- | :--- |
-| `get_taxonomy` | None | Returns a summary of all entity types and relationships current in the graph database. |
-| `get_architecture_map` | None | Returns the high-level project structure and dependencies inside the workspace. |
-| `execute_custom_read_cypher` | `query` (string) | Executes a read-only Cypher query and formats the results. |
-| `get_project_entry_points` | `projectName` (string) | Lists all detected controller endpoints, message subscribers, and handlers in a project. |
-| `find_refactoring_opportunities` | `projectName` (string), `metricType` (string) | Automatically scans for anomalies like dead code (uncalled functions/classes). |
-| `get_project_dependencies` | None | Lists all internal and external package/project dependencies for all projects. |
+| `get_taxonomy` | None | Retrieves the full structural taxonomy database schema mapping all active node types and their incoming/outgoing relationships. |
+| `get_architecture_map` | `projectName` (string, optional) | Returns the high-level infrastructure map of the workspace, including workspace folders, projects, their internal folders, and associated databases. |
+| `get_project_dependencies` | `projectFilter` (string, optional) | Retrieves the complete dependency graph between projects, including direct and transitive package/project dependencies. |
+| `get_file_outline` | `filePath` (string) | Extracts the internal outline of a specific file (classes, interfaces, functions, variables, queries) without reading the full source text. |
+| `find_symbol` | `name` (string), `symbolType` (string, optional) | Searches the semantic graph for code symbols matching a partial or full name, optionally filtered by type. |
+| `get_call_chain` | `startFunction` (string), `endFunction` (string), `maxDepth` (int, optional, default: 5) | Traces and builds a sequential execution call path (call graph) between a starting function and a target function. |
+| `resolve_call_target` | `interfaceName` (string), `methodName` (string) | Finds all concrete classes implementing a given interface and points to their real physical function implementations. |
+| `analyze_code_impact` | `symbolName` (string) | Performs a blast-radius analysis, tracking all incoming structural links to identify files/components affected by refactoring the symbol. |
+| `inspect_data_lineage` | `tableName` (string) | Tracks database change blast radius by finding raw SQL texts, source files, and functions that invoke queries targeting a specific table. |
+| `get_project_entry_points` | `projectName` (string) | Finds all architectural entry points inside a project (controllers, endpoints, event handlers, etc.). |
+| `find_refactoring_opportunities` | `projectName` (string), `metricType` (string, optional, default: "all") | Scans the project for code health anomalies, identifying dead code and god objects. |
+| `execute_custom_read_cypher` | `query` (string) | Executes a custom read-only Cypher query (MATCH only) directly against the graph database. |
+| `fetch_code_snippets` | `nodesJson` (string) | Fetches actual source code snippets for a list of serialized JSON node/URN contexts (containing file path, start line, and end line). |
+| `get_node_definition` | `kind` (string) | Retrieves documentation and schema details for a specific ontological Node Kind. |
 
 ---
 
