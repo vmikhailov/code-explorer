@@ -111,6 +111,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
                 batch.Add(props);
             }
 
+            
             var query = $"UNWIND $batch AS row MERGE (n:{kind} {{ id: row.id }}) SET n:Entity, n = row";
             await session.ExecuteWriteAsync(async tx =>
             {

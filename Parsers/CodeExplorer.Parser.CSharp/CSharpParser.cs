@@ -9,7 +9,7 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public string ProjectType => "csharp";
 
-    public IReadOnlyCollection<string> ExcludedFolders => new[] { "bin", "obj", ".vs" };
+    public IReadOnlyCollection<string> ExcludedFolders => ["bin", "obj", ".vs"];
 
     public bool CanParse(string fileExtension)
     {
@@ -84,6 +84,12 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
     {
+        TryDetectCalls(node, scopeSymbolId, references);
+        TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
+    }
+
+    private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
+    {
         if (node.Type == "invocation_expression")
         {
             var callName = FindCallName(node);
@@ -92,7 +98,11 @@ public class CSharpParser : IProjectParser, IFileParser
                 references.Add(new Reference(scopeSymbolId, callName, "CALLS"));
             }
         }
-        else if (node.Type == "base_list")
+    }
+
+    private void TryDetectInheritsFromAndImplements(Node node, string scopeSymbolId, List<Reference> references)
+    {
+        if (node.Type == "base_list")
         {
             foreach (var child in node.Children)
             {

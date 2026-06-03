@@ -9,7 +9,7 @@ public class PythonParser : IProjectParser, IFileParser
 
     public string ProjectType => "python";
 
-    public IReadOnlyCollection<string> ExcludedFolders => new[] { "venv", ".venv", "__pycache__" };
+    public IReadOnlyCollection<string> ExcludedFolders => ["venv", ".venv", "__pycache__"];
 
     public bool CanParse(string fileExtension)
     {
@@ -21,7 +21,7 @@ public class PythonParser : IProjectParser, IFileParser
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName == "requirements.txt" || fileName == "pyproject.toml" || fileName == "setup.py")
+            if (fileName is "requirements.txt" or "pyproject.toml" or "setup.py")
             {
                 return true;
             }
@@ -76,6 +76,12 @@ public class PythonParser : IProjectParser, IFileParser
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
     {
+        TryDetectCalls(node, scopeSymbolId, references);
+        TryDetectInheritsFrom(node, scopeSymbolId, references);
+    }
+
+    private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
+    {
         if (node.Type == "call")
         {
             var callName = FindCallName(node);
@@ -84,7 +90,11 @@ public class PythonParser : IProjectParser, IFileParser
                 references.Add(new Reference(scopeSymbolId, callName, "CALLS"));
             }
         }
-        else if (node.Type == "class_definition")
+    }
+
+    private void TryDetectInheritsFrom(Node node, string scopeSymbolId, List<Reference> references)
+    {
+        if (node.Type == "class_definition")
         {
             var superclassesNode = node.GetChildForField("superclasses");
             if (superclassesNode != null && superclassesNode.Id != IntPtr.Zero && superclassesNode.Children.Count > 0)

@@ -173,7 +173,7 @@ public class ProjectLevelParser
                 projectNode.Children.Add(packageNode);
 
                 var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, _projectNodeId));
-                await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { implRel });
+                await _ctx.EnqueueUploadRelationshipsAsync([implRel]);
                 _ctx.AddRelsCount(1);
 
                 packageDetected = true;
@@ -195,7 +195,7 @@ public class ProjectLevelParser
                 projectNode.Children.Add(packageNode);
 
                 var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, _projectNodeId));
-                await _ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { implRel });
+                await _ctx.EnqueueUploadRelationshipsAsync([implRel]);
                 _ctx.AddRelsCount(1);
             }
         }

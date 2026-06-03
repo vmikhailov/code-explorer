@@ -34,16 +34,23 @@ public class TypeScriptParser : IProjectParser, IFileParser
     {
         return node.Type switch
         {
-            "class_declaration" => "Class",
-            "interface_declaration" => "Interface",
+            "class_declaration" or
+            "class_expression" or
+            "enum_declaration" => "Class",
+
+            "interface_declaration" or
+            "type_alias_declaration" => "Interface",
 
             "method_definition" or
             "function_declaration" or
+            "function_expression" or
+            "generator_function_declaration" or
             "arrow_function" => "Function",
 
             "variable_declarator" or
             "formal_parameters" or
-            "property_signature" => "Variable",
+            "property_signature" or
+            "public_field_definition" => "Variable",
 
             _ => null
         };
@@ -80,6 +87,12 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
     {
+        TryDetectCalls(node, scopeSymbolId, references);
+        TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
+    }
+
+    private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
+    {
         if (node.Type == "call_expression")
         {
             var callName = FindCallName(node);
@@ -88,7 +101,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 references.Add(new Reference(scopeSymbolId, callName, "CALLS"));
             }
         }
-        else if (node.Type == "extends_clause" || node.Type == "implements_clause")
+    }
+
+    private void TryDetectInheritsFromAndImplements(Node node, string scopeSymbolId, List<Reference> references)
+    {
+        if (node.Type == "extends_clause" || node.Type == "implements_clause")
         {
             var kind = node.Type == "implements_clause" ? "IMPLEMENTS" : "INHERITS_FROM";
             foreach (var child in node.Children)

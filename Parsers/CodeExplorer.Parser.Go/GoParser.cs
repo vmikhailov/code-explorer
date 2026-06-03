@@ -93,6 +93,11 @@ public class GoParser : IProjectParser, IFileParser
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
     {
+        TryDetectCalls(node, scopeSymbolId, references);
+    }
+
+    private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
+    {
         if (node.Type == "call_expression")
         {
             var callName = FindCallName(node);
@@ -175,7 +180,7 @@ public class GoParser : IProjectParser, IFileParser
                 if (line.StartsWith("require ") && !line.EndsWith("("))
                 {
                     var content = line.Substring("require ".Length).Trim();
-                    var parts = content.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    var parts = content.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 1)
                     {
                         var name = parts[0];
@@ -194,7 +199,7 @@ public class GoParser : IProjectParser, IFileParser
                 else if (inRequireBlock)
                 {
                     // Line inside require block
-                    var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 1)
                     {
                         var name = parts[0];

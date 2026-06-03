@@ -2,7 +2,8 @@ namespace CodeExplorer.Parser;
 
 public class GitIgnoreMatcher
 {
-    private readonly List<(string Pattern, System.Text.RegularExpressions.Regex Regex, bool IsDirectoryOnly)> _rules = new();
+    private readonly List<(string Pattern, System.Text.RegularExpressions.Regex Regex, bool IsDirectoryOnly)> _rules =
+        [];
 
     public GitIgnoreMatcher(string workspaceRoot)
     {

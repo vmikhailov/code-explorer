@@ -12,7 +12,7 @@ public static class OntologyUploader
     {
         // 1. Convert and upload the current node
         var dbNode = Node.FromNode(node);
-        await ctx.EnqueueUploadNodesAsync(new List<Node> { dbNode });
+        await ctx.EnqueueUploadNodesAsync([dbNode]);
         ctx.IncrementNodeKind(node.Kind);
         ctx.AddNodesCount(1);
 
@@ -34,7 +34,7 @@ public static class OntologyUploader
         {
             var ontologyRel = GetRelationship(parentId, node);
             var dbRel = Relationship.FromRelationship(ontologyRel);
-            await ctx.EnqueueUploadRelationshipsAsync(new List<Relationship> { dbRel });
+            await ctx.EnqueueUploadRelationshipsAsync([dbRel]);
             ctx.AddRelsCount(1);
         }
 

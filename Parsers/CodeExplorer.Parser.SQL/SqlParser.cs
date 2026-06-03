@@ -7,6 +7,16 @@ namespace CodeExplorer.Parser;
 
 public class SqlParser : IProjectParser, IFileParser
 {
+    private record ProcedureScope(
+        string Name,
+        string RawName,
+        string Id,
+        int StartIndex,
+        int EndIndex,
+        string Body,
+        ProcedureNode Node
+    );
+
     public string LanguageName => "sql";
 
     public string ProjectType => "sql";
@@ -64,6 +74,25 @@ public class SqlParser : IProjectParser, IFileParser
         var withoutBlockComments = Regex.Replace(sqlText, @"/\*.*?\*/", "", RegexOptions.Singleline);
         var cleanSql = Regex.Replace(withoutBlockComments, @"--.*$", "", RegexOptions.Multiline);
 
+        var datasets = new Dictionary<string, DataSetNode>(StringComparer.OrdinalIgnoreCase);
+        var tables = new Dictionary<string, TableNode>(StringComparer.OrdinalIgnoreCase);
+        var procedures = new List<ProcedureScope>();
+
+        TryDetectContains(cleanSql, fileNode, fileNodeId, relativePath, datasets, tables, procedures, ctx);
+
+        return fileNode;
+    }
+
+    private void TryDetectContains(
+        string cleanSql,
+        FileNode fileNode,
+        string fileNodeId,
+        string relativePath,
+        Dictionary<string, DataSetNode> datasets,
+        Dictionary<string, TableNode> tables,
+        List<ProcedureScope> procedures,
+        ParsingContext ctx)
+    {
         // 2. Identify Database (DB)
         var dbMatch = Regex.Match(cleanSql, @"CREATE\s+DATABASE\s+([a-zA-Z0-9_\[\]""#@]+)", RegexOptions.IgnoreCase);
         string dbNodeId;
@@ -75,7 +104,7 @@ public class SqlParser : IProjectParser, IFileParser
         }
         else
         {
-            var dirName = Path.GetFileName(Path.GetDirectoryName(filePath));
+            var dirName = Path.GetFileName(Path.GetDirectoryName(fileNode.FullPath));
             if (string.IsNullOrEmpty(dirName)) dirName = "DefaultDB";
             dbName = dirName;
             dbNodeId = $"db:{dbName.ToLowerInvariant()}";
@@ -86,7 +115,6 @@ public class SqlParser : IProjectParser, IFileParser
 
         // 3. Identify Schema (DataSet)
         var schemaMatches = Regex.Matches(cleanSql, @"CREATE\s+SCHEMA\s+([a-zA-Z0-9_\[\]""#@]+)", RegexOptions.IgnoreCase);
-        var datasets = new Dictionary<string, DataSetNode>(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in schemaMatches)
         {
             var schemaName = match.Groups[1].Value.Trim('[', ']', '"');
@@ -98,7 +126,6 @@ public class SqlParser : IProjectParser, IFileParser
 
         // 4. Identify Tables
         var tableMatches = Regex.Matches(cleanSql, @"CREATE\s+TABLE\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
-        var tables = new Dictionary<string, TableNode>(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in tableMatches)
         {
             var rawTableName = match.Groups[1].Value;
@@ -137,10 +164,9 @@ public class SqlParser : IProjectParser, IFileParser
             }
         }
 
-        // 5. Identify Procedures / Functions
+        // 5. Identify Procedures / Functions and their boundaries
         var procMatches = Regex.Matches(cleanSql, @"CREATE\s+(?:PROCEDURE|PROC|FUNCTION)\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
-        var procedures = new List<(string Name, string RawName, string Id, int StartIndex, ProcedureNode Node)>();
-
+        var tempScopes = new List<(Match Match, string Name, string RawName, string Id, ProcedureNode Node)>();
         for (var i = 0; i < procMatches.Count; i++)
         {
             var match = procMatches[i];
@@ -168,7 +194,7 @@ public class SqlParser : IProjectParser, IFileParser
 
             var procNodeId = $"{schemaNodeId}:procedure:{procName.ToLowerInvariant()}";
             var procNode = new ProcedureNode(procNodeId, procName, relativePath);
-            procedures.Add((procName, rawProcName, procNodeId, match.Index, procNode));
+            tempScopes.Add((match, procName, rawProcName, procNodeId, procNode));
             schemaNode.Children.Add(procNode);
 
             // Register global procedure symbol
@@ -179,15 +205,72 @@ public class SqlParser : IProjectParser, IFileParser
             }
         }
 
-        // 6. Split statements and extract Query nodes (both inside procedures and top-level)
-        var statements = cleanSql.Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries)
+        // Resolve boundaries for each procedure body
+        for (var i = 0; i < tempScopes.Count; i++)
+        {
+            var current = tempScopes[i];
+            var start = current.Match.Index;
+            var nextGo = cleanSql.IndexOf("GO", start, StringComparison.OrdinalIgnoreCase);
+            var end = (nextGo != -1) 
+                ? nextGo 
+                : ((i + 1 < tempScopes.Count) ? tempScopes[i + 1].Match.Index : cleanSql.Length);
+
+            var body = cleanSql.Substring(start, end - start);
+            procedures.Add(new ProcedureScope(current.Name, current.RawName, current.Id, start, end, body, current.Node));
+        }
+
+        // 6. Nested Pass: Parse Queries inside Procedure Bodies
+        var queryCounter = 0;
+        foreach (var proc in procedures)
+        {
+            var procStatements = proc.Body.Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToList();
+
+            foreach (var statement in procStatements)
+            {
+                var firstWord = statement.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                    .FirstOrDefault()?.ToUpperInvariant();
+
+                if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE")
+                {
+                    queryCounter++;
+                    var queryName = $"{firstWord} Query #{queryCounter}";
+                    var queryNodeId = $"{proc.Id}:query:{queryCounter}";
+                    var queryNode = new QueryNode(
+                        queryNodeId,
+                        queryName,
+                        statement.Length > 200 ? statement.Substring(0, 197) + "..." : statement,
+                        relativePath
+                    );
+                    proc.Node.Children.Add(queryNode);
+
+                    // Parse calls & table references inside this query statement
+                    TryDetectCalls(statement, queryNode, queryNodeId);
+                    TryDetectDependsOn(statement, queryNode, queryNodeId, tables);
+                }
+            }
+        }
+
+        // 7. Nested Pass: Parse Top-Level Queries (outside of procedures)
+        // Mask out procedure bodies from cleanSql so we don't match query patterns inside them
+        var charArray = cleanSql.ToCharArray();
+        foreach (var proc in procedures)
+        {
+            for (int idx = proc.StartIndex; idx < proc.EndIndex; idx++)
+            {
+                charArray[idx] = ' ';
+            }
+        }
+        var topLevelSql = new string(charArray);
+
+        var topLevelStatements = topLevelSql.Split([';', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .Select(s => s.Trim())
             .Where(s => !string.IsNullOrEmpty(s))
             .ToList();
 
-        var queryCounter = 0;
-        var currentSearchIndex = 0;
-        foreach (var statement in statements)
+        foreach (var statement in topLevelStatements)
         {
             var firstWord = statement.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
                 .FirstOrDefault()?.ToUpperInvariant();
@@ -196,89 +279,60 @@ public class SqlParser : IProjectParser, IFileParser
             {
                 queryCounter++;
                 var queryName = $"{firstWord} Query #{queryCounter}";
-                
-                var indexInCleanSql = cleanSql.IndexOf(statement, currentSearchIndex);
-                if (indexInCleanSql != -1)
-                {
-                    currentSearchIndex = indexInCleanSql + statement.Length;
-                }
-                else
-                {
-                    indexInCleanSql = cleanSql.IndexOf(statement);
-                }
-                
-                IOntologyNode containingParentNode = fileNode;
-                var containingParentId = fileNodeId;
-
-                // Check if this query statement is enclosed in any procedure body
-                for (var i = 0; i < procedures.Count; i++)
-                {
-                    var currentProc = procedures[i];
-                    var start = currentProc.StartIndex;
-                    
-                    var nextGo = cleanSql.IndexOf("GO", start, StringComparison.OrdinalIgnoreCase);
-                    var end = (nextGo != -1) ? nextGo : ((i + 1 < procedures.Count) ? procedures[i + 1].StartIndex : cleanSql.Length);
-
-                    if (indexInCleanSql >= start && indexInCleanSql < end)
-                    {
-                        containingParentNode = currentProc.Node;
-                        containingParentId = currentProc.Id;
-                        break;
-                    }
-                }
-
-                // Create the Query Node
-                var queryNodeId = $"{containingParentId}:query:{queryCounter}";
+                var queryNodeId = $"{fileNodeId}:query:{queryCounter}";
                 var queryNode = new QueryNode(
                     queryNodeId,
                     queryName,
                     statement.Length > 200 ? statement.Substring(0, 197) + "..." : statement,
                     relativePath
                 );
-                containingParentNode.Children.Add(queryNode);
+                fileNode.Children.Add(queryNode);
 
-                // A. Parse Calls dependencies (EXEC / EXECUTE)
-                var execMatches = Regex.Matches(statement, @"EXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
-                foreach (Match execMatch in execMatches)
-                {
-                    var targetProcRaw = execMatch.Groups[1].Value;
-                    var targetProcParts = targetProcRaw.Split('.');
-                    var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"') : targetProcRaw.Trim('[', ']', '"');
-                    
-                    queryNode.References.Add(new Reference(queryNodeId, targetProcName, OntologyConstants.Relationships.Calls));
-                }
+                // Parse calls & table references inside this top-level query statement
+                TryDetectCalls(statement, queryNode, queryNodeId);
+                TryDetectDependsOn(statement, queryNode, queryNodeId, tables);
+            }
+        }
+    }
 
-                // B. Parse Local Table dependencies (DependsOn)
-                foreach (var tableKvp in tables)
-                {
-                    var tableName = tableKvp.Key;
-                    var tableNode = tableKvp.Value;
+    private void TryDetectCalls(string statement, QueryNode queryNode, string queryNodeId)
+    {
+        var execMatches = Regex.Matches(statement, @"EXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
+        foreach (Match execMatch in execMatches)
+        {
+            var targetProcRaw = execMatch.Groups[1].Value;
+            var targetProcParts = targetProcRaw.Split('.');
+            var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"') : targetProcRaw.Trim('[', ']', '"');
+            
+            queryNode.References.Add(new Reference(queryNodeId, targetProcName, OntologyConstants.Relationships.Calls));
+        }
+    }
 
-                    var pattern = $@"\b{Regex.Escape(tableName)}\b";
-                    if (Regex.IsMatch(statement, pattern, RegexOptions.IgnoreCase))
-                    {
-                        queryNode.References.Add(new Reference(queryNodeId, tableName, OntologyConstants.Relationships.DependsOn));
-                    }
-                }
-
-                // C. Parse potential external table dependencies for deferred global resolution
-                var words = Regex.Matches(statement, @"\b[a-zA-Z0-9_]+\b");
-                var uniqueWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (Match wm in words)
-                {
-                    uniqueWords.Add(wm.Value);
-                }
-
-                foreach (var word in uniqueWords)
-                {
-                    if (!tables.ContainsKey(word))
-                    {
-                        queryNode.References.Add(new Reference(queryNodeId, word, OntologyConstants.Relationships.DependsOn));
-                    }
-                }
+    private void TryDetectDependsOn(string statement, QueryNode queryNode, string queryNodeId, Dictionary<string, TableNode> tables)
+    {
+        foreach (var tableKvp in tables)
+        {
+            var tableName = tableKvp.Key;
+            var pattern = $@"\b{Regex.Escape(tableName)}\b";
+            if (Regex.IsMatch(statement, pattern, RegexOptions.IgnoreCase))
+            {
+                queryNode.References.Add(new Reference(queryNodeId, tableName, OntologyConstants.Relationships.DependsOn));
             }
         }
 
-        return fileNode;
+        var words = Regex.Matches(statement, @"\b[a-zA-Z0-9_]+\b");
+        var uniqueWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match wm in words)
+        {
+            uniqueWords.Add(wm.Value);
+        }
+
+        foreach (var word in uniqueWords)
+        {
+            if (!tables.ContainsKey(word))
+            {
+                queryNode.References.Add(new Reference(queryNodeId, word, OntologyConstants.Relationships.DependsOn));
+            }
+        }
     }
 }

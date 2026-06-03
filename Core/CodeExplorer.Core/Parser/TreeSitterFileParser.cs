@@ -58,6 +58,7 @@ public static class TreeSitterFileParser
                 OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
                 OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
                 OntologyConstants.NodeLabels.Variable => new VariableNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                OntologyConstants.NodeLabels.Query => new QueryNode(symbolId, name, CleanQueryText(node.Text), filePath),
                 _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
             };
 
@@ -81,5 +82,20 @@ public static class TreeSitterFileParser
         {
             TraverseAndBuildTree(child, nextParent, currentParentId, parser, workspacePath, filePath);
         }
+    }
+
+    private static string CleanQueryText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        if ((text.StartsWith('"') && text.EndsWith('"')) || 
+            (text.StartsWith('\'') && text.EndsWith('\'')) || 
+            (text.StartsWith('`') && text.EndsWith('`')))
+        {
+            if (text.Length >= 2)
+            {
+                return text.Substring(1, text.Length - 2);
+            }
+        }
+        return text;
     }
 }

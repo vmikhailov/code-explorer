@@ -6,8 +6,8 @@ namespace CodeExplorer.Parser;
 
 public class WorkspaceParser
 {
-    internal static readonly List<IProjectParser> ProjectParsers = new();
-    internal static readonly List<IFileParser> FileParsers = new();
+    internal static readonly List<IProjectParser> ProjectParsers = [];
+    internal static readonly List<IFileParser> FileParsers = [];
 
     public static void Register(object parser)
     {

@@ -153,7 +153,7 @@ public class ParsingContext
         SharedChannel = sharedChannel;
         Clear = clear;
         GlobalSymbols = globalSymbols ?? new Dictionary<(string Kind, string Name), string>();
-        GlobalReferences = globalReferences ?? new List<Reference>();
-        GlobalProjectDependencies = globalProjectDependencies ?? new List<Relationship>();
+        GlobalReferences = globalReferences ?? [];
+        GlobalProjectDependencies = globalProjectDependencies ?? [];
     }
 }

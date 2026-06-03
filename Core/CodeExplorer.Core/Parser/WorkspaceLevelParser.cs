@@ -61,7 +61,7 @@ public class WorkspaceLevelParser
             );
 
             // Recursively scan, discovering projects inline!
-            await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode, new HashSet<string>());
+            await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode, []);
 
             // Upload the entire Workspace Node tree using OntologyUploader
             await OntologyUploader.UploadNodeTreeAsync(workspaceNode, null, _ctx);
@@ -101,7 +101,7 @@ public class WorkspaceLevelParser
         {
             // Find matching language parser for project signature
             var projectFilesInDir = Directory.GetFiles(currentDir);
-            IProjectParser? matchedParser = null;
+            IProjectParser? matchedParser;
             lock (WorkspaceParser.ProjectParsers)
             {
                 matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, projectFilesInDir));
@@ -110,11 +110,7 @@ public class WorkspaceLevelParser
             if (matchedParser != null)
             {
                 var projectParser = new ProjectLevelParser(_ctx, currentDir, parentNode.Id, matchedParser);
-                var projectNode = await projectParser.ParseProjectAsync();
-                if (projectNode != null)
-                {
-                    parentNode.Children.Add(projectNode);
-                }
+                await projectParser.ParseAsync();
             }
             return;
         }

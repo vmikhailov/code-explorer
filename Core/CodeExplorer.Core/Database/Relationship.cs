@@ -15,8 +15,18 @@ public record Relationship(string From, string To, string Kind, Dictionary<strin
     public static Relationship FromRelationship(IOntologyRelationship rel)
     {
         var json = JsonSerializer.Serialize(rel, rel.GetType(), SerializerOptions);
-        var properties = JsonSerializer.Deserialize<Dictionary<string, object>>(json, SerializerOptions) 
+        var rawProperties = JsonSerializer.Deserialize<Dictionary<string, object>>(json, SerializerOptions) 
             ?? new Dictionary<string, object>();
+
+        var properties = new Dictionary<string, object>();
+        foreach (var kvp in rawProperties)
+        {
+            var cleanedVal = JsonHelper.ConvertJsonElement(kvp.Value);
+            if (cleanedVal != null)
+            {
+                properties[kvp.Key] = cleanedVal;
+            }
+        }
 
         if (rel.Extensions != null)
         {
