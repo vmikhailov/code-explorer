@@ -164,7 +164,17 @@ public class McpIntegrationTests
         // Verify isError is false in result content
         if (resultElement.TryGetProperty("isError", out var isErrorElement))
         {
-            Assert.That(isErrorElement.GetBoolean(), Is.False, $"Tool {toolName} result marked with isError: true");
+            if (isErrorElement.GetBoolean())
+            {
+                var errorText = "No details";
+                if (resultElement.TryGetProperty("content", out var contentElement) && 
+                    contentElement.ValueKind == JsonValueKind.Array && 
+                    contentElement.GetArrayLength() > 0)
+                {
+                    errorText = contentElement[0].GetProperty("text").GetString();
+                }
+                Assert.Fail($"Tool {toolName} result marked with isError: true. Error details: {errorText}");
+            }
         }
 
         Console.WriteLine($"Tool {toolName} executed successfully.");

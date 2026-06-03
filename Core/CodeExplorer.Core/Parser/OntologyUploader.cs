@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using CodeExplorer.Common;
 using CodeExplorer.Database;
@@ -10,9 +11,36 @@ public static class OntologyUploader
 {
     public static async Task UploadNodeTreeAsync(IOntologyNode node, string? parentId, ParsingContext ctx)
     {
-        // 1. Convert and upload the current node
+        var collectedNodes = new List<Node>();
+        var collectedRelationships = new List<Relationship>();
+
+        CollectTreeElements(node, parentId, ctx, collectedNodes, collectedRelationships);
+
+        // Upload nodes in chunks of 1000
+        for (int i = 0; i < collectedNodes.Count; i += 1000)
+        {
+            var chunk = collectedNodes.GetRange(i, Math.Min(1000, collectedNodes.Count - i));
+            await ctx.EnqueueUploadNodesAsync(chunk);
+        }
+
+        // Upload relationships in chunks of 1000
+        for (int i = 0; i < collectedRelationships.Count; i += 1000)
+        {
+            var chunk = collectedRelationships.GetRange(i, Math.Min(1000, collectedRelationships.Count - i));
+            await ctx.EnqueueUploadRelationshipsAsync(chunk);
+        }
+    }
+
+    private static void CollectTreeElements(
+        IOntologyNode node, 
+        string? parentId, 
+        ParsingContext ctx, 
+        List<Node> collectedNodes, 
+        List<Relationship> collectedRelationships)
+    {
+        // 1. Convert and collect the current node
         var dbNode = Node.FromNode(node);
-        await ctx.EnqueueUploadNodesAsync([dbNode]);
+        collectedNodes.Add(dbNode);
         ctx.IncrementNodeKind(node.Kind);
         ctx.AddNodesCount(1);
 
@@ -34,7 +62,7 @@ public static class OntologyUploader
         {
             var ontologyRel = GetRelationship(parentId, node);
             var dbRel = Relationship.FromRelationship(ontologyRel);
-            await ctx.EnqueueUploadRelationshipsAsync([dbRel]);
+            collectedRelationships.Add(dbRel);
             ctx.AddRelsCount(1);
         }
 
@@ -45,7 +73,7 @@ public static class OntologyUploader
             var projectDir = FindProjectDirectory(fullPath, ctx.AbsoluteWorkspacePath);
             var projectNodeId = $"project:{projectDir}:";
             var exposesRel = Relationship.FromRelationship(new ExposesRelationship(projectNodeId, node.Id));
-            await ctx.EnqueueUploadRelationshipsAsync([exposesRel]);
+            collectedRelationships.Add(exposesRel);
             ctx.AddRelsCount(1);
         }
 
@@ -55,10 +83,10 @@ public static class OntologyUploader
             ctx.AddGlobalReferences(node.References);
         }
 
-        // 5. Recursively upload all children
+        // 5. Recursively collect all children
         foreach (var child in node.Children)
         {
-            await UploadNodeTreeAsync(child, node.Id, ctx);
+            CollectTreeElements(child, node.Id, ctx, collectedNodes, collectedRelationships);
         }
     }
 

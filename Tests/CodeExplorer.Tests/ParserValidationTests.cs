@@ -416,4 +416,69 @@ export class OrdersController {
             PrintTsAst(child, indent + "  ");
         }
     }
+
+    [Test]
+    public async Task Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_test_workspace_" + Guid.NewGuid()).Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+        
+        try
+        {
+            // Project A: C# project
+            var projADir = Path.Combine(tempWorkspace, "ProjectA").Replace('\\', '/');
+            Directory.CreateDirectory(projADir);
+            await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            
+            var projAFile = Path.Combine(projADir, "Client.cs").Replace('\\', '/');
+            var projACode = @"
+            using System.Net.Http;
+            class Client {
+                void Call() {
+                    var client = new HttpClient();
+                    client.GetAsync(""http://localhost:8085/api/orders/charge"");
+                }
+            }";
+            await File.WriteAllTextAsync(projAFile, projACode);
+
+            // Project B: TypeScript project
+            var projBDir = Path.Combine(tempWorkspace, "ProjectB").Replace('\\', '/');
+            Directory.CreateDirectory(projBDir);
+            await File.WriteAllTextAsync(Path.Combine(projBDir, "package.json"), "{}");
+            
+            var projBFile = Path.Combine(projBDir, "server.ts").Replace('\\', '/');
+            var projBCode = @"
+            import { Controller, Post } from '@nestjs/common';
+            @Controller('orders')
+            export class OrdersController {
+                @Post('charge')
+                async charge() {}
+            }";
+            await File.WriteAllTextAsync(projBFile, projBCode);
+
+            // Setup parsing
+            await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+            
+            // Register parsers if they aren't already registered
+            WorkspaceParser.Register(new CSharpParser());
+            WorkspaceParser.Register(new TypeScriptParser());
+
+            // Run scanner
+            var parser = new WorkspaceParser(tempWorkspace, client, clear: true);
+            var results = await parser.IndexAsync();
+
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
+            Assert.That(results.RelationshipsCount, Is.GreaterThan(0));
+            
+            Console.WriteLine($"[IntegrationTest] Parsed {results.NodesCount} nodes and {results.RelationshipsCount} relationships successfully.");
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
 }
+

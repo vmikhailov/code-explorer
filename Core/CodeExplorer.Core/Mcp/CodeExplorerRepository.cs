@@ -21,14 +21,14 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             parameters["projectName"] = projectName;
             query = "MATCH (p:Project {name: $projectName}) " +
                     "OPTIONAL MATCH (p)-[:USES_DB]->(db:DB) " +
-                    "OPTIONAL MATCH (p)-[:CONTAINS*1..]->(pf:ProjectFolder) " +
+                    "OPTIONAL MATCH (p)-[:CONTAINS*1..3]->(pf:ProjectFolder) " +
                     "RETURN p.name AS project, p.project_type AS type, db.name AS dbName, collect(DISTINCT pf.name) AS folders";
         }
         else
         {
             query = "MATCH (w:Workspace) " +
-                    "OPTIONAL MATCH (w)-[:CONTAINS*1..]->(wf:WorkspaceFolder) " +
-                    "OPTIONAL MATCH (w)-[:CONTAINS*1..]->(p:Project) " +
+                    "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(wf:WorkspaceFolder) " +
+                    "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(p:Project) " +
                     "OPTIONAL MATCH (p)-[:USES_DB]->(db:DB) " +
                     "RETURN w.name AS workspace, w.path AS path, collect(DISTINCT wf.name) AS workspaceFolders, collect(DISTINCT p.name) AS projects, collect(DISTINCT db.name) AS dbNames";
         }
@@ -247,7 +247,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         var resultJson = await dbClient.ExecuteQueryAsync(query);
         var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? new();
 
-        var propQuery = "MATCH (n) UNWIND labels(n) AS label UNWIND keys(n) AS key RETURN DISTINCT label, key";
+        var propQuery = "MATCH (n) WITH DISTINCT labels(n) AS labels, keys(n) AS keys UNWIND labels AS label UNWIND keys AS key RETURN DISTINCT label, key";
         var propJson = await dbClient.ExecuteQueryAsync(propQuery);
         var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? new();
 

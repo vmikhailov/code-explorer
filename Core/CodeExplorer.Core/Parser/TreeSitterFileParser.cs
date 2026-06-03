@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using TreeSitter;
 using CodeExplorer.Common;
 
@@ -23,7 +20,7 @@ public static class TreeSitterFileParser
         var fileNodeId = $"file:{ctx.AbsoluteWorkspacePath}:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
 
-        if (tree != null && tree.RootNode != null)
+        if (tree != null)
         {
             TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx.AbsoluteWorkspacePath, relativePath);
         }
@@ -52,22 +49,29 @@ public static class TreeSitterFileParser
 
         if (kind != null && !string.IsNullOrEmpty(name))
         {
-            var symbolId = $"symbol:{workspacePath}:{filePath}:{kind}:{name}:{node.StartPosition.Row}";
-            IOntologyNode typedNode = kind switch
+            if (kind == OntologyConstants.NodeLabels.Variable)
             {
-                OntologyConstants.NodeLabels.Class => new ClassNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                OntologyConstants.NodeLabels.Variable => new VariableNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                OntologyConstants.NodeLabels.Query => NestedSqlParser.ParseNestedSql(node.Text, symbolId, filePath) ?? new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(node.Text), filePath),
-                OntologyConstants.NodeLabels.EntryPoint => CreateEntryPointNode(name, filePath, workspacePath, node),
-                OntologyConstants.NodeLabels.ExternalService => CreateExternalServiceNode(name, filePath, workspacePath, node),
-                _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
-            };
+                // Skip variable nodes in the graph as it is too deep level
+            }
+            else
+            {
+                var symbolId = $"symbol:{workspacePath}:{filePath}:{kind}:{name}:{node.StartPosition.Row}";
+                IOntologyNode typedNode = kind switch
+                {
+                    OntologyConstants.NodeLabels.Class => new ClassNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                    OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                    OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                    // OntologyConstants.NodeLabels.Variable => new VariableNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                    OntologyConstants.NodeLabels.Query => NestedSqlParser.ParseNestedSql(node.Text, symbolId, filePath) ?? new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(node.Text), filePath),
+                    OntologyConstants.NodeLabels.EntryPoint => CreateEntryPointNode(name, filePath, workspacePath, node),
+                    OntologyConstants.NodeLabels.ExternalService => CreateExternalServiceNode(name, filePath, workspacePath, node),
+                    _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
+                };
 
-            currentParent.Children.Add(typedNode);
-            nextParent = typedNode;
-            currentParentId = typedNode.Id;
+                currentParent.Children.Add(typedNode);
+                nextParent = typedNode;
+                currentParentId = typedNode.Id;
+            }
         }
 
         // Collect references inside the current symbol scope

@@ -63,6 +63,27 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         {
             await Console.Error.WriteLineAsync($"Warning creating path index for Workspace: {ex.Message}");
         }
+
+        var kindsWithName = new[] 
+        {
+            OntologyConstants.NodeLabels.Project,
+            OntologyConstants.NodeLabels.Class,
+            OntologyConstants.NodeLabels.Interface,
+            OntologyConstants.NodeLabels.Function,
+            OntologyConstants.NodeLabels.Table
+        };
+
+        foreach (var kind in kindsWithName)
+        {
+            try
+            {
+                await session.RunAsync($"CREATE INDEX ON :{kind}(name);");
+            }
+            catch (Exception ex)
+            {
+                await Console.Error.WriteLineAsync($"Warning creating name index for {kind}: {ex.Message}");
+            }
+        }
     }
 
     public async Task ClearDatabaseAsync()
@@ -135,7 +156,8 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
             const int batchSize = 1000;
             for (var i = 0; i < relList.Count; i += batchSize)
             {
-                var chunk = relList.Skip(i).Take(batchSize).Select(r => new Dictionary<string, object>
+                var count = Math.Min(batchSize, relList.Count - i);
+                var chunk = relList.GetRange(i, count).Select(r => new Dictionary<string, object>
                 {
                     ["from"] = r.From,
                     ["to"] = r.To,
@@ -147,6 +169,11 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
                 {
                     await tx.RunAsync(query, new { batch = chunk });
                 });
+
+                if (relList.Count > 5000 && (i + count) % 50000 == 0)
+                {
+                    await Console.Error.WriteLineAsync($"[MemgraphClient] Uploaded {i + count}/{relList.Count} relationships of type '{kind}'...");
+                }
             }
         }
     }

@@ -1,0 +1,14 @@
+.git
+.Build
+.Packages
+**/.vs
+**/bin
+**/obj
+**/out
+.idea
+.vscode
+Dockerfile
+build.sh
+docker-compose.yml
+docs/
+scratch/

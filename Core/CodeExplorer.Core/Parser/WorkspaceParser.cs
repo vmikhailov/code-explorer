@@ -85,13 +85,50 @@ public class WorkspaceParser
         }
 
         // 6. Deferred Global Reference Resolution & Final Reference Upload
-        await Console.Error.WriteLineAsync($"[WorkspaceParser] Resolving {ctx.GlobalReferences.Count} global cross-references...");
+        int totalReferences = ctx.GlobalReferences.Count;
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Resolving {totalReferences} global cross-references...");
         var referenceRelationships = new List<Relationship>();
+        var inheritanceRels = new HashSet<(string From, string To)>();
 
         lock (ctx.GlobalReferences)
         {
+            // Pass 1: Resolve all inheritance (Implements / InheritsFrom) relationships first and cache them in a HashSet.
             foreach (var refItem in ctx.GlobalReferences)
             {
+                if (refItem.Kind == OntologyConstants.Relationships.Implements || refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
+                {
+                    lock (ctx.GlobalSymbols)
+                    {
+                        if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Interface, refItem.TargetName), out var targetNodeId))
+                        {
+                            IOntologyRelationship rel = refItem.Kind == OntologyConstants.Relationships.Implements
+                                ? new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId)
+                                : new InheritsFromRelationship(refItem.ScopeSymbolId, targetNodeId);
+                            referenceRelationships.Add(Relationship.FromRelationship(rel));
+                            inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
+                        }
+                        else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Class, refItem.TargetName), out var targetClassId))
+                        {
+                            IOntologyRelationship rel = refItem.Kind == OntologyConstants.Relationships.Implements
+                                ? new ImplementsRelationship(refItem.ScopeSymbolId, targetClassId)
+                                : new InheritsFromRelationship(refItem.ScopeSymbolId, targetClassId);
+                            referenceRelationships.Add(Relationship.FromRelationship(rel));
+                            inheritanceRels.Add((refItem.ScopeSymbolId, targetClassId));
+                        }
+                    }
+                }
+            }
+
+            // Pass 2: Resolve all other relationships using the cached inheritance relationships.
+            int resolvedCount = 0;
+            foreach (var refItem in ctx.GlobalReferences)
+            {
+                resolvedCount++;
+                if (resolvedCount % 100000 == 0)
+                {
+                    Console.Error.WriteLine($"[WorkspaceParser] Resolving global cross-references: {resolvedCount}/{totalReferences}...");
+                }
+
                 if (refItem.Kind == OntologyConstants.Relationships.Calls)
                 {
                     lock (ctx.GlobalSymbols)
@@ -130,26 +167,6 @@ public class WorkspaceParser
                         }
                     }
                 }
-                else if (refItem.Kind == OntologyConstants.Relationships.Implements || refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
-                {
-                    lock (ctx.GlobalSymbols)
-                    {
-                        if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Interface, refItem.TargetName), out var targetNodeId))
-                        {
-                            IOntologyRelationship rel = refItem.Kind == OntologyConstants.Relationships.Implements
-                                ? new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId)
-                                : new InheritsFromRelationship(refItem.ScopeSymbolId, targetNodeId);
-                            referenceRelationships.Add(Relationship.FromRelationship(rel));
-                        }
-                        else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Class, refItem.TargetName), out var targetClassId))
-                        {
-                            IOntologyRelationship rel = refItem.Kind == OntologyConstants.Relationships.Implements
-                                ? new ImplementsRelationship(refItem.ScopeSymbolId, targetClassId)
-                                : new InheritsFromRelationship(refItem.ScopeSymbolId, targetClassId);
-                            referenceRelationships.Add(Relationship.FromRelationship(rel));
-                        }
-                    }
-                }
                 else if (refItem.Kind == OntologyConstants.Relationships.PotentialType)
                 {
                     lock (ctx.GlobalSymbols)
@@ -168,12 +185,7 @@ public class WorkspaceParser
                         {
                             if (refItem.ScopeSymbolId != targetNodeId)
                             {
-                                var hasInheritance = referenceRelationships.Any(r =>
-                                    r.From == refItem.ScopeSymbolId &&
-                                    r.To == targetNodeId &&
-                                    (r.Kind == OntologyConstants.Relationships.Implements || r.Kind == OntologyConstants.Relationships.InheritsFrom));
-
-                                if (!hasInheritance)
+                                if (!inheritanceRels.Contains((refItem.ScopeSymbolId, targetNodeId)))
                                 {
                                     referenceRelationships.Add(Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId, targetNodeId)));
                                 }

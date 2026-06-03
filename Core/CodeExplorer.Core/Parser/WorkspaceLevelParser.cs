@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace CodeExplorer.Parser;
@@ -15,7 +14,6 @@ public class WorkspaceLevelParser
     private readonly string _absoluteWorkspacePath;
     private readonly string _workspaceNodeId;
     private readonly GitIgnoreMatcher _gitignore;
-    private readonly HashSet<string> _excludedSubdirectories = new(StringComparer.OrdinalIgnoreCase);
 
     public WorkspaceLevelParser(ParsingContext ctx)
     {
@@ -27,94 +25,34 @@ public class WorkspaceLevelParser
 
     public async Task ParseAsync()
     {
-        // 1. Discover all projects in this workspace
-        var projectDirs = FindProjectDirectories();
-
-        // 2. Sequential upfront clearances to avoid transaction lock contention
+        // 1. Clear database sequentially at root to avoid contentions
         if (_ctx.Clear)
         {
-            await Console.Error.WriteLineAsync("[WorkspaceParser] Clearing project workspaces sequentially to avoid database lock contention...");
-            foreach (var projectDir in projectDirs)
-            {
-                await Console.Error.WriteLineAsync($"[WorkspaceParser] Clearing previous project data for '{projectDir}'...");
-                await _ctx.DbClient.ClearWorkspaceAsync(projectDir);
-            }
             await Console.Error.WriteLineAsync($"[WorkspaceParser] Clearing previous root workspace data for '{_absoluteWorkspacePath}'...");
             await _ctx.DbClient.ClearWorkspaceAsync(_absoluteWorkspacePath);
         }
 
-        if (projectDirs.Count > 1 || (projectDirs.Count == 1 && projectDirs[0] != _absoluteWorkspacePath))
-        {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Multi-project workspace detected. Discovering {projectDirs.Count} projects...");
-            foreach (var projectDir in projectDirs)
-            {
-                _excludedSubdirectories.Add(projectDir);
-            }
+        var folderName = Path.GetFileName(_absoluteWorkspacePath);
+        if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
 
-            var folderName = Path.GetFileName(_absoluteWorkspacePath);
-            if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
+        var workspaceNode = new WorkspaceNode(
+            _workspaceNodeId,
+            folderName,
+            _absoluteWorkspacePath
+        );
 
-            var workspaceNode = new WorkspaceNode(
-                _workspaceNodeId,
-                folderName,
-                _absoluteWorkspacePath
-            );
+        // 2. Recursively scan, discovering projects inline!
+        await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode);
 
-            // Recursively scan, discovering projects inline!
-            await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode, []);
+        // 3. Perform late binding
+        await PerformLateBindingAsync(workspaceNode);
 
-            // Upload the entire Workspace Node tree using OntologyUploader
-            await OntologyUploader.UploadNodeTreeAsync(workspaceNode, null, _ctx);
-        }
-        else
-        {
-            // Single project or root workspace is a project. Just index it as a project!
-            await Console.Error.WriteLineAsync("[WorkspaceParser] Single project workspace detected.");
-            
-            var projectDir = _absoluteWorkspacePath;
-            var filesInDir = Directory.GetFiles(projectDir);
-            IProjectParser? matchedParser = null;
-            lock (WorkspaceParser.ProjectParsers)
-            {
-                matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(projectDir, filesInDir));
-            }
-
-            if (matchedParser == null)
-            {
-                lock (WorkspaceParser.ProjectParsers)
-                {
-                    matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault();
-                }
-            }
-
-            if (matchedParser != null)
-            {
-                var projectParser = new ProjectLevelParser(_ctx, projectDir, _workspaceNodeId, matchedParser);
-                await projectParser.ParseAsync();
-            }
-        }
+        // 4. Upload the entire Workspace Node tree using OntologyUploader
+        await OntologyUploader.UploadNodeTreeAsync(workspaceNode, null, _ctx);
     }
 
-    private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode, HashSet<string> activeProjectTypes)
+    private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode)
     {
-        if (_excludedSubdirectories.Contains(currentDir))
-        {
-            // Find matching language parser for project signature
-            var projectFilesInDir = Directory.GetFiles(currentDir);
-            IProjectParser? matchedParser;
-            lock (WorkspaceParser.ProjectParsers)
-            {
-                matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, projectFilesInDir));
-            }
-
-            if (matchedParser != null)
-            {
-                var projectParser = new ProjectLevelParser(_ctx, currentDir, parentNode.Id, matchedParser);
-                await projectParser.ParseAsync();
-            }
-            return;
-        }
-
         var relativeDir = Path.GetRelativePath(_absoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
 
@@ -130,62 +68,30 @@ public class WorkspaceLevelParser
         var dirNameLower = dirName.ToLowerInvariant();
 
         // 2. Generic default exclusions
-        var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea" };
+        var genericExclusions = new HashSet<string> 
+        { 
+            ".git", ".github", ".vscode", ".idea", ".vs", ".go",
+            "node_modules", "bin", "obj", "packages", "dist", "build" 
+        };
         if (genericExclusions.Contains(dirNameLower))
         {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Generic: Skipping VCS/IDE folder '{relativeDir}'");
+            await Console.Error.WriteLineAsync($"[WorkspaceParser] Generic: Skipping VCS/IDE/Build folder '{relativeDir}'");
             return;
         }
 
-        // 3. Scan folder for project signatures to propagate exclusions
+        // 3. Scan folder for project signatures to detect projects dynamically
         var filesInDir = Directory.GetFiles(currentDir);
-        var newlyDetectedTypes = new HashSet<string>();
+        IProjectParser? matchedParser = null;
         lock (WorkspaceParser.ProjectParsers)
         {
-            foreach (var parser in WorkspaceParser.ProjectParsers)
-            {
-                if (parser.IsProjectDirectory(currentDir, filesInDir))
-                {
-                    newlyDetectedTypes.Add(parser.ProjectType);
-                }
-            }
+            matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, filesInDir));
         }
 
-        var subProjectTypes = new HashSet<string>(activeProjectTypes);
-        foreach (var type in newlyDetectedTypes)
+        if (matchedParser != null)
         {
-            subProjectTypes.Add(type);
-        }
-
-        // Check if excluded based on active project types and language exclusions
-        var shouldExclude = false;
-        string? matchedExclusionFolder = null;
-        string? matchedExclusionType = null;
-        lock (WorkspaceParser.ProjectParsers)
-        {
-            foreach (var type in subProjectTypes)
-            {
-                var parser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.ProjectType == type);
-                if (parser != null)
-                {
-                    foreach (var folder in parser.ExcludedFolders)
-                    {
-                        if (folder.Equals(dirNameLower, StringComparison.OrdinalIgnoreCase))
-                        {
-                            shouldExclude = true;
-                            matchedExclusionFolder = folder;
-                            matchedExclusionType = type;
-                            break;
-                        }
-                    }
-                }
-                if (shouldExclude) break;
-            }
-        }
-
-        if (shouldExclude)
-        {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Exclusion: Skipping directory '{relativeDir}' (matches language exclusion '{matchedExclusionFolder}' for '{matchedExclusionType}' project type)");
+            var projectParser = new ProjectLevelParser(_ctx, currentDir, parentNode.Id, matchedParser);
+            var projectNode = await projectParser.ParseProjectAsync();
+            parentNode.Children.Add(projectNode);
             return;
         }
 
@@ -202,7 +108,7 @@ public class WorkspaceLevelParser
         // Recurse into subdirectories
         foreach (var subDir in Directory.GetDirectories(currentDir))
         {
-            await ScanDirectoryAsync(subDir, currentParentNode, subProjectTypes);
+            await ScanDirectoryAsync(subDir, currentParentNode);
         }
 
         // Scan root level loose files
@@ -234,69 +140,95 @@ public class WorkspaceLevelParser
         }
     }
 
-    private List<string> FindProjectDirectories()
+    private async Task PerformLateBindingAsync(IOntologyNode rootNode)
     {
-        var projectDirs = new List<string>();
-        var rootFiles = Directory.GetFiles(_absoluteWorkspacePath);
-        var rootIsProject = false;
-        lock (WorkspaceParser.ProjectParsers)
+        var entryPoints = new List<EntryPointNode>();
+        var externalServices = new List<ExternalServiceNode>();
+
+        CollectPublicSymbols(rootNode, entryPoints, externalServices);
+
+        Console.Error.WriteLine($"[LateBinding] Found {entryPoints.Count} EntryPoints and {externalServices.Count} ExternalServices in the workspace.");
+
+        var lateBoundRels = new List<Relationship>();
+
+        foreach (var extService in externalServices)
         {
-            foreach (var parser in WorkspaceParser.ProjectParsers)
+            foreach (var entryPoint in entryPoints)
             {
-                if (parser.IsProjectDirectory(_absoluteWorkspacePath, rootFiles))
+                if (IsMatch(extService, entryPoint))
                 {
-                    rootIsProject = true;
-                    break;
+                    Console.Error.WriteLine($"[LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
+                    var rel = Relationship.FromRelationship(new CallsRelationship(extService.Id, entryPoint.Id));
+                    lateBoundRels.Add(rel);
                 }
             }
         }
 
-        if (rootIsProject)
+        if (lateBoundRels.Count > 0)
         {
-            return projectDirs;
+            Console.Error.WriteLine($"[LateBinding] Enqueuing {lateBoundRels.Count} late-bound relationships...");
+            await _ctx.EnqueueUploadRelationshipsAsync(lateBoundRels);
+            _ctx.AddRelsCount(lateBoundRels.Count);
         }
-
-        FindProjectDirsInternal(_absoluteWorkspacePath, projectDirs);
-        return projectDirs;
     }
 
-    private void FindProjectDirsInternal(string currentDir, List<string> projectDirs)
+    private void CollectPublicSymbols(IOntologyNode node, List<EntryPointNode> entryPoints, List<ExternalServiceNode> externalServices)
     {
-        var relativeDir = Path.GetRelativePath(_absoluteWorkspacePath, currentDir).Replace('\\', '/');
-        if (relativeDir == ".") relativeDir = "";
-
-        if (!string.IsNullOrEmpty(relativeDir))
+        if (node is EntryPointNode ep)
         {
-            if (_gitignore.IsIgnored(relativeDir, true)) return;
-
-            var dirNameLower = Path.GetFileName(currentDir).ToLowerInvariant();
-            var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea", "node_modules", "bin", "obj" };
-            if (genericExclusions.Contains(dirNameLower)) return;
+            entryPoints.Add(ep);
+        }
+        else if (node is ExternalServiceNode es)
+        {
+            externalServices.Add(es);
         }
 
-        var filesInDir = Directory.GetFiles(currentDir);
-        var isProject = false;
-        lock (WorkspaceParser.ProjectParsers)
+        foreach (var child in node.Children)
         {
-            foreach (var parser in WorkspaceParser.ProjectParsers)
-            {
-                if (parser.IsProjectDirectory(currentDir, filesInDir))
-                {
-                    isProject = true;
-                    break;
-                }
-            }
+            CollectPublicSymbols(child, entryPoints, externalServices);
+        }
+    }
+
+    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint)
+    {
+        if (!string.Equals(extService.Protocol, entryPoint.Protocol, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
         }
 
-        if (isProject)
+        var serviceNorm = NormalizePath(extService.DomainOrService);
+        var routeNorm = NormalizePath(entryPoint.RouteOrTopic);
+
+        if (string.IsNullOrEmpty(serviceNorm) || string.IsNullOrEmpty(routeNorm))
         {
-            projectDirs.Add(currentDir);
-            return;
+            return false;
         }
 
-        foreach (var subDir in Directory.GetDirectories(currentDir))
+        if (string.Equals(serviceNorm, routeNorm, StringComparison.OrdinalIgnoreCase))
         {
-            FindProjectDirsInternal(subDir, projectDirs);
+            return true;
         }
+
+        if (serviceNorm.EndsWith("/" + routeNorm, StringComparison.OrdinalIgnoreCase) ||
+            serviceNorm.EndsWith(routeNorm, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private string NormalizePath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return string.Empty;
+        var normalized = path.Replace('\\', '/').ToLowerInvariant();
+
+        var protocolIdx = normalized.IndexOf("://");
+        if (protocolIdx != -1)
+        {
+            normalized = normalized.Substring(protocolIdx + 3);
+        }
+
+        return normalized.Trim('/');
     }
 }

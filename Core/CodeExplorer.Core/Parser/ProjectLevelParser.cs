@@ -27,16 +27,6 @@ public class ProjectLevelParser
         _gitignore = new GitIgnoreMatcher(_projectDir);
     }
 
-    public async Task ParseAsync()
-    {
-        var folderName = Path.GetFileName(_projectDir);
-        if (string.IsNullOrEmpty(folderName)) folderName = _projectDir;
-
-        var projectNode = await ParseProjectAsync();
-
-        // Upload the entire project node tree using OntologyUploader
-        await OntologyUploader.UploadNodeTreeAsync(projectNode, _parentContainerId, _ctx);
-    }
 
     public async Task<ProjectNode> ParseProjectAsync()
     {
@@ -96,7 +86,23 @@ public class ProjectLevelParser
         // Recurse directories
         foreach (var subDir in Directory.GetDirectories(currentDir))
         {
-            await ScanDirectoryAsync(subDir, currentParentNode);
+            var filesInSubDir = Directory.GetFiles(subDir);
+            IProjectParser? matchedParser = null;
+            lock (WorkspaceParser.ProjectParsers)
+            {
+                matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(subDir, filesInSubDir));
+            }
+
+            if (matchedParser != null)
+            {
+                var nestedProjectParser = new ProjectLevelParser(_ctx, subDir, currentParentNode.Id, matchedParser);
+                var nestedProjectNode = await nestedProjectParser.ParseProjectAsync();
+                currentParentNode.Children.Add(nestedProjectNode);
+            }
+            else
+            {
+                await ScanDirectoryAsync(subDir, currentParentNode);
+            }
         }
 
         // Process files
