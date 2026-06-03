@@ -4,6 +4,8 @@ services:
     ports:
       - "7687:7687"
       - "9091:9091"
+      - "3000:3000"
+      - "7444:7444"
     restart: always
 
   codeexplorer:
