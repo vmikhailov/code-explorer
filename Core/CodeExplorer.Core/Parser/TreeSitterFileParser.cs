@@ -28,6 +28,7 @@ public static class TreeSitterFileParser
             TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx.AbsoluteWorkspacePath, relativePath);
         }
 
+        Console.WriteLine($"Finished parsing file: {relativePath} with {fileNode.Children.Count} top-level symbols.");
         return fileNode;
     }
 
@@ -58,13 +59,15 @@ public static class TreeSitterFileParser
                 OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
                 OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
                 OntologyConstants.NodeLabels.Variable => new VariableNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                OntologyConstants.NodeLabels.Query => new QueryNode(symbolId, name, CleanQueryText(node.Text), filePath),
+                OntologyConstants.NodeLabels.Query => NestedSqlParser.ParseNestedSql(node.Text, symbolId, filePath) ?? new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(node.Text), filePath),
+                OntologyConstants.NodeLabels.EntryPoint => CreateEntryPointNode(name, filePath, workspacePath, node),
+                OntologyConstants.NodeLabels.ExternalService => CreateExternalServiceNode(name, filePath, workspacePath, node),
                 _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
             };
 
             currentParent.Children.Add(typedNode);
             nextParent = typedNode;
-            currentParentId = symbolId;
+            currentParentId = typedNode.Id;
         }
 
         // Collect references inside the current symbol scope
@@ -84,18 +87,80 @@ public static class TreeSitterFileParser
         }
     }
 
-    private static string CleanQueryText(string text)
+    private static EntryPointNode CreateEntryPointNode(string name, string filePath, string workspacePath, Node node)
     {
-        if (string.IsNullOrEmpty(text)) return text;
-        if ((text.StartsWith('"') && text.EndsWith('"')) || 
-            (text.StartsWith('\'') && text.EndsWith('\'')) || 
-            (text.StartsWith('`') && text.EndsWith('`')))
+        var fullPath = Path.GetFullPath(Path.Combine(workspacePath, filePath));
+        var projectDir = FindProjectDirectory(fullPath, workspacePath);
+        var projectName = Path.GetFileName(projectDir);
+        if (string.IsNullOrEmpty(projectName)) projectName = "default";
+
+        string protocol = "http";
+        string route = name;
+
+        if (name.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
         {
-            if (text.Length >= 2)
-            {
-                return text.Substring(1, text.Length - 2);
-            }
+            protocol = "ws";
+            route = name.Substring(3);
         }
-        return text;
+        else if (name.StartsWith("event:", StringComparison.OrdinalIgnoreCase))
+        {
+            protocol = "event";
+            route = name.Substring(6);
+        }
+        else if (name.Contains(':'))
+        {
+            var idx = name.IndexOf(':');
+            route = name.Substring(idx + 1);
+        }
+
+        var entryPointId = $"entrypoint:{projectName}:{protocol}:{name.Replace(":", "_")}";
+        var ext = new Dictionary<string, string>
+        {
+            { "file_path", filePath },
+            { "start_line", node.StartPosition.Row.ToString() }
+        };
+        return new EntryPointNode(entryPointId, name.Replace(":", " "), protocol, route, ext);
+    }
+
+    private static ExternalServiceNode CreateExternalServiceNode(string name, string filePath, string workspacePath, Node node)
+    {
+        string protocol = "http";
+        string domainOrService = name;
+
+        if (name.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
+        {
+            protocol = "ws";
+            domainOrService = name.Substring(3);
+        }
+        else if (name.Contains(':'))
+        {
+            var idx = name.IndexOf(':');
+            protocol = name.Substring(0, idx);
+            domainOrService = name.Substring(idx + 1);
+        }
+
+        var extServiceId = $"externalservice:{protocol}:{domainOrService}";
+        var ext = new Dictionary<string, string>
+        {
+            { "file_path", filePath },
+            { "start_line", node.StartPosition.Row.ToString() }
+        };
+        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, ext);
+    }
+
+    private static string FindProjectDirectory(string filePath, string workspacePath)
+    {
+        var dir = Path.GetDirectoryName(filePath);
+        while (dir != null && dir.Replace('\\', '/').StartsWith(workspacePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+        {
+            if (Directory.GetFiles(dir, "*.csproj").Length > 0 ||
+                File.Exists(Path.Combine(dir, "package.json")) ||
+                File.Exists(Path.Combine(dir, "go.mod")))
+            {
+                return dir;
+            }
+            dir = Path.GetDirectoryName(dir);
+        }
+        return Path.GetDirectoryName(filePath) ?? "";
     }
 }

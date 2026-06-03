@@ -32,6 +32,14 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public string? MapNodeType(Node node)
     {
+        if (node.Type is "string" or "template_string")
+        {
+            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
+            {
+                return "Query";
+            }
+        }
+
         return node.Type switch
         {
             "class_declaration" or
@@ -55,6 +63,14 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public string? ExtractIdentifier(Node node)
     {
+        if (node.Type is "string" or "template_string")
+        {
+            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
+            {
+                return $"{firstWord} Query";
+            }
+        }
+
         var nameNode = node.GetChildForField("name");
         if (nameNode != null && nameNode.Id != IntPtr.Zero)
         {
@@ -86,6 +102,10 @@ public class JavaScriptParser : IProjectParser, IFileParser
     {
         TryDetectCalls(node, scopeSymbolId, references);
         TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
+        if (node.Type is "string" or "template_string")
+        {
+            NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
+        }
     }
 
     private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)

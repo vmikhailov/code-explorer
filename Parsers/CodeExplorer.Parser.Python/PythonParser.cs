@@ -31,6 +31,14 @@ public class PythonParser : IProjectParser, IFileParser
 
     public string? MapNodeType(Node node)
     {
+        if (node.Type == "string")
+        {
+            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
+            {
+                return "Query";
+            }
+        }
+
         return node.Type switch
         {
             "class_definition" => "Class",
@@ -47,6 +55,14 @@ public class PythonParser : IProjectParser, IFileParser
 
     public string? ExtractIdentifier(Node node)
     {
+        if (node.Type == "string")
+        {
+            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
+            {
+                return $"{firstWord} Query";
+            }
+        }
+
         var nameNode = node.GetChildForField("name");
         if (nameNode != null && nameNode.Id != IntPtr.Zero)
         {
@@ -78,6 +94,10 @@ public class PythonParser : IProjectParser, IFileParser
     {
         TryDetectCalls(node, scopeSymbolId, references);
         TryDetectInheritsFrom(node, scopeSymbolId, references);
+        if (node.Type == "string")
+        {
+            NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
+        }
     }
 
     private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)

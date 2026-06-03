@@ -31,6 +31,14 @@ public class GoParser : IProjectParser, IFileParser
 
     public string? MapNodeType(Node node)
     {
+        if (node.Type is "string_literal" or "raw_string_literal")
+        {
+            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
+            {
+                return "Query";
+            }
+        }
+
         if (node.Type == "type_spec")
         {
             foreach (var child in node.Children)
@@ -64,6 +72,14 @@ public class GoParser : IProjectParser, IFileParser
 
     public string? ExtractIdentifier(Node node)
     {
+        if (node.Type is "string_literal" or "raw_string_literal")
+        {
+            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
+            {
+                return $"{firstWord} Query";
+            }
+        }
+
         var nameNode = node.GetChildForField("name");
         if (nameNode != null && nameNode.Id != IntPtr.Zero)
         {
@@ -94,6 +110,10 @@ public class GoParser : IProjectParser, IFileParser
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
     {
         TryDetectCalls(node, scopeSymbolId, references);
+        if (node.Type is "string_literal" or "raw_string_literal")
+        {
+            NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
+        }
     }
 
     private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)

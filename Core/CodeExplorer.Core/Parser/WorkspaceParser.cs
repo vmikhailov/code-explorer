@@ -181,6 +181,16 @@ public class WorkspaceParser
                         }
                     }
                 }
+                else if (refItem.Kind == OntologyConstants.Relationships.Triggers)
+                {
+                    lock (ctx.GlobalSymbols)
+                    {
+                        if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Function, refItem.TargetName), out var targetNodeId))
+                        {
+                            referenceRelationships.Add(Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetNodeId)));
+                        }
+                    }
+                }
             }
         }
 

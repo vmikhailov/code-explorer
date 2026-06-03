@@ -38,6 +38,17 @@ public static class OntologyUploader
             ctx.AddRelsCount(1);
         }
 
+        // Special: If EntryPoint, also link Project to EntryPoint via EXPOSES
+        if (node.Kind == OntologyConstants.NodeLabels.EntryPoint && node.Extensions != null && node.Extensions.TryGetValue("file_path", out var relativeFilePath))
+        {
+            var fullPath = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, relativeFilePath));
+            var projectDir = FindProjectDirectory(fullPath, ctx.AbsoluteWorkspacePath);
+            var projectNodeId = $"project:{projectDir}:";
+            var exposesRel = Relationship.FromRelationship(new ExposesRelationship(projectNodeId, node.Id));
+            await ctx.EnqueueUploadRelationshipsAsync([exposesRel]);
+            ctx.AddRelsCount(1);
+        }
+
         // 4. Collect unresolved references/dependencies
         if (node.References.Count > 0)
         {
@@ -65,7 +76,31 @@ public static class OntologyUploader
         {
             return new UsesDbRelationship(parentId, child.Id);
         }
+        if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        {
+            return new TriggersRelationship(child.Id, parentId); // EntryPoint -> TRIGGERS -> Function
+        }
+        if (child.Kind == OntologyConstants.NodeLabels.ExternalService)
+        {
+            return new CallsRelationship(parentId, child.Id); // Function -> CALLS -> ExternalService
+        }
 
         return new ContainsRelationship(parentId, child.Id);
+    }
+
+    private static string FindProjectDirectory(string filePath, string workspacePath)
+    {
+        var dir = Path.GetDirectoryName(filePath);
+        while (dir != null && dir.Replace('\\', '/').StartsWith(workspacePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+        {
+            if (Directory.GetFiles(dir, "*.csproj").Length > 0 ||
+                File.Exists(Path.Combine(dir, "package.json")) ||
+                File.Exists(Path.Combine(dir, "go.mod")))
+            {
+                return dir.Replace('\\', '/');
+            }
+            dir = Path.GetDirectoryName(dir);
+        }
+        return (Path.GetDirectoryName(filePath) ?? "").Replace('\\', '/');
     }
 }

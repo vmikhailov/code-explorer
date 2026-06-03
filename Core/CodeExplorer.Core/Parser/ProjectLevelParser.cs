@@ -72,7 +72,7 @@ public class ProjectLevelParser
             if (_gitignore.IsIgnored(relativeDir, true)) return;
 
             var dirNameLower = Path.GetFileName(currentDir).ToLowerInvariant();
-            var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea", "node_modules", "bin", "obj" };
+            var genericExclusions = new HashSet<string> { ".git", ".github", ".vscode", ".idea", "node_modules", "bin", "obj", "mocks", "__mocks__" };
             if (genericExclusions.Contains(dirNameLower)) return;
 
             // Language specific exclusions
@@ -120,6 +120,12 @@ public class ProjectLevelParser
 
             if (fileParser != null)
             {
+                if (IsTestOrMockFile(file))
+                {
+                    await Console.Error.WriteLineAsync($"[WorkspaceParser] Exclusion: Ignoring test/mock file '{relativeFile}'");
+                    continue;
+                }
+
                 var fileNode = await fileParser.ParseAsync(file, currentParentNode.Id, _ctx);
                 if (fileNode != null)
                 {
@@ -199,5 +205,29 @@ public class ProjectLevelParser
                 _ctx.AddRelsCount(1);
             }
         }
+    }
+
+    private static bool IsTestOrMockFile(string filePath)
+    {
+        var fileName = Path.GetFileName(filePath).ToLowerInvariant();
+        
+        // Mock files
+        if (fileName.Contains("mock")) return true;
+
+        // C# test patterns: e.g. MyTests.cs, MyTest.cs
+        if (fileName.EndsWith("tests.cs") || fileName.EndsWith("test.cs")) return true;
+        
+        // Go test pattern: e.g. my_test.go
+        if (fileName.EndsWith("_test.go")) return true;
+        
+        // Python test patterns: e.g. test_my.py, my_test.py
+        if (fileName.StartsWith("test_") && fileName.EndsWith(".py")) return true;
+        if (fileName.EndsWith("_test.py")) return true;
+        
+        // TS/JS test patterns: e.g. my.test.ts, my.spec.ts, my.test.js, my.spec.js
+        if (fileName.EndsWith(".test.ts") || fileName.EndsWith(".spec.ts") ||
+            fileName.EndsWith(".test.js") || fileName.EndsWith(".spec.js")) return true;
+            
+        return false;
     }
 }

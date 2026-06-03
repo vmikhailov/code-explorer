@@ -31,6 +31,28 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public string? MapNodeType(Node node)
     {
+        if (node.Type == "attribute")
+        {
+            var nameNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
+            if (nameNode != null && (nameNode.Text == "Route" || nameNode.Text.StartsWith("Http")))
+            {
+                return "EntryPoint";
+            }
+        }
+
+        if (IsHttpClientCall(node))
+        {
+            return "ExternalService";
+        }
+
+        if (node.Type.Contains("string"))
+        {
+            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
+            {
+                return "Query";
+            }
+        }
+
         return node.Type switch
         {
             "class_declaration" or
@@ -55,6 +77,24 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public string? ExtractIdentifier(Node node)
     {
+        if (node.Type == "attribute")
+        {
+            return ExtractCSharpAttributeRoute(node);
+        }
+
+        if (IsHttpClientCall(node))
+        {
+            return ExtractHttpClientTarget(node);
+        }
+
+        if (node.Type.Contains("string"))
+        {
+            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
+            {
+                return $"{firstWord} Query";
+            }
+        }
+
         var nameNode = node.GetChildForField("name");
         if (nameNode != null && nameNode.Id != IntPtr.Zero)
         {
@@ -82,10 +122,92 @@ public class CSharpParser : IProjectParser, IFileParser
         return null;
     }
 
+    private static bool IsHttpClientCall(Node node)
+    {
+        if (node.Type != "invocation_expression") return false;
+        var func = node.GetChildForField("function");
+        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
+        if (func == null || func.Id == IntPtr.Zero) return false;
+
+        if (func.Type == "member_access_expression")
+        {
+            var nameChild = func.GetChildForField("name");
+            if (nameChild != null && nameChild.Id != IntPtr.Zero)
+            {
+                var methodName = nameChild.Text;
+                return methodName is "GetAsync" or "PostAsync" or "PutAsync" or "DeleteAsync" or "SendAsync" or "PostAsJsonAsync" or "GetFromJsonAsync";
+            }
+        }
+        return false;
+    }
+
+    private static string? ExtractHttpClientTarget(Node node)
+    {
+        var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
+        if (argList != null && argList.Children.Count > 1)
+        {
+            var arg = argList.Children.FirstOrDefault(c => c.Type == "argument");
+            if (arg != null)
+            {
+                var valNode = arg.Children.FirstOrDefault();
+                if (valNode != null)
+                {
+                    var text = valNode.Text.Trim('"');
+                    if (text.Contains("://"))
+                    {
+                        try
+                        {
+                            var uri = new Uri(text);
+                            return $"http:{uri.Host}";
+                        }
+                        catch
+                        {
+                        }
+                    }
+                    return $"http:{text}";
+                }
+            }
+        }
+        return "http:unknown-service";
+    }
+
+    private static string? ExtractCSharpAttributeRoute(Node attributeNode)
+    {
+        var nameNode = attributeNode.Children.FirstOrDefault(c => c.Type == "identifier");
+        if (nameNode == null) return null;
+        var name = nameNode.Text;
+        if (name != "Route" && name != "HttpGet" && name != "HttpPost" && name != "HttpPut" && name != "HttpDelete" && name != "HttpPatch")
+        {
+            return null;
+        }
+
+        var argList = attributeNode.Children.FirstOrDefault(c => c.Type == "attribute_argument_list");
+        string routeVal = "/";
+        if (argList != null)
+        {
+            var arg = argList.Children.FirstOrDefault(c => c.Type == "attribute_argument");
+            if (arg != null)
+            {
+                var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
+                if (strNode != null)
+                {
+                    routeVal = strNode.Text.Trim('"');
+                }
+            }
+        }
+
+        var method = name == "Route" ? "GET" : name.Replace("Http", "").ToUpperInvariant();
+        return $"{method}:{routeVal}";
+    }
+
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
     {
         TryDetectCalls(node, scopeSymbolId, references);
         TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
+        if (node.Type.Contains("string"))
+        {
+            NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
+        }
     }
 
     private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
