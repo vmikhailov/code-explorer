@@ -8,6 +8,8 @@
 
 It also serves as a **Model Context Protocol (MCP)** server, allowing AI agents (such as Gemini, Claude, or ChatGPT) to recursively explore, query, and refactor the repository graph using Cypher.
 
+![Codebase Ontology Graph Example](docs/graph-example.png)
+
 ---
 
 ## 🚀 Key Features
