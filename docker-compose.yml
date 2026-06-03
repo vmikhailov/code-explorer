@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   memgraph:
     image: memgraph/memgraph-platform:latest
@@ -9,4 +7,19 @@ services:
     environment:
       - MEMGRAPH_USER=
       - MEMGRAPH_PASSWORD=
+    restart: always
+
+  codeexplorer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: codeexplorer:latest
+    ports:
+      - "8085:8085"
+    environment:
+      - MEMGRAPH_USER=
+      - MEMGRAPH_PASSWORD=
+    command: ["mcp", "--port", "8085", "--bolt-url", "bolt://memgraph:7687"]
+    depends_on:
+      - memgraph
     restart: always
