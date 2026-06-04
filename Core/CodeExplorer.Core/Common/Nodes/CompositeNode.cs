@@ -12,6 +12,9 @@ public abstract record CompositeNode(
     public abstract string Kind { get; }
 
     [JsonIgnore]
+    public abstract string Path { get; init; }
+
+    [JsonIgnore]
     public List<IOntologyNode> Children { get; } = [];
 
     [JsonIgnore]

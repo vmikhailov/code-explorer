@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
@@ -8,34 +9,47 @@ public class WorkspaceLevelParser
 {
     private readonly ParsingContext _ctx;
     private readonly string _absoluteWorkspacePath;
-    private readonly string _workspaceNodeId;
     private readonly GitIgnoreMatcher _gitignore;
 
     public WorkspaceLevelParser(ParsingContext ctx)
     {
         _ctx = ctx;
         _absoluteWorkspacePath = ctx.AbsoluteWorkspacePath;
-        _workspaceNodeId = $"workspace:{_absoluteWorkspacePath}";
         _gitignore = new GitIgnoreMatcher(_absoluteWorkspacePath);
     }
 
     public async Task ParseAsync()
     {
+        // 0. Get or create Workspace ID from database (auto-incremented)
+        var wsId = await _ctx.DbClient.GetOrCreateWorkspaceIdAsync(_ctx.HostWorkspacePath);
+        _ctx.WorkspaceId = wsId;
+
         // 1. Clear database sequentially at root to avoid contentions
         if (_ctx.Clear)
         {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Clearing previous root workspace data for '{_absoluteWorkspacePath}'...");
-            await _ctx.DbClient.ClearWorkspaceAsync(_absoluteWorkspacePath);
+            _ctx.Log($"[WorkspaceParser] Clearing previous root workspace data for '{_ctx.HostWorkspacePath}'...");
+            await _ctx.DbClient.ClearWorkspaceAsync(_ctx.HostWorkspacePath);
         }
 
-        var folderName = Path.GetFileName(_absoluteWorkspacePath);
-        if (string.IsNullOrEmpty(folderName)) folderName = _absoluteWorkspacePath;
+        // Save/reserve empty Workspace node first to define ID
+        await _ctx.DbClient.SaveEmptyWorkspaceNodeAsync(wsId, _ctx.HostWorkspacePath);
 
+        var folderName = Path.GetFileName(_ctx.HostWorkspacePath);
+        if (string.IsNullOrEmpty(folderName)) folderName = _ctx.HostWorkspacePath;
+
+        var hostPath = PathTools.NormalizeToHostPath(_ctx.HostWorkspacePath);
         var workspaceNode = new WorkspaceNode(
-            _workspaceNodeId,
+            wsId,
             folderName,
-            _absoluteWorkspacePath
+            hostPath
         );
+
+        // Parse and add Git settings if the workspace has a .git folder
+        var gitSettingsNode = GitSettingsParser.Parse(wsId, _absoluteWorkspacePath);
+        if (gitSettingsNode != null)
+        {
+            workspaceNode.Children.Add(gitSettingsNode);
+        }
 
         // 2. Recursively scan, discovering projects inline!
         await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode);
@@ -55,7 +69,7 @@ public class WorkspaceLevelParser
         // 1. Check GitIgnore exclusions first
         if (!string.IsNullOrEmpty(relativeDir) && _gitignore.IsIgnored(relativeDir, true))
         {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] GitIgnore: Ignoring directory '{relativeDir}'");
+            _ctx.Log($"[WorkspaceParser] GitIgnore: Ignoring directory '{relativeDir}'");
             return;
         }
 
@@ -71,17 +85,13 @@ public class WorkspaceLevelParser
         };
         if (genericExclusions.Contains(dirNameLower))
         {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Generic: Skipping VCS/IDE/Build folder '{relativeDir}'");
+            _ctx.Log($"[WorkspaceParser] Generic: Skipping VCS/IDE/Build folder '{relativeDir}'");
             return;
         }
 
         // 3. Scan folder for project signatures to detect projects dynamically
         var filesInDir = Directory.GetFiles(currentDir);
-        IProjectParser? matchedParser = null;
-        lock (WorkspaceParser.ProjectParsers)
-        {
-            matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, filesInDir));
-        }
+        var matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, filesInDir));
 
         if (matchedParser != null)
         {
@@ -95,7 +105,7 @@ public class WorkspaceLevelParser
         var currentParentNode = parentNode;
         if (!string.IsNullOrEmpty(relativeDir))
         {
-            var folderId = $"workspacefolder:{_absoluteWorkspacePath}:{relativeDir}";
+            var folderId = $"{_ctx.WorkspaceId}:workspacefolder:{relativeDir}";
             var folderNode = new WorkspaceFolderNode(folderId, dirName, relativeDir);
             parentNode.Children.Add(folderNode);
             currentParentNode = folderNode;
@@ -115,7 +125,7 @@ public class WorkspaceLevelParser
 
             if (_gitignore.IsIgnored(relativeFile, false))
             {
-                await Console.Error.WriteLineAsync($"[WorkspaceParser] GitIgnore: Ignoring file '{relativeFile}'");
+                _ctx.Log($"[WorkspaceParser] GitIgnore: Ignoring file '{relativeFile}'");
                 continue;
             }
 
@@ -143,7 +153,7 @@ public class WorkspaceLevelParser
 
         CollectPublicSymbols(rootNode, entryPoints, externalServices);
 
-        Console.Error.WriteLine($"[LateBinding] Found {entryPoints.Count} EntryPoints and {externalServices.Count} ExternalServices in the workspace.");
+        _ctx.Log($"[LateBinding] Found {entryPoints.Count} EntryPoints and {externalServices.Count} ExternalServices in the workspace.");
 
         var lateBoundRels = new List<Relationship>();
 
@@ -153,7 +163,7 @@ public class WorkspaceLevelParser
             {
                 if (IsMatch(extService, entryPoint))
                 {
-                    Console.Error.WriteLine($"[LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
+                    _ctx.Log($"[LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsRelationship(extService.Id, entryPoint.Id));
                     lateBoundRels.Add(rel);
                 }
@@ -162,7 +172,7 @@ public class WorkspaceLevelParser
 
         if (lateBoundRels.Count > 0)
         {
-            Console.Error.WriteLine($"[LateBinding] Enqueuing {lateBoundRels.Count} late-bound relationships...");
+            _ctx.Log($"[LateBinding] Enqueuing {lateBoundRels.Count} late-bound relationships...");
             await _ctx.EnqueueUploadRelationshipsAsync(lateBoundRels);
             _ctx.AddRelsCount(lateBoundRels.Count);
         }

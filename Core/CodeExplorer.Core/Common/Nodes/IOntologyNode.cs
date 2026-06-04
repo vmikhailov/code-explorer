@@ -6,6 +6,7 @@ public interface IOntologyNode
 {
     string Id { get; }
     string Kind { get; }
+    string Path { get; }
     Dictionary<string, string>? Extensions { get; }
     List<IOntologyNode> Children { get; }
     List<Reference> References { get; }

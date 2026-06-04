@@ -23,6 +23,7 @@ public static class OntologyConstants
         public const string EntryPoint = "EntryPoint";
         public const string CloudService = "CloudService";
         public const string ExternalService = "ExternalService";
+        public const string GitSettings = "GitSettings";
     }
 
     public static class Relationships
@@ -40,5 +41,6 @@ public static class OntologyConstants
         public const string PublishesTo = "PUBLISHES_TO";
         public const string Triggers = "TRIGGERS";
         public const string Exposes = "EXPOSES";
+        public const string UsesGit = "USES_GIT";
     }
 }

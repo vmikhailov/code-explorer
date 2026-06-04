@@ -1,4 +1,5 @@
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -216,7 +217,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
     private static bool IsTsHttpClientCall(Node node)
     {
         if (node.Type != "call_expression") return false;
-        
+
         var func = node.GetChildForField("function");
         if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
         if (func == null || func.Id == IntPtr.Zero) return false;
@@ -274,26 +275,26 @@ public class TypeScriptParser : IProjectParser, IFileParser
             NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
         }
 
-        // If this is a decorator (EntryPoint) on a method, link it to the next method sibling via TRIGGERS
-        if (node.Type == "decorator" && scopeSymbolId.StartsWith("entrypoint:"))
+        // If this is a method_definition preceded by an EntryPoint decorator, link via IMPLEMENTS
+        if (node.Type == "method_definition")
         {
-            var nextNode = GetNextNamedSibling(node);
-            if (nextNode != null && nextNode.Type == "method_definition")
+            var prevSibling = GetPreviousNamedSibling(node);
+            if (prevSibling != null && prevSibling.Type == "decorator" && IsTsDecoratorEntryPoint(prevSibling))
             {
-                var methodName = ExtractIdentifier(nextNode);
-                if (!string.IsNullOrEmpty(methodName))
+                var route = ExtractTsDecoratorRoute(prevSibling);
+                if (!string.IsNullOrEmpty(route))
                 {
-                    references.Add(new Reference(scopeSymbolId, methodName, "TRIGGERS"));
+                    references.Add(new Reference(scopeSymbolId, route.Replace(":", " "), OntologyConstants.Relationships.Implements));
                 }
             }
         }
     }
 
-    private static Node? GetNextNamedSibling(Node node)
+    private static Node? GetPreviousNamedSibling(Node node)
     {
         var parent = node.Parent;
         if (parent == null || parent.Id == IntPtr.Zero) return null;
-        
+
         var children = parent.Children;
         int idx = -1;
         for (int i = 0; i < children.Count; i++)
@@ -304,7 +305,26 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 break;
             }
         }
-        
+
+        return idx > 0 ? children[idx - 1] : null;
+    }
+
+    private static Node? GetNextNamedSibling(Node node)
+    {
+        var parent = node.Parent;
+        if (parent == null || parent.Id == IntPtr.Zero) return null;
+
+        var children = parent.Children;
+        int idx = -1;
+        for (int i = 0; i < children.Count; i++)
+        {
+            if (children[i].Id == node.Id)
+            {
+                idx = i;
+                break;
+            }
+        }
+
         if (idx >= 0)
         {
             for (int i = idx + 1; i < children.Count; i++)
@@ -386,7 +406,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
             if (root.TryGetProperty("private", out var privateProp))
             {
                 if (privateProp.ValueKind == System.Text.Json.JsonValueKind.True ||
-                    (privateProp.ValueKind == System.Text.Json.JsonValueKind.String && 
+                    (privateProp.ValueKind == System.Text.Json.JsonValueKind.String &&
                      string.Equals(privateProp.GetString(), "true", StringComparison.OrdinalIgnoreCase)))
                 {
                     return null;

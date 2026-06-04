@@ -19,7 +19,9 @@ public class ProjectLevelParser
         _projectDir = projectDir.Replace('\\', '/');
         _parentContainerId = parentContainerId;
         _projectParser = projectParser;
-        _projectNodeId = $"project:{_projectDir}:";
+        var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, projectDir).Replace('\\', '/');
+        if (relativeProjectDir == ".") relativeProjectDir = "";
+        _projectNodeId = $"{_ctx.WorkspaceId}:project:{relativeProjectDir}:";
         _gitignore = new GitIgnoreMatcher(_projectDir);
     }
 
@@ -72,7 +74,7 @@ public class ProjectLevelParser
         if (currentDir != _projectDir)
         {
             var dirName = Path.GetFileName(currentDir);
-            var folderId = $"projectfolder:{_ctx.AbsoluteWorkspacePath}:{relativeDir}";
+            var folderId = $"{_ctx.WorkspaceId}:projectfolder:{relativeDir}";
             
             var folderNode = new ProjectFolderNode(folderId, dirName, relativeDir);
             parentNode.Children.Add(folderNode);
@@ -148,15 +150,17 @@ public class ProjectLevelParser
                 foreach (var localPath in depInfo.LocalProjectPaths)
                 {
                     var targetDir = Path.GetFullPath(localPath).Replace('\\', '/');
-                    var targetProjectNodeId = $"project:{targetDir}:";
+                    var relativeTargetDir = Path.GetRelativePath(_ctx.AbsoluteWorkspacePath, targetDir).Replace('\\', '/');
+                    if (relativeTargetDir == ".") relativeTargetDir = "";
+                    var targetProjectNodeId = $"{_ctx.WorkspaceId}:project:{relativeTargetDir}:";
                     _ctx.AddGlobalProjectDependency(Relationship.FromRelationship(new DependsOnRelationship(_projectNodeId, targetProjectNodeId)));
                 }
 
                 // B. Process external package dependencies
                 foreach (var extPack in depInfo.ExternalPackages)
                 {
-                    var packageNodeId = $"package:{extPack.Name.ToLowerInvariant()}";
-                    var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type);
+                    var packageNodeId = $"{_ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
+                    var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type, projectNode.Path);
                     projectNode.Children.Add(packageNode);
                 }
             }
@@ -175,8 +179,8 @@ public class ProjectLevelParser
             var producedPackage = await _projectParser.GetProducedPackageAsync(_projectDir);
             if (producedPackage != null)
             {
-                var packageNodeId = $"package:{producedPackage.Name.ToLowerInvariant()}";
-                var packageNode = new PackageNode(packageNodeId, producedPackage.Name, producedPackage.Version, producedPackage.Type);
+                var packageNodeId = $"{_ctx.WorkspaceId}:package:{producedPackage.Name.ToLowerInvariant()}";
+                var packageNode = new PackageNode(packageNodeId, producedPackage.Name, producedPackage.Version, producedPackage.Type, projectNode.Path);
 
                 projectNode.Children.Add(packageNode);
 
@@ -197,8 +201,8 @@ public class ProjectLevelParser
             var dirName = Path.GetFileName(_projectDir);
             if (!string.IsNullOrEmpty(dirName))
             {
-                var packageNodeId = $"package:{dirName.ToLowerInvariant()}";
-                var packageNode = new PackageNode(packageNodeId, dirName, "1.0.0", "unknown");
+                var packageNodeId = $"{_ctx.WorkspaceId}:package:{dirName.ToLowerInvariant()}";
+                var packageNode = new PackageNode(packageNodeId, dirName, "1.0.0", "unknown", projectNode.Path);
 
                 projectNode.Children.Add(packageNode);
 

@@ -86,43 +86,54 @@ graph TD
 * **`Workspace`**
   * **Description**: The absolute root directory representing the opened codebase.
   * **Properties collected**:
-    * `id` (string): Absolute filesystem path of the workspace.
+    * `id` (string): Auto-incremented workspace identifier (e.g. `1`, `2`).
     * `name` (string): Name of the root directory.
     * `path` (string): Absolute filesystem path of the workspace.
 * **`WorkspaceFolder`**
   * **Description**: Subdirectories sitting directly under the workspace before project boundaries.
   * **Properties collected**:
-    * `id` (string): Absolute filesystem path of the folder.
+    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:workspacefolder:{relativeDir}`).
     * `name` (string): Name of the folder.
     * `path` (string): Relative filesystem path from the parent workspace/folder.
+* **`GitSettings`**
+  * **Description**: Git repository configuration settings (e.g. branch, origin URL, userName, userEmail).
+  * **Properties collected**:
+    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:gitsettings`).
+    * `name` (string): Node display name.
+    * `branch` (string): Active git branch.
+    * `origin_url` (string): Git remote origin URL.
+    * `user_name` (string): Local Git username.
+    * `user_email` (string): Local Git email.
+    * `path` (string): Relative path from the workspace root (always `""`).
 
 ### Level 2: Project Declarations
 * **`Project`**
   * **Description**: A buildable module, solution component, or package root (e.g. `.csproj`, `go.mod`, `package.json`).
   * **Properties collected**:
-    * `id` (string): Absolute path to the project descriptor file/folder.
+    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:project:{relativeProjectDir}:`).
     * `name` (string): Project or module name.
     * `path` (string): Relative directory path from the workspace root.
     * `project_type` (string): Language type (`csharp`, `go`, `python`, `typescript`, `sql`).
 * **`ProjectFolder`**
   * **Description**: Subdirectories inside a project structure containing source code files.
   * **Properties collected**:
-    * `id` (string): Absolute path of the project subdirectory.
+    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:projectfolder:{relativeDir}`).
     * `name` (string): Folder name.
     * `path` (string): Relative path from the declaring project parent.
 * **`Package`**
   * **Description**: External package or library referenced as dependencies (e.g. NuGet packages, npm packages, Go modules).
   * **Properties collected**:
-    * `id` (string): Unique package key (`type:name:version`).
+    * `id` (string): Unique package key prefixed with workspace ID (`{workspaceId}:package:{packageName}`).
     * `name` (string): Library name.
     * `version` (string): Installed version.
     * `type` (string): Registry ecosystem (`nuget`, `npm`, `go`).
+    * `path` (string): Relative path to the workspace root of the project declaring this dependency.
 
 ### Level 3: Files & General Containers
 * **`File`**
   * **Description**: Individual source files that contain code or database queries.
   * **Properties collected**:
-    * `id` (string): Absolute path to the file.
+    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:file:{relativeFilePath}`).
     * `name` (string): Filename basename (including extension).
     * `path` (string): Relative path from the workspace root.
 
@@ -134,6 +145,7 @@ graph TD
     * `name` (string): Unqualified name of the class/struct.
     * `symbol` (string): Fully qualified name/symbol scope.
     * `file_path` (string): Workspace-relative path to the containing file.
+    * `path` (string): Workspace-relative path to the containing file.
     * `start_line` / `end_line` (int): Code definition bounds.
     * `start_col` / `end_col` (int): Character index column bounds.
 * **`Interface`**
@@ -143,6 +155,7 @@ graph TD
     * `name` (string): Interface name.
     * `symbol` (string): Fully qualified symbol scope.
     * `file_path` (string): Relative path of the containing file.
+    * `path` (string): Workspace-relative path to the containing file.
     * `start_line` / `end_line` (int): Code bounds.
     * `start_col` / `end_col` (int): Column bounds.
 
@@ -154,6 +167,7 @@ graph TD
     * `name` (string): Unqualified function name.
     * `symbol` (string): Fully qualified symbol path.
     * `file_path` (string): Relative path of the containing file.
+    * `path` (string): Workspace-relative path to the containing file.
     * `start_line` / `end_line` (int): Method bounds.
     * `start_col` / `end_col` (int): Column bounds.
 * **`Variable`**
@@ -163,6 +177,7 @@ graph TD
     * `name` (string): Variable name.
     * `symbol` (string): Fully qualified symbol scope.
     * `file_path` (string): Relative path of the containing file.
+    * `path` (string): Workspace-relative path to the containing file.
     * `start_line` / `end_line` (int): Location bounds.
     * `start_col` / `end_col` (int): Column bounds.
 
@@ -203,57 +218,62 @@ graph TD
 * **`Queue`**
   * **Description**: Message queue or publish-subscribe channel (e.g. RabbitMQ queue, Kafka topic, or internal in-memory queue like C# `InMemQueue`).
   * **Properties collected**:
-    * `id` (string): Unique queue ID.
+    * `id` (string): Unique queue ID prefixed with workspace ID (`{workspaceId}:queue:{queueName}`).
     * `name` (string): Queue or topic name.
     * `type` (string): Broker type (`rabbitmq`, `kafka`, `in-memory`).
+    * `path` (string): Relative path from the workspace root where the queue is declared or referenced.
 * **`EntryPoint`**
   * **Description**: HTTP routes, RPC stubs, CLI commands, or queue consumers exposed by projects.
   * **Properties collected**:
-    * `id` (string): Unique entry point ID (`entrypoint:{projectName}:{protocol}:{route_or_topic}`).
+    * `id` (string): Unique entry point ID (`{workspaceId}:entrypoint:{projectName}:{protocol}:{route_or_topic}`).
     * `name` (string): Name or identifier.
     * `protocol` (string): Protocol type (`http`, `grpc`, `event`, `cli`).
     * `route_or_topic` (string): Target URL path or topic name.
+    * `path` (string): Relative path of the containing file from the workspace root.
 * **`CloudService`**
   * **Description**: External managed cloud services (e.g. AWS S3 bucket, GCP BigQuery dataset, Azure Table Storage).
   * **Properties collected**:
-    * `id` (string): Unique service ID (`cloudservice:{type}:{resourceName}`).
+    * `id` (string): Unique service ID (`{workspaceId}:cloudservice:{type}:{resourceName}`).
     * `name` (string): Resource or service instance name.
     * `type` (string): Cloud service type (e.g., `aws_s3`, `gcp_bigquery`).
+    * `path` (string): Relative path from the workspace root where the cloud service is declared or used.
 * **`ExternalService`**
   * **Description**: Remote microservices or third-party API hosts invoked by code.
   * **Properties collected**:
-    * `id` (string): Unique service ID (`externalservice:{protocol}:{domain_or_service_name}`).
+    * `id` (string): Unique service ID (`{workspaceId}:externalservice:{protocol}:{domain_or_service_name}`).
     * `name` (string): Domain name or logical service name.
     * `protocol` (string): Remote communication protocol (`http`, `grpc`).
     * `domain_or_service` (string): Remote endpoint host name.
+    * `path` (string): Relative path of the containing file from the workspace root.
 
 ---
 
 ## 3. Node URN / ID Schemes
 
-To guarantee uniqueness across multi-project workspaces and multiple database instances, CodeExplorer uses structured Uniform Resource Names (URNs) for node IDs. The table below lists the ID schemes and their scope:
+To guarantee uniqueness across multi-project workspaces and multiple database instances, CodeExplorer uses structured Uniform Resource Names (URNs) for node IDs, prefixed by an auto-incremented workspace identifier (`{workspaceId}`). The table below lists the ID schemes and their scope:
 
 | Node Label | ID / URN Scheme | Uniqueness Scope | Description / Example |
 | :--- | :--- | :--- | :--- |
-| **`Workspace`** | `workspace:{absoluteWorkspacePath}` | Global | `workspace:/Users/slava/Projects/Personal/CodeExplorer` |
-| **`WorkspaceFolder`** | `workspacefolder:{absoluteWorkspacePath}:{relativeDir}` | Workspace | `workspacefolder:/Users/slava/Projects/Personal/CodeExplorer:docs` |
-| **`Project`** | `project:{absoluteProjectPath}:` | Workspace | `project:/Users/slava/Projects/Personal/CodeExplorer/Core/CodeExplorer.Core:` |
-| **`ProjectFolder`** | `projectfolder:{absoluteWorkspacePath}:{relativeDir}` | Workspace | `projectfolder:/Users/slava/Projects/Personal/CodeExplorer:Core/CodeExplorer.Core/Mcp` |
-| **`Package`** | `{type}:{name}:{version}` | Ecosystem | `nuget:Neo4j.Driver:6.1.2` or `npm:react:18.2.0` |
-| **`File`** | `file:{absoluteWorkspacePath}:{relativeFilePath}` | Workspace | `file:/Users/slava/Projects/Personal/CodeExplorer:Core/CodeExplorer.Core/Mcp/McpServer.cs` |
-| **`Class`** | `symbol:{absoluteWorkspacePath}:{relativeFilePath}:Class:{name}:{startLine}` | File | `symbol:/Users/slava/Projects/Personal/CodeExplorer:Core/CodeExplorer.Core/Mcp/McpServer.cs:Class:McpServer:7` |
-| **`Interface`** | `symbol:{absoluteWorkspacePath}:{relativeFilePath}:Interface:{name}:{startLine}` | File | `symbol:/Users/slava/Projects/Personal/CodeExplorer:Core/CodeExplorer.Core/Parser/IFileParser.cs:Interface:IFileParser:5` |
-| **`Function`** | `symbol:{absoluteWorkspacePath}:{relativeFilePath}:Function:{name}:{startLine}` | File | `symbol:/Users/slava/Projects/Personal/CodeExplorer:Core/CodeExplorer.Core/Mcp/McpServer.cs:Function:StartAsync:9` |
-| **`Variable`** | `symbol:{absoluteWorkspacePath}:{relativeFilePath}:Variable:{name}:{startLine}` | File | `symbol:/Users/slava/Projects/Personal/CodeExplorer:Core/CodeExplorer.Core/Parser/FileLevelParser.cs:Variable:_filePath:10` |
-| **`DB`** | `db:{dbKind}:{databaseName}` | Global DB | `db:pg:defaultdb` or `db:mssql:orders_db` (forced lowercase) |
-| **`DataSet`** | `db:{dbKind}:{databaseName}:dataset:{schemaName}` | Database | `db:mssql:defaultdb:dataset:dbo` (forced lowercase schema name) |
-| **`Table`** | `db:{dbKind}:{databaseName}:dataset:{schemaName}:table:{tableName}` | Schema | `db:mssql:defaultdb:dataset:dbo:table:orders` (forced lowercase table name) |
-| **`Procedure`** | `db:{dbKind}:{databaseName}:dataset:{schemaName}:procedure:{procedureName}` | Schema | `db:mssql:defaultdb:dataset:dbo:procedure:get_orders` |
-| **`Query`** | `{containingParentId}:query:{queryCounter}` | Parent Scope | `db:mssql:defaultdb:dataset:dbo:procedure:get_orders:query:1` (for queries nested inside stored procedures) or `file:/Users/slava/Projects/Personal/CodeExplorer:sql/query.sql:query:1` (for files) |
-| **`Queue`** | `queue:{type}:{queueName}` | Workspace | `queue:rabbitmq:FinalizeSlip` or `queue:in-memory:EventPending` |
-| **`EntryPoint`** | `entrypoint:{projectName}:{protocol}:{route_or_topic}` | Project | `entrypoint:BillingService:http:POST:/charge` |
-| **`CloudService`** | `cloudservice:{type}:{resourceName}` | Global | `cloudservice:aws_s3:slip-attachments` |
-| **`ExternalService`** | `externalservice:{protocol}:{domain_or_service_name}` | Global | `externalservice:http:api.stripe.com` |
+| **`Workspace`** | `{workspaceId}` | Global | `1` or `2` |
+| **`WorkspaceFolder`** | `{workspaceId}:workspacefolder:{relativeDir}` | Workspace | `1:workspacefolder:docs` |
+| **`Project`** | `{workspaceId}:project:{relativeProjectDir}:` | Workspace | `1:project:Core/CodeExplorer.Core:` |
+| **`ProjectFolder`** | `{workspaceId}:projectfolder:{relativeDir}` | Workspace | `1:projectfolder:Core/CodeExplorer.Core/Mcp` |
+| **`Package`** | `{workspaceId}:package:{packageName}` | Ecosystem | `1:package:neo4j.driver` or `1:package:react` (lowercase package name) |
+| **`File`** | `{workspaceId}:file:{relativeFilePath}` | Workspace | `1:file:Core/CodeExplorer.Core/Mcp/McpServer.cs` |
+| **`Class`** | `{workspaceId}:symbol:{relativeFilePath}:Class:{name}:{startLine}` | File | `1:symbol:Core/CodeExplorer.Core/Mcp/McpServer.cs:Class:McpServer:7` |
+| **`Interface`** | `{workspaceId}:symbol:{relativeFilePath}:Interface:{name}:{startLine}` | File | `1:symbol:Core/CodeExplorer.Core/Parser/IFileParser.cs:Interface:IFileParser:5` |
+| **`Function`** | `{workspaceId}:symbol:{relativeFilePath}:Function:{name}:{startLine}` | File | `1:symbol:Core/CodeExplorer.Core/Mcp/McpServer.cs:Function:StartAsync:9` |
+| **`Variable`** | `{workspaceId}:symbol:{relativeFilePath}:Variable:{name}:{startLine}` | File | `1:symbol:Core/CodeExplorer.Core/Parser/FileLevelParser.cs:Variable:_filePath:10` |
+| **`DB`** | `{workspaceId}:db:{databaseName}` | Global DB | `1:db:defaultdb` or `1:db:orders_db` (forced lowercase database name) |
+| **`DataSet`** | `{workspaceId}:db:{databaseName}:dataset:{schemaName}` | Database | `1:db:defaultdb:dataset:dbo` (forced lowercase schema name) |
+| **`Table`** | `{workspaceId}:db:{databaseName}:dataset:{schemaName}:table:{tableName}` | Schema | `1:db:defaultdb:dataset:dbo:table:orders` (forced lowercase table name) |
+| **`Procedure`** | `{workspaceId}:db:{databaseName}:dataset:{schemaName}:procedure:{procedureName}` | Schema | `1:db:defaultdb:dataset:dbo:procedure:get_orders` |
+| **`Query`** | `{containingParentId}:query:{queryCounter}` | Parent Scope | `1:db:defaultdb:dataset:dbo:procedure:get_orders:query:1` (for queries nested inside stored procedures) or `1:file:sql/query.sql:query:1` (for files) |
+| **`Queue`** | `{workspaceId}:queue:{queueName}` | Workspace | `1:queue:rabbitmq:FinalizeSlip` or `1:queue:in-memory:EventPending` |
+| **`EntryPoint`** | `{workspaceId}:entrypoint:{projectName}:{protocol}:{route_or_topic}` | Project | `1:entrypoint:BillingService:http:POST:/charge` |
+| **`CloudService`** | `{workspaceId}:cloudservice:{type}:{resourceName}` | Global | `1:cloudservice:aws_s3:slip-attachments` |
+| **`ExternalService`** | `{workspaceId}:externalservice:{protocol}:{domain_or_service_name}` | Global | `1:externalservice:http:api.stripe.com` |
+| **`GitSettings`** | `{workspaceId}:gitsettings` | Workspace | `1:gitsettings` |
 
 ---
 

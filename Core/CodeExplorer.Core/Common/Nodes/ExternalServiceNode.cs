@@ -7,6 +7,7 @@ public record ExternalServiceNode(
     string Name,
     string Protocol,
     string DomainOrService,
+    string Path,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {

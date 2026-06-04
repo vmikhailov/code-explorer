@@ -30,10 +30,10 @@ public static class OntologyUploader
     }
 
     private static void CollectTreeElements(
-        IOntologyNode node, 
-        string? parentId, 
-        ParsingContext ctx, 
-        List<Node> collectedNodes, 
+        IOntologyNode node,
+        string? parentId,
+        ParsingContext ctx,
+        List<Node> collectedNodes,
         List<Relationship> collectedRelationships)
     {
         // 1. Convert and collect the current node
@@ -43,11 +43,12 @@ public static class OntologyUploader
         ctx.AddNodesCount(1);
 
         // 2. Map global symbols for reference resolution
-        if (node.Kind == OntologyConstants.NodeLabels.Class || 
-            node.Kind == OntologyConstants.NodeLabels.Interface || 
+        if (node.Kind == OntologyConstants.NodeLabels.Class ||
+            node.Kind == OntologyConstants.NodeLabels.Interface ||
             node.Kind == OntologyConstants.NodeLabels.Function ||
             node.Kind == OntologyConstants.NodeLabels.Procedure ||
-            node.Kind == OntologyConstants.NodeLabels.Table)
+            node.Kind == OntologyConstants.NodeLabels.Table ||
+            node.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
             if (dbNode.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
             {
@@ -69,10 +70,25 @@ public static class OntologyUploader
         {
             var fullPath = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, relativeFilePath));
             var projectDir = FindProjectDirectory(fullPath, ctx.AbsoluteWorkspacePath);
-            var projectNodeId = $"project:{projectDir}:";
+            var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, projectDir).Replace('\\', '/');
+            if (relativeProjectDir == ".") relativeProjectDir = "";
+            var projectNodeId = $"{ctx.WorkspaceId}:project:{relativeProjectDir}:";
             var exposesRel = Relationship.FromRelationship(new ExposesRelationship(projectNodeId, node.Id));
             collectedRelationships.Add(exposesRel);
             ctx.AddRelsCount(1);
+        }
+
+        // Special: If Project, link it to GitSettings via USES_GIT
+        if (node.Kind == OntologyConstants.NodeLabels.Project)
+        {
+            var gitDir = Path.Combine(ctx.AbsoluteWorkspacePath, ".git");
+            if (Directory.Exists(gitDir))
+            {
+                var gitSettingsId = $"{ctx.WorkspaceId}:gitsettings";
+                var usesGitRel = Relationship.FromRelationship(new UsesGitRelationship(node.Id, gitSettingsId));
+                collectedRelationships.Add(usesGitRel);
+                ctx.AddRelsCount(1);
+            }
         }
 
         // 4. Collect unresolved references/dependencies
@@ -94,7 +110,7 @@ public static class OntologyUploader
         {
             return new DependsOnRelationship(parentId, child.Id);
         }
-        if (child.Kind == OntologyConstants.NodeLabels.Project && parentId.StartsWith("package:"))
+        if (child.Kind == OntologyConstants.NodeLabels.Project && parentId.Contains(":package:"))
         {
             return new ImplementedByRelationship(parentId, child.Id);
         }
@@ -104,7 +120,7 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
-            return new TriggersRelationship(child.Id, parentId); // EntryPoint -> TRIGGERS -> Function
+            return new ImplementsRelationship(parentId, child.Id); // Function -> IMPLEMENTS -> EntryPoint
         }
         if (child.Kind == OntologyConstants.NodeLabels.ExternalService)
         {

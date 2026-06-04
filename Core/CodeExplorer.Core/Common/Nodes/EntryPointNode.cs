@@ -7,6 +7,7 @@ public record EntryPointNode(
     string Name,
     string Protocol,
     string RouteOrTopic,
+    string Path,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {

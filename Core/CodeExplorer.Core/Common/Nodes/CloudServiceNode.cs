@@ -6,6 +6,7 @@ public record CloudServiceNode(
     string Id,
     string Name,
     string Type,
+    string Path,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {

@@ -16,7 +16,7 @@ public class WorkspaceIndexerService(MemgraphClient dbClient)
 
         var absolutePath = Path.GetFullPath(resolvedPath).Replace('\\', '/');
 
-        var parser = new WorkspaceParser(absolutePath, dbClient, clear);
+        var parser = new WorkspaceParser(dirPath, absolutePath, dbClient, clear);
         return await parser.IndexAsync();
     }
 }

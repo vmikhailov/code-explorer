@@ -19,12 +19,12 @@ public static class TreeSitterFileParser
         using var parser = new TreeSitter.Parser(language);
         using var tree = parser.Parse(sourceText);
 
-        var fileNodeId = $"file:{ctx.AbsoluteWorkspacePath}:{relativePath}";
+        var fileNodeId = $"{ctx.WorkspaceId}:file:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
 
         if (tree != null)
         {
-            TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx.AbsoluteWorkspacePath, relativePath);
+            TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx, relativePath);
         }
 
         Console.WriteLine($"Finished parsing file: {relativePath} with {fileNode.Children.Count} top-level symbols.");
@@ -36,7 +36,7 @@ public static class TreeSitterFileParser
         IOntologyNode currentParent,
         string parentId,
         IFileParser parser,
-        string workspacePath,
+        ParsingContext ctx,
         string filePath)
     {
         var kind = parser.MapNodeType(node);
@@ -57,16 +57,16 @@ public static class TreeSitterFileParser
             }
             else
             {
-                var symbolId = $"symbol:{workspacePath}:{filePath}:{kind}:{name}:{node.StartPosition.Row}";
+                var symbolId = $"{ctx.WorkspaceId}:symbol:{filePath}:{kind}:{name}:{node.StartPosition.Row}";
                 IOntologyNode typedNode = kind switch
                 {
-                    OntologyConstants.NodeLabels.Class => new ClassNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                    OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                    OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                    OntologyConstants.NodeLabels.Class => new ClassNode(symbolId, name, symbolId, Path.GetFileName(filePath), filePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                    OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, Path.GetFileName(filePath), filePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+                    OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, Path.GetFileName(filePath), filePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
                     // OntologyConstants.NodeLabels.Variable => new VariableNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
                     OntologyConstants.NodeLabels.Query => NestedSqlParser.ParseNestedSql(node.Text, symbolId, filePath) ?? new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(node.Text), filePath),
-                    OntologyConstants.NodeLabels.EntryPoint => CreateEntryPointNode(name, filePath, workspacePath, node),
-                    OntologyConstants.NodeLabels.ExternalService => CreateExternalServiceNode(name, filePath, workspacePath, node),
+                    OntologyConstants.NodeLabels.EntryPoint => CreateEntryPointNode(name, filePath, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, node),
+                    OntologyConstants.NodeLabels.ExternalService => CreateExternalServiceNode(name, filePath, ctx.WorkspaceId, node),
                     _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
                 };
 
@@ -77,7 +77,7 @@ public static class TreeSitterFileParser
         }
 
         // Collect references inside the current symbol scope
-        if (currentParentId.StartsWith("symbol:"))
+        if (currentParentId.Contains(":symbol:"))
         {
             if (node.Type is "identifier" or "type_identifier")
             {
@@ -89,11 +89,11 @@ public static class TreeSitterFileParser
 
         foreach (var child in node.Children)
         {
-            TraverseAndBuildTree(child, nextParent, currentParentId, parser, workspacePath, filePath);
+            TraverseAndBuildTree(child, nextParent, currentParentId, parser, ctx, filePath);
         }
     }
 
-    private static EntryPointNode CreateEntryPointNode(string name, string filePath, string workspacePath, Node node)
+    private static EntryPointNode CreateEntryPointNode(string name, string filePath, string workspaceId, string workspacePath, Node node)
     {
         var fullPath = Path.GetFullPath(Path.Combine(workspacePath, filePath));
         var projectDir = FindProjectDirectory(fullPath, workspacePath);
@@ -119,16 +119,16 @@ public static class TreeSitterFileParser
             route = name.Substring(idx + 1);
         }
 
-        var entryPointId = $"entrypoint:{projectName}:{protocol}:{name.Replace(":", "_")}";
+        var entryPointId = $"{workspaceId}:entrypoint:{projectName}:{protocol}:{name.Replace(":", "_")}";
         var ext = new Dictionary<string, string>
         {
             { "file_path", filePath },
             { "start_line", node.StartPosition.Row.ToString() }
         };
-        return new EntryPointNode(entryPointId, name.Replace(":", " "), protocol, route, ext);
+        return new EntryPointNode(entryPointId, name.Replace(":", " "), protocol, route, filePath, ext);
     }
 
-    private static ExternalServiceNode CreateExternalServiceNode(string name, string filePath, string workspacePath, Node node)
+    private static ExternalServiceNode CreateExternalServiceNode(string name, string filePath, string workspaceId, Node node)
     {
         string protocol = "http";
         string domainOrService = name;
@@ -145,13 +145,13 @@ public static class TreeSitterFileParser
             domainOrService = name.Substring(idx + 1);
         }
 
-        var extServiceId = $"externalservice:{protocol}:{domainOrService}";
+        var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";
         var ext = new Dictionary<string, string>
         {
             { "file_path", filePath },
             { "start_line", node.StartPosition.Row.ToString() }
         };
-        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, ext);
+        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, filePath, ext);
     }
 
     private static string FindProjectDirectory(string filePath, string workspacePath)

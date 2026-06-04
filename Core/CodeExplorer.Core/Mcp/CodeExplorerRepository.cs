@@ -243,6 +243,41 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query);
     }
 
+    public async Task<string> GetWorkspaceContentAsync(string? workspacePath, string? type)
+    {
+        string query;
+        var parameters = new Dictionary<string, object?>();
+
+        if (!string.IsNullOrEmpty(workspacePath))
+        {
+            var resolvedPath = PathTools.TranslateHostPathToContainerPath(workspacePath);
+            var absolutePath = Path.GetFullPath(resolvedPath).Replace('\\', '/');
+            parameters["workspacePath"] = absolutePath;
+            parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
+
+            query = @"
+                MATCH (r:Root {path: $workspacePath})-[:CONTAINS*0..]->(n)
+                WHERE $type IS NULL OR $type = '' OR any(lbl IN labels(n) WHERE lbl = $type)
+                RETURN n LIMIT 1000";
+        }
+        else
+        {
+            parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
+
+            query = @"
+                MATCH (n)
+                WHERE $type IS NULL OR $type = '' OR any(lbl IN labels(n) WHERE lbl = $type)
+                RETURN n LIMIT 1000";
+        }
+
+        return await dbClient.ExecuteQueryAsync(query, parameters);
+    }
+
+    public async Task<string> ExecuteRawQueryAsync(string query, Dictionary<string, object?>? parameters = null)
+    {
+        return await dbClient.ExecuteQueryAsync(query, parameters);
+    }
+
     public async Task<string> GetTaxonomyAsync()
     {
         var query =
@@ -355,8 +390,19 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                           "  - `file_path` (string): The relative path of the declaring file.\n" +
                           "**Relationships**:\n" + "  - `(Class|Interface|Function)-[:CONTAINS]->(Variable)`",
 
+            "gitsettings" => "### Kind: GitSettings\n" +
+                             "**Purpose**: Represents the Git repository configuration settings for the workspace.\n" +
+                             "**Key Properties**:\n" +
+                             "  - `name` (string): Constant name 'Git Settings'.\n" +
+                             "  - `branch` (string): The currently checked-out branch name.\n" +
+                             "  - `origin_url` (string): The remote origin repository URL.\n" +
+                             "  - `user_name` (string): The git user name.\n" +
+                             "  - `user_email` (string): The git user email address.\n" +
+                             "**Relationships**:\n" +
+                             "  - `(Workspace)-[:CONTAINS]->(GitSettings)`",
+
             _ =>
-                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package'."
+                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package', 'GitSettings'."
         };
     }
 

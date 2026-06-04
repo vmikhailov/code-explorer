@@ -30,28 +30,29 @@ public class WorkspaceParser
         }
     }
 
+    private readonly string _hostWorkspacePath;
     private readonly string _absoluteWorkspacePath;
     private readonly MemgraphClient _dbClient;
     private readonly bool _clear;
 
-    public WorkspaceParser(string dirPath, MemgraphClient dbClient, bool clear)
+    public WorkspaceParser(string hostWorkspacePath, string containerWorkspacePath, MemgraphClient dbClient, bool clear)
     {
-        _absoluteWorkspacePath = Path.GetFullPath(dirPath).Replace('\\', '/');
+        _hostWorkspacePath = hostWorkspacePath;
+        _absoluteWorkspacePath = Path.GetFullPath(containerWorkspacePath).Replace('\\', '/');
         _dbClient = dbClient;
         _clear = clear;
     }
 
     public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync()
     {
-        // 1. Clear/Create root indices sequentially
-        await _dbClient.CreateIndicesAsync();
-
-        // 2. Setup the background persistence channel & consumer task
+        // 1. Setup the background persistence channel & consumer task
         var sharedChannel = Channel.CreateUnbounded<Func<Task>>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false }
         );
 
-        await Console.Error.WriteLineAsync("[WorkspaceParser] Starting background database persistence loop...");
+        var ctx = new ParsingContext(_absoluteWorkspacePath, _hostWorkspacePath, _dbClient, sharedChannel, _clear);
+
+        ctx.Log("[WorkspaceParser] Starting background database persistence loop...");
         var consumerTask = Task.Run(async () =>
         {
             await foreach (var writeFunc in sharedChannel.Reader.ReadAllAsync())
@@ -62,32 +63,34 @@ public class WorkspaceParser
                 }
                 catch (Exception ex)
                 {
-                    await Console.Error.WriteLineAsync($"[PersistenceConsumer] Error writing to database: {ex.Message}");
+                    ctx.Log($"[PersistenceConsumer] Error writing to database: {ex.Message}");
                 }
             }
         });
 
-        // 3. Create shared context and run WorkspaceLevelParser
-        var ctx = new ParsingContext(_absoluteWorkspacePath, _dbClient, sharedChannel, _clear);
+        // 2. Create root indices sequentially
+        await _dbClient.CreateIndicesAsync();
+
+        // 3. Run WorkspaceLevelParser
         var scanner = new WorkspaceLevelParser(ctx);
         await scanner.ParseAsync();
 
         // 4. Complete persistence channel & await background consumer
         sharedChannel.Writer.Complete();
         await consumerTask;
-        await Console.Error.WriteLineAsync($"[WorkspaceParser] All background channel persistence writes completed! Total parsed: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
+        ctx.Log($"[WorkspaceParser] All background channel persistence writes completed! Total parsed: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
 
         // 5. Upload local cross-project dependencies
         if (ctx.GlobalProjectDependencies.Count > 0)
         {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Uploading {ctx.GlobalProjectDependencies.Count} local project dependency relationships...");
+            ctx.Log($"[WorkspaceParser] Uploading {ctx.GlobalProjectDependencies.Count} local project dependency relationships...");
             await _dbClient.UploadRelationshipsAsync(ctx.GlobalProjectDependencies);
             ctx.TotalRelsCount += ctx.GlobalProjectDependencies.Count;
         }
 
         // 6. Deferred Global Reference Resolution & Final Reference Upload
         int totalReferences = ctx.GlobalReferences.Count;
-        await Console.Error.WriteLineAsync($"[WorkspaceParser] Resolving {totalReferences} global cross-references...");
+        ctx.Log($"[WorkspaceParser] Resolving {totalReferences} global cross-references...");
         var referenceRelationships = new List<Relationship>();
         var inheritanceRels = new HashSet<(string From, string To)>();
 
@@ -116,6 +119,12 @@ public class WorkspaceParser
                             referenceRelationships.Add(Relationship.FromRelationship(rel));
                             inheritanceRels.Add((refItem.ScopeSymbolId, targetClassId));
                         }
+                        else if (refItem.Kind == OntologyConstants.Relationships.Implements &&
+                                 ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.EntryPoint, refItem.TargetName), out var targetEpId))
+                        {
+                            referenceRelationships.Add(Relationship.FromRelationship(new ImplementsRelationship(refItem.ScopeSymbolId, targetEpId)));
+                            inheritanceRels.Add((refItem.ScopeSymbolId, targetEpId));
+                        }
                     }
                 }
             }
@@ -127,7 +136,7 @@ public class WorkspaceParser
                 resolvedCount++;
                 if (resolvedCount % 100000 == 0)
                 {
-                    Console.Error.WriteLine($"[WorkspaceParser] Resolving global cross-references: {resolvedCount}/{totalReferences}...");
+                    ctx.Log($"[WorkspaceParser] Resolving global cross-references: {resolvedCount}/{totalReferences}...");
                 }
 
                 if (refItem.Kind == OntologyConstants.Relationships.Calls)
@@ -209,10 +218,12 @@ public class WorkspaceParser
 
         if (referenceRelationships.Count > 0)
         {
-            await Console.Error.WriteLineAsync($"[WorkspaceParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
+            ctx.Log($"[WorkspaceParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
             await _dbClient.UploadRelationshipsAsync(referenceRelationships);
             ctx.TotalRelsCount += referenceRelationships.Count;
         }
+
+        ctx.Log($"[WorkspaceParser] Indexing process completed successfully! Total Nodes: {ctx.TotalNodesCount}, Total Relationships: {ctx.TotalRelsCount}.");
 
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
     }

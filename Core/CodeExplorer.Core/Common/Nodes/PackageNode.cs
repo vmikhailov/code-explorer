@@ -7,6 +7,7 @@ public record PackageNode(
     string Name,
     string Version,
     string Type,
+    string Path,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {

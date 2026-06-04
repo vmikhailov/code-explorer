@@ -23,7 +23,7 @@ public class ParserValidationTests
         
         var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
-        var ctx = new ParsingContext(workspacePath, client, channel);
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
         
         var filesToTest = new[]
         {
@@ -67,7 +67,7 @@ async function clearDataAllLeads(bundle_ids: string) {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
-            var ctx = new ParsingContext(workspacePath, client, channel);
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
             
             var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
             Assert.That(fileNode, Is.Not.Null);
@@ -109,7 +109,7 @@ class Test {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
-            var ctx = new ParsingContext(workspacePath, client, channel);
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
             var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -139,7 +139,7 @@ def clean_db():
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
-            var ctx = new ParsingContext(workspacePath, client, channel);
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
             var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -171,7 +171,7 @@ func clean() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
-            var ctx = new ParsingContext(workspacePath, client, channel);
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
             var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -228,7 +228,7 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
-            var ctx = new ParsingContext(workspacePath, client, channel);
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
             var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
             
             var queryNodes = FindQueryNodes(fileNode.Children);
@@ -336,7 +336,7 @@ public class OrdersController : ControllerBase
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
-            var ctx = new ParsingContext(workspacePath, client, channel);
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
             var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
             
             var entryPoints = FindEntryPointNodes(fileNode.Children);
@@ -391,7 +391,7 @@ export class OrdersController {
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
-            var ctx = new ParsingContext(workspacePath, client, channel);
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
             var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
             
             var entryPoints = FindEntryPointNodes(fileNode.Children);
@@ -469,7 +469,7 @@ export class OrdersController {
             WorkspaceParser.Register(new TypeScriptParser());
 
             // Run scanner
-            var parser = new WorkspaceParser(tempWorkspace, client, clear: true);
+            var parser = new WorkspaceParser(tempWorkspace, tempWorkspace, client, clear: true);
             var results = await parser.IndexAsync();
 
             Assert.That(results.NodesCount, Is.GreaterThan(0));

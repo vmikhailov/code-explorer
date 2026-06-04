@@ -69,4 +69,22 @@ public static class PathTools
 
         return normalizedFilePath;
     }
+
+    /// <summary>
+    /// Normalizes a path to the host format if it looks like a Windows path (e.g. starts with C:).
+    /// </summary>
+    public static string NormalizeToHostPath(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return path;
+        }
+
+        if (Regex.IsMatch(path, @"^[A-Za-z]:"))
+        {
+            return path.Replace('/', '\\');
+        }
+
+        return path;
+    }
 }

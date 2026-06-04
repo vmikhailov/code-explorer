@@ -116,6 +116,7 @@ public class Program
             // Register database client and other services
             builder.Services.AddSingleton(client);
             builder.Services.AddSingleton<CodeExplorerRepository>();
+            builder.Services.AddSingleton<WorkspaceIndexerService>();
 
             // Register official MCP server
 #pragma warning disable MCP9004
@@ -163,6 +164,7 @@ public class Program
 
             builder.Services.AddSingleton(client);
             builder.Services.AddSingleton<CodeExplorerRepository>();
+            builder.Services.AddSingleton<WorkspaceIndexerService>();
 
             // Register official MCP server with Stdio transport
             builder.Services.AddMcpServer()

@@ -66,7 +66,7 @@ public class SqlParser : IProjectParser, IFileParser
     public async Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
     {
         var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
-        var fileNodeId = $"file:{ctx.AbsoluteWorkspacePath}:{relativePath}";
+        var fileNodeId = $"{ctx.WorkspaceId}:file:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
         var sqlText = await File.ReadAllTextAsync(filePath);
@@ -101,14 +101,14 @@ public class SqlParser : IProjectParser, IFileParser
         if (dbMatch.Success)
         {
             dbName = dbMatch.Groups[1].Value.Trim('[', ']', '"');
-            dbNodeId = $"db:{dbName.ToLowerInvariant()}";
+            dbNodeId = $"{ctx.WorkspaceId}:db:{dbName.ToLowerInvariant()}";
         }
         else
         {
             var dirName = Path.GetFileName(Path.GetDirectoryName(fileNode.FullPath));
             if (string.IsNullOrEmpty(dirName)) dirName = "DefaultDB";
             dbName = dirName;
-            dbNodeId = $"db:{dbName.ToLowerInvariant()}";
+            dbNodeId = $"{ctx.WorkspaceId}:db:{dbName.ToLowerInvariant()}";
         }
 
         var dbNode = new DbNode(dbNodeId, dbName, relativePath);

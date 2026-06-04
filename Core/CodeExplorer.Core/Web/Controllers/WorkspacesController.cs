@@ -1,6 +1,5 @@
-using System.Text.Json;
 using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Core.Parser;
 using Microsoft.AspNetCore.Mvc;
@@ -11,11 +10,13 @@ namespace CodeExplorer.Core.Web.Controllers;
 [Route("api/workspaces")]
 public class WorkspacesController : ControllerBase
 {
-    private readonly MemgraphClient _client;
+    private readonly CodeExplorerRepository _repository;
+    private readonly WorkspaceIndexerService _indexer;
 
-    public WorkspacesController(MemgraphClient client)
+    public WorkspacesController(CodeExplorerRepository repository, WorkspaceIndexerService indexer)
     {
-        _client = client;
+        _repository = repository;
+        _indexer = indexer;
     }
 
     [HttpPost("index")]
@@ -23,8 +24,7 @@ public class WorkspacesController : ControllerBase
     {
         try
         {
-            var indexer = new WorkspaceIndexerService(_client);
-            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexWorkspaceAsync(request.Dir, request.Clear);
+            var (nodesCount, relsCount, nodesByKind) = await _indexer.IndexWorkspaceAsync(request.Dir, request.Clear);
             return Ok(new
             {
                 message = "Workspace indexed successfully.",
@@ -49,32 +49,7 @@ public class WorkspacesController : ControllerBase
     {
         try
         {
-            string query;
-            var parameters = new Dictionary<string, object?>();
-
-            if (!string.IsNullOrEmpty(workspacePath))
-            {
-                var resolvedPath = PathTools.TranslateHostPathToContainerPath(workspacePath);
-                var absolutePath = Path.GetFullPath(resolvedPath).Replace('\\', '/');
-                parameters["workspacePath"] = absolutePath;
-                parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
-
-                query = @"
-                    MATCH (r:Root {path: $workspacePath})-[:CONTAINS*0..]->(n)
-                    WHERE $type IS NULL OR $type = '' OR any(lbl IN labels(n) WHERE lbl = $type)
-                    RETURN n LIMIT 1000";
-            }
-            else
-            {
-                parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
-
-                query = @"
-                    MATCH (n)
-                    WHERE $type IS NULL OR $type = '' OR any(lbl IN labels(n) WHERE lbl = $type)
-                    RETURN n LIMIT 1000";
-            }
-
-            var resultJson = await _client.ExecuteQueryAsync(query, parameters);
+            var resultJson = await _repository.GetWorkspaceContentAsync(workspacePath, type);
             return Content(resultJson, "application/json");
         }
         catch (Exception ex)
@@ -93,7 +68,7 @@ public class WorkspacesController : ControllerBase
                 return BadRequest(new { error = "Query is required." });
             }
 
-            var resultJson = await _client.ExecuteQueryAsync(request.Query, request.Parameters);
+            var resultJson = await _repository.ExecuteRawQueryAsync(request.Query, request.Parameters);
             return Content(resultJson, "application/json");
         }
         catch (Exception ex)
@@ -102,25 +77,13 @@ public class WorkspacesController : ControllerBase
         }
     }
 
-
-
     [HttpGet("taxonomy")]
     public async Task<IActionResult> GetTaxonomyAsync()
     {
         try
         {
-            var query =
-                "MATCH (n)-[r]->(m) WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] " +
-                "AS toLabel RETURN fromLabel, relType, toLabel";
-            var resultJson = await _client.ExecuteQueryAsync(query);
-            var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? [];
-
-            var propQuery = "MATCH (n) UNWIND labels(n) AS label UNWIND keys(n) AS key RETURN DISTINCT label, key";
-            var propJson = await _client.ExecuteQueryAsync(propQuery);
-            var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? [];
-
-            var taxonomy = Mcp.CodeExplorerRepository.BuildTaxonomy(parsedTriplets, parsedProperties);
-            return Content(JsonSerializer.Serialize(new { taxonomy }), "application/json");
+            var resultJson = await _repository.GetTaxonomyAsync();
+            return Content(resultJson, "application/json");
         }
         catch (Exception ex)
         {

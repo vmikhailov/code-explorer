@@ -7,6 +7,7 @@ public record InterfaceNode(
     string Name,
     string Symbol,
     string FilePath,
+    string Path,
     int StartLine,
     int EndLine,
     int StartCol,

@@ -7,9 +7,19 @@ namespace CodeExplorer.Core.Parser;
 public class ParsingContext
 {
     public string AbsoluteWorkspacePath { get; }
+    public string HostWorkspacePath { get; }
     public MemgraphClient DbClient { get; }
     public Channel<Func<Task>> SharedChannel { get; }
     public bool Clear { get; }
+    public string WorkspaceId { get; set; } = string.Empty;
+    
+    private readonly System.Diagnostics.Stopwatch _sessionStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+    public void Log(string message)
+    {
+        var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+        Console.Error.WriteLine($"[{timestamp}] [+{_sessionStopwatch.ElapsedMilliseconds}ms] {message}");
+    }
     
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
     public List<Reference> GlobalReferences { get; }
@@ -108,7 +118,7 @@ public class ParsingContext
     {
         if (_nodesPersisted - _lastReportedNodes >= 500 || _relsPersisted - _lastReportedRels >= 500)
         {
-            Console.Error.WriteLine($"[PersistenceProgress] Saved: {_nodesPersisted} nodes, {_relsPersisted} relationships to database...");
+            Log($"[PersistenceProgress] Saved: {_nodesPersisted} nodes, {_relsPersisted} relationships to database...");
             _lastReportedNodes = _nodesPersisted;
             _lastReportedRels = _relsPersisted;
         }
@@ -141,6 +151,7 @@ public class ParsingContext
 
     public ParsingContext(
         string absoluteWorkspacePath, 
+        string hostWorkspacePath,
         MemgraphClient dbClient, 
         Channel<Func<Task>> sharedChannel,
         bool clear = false,
@@ -149,6 +160,7 @@ public class ParsingContext
         List<Relationship>? globalProjectDependencies = null)
     {
         AbsoluteWorkspacePath = absoluteWorkspacePath.Replace('\\', '/');
+        HostWorkspacePath = hostWorkspacePath;
         DbClient = dbClient;
         SharedChannel = sharedChannel;
         Clear = clear;

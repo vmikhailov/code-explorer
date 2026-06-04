@@ -7,6 +7,7 @@ public record ClassNode(
     string Name,
     string Symbol,
     string FilePath,
+    string Path,
     int StartLine,
     int EndLine,
     int StartCol,

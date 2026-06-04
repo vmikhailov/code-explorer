@@ -97,12 +97,74 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
 
     public async Task ClearWorkspaceAsync(string workspacePath)
     {
+        var normalizedPath = workspacePath.Replace('\\', '/');
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
         await session.ExecuteWriteAsync(async tx =>
         {
             await tx.RunAsync(
-                $"MATCH (r:{OntologyConstants.NodeLabels.Workspace} {{path: $workspacePath}})-[:{OntologyConstants.Relationships.Contains}*0..]->(n) DETACH DELETE n",
-                new { workspacePath }
+                $"MATCH (r:{OntologyConstants.NodeLabels.Workspace}) " +
+                $"WHERE r.path = $workspacePath OR r.path = $normalizedPath " +
+                $"WITH r MATCH (r)-[:{OntologyConstants.Relationships.Contains}*0..]->(n) DETACH DELETE n",
+                new { workspacePath, normalizedPath }
+            );
+        });
+    }
+
+    public async Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath)
+    {
+        var normalizedPath = workspacePath.Replace('\\', '/');
+        await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Read));
+        
+        var existingId = await session.ExecuteReadAsync(async tx =>
+        {
+            var cursor = await tx.RunAsync(
+                $"MATCH (w:{OntologyConstants.NodeLabels.Workspace}) WHERE w.path = $workspacePath OR w.path = $normalizedPath RETURN w.id AS id",
+                new { workspacePath, normalizedPath }
+            );
+            if (await cursor.FetchAsync())
+            {
+                var val = cursor.Current["id"];
+                return val?.ToString();
+            }
+            return null;
+        });
+
+        if (existingId != null)
+        {
+            return existingId;
+        }
+
+        // Increment the counter node and return the new ID
+        await using var writeSession = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
+        var newIdVal = await writeSession.ExecuteWriteAsync(async tx =>
+        {
+            var cursor = await tx.RunAsync(
+                "MERGE (c:Counter {name: 'workspace_id'}) " +
+                "ON CREATE SET c.value = 0 " +
+                "WITH c " +
+                "SET c.value = c.value + 1 " +
+                "RETURN c.value AS val"
+            );
+            if (await cursor.FetchAsync())
+            {
+                return cursor.Current["val"]?.ToString() ?? "1";
+            }
+            return "1";
+        });
+
+        return newIdVal;
+    }
+
+    public async Task SaveEmptyWorkspaceNodeAsync(string id, string path)
+    {
+        var normalizedPath = path.Replace('\\', '/');
+        object dbId = int.TryParse(id, out var intId) ? intId : id;
+        await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            await tx.RunAsync(
+                $"MERGE (w:{OntologyConstants.NodeLabels.Workspace} {{ id: $dbId }}) SET w.path = $normalizedPath",
+                new { dbId, normalizedPath }
             );
         });
     }
@@ -123,7 +185,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
             {
                 var props = new Dictionary<string, object>
                 {
-                    ["id"] = node.Id
+                    ["id"] = (node.Kind == OntologyConstants.NodeLabels.Workspace && int.TryParse(node.Id, out var intId)) ? intId : node.Id
                 };
                 foreach (var (k, v) in node.Properties)
                 {
@@ -159,8 +221,8 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
                 var count = Math.Min(batchSize, relList.Count - i);
                 var chunk = relList.GetRange(i, count).Select(r => new Dictionary<string, object>
                 {
-                    ["from"] = r.From,
-                    ["to"] = r.To,
+                    ["from"] = int.TryParse(r.From, out var fromInt) ? (object)fromInt : r.From,
+                    ["to"] = int.TryParse(r.To, out var toInt) ? (object)toInt : r.To,
                     ["properties"] = r.Properties
                 }).ToList();
 

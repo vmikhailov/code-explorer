@@ -2,14 +2,17 @@ using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes;
 
-public record QueueNode(
+public record GitSettingsNode(
     string Id,
     string Name,
-    string Type,
+    string Branch,
+    string OriginUrl,
+    string UserName,
+    string UserEmail,
     string Path,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Queue;
+    public override string Kind => OntologyConstants.NodeLabels.GitSettings;
 }
