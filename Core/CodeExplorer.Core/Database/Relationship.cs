@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using CodeExplorer.Common;
+using CodeExplorer.Core.Common.Relationships;
 
-namespace CodeExplorer.Database;
+namespace CodeExplorer.Core.Database;
 
 public record Relationship(string From, string To, string Kind, Dictionary<string, object> Properties)
 {

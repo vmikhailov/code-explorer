@@ -1,12 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Core.Parser;
 
 public class SqlDependencyVisitor : TSqlFragmentVisitor
 {

@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using CodeExplorer.Common;
+using CodeExplorer.Core.Common.Nodes;
 
-namespace CodeExplorer.Database;
+namespace CodeExplorer.Core.Database;
 
 public record Node(string Id, string Kind, Dictionary<string, object> Properties)
 {

@@ -1,4 +1,4 @@
-namespace CodeExplorer.Mcp;
+namespace CodeExplorer.Core.Mcp;
 
 public class NestedMcpRAGNode
 {

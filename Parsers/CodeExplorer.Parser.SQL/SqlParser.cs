@@ -1,9 +1,10 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Database;
 using CodeExplorer.Common;
-using Node = CodeExplorer.Database.Node;
+using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Parser;
 
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Parser.SQL;
 
 public class SqlParser : IProjectParser, IFileParser
 {

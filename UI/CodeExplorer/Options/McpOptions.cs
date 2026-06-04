@@ -1,6 +1,6 @@
 using CommandLine;
 
-namespace CodeExplorer;
+namespace CodeExplorer.Options;
 
 [Verb("mcp", HelpText = "Starts the stdio Model Context Protocol (MCP) server daemon.")]
 class McpOptions

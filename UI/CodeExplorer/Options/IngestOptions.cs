@@ -1,6 +1,6 @@
 using CommandLine;
 
-namespace CodeExplorer;
+namespace CodeExplorer.Options;
 
 [Verb("ingest", HelpText = "Recursively parses a directory and loads structural nodes into Memgraph.")]
 class IngestOptions

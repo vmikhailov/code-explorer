@@ -1,7 +1,9 @@
-using TreeSitter;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Parser;
+using TreeSitter;
 
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Parser.Go;
 
 public class GoParser : IProjectParser, IFileParser
 {

@@ -1,4 +1,4 @@
-namespace CodeExplorer.Common;
+namespace CodeExplorer.Core.Common.Relationships;
 
 public interface IOntologyRelationship
 {

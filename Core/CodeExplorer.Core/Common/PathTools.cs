@@ -1,8 +1,6 @@
-using System;
-using System.IO;
 using System.Text.RegularExpressions;
 
-namespace CodeExplorer.Common;
+namespace CodeExplorer.Core.Common;
 
 public static class PathTools
 {

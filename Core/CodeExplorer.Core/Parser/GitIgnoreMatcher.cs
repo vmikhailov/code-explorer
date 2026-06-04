@@ -1,4 +1,4 @@
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Core.Parser;
 
 public class GitIgnoreMatcher
 {

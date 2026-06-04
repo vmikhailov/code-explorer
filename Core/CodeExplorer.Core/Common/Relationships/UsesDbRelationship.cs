@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeExplorer.Common;
+namespace CodeExplorer.Core.Common.Relationships;
 
 public record UsesDbRelationship(
     [property: JsonIgnore] string From,

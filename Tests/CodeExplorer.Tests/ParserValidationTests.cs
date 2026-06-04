@@ -1,9 +1,14 @@
 using System.IO;
 using System.Threading.Channels;
 using NUnit.Framework;
-using CodeExplorer.Parser;
 using CodeExplorer.Common;
-using CodeExplorer.Database;
+using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Parser;
+using CodeExplorer.Parser.CSharp;
+using CodeExplorer.Parser.Go;
+using CodeExplorer.Parser.Python;
+using CodeExplorer.Parser.TypeScript;
 
 namespace CodeExplorer.Tests;
 

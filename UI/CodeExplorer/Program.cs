@@ -1,6 +1,13 @@
-using CodeExplorer.Database;
-using CodeExplorer.Mcp;
-using CodeExplorer.Parser;
+using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Mcp;
+using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Web.Controllers;
+using CodeExplorer.Options;
+using CodeExplorer.Parser.CSharp;
+using CodeExplorer.Parser.Go;
+using CodeExplorer.Parser.Python;
+using CodeExplorer.Parser.SQL;
+using CodeExplorer.Parser.TypeScript;
 using CommandLine;
 using CommandLineParser = CommandLine.Parser;
 using Microsoft.AspNetCore.Builder;
@@ -93,7 +100,7 @@ public class Program
 
             // Explicitly register controllers assembly to ensure discovery of REST controllers
             builder.Services.AddControllers()
-                .AddApplicationPart(typeof(Web.Controllers.WorkspacesController).Assembly);
+                .AddApplicationPart(typeof(WorkspacesController).Assembly);
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>

@@ -1,11 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
-using CodeExplorer.Common;
-using CodeExplorer.Database;
+using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Database;
 
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Core.Parser;
 
 public static class OntologyUploader
 {

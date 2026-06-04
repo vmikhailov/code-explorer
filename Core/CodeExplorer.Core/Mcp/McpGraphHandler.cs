@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using JetBrains.Annotations;
-using ModelContextProtocol.Server;
 using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
-namespace CodeExplorer.Mcp;
+namespace CodeExplorer.Core.Mcp;
 
 [McpServerToolType]
 public class McpGraphHandler(CodeExplorerRepository repository)

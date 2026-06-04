@@ -1,8 +1,9 @@
 using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Database;
+using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Database;
 
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Core.Parser;
 
 public class WorkspaceParser
 {

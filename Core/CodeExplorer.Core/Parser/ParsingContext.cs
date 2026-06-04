@@ -1,8 +1,8 @@
 using System.Threading.Channels;
-using CodeExplorer.Database;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Database;
 
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Core.Parser;
 
 public class ParsingContext
 {

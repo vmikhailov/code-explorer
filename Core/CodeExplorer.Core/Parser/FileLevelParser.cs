@@ -1,9 +1,4 @@
-using CodeExplorer.Common;
-using System;
-using System.IO;
-using System.Threading.Tasks;
-
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Core.Parser;
 
 public class FileLevelParser
 {

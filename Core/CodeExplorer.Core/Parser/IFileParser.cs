@@ -1,7 +1,8 @@
-using TreeSitter;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common.Nodes;
+using TreeSitter;
 
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Core.Parser;
 
 public interface IFileParser
 {

@@ -1,10 +1,11 @@
 using System.Text.Json;
-using CodeExplorer.Database;
-using CodeExplorer.Mcp.Models;
-using CodeExplorer.Parser;
+using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Mcp.Models;
+using CodeExplorer.Core.Parser;
 using Microsoft.AspNetCore.Mvc;
 
-namespace CodeExplorer.Web.Controllers;
+namespace CodeExplorer.Core.Web.Controllers;
 
 [ApiController]
 [Route("api/workspaces")]
@@ -53,7 +54,7 @@ public class WorkspacesController : ControllerBase
 
             if (!string.IsNullOrEmpty(workspacePath))
             {
-                var resolvedPath = Common.PathTools.TranslateHostPathToContainerPath(workspacePath);
+                var resolvedPath = PathTools.TranslateHostPathToContainerPath(workspacePath);
                 var absolutePath = Path.GetFullPath(resolvedPath).Replace('\\', '/');
                 parameters["workspacePath"] = absolutePath;
                 parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
@@ -137,14 +138,14 @@ public class WorkspacesController : ControllerBase
                 return BadRequest(new { error = "Directory parameter 'dir' is required." });
             }
 
-            var resolvedPath = Common.PathTools.TranslateHostPathToContainerPath(dir);
+            var resolvedPath = PathTools.TranslateHostPathToContainerPath(dir);
             if (!Directory.Exists(resolvedPath))
             {
                 return NotFound(new { 
                     error = $"Directory does not exist.",
                     inputDir = dir,
                     resolvedDir = resolvedPath,
-                    inContainer = Common.PathTools.InContainer,
+                    inContainer = PathTools.InContainer,
                     hostExists = Directory.Exists("/host")
                 });
             }

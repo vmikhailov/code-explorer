@@ -1,12 +1,13 @@
-using CodeExplorer.Database;
+using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Database;
 
-namespace CodeExplorer.Parser;
+namespace CodeExplorer.Core.Parser;
 
 public class WorkspaceIndexerService(MemgraphClient dbClient)
 {
     public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexWorkspaceAsync(string dirPath, bool clear)
     {
-        var resolvedPath = Common.PathTools.TranslateHostPathToContainerPath(dirPath);
+        var resolvedPath = PathTools.TranslateHostPathToContainerPath(dirPath);
 
         if (!Directory.Exists(resolvedPath))
         {

@@ -1,7 +1,6 @@
-using System.Collections.Generic;
 using System.Text.Json;
 
-namespace CodeExplorer.Database;
+namespace CodeExplorer.Core.Database;
 
 public static class JsonHelper
 {

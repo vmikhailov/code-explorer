@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeExplorer.Common;
+namespace CodeExplorer.Core.Common.Nodes;
 
 public record ExternalServiceNode(
     string Id,

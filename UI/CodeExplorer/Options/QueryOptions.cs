@@ -1,6 +1,6 @@
 using CommandLine;
 
-namespace CodeExplorer;
+namespace CodeExplorer.Options;
 
 [Verb("query", HelpText = "Runs a safe read-only Cypher query against Memgraph.")]
 class QueryOptions

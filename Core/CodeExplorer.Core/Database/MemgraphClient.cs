@@ -1,8 +1,8 @@
 using System.Text.Json;
-using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using Neo4j.Driver;
 
-namespace CodeExplorer.Database;
+namespace CodeExplorer.Core.Database;
 
 public class MemgraphClient(string boltUrl, string username, string password) : IAsyncDisposable
 {
