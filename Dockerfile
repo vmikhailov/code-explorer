@@ -35,6 +35,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 
+# Resolve Docker Desktop VM symlinks for macOS/Windows path resolution
+RUN ln -s /host/host_mnt /host_mnt
+
 # Expose default SSE/REST HTTP port
 EXPOSE 8085
 
