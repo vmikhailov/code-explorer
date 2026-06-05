@@ -42,7 +42,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new GenericLibraryParser("superagent", "api", ["superagent"], apiLibrary: "superagent"),
         new GenericLibraryParser("node-fetch", "api", ["node-fetch"], apiLibrary: "fetch"),
         new GenericLibraryParser("got", "api", ["got"], apiLibrary: "got"),
-        new GenericLibraryParser("@nestjs/axios", "api", ["@nestjs/axios"], apiLibrary: "Axios"),
         new GenericLibraryParser("undici", "api", ["undici"], apiLibrary: "undici"),
         new GenericLibraryParser("ky", "api", ["ky"], apiLibrary: "ky"),
         new GenericLibraryParser("bent", "api", ["bent"], apiLibrary: "bent"),
