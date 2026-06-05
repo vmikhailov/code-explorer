@@ -14,8 +14,8 @@ public class GoParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["vendor"];
 
-    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers { get; } = new ILibraryParser[]
-    {
+    public IEnumerable<ILibraryParser> LibraryParsers { get; } =
+    [
         new Libraries.ElasticsearchGoLibraryParser(),
         new Libraries.GoRedisLegacyLibraryParser(),
         new Libraries.GoRedisLibraryParser(),
@@ -25,7 +25,7 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.GoSqlLibraryParser(),
         new Libraries.LibPqLibraryParser(),
         new Libraries.MongoGoLibraryParser()
-    };
+    ];
 
     public bool CanParse(string fileExtension)
     {

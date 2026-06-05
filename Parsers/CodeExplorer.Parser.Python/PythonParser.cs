@@ -14,8 +14,8 @@ public class PythonParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["venv", ".venv", "__pycache__"];
 
-    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers { get; } = new ILibraryParser[]
-    {
+    public IEnumerable<ILibraryParser> LibraryParsers { get; } =
+    [
         new Libraries.ChromaDbLibraryParser(),
         new Libraries.CouchDbPythonLibraryParser(),
         new Libraries.ElasticsearchPythonLibraryParser(),
@@ -28,7 +28,7 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.PythonRedisLibraryParser(),
         new Libraries.PythonSqlite3LibraryParser(),
         new Libraries.SqlAlchemyLibraryParser()
-    };
+    ];
 
     public bool CanParse(string fileExtension)
     {

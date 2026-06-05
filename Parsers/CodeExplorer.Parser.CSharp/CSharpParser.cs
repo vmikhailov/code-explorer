@@ -14,8 +14,8 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["bin", "obj", ".vs"];
 
-    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers { get; } = new ILibraryParser[]
-    {
+    public IEnumerable<ILibraryParser> LibraryParsers { get; } =
+    [
         new Libraries.CouchbaseLibraryParser(),
         new Libraries.DapperLibraryParser(),
         new Libraries.EfCoreLibraryParser(),
@@ -29,7 +29,7 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.OracleDataAccessLibraryParser(),
         new Libraries.StackExchangeRedisLibraryParser(),
         new Libraries.SystemDataSqlClientLibraryParser()
-    };
+    ];
 
     public bool CanParse(string fileExtension)
     {

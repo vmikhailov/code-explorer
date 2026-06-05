@@ -15,8 +15,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
-    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers { get; } = new ILibraryParser[]
-    {
+    public IEnumerable<ILibraryParser> LibraryParsers { get; } =
+    [
         new Libraries.AxiosLibraryParser(),
         new Libraries.ElasticsearchTsLibraryParser(),
         new Libraries.InfluxDbLibraryParser(),
@@ -30,7 +30,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.SequelizeLibraryParser(),
         new Libraries.Sqlite3LibraryParser(),
         new Libraries.TypeOrmLibraryParser()
-    };
+    ];
 
     public bool CanParse(string fileExtension)
     {

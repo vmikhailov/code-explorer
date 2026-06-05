@@ -24,7 +24,7 @@ public class SqlParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => [];
 
-    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers => System.Array.Empty<ILibraryParser>();
+    public IEnumerable<ILibraryParser> LibraryParsers => [];
 
     public bool CanParse(string fileExtension)
     {

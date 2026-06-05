@@ -687,7 +687,7 @@ func Register(r *gin.Engine) {
             Assert.That(goRefs.Any(r => r.TargetName == "GET /api/v1/users" && r.Kind == "IMPLEMENTS" && r.ScopeSymbolId == "GetUsers"), Is.True);
 
             // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
-            var sqlParser = new CodeExplorer.Parser.SQL.SqlParser();
+            var sqlParser = new Parser.SQL.SqlParser();
             var sqlFile = Path.Combine(tempWorkspace, "sp.sql");
             var sqlCode = @"
 CREATE OR REPLACE PROCEDURE `my_schema`.`my_proc`()
@@ -743,7 +743,7 @@ END;
             ctx.WorkspaceId = "1";
 
             // Test C# Semantic Analyzer with relational (EntityFramework)
-            var csAnalyzer = new CodeExplorer.Parser.CSharp.CSharpSemanticAnalyzer();
+            var csAnalyzer = new CSharpSemanticAnalyzer();
             var csProj = new ProjectNode("cs_project", "cs_project", "cs_project", "csharp");
             var csFile = new FileNode("cs_file", "Repository.cs", "Repository.cs", tempWorkspace + "/Repository.cs");
             csProj.Children.Add(csFile);
@@ -756,7 +756,7 @@ END;
             Assert.That(csDbNode.Extensions["db_type"], Is.EqualTo("relational"));
 
             // Test TypeScript Semantic Analyzer with document (mongoose)
-            var tsAnalyzer = new CodeExplorer.Parser.TypeScript.TypeScriptSemanticAnalyzer();
+            var tsAnalyzer = new TypeScriptSemanticAnalyzer();
             var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
             var tsFile = new FileNode("ts_file", "index.ts", "index.ts", tempWorkspace + "/index.ts");
             tsProj.Children.Add(tsFile);
@@ -769,7 +769,7 @@ END;
             Assert.That(tsDbNode.Extensions["db_type"], Is.EqualTo("document"));
 
             // Test Python Semantic Analyzer with keyvalue (redis)
-            var pyAnalyzer = new CodeExplorer.Parser.Python.PythonSemanticAnalyzer();
+            var pyAnalyzer = new PythonSemanticAnalyzer();
             var pyProj = new ProjectNode("py_project", "py_project", "py_project", "python");
             var pyFile = new FileNode("py_file", "main.py", "main.py", tempWorkspace + "/main.py");
             pyProj.Children.Add(pyFile);
@@ -823,7 +823,7 @@ public class Service
 }";
             await File.WriteAllTextAsync(csFilePath, csContent);
 
-            var csFileParser = new CodeExplorer.Parser.CSharp.CSharpParser();
+            var csFileParser = new CSharpParser();
             var csFileNode = await TreeSitterFileParser.ParseFileAsync(csFilePath, "Service.cs", "1", csFileParser, ctx);
 
             // Verify Dapper query extraction
@@ -853,7 +853,7 @@ async function testDb(client: any) {
 }";
             await File.WriteAllTextAsync(tsFilePath, tsContent);
 
-            var tsFileParser = new CodeExplorer.Parser.TypeScript.TypeScriptParser();
+            var tsFileParser = new TypeScriptParser();
             var tsFileNode = await TreeSitterFileParser.ParseFileAsync(tsFilePath, "app.ts", "1", tsFileParser, ctx);
 
             var tsQueries = FindQueryNodes([tsFileNode]);
