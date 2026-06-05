@@ -15,7 +15,7 @@ public class GenericLibraryParser : ILibraryParser
     public bool IsBuiltIn { get; }
 
     public bool Supports(string libraryName) =>
-        System.Linq.Enumerable.Any(_supportedLibraries, sl => ILibraryParser.IsLibraryMatch(libraryName, sl));
+        _supportedLibraries.Any(sl => ILibraryParser.IsLibraryMatch(libraryName, sl));
 
     public GenericLibraryParser(
         string name,
@@ -27,11 +27,11 @@ public class GenericLibraryParser : ILibraryParser
     {
         Name = name;
         LibraryType = libraryType;
-        _supportedLibraries = supportedLibraries ?? Array.Empty<string>();
+        _supportedLibraries = supportedLibraries;
         LibraryName = libraryName ?? name;
         IsBuiltIn = isBuiltIn;
 
-        var firstLib = System.Linq.Enumerable.FirstOrDefault(_supportedLibraries);
+        var firstLib = _supportedLibraries.FirstOrDefault();
         LibraryId = libraryId ?? (firstLib != null ? firstLib.ToLowerInvariant() : name.ToLowerInvariant());
     }
 

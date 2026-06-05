@@ -83,12 +83,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var matchedParsers = new List<ILibraryParser>();
             foreach (var import in fileImports)
             {
-                var clean = Path.GetFileName(import);
-                var parser = activeLibraryParsers.FirstOrDefault(lp =>
-                    lp.Supports(import) ||
-                    lp.Supports(clean)
-                );
-
+                var parser = activeLibraryParsers.FirstOrDefault(lp => lp.Supports(import));
                 if (parser != null && !matchedParsers.Contains(parser))
                 {
                     matchedParsers.Add(parser);

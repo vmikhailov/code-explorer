@@ -34,7 +34,7 @@ public static class TreeSitterFileParser
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var detectedParsers = fileParser.LibraryParsers
-                .Where(lp => fileImports.Any(import => lp.Supports(import) || lp.Supports(System.IO.Path.GetFileName(import))))
+                .Where(lp => fileImports.Any(import => lp.Supports(import)))
                 .ToList();
 
             foreach (var lp in detectedParsers.Where(p => !p.IsImplemented))
