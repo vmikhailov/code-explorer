@@ -24,7 +24,21 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.GoSqlite3LibraryParser(),
         new Libraries.GoSqlLibraryParser(),
         new Libraries.LibPqLibraryParser(),
-        new Libraries.MongoGoLibraryParser()
+        new Libraries.MongoGoLibraryParser(),
+
+        // Generic Cloud Services
+        new GenericLibraryParser("Stripe", "cloud", ["github.com/stripe/stripe-go"], cloudService: "Stripe"),
+        new GenericLibraryParser("AWS", "cloud", ["github.com/aws/aws-sdk-go"], cloudService: "AWS"),
+        new GenericLibraryParser("GCP", "cloud", ["cloud.google.com/", "firebase.google.com/"], cloudService: "GCP"),
+        new GenericLibraryParser("Azure", "cloud", ["/Azure/", "/azure-sdk-for-go"], cloudService: "Azure"),
+
+        // Generic API Clients
+        new GenericLibraryParser("net/http", "api", ["net/http"], apiLibrary: "http/https"),
+        new GenericLibraryParser("resty", "api", ["github.com/go-resty/resty"], apiLibrary: "Resty"),
+        new GenericLibraryParser("req", "api", ["github.com/imroc/req"], apiLibrary: "req"),
+        new GenericLibraryParser("grequests", "api", ["github.com/levigross/grequests"], apiLibrary: "grequests"),
+        new GenericLibraryParser("gorequest", "api", ["github.com/parnurzeal/gorequest"], apiLibrary: "gorequest"),
+        new GenericLibraryParser("surf", "api", ["github.com/go-surf/surf"], apiLibrary: "surf"),
     ];
 
     public GoParser()

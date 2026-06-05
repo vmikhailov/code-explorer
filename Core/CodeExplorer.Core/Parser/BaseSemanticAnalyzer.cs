@@ -11,32 +11,19 @@ namespace CodeExplorer.Core.Parser;
 public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 {
     protected readonly IEnumerable<ILibraryParser> _libraryParsers;
-
-    private static readonly List<ILibraryParser> StandardLibraryParsers =
-    [
-        // Cloud Services
-        new GenericLibraryParser("StripeLibraryParser", "cloud", ["stripe", "stripe-go", "Stripe"], cloudService: "Stripe"),
-        new GenericLibraryParser("AwsLibraryParser", "cloud", ["Amazon.S3", "aws-sdk", "boto3", "github.com/aws/aws-sdk-go", "@aws-sdk"], cloudService: "AWS"),
-        new GenericLibraryParser("GcpLibraryParser", "cloud", ["google-cloud-", "google.cloud", "@google-cloud/", "cloud.google.com/", "firebase"], cloudService: "GCP"),
-        new GenericLibraryParser("AzureLibraryParser", "cloud", ["Azure.", "@azure/", "azure-", "/Azure/", "/azure-sdk-for-go"], cloudService: "Azure"),
-
-        // Common API Libraries
-        new GenericLibraryParser("AxiosLibraryParser", "api", ["axios"], apiLibrary: "Axios"),
-        new GenericLibraryParser("HttpClientLibraryParser", "api", ["system.net.http", "httpclient", "net/http", "http", "https", "requests", "urllib", "httpx", "aiohttp"], apiLibrary: "HttpClient"),
-        new GenericLibraryParser("RestSharpLibraryParser", "api", ["restsharp"], apiLibrary: "RestSharp"),
-        new GenericLibraryParser("FlurlLibraryParser", "api", ["flurl"], apiLibrary: "Flurl"),
-        new GenericLibraryParser("RefitLibraryParser", "api", ["refit"], apiLibrary: "Refit"),
-        new GenericLibraryParser("RestyLibraryParser", "api", ["resty"], apiLibrary: "Resty"),
-        new GenericLibraryParser("ReqLibraryParser", "api", ["req"], apiLibrary: "req"),
-        new GenericLibraryParser("GrequestsLibraryParser", "api", ["grequests"], apiLibrary: "grequests"),
-        new GenericLibraryParser("UndiciLibraryParser", "api", ["undici"], apiLibrary: "undici")
-    ];
+    protected readonly HashSet<string> _supportedLibraryNames;
 
     protected BaseSemanticAnalyzer(IEnumerable<ILibraryParser> libraryParsers)
     {
-        var active = libraryParsers ?? Array.Empty<ILibraryParser>();
-        // Merge standard library parsers with language specific library parsers
-        _libraryParsers = active.Concat(StandardLibraryParsers).ToList();
+        _libraryParsers = libraryParsers ?? Array.Empty<ILibraryParser>();
+        _supportedLibraryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var lp in _libraryParsers)
+        {
+            foreach (var lib in lp.SupportedLibraries)
+            {
+                _supportedLibraryNames.Add(lib);
+            }
+        }
     }
 
     protected static readonly Regex ConfigRegex = new(
@@ -59,6 +46,24 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
         RegexOptions.Compiled
     );
 
+    private string? FindResolvedLibraryName(string importPath)
+    {
+        var clean = Path.GetFileName(importPath);
+        if (_supportedLibraryNames.Contains(importPath)) return importPath;
+        if (_supportedLibraryNames.Contains(clean)) return clean;
+
+        foreach (var lib in _supportedLibraryNames)
+        {
+            if (importPath.StartsWith(lib + ".", StringComparison.OrdinalIgnoreCase) ||
+                importPath.StartsWith(lib + "/", StringComparison.OrdinalIgnoreCase) ||
+                (lib.Contains('/') && importPath.StartsWith(lib, StringComparison.OrdinalIgnoreCase)))
+            {
+                return lib;
+            }
+        }
+        return null;
+    }
+
     public virtual async Task AnalyzeAndEnrichAsync(ProjectNode projectNode, ParsingContext ctx)
     {
         var files = new List<FileNode>();
@@ -73,7 +78,11 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
         foreach (var file in files)
         {
             var relativePath = file.Path;
-            var fileImports = ctx.RawImports.Where(i => i.FilePath == relativePath).ToList();
+            // Extract libraries used as list of string
+            var fileImports = ctx.RawImports
+                .Where(i => i.FilePath == relativePath)
+                .Select(i => i.Path)
+                .ToList();
 
             ILibraryParser? dbParser = null;
             ILibraryParser? apiParser = null;
@@ -81,27 +90,27 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
             foreach (var import in fileImports)
             {
-                var clean = Path.GetFileName(import.Path);
-                var parser = _libraryParsers.FirstOrDefault(lp => lp.SupportedLibraries.Any(sl =>
-                    sl.Equals(import.Path, StringComparison.OrdinalIgnoreCase) ||
-                    sl.Equals(clean, StringComparison.OrdinalIgnoreCase) ||
-                    import.Path.StartsWith(sl + ".", StringComparison.OrdinalIgnoreCase) ||
-                    import.Path.StartsWith(sl + "/", StringComparison.OrdinalIgnoreCase) ||
-                    (sl.Contains('/') && import.Path.StartsWith(sl, StringComparison.OrdinalIgnoreCase))));
-
-                if (parser != null)
+                // Try to resolve each library
+                var resolvedName = FindResolvedLibraryName(import);
+                if (resolvedName != null)
                 {
-                    if (parser.Category == "database" && dbParser == null)
+                    var parser = _libraryParsers.FirstOrDefault(lp => lp.SupportedLibraries.Any(sl =>
+                        sl.Equals(resolvedName, StringComparison.OrdinalIgnoreCase)));
+
+                    if (parser != null)
                     {
-                        dbParser = parser;
-                    }
-                    else if (parser.Category == "api" && apiParser == null)
-                    {
-                        apiParser = parser;
-                    }
-                    else if (parser.Category == "cloud" && cloudParser == null)
-                    {
-                        cloudParser = parser;
+                        if (parser.Category == "database" && dbParser == null)
+                        {
+                            dbParser = parser;
+                        }
+                        else if (parser.Category == "api" && apiParser == null)
+                        {
+                            apiParser = parser;
+                        }
+                        else if (parser.Category == "cloud" && cloudParser == null)
+                        {
+                            cloudParser = parser;
+                        }
                     }
                 }
             }

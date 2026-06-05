@@ -28,6 +28,20 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.NpgsqlLibraryParser(),
         new Libraries.OracleDataAccessLibraryParser(),
         new Libraries.StackExchangeRedisLibraryParser(),
+
+        // Generic Cloud Services
+        new GenericLibraryParser("Stripe", "cloud", ["stripe", "Stripe"], cloudService: "Stripe"),
+        new GenericLibraryParser("AWS", "cloud", ["Amazon.S3", "AWSSDK"], cloudService: "AWS"),
+        new GenericLibraryParser("GCP", "cloud", ["Google.Cloud."], cloudService: "GCP"),
+        new GenericLibraryParser("Azure", "cloud", ["Azure."], cloudService: "Azure"),
+
+        // Generic API Clients
+        new GenericLibraryParser("HttpClient", "api", ["System.Net.Http"], apiLibrary: "HttpClient"),
+        new GenericLibraryParser("RestSharp", "api", ["RestSharp"], apiLibrary: "RestSharp"),
+        new GenericLibraryParser("Refit", "api", ["Refit"], apiLibrary: "Refit"),
+        new GenericLibraryParser("WebApiClient", "api", ["WebApiClient"], apiLibrary: "WebApiClient"),
+        new GenericLibraryParser("Apizr", "api", ["Apizr"], apiLibrary: "Apizr"),
+        new GenericLibraryParser("NotoriousClient", "api", ["NotoriousClient"], apiLibrary: "NotoriousClient"),
     ];
 
     public CSharpParser()

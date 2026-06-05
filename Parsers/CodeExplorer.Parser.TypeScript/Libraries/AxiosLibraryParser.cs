@@ -11,7 +11,7 @@ public class AxiosLibraryParser : ILibraryParser
 
     public string Category => "api";
 
-    public IEnumerable<string> SupportedLibraries => ["axios"];
+    public IEnumerable<string> SupportedLibraries => ["axios", "@nestjs/axios"];
 
     public bool IsImplemented => true;
 

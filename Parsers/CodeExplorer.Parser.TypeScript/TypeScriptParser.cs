@@ -29,7 +29,26 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.RedisLibraryParser(),
         new Libraries.SequelizeLibraryParser(),
         new Libraries.Sqlite3LibraryParser(),
-        new Libraries.TypeOrmLibraryParser()
+        new Libraries.TypeOrmLibraryParser(),
+
+        // Generic Cloud Services
+        new GenericLibraryParser("Stripe", "cloud", ["stripe"], cloudService: "Stripe"),
+        new GenericLibraryParser("AWS", "cloud", ["aws-sdk", "@aws-sdk"], cloudService: "AWS"),
+        new GenericLibraryParser("GCP", "cloud", ["firebase", "firebase-admin", "@google-cloud"], cloudService: "GCP"),
+        new GenericLibraryParser("Azure", "cloud", ["@azure"], cloudService: "Azure"),
+
+        // Generic API Clients
+        new GenericLibraryParser("request", "api", ["request"], apiLibrary: "request"),
+        new GenericLibraryParser("superagent", "api", ["superagent"], apiLibrary: "superagent"),
+        new GenericLibraryParser("node-fetch", "api", ["node-fetch"], apiLibrary: "fetch"),
+        new GenericLibraryParser("got", "api", ["got"], apiLibrary: "got"),
+        new GenericLibraryParser("@nestjs/axios", "api", ["@nestjs/axios"], apiLibrary: "Axios"),
+        new GenericLibraryParser("undici", "api", ["undici"], apiLibrary: "undici"),
+        new GenericLibraryParser("ky", "api", ["ky"], apiLibrary: "ky"),
+        new GenericLibraryParser("bent", "api", ["bent"], apiLibrary: "bent"),
+        new GenericLibraryParser("urllib", "api", ["urllib"], apiLibrary: "urllib"),
+        new GenericLibraryParser("cross-fetch", "api", ["cross-fetch"], apiLibrary: "fetch"),
+        new GenericLibraryParser("isomorphic-fetch", "api", ["isomorphic-fetch"], apiLibrary: "fetch"),
     ];
 
     public TypeScriptParser()

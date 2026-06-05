@@ -27,7 +27,19 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.PyMysqlLibraryParser(),
         new Libraries.PythonRedisLibraryParser(),
         new Libraries.PythonSqlite3LibraryParser(),
-        new Libraries.SqlAlchemyLibraryParser()
+        new Libraries.SqlAlchemyLibraryParser(),
+
+        // Generic Cloud Services
+        new GenericLibraryParser("Stripe", "cloud", ["stripe"], cloudService: "Stripe"),
+        new GenericLibraryParser("AWS", "cloud", ["boto3"], cloudService: "AWS"),
+        new GenericLibraryParser("GCP", "cloud", ["google-cloud-", "google.cloud", "firebase-admin"], cloudService: "GCP"),
+        new GenericLibraryParser("Azure", "cloud", ["azure-", "azure."], cloudService: "Azure"),
+
+        // Generic API Clients
+        new GenericLibraryParser("requests", "api", ["requests"], apiLibrary: "requests"),
+        new GenericLibraryParser("urllib", "api", ["urllib.request", "urllib3", "urllib"], apiLibrary: "requests"),
+        new GenericLibraryParser("httpx", "api", ["httpx"], apiLibrary: "httpx"),
+        new GenericLibraryParser("aiohttp", "api", ["aiohttp"], apiLibrary: "aiohttp"),
     ];
 
     public PythonParser()
