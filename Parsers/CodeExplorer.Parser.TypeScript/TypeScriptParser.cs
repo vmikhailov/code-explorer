@@ -30,11 +30,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.SequelizeLibraryParser(),
         new Libraries.Sqlite3LibraryParser(),
         new Libraries.TypeOrmLibraryParser(),
+        new Libraries.GcpLibraryParser(),
 
         // Generic Cloud Services
         new GenericLibraryParser("Stripe", "cloud", ["stripe"], cloudService: "Stripe"),
         new GenericLibraryParser("AWS", "cloud", ["aws-sdk", "@aws-sdk"], cloudService: "AWS"),
-        new GenericLibraryParser("GCP", "cloud", ["firebase", "firebase-admin", "@google-cloud"], cloudService: "GCP"),
         new GenericLibraryParser("Azure", "cloud", ["@azure"], cloudService: "Azure"),
 
         // Generic API Clients
