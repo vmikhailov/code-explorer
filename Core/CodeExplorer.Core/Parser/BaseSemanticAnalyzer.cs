@@ -42,6 +42,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
         var packageNames = projectNode.Children
             .OfType<PackageNode>()
+            .Concat(projectNode.Children.OfType<DependenciesNode>().SelectMany(dn => dn.Children.OfType<PackageNode>()))
             .Select(p => p.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

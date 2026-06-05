@@ -154,11 +154,18 @@ public class ProjectProcessor
                 }
 
                 // B. Process external package dependencies
-                foreach (var extPack in depInfo.ExternalPackages)
+                if (depInfo.ExternalPackages.Count > 0)
                 {
-                    var packageNodeId = $"{_ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
-                    var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type, projectNode.Path);
-                    projectNode.Children.Add(packageNode);
+                    var depsNodeId = $"{_projectNodeId}dependencies";
+                    var depsNode = new DependenciesNode(depsNodeId, "Dependencies", projectNode.Path);
+                    projectNode.Children.Add(depsNode);
+
+                    foreach (var extPack in depInfo.ExternalPackages)
+                    {
+                        var packageNodeId = $"{_ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
+                        var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type, projectNode.Path);
+                        depsNode.Children.Add(packageNode);
+                    }
                 }
             }
         }

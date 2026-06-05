@@ -141,10 +141,14 @@ public class Program
 
             app.MapControllers();
 
-            app.MapGet("/", async context =>
+            app.Use(async (context, next) =>
             {
-                context.Response.Redirect("/swagger");
-                await Task.CompletedTask;
+                if (context.Request.Path == "/")
+                {
+                    context.Response.Redirect("/swagger");
+                    return;
+                }
+                await next();
             });
 
             // Map MCP endpoints (exposing GET /sse and POST /messages by default)

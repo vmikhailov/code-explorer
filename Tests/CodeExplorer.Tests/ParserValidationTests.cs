@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using NUnit.Framework;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
@@ -582,6 +583,28 @@ export class OrdersController {
             Assert.That(projectA.Extensions, Is.Not.Null);
             Assert.That(projectA.Extensions.ContainsKey("framework"), Is.True);
             Assert.That(projectA.Extensions["framework"], Is.EqualTo("ASP.NET Core"));
+
+            // Verify Dependencies node grouping
+            var depsNode = projectA.Children.OfType<DependenciesNode>().FirstOrDefault();
+            Assert.That(depsNode, Is.Not.Null);
+            Assert.That(depsNode.Name, Is.EqualTo("Dependencies"));
+            Assert.That(depsNode.Kind, Is.EqualTo(OntologyConstants.NodeLabels.Dependencies));
+
+            // Verify external packages are inside DependenciesNode
+            var extPackages = depsNode.Children.OfType<PackageNode>().ToList();
+            Assert.That(extPackages, Has.Count.EqualTo(3));
+            Assert.That(extPackages.Any(p => p.Name == "Dapper"), Is.True);
+            Assert.That(extPackages.Any(p => p.Name == "Stripe.net"), Is.True);
+            Assert.That(extPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.True);
+
+            // Verify projectA does NOT directly contain those external packages as children
+            var directPackages = projectA.Children.OfType<PackageNode>().ToList();
+            Assert.That(directPackages.Any(p => p.Name == "Dapper"), Is.False);
+            Assert.That(directPackages.Any(p => p.Name == "Stripe.net"), Is.False);
+            Assert.That(directPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.False);
+
+            // Verify projectA directly contains the produced package
+            Assert.That(directPackages.Any(p => p.Name == "ProjectA"), Is.True);
 
             // 3. Verify semantic analysis
             var fileNode = projectA.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");

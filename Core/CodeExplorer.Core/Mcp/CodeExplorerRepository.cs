@@ -343,8 +343,18 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                          "  - `name` (string): The package name (e.g. 'neo4j.driver', 'react', 'CodeExplorer.Core').\n" +
                          "  - `version` (string): The package version.\n" +
                          "  - `type` (string): The package type identifier ('nuget', 'npm', 'go').\n" +
-                         "**Relationships**:\n" + "  - `(Project)-[:DEPENDS_ON]->(Package)`\n" +
+                         "**Relationships**:\n" + "  - `(Dependencies)-[:DEPENDS_ON]->(Package)` (for external dependencies)\n" +
+                         "  - `(Project)-[:DEPENDS_ON]->(Package)` (for produced packages)\n" +
                          "  - `(Package)-[:IMPLEMENTED_BY]->(Project)`",
+
+            "dependencies" => "### Kind: Dependencies\n" +
+                              "**Purpose**: Represents an intermediate node grouping external packages / third-party dependencies of a project.\n" +
+                              "**Key Properties**:\n" +
+                              "  - `name` (string): Constant name 'Dependencies'.\n" +
+                              "  - `path` (string): The path of the parent project.\n" +
+                              "**Relationships**:\n" +
+                              "  - `(Project)-[:CONTAINS]->(Dependencies)`\n" +
+                              "  - `(Dependencies)-[:DEPENDS_ON]->(Package)`",
 
             "file" => "### Kind: File\n" + "**Purpose**: Represents a source code file containing parsable content.\n" +
                       "**Key Properties**:\n" + "  - `name` (string): The filename basename.\n" +
@@ -401,8 +411,8 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                              "**Relationships**:\n" +
                              "  - `(Workspace)-[:CONTAINS]->(GitSettings)`",
 
-            _ =>
-                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package', 'GitSettings'."
+             _ =>
+                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package', 'Dependencies', 'GitSettings'."
         };
     }
 
