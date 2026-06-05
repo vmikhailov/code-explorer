@@ -108,11 +108,19 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                         var dbId = $"{projectNode.Id}db:{parser.Id}";
                         lock (projectNode.Children)
                         {
-                            if (projectNode.Children.All(c => c.Id != dbId))
+                            var databasesNode = projectNode.Children.OfType<DataBasesNode>().FirstOrDefault();
+                            if (databasesNode == null)
+                            {
+                                var dbGroupNodeId = $"{projectNode.Id}databases";
+                                databasesNode = new DataBasesNode(dbGroupNodeId, "DataBases", projectNode.Path);
+                                projectNode.Children.Add(databasesNode);
+                            }
+
+                            if (databasesNode.Children.All(c => c.Id != dbId))
                             {
                                 var dbNode = new DbNode(dbId, dbEngine, dbId);
                                 dbNode.SetExtension("db_type", dbType);
-                                projectNode.Children.Add(dbNode);
+                                databasesNode.Children.Add(dbNode);
                             }
                         }
 
@@ -124,10 +132,18 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                         var apiId = $"{projectNode.Id}api:{parser.Id}";
                         lock (projectNode.Children)
                         {
-                            if (!projectNode.Children.Any(c => c.Id == apiId))
+                            var apisNode = projectNode.Children.OfType<ApisInUseNode>().FirstOrDefault();
+                            if (apisNode == null)
                             {
-                                var apiNode = new ApiNode(apiId, parser.Name, apiId);
-                                projectNode.Children.Add(apiNode);
+                                var apiGroupNodeId = $"{projectNode.Id}apis";
+                                apisNode = new ApisInUseNode(apiGroupNodeId, "ApisInUse", projectNode.Path);
+                                projectNode.Children.Add(apisNode);
+                            }
+
+                            if (!apisNode.Children.Any(c => c.Id == apiId))
+                            {
+                                var apiNode = new ApiInUseNode(apiId, parser.Name, apiId);
+                                apisNode.Children.Add(apiNode);
                             }
                         }
 
@@ -140,10 +156,18 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                         var cloudId = $"{projectNode.Id}cloud:{parser.Id}";
                         lock (projectNode.Children)
                         {
-                            if (!projectNode.Children.Any(c => c.Id == cloudId))
+                            var cloudServicesNode = projectNode.Children.OfType<CloudServicesNode>().FirstOrDefault();
+                            if (cloudServicesNode == null)
+                            {
+                                var cloudGroupNodeId = $"{projectNode.Id}cloudservices";
+                                cloudServicesNode = new CloudServicesNode(cloudGroupNodeId, "CloudServices", projectNode.Path);
+                                projectNode.Children.Add(cloudServicesNode);
+                            }
+
+                            if (!cloudServicesNode.Children.Any(c => c.Id == cloudId))
                             {
                                 var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
-                                projectNode.Children.Add(cloudNode);
+                                cloudServicesNode.Children.Add(cloudNode);
                             }
                         }
 

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes;
 
-public record ApiNode(
+public record FilesNode(
     string Id,
     string Name,
     string Path,
@@ -10,5 +10,5 @@ public record ApiNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.API;
+    public override string Kind => OntologyConstants.NodeLabels.Files;
 }

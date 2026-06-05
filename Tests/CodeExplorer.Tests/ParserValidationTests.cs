@@ -496,10 +496,10 @@ export class OrdersController {
             var entryPointsCountAJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectA'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
             Assert.That(entryPointsCountAJson, Contains.Substring("\"count\": 0"));
 
-            var containsEpJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST orders/charge'}}) RETURN ep.name");
-            Assert.That(containsEpJson, Contains.Substring("POST orders/charge"));
+            var containsEpJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}}) RETURN ep.name");
+            Assert.That(containsEpJson, Contains.Substring("POST charge"));
 
-            var implByJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project)-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST orders/charge'}})-[:IMPLEMENTED_BY]->(f:Function {{name: 'charge'}}) RETURN f.name");
+            var implByJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project)-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}})-[:IMPLEMENTED_BY]->(f:Function {{name: 'charge'}}) RETURN f.name");
             Assert.That(implByJson, Contains.Substring("charge"));
 
             Console.WriteLine($"[IntegrationTest] Parsed {results.NodesCount} nodes and {results.RelationshipsCount} relationships successfully.");
@@ -580,7 +580,9 @@ export class OrdersController {
 
             var projectA = workspaceNode.Children.FirstOrDefault(c => c is ProjectNode pn && pn.Name == "ProjectA");
             Assert.That(projectA, Is.Not.Null);
-            Assert.That(projectA.Children.Any(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
+            var filesNode = projectA.Children.OfType<FilesNode>().FirstOrDefault();
+            Assert.That(filesNode, Is.Not.Null);
+            Assert.That(filesNode.Children.Any(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
 
             // 2. Perform pruning
             OntologyPruner.PruneEmptyFolders(workspaceNode);
@@ -589,7 +591,7 @@ export class OrdersController {
             // ProjectB is removed because it is an empty project
             Assert.That(workspaceNode.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.False);
             // EmptyFolder is removed
-            var folderA = projectA.Children.FirstOrDefault(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder");
+            var folderA = filesNode.Children.FirstOrDefault(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder");
             Assert.That(folderA, Is.Null);
 
             // Verify project framework detection
@@ -619,8 +621,7 @@ export class OrdersController {
             // Verify projectA directly contains the produced package
             Assert.That(directPackages.Any(p => p.Name == "ProjectA"), Is.True);
 
-            // 3. Verify semantic analysis
-            var fileNode = projectA.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
+            var fileNode = filesNode.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
             Assert.That(fileNode, Is.Not.Null);
 
             // Check Repository.cs extensions (file-level extensions are removed)
@@ -630,16 +631,20 @@ export class OrdersController {
                 Assert.That(fileNode.Extensions.ContainsKey("cloud_service"), Is.False);
             }
 
-            // Check if DbNode child was added at the project level
-            var dbNode = projectA.Children.OfType<DbNode>().FirstOrDefault();
+            // Check if DbNode child was added at the project level (under DataBasesNode)
+            var databasesNode = projectA.Children.OfType<DataBasesNode>().FirstOrDefault();
+            Assert.That(databasesNode, Is.Not.Null);
+            var dbNode = databasesNode.Children.OfType<DbNode>().FirstOrDefault();
             Assert.That(dbNode, Is.Not.Null);
             Assert.That(dbNode.Name, Is.EqualTo("Dapper"));
             Assert.That(dbNode.Extensions, Is.Not.Null);
             Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
             Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
 
-            // Check if CloudServiceNode child was added at the project level
-            var cloudNode = projectA.Children.OfType<CloudServiceNode>().FirstOrDefault();
+            // Check if CloudServiceNode child was added at the project level (under CloudServicesNode)
+            var cloudServicesNode = projectA.Children.OfType<CloudServicesNode>().FirstOrDefault();
+            Assert.That(cloudServicesNode, Is.Not.Null);
+            var cloudNode = cloudServicesNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
             Assert.That(cloudNode, Is.Not.Null);
             Assert.That(cloudNode.Name, Is.EqualTo("Stripe"));
 
@@ -807,7 +812,9 @@ END;
             ctx.RawImports.Add(new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs"));
             await csAnalyzer.AnalyzeAndEnrichAsync(csProj, ctx);
 
-            var csDbNode = csProj.Children.OfType<DbNode>().FirstOrDefault();
+            var csDbGroup = csProj.Children.OfType<DataBasesNode>().FirstOrDefault();
+            Assert.That(csDbGroup, Is.Not.Null);
+            var csDbNode = csDbGroup.Children.OfType<DbNode>().FirstOrDefault();
             Assert.That(csDbNode, Is.Not.Null);
             Assert.That(csDbNode.Name, Is.EqualTo("Microsoft.EntityFrameworkCore"));
             Assert.That(csDbNode!.Extensions!["db_type"], Is.EqualTo("relational"));
@@ -821,7 +828,9 @@ END;
             ctx.RawImports.Add(new RawImport("mongoose", "index.ts"));
             await tsAnalyzer.AnalyzeAndEnrichAsync(tsProj, ctx);
 
-            var tsDbNode = tsProj.Children.OfType<DbNode>().FirstOrDefault();
+            var tsDbGroup = tsProj.Children.OfType<DataBasesNode>().FirstOrDefault();
+            Assert.That(tsDbGroup, Is.Not.Null);
+            var tsDbNode = tsDbGroup.Children.OfType<DbNode>().FirstOrDefault();
             Assert.That(tsDbNode, Is.Not.Null);
             Assert.That(tsDbNode.Name, Is.EqualTo("MongoDB"));
             Assert.That(tsDbNode!.Extensions!["db_type"], Is.EqualTo("document"));
@@ -835,7 +844,9 @@ END;
             ctx.RawImports.Add(new RawImport("redis", "main.py"));
             await pyAnalyzer.AnalyzeAndEnrichAsync(pyProj, ctx);
 
-            var pyDbNode = pyProj.Children.OfType<DbNode>().FirstOrDefault();
+            var pyDbGroup = pyProj.Children.OfType<DataBasesNode>().FirstOrDefault();
+            Assert.That(pyDbGroup, Is.Not.Null);
+            var pyDbNode = pyDbGroup.Children.OfType<DbNode>().FirstOrDefault();
             Assert.That(pyDbNode, Is.Not.Null);
             Assert.That(pyDbNode.Name, Is.EqualTo("Redis"));
             Assert.That(pyDbNode!.Extensions!["db_type"], Is.EqualTo("keyvalue"));

@@ -107,7 +107,7 @@ public static class OntologyUploader
         {
             return new UsesDbRelationship(parentId, child.Id);
         }
-        if (child.Kind == OntologyConstants.NodeLabels.API)
+        if (child.Kind == OntologyConstants.NodeLabels.ApiInUse)
         {
             return new UsesApiRelationship(parentId, child.Id);
         }

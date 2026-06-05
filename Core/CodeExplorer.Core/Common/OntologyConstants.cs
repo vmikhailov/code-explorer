@@ -16,6 +16,10 @@ public static class OntologyConstants
         public const string Package = "Package";
         public const string Dependencies = "Dependencies";
         public const string EntryPoints = "EntryPoints";
+        public const string Files = "Files";
+        public const string DataBases = "DataBases";
+        public const string ApisInUse = "ApisInUse";
+        public const string CloudServices = "CloudServices";
         public const string DB = "DB";
         public const string DataSet = "DataSet";
         public const string Table = "Table";
@@ -26,7 +30,7 @@ public static class OntologyConstants
         public const string CloudService = "CloudService";
         public const string ExternalService = "ExternalService";
         public const string GitSettings = "GitSettings";
-        public const string API = "API";
+        public const string ApiInUse = "ApiInUse";
     }
 
     public static class Relationships

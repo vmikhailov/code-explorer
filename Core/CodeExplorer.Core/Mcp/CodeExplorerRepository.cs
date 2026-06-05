@@ -24,14 +24,14 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         {
             parameters["projectName"] = projectName;
 
-            query = "MATCH (p:Project {name: $projectName}) " + "OPTIONAL MATCH (p)-[:USES_DB]->(db:DB) " +
+            query = "MATCH (p:Project {name: $projectName}) " + "OPTIONAL MATCH (p)-[:CONTAINS]->(:DataBases)-[:USES_DB]->(db:DB) " +
                     "OPTIONAL MATCH (p)-[:CONTAINS*1..3]->(pf:ProjectFolder) " +
                     "RETURN p.name AS project, p.project_type AS type, db.name AS dbName, collect(DISTINCT pf.name) AS folders";
         }
         else
         {
             query = "MATCH (w:Workspace) " + "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(wf:WorkspaceFolder) " +
-                    "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(p:Project) " + "OPTIONAL MATCH (p)-[:USES_DB]->(db:DB) " +
+                    "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(p:Project) " + "OPTIONAL MATCH (p)-[:CONTAINS]->(:DataBases)-[:USES_DB]->(db:DB) " +
                     "RETURN w.name AS workspace, w.path AS path, collect(DISTINCT wf.name) AS workspaceFolders, collect(DISTINCT p.name) AS projects, collect(DISTINCT db.name) AS dbNames";
         }
 
@@ -322,30 +322,35 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                                  "  - `(WorkspaceFolder)-[:CONTAINS]->(Project)`",
 
             "project" => "### Kind: Project\n" +
-                         "**Purpose**: Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).\n" +
-                         "**Key Properties**:\n" + "  - `name` (string): The project name.\n" +
-                         "  - `path` (string): The local project folder name relative to its parent container (empty string at root).\n" +
-                         "  - `project_type` (string): The language/signature identifier (e.g., 'csharp', 'go', 'python', 'typescript').\n" +
-                         "**Relationships**:\n" + "  - `(Workspace|WorkspaceFolder)-[:CONTAINS]->(Project)`\n" +
-                         "  - `(Project)-[:CONTAINS]->(ProjectFolder)`\n" + "  - `(Project)-[:CONTAINS]->(File)`\n" +
-                         "  - `(Project)-[:DEPENDS_ON]->(Project)`\n" + "  - `(Project)-[:DEPENDS_ON]->(Package)`",
+                          "**Purpose**: Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).\n" +
+                          "**Key Properties**:\n" + "  - `name` (string): The project name.\n" +
+                          "  - `path` (string): The local project folder name relative to its parent container (empty string at root).\n" +
+                          "  - `project_type` (string): The language/signature identifier (e.g., 'csharp', 'go', 'python', 'typescript').\n" +
+                          "**Relationships**:\n" + "  - `(Workspace|WorkspaceFolder)-[:CONTAINS]->(Project)`\n" +
+                          "  - `(Project)-[:CONTAINS]->(Files)`\n" + 
+                          "  - `(Project)-[:CONTAINS]->(DataBases)`\n" + 
+                          "  - `(Project)-[:CONTAINS]->(ApisInUse)`\n" + 
+                          "  - `(Project)-[:CONTAINS]->(CloudServices)`\n" + 
+                          "  - `(Project)-[:CONTAINS]->(Dependencies)`\n" + 
+                          "  - `(Project)-[:CONTAINS]->(EntryPoints)`\n" + 
+                          "  - `(Project)-[:DEPENDS_ON]->(Project)`\n" + "  - `(Project)-[:DEPENDS_ON]->(Package)`",
 
             "projectfolder" => "### Kind: ProjectFolder\n" +
                                "**Purpose**: Represents a subdirectory inside a Project, containing files and other project folders.\n" +
                                "**Key Properties**:\n" + "  - `name` (string): The folder name.\n" +
                                "  - `path` (string): The local folder name relative to its immediate parent container.\n" +
-                               "**Relationships**:\n" + "  - `(Project|ProjectFolder)-[:CONTAINS]->(ProjectFolder)`\n" +
+                               "**Relationships**:\n" + "  - `(Files|ProjectFolder)-[:CONTAINS]->(ProjectFolder)`\n" +
                                "  - `(ProjectFolder)-[:CONTAINS]->(File)`",
 
             "package" => "### Kind: Package\n" +
-                         "**Purpose**: Represents an external dependency package or workspace package referenced or produced by projects.\n" +
-                         "**Key Properties**:\n" +
-                         "  - `name` (string): The package name (e.g. 'neo4j.driver', 'react', 'CodeExplorer.Core').\n" +
-                         "  - `version` (string): The package version.\n" +
-                         "  - `type` (string): The package type identifier ('nuget', 'npm', 'go').\n" +
-                         "**Relationships**:\n" + "  - `(Dependencies)-[:DEPENDS_ON]->(Package)` (for external dependencies)\n" +
-                         "  - `(Project)-[:DEPENDS_ON]->(Package)` (for produced packages)\n" +
-                         "  - `(Package)-[:IMPLEMENTED_BY]->(Project)`",
+                          "**Purpose**: Represents an external dependency package or workspace package referenced or produced by projects.\n" +
+                          "**Key Properties**:\n" +
+                          "  - `name` (string): The package name (e.g. 'neo4j.driver', 'react', 'CodeExplorer.Core').\n" +
+                          "  - `version` (string): The package version.\n" +
+                          "  - `type` (string): The package type identifier ('nuget', 'npm', 'go').\n" +
+                          "**Relationships**:\n" + "  - `(Dependencies)-[:DEPENDS_ON]->(Package)` (for external dependencies)\n" +
+                          "  - `(Project)-[:DEPENDS_ON]->(Package)` (for produced packages)\n" +
+                          "  - `(Package)-[:IMPLEMENTED_BY]->(Project)`",
 
             "dependencies" => "### Kind: Dependencies\n" +
                               "**Purpose**: Represents an intermediate node grouping external packages / third-party dependencies of a project.\n" +
@@ -356,10 +361,71 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                               "  - `(Project)-[:CONTAINS]->(Dependencies)`\n" +
                               "  - `(Dependencies)-[:DEPENDS_ON]->(Package)`",
 
+            "files" => "### Kind: Files\n" +
+                       "**Purpose**: Represents an intermediate node grouping all source code files and folders of a project.\n" +
+                       "**Key Properties**:\n" +
+                       "  - `name` (string): Constant name 'Files'.\n" +
+                       "  - `path` (string): The path of the parent project.\n" +
+                       "**Relationships**:\n" +
+                       "  - `(Project)-[:CONTAINS]->(Files)`\n" +
+                       "  - `(Files)-[:CONTAINS]->(ProjectFolder)`\n" +
+                       "  - `(Files)-[:CONTAINS]->(File)`",
+
+            "databases" => "### Kind: DataBases\n" +
+                           "**Purpose**: Represents an intermediate node grouping all databases used by a project.\n" +
+                           "**Key Properties**:\n" +
+                           "  - `name` (string): Constant name 'DataBases'.\n" +
+                           "  - `path` (string): The path of the parent project.\n" +
+                           "**Relationships**:\n" +
+                           "  - `(Project)-[:CONTAINS]->(DataBases)`\n" +
+                           "  - `(DataBases)-[:USES_DB]->(DB)`",
+
+            "apisinuse" => "### Kind: ApisInUse\n" +
+                           "**Purpose**: Represents an intermediate node grouping all external APIs used by a project.\n" +
+                           "**Key Properties**:\n" +
+                           "  - `name` (string): Constant name 'ApisInUse'.\n" +
+                           "  - `path` (string): The path of the parent project.\n" +
+                           "**Relationships**:\n" +
+                           "  - `(Project)-[:CONTAINS]->(ApisInUse)`\n" +
+                           "  - `(ApisInUse)-[:USES_API]->(ApiInUse)`",
+
+            "cloudservices" => "### Kind: CloudServices\n" +
+                               "**Purpose**: Represents an intermediate node grouping all cloud services used by a project.\n" +
+                               "**Key Properties**:\n" +
+                               "  - `name` (string): Constant name 'CloudServices'.\n" +
+                               "  - `path` (string): The path of the parent project.\n" +
+                               "**Relationships**:\n" +
+                               "  - `(Project)-[:CONTAINS]->(CloudServices)`\n" +
+                               "  - `(CloudServices)-[:USES_CLOUD]->(CloudService)`",
+
+            "db" => "### Kind: DB\n" +
+                    "**Purpose**: Represents a database server or instance used by the project.\n" +
+                    "**Key Properties**:\n" +
+                    "  - `name` (string): The name of the database engine (e.g. 'PostgreSQL', 'MongoDB').\n" +
+                    "**Relationships**:\n" +
+                    "  - `(DataBases)-[:USES_DB]->(DB)`\n" +
+                    "  - `(File|Class|Function)-[:USES_DB]->(DB)`",
+
+            "apiinuse" => "### Kind: ApiInUse\n" +
+                          "**Purpose**: Represents an external API library or client service used by the project (e.g. NestJS, Axios, HttpClient).\n" +
+                          "**Key Properties**:\n" +
+                          "  - `name` (string): The name of the API library or service.\n" +
+                          "**Relationships**:\n" +
+                          "  - `(ApisInUse)-[:USES_API]->(ApiInUse)`\n" +
+                          "  - `(File|Class|Function)-[:USES_API]->(ApiInUse)`",
+
+            "cloudservice" => "### Kind: CloudService\n" +
+                              "**Purpose**: Represents a cloud provider service used by the project (e.g. AWS S3, Stripe, Firebase).\n" +
+                              "**Key Properties**:\n" +
+                              "  - `name` (string): The name of the cloud service.\n" +
+                              "**Relationships**:\n" +
+                              "  - `(CloudServices)-[:USES_CLOUD]->(CloudService)`\n" +
+                              "  - `(File|Class|Function)-[:USES_CLOUD]->(CloudService)`",
+
             "file" => "### Kind: File\n" + "**Purpose**: Represents a source code file containing parsable content.\n" +
                       "**Key Properties**:\n" + "  - `name` (string): The filename basename.\n" +
                       "  - `path` (string): The filename relative to its immediate parent container folder.\n" +
-                      "**Relationships**:\n" + "  - `(Project|ProjectFolder)-[:CONTAINS]->(File)`\n" +
+                      "**Relationships**:\n" + "  - `(Files|ProjectFolder)-[:CONTAINS]->(File)`\n" +
                       "  - `(File)-[:CONTAINS]->(Class)`\n" + "  - `(File)-[:CONTAINS]->(Interface)`\n" +
                       "  - `(File)-[:CONTAINS]->(Function)`",
 
@@ -431,7 +497,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                              "  - `(EntryPoints)-[:EXPOSES]->(EntryPoint)`",
 
              _ =>
-                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package', 'Dependencies', 'EntryPoints', 'EntryPoint', 'GitSettings'."
+                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'Files', 'DataBases', 'ApisInUse', 'CloudServices', 'File', 'Class', 'Function', 'Variable', 'Package', 'Dependencies', 'EntryPoints', 'EntryPoint', 'ApiInUse', 'CloudService', 'DB', 'GitSettings'."
         };
     }
 

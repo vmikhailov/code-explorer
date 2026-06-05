@@ -42,8 +42,12 @@ public class ProjectProcessor
             _projectParser.ProjectType
         );
 
-        // 1. Scan directory recursively and build the rich node tree
-        await ScanDirectoryAsync(_projectDir, projectNode);
+        // 1. Scan directory recursively and build the rich node tree under FilesNode
+        var filesNodeId = $"{_projectNodeId}files";
+        var filesNode = new FilesNode(filesNodeId, "Files", projectNode.Path);
+        projectNode.Children.Add(filesNode);
+
+        await ScanDirectoryAsync(_projectDir, filesNode);
 
         // Group EntryPoints under a single intermediate node to simplify browsing
         GroupEntryPoints(projectNode);

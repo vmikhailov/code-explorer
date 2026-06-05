@@ -13,7 +13,8 @@ public static class OntologyPruner
             var child = node.Children[i];
             if (child.Kind == OntologyConstants.NodeLabels.WorkspaceFolder ||
                 child.Kind == OntologyConstants.NodeLabels.ProjectFolder ||
-                child.Kind == OntologyConstants.NodeLabels.Project)
+                child.Kind == OntologyConstants.NodeLabels.Project ||
+                child.Kind == OntologyConstants.NodeLabels.Files)
             {
                 var shouldPruneChild = PruneEmptyFolders(child);
                 if (shouldPruneChild)
