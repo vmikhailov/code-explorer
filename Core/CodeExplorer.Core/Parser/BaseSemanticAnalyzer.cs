@@ -66,7 +66,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var fileImports = ctx.RawImports.Where(i => i.FilePath == relativePath).ToList();
 
             var firstDbImport = fileImports.FirstOrDefault(i => IsDbPackage(i.Path));
-            var usesApi = fileImports.Any(i => IsApiPackage(i.Path));
+            var firstApiImport = fileImports.FirstOrDefault(i => IsApiPackage(i.Path));
             var firstCloudImport = fileImports.FirstOrDefault(i => IsCloudPackage(i.Path));
 
             if (firstDbImport != null)
@@ -80,9 +80,11 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                 file.Children.Add(dbNode);
             }
 
-            if (usesApi)
+            if (firstApiImport != null)
             {
                 file.SetExtension("uses_api", "true");
+                var apiLib = MapPackageToApiLibrary(firstApiImport.Path);
+                file.SetExtension("api_library", apiLib);
             }
 
             if (firstCloudImport != null)
@@ -207,6 +209,51 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             return "Azure";
         if (lower.Contains("stripe"))
             return "Stripe";
+        return packageName;
+    }
+
+    protected virtual string MapPackageToApiLibrary(string packageName)
+    {
+        var lower = packageName.ToLowerInvariant();
+        var clean = Path.GetFileName(lower);
+
+        if (clean.Contains("axios"))
+            return "Axios";
+        if (clean == "net/http" || clean == "http" || clean == "https")
+            return "http/https";
+        if (clean.Contains("system.net.http") || clean == "httpclient")
+            return "HttpClient";
+        if (clean.Contains("fetch") || clean.Contains("isomorphic-fetch") || clean.Contains("cross-fetch"))
+            return "fetch";
+        if (clean.Contains("superagent"))
+            return "superagent";
+        if (clean.Contains("got"))
+            return "got";
+        if (clean.Contains("requests") || clean.Contains("urllib"))
+            return "requests";
+        if (clean.Contains("httpx"))
+            return "httpx";
+        if (clean.Contains("aiohttp"))
+            return "aiohttp";
+        if (clean.Contains("restsharp"))
+            return "RestSharp";
+        if (clean.Contains("flurl"))
+            return "Flurl";
+        if (clean.Contains("refit"))
+            return "Refit";
+        if (clean.Contains("resty"))
+            return "Resty";
+        if (clean.Contains("req"))
+            return "req";
+        if (clean.Contains("grequests"))
+            return "grequests";
+        if (clean.Contains("undici"))
+            return "undici";
+        if (clean.Contains("ky"))
+            return "ky";
+        if (clean.Contains("bent"))
+            return "bent";
+
         return packageName;
     }
 }
