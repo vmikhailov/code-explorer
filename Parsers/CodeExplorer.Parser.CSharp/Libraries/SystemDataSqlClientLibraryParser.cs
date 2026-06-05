@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class SystemDataSqlClientLibraryParser : ILibraryParser
 {
-    public string Name => "SystemDataSqlClientLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "SQL Server";
-    public string LibraryId => "mssql";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["System.Data.SqlClient"];
+    public string Type => "db:relational";
+    public string Name => "SQL Server";
+    public string Id => "mssql";
+    public IReadOnlyList<string> SupportedPatterns => ["System.Data.SqlClient"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

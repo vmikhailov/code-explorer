@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Go.Libraries;
 
 public class GoSqlDriverMysqlLibraryParser : ILibraryParser
 {
-    public string Name => "GoSqlDriverMysqlLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "MySQL";
-    public string LibraryId => "mysql";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["github.com/go-sql-driver/mysql"];
+    public string Type => "db:relational";
+    public string Name => "MySQL";
+    public string Id => "mysql";
+    public IReadOnlyList<string> SupportedPatterns => ["github.com/go-sql-driver/mysql"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

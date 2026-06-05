@@ -13,13 +13,7 @@ public interface ILibraryParser
     /// <summary>
     /// The library/package patterns that trigger this parser (e.g., ["mongoose", "@nestjs/*"]).
     /// </summary>
-    System.Collections.Generic.IReadOnlyList<string> SupportedPatterns { get; }
-
-    /// <summary>
-    /// Checks if this library parser supports the specified library name.
-    /// </summary>
-    bool Supports(string libraryName) =>
-        System.Linq.Enumerable.Any(SupportedPatterns, pat => PatternMatcher.IsMatch(libraryName, pat));
+    IReadOnlyList<string> SupportedPatterns { get; }
 
     /// <summary>
     /// Performs a part-based matching of library names, splitting by '.' and '/' and comparing segments.
@@ -28,15 +22,15 @@ public interface ILibraryParser
     {
         if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
 
-        var aParts = a.Split(new[] { '.', '/' }, System.StringSplitOptions.RemoveEmptyEntries);
-        var bParts = b.Split(new[] { '.', '/' }, System.StringSplitOptions.RemoveEmptyEntries);
+        var aParts = a.Split(['.', '/'], StringSplitOptions.RemoveEmptyEntries);
+        var bParts = b.Split(['.', '/'], StringSplitOptions.RemoveEmptyEntries);
 
-        var minLen = System.Math.Min(aParts.Length, bParts.Length);
+        var minLen = Math.Min(aParts.Length, bParts.Length);
         if (minLen == 0) return false;
 
         for (int i = 0; i < minLen; i++)
         {
-            if (!aParts[i].Equals(bParts[i], System.StringComparison.OrdinalIgnoreCase))
+            if (!aParts[i].Equals(bParts[i], StringComparison.OrdinalIgnoreCase))
                 return false;
         }
 
@@ -58,17 +52,12 @@ public interface ILibraryParser
     /// <summary>
     /// The type of the library (e.g., "db:relational", "api", "cloud", "framework", "tool").
     /// </summary>
-    string LibraryType { get; }
-
-    /// <summary>
-    /// The logical name of the library (e.g., "PostgreSQL", "Dapper", "Stripe", "NestJS").
-    /// </summary>
-    string LibraryName { get; }
+    string Type { get; }
 
     /// <summary>
     /// A unique identifier for the library (e.g., "postgres", "dapper", "stripe", "nestjs").
     /// </summary>
-    string LibraryId { get; }
+    string Id { get; }
 
     /// <summary>
     /// Maps a Tree-sitter AST node to a CodeExplorer ontological kind (Class, Interface, Function, Variable, Query, EntryPoint, ExternalService, or null).

@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Go.Libraries;
 
 public class GormLibraryParser : ILibraryParser
 {
-    public string Name => "GormLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "GORM";
-    public string LibraryId => "gorm";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["gorm.io/gorm"];
+    public string Type => "db:relational";
+    public string Name => "GORM";
+    public string Id => "gorm";
+    public IReadOnlyList<string> SupportedPatterns => ["gorm.io/gorm"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

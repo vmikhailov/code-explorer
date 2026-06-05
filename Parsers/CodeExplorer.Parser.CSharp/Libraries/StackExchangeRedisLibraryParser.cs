@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class StackExchangeRedisLibraryParser : ILibraryParser
 {
-    public string Name => "StackExchangeRedisLibraryParser";
-    public string LibraryType => "db:keyvalue";
-    public string LibraryName => "Redis";
-    public string LibraryId => "redis";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["StackExchange.Redis"];
+    public string Type => "db:keyvalue";
+    public string Name => "Redis";
+    public string Id => "redis";
+    public IReadOnlyList<string> SupportedPatterns => ["StackExchange.Redis"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

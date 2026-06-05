@@ -9,30 +9,28 @@ public class GenericLibraryParser : ILibraryParser
     public IReadOnlyList<string> SupportedPatterns { get; }
     public bool IsImplemented => false;
 
-    public string LibraryType { get; }
-    public string LibraryName { get; }
-    public string LibraryId { get; }
+    public string Type { get; }
+    public string Id { get; }
     public bool IsBuiltIn { get; }
 
     public GenericLibraryParser(
+        string id,
         string name,
         string libraryType,
         IReadOnlyList<string> supportedPatterns,
-        string? libraryName = null,
-        string? libraryId = null,
         bool isBuiltIn = false)
     {
+        Id = id;
         Name = name;
-        LibraryType = libraryType;
+        Type = libraryType;
         SupportedPatterns = supportedPatterns ?? Array.Empty<string>();
-        LibraryName = libraryName ?? name;
         IsBuiltIn = isBuiltIn;
-
-        var firstLib = System.Linq.Enumerable.FirstOrDefault(SupportedPatterns);
-        LibraryId = libraryId ?? (firstLib != null ? firstLib.ToLowerInvariant() : name.ToLowerInvariant());
     }
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
+
+    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+    }
 }

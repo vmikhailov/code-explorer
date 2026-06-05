@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using System.Collections.Concurrent;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -30,21 +32,21 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.SqlAlchemyLibraryParser(),
 
         // Generic Cloud Services
-        new GenericLibraryParser("Stripe", "cloud", ["stripe"], libraryName: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["boto3"], libraryName: "AWS"),
-        new GenericLibraryParser("GCP", "cloud", ["google-cloud-", "google.cloud", "firebase-admin"], libraryName: "GCP"),
-        new GenericLibraryParser("Azure", "cloud", ["azure-", "azure."], libraryName: "Azure"),
+        new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe"]),
+        new GenericLibraryParser("aws", "AWS", "cloud", ["boto3"]),
+        new GenericLibraryParser("gcp", "GCP", "cloud", ["google-cloud-", "google.cloud", "firebase-admin"]),
+        new GenericLibraryParser("azure", "Azure", "cloud", ["azure-", "azure."]),
 
         // Generic Frameworks
-        new GenericLibraryParser("Django", "framework", ["django"], libraryName: "Django"),
-        new GenericLibraryParser("Flask", "framework", ["flask"], libraryName: "Flask"),
-        new GenericLibraryParser("FastAPI", "framework", ["fastapi"], libraryName: "FastAPI"),
+        new GenericLibraryParser("django", "Django", "framework", ["django"]),
+        new GenericLibraryParser("flask", "Flask", "framework", ["flask"]),
+        new GenericLibraryParser("fastapi", "FastAPI", "framework", ["fastapi"]),
 
         // Generic API Clients
-        new GenericLibraryParser("requests", "api", ["requests"], libraryName: "requests"),
-        new GenericLibraryParser("urllib", "api", ["urllib.request", "urllib3", "urllib"], libraryName: "requests", isBuiltIn: true),
-        new GenericLibraryParser("httpx", "api", ["httpx"], libraryName: "httpx"),
-        new GenericLibraryParser("aiohttp", "api", ["aiohttp"], libraryName: "aiohttp"),
+        new GenericLibraryParser("requests", "requests", "api", ["requests"]),
+        new GenericLibraryParser("urllib", "requests", "api", ["urllib.request", "urllib3", "urllib"], isBuiltIn: true),
+        new GenericLibraryParser("httpx", "httpx", "api", ["httpx"]),
+        new GenericLibraryParser("aiohttp", "aiohttp", "api", ["aiohttp"]),
     ];
 
     public PythonParser()
@@ -327,11 +329,11 @@ public class PythonParser : IProjectParser, IFileParser
             try
             {
                 var content = await File.ReadAllTextAsync(setupPyPath);
-                var nameMatch = System.Text.RegularExpressions.Regex.Match(content, @"name\s*=\s*['""]([^'""]+)['""]");
+                var nameMatch = Regex.Match(content, @"name\s*=\s*['""]([^'""]+)['""]");
                 if (nameMatch.Success)
                 {
                     var name = nameMatch.Groups[1].Value;
-                    var versionMatch = System.Text.RegularExpressions.Regex.Match(content, @"version\s*=\s*['""]([^'""]+)['""]");
+                    var versionMatch = Regex.Match(content, @"version\s*=\s*['""]([^'""]+)['""]");
                     var version = versionMatch.Success ? versionMatch.Groups[1].Value : "1.0.0";
 
                     return new ProducedPackageInfo(name, version, "pip");
@@ -409,7 +411,7 @@ public class PythonParser : IProjectParser, IFileParser
                         if (string.IsNullOrEmpty(line) || line.StartsWith("#") || line.StartsWith("-")) continue;
 
                         // Parse package name and specifier, e.g. requests>=2.25.1 -> name = requests, version = >=2.25.1
-                        var match = System.Text.RegularExpressions.Regex.Match(line, @"^([a-zA-Z0-9_\-\[\]]+)(.*)$");
+                        var match = Regex.Match(line, @"^([a-zA-Z0-9_\-\[\]]+)(.*)$");
                         if (match.Success)
                         {
                             var name = match.Groups[1].Value;
@@ -440,7 +442,7 @@ public class PythonParser : IProjectParser, IFileParser
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> _pyRootCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, HashSet<string>> _pyRootCache = new(StringComparer.OrdinalIgnoreCase);
 
     private ImportType ResolvePyImportType(string importPath, string filePath, ParsingContext ctx)
     {

@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class KnexLibraryParser : ILibraryParser
 {
-    public string Name => "KnexLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "Knex";
-    public string LibraryId => "knex";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["knex"];
+    public string Type => "db:relational";
+    public string Name => "Knex";
+    public string Id => "knex";
+    public IReadOnlyList<string> SupportedPatterns => ["knex"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

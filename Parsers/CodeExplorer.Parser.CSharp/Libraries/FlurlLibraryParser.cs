@@ -7,15 +7,13 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class FlurlLibraryParser : ILibraryParser
 {
-    public string Name => "FlurlLibraryParser";
+    public string Type => "api";
 
-    public string LibraryType => "api";
+    public string Name => "Flurl";
 
-    public string LibraryName => "Flurl";
+    public string Id => "flurl";
 
-    public string LibraryId => "flurl";
-
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Flurl", "Flurl.Http"];
+    public IReadOnlyList<string> SupportedPatterns => ["Flurl", "Flurl.Http"];
 
     public bool IsImplemented => true;
 

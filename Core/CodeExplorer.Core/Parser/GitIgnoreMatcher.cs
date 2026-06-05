@@ -1,8 +1,9 @@
+using System.Text.RegularExpressions;
 namespace CodeExplorer.Core.Parser;
 
 public class GitIgnoreMatcher
 {
-    private readonly List<(string Pattern, System.Text.RegularExpressions.Regex Regex, bool IsDirectoryOnly)> _rules =
+    private readonly List<(string Pattern, Regex Regex, bool IsDirectoryOnly)> _rules =
         [];
 
     public GitIgnoreMatcher(string workspaceRoot)
@@ -29,7 +30,7 @@ public class GitIgnoreMatcher
                 trimmed = trimmed.Substring(1);
             }
 
-            var escaped = System.Text.RegularExpressions.Regex.Escape(trimmed);
+            var escaped = Regex.Escape(trimmed);
             var regexPattern = escaped
                 .Replace("\\*", ".*")
                 .Replace("\\?", ".");
@@ -54,7 +55,7 @@ public class GitIgnoreMatcher
 
             try
             {
-                var regex = new System.Text.RegularExpressions.Regex(regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+                var regex = new Regex(regexPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
                 _rules.Add((trimmed, regex, isDirectoryOnly));
             }
             catch

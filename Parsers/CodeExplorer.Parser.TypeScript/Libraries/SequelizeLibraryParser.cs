@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class SequelizeLibraryParser : ILibraryParser
 {
-    public string Name => "SequelizeLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "Sequelize";
-    public string LibraryId => "sequelize";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["sequelize"];
+    public string Type => "db:relational";
+    public string Name => "Sequelize";
+    public string Id => "sequelize";
+    public IReadOnlyList<string> SupportedPatterns => ["sequelize"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

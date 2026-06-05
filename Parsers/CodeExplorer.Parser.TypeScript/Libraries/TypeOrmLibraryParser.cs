@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class TypeOrmLibraryParser : ILibraryParser
 {
-    public string Name => "TypeOrmLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "TypeORM";
-    public string LibraryId => "typeorm";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["typeorm"];
+    public string Type => "db:relational";
+    public string Name => "TypeORM";
+    public string Id => "typeorm";
+    public IReadOnlyList<string> SupportedPatterns => ["typeorm"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

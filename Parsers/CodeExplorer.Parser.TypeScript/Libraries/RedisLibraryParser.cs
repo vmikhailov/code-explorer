@@ -7,15 +7,13 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class RedisLibraryParser : ILibraryParser
 {
-    public string Name => "RedisLibraryParser";
+    public string Type => "db:keyvalue";
 
-    public string LibraryType => "db:keyvalue";
+    public string Name => "Redis";
 
-    public string LibraryName => "Redis";
+    public string Id => "redis";
 
-    public string LibraryId => "redis";
-
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["redis", "ioredis"];
+    public IReadOnlyList<string> SupportedPatterns => ["redis", "ioredis"];
 
     public bool IsImplemented => true;
 
@@ -67,8 +65,8 @@ public class RedisLibraryParser : ILibraryParser
             if (prop != null && prop.Id != IntPtr.Zero)
             {
                 var propName = prop.Text;
-                return propName is "get" or "set" or "del" or "exists" or "incr" or "decr" 
-                                   or "hget" or "hset" or "hdel" or "sadd" or "srem" or "sismember" 
+                return propName is "get" or "set" or "del" or "exists" or "incr" or "decr"
+                                   or "hget" or "hset" or "hdel" or "sadd" or "srem" or "sismember"
                                    or "lpush" or "rpush" or "lpop" or "rpop" or "publish" or "subscribe";
             }
         }

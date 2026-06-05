@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
@@ -30,21 +31,21 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.StackExchangeRedisLibraryParser(),
 
         // Generic Cloud Services
-        new GenericLibraryParser("Stripe", "cloud", ["stripe", "Stripe"], libraryName: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["Amazon.S3", "AWSSDK"], libraryName: "AWS"),
-        new GenericLibraryParser("GCP", "cloud", ["Google.Cloud."], libraryName: "GCP"),
-        new GenericLibraryParser("Azure", "cloud", ["Azure."], libraryName: "Azure"),
+        new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe", "Stripe"]),
+        new GenericLibraryParser("aws", "AWS", "cloud", ["Amazon.S3", "AWSSDK"]),
+        new GenericLibraryParser("gcp", "GCP", "cloud", ["Google.Cloud."]),
+        new GenericLibraryParser("azure", "Azure", "cloud", ["Azure."]),
 
         // Generic Frameworks
-        new GenericLibraryParser("AspNetCore", "framework", ["Microsoft.AspNetCore.App", "Microsoft.AspNetCore"], libraryName: "ASP.NET Core"),
+        new GenericLibraryParser("aspnetcore", "ASP.NET Core", "framework", ["Microsoft.AspNetCore.App", "Microsoft.AspNetCore"]),
 
         // Generic API Clients
-        new GenericLibraryParser("HttpClient", "api", ["System.Net.Http"], libraryName: "HttpClient", isBuiltIn: true),
-        new GenericLibraryParser("RestSharp", "api", ["RestSharp"], libraryName: "RestSharp"),
-        new GenericLibraryParser("Refit", "api", ["Refit"], libraryName: "Refit"),
-        new GenericLibraryParser("WebApiClient", "api", ["WebApiClient"], libraryName: "WebApiClient"),
-        new GenericLibraryParser("Apizr", "api", ["Apizr"], libraryName: "Apizr"),
-        new GenericLibraryParser("NotoriousClient", "api", ["NotoriousClient"], libraryName: "NotoriousClient"),
+        new GenericLibraryParser("httpclient", "HttpClient", "api", ["System.Net.Http"], isBuiltIn: true),
+        new GenericLibraryParser("restsharp", "RestSharp", "api", ["RestSharp"]),
+        new GenericLibraryParser("refit", "Refit", "api", ["Refit"]),
+        new GenericLibraryParser("webapiclient", "WebApiClient", "api", ["WebApiClient"]),
+        new GenericLibraryParser("apizr", "Apizr", "api", ["Apizr"]),
+        new GenericLibraryParser("notoriousclient", "NotoriousClient", "api", ["NotoriousClient"]),
     ];
 
     public CSharpParser()
@@ -413,7 +414,7 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _csProjCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _csProjCache = new(StringComparer.OrdinalIgnoreCase);
 
     private ImportType ResolveCsImportType(string importPath, string filePath)
     {

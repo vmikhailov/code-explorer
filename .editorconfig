@@ -38,6 +38,8 @@ csharp_style_var_elsewhere = true:suggestion
 
 # Modifier preferences
 dotnet_style_require_accessibility_modifiers = always:suggestion
+resharper_redundant_interface_member_access_modifier_highlighting = none
+resharper_redundant_abstract_modifier_highlighting = none
 
 # Sorting usings
 dotnet_sort_system_directives_first = true

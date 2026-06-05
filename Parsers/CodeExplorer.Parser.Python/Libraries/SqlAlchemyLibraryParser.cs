@@ -6,13 +6,14 @@ namespace CodeExplorer.Parser.Python.Libraries;
 
 public class SqlAlchemyLibraryParser : ILibraryParser
 {
-    public string Name => "SqlAlchemyLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "SQLAlchemy";
-    public string LibraryId => "sqlalchemy";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["sqlalchemy"];
+    public string Type => "db:relational";
+    public string Name => "SQLAlchemy";
+    public string Id => "sqlalchemy";
+    public IReadOnlyList<string> SupportedPatterns => ["sqlalchemy"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) => throw new NotImplementedException();
+
+    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) =>
+        throw new NotImplementedException();
 }

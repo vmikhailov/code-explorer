@@ -7,15 +7,13 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class DapperLibraryParser : ILibraryParser
 {
-    public string Name => "DapperLibraryParser";
+    public string Type => "db:relational";
 
-    public string LibraryType => "db:relational";
+    public string Name => "Dapper";
 
-    public string LibraryName => "Dapper";
+    public string Id => "dapper";
 
-    public string LibraryId => "dapper";
-
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Dapper"];
+    public IReadOnlyList<string> SupportedPatterns => ["Dapper"];
 
     public bool IsImplemented => true;
 
@@ -73,8 +71,8 @@ public class DapperLibraryParser : ILibraryParser
             if (nameChild != null && nameChild.Id != IntPtr.Zero)
             {
                 var methodName = nameChild.Text;
-                return methodName is "Query" or "QueryAsync" or "QueryFirst" or "QueryFirstOrDefault" 
-                                   or "QuerySingle" or "QuerySingleOrDefault" or "QueryMultiple" or "QueryMultipleAsync" 
+                return methodName is "Query" or "QueryAsync" or "QueryFirst" or "QueryFirstOrDefault"
+                                   or "QuerySingle" or "QuerySingleOrDefault" or "QueryMultiple" or "QueryMultipleAsync"
                                    or "Execute" or "ExecuteAsync" or "ExecuteReader" or "ExecuteScalar";
             }
         }

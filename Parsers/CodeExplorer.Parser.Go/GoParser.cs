@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -27,23 +28,23 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.MongoGoLibraryParser(),
 
         // Generic Cloud Services
-        new GenericLibraryParser("Stripe", "cloud", ["github.com/stripe/stripe-go"], libraryName: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["github.com/aws/aws-sdk-go"], libraryName: "AWS"),
-        new GenericLibraryParser("GCP", "cloud", ["cloud.google.com/", "firebase.google.com/"], libraryName: "GCP"),
-        new GenericLibraryParser("Azure", "cloud", ["/Azure/", "/azure-sdk-for-go"], libraryName: "Azure"),
+        new GenericLibraryParser("stripe", "Stripe", "cloud", ["github.com/stripe/stripe-go"]),
+        new GenericLibraryParser("aws", "AWS", "cloud", ["github.com/aws/aws-sdk-go"]),
+        new GenericLibraryParser("gcp", "GCP", "cloud", ["cloud.google.com/", "firebase.google.com/"]),
+        new GenericLibraryParser("azure", "Azure", "cloud", ["/Azure/", "/azure-sdk-for-go"]),
 
         // Generic Frameworks
-        new GenericLibraryParser("Gin", "framework", ["github.com/gin-gonic/gin"], libraryName: "Gin"),
-        new GenericLibraryParser("Echo", "framework", ["github.com/labstack/echo"], libraryName: "Echo"),
-        new GenericLibraryParser("Fiber", "framework", ["github.com/gofiber/fiber"], libraryName: "Fiber"),
+        new GenericLibraryParser("gin", "Gin", "framework", ["github.com/gin-gonic/gin"]),
+        new GenericLibraryParser("echo", "Echo", "framework", ["github.com/labstack/echo"]),
+        new GenericLibraryParser("fiber", "Fiber", "framework", ["github.com/gofiber/fiber"]),
 
         // Generic API Clients
-        new GenericLibraryParser("net/http", "api", ["net/http"], libraryName: "http/https", isBuiltIn: true),
-        new GenericLibraryParser("resty", "api", ["github.com/go-resty/resty"], libraryName: "Resty"),
-        new GenericLibraryParser("req", "api", ["github.com/imroc/req"], libraryName: "req"),
-        new GenericLibraryParser("grequests", "api", ["github.com/levigross/grequests"], libraryName: "grequests"),
-        new GenericLibraryParser("gorequest", "api", ["github.com/parnurzeal/gorequest"], libraryName: "gorequest"),
-        new GenericLibraryParser("surf", "api", ["github.com/go-surf/surf"], libraryName: "surf"),
+        new GenericLibraryParser("net/http", "http/https", "api", ["net/http"], isBuiltIn: true),
+        new GenericLibraryParser("resty", "Resty", "api", ["github.com/go-resty/resty"]),
+        new GenericLibraryParser("req", "req", "api", ["github.com/imroc/req"]),
+        new GenericLibraryParser("grequests", "grequests", "api", ["github.com/levigross/grequests"]),
+        new GenericLibraryParser("gorequest", "gorequest", "api", ["github.com/parnurzeal/gorequest"]),
+        new GenericLibraryParser("surf", "surf", "api", ["github.com/go-surf/surf"]),
     ];
 
     public GoParser()
@@ -354,7 +355,7 @@ public class GoParser : IProjectParser, IFileParser
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _goModCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> _goModCache = new(StringComparer.OrdinalIgnoreCase);
 
     private ImportType ResolveGoImportType(string importPath, string filePath)
     {

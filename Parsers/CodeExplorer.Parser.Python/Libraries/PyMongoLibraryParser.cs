@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Python.Libraries;
 
 public class PyMongoLibraryParser : ILibraryParser
 {
-    public string Name => "PyMongoLibraryParser";
-    public string LibraryType => "db:document";
-    public string LibraryName => "MongoDB";
-    public string LibraryId => "mongodb";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["pymongo"];
+    public string Type => "db:document";
+    public string Name => "MongoDB";
+    public string Id => "mongodb";
+    public IReadOnlyList<string> SupportedPatterns => ["pymongo"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

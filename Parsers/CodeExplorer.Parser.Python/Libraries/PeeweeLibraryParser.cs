@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Python.Libraries;
 
 public class PeeweeLibraryParser : ILibraryParser
 {
-    public string Name => "PeeweeLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "Peewee";
-    public string LibraryId => "peewee";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["peewee"];
+    public string Type => "db:relational";
+    public string Name => "Peewee";
+    public string Id => "peewee";
+    public IReadOnlyList<string> SupportedPatterns => ["peewee"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

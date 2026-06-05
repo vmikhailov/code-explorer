@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Python.Libraries;
 
 public class PyMysqlLibraryParser : ILibraryParser
 {
-    public string Name => "PyMysqlLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "MySQL";
-    public string LibraryId => "mysql";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["pymysql"];
+    public string Type => "db:relational";
+    public string Name => "MySQL";
+    public string Id => "mysql";
+    public IReadOnlyList<string> SupportedPatterns => ["pymysql"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

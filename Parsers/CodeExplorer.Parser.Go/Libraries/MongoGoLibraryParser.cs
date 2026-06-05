@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Go.Libraries;
 
 public class MongoGoLibraryParser : ILibraryParser
 {
-    public string Name => "MongoGoLibraryParser";
-    public string LibraryType => "db:document";
-    public string LibraryName => "MongoDB";
-    public string LibraryId => "mongodb";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["go.mongodb.org/mongo-driver"];
+    public string Type => "db:document";
+    public string Name => "MongoDB";
+    public string Id => "mongodb";
+    public IReadOnlyList<string> SupportedPatterns => ["go.mongodb.org/mongo-driver"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

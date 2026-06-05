@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class NestLibraryParser : ILibraryParser
 {
-    public string Name => "NestLibraryParser";
-    public string LibraryType => "db:search";
-    public string LibraryName => "Elasticsearch";
-    public string LibraryId => "elasticsearch";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Nest"];
+    public string Type => "db:search";
+    public string Name => "Elasticsearch";
+    public string Id => "elasticsearch";
+    public IReadOnlyList<string> SupportedPatterns => ["Nest"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

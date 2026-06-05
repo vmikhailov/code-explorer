@@ -1,5 +1,5 @@
 # Use .NET 10.0 SDK for building
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy solution and project files first to leverage Docker cache
@@ -27,11 +27,10 @@ RUN dotnet publish CodeExplorer.csproj -c Release -o /app/publish
 RUN rm -rf /app/publish/runtimes/win* \
            /app/publish/runtimes/osx* \
            /app/publish/runtimes/linux-x86 \
-           /app/publish/runtimes/linux-arm \
-           /app/publish/runtimes/linux-musl*
+           /app/publish/runtimes/linux-arm
 
 # Use ASP.NET runtime for running the server
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 

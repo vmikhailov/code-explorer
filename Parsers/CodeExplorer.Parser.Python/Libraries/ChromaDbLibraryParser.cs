@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Python.Libraries;
 
 public class ChromaDbLibraryParser : ILibraryParser
 {
-    public string Name => "ChromaDbLibraryParser";
-    public string LibraryType => "db:vector";
-    public string LibraryName => "Chroma";
-    public string LibraryId => "chroma";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["chromadb"];
+    public string Type => "db:vector";
+    public string Name => "Chroma";
+    public string Id => "chroma";
+    public IReadOnlyList<string> SupportedPatterns => ["chromadb"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

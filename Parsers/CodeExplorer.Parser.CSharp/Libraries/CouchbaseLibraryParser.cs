@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class CouchbaseLibraryParser : ILibraryParser
 {
-    public string Name => "CouchbaseLibraryParser";
-    public string LibraryType => "db:document";
-    public string LibraryName => "Couchbase";
-    public string LibraryId => "couchbase";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Couchbase"];
+    public string Type => "db:document";
+    public string Name => "Couchbase";
+    public string Id => "couchbase";
+    public IReadOnlyList<string> SupportedPatterns => ["Couchbase"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

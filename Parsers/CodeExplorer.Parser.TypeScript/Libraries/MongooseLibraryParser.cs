@@ -7,15 +7,13 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class MongooseLibraryParser : ILibraryParser
 {
-    public string Name => "MongooseLibraryParser";
+    public string Type => "db:document";
 
-    public string LibraryType => "db:document";
+    public string Name => "MongoDB";
 
-    public string LibraryName => "MongoDB";
+    public string Id => "mongoose";
 
-    public string LibraryId => "mongoose";
-
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["mongoose"];
+    public IReadOnlyList<string> SupportedPatterns => ["mongoose"];
 
     public bool IsImplemented => true;
 
@@ -90,8 +88,8 @@ public class MongooseLibraryParser : ILibraryParser
                     return true;
                 }
 
-                return propName is "find" or "findOne" or "findById" or "findOneAndUpdate" 
-                                   or "findOneAndDelete" or "create" or "save" or "updateOne" 
+                return propName is "find" or "findOne" or "findById" or "findOneAndUpdate"
+                                   or "findOneAndDelete" or "create" or "save" or "updateOne"
                                    or "updateMany" or "deleteOne" or "deleteMany" or "countDocuments";
             }
         }

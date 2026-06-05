@@ -8,21 +8,12 @@ namespace CodeExplorer.Core.Parser;
 public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 {
     protected readonly IReadOnlyList<ILibraryParser> _libraryParsers;
-    protected readonly IReadOnlyList<(string Pattern, ILibraryParser Parser)> _sortedMappings;
+    protected readonly LibraryTrieRegistry _trieRegistry;
 
     protected BaseSemanticAnalyzer(IReadOnlyList<ILibraryParser> libraryParsers)
     {
         _libraryParsers = libraryParsers;
-
-        var mappings = new List<(string Pattern, ILibraryParser Parser)>();
-        foreach (var parser in libraryParsers)
-        {
-            foreach (var pattern in parser.SupportedPatterns)
-            {
-                mappings.Add((pattern, parser));
-            }
-        }
-        _sortedMappings = mappings.OrderByDescending(m => m.Pattern.Length).ToList();
+        _trieRegistry = new LibraryTrieRegistry(libraryParsers);
     }
 
     protected static readonly Regex ConfigRegex = new(
@@ -54,24 +45,30 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             .Select(p => p.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Determine active library parsers based on project-level packages + built-in standard ones
-        var activeLibraryParsers = _libraryParsers;
+        // Detect and enrich project-level framework using the Trie
+        ILibraryParser? frameworkParser = null;
         if (packageNames.Count > 0)
         {
-            activeLibraryParsers = _libraryParsers.Where(lp =>
-                lp.IsBuiltIn ||
-                packageNames.Any(lp.Supports)
-            ).ToList();
+            foreach (var pkg in packageNames)
+            {
+                var match = _trieRegistry.Match(pkg);
+                if (match is { Type: "framework" } && frameworkParser == null)
+                {
+                    frameworkParser = match;
+                }
+            }
+
+            // Fallback to built-in frameworks if no match found
+            frameworkParser ??= _libraryParsers.FirstOrDefault(lp => lp.IsBuiltIn && lp.Type == "framework");
+        }
+        else
+        {
+            frameworkParser = _libraryParsers.FirstOrDefault(lp => lp.Type == "framework");
         }
 
-        // Detect and enrich project-level framework
-        foreach (var lp in activeLibraryParsers)
+        if (frameworkParser != null)
         {
-            if (lp.LibraryType == "framework")
-            {
-                projectNode.SetExtension("framework", lp.LibraryName);
-                break;
-            }
+            projectNode.SetExtension("framework", frameworkParser.Name);
         }
 
         foreach (var file in files)
@@ -86,31 +83,28 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var matchedParsers = new List<ILibraryParser>();
             foreach (var import in fileImports)
             {
-                var match = _sortedMappings.FirstOrDefault(m => PatternMatcher.IsMatch(import, m.Pattern));
-                if (match.Parser != null)
+                var match = _trieRegistry.Match(import);
+                if (match != null && !matchedParsers.Contains(match))
                 {
-                    if (activeLibraryParsers.Contains(match.Parser) && !matchedParsers.Contains(match.Parser))
-                    {
-                        matchedParsers.Add(match.Parser);
-                    }
+                    matchedParsers.Add(match);
                 }
             }
 
             foreach (var parser in matchedParsers)
             {
-                var mainType = parser.LibraryType.Split(':')[0].ToLowerInvariant();
+                var mainType = parser.Type.Split(':')[0].ToLowerInvariant();
                 switch (mainType)
                 {
                     case "db":
-                        var dbEngine = parser.LibraryName;
+                        var dbEngine = parser.Name;
                         var dbType = "unknown";
-                        var parts = parser.LibraryType.Split(':');
+                        var parts = parser.Type.Split(':');
                         if (parts.Length > 1)
                         {
                             dbType = parts[1];
                         }
 
-                        var dbId = $"{projectNode.Id}db:{parser.LibraryId}";
+                        var dbId = $"{projectNode.Id}db:{parser.Id}";
                         lock (projectNode.Children)
                         {
                             if (projectNode.Children.All(c => c.Id != dbId))
@@ -126,12 +120,12 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                         break;
 
                     case "api":
-                        var apiId = $"{projectNode.Id}api:{parser.LibraryId}";
+                        var apiId = $"{projectNode.Id}api:{parser.Id}";
                         lock (projectNode.Children)
                         {
                             if (!projectNode.Children.Any(c => c.Id == apiId))
                             {
-                                var apiNode = new ApiNode(apiId, parser.LibraryName, apiId);
+                                var apiNode = new ApiNode(apiId, parser.Name, apiId);
                                 projectNode.Children.Add(apiNode);
                             }
                         }
@@ -141,8 +135,8 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                         break;
 
                     case "cloud":
-                        var cloudService = parser.LibraryName;
-                        var cloudId = $"{projectNode.Id}cloud:{parser.LibraryId}";
+                        var cloudService = parser.Name;
+                        var cloudId = $"{projectNode.Id}cloud:{parser.Id}";
                         lock (projectNode.Children)
                         {
                             if (!projectNode.Children.Any(c => c.Id == cloudId))
@@ -167,7 +161,8 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var fileVariables = ctx.RawVariables.Where(v => v.FilePath == relativePath).ToList();
             foreach (var rawVar in fileVariables)
             {
-                var isConfig = ConfigRegex.IsMatch(rawVar.Name) || ConfigInitializerRegex.IsMatch(rawVar.InitializerText);
+                var isConfig = ConfigRegex.IsMatch(rawVar.Name) ||
+                               ConfigInitializerRegex.IsMatch(rawVar.InitializerText);
                 var isEtl = EtlRegex.IsMatch(rawVar.Name) || SqlQueryRegex.IsMatch(rawVar.InitializerText);
                 var isConstant = rawVar.IsConstant;
                 var isGlobal = rawVar.Scope == "global";
@@ -207,6 +202,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                 }
             }
         }
+
         await Task.CompletedTask;
     }
 
@@ -217,10 +213,12 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
         {
             files.Add(f);
         }
+
         foreach (var child in node.Children)
         {
             files.AddRange(FindAllFiles(child));
         }
+
         return files;
     }
 
@@ -232,6 +230,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             {
                 if (TryInsertVariable(cn, varNode, line)) return true;
             }
+
             if (child is FunctionNode fn && line >= fn.StartLine && line <= fn.EndLine)
             {
                 if (TryInsertVariable(fn, varNode, line)) return true;

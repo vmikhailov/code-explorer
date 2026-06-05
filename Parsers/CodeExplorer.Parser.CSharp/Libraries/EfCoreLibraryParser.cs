@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class EfCoreLibraryParser : ILibraryParser
 {
-    public string Name => "EfCoreLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "Microsoft.EntityFrameworkCore";
-    public string LibraryId => "microsoft.entityframeworkcore";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Microsoft.EntityFrameworkCore"];
+    public string Type => "db:relational";
+    public string Name => "Microsoft.EntityFrameworkCore";
+    public string Id => "microsoft.entityframeworkcore";
+    public IReadOnlyList<string> SupportedPatterns => ["Microsoft.EntityFrameworkCore"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

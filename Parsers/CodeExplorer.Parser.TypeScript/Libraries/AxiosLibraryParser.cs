@@ -7,15 +7,13 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class AxiosLibraryParser : ILibraryParser
 {
-    public string Name => "AxiosLibraryParser";
+    public string Type => "api";
 
-    public string LibraryType => "api";
+    public string Name => "Axios";
 
-    public string LibraryName => "Axios";
+    public string Id => "axios";
 
-    public string LibraryId => "axios";
-
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["axios", "@nestjs/axios"];
+    public IReadOnlyList<string> SupportedPatterns => ["axios", "@nestjs/axios"];
 
     public bool IsImplemented => true;
 
@@ -25,6 +23,7 @@ public class AxiosLibraryParser : ILibraryParser
         {
             return OntologyConstants.NodeLabels.ExternalService;
         }
+
         return null;
     }
 
@@ -34,6 +33,7 @@ public class AxiosLibraryParser : ILibraryParser
         {
             return ExtractAxiosTarget(node);
         }
+
         return null;
     }
 
@@ -72,6 +72,7 @@ public class AxiosLibraryParser : ILibraryParser
                 }
             }
         }
+
         return false;
     }
 
@@ -88,9 +89,11 @@ public class AxiosLibraryParser : ILibraryParser
                 {
                     return uri.Host;
                 }
+
                 return url;
             }
         }
+
         return "axios-call";
     }
 }

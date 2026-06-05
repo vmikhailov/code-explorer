@@ -1,3 +1,4 @@
+using System.Text;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using NUnit.Framework;
@@ -121,7 +122,7 @@ public class McpIntegrationTests
     {
         var relPath = _postEndpoint!.StartsWith("/") ? _postEndpoint : $"/{_postEndpoint}";
         var url = $"http://127.0.0.1:8085{relPath}";
-        var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
         return await _httpClient!.PostAsync(url, content);
     }
 

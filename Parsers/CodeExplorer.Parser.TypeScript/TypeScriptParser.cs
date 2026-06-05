@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -33,28 +34,28 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.GcpLibraryParser(),
 
         // Generic Cloud Services
-        new GenericLibraryParser("Stripe", "cloud", ["stripe"], libraryName: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["aws-sdk", "@aws-sdk/*"], libraryName: "AWS"),
-        new GenericLibraryParser("Azure", "cloud", ["@azure/*"], libraryName: "Azure"),
+        new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe"]),
+        new GenericLibraryParser("aws", "AWS", "cloud", ["aws-sdk", "@aws-sdk/*"]),
+        new GenericLibraryParser("azure", "Azure", "cloud", ["@azure/*"]),
 
         // Generic Frameworks
-        new GenericLibraryParser("NestJS", "framework", ["@nestjs/*"], libraryName: "NestJS"),
-        new GenericLibraryParser("Express", "framework", ["express"], libraryName: "Express"),
-        new GenericLibraryParser("NextJS", "framework", ["next"], libraryName: "Next.js"),
-        new GenericLibraryParser("React", "framework", ["react"], libraryName: "React"),
-        new GenericLibraryParser("Angular", "framework", ["@angular/core"], libraryName: "Angular"),
+        new GenericLibraryParser("nestjs", "NestJS", "framework", ["@nestjs/*"]),
+        new GenericLibraryParser("express", "Express", "framework", ["express"]),
+        new GenericLibraryParser("nextjs", "Next.js", "framework", ["next"]),
+        new GenericLibraryParser("react", "React", "framework", ["react"]),
+        new GenericLibraryParser("angular", "Angular", "framework", ["@angular/core"]),
 
         // Generic API Clients
-        new GenericLibraryParser("request", "api", ["request"], libraryName: "request"),
-        new GenericLibraryParser("superagent", "api", ["superagent"], libraryName: "superagent"),
-        new GenericLibraryParser("node-fetch", "api", ["node-fetch"], libraryName: "fetch"),
-        new GenericLibraryParser("got", "api", ["got"], libraryName: "got"),
-        new GenericLibraryParser("undici", "api", ["undici"], libraryName: "undici"),
-        new GenericLibraryParser("ky", "api", ["ky"], libraryName: "ky"),
-        new GenericLibraryParser("bent", "api", ["bent"], libraryName: "bent"),
-        new GenericLibraryParser("urllib", "api", ["urllib"], libraryName: "urllib"),
-        new GenericLibraryParser("cross-fetch", "api", ["cross-fetch"], libraryName: "fetch"),
-        new GenericLibraryParser("isomorphic-fetch", "api", ["isomorphic-fetch"], libraryName: "fetch"),
+        new GenericLibraryParser("request", "request", "api", ["request"]),
+        new GenericLibraryParser("superagent", "superagent", "api", ["superagent"]),
+        new GenericLibraryParser("node-fetch", "fetch", "api", ["node-fetch"]),
+        new GenericLibraryParser("got", "got", "api", ["got"]),
+        new GenericLibraryParser("undici", "undici", "api", ["undici"]),
+        new GenericLibraryParser("ky", "ky", "api", ["ky"]),
+        new GenericLibraryParser("bent", "bent", "api", ["bent"]),
+        new GenericLibraryParser("urllib", "urllib", "api", ["urllib"]),
+        new GenericLibraryParser("cross-fetch", "fetch", "api", ["cross-fetch"]),
+        new GenericLibraryParser("isomorphic-fetch", "fetch", "api", ["isomorphic-fetch"]),
     ];
 
     public TypeScriptParser()
@@ -553,7 +554,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
 
     private ImportType ResolveTsImportType(string importPath, string filePath)
     {

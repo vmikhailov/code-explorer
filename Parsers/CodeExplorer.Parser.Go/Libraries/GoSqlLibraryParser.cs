@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Go.Libraries;
 
 public class GoSqlLibraryParser : ILibraryParser
 {
-    public string Name => "GoSqlLibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "SQL";
-    public string LibraryId => "sql";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["database/sql"];
+    public string Type => "db:relational";
+    public string Name => "SQL";
+    public string Id => "sql";
+    public IReadOnlyList<string> SupportedPatterns => ["database/sql"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

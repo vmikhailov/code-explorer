@@ -6,11 +6,10 @@ namespace CodeExplorer.Parser.Go.Libraries;
 
 public class GoSqlite3LibraryParser : ILibraryParser
 {
-    public string Name => "GoSqlite3LibraryParser";
-    public string LibraryType => "db:relational";
-    public string LibraryName => "SQLite";
-    public string LibraryId => "sqlite";
-    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["github.com/mattn/go-sqlite3"];
+    public string Type => "db:relational";
+    public string Name => "SQLite";
+    public string Id => "sqlite";
+    public IReadOnlyList<string> SupportedPatterns => ["github.com/mattn/go-sqlite3"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

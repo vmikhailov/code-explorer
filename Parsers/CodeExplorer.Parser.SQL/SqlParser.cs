@@ -33,7 +33,8 @@ public class SqlParser : IProjectParser, IFileParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
-        return filesInDirectory.Any(f => Path.GetExtension(f).Equals(".sql", StringComparison.OrdinalIgnoreCase));
+        return false;
+        //return filesInDirectory.Any(f => Path.GetExtension(f).Equals(".sql", StringComparison.OrdinalIgnoreCase));
     }
 
     public string? MapNodeType(TreeSitter.Node node)
