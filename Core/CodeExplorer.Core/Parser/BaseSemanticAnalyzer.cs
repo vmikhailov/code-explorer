@@ -43,6 +43,25 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
 
 
+    private static bool IsLibraryMatch(string a, string b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+
+        var aParts = a.Split(new[] { '.', '/' }, StringSplitOptions.RemoveEmptyEntries);
+        var bParts = b.Split(new[] { '.', '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+        var minLen = Math.Min(aParts.Length, bParts.Length);
+        if (minLen == 0) return false;
+
+        for (int i = 0; i < minLen; i++)
+        {
+            if (!aParts[i].Equals(bParts[i], StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        return true;
+    }
+
     private string? FindResolvedLibraryName(string importPath, HashSet<string> activeLibraryNames)
     {
         var clean = Path.GetFileName(importPath);
@@ -51,9 +70,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
         foreach (var lib in activeLibraryNames)
         {
-            if (importPath.StartsWith(lib + ".", StringComparison.OrdinalIgnoreCase) ||
-                importPath.StartsWith(lib + "/", StringComparison.OrdinalIgnoreCase) ||
-                (lib.Contains('/') && importPath.StartsWith(lib, StringComparison.OrdinalIgnoreCase)))
+            if (IsLibraryMatch(importPath, lib))
             {
                 return lib;
             }
@@ -81,13 +98,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             activeLibraryParsers = _libraryParsers.Where(lp =>
                 lp.IsBuiltIn ||
                 lp.SupportedLibraries.Any(sl =>
-                    projectPackages.Any(pp =>
-                        pp.Equals(sl, StringComparison.OrdinalIgnoreCase) ||
-                        pp.StartsWith(sl + ".", StringComparison.OrdinalIgnoreCase) ||
-                        pp.StartsWith(sl + "/", StringComparison.OrdinalIgnoreCase) ||
-                        sl.StartsWith(pp + ".", StringComparison.OrdinalIgnoreCase) ||
-                        sl.StartsWith(pp + "/", StringComparison.OrdinalIgnoreCase)
-                    )
+                    projectPackages.Any(pp => IsLibraryMatch(pp, sl))
                 )
             ).ToList();
         }
