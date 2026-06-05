@@ -65,23 +65,19 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var relativePath = file.Path;
             var fileImports = ctx.RawImports.Where(i => i.FilePath == relativePath).ToList();
 
-            var usesDb = fileImports.Any(i => IsDbPackage(i.Path));
+            var firstDbImport = fileImports.FirstOrDefault(i => IsDbPackage(i.Path));
             var usesApi = fileImports.Any(i => IsApiPackage(i.Path));
-            var usesCloud = fileImports.Any(i => IsCloudPackage(i.Path));
+            var firstCloudImport = fileImports.FirstOrDefault(i => IsCloudPackage(i.Path));
 
-            if (usesDb)
+            if (firstDbImport != null)
             {
                 file.SetExtension("uses_database", "true");
-                var firstDbImport = fileImports.FirstOrDefault(i => IsDbPackage(i.Path));
-                if (firstDbImport != null)
-                {
-                    var dbEngine = MapPackageToDbEngine(firstDbImport.Path);
-                    var dbType = GetDbType(firstDbImport.Path);
-                    var dbId = $"{ctx.WorkspaceId}:db:{dbEngine.ToLowerInvariant()}";
-                    var dbNode = new DbNode(dbId, dbEngine, dbId);
-                    dbNode.SetExtension("db_type", dbType);
-                    file.Children.Add(dbNode);
-                }
+                var dbEngine = MapPackageToDbEngine(firstDbImport.Path);
+                var dbType = GetDbType(firstDbImport.Path);
+                var dbId = $"{ctx.WorkspaceId}:db:{dbEngine.ToLowerInvariant()}";
+                var dbNode = new DbNode(dbId, dbEngine, dbId);
+                dbNode.SetExtension("db_type", dbType);
+                file.Children.Add(dbNode);
             }
 
             if (usesApi)
@@ -89,17 +85,13 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                 file.SetExtension("uses_api", "true");
             }
 
-            if (usesCloud)
+            if (firstCloudImport != null)
             {
                 file.SetExtension("uses_cloud", "true");
-                var firstCloudImport = fileImports.FirstOrDefault(i => IsCloudPackage(i.Path));
-                if (firstCloudImport != null)
-                {
-                    var cloudService = MapPackageToCloudService(firstCloudImport.Path);
-                    var cloudId = $"{ctx.WorkspaceId}:cloud:{cloudService.ToLowerInvariant()}";
-                    var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
-                    file.Children.Add(cloudNode);
-                }
+                var cloudService = MapPackageToCloudService(firstCloudImport.Path);
+                var cloudId = $"{ctx.WorkspaceId}:cloud:{cloudService.ToLowerInvariant()}";
+                var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
+                file.Children.Add(cloudNode);
             }
 
             foreach (var child in projectNode.Children.OfType<PackageNode>())
