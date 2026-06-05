@@ -10,7 +10,7 @@ public class EfCoreLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "Microsoft.EntityFrameworkCore";
     public string LibraryId => "microsoft.entityframeworkcore";
-    public IEnumerable<string> SupportedLibraries => ["Microsoft.EntityFrameworkCore"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Microsoft.EntityFrameworkCore");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

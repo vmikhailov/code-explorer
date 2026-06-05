@@ -10,7 +10,7 @@ public class GcpLibraryParser : ILibraryParser
     public string LibraryType => "cloud";
     public string LibraryName => "GCP";
     public string LibraryId => "gcp";
-    public IEnumerable<string> SupportedLibraries => ["@google-cloud", "firebase", "firebase-admin"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "@google-cloud") || ILibraryParser.IsLibraryMatch(libraryName, "firebase") || ILibraryParser.IsLibraryMatch(libraryName, "firebase-admin");
     public string? CloudService => "GCP";
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

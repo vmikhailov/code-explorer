@@ -10,7 +10,7 @@ public class Sqlite3LibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "SQLite";
     public string LibraryId => "sqlite";
-    public IEnumerable<string> SupportedLibraries => ["sqlite3"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "sqlite3");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

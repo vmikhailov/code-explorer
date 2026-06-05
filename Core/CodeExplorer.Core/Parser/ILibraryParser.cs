@@ -11,9 +11,31 @@ public interface ILibraryParser
     string Name { get; }
 
     /// <summary>
-    /// The canonical library/package names that trigger this parser (e.g., ["mongoose", "mongodb"]).
+    /// Checks if this library parser supports the specified library name.
     /// </summary>
-    IEnumerable<string> SupportedLibraries { get; }
+    bool Supports(string libraryName);
+
+    /// <summary>
+    /// Performs a part-based matching of library names, splitting by '.' and '/' and comparing segments.
+    /// </summary>
+    public static bool IsLibraryMatch(string a, string b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+
+        var aParts = a.Split(new[] { '.', '/' }, System.StringSplitOptions.RemoveEmptyEntries);
+        var bParts = b.Split(new[] { '.', '/' }, System.StringSplitOptions.RemoveEmptyEntries);
+
+        var minLen = System.Math.Min(aParts.Length, bParts.Length);
+        if (minLen == 0) return false;
+
+        for (int i = 0; i < minLen; i++)
+        {
+            if (!aParts[i].Equals(bParts[i], System.StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Gets a value indicating whether this library parser is implemented.

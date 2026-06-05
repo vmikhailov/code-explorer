@@ -15,7 +15,7 @@ public class FlurlLibraryParser : ILibraryParser
 
     public string LibraryId => "flurl";
 
-    public IEnumerable<string> SupportedLibraries => ["Flurl", "Flurl.Http"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Flurl") || ILibraryParser.IsLibraryMatch(libraryName, "Flurl.Http");
 
     public bool IsImplemented => true;
 

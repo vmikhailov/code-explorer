@@ -10,7 +10,7 @@ public class PythonRedisLibraryParser : ILibraryParser
     public string LibraryType => "db:keyvalue";
     public string LibraryName => "Redis";
     public string LibraryId => "redis";
-    public IEnumerable<string> SupportedLibraries => ["redis"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "redis");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

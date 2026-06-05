@@ -10,7 +10,7 @@ public class InfluxDbLibraryParser : ILibraryParser
     public string LibraryType => "db:timeseries";
     public string LibraryName => "InfluxDB";
     public string LibraryId => "influxdb";
-    public IEnumerable<string> SupportedLibraries => ["influxdb"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "influxdb");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

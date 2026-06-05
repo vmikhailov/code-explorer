@@ -10,7 +10,7 @@ public class GoSqlDriverMysqlLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "MySQL";
     public string LibraryId => "mysql";
-    public IEnumerable<string> SupportedLibraries => ["github.com/go-sql-driver/mysql"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "github.com/go-sql-driver/mysql");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

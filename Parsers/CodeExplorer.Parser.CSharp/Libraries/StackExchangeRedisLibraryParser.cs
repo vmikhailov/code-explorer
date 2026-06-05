@@ -10,7 +10,7 @@ public class StackExchangeRedisLibraryParser : ILibraryParser
     public string LibraryType => "db:keyvalue";
     public string LibraryName => "Redis";
     public string LibraryId => "redis";
-    public IEnumerable<string> SupportedLibraries => ["StackExchange.Redis"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "StackExchange.Redis");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

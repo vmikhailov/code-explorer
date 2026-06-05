@@ -10,7 +10,7 @@ public class ElasticsearchTsLibraryParser : ILibraryParser
     public string LibraryType => "db:search";
     public string LibraryName => "Elasticsearch";
     public string LibraryId => "elasticsearch";
-    public IEnumerable<string> SupportedLibraries => ["@elastic/elasticsearch"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "@elastic/elasticsearch");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

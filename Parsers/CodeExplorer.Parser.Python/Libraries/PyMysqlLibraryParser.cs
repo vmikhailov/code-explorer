@@ -10,7 +10,7 @@ public class PyMysqlLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "MySQL";
     public string LibraryId => "mysql";
-    public IEnumerable<string> SupportedLibraries => ["pymysql"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "pymysql");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

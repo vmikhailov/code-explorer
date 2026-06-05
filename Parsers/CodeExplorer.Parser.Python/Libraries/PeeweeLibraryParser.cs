@@ -10,7 +10,7 @@ public class PeeweeLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "Peewee";
     public string LibraryId => "peewee";
-    public IEnumerable<string> SupportedLibraries => ["peewee"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "peewee");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

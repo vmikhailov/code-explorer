@@ -15,7 +15,7 @@ public class RedisLibraryParser : ILibraryParser
 
     public string LibraryId => "redis";
 
-    public IEnumerable<string> SupportedLibraries => ["redis", "ioredis"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "redis") || ILibraryParser.IsLibraryMatch(libraryName, "ioredis");
 
     public bool IsImplemented => true;
 

@@ -10,7 +10,7 @@ public class NestLibraryParser : ILibraryParser
     public string LibraryType => "db:search";
     public string LibraryName => "Elasticsearch";
     public string LibraryId => "elasticsearch";
-    public IEnumerable<string> SupportedLibraries => ["Nest"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Nest");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

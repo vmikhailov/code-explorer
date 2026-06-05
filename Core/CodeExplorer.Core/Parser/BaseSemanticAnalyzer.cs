@@ -8,19 +8,10 @@ namespace CodeExplorer.Core.Parser;
 public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 {
     protected readonly IEnumerable<ILibraryParser> _libraryParsers;
-    protected readonly HashSet<string> _supportedLibraryNames;
 
     protected BaseSemanticAnalyzer(IEnumerable<ILibraryParser> libraryParsers)
     {
         _libraryParsers = libraryParsers ?? Array.Empty<ILibraryParser>();
-        _supportedLibraryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var lp in _libraryParsers)
-        {
-            foreach (var lib in lp.SupportedLibraries)
-            {
-                _supportedLibraryNames.Add(lib);
-            }
-        }
     }
 
     protected static readonly Regex ConfigRegex = new(
@@ -45,40 +36,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
 
 
-    private static bool IsLibraryMatch(string a, string b)
-    {
-        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
 
-        var aParts = a.Split(new[] { '.', '/' }, StringSplitOptions.RemoveEmptyEntries);
-        var bParts = b.Split(new[] { '.', '/' }, StringSplitOptions.RemoveEmptyEntries);
-
-        var minLen = Math.Min(aParts.Length, bParts.Length);
-        if (minLen == 0) return false;
-
-        for (int i = 0; i < minLen; i++)
-        {
-            if (!aParts[i].Equals(bParts[i], StringComparison.OrdinalIgnoreCase))
-                return false;
-        }
-
-        return true;
-    }
-
-    private string? FindResolvedLibraryName(string importPath, HashSet<string> activeLibraryNames)
-    {
-        var clean = Path.GetFileName(importPath);
-        if (activeLibraryNames.Contains(importPath)) return importPath;
-        if (activeLibraryNames.Contains(clean)) return clean;
-
-        foreach (var lib in activeLibraryNames)
-        {
-            if (IsLibraryMatch(importPath, lib))
-            {
-                return lib;
-            }
-        }
-        return null;
-    }
 
     public virtual async Task AnalyzeAndEnrichAsync(ProjectNode projectNode, ParsingContext ctx)
     {
@@ -99,19 +57,8 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
         {
             activeLibraryParsers = _libraryParsers.Where(lp =>
                 lp.IsBuiltIn ||
-                lp.SupportedLibraries.Any(sl =>
-                    projectPackages.Any(pp => IsLibraryMatch(pp, sl))
-                )
+                projectPackages.Any(pp => lp.Supports(pp))
             ).ToList();
-        }
-
-        var activeLibraryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var lp in activeLibraryParsers)
-        {
-            foreach (var lib in lp.SupportedLibraries)
-            {
-                activeLibraryNames.Add(lib);
-            }
         }
 
         // Detect and enrich project-level framework
@@ -136,17 +83,15 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var matchedParsers = new List<ILibraryParser>();
             foreach (var import in fileImports)
             {
-                // Try to resolve each library against only the active project-level packages
-                var resolvedName = FindResolvedLibraryName(import, activeLibraryNames);
-                if (resolvedName != null)
-                {
-                    var parser = activeLibraryParsers.FirstOrDefault(lp => lp.SupportedLibraries.Any(sl =>
-                        sl.Equals(resolvedName, StringComparison.OrdinalIgnoreCase)));
+                var clean = Path.GetFileName(import);
+                var parser = activeLibraryParsers.FirstOrDefault(lp =>
+                    lp.Supports(import) ||
+                    lp.Supports(clean)
+                );
 
-                    if (parser != null && !matchedParsers.Contains(parser))
-                    {
-                        matchedParsers.Add(parser);
-                    }
+                if (parser != null && !matchedParsers.Contains(parser))
+                {
+                    matchedParsers.Add(parser);
                 }
             }
 

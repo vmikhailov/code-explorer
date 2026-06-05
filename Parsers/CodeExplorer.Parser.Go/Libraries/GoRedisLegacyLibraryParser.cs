@@ -10,7 +10,7 @@ public class GoRedisLegacyLibraryParser : ILibraryParser
     public string LibraryType => "db:keyvalue";
     public string LibraryName => "Redis";
     public string LibraryId => "redis";
-    public IEnumerable<string> SupportedLibraries => ["github.com/go-redis/redis"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "github.com/go-redis/redis");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

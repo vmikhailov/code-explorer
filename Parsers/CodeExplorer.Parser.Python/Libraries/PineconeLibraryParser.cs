@@ -10,7 +10,7 @@ public class PineconeLibraryParser : ILibraryParser
     public string LibraryType => "db:vector";
     public string LibraryName => "Pinecone";
     public string LibraryId => "pinecone";
-    public IEnumerable<string> SupportedLibraries => ["pinecone-client"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "pinecone-client");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

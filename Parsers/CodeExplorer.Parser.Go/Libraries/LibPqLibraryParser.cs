@@ -10,7 +10,7 @@ public class LibPqLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "PostgreSQL";
     public string LibraryId => "postgres";
-    public IEnumerable<string> SupportedLibraries => ["github.com/lib/pq"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "github.com/lib/pq");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

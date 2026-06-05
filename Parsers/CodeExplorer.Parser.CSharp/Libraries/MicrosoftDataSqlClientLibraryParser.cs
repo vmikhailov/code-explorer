@@ -10,7 +10,7 @@ public class MicrosoftDataSqlClientLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "SQL Server";
     public string LibraryId => "mssql";
-    public IEnumerable<string> SupportedLibraries => ["Microsoft.Data.SqlClient"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Microsoft.Data.SqlClient");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

@@ -10,7 +10,7 @@ public class Psycopg2LibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "PostgreSQL";
     public string LibraryId => "postgres";
-    public IEnumerable<string> SupportedLibraries => ["psycopg2"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "psycopg2");
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

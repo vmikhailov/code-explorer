@@ -15,7 +15,7 @@ public class DapperLibraryParser : ILibraryParser
 
     public string LibraryId => "dapper";
 
-    public IEnumerable<string> SupportedLibraries => ["Dapper"];
+    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Dapper");
 
     public bool IsImplemented => true;
 
