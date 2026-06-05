@@ -579,8 +579,8 @@ export class OrdersController {
             Assert.That(fileNode.Extensions, Is.Not.Null);
             Assert.That(fileNode.Extensions.ContainsKey("db_type"), Is.True);
             Assert.That(fileNode.Extensions["db_type"], Is.EqualTo("relational"));
-            Assert.That(fileNode.Extensions.ContainsKey("uses_cloud"), Is.True);
-            Assert.That(fileNode.Extensions["uses_cloud"], Is.EqualTo("true"));
+            Assert.That(fileNode.Extensions.ContainsKey("cloud_service"), Is.True);
+            Assert.That(fileNode.Extensions["cloud_service"], Is.EqualTo("Stripe"));
 
             // Check if DbNode child was added
             var dbNode = fileNode.Children.OfType<DbNode>().FirstOrDefault();

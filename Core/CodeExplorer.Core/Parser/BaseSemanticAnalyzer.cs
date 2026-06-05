@@ -82,15 +82,14 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
             if (firstApiImport != null)
             {
-                file.SetExtension("uses_api", "true");
                 var apiLib = MapPackageToApiLibrary(firstApiImport.Path);
                 file.SetExtension("api_library", apiLib);
             }
 
             if (firstCloudImport != null)
             {
-                file.SetExtension("uses_cloud", "true");
                 var cloudService = MapPackageToCloudService(firstCloudImport.Path);
+                file.SetExtension("cloud_service", cloudService);
                 var cloudId = $"{ctx.WorkspaceId}:cloud:{cloudService.ToLowerInvariant()}";
                 var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
                 file.Children.Add(cloudNode);
