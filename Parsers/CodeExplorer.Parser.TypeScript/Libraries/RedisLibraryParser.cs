@@ -10,13 +10,11 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class RedisLibraryParser : ILibraryParser
 {
-    public string LibraryName => "redis";
+    public string Name => "RedisLibraryParser";
 
-    public bool CanParse(string libraryName)
-    {
-        return string.Equals(libraryName, "redis", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(libraryName, "ioredis", StringComparison.OrdinalIgnoreCase);
-    }
+    public string Category => "database";
+
+    public IEnumerable<string> SupportedLibraries => new[] { "redis", "ioredis" };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

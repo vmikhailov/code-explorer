@@ -8,14 +8,19 @@ namespace CodeExplorer.Core.Parser;
 public interface ILibraryParser
 {
     /// <summary>
-    /// The canonical library/package name that triggers this parser (e.g., "axios").
+    /// The friendly name of the parser (e.g., "MongooseLibraryParser").
     /// </summary>
-    string LibraryName { get; }
+    string Name { get; }
 
     /// <summary>
-    /// Checks if this parser handles the given imported package/library name.
+    /// The category of behavior this library addresses (e.g., "database", "api").
     /// </summary>
-    bool CanParse(string libraryName);
+    string Category { get; }
+
+    /// <summary>
+    /// The canonical library/package names that trigger this parser (e.g., ["mongoose", "mongodb"]).
+    /// </summary>
+    IEnumerable<string> SupportedLibraries { get; }
 
     /// <summary>
     /// Maps a Tree-sitter AST node to a CodeExplorer ontological kind (Class, Interface, Function, Variable, Query, EntryPoint, ExternalService, or null).

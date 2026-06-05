@@ -10,13 +10,11 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class FlurlLibraryParser : ILibraryParser
 {
-    public string LibraryName => "Flurl";
+    public string Name => "FlurlLibraryParser";
 
-    public bool CanParse(string libraryName)
-    {
-        return string.Equals(libraryName, "Flurl", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(libraryName, "Flurl.Http", StringComparison.OrdinalIgnoreCase);
-    }
+    public string Category => "api";
+
+    public IEnumerable<string> SupportedLibraries => new[] { "Flurl", "Flurl.Http" };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

@@ -1,0 +1,883 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="78a3d2be-8e90-4ceb-849d-d666cd7ee923" name="slava@VMIKHAILOV-PC 2026-06-05 15:18:43" runUser="VMIKHAILOV-PC\slava" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-06-05T15:18:43.7503371+02:00" queuing="2026-06-05T15:18:43.7503375+02:00" start="2026-06-05T15:18:42.0492861+02:00" finish="2026-06-05T15:18:44.1626113+02:00" />
+  <TestSettings name="default" id="2eaa4f73-7503-4d7a-ad15-913928218c02">
+    <Deployment runDeploymentRoot="slava_VMIKHAILOV-PC_2026-06-05_15_18_43" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="20c13466-f6f8-447b-9847-17cac6aa232c" testId="c5e28637-7f64-2d30-b6ab-268beea8c124" testName="Test_NestedSqlParser_CleanQueryText_NestedQuotes" computerName="VMIKHAILOV-PC" duration="00:00:00.0002210" startTime="2026-06-05T15:18:43.4936466+02:00" endTime="2026-06-05T15:18:43.4938672+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="20c13466-f6f8-447b-9847-17cac6aa232c" />
+    <UnitTestResult executionId="8545917e-22c0-46bd-872e-760b54ce0a94" testId="26049e90-1a44-234b-b819-41f395f82e8b" testName="Test_TypeScriptParser_WithExamples" computerName="VMIKHAILOV-PC" duration="00:00:00.0135290" startTime="2026-06-05T15:18:43.6768877+02:00" endTime="2026-06-05T15:18:43.6904160+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8545917e-22c0-46bd-872e-760b54ce0a94">
+      <Output>
+        <StdOut>Multiple failures or warnings in test:&#xD;
+  1) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/cron/cron.service.ts&#xD;
+  2) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/services/calibrate-min-roi.service.ts&#xD;
+  3) Example file not found: /Users/slava/Projects/ATS/src/services/calc-epm/src/interfaces/configs/config.models.ts</StdOut>
+        <ErrorInfo>
+          <Message>Multiple failures or warnings in test:&#xD;
+  1) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/cron/cron.service.ts&#xD;
+  2) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/services/calibrate-min-roi.service.ts&#xD;
+  3) Example file not found: /Users/slava/Projects/ATS/src/services/calc-epm/src/interfaces/configs/config.models.ts&#xD;
+</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="e7a7a239-58c5-4578-9e28-6acb1587bf15" testId="ab81f5de-c238-6660-da6c-8a4b6a09bbe6" testName="Test_PythonParser_EmbeddedSql" computerName="VMIKHAILOV-PC" duration="00:00:00.0116589" startTime="2026-06-05T15:18:43.5366985+02:00" endTime="2026-06-05T15:18:43.5483572+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e7a7a239-58c5-4578-9e28-6acb1587bf15">
+      <Output>
+        <StdOut>Finished parsing file: embedded_sql_test.py with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="7a8840fa-c66c-4c9e-883e-e0c7e5253965" testId="a06b5a07-181f-a998-7c15-021a53531ad5" testName="Test_TypeScriptParser_EmbeddedSql" computerName="VMIKHAILOV-PC" duration="00:00:00.0088150" startTime="2026-06-05T15:18:43.6603769+02:00" endTime="2026-06-05T15:18:43.6691912+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7a8840fa-c66c-4c9e-883e-e0c7e5253965">
+      <Output>
+        <StdOut>Finished parsing file: embedded_sql_test.ts with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="26f644f0-e51c-4c85-812a-d8e581223bb8" testId="429e712c-f669-8ba0-0b6d-b1af27a09f95" testName="Test_SemanticAnalysisAndOntologyEnrichment" computerName="VMIKHAILOV-PC" duration="00:00:00.0918890" startTime="2026-06-05T15:18:43.5485257+02:00" endTime="2026-06-05T15:18:43.6404144+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="26f644f0-e51c-4c85-812a-d8e581223bb8">
+      <Output>
+        <StdOut>Finished parsing file: ProjectA/Repository.cs with 1 top-level symbols.</StdOut>
+        <StdErr>[WorkspaceParser] Starting scan of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed scan of project 'ProjectA'.&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectB'...&#xD;
+&#xD;
+[WorkspaceParser] Completed scan of project 'ProjectB'.</StdErr>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="a3545c9a-3730-48f3-9250-553361e95818" testId="0a39a0b3-181d-fd7d-571d-2b3d1965b834" testName="Test_NewParserFeatures" computerName="VMIKHAILOV-PC" duration="00:00:00.0427630" startTime="2026-06-05T15:18:43.4938859+02:00" endTime="2026-06-05T15:18:43.5366478+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a3545c9a-3730-48f3-9250-553361e95818">
+      <Output>
+        <StdOut>Finished parsing file: app.py with 2 top-level symbols.&#xD;
+--- GO AST START ---&#xD;
+Type: source_file, Text: package main&#xD;
+ import "net/http"&#xD;
+ func Register(r *gin.Engine) {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+ &#xD;
+  Type: package_clause, Text: package main&#xD;
+    Type: package, Text: package&#xD;
+    Type: package_identifier, Text: main&#xD;
+  Type: import_declaration, Text: import "net/http"&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_spec, Text: "net/http"&#xD;
+      Type: interpreted_string_literal, Text: "net/http"&#xD;
+        Type: ", Text: "&#xD;
+        Type: interpreted_string_literal_content, Text: net/http&#xD;
+        Type: ", Text: "&#xD;
+  Type: function_declaration, Text: func Register(r *gin.Engine) {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+    Type: func, Text: func&#xD;
+    Type: identifier, Text: Register&#xD;
+    Type: parameter_list, Text: (r *gin.Engine)&#xD;
+      Type: (, Text: (&#xD;
+      Type: parameter_declaration, Text: r *gin.Engine&#xD;
+        Type: identifier, Text: r&#xD;
+        Type: pointer_type, Text: *gin.Engine&#xD;
+          Type: *, Text: *&#xD;
+          Type: qualified_type, Text: gin.Engine&#xD;
+            Type: package_identifier, Text: gin&#xD;
+            Type: ., Text: .&#xD;
+            Type: type_identifier, Text: Engine&#xD;
+      Type: ), Text: )&#xD;
+    Type: block, Text: {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+      Type: {, Text: {&#xD;
+      Type: statement_list, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+ &#xD;
+        Type: expression_statement, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+          Type: call_expression, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+            Type: selector_expression, Text: r.GET&#xD;
+              Type: identifier, Text: r&#xD;
+              Type: ., Text: .&#xD;
+              Type: field_identifier, Text: GET&#xD;
+            Type: argument_list, Text: ("/api/v1/users", GetUsers)&#xD;
+              Type: (, Text: (&#xD;
+              Type: interpreted_string_literal, Text: "/api/v1/users"&#xD;
+                Type: ", Text: "&#xD;
+                Type: interpreted_string_literal_content, Text: /api/v1/users&#xD;
+                Type: ", Text: "&#xD;
+              Type: ,, Text: ,&#xD;
+              Type: identifier, Text: GetUsers&#xD;
+              Type: ), Text: )&#xD;
+      Type: }, Text: }&#xD;
+--- GO AST END ---&#xD;
+Finished parsing file: main.go with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="6c071974-c5a9-4956-a41a-de1c2e308c6e" testId="b86144c5-e162-ce78-1d12-c45c2331977a" testName="Test_GoParser_EmbeddedSql" computerName="VMIKHAILOV-PC" duration="00:00:00.0145150" startTime="2026-06-05T15:18:43.4516043+02:00" endTime="2026-06-05T15:18:43.4661184+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6c071974-c5a9-4956-a41a-de1c2e308c6e">
+      <Output>
+        <StdOut>Finished parsing file: embedded_sql_test.go with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="5d41e546-0940-4939-9abf-3ae8fcac9fb6" testId="00234945-9b91-e9fa-94d0-11ee0f5874b4" testName="Test_SemanticAnalyzer_DbTypeMapping" computerName="VMIKHAILOV-PC" duration="00:00:00.0064450" startTime="2026-06-05T15:18:43.6404498+02:00" endTime="2026-06-05T15:18:43.6468940+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5d41e546-0940-4939-9abf-3ae8fcac9fb6" />
+    <UnitTestResult executionId="78566d4c-ebe6-4a6f-a67a-9ca7ea8e2e20" testId="409cf1d9-4aaf-0c34-9d4f-bbad2a2eff3b" testName="Test_CSharpParser_ApiIngressEgress" computerName="VMIKHAILOV-PC" duration="00:00:00.3659090" startTime="2026-06-05T15:18:42.9326046+02:00" endTime="2026-06-05T15:18:43.2983994+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="78566d4c-ebe6-4a6f-a67a-9ca7ea8e2e20">
+      <Output>
+        <StdOut>[LibraryParserRegistry] Scanning directory: C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests&#xD;
+[LibraryParserRegistry] Loading assembly: CodeExplorer.Parser.Go&#xD;
+[LibraryParserRegistry] Loading assembly: CodeExplorer.Parser.Python&#xD;
+[LibraryParserRegistry] Loading assembly: CodeExplorer.Parser.SQL&#xD;
+[LibraryParserRegistry] Loading assembly: CodeExplorer.Parser.TypeScript&#xD;
+[LibraryParserRegistry] Registered parser: CouchbaseLibraryParser (CodeExplorer.Parser.CSharp.Libraries.CouchbaseLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: DapperLibraryParser (CodeExplorer.Parser.CSharp.Libraries.DapperLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: EfCoreLibraryParser (CodeExplorer.Parser.CSharp.Libraries.EfCoreLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ElasticsearchNetLibraryParser (CodeExplorer.Parser.CSharp.Libraries.ElasticsearchNetLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: FlurlLibraryParser (CodeExplorer.Parser.CSharp.Libraries.FlurlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MicrosoftDataSqlClientLibraryParser (CodeExplorer.Parser.CSharp.Libraries.MicrosoftDataSqlClientLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MongoDbCsLibraryParser (CodeExplorer.Parser.CSharp.Libraries.MongoDbCsLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MySqlDataLibraryParser (CodeExplorer.Parser.CSharp.Libraries.MySqlDataLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: NestLibraryParser (CodeExplorer.Parser.CSharp.Libraries.NestLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: NpgsqlLibraryParser (CodeExplorer.Parser.CSharp.Libraries.NpgsqlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: OracleDataAccessLibraryParser (CodeExplorer.Parser.CSharp.Libraries.OracleDataAccessLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: StackExchangeRedisLibraryParser (CodeExplorer.Parser.CSharp.Libraries.StackExchangeRedisLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: SystemDataSqlClientLibraryParser (CodeExplorer.Parser.CSharp.Libraries.SystemDataSqlClientLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ElasticsearchGoLibraryParser (CodeExplorer.Parser.Go.Libraries.ElasticsearchGoLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoRedisLegacyLibraryParser (CodeExplorer.Parser.Go.Libraries.GoRedisLegacyLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoRedisLibraryParser (CodeExplorer.Parser.Go.Libraries.GoRedisLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GormLibraryParser (CodeExplorer.Parser.Go.Libraries.GormLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoSqlDriverMysqlLibraryParser (CodeExplorer.Parser.Go.Libraries.GoSqlDriverMysqlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoSqlite3LibraryParser (CodeExplorer.Parser.Go.Libraries.GoSqlite3LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoSqlLibraryParser (CodeExplorer.Parser.Go.Libraries.GoSqlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: LibPqLibraryParser (CodeExplorer.Parser.Go.Libraries.LibPqLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MongoGoLibraryParser (CodeExplorer.Parser.Go.Libraries.MongoGoLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ChromaDbLibraryParser (CodeExplorer.Parser.Python.Libraries.ChromaDbLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: CouchDbPythonLibraryParser (CodeExplorer.Parser.Python.Libraries.CouchDbPythonLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ElasticsearchPythonLibraryParser (CodeExplorer.Parser.Python.Libraries.ElasticsearchPythonLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MysqlConnectorPythonLibraryParser (CodeExplorer.Parser.Python.Libraries.MysqlConnectorPythonLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PeeweeLibraryParser (CodeExplorer.Parser.Python.Libraries.PeeweeLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PineconeLibraryParser (CodeExplorer.Parser.Python.Libraries.PineconeLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: Psycopg2LibraryParser (CodeExplorer.Parser.Python.Libraries.Psycopg2LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PyMongoLibraryParser (CodeExplorer.Parser.Python.Libraries.PyMongoLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PyMysqlLibraryParser (CodeExplorer.Parser.Python.Libraries.PyMysqlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PythonRedisLibraryParser (CodeExplorer.Parser.Python.Libraries.PythonRedisLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PythonSqlite3LibraryParser (CodeExplorer.Parser.Python.Libraries.PythonSqlite3LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: SqlAlchemyLibraryParser (CodeExplorer.Parser.Python.Libraries.SqlAlchemyLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: AxiosLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.AxiosLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ElasticsearchTsLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.ElasticsearchTsLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: InfluxDbLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.InfluxDbLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: KnexLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.KnexLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MongodbLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.MongodbLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MongooseLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.MongooseLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: Mysql2LibraryParser (CodeExplorer.Parser.TypeScript.Libraries.Mysql2LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: Neo4jLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.Neo4jLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PgLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.PgLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: RedisLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.RedisLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: SequelizeLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.SequelizeLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: Sqlite3LibraryParser (CodeExplorer.Parser.TypeScript.Libraries.Sqlite3LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: TypeOrmLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.TypeOrmLibraryParser)&#xD;
+Finished parsing file: csharp_api_test.cs with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="ba3c2839-3f97-4771-8a2a-f184db5e4d93" testId="e398d22f-5462-d616-38a1-5c629a1164f6" testName="Test_CSharpParser_EmbeddedSql" computerName="VMIKHAILOV-PC" duration="00:00:00.1502820" startTime="2026-06-05T15:18:43.3012783+02:00" endTime="2026-06-05T15:18:43.4515608+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ba3c2839-3f97-4771-8a2a-f184db5e4d93">
+      <Output>
+        <StdOut>Finished parsing file: embedded_sql_test.cs with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="e0330fc5-3ad2-4a68-bb2e-52f99812af7c" testId="5340d87e-c8e3-6c15-d217-d325d0c2b6dc" testName="Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding" computerName="VMIKHAILOV-PC" duration="00:00:00.3826320" startTime="2026-06-05T15:18:43.6904471+02:00" endTime="2026-06-05T15:18:44.0730782+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e0330fc5-3ad2-4a68-bb2e-52f99812af7c">
+      <Output>
+        <StdOut>Finished parsing file: ProjectA/Client.cs with 1 top-level symbols.&#xD;
+Finished parsing file: ProjectB/server.ts with 2 top-level symbols.&#xD;
+[IntegrationTest] Parsed 14 nodes and 18 relationships successfully.</StdOut>
+        <StdErr>[2026-06-05 15:18:43.699] [+4ms] [WorkspaceParser] Starting background database persistence loop...&#xD;
+&#xD;
+[2026-06-05 15:18:43.930] [+231ms] [WorkspaceParser] Clearing previous root workspace data for 'C:/Users/viach/AppData/Local/Temp/codeexplorer_test_workspace_67e2a61a-506f-4ca7-aca0-2caabf60eda6'...&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed scan of project 'ProjectA'.&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectB'...&#xD;
+&#xD;
+[WorkspaceParser] Completed scan of project 'ProjectB'.&#xD;
+&#xD;
+[2026-06-05 15:18:43.963] [+264ms] [LateBinding] Found 2 EntryPoints and 1 ExternalServices in the workspace.&#xD;
+&#xD;
+[2026-06-05 15:18:44.061] [+362ms] [WorkspaceParser] All background channel persistence writes completed! Total parsed: 14 nodes, 17 relationships.&#xD;
+&#xD;
+[2026-06-05 15:18:44.061] [+362ms] [WorkspaceParser] Resolving 9 global cross-references...&#xD;
+&#xD;
+[2026-06-05 15:18:44.061] [+362ms] [WorkspaceParser] Uploading 1 resolved reference relationships...&#xD;
+&#xD;
+[2026-06-05 15:18:44.066] [+367ms] [WorkspaceParser] Indexing process completed successfully! Total Nodes: 14, Total Relationships: 18.</StdErr>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="0f6765c2-49a0-4089-9ec3-d526403dcbb1" testId="26387328-3835-9acb-0daf-f2897623cbe4" testName="Test_TypeScriptParser_EmbeddedSql_ComplexTemplate" computerName="VMIKHAILOV-PC" duration="00:00:00.0076330" startTime="2026-06-05T15:18:43.6692252+02:00" endTime="2026-06-05T15:18:43.6768579+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0f6765c2-49a0-4089-9ec3-d526403dcbb1">
+      <Output>
+        <StdOut>Finished parsing file: complex_template_test.ts with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="80b8edc0-26c2-4e8a-88b7-b166873a8202" testId="f5813a33-cc5f-0cd6-fbfb-13f9f0a397b9" testName="Test_LibraryParsers_CSharpAndTS" computerName="VMIKHAILOV-PC" duration="00:00:00.0272490" startTime="2026-06-05T15:18:43.4661655+02:00" endTime="2026-06-05T15:18:43.4934138+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="80b8edc0-26c2-4e8a-88b7-b166873a8202">
+      <Output>
+        <StdOut>Finished parsing file: Service.cs with 1 top-level symbols.</StdOut>
+        <ErrorInfo>
+          <Message>System.NotImplementedException : The method or operation is not implemented.</Message>
+          <StackTrace>   at CodeExplorer.Parser.Python.Libraries.PythonRedisLibraryParser.MapNodeType(Node node, ParsingContext ctx) in C:\Work\Personal\code-explorer\Parsers\CodeExplorer.Parser.Python\Libraries\PythonRedisLibraryParser.cs:line 15&#xD;
+   at CodeExplorer.Core.Parser.TreeSitterFileParser.TraverseAndBuildTree(Node node, IOntologyNode currentParent, String parentId, IFileParser parser, ParsingContext ctx, String filePath, List`1 activeLibraryParsers) in C:\Work\Personal\code-explorer\Core\CodeExplorer.Core\Parser\TreeSitterFileParser.cs:line 73&#xD;
+   at CodeExplorer.Core.Parser.TreeSitterFileParser.ParseFileAsync(String filePath, String relativePath, String parentNodeId, IFileParser fileParser, ParsingContext ctx) in C:\Work\Personal\code-explorer\Core\CodeExplorer.Core\Parser\TreeSitterFileParser.cs:line 39&#xD;
+   at CodeExplorer.Tests.ParserValidationTests.Test_LibraryParsers_CSharpAndTS() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\ParserValidationTests.cs:line 858&#xD;
+   at CodeExplorer.Tests.ParserValidationTests.Test_LibraryParsers_CSharpAndTS() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\ParserValidationTests.cs:line 872&#xD;
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.BlockUntilCompleted()&#xD;
+   at NUnit.Framework.Internal.MessagePumpStrategy.NoMessagePumpStrategy.WaitForCompletion(AwaitAdapter awaiter)&#xD;
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](Func`1 invoke)&#xD;
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(Func`1 invoke)&#xD;
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)&#xD;
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)&#xD;
+   at NUnit.Framework.Internal.Execution.SimpleWorkItem.&lt;&gt;c__DisplayClass3_0.&lt;PerformWork&gt;b__0()&#xD;
+   at NUnit.Framework.Internal.ContextUtils.&lt;&gt;c__DisplayClass1_0`1.&lt;DoIsolated&gt;b__0(Object _)&#xD;
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)&#xD;
+   at NUnit.Framework.Internal.ContextUtils.DoIsolated(ContextCallback callback, Object state)&#xD;
+   at NUnit.Framework.Internal.ContextUtils.DoIsolated[T](Func`1 func)&#xD;
+   at NUnit.Framework.Internal.Execution.SimpleWorkItem.PerformWork()
+</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="6d440a21-4f5d-4406-9f1d-4c2ae2f4866d" testId="991dd2f3-5757-8f8f-ad0a-5936c68085f2" testName="Test_TypeScriptParser_ApiIngressEgress" computerName="VMIKHAILOV-PC" duration="00:00:00.0134000" startTime="2026-06-05T15:18:43.6469402+02:00" endTime="2026-06-05T15:18:43.6603394+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6d440a21-4f5d-4406-9f1d-4c2ae2f4866d">
+      <Output>
+        <StdOut>--- TS AST START ---&#xD;
+Type: program, Text: import { Controller, Post, Get } from '@nestjs/common';&#xD;
+ import axios from 'axios';&#xD;
+ &#xD;
+ @Controller('orders')&#xD;
+ export class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+ &#xD;
+  Type: import_statement, Text: import { Controller, Post, Get } from '@nestjs/common';&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_clause, Text: { Controller, Post, Get }&#xD;
+      Type: named_imports, Text: { Controller, Post, Get }&#xD;
+        Type: {, Text: {&#xD;
+        Type: import_specifier, Text: Controller&#xD;
+          Type: identifier, Text: Controller&#xD;
+        Type: ,, Text: ,&#xD;
+        Type: import_specifier, Text: Post&#xD;
+          Type: identifier, Text: Post&#xD;
+        Type: ,, Text: ,&#xD;
+        Type: import_specifier, Text: Get&#xD;
+          Type: identifier, Text: Get&#xD;
+        Type: }, Text: }&#xD;
+    Type: from, Text: from&#xD;
+    Type: string, Text: '@nestjs/common'&#xD;
+      Type: ', Text: '&#xD;
+      Type: string_fragment, Text: @nestjs/common&#xD;
+      Type: ', Text: '&#xD;
+    Type: ;, Text: ;&#xD;
+  Type: import_statement, Text: import axios from 'axios';&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_clause, Text: axios&#xD;
+      Type: identifier, Text: axios&#xD;
+    Type: from, Text: from&#xD;
+    Type: string, Text: 'axios'&#xD;
+      Type: ', Text: '&#xD;
+      Type: string_fragment, Text: axios&#xD;
+      Type: ', Text: '&#xD;
+    Type: ;, Text: ;&#xD;
+  Type: export_statement, Text: @Controller('orders')&#xD;
+ export class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+    Type: decorator, Text: @Controller('orders')&#xD;
+      Type: @, Text: @&#xD;
+      Type: call_expression, Text: Controller('orders')&#xD;
+        Type: identifier, Text: Controller&#xD;
+        Type: arguments, Text: ('orders')&#xD;
+          Type: (, Text: (&#xD;
+          Type: string, Text: 'orders'&#xD;
+            Type: ', Text: '&#xD;
+            Type: string_fragment, Text: orders&#xD;
+            Type: ', Text: '&#xD;
+          Type: ), Text: )&#xD;
+    Type: export, Text: export&#xD;
+    Type: class_declaration, Text: class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+      Type: class, Text: class&#xD;
+      Type: type_identifier, Text: OrdersController&#xD;
+      Type: class_body, Text: {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+        Type: {, Text: {&#xD;
+        Type: decorator, Text: @Post('charge')&#xD;
+          Type: @, Text: @&#xD;
+          Type: call_expression, Text: Post('charge')&#xD;
+            Type: identifier, Text: Post&#xD;
+            Type: arguments, Text: ('charge')&#xD;
+              Type: (, Text: (&#xD;
+              Type: string, Text: 'charge'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: charge&#xD;
+                Type: ', Text: '&#xD;
+              Type: ), Text: )&#xD;
+        Type: method_definition, Text: async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+          Type: async, Text: async&#xD;
+          Type: property_identifier, Text: chargeOrder&#xD;
+          Type: formal_parameters, Text: ()&#xD;
+            Type: (, Text: (&#xD;
+            Type: ), Text: )&#xD;
+          Type: statement_block, Text: {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+            Type: {, Text: {&#xD;
+            Type: expression_statement, Text: await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+              Type: await_expression, Text: await axios.post('http://api.stripe.com/v1/charges', {})&#xD;
+                Type: await, Text: await&#xD;
+                Type: call_expression, Text: axios.post('http://api.stripe.com/v1/charges', {})&#xD;
+                  Type: member_expression, Text: axios.post&#xD;
+                    Type: identifier, Text: axios&#xD;
+                    Type: ., Text: .&#xD;
+                    Type: property_identifier, Text: post&#xD;
+                  Type: arguments, Text: ('http://api.stripe.com/v1/charges', {})&#xD;
+                    Type: (, Text: (&#xD;
+                    Type: string, Text: 'http://api.stripe.com/v1/charges'&#xD;
+                      Type: ', Text: '&#xD;
+                      Type: string_fragment, Text: http://api.stripe.com/v1/charges&#xD;
+                      Type: ', Text: '&#xD;
+                    Type: ,, Text: ,&#xD;
+                    Type: object, Text: {}&#xD;
+                      Type: {, Text: {&#xD;
+                      Type: }, Text: }&#xD;
+                    Type: ), Text: )&#xD;
+              Type: ;, Text: ;&#xD;
+            Type: }, Text: }&#xD;
+        Type: decorator, Text: @SubscribeMessage('ping')&#xD;
+          Type: @, Text: @&#xD;
+          Type: call_expression, Text: SubscribeMessage('ping')&#xD;
+            Type: identifier, Text: SubscribeMessage&#xD;
+            Type: arguments, Text: ('ping')&#xD;
+              Type: (, Text: (&#xD;
+              Type: string, Text: 'ping'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: ping&#xD;
+                Type: ', Text: '&#xD;
+              Type: ), Text: )&#xD;
+        Type: method_definition, Text: onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+          Type: property_identifier, Text: onPing&#xD;
+          Type: formal_parameters, Text: ()&#xD;
+            Type: (, Text: (&#xD;
+            Type: ), Text: )&#xD;
+          Type: statement_block, Text: {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+            Type: {, Text: {&#xD;
+            Type: return_statement, Text: return 'pong';&#xD;
+              Type: return, Text: return&#xD;
+              Type: string, Text: 'pong'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: pong&#xD;
+                Type: ', Text: '&#xD;
+              Type: ;, Text: ;&#xD;
+            Type: }, Text: }&#xD;
+        Type: }, Text: }&#xD;
+--- TS AST END ---&#xD;
+Finished parsing file: typescript_api_test.ts with 2 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Test_GoParser_EmbeddedSql" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="b86144c5-e162-ce78-1d12-c45c2331977a">
+      <Execution id="6c071974-c5a9-4956-a41a-de1c2e308c6e" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_GoParser_EmbeddedSql" />
+    </UnitTest>
+    <UnitTest name="Test_SemanticAnalyzer_DbTypeMapping" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="00234945-9b91-e9fa-94d0-11ee0f5874b4">
+      <Execution id="5d41e546-0940-4939-9abf-3ae8fcac9fb6" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_SemanticAnalyzer_DbTypeMapping" />
+    </UnitTest>
+    <UnitTest name="Test_TypeScriptParser_WithExamples" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="26049e90-1a44-234b-b819-41f395f82e8b">
+      <Execution id="8545917e-22c0-46bd-872e-760b54ce0a94" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeScriptParser_WithExamples" />
+    </UnitTest>
+    <UnitTest name="Test_NestedSqlParser_CleanQueryText_NestedQuotes" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="c5e28637-7f64-2d30-b6ab-268beea8c124">
+      <Execution id="20c13466-f6f8-447b-9847-17cac6aa232c" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_NestedSqlParser_CleanQueryText_NestedQuotes" />
+    </UnitTest>
+    <UnitTest name="Test_NewParserFeatures" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="0a39a0b3-181d-fd7d-571d-2b3d1965b834">
+      <Execution id="a3545c9a-3730-48f3-9250-553361e95818" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_NewParserFeatures" />
+    </UnitTest>
+    <UnitTest name="Test_TypeScriptParser_EmbeddedSql" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="a06b5a07-181f-a998-7c15-021a53531ad5">
+      <Execution id="7a8840fa-c66c-4c9e-883e-e0c7e5253965" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeScriptParser_EmbeddedSql" />
+    </UnitTest>
+    <UnitTest name="Test_TypeScriptParser_EmbeddedSql_ComplexTemplate" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="26387328-3835-9acb-0daf-f2897623cbe4">
+      <Execution id="0f6765c2-49a0-4089-9ec3-d526403dcbb1" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeScriptParser_EmbeddedSql_ComplexTemplate" />
+    </UnitTest>
+    <UnitTest name="Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="5340d87e-c8e3-6c15-d217-d325d0c2b6dc">
+      <Execution id="e0330fc5-3ad2-4a68-bb2e-52f99812af7c" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding" />
+    </UnitTest>
+    <UnitTest name="Test_CSharpParser_EmbeddedSql" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="e398d22f-5462-d616-38a1-5c629a1164f6">
+      <Execution id="ba3c2839-3f97-4771-8a2a-f184db5e4d93" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_CSharpParser_EmbeddedSql" />
+    </UnitTest>
+    <UnitTest name="Test_SemanticAnalysisAndOntologyEnrichment" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="429e712c-f669-8ba0-0b6d-b1af27a09f95">
+      <Execution id="26f644f0-e51c-4c85-812a-d8e581223bb8" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_SemanticAnalysisAndOntologyEnrichment" />
+    </UnitTest>
+    <UnitTest name="Test_LibraryParsers_CSharpAndTS" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="f5813a33-cc5f-0cd6-fbfb-13f9f0a397b9">
+      <Execution id="80b8edc0-26c2-4e8a-88b7-b166873a8202" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_LibraryParsers_CSharpAndTS" />
+    </UnitTest>
+    <UnitTest name="Test_CSharpParser_ApiIngressEgress" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="409cf1d9-4aaf-0c34-9d4f-bbad2a2eff3b">
+      <Execution id="78566d4c-ebe6-4a6f-a67a-9ca7ea8e2e20" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_CSharpParser_ApiIngressEgress" />
+    </UnitTest>
+    <UnitTest name="Test_PythonParser_EmbeddedSql" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="ab81f5de-c238-6660-da6c-8a4b6a09bbe6">
+      <Execution id="e7a7a239-58c5-4578-9e28-6acb1587bf15" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_PythonParser_EmbeddedSql" />
+    </UnitTest>
+    <UnitTest name="Test_TypeScriptParser_ApiIngressEgress" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="991dd2f3-5757-8f8f-ad0a-5936c68085f2">
+      <Execution id="6d440a21-4f5d-4406-9f1d-4c2ae2f4866d" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeScriptParser_ApiIngressEgress" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="c5e28637-7f64-2d30-b6ab-268beea8c124" executionId="20c13466-f6f8-447b-9847-17cac6aa232c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="26049e90-1a44-234b-b819-41f395f82e8b" executionId="8545917e-22c0-46bd-872e-760b54ce0a94" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ab81f5de-c238-6660-da6c-8a4b6a09bbe6" executionId="e7a7a239-58c5-4578-9e28-6acb1587bf15" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a06b5a07-181f-a998-7c15-021a53531ad5" executionId="7a8840fa-c66c-4c9e-883e-e0c7e5253965" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="429e712c-f669-8ba0-0b6d-b1af27a09f95" executionId="26f644f0-e51c-4c85-812a-d8e581223bb8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0a39a0b3-181d-fd7d-571d-2b3d1965b834" executionId="a3545c9a-3730-48f3-9250-553361e95818" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b86144c5-e162-ce78-1d12-c45c2331977a" executionId="6c071974-c5a9-4956-a41a-de1c2e308c6e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="00234945-9b91-e9fa-94d0-11ee0f5874b4" executionId="5d41e546-0940-4939-9abf-3ae8fcac9fb6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="409cf1d9-4aaf-0c34-9d4f-bbad2a2eff3b" executionId="78566d4c-ebe6-4a6f-a67a-9ca7ea8e2e20" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e398d22f-5462-d616-38a1-5c629a1164f6" executionId="ba3c2839-3f97-4771-8a2a-f184db5e4d93" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5340d87e-c8e3-6c15-d217-d325d0c2b6dc" executionId="e0330fc5-3ad2-4a68-bb2e-52f99812af7c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="26387328-3835-9acb-0daf-f2897623cbe4" executionId="0f6765c2-49a0-4089-9ec3-d526403dcbb1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f5813a33-cc5f-0cd6-fbfb-13f9f0a397b9" executionId="80b8edc0-26c2-4e8a-88b7-b166873a8202" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="991dd2f3-5757-8f8f-ad0a-5936c68085f2" executionId="6d440a21-4f5d-4406-9f1d-4c2ae2f4866d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="14" executed="13" passed="12" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>NUnit Adapter 4.5.0.0: Test execution started&#xD;
+Running selected tests in C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll&#xD;
+   NUnit3TestExecutor discovered 14 of 14 NUnit test cases using Current Discovery mode, Non-Explicit run&#xD;
+Test_TypeScriptParser_WithExamples: Multiple failures or warnings in test:&#xD;
+  1) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/cron/cron.service.ts&#xD;
+  2) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/services/calibrate-min-roi.service.ts&#xD;
+  3) Example file not found: /Users/slava/Projects/ATS/src/services/calc-epm/src/interfaces/configs/config.models.ts&#xD;
+&#xD;
+NUnit Adapter 4.5.0.0: Test execution complete&#xD;
+Test 'Test_TypeScriptParser_WithExamples' was skipped in the test run.&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.3236488+02:00">
+        <Text>[LibraryParserRegistry] Scanning directory: C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests&#xD;
+[LibraryParserRegistry] Loading assembly: CodeExplorer.Parser.Go&#xD;
+[LibraryParserRegistry] Loading assembly: CodeExplorer.Parser.Python&#xD;
+[LibraryParserRegistry] Loading assembly: CodeExplorer.Parser.SQL&#xD;
+[LibraryParserRegistry] Loading assembly: CodeExplorer.Parser.TypeScript&#xD;
+[LibraryParserRegistry] Registered parser: CouchbaseLibraryParser (CodeExplorer.Parser.CSharp.Libraries.CouchbaseLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: DapperLibraryParser (CodeExplorer.Parser.CSharp.Libraries.DapperLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: EfCoreLibraryParser (CodeExplorer.Parser.CSharp.Libraries.EfCoreLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ElasticsearchNetLibraryParser (CodeExplorer.Parser.CSharp.Libraries.ElasticsearchNetLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: FlurlLibraryParser (CodeExplorer.Parser.CSharp.Libraries.FlurlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MicrosoftDataSqlClientLibraryParser (CodeExplorer.Parser.CSharp.Libraries.MicrosoftDataSqlClientLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MongoDbCsLibraryParser (CodeExplorer.Parser.CSharp.Libraries.MongoDbCsLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MySqlDataLibraryParser (CodeExplorer.Parser.CSharp.Libraries.MySqlDataLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: NestLibraryParser (CodeExplorer.Parser.CSharp.Libraries.NestLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: NpgsqlLibraryParser (CodeExplorer.Parser.CSharp.Libraries.NpgsqlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: OracleDataAccessLibraryParser (CodeExplorer.Parser.CSharp.Libraries.OracleDataAccessLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: StackExchangeRedisLibraryParser (CodeExplorer.Parser.CSharp.Libraries.StackExchangeRedisLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: SystemDataSqlClientLibraryParser (CodeExplorer.Parser.CSharp.Libraries.SystemDataSqlClientLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ElasticsearchGoLibraryParser (CodeExplorer.Parser.Go.Libraries.ElasticsearchGoLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoRedisLegacyLibraryParser (CodeExplorer.Parser.Go.Libraries.GoRedisLegacyLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoRedisLibraryParser (CodeExplorer.Parser.Go.Libraries.GoRedisLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GormLibraryParser (CodeExplorer.Parser.Go.Libraries.GormLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoSqlDriverMysqlLibraryParser (CodeExplorer.Parser.Go.Libraries.GoSqlDriverMysqlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoSqlite3LibraryParser (CodeExplorer.Parser.Go.Libraries.GoSqlite3LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: GoSqlLibraryParser (CodeExplorer.Parser.Go.Libraries.GoSqlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: LibPqLibraryParser (CodeExplorer.Parser.Go.Libraries.LibPqLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MongoGoLibraryParser (CodeExplorer.Parser.Go.Libraries.MongoGoLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ChromaDbLibraryParser (CodeExplorer.Parser.Python.Libraries.ChromaDbLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: CouchDbPythonLibraryParser (CodeExplorer.Parser.Python.Libraries.CouchDbPythonLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ElasticsearchPythonLibraryParser (CodeExplorer.Parser.Python.Libraries.ElasticsearchPythonLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MysqlConnectorPythonLibraryParser (CodeExplorer.Parser.Python.Libraries.MysqlConnectorPythonLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PeeweeLibraryParser (CodeExplorer.Parser.Python.Libraries.PeeweeLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PineconeLibraryParser (CodeExplorer.Parser.Python.Libraries.PineconeLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: Psycopg2LibraryParser (CodeExplorer.Parser.Python.Libraries.Psycopg2LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PyMongoLibraryParser (CodeExplorer.Parser.Python.Libraries.PyMongoLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PyMysqlLibraryParser (CodeExplorer.Parser.Python.Libraries.PyMysqlLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PythonRedisLibraryParser (CodeExplorer.Parser.Python.Libraries.PythonRedisLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PythonSqlite3LibraryParser (CodeExplorer.Parser.Python.Libraries.PythonSqlite3LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: SqlAlchemyLibraryParser (CodeExplorer.Parser.Python.Libraries.SqlAlchemyLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: AxiosLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.AxiosLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: ElasticsearchTsLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.ElasticsearchTsLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: InfluxDbLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.InfluxDbLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: KnexLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.KnexLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MongodbLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.MongodbLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: MongooseLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.MongooseLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: Mysql2LibraryParser (CodeExplorer.Parser.TypeScript.Libraries.Mysql2LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: Neo4jLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.Neo4jLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: PgLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.PgLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: RedisLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.RedisLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: SequelizeLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.SequelizeLibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: Sqlite3LibraryParser (CodeExplorer.Parser.TypeScript.Libraries.Sqlite3LibraryParser)&#xD;
+[LibraryParserRegistry] Registered parser: TypeOrmLibraryParser (CodeExplorer.Parser.TypeScript.Libraries.TypeOrmLibraryParser)&#xD;
+Finished parsing file: csharp_api_test.cs with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.4522675+02:00">
+        <Text>Finished parsing file: embedded_sql_test.cs with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.4668214+02:00">
+        <Text>Finished parsing file: embedded_sql_test.go with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.4952893+02:00">
+        <Text>Finished parsing file: Service.cs with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.5377229+02:00">
+        <Text>Finished parsing file: app.py with 2 top-level symbols.&#xD;
+--- GO AST START ---&#xD;
+Type: source_file, Text: package main&#xD;
+ import "net/http"&#xD;
+ func Register(r *gin.Engine) {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+ &#xD;
+  Type: package_clause, Text: package main&#xD;
+    Type: package, Text: package&#xD;
+    Type: package_identifier, Text: main&#xD;
+  Type: import_declaration, Text: import "net/http"&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_spec, Text: "net/http"&#xD;
+      Type: interpreted_string_literal, Text: "net/http"&#xD;
+        Type: ", Text: "&#xD;
+        Type: interpreted_string_literal_content, Text: net/http&#xD;
+        Type: ", Text: "&#xD;
+  Type: function_declaration, Text: func Register(r *gin.Engine) {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+    Type: func, Text: func&#xD;
+    Type: identifier, Text: Register&#xD;
+    Type: parameter_list, Text: (r *gin.Engine)&#xD;
+      Type: (, Text: (&#xD;
+      Type: parameter_declaration, Text: r *gin.Engine&#xD;
+        Type: identifier, Text: r&#xD;
+        Type: pointer_type, Text: *gin.Engine&#xD;
+          Type: *, Text: *&#xD;
+          Type: qualified_type, Text: gin.Engine&#xD;
+            Type: package_identifier, Text: gin&#xD;
+            Type: ., Text: .&#xD;
+            Type: type_identifier, Text: Engine&#xD;
+      Type: ), Text: )&#xD;
+    Type: block, Text: {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+      Type: {, Text: {&#xD;
+      Type: statement_list, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+ &#xD;
+        Type: expression_statement, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+          Type: call_expression, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+            Type: selector_expression, Text: r.GET&#xD;
+              Type: identifier, Text: r&#xD;
+              Type: ., Text: .&#xD;
+              Type: field_identifier, Text: GET&#xD;
+            Type: argument_list, Text: ("/api/v1/users", GetUsers)&#xD;
+              Type: (, Text: (&#xD;
+              Type: interpreted_string_literal, Text: "/api/v1/users"&#xD;
+                Type: ", Text: "&#xD;
+                Type: interpreted_string_literal_content, Text: /api/v1/users&#xD;
+                Type: ", Text: "&#xD;
+              Type: ,, Text: ,&#xD;
+              Type: identifier, Text: GetUsers&#xD;
+              Type: ), Text: )&#xD;
+      Type: }, Text: }&#xD;
+--- GO AST END ---&#xD;
+Finished parsing file: main.go with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.5494228+02:00">
+        <Text>Finished parsing file: embedded_sql_test.py with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.5701564+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.6361636+02:00">
+        <Text>[WorkspaceParser] Completed scan of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.6362222+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectB'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.6372711+02:00">
+        <Text>[WorkspaceParser] Completed scan of project 'ProjectB'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.6411883+02:00">
+        <Text>Finished parsing file: ProjectA/Repository.cs with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.7581371+02:00">
+        <Text>--- TS AST START ---&#xD;
+Type: program, Text: import { Controller, Post, Get } from '@nestjs/common';&#xD;
+ import axios from 'axios';&#xD;
+ &#xD;
+ @Controller('orders')&#xD;
+ export class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+ &#xD;
+  Type: import_statement, Text: import { Controller, Post, Get } from '@nestjs/common';&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_clause, Text: { Controller, Post, Get }&#xD;
+      Type: named_imports, Text: { Controller, Post, Get }&#xD;
+        Type: {, Text: {&#xD;
+        Type: import_specifier, Text: Controller&#xD;
+          Type: identifier, Text: Controller&#xD;
+        Type: ,, Text: ,&#xD;
+        Type: import_specifier, Text: Post&#xD;
+          Type: identifier, Text: Post&#xD;
+        Type: ,, Text: ,&#xD;
+        Type: import_specifier, Text: Get&#xD;
+          Type: identifier, Text: Get&#xD;
+        Type: }, Text: }&#xD;
+    Type: from, Text: from&#xD;
+    Type: string, Text: '@nestjs/common'&#xD;
+      Type: ', Text: '&#xD;
+      Type: string_fragment, Text: @nestjs/common&#xD;
+      Type: ', Text: '&#xD;
+    Type: ;, Text: ;&#xD;
+  Type: import_statement, Text: import axios from 'axios';&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_clause, Text: axios&#xD;
+      Type: identifier, Text: axios&#xD;
+    Type: from, Text: from&#xD;
+    Type: string, Text: 'axios'&#xD;
+      Type: ', Text: '&#xD;
+      Type: string_fragment, Text: axios&#xD;
+      Type: ', Text: '&#xD;
+    Type: ;, Text: ;&#xD;
+  Type: export_statement, Text: @Controller('orders')&#xD;
+ export class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+    Type: decorator, Text: @Controller('orders')&#xD;
+      Type: @, Text: @&#xD;
+      Type: call_expression, Text: Controller('orders')&#xD;
+        Type: identifier, Text: Controller&#xD;
+        Type: arguments, Text: ('orders')&#xD;
+          Type: (, Text: (&#xD;
+          Type: string, Text: 'orders'&#xD;
+            Type: ', Text: '&#xD;
+            Type: string_fragment, Text: orders&#xD;
+            Type: ', Text: '&#xD;
+          Type: ), Text: )&#xD;
+    Type: export, Text: export&#xD;
+    Type: class_declaration, Text: class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+      Type: class, Text: class&#xD;
+      Type: type_identifier, Text: OrdersController&#xD;
+      Type: class_body, Text: {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+        Type: {, Text: {&#xD;
+        Type: decorator, Text: @Post('charge')&#xD;
+          Type: @, Text: @&#xD;
+          Type: call_expression, Text: Post('charge')&#xD;
+            Type: identifier, Text: Post&#xD;
+            Type: arguments, Text: ('charge')&#xD;
+              Type: (, Text: (&#xD;
+              Type: string, Text: 'charge'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: charge&#xD;
+                Type: ', Text: '&#xD;
+              Type: ), Text: )&#xD;
+        Type: method_definition, Text: async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+          Type: async, Text: async&#xD;
+          Type: property_identifier, Text: chargeOrder&#xD;
+          Type: formal_parameters, Text: ()&#xD;
+            Type: (, Text: (&#xD;
+            Type: ), Text: )&#xD;
+          Type: statement_block, Text: {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+            Type: {, Text: {&#xD;
+            Type: expression_statement, Text: await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+              Type: await_expression, Text: await axios.post('http://api.stripe.com/v1/charges', {})&#xD;
+                Type: await, Text: await&#xD;
+                Type: call_expression, Text: axios.post('http://api.stripe.com/v1/charges', {})&#xD;
+                  Type: member_expression, Text: axios.post&#xD;
+                    Type: identifier, Text: axios&#xD;
+                    Type: ., Text: .&#xD;
+                    Type: property_identifier, Text: post&#xD;
+                  Type: arguments, Text: ('http://api.stripe.com/v1/charges', {})&#xD;
+                    Type: (, Text: (&#xD;
+                    Type: string, Text: 'http://api.stripe.com/v1/charges'&#xD;
+                      Type: ', Text: '&#xD;
+                      Type: string_fragment, Text: http://api.stripe.com/v1/charges&#xD;
+                      Type: ', Text: '&#xD;
+                    Type: ,, Text: ,&#xD;
+                    Type: object, Text: {}&#xD;
+                      Type: {, Text: {&#xD;
+                      Type: }, Text: }&#xD;
+                    Type: ), Text: )&#xD;
+              Type: ;, Text: ;&#xD;
+            Type: }, Text: }&#xD;
+        Type: decorator, Text: @SubscribeMessage('ping')&#xD;
+          Type: @, Text: @&#xD;
+          Type: call_expression, Text: SubscribeMessage('ping')&#xD;
+            Type: identifier, Text: SubscribeMessage&#xD;
+            Type: arguments, Text: ('ping')&#xD;
+              Type: (, Text: (&#xD;
+              Type: string, Text: 'ping'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: ping&#xD;
+                Type: ', Text: '&#xD;
+              Type: ), Text: )&#xD;
+        Type: method_definition, Text: onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+          Type: property_identifier, Text: onPing&#xD;
+          Type: formal_parameters, Text: ()&#xD;
+            Type: (, Text: (&#xD;
+            Type: ), Text: )&#xD;
+          Type: statement_block, Text: {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+            Type: {, Text: {&#xD;
+            Type: return_statement, Text: return 'pong';&#xD;
+              Type: return, Text: return&#xD;
+              Type: string, Text: 'pong'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: pong&#xD;
+                Type: ', Text: '&#xD;
+              Type: ;, Text: ;&#xD;
+            Type: }, Text: }&#xD;
+        Type: }, Text: }&#xD;
+--- TS AST END ---&#xD;
+Finished parsing file: typescript_api_test.ts with 2 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.7583059+02:00">
+        <Text>Finished parsing file: embedded_sql_test.ts with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.7583546+02:00">
+        <Text>Finished parsing file: complex_template_test.ts with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.7583947+02:00">
+        <Text>[2026-06-05 15:18:43.699] [+4ms] [WorkspaceParser] Starting background database persistence loop...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.9307712+02:00">
+        <Text>[2026-06-05 15:18:43.930] [+231ms] [WorkspaceParser] Clearing previous root workspace data for 'C:/Users/viach/AppData/Local/Temp/codeexplorer_test_workspace_67e2a61a-506f-4ca7-aca0-2caabf60eda6'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.9528370+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.9562452+02:00">
+        <Text>[WorkspaceParser] Completed scan of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.9564686+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectB'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.9624378+02:00">
+        <Text>[WorkspaceParser] Completed scan of project 'ProjectB'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:43.9639034+02:00">
+        <Text>[2026-06-05 15:18:43.963] [+264ms] [LateBinding] Found 2 EntryPoints and 1 ExternalServices in the workspace.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:44.0622351+02:00">
+        <Text>[2026-06-05 15:18:44.061] [+362ms] [WorkspaceParser] All background channel persistence writes completed! Total parsed: 14 nodes, 17 relationships.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:44.0623775+02:00">
+        <Text>[2026-06-05 15:18:44.061] [+362ms] [WorkspaceParser] Resolving 9 global cross-references...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:44.0624492+02:00">
+        <Text>[2026-06-05 15:18:44.061] [+362ms] [WorkspaceParser] Uploading 1 resolved reference relationships...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:44.0668427+02:00">
+        <Text>[2026-06-05 15:18:44.066] [+367ms] [WorkspaceParser] Indexing process completed successfully! Total Nodes: 14, Total Relationships: 18.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-05T15:18:44.0737434+02:00">
+        <Text>Finished parsing file: ProjectA/Client.cs with 1 top-level symbols.&#xD;
+Finished parsing file: ProjectB/server.ts with 2 top-level symbols.&#xD;
+[IntegrationTest] Parsed 14 nodes and 18 relationships successfully.&#xD;
+</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

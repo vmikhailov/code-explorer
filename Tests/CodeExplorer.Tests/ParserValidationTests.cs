@@ -827,23 +827,15 @@ public class Service
             var csFileParser = new CodeExplorer.Parser.CSharp.CSharpParser();
             var csFileNode = await TreeSitterFileParser.ParseFileAsync(csFilePath, "Service.cs", "1", csFileParser, ctx);
 
-            Console.WriteLine("=== RAW IMPORTS ===");
-            foreach (var imp in ctx.RawImports)
-            {
-                Console.WriteLine($"Import: {imp.Path} in {imp.FilePath}");
-            }
-
-            Console.WriteLine("=== FILE NODE CHILDREN ===");
-            foreach (var child in csFileNode.Children)
-            {
-                Console.WriteLine($"Child: {child.GetType().Name} - Name: {child.Name}");
-            }
-            var dapperNode = csFileNode.Children.OfType<QueryNode>().FirstOrDefault(q => q.Name.Contains("SELECT"));
+            // Verify Dapper query extraction
+            var csQueries = FindQueryNodes(new[] { csFileNode });
+            var dapperNode = csQueries.FirstOrDefault(q => q.Name.Contains("SELECT"));
             Assert.That(dapperNode, Is.Not.Null);
             Assert.That(dapperNode.Name, Is.EqualTo("SELECT Query: SELECT name FROM users WHERE id = @id"));
 
             // Verify Flurl external service extraction
-            var flurlNode = csFileNode.Children.OfType<ExternalServiceNode>().FirstOrDefault();
+            var csExtServices = FindExternalServiceNodes(new[] { csFileNode });
+            var flurlNode = csExtServices.FirstOrDefault();
             Assert.That(flurlNode, Is.Not.Null);
             Assert.That(flurlNode.Name, Is.EqualTo("api.github.com"));
 
@@ -865,16 +857,18 @@ async function testDb(client: any) {
             var tsFileParser = new CodeExplorer.Parser.TypeScript.TypeScriptParser();
             var tsFileNode = await TreeSitterFileParser.ParseFileAsync(tsFilePath, "app.ts", "1", tsFileParser, ctx);
 
+            var tsQueries = FindQueryNodes(new[] { tsFileNode });
+
             // Verify Mongoose model & query extraction
-            var modelNode = tsFileNode.Children.OfType<QueryNode>().FirstOrDefault(q => q.Name.Contains("Mongoose Model"));
+            var modelNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose Model"));
             Assert.That(modelNode, Is.Not.Null);
             Assert.That(modelNode.Name, Is.EqualTo("Mongoose Model: Product"));
 
-            var findNode = tsFileNode.Children.OfType<QueryNode>().FirstOrDefault(q => q.Name.Contains("Mongoose: Product.find"));
+            var findNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose: Product.find"));
             Assert.That(findNode, Is.Not.Null);
 
             // Verify Redis query extraction
-            var redisNode = tsFileNode.Children.OfType<QueryNode>().FirstOrDefault(q => q.Name.Contains("Redis: client.set"));
+            var redisNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Redis: client.set"));
             Assert.That(redisNode, Is.Not.Null);
         }
         finally

@@ -10,12 +10,11 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class MongooseLibraryParser : ILibraryParser
 {
-    public string LibraryName => "mongoose";
+    public string Name => "MongooseLibraryParser";
 
-    public bool CanParse(string libraryName)
-    {
-        return string.Equals(libraryName, "mongoose", StringComparison.OrdinalIgnoreCase);
-    }
+    public string Category => "database";
+
+    public IEnumerable<string> SupportedLibraries => new[] { "mongoose" };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

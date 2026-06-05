@@ -10,12 +10,11 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class AxiosLibraryParser : ILibraryParser
 {
-    public string LibraryName => "axios";
+    public string Name => "AxiosLibraryParser";
 
-    public bool CanParse(string libraryName)
-    {
-        return string.Equals(libraryName, "axios", StringComparison.OrdinalIgnoreCase);
-    }
+    public string Category => "api";
+
+    public IEnumerable<string> SupportedLibraries => new[] { "axios" };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

@@ -10,12 +10,11 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class DapperLibraryParser : ILibraryParser
 {
-    public string LibraryName => "Dapper";
+    public string Name => "DapperLibraryParser";
 
-    public bool CanParse(string libraryName)
-    {
-        return string.Equals(libraryName, "Dapper", StringComparison.OrdinalIgnoreCase);
-    }
+    public string Category => "database";
+
+    public IEnumerable<string> SupportedLibraries => new[] { "Dapper" };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

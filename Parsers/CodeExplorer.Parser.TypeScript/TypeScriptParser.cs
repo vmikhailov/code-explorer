@@ -8,12 +8,6 @@ namespace CodeExplorer.Parser.TypeScript;
 
 public class TypeScriptParser : IProjectParser, IFileParser
 {
-    static TypeScriptParser()
-    {
-        LibraryParserRegistry.Register(new Libraries.AxiosLibraryParser());
-        LibraryParserRegistry.Register(new Libraries.MongooseLibraryParser());
-        LibraryParserRegistry.Register(new Libraries.RedisLibraryParser());
-    }
 
     public string LanguageName => "typescript";
 
