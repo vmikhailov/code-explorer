@@ -15,6 +15,23 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
+    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers { get; } = new ILibraryParser[]
+    {
+        new Libraries.AxiosLibraryParser(),
+        new Libraries.ElasticsearchTsLibraryParser(),
+        new Libraries.InfluxDbLibraryParser(),
+        new Libraries.KnexLibraryParser(),
+        new Libraries.MongodbLibraryParser(),
+        new Libraries.MongooseLibraryParser(),
+        new Libraries.Mysql2LibraryParser(),
+        new Libraries.Neo4jLibraryParser(),
+        new Libraries.PgLibraryParser(),
+        new Libraries.RedisLibraryParser(),
+        new Libraries.SequelizeLibraryParser(),
+        new Libraries.Sqlite3LibraryParser(),
+        new Libraries.TypeOrmLibraryParser()
+    };
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||

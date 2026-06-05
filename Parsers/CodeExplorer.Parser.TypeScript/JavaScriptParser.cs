@@ -13,6 +13,8 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
+    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers => _tsParser.LibraryParsers;
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||

@@ -14,6 +14,23 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["bin", "obj", ".vs"];
 
+    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers { get; } = new ILibraryParser[]
+    {
+        new Libraries.CouchbaseLibraryParser(),
+        new Libraries.DapperLibraryParser(),
+        new Libraries.EfCoreLibraryParser(),
+        new Libraries.ElasticsearchNetLibraryParser(),
+        new Libraries.FlurlLibraryParser(),
+        new Libraries.MicrosoftDataSqlClientLibraryParser(),
+        new Libraries.MongoDbCsLibraryParser(),
+        new Libraries.MySqlDataLibraryParser(),
+        new Libraries.NestLibraryParser(),
+        new Libraries.NpgsqlLibraryParser(),
+        new Libraries.OracleDataAccessLibraryParser(),
+        new Libraries.StackExchangeRedisLibraryParser(),
+        new Libraries.SystemDataSqlClientLibraryParser()
+    };
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".cs", StringComparison.OrdinalIgnoreCase);

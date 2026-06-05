@@ -33,7 +33,9 @@ public static class TreeSitterFileParser
                 .Select(i => i.Path)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            var activeLibraryParsers = LibraryParserRegistry.GetParsersFor(fileParser.LanguageName, fileImports);
+            var activeLibraryParsers = fileParser.LibraryParsers
+                .Where(lp => lp.SupportedLibraries.Any(sl => fileImports.Contains(sl)))
+                .ToList();
 
             // Second pass: build the ontology node tree
             TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx, relativePath, activeLibraryParsers);

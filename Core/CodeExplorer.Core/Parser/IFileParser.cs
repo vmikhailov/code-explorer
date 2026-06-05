@@ -45,4 +45,9 @@ public interface IFileParser
     /// Collects raw semantic data (imports, variables) from a Tree-sitter AST node.
     /// </summary>
     void CollectSemanticData(Node node, string filePath, ParsingContext ctx);
+
+    /// <summary>
+    /// The library-specific parsers registered for this language.
+    /// </summary>
+    System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers { get; }
 }

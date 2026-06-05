@@ -14,6 +14,19 @@ public class GoParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["vendor"];
 
+    public System.Collections.Generic.IEnumerable<ILibraryParser> LibraryParsers { get; } = new ILibraryParser[]
+    {
+        new Libraries.ElasticsearchGoLibraryParser(),
+        new Libraries.GoRedisLegacyLibraryParser(),
+        new Libraries.GoRedisLibraryParser(),
+        new Libraries.GormLibraryParser(),
+        new Libraries.GoSqlDriverMysqlLibraryParser(),
+        new Libraries.GoSqlite3LibraryParser(),
+        new Libraries.GoSqlLibraryParser(),
+        new Libraries.LibPqLibraryParser(),
+        new Libraries.MongoGoLibraryParser()
+    };
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".go", StringComparison.OrdinalIgnoreCase);
