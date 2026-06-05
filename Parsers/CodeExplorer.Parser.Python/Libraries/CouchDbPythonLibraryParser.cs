@@ -10,7 +10,7 @@ public class CouchDbPythonLibraryParser : ILibraryParser
     public string LibraryType => "db:document";
     public string LibraryName => "CouchDB";
     public string LibraryId => "couchdb";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "couchdb");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["couchdb"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

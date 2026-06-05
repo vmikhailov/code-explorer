@@ -15,7 +15,7 @@ public class FlurlLibraryParser : ILibraryParser
 
     public string LibraryId => "flurl";
 
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Flurl") || ILibraryParser.IsLibraryMatch(libraryName, "Flurl.Http");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Flurl", "Flurl.Http"];
 
     public bool IsImplemented => true;
 

@@ -15,7 +15,7 @@ public class MongooseLibraryParser : ILibraryParser
 
     public string LibraryId => "mongoose";
 
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "mongoose");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["mongoose"];
 
     public bool IsImplemented => true;
 

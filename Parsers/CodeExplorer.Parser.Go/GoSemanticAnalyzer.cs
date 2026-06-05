@@ -8,7 +8,7 @@ public class GoSemanticAnalyzer : BaseSemanticAnalyzer
     {
     }
 
-    public GoSemanticAnalyzer(IEnumerable<ILibraryParser> libraryParsers) : base(libraryParsers)
+    public GoSemanticAnalyzer(IReadOnlyList<ILibraryParser> libraryParsers) : base(libraryParsers)
     {
     }
 }

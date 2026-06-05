@@ -10,7 +10,7 @@ public class PgLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "PostgreSQL";
     public string LibraryId => "postgres";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "pg");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["pg"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

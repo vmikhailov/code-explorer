@@ -10,7 +10,7 @@ public class ChromaDbLibraryParser : ILibraryParser
     public string LibraryType => "db:vector";
     public string LibraryName => "Chroma";
     public string LibraryId => "chroma";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "chromadb");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["chromadb"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

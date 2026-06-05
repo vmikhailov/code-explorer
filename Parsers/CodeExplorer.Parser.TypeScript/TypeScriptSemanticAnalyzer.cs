@@ -8,7 +8,7 @@ public class TypeScriptSemanticAnalyzer : BaseSemanticAnalyzer
     {
     }
 
-    public TypeScriptSemanticAnalyzer(IEnumerable<ILibraryParser> libraryParsers) : base(libraryParsers)
+    public TypeScriptSemanticAnalyzer(IReadOnlyList<ILibraryParser> libraryParsers) : base(libraryParsers)
     {
     }
 }

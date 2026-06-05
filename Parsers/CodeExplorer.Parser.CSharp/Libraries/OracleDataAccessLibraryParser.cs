@@ -10,7 +10,7 @@ public class OracleDataAccessLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "Oracle";
     public string LibraryId => "oracle";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Oracle.ManagedDataAccess");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Oracle.ManagedDataAccess"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

@@ -14,7 +14,7 @@ public class PythonParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["venv", ".venv", "__pycache__"];
 
-    public IEnumerable<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.ChromaDbLibraryParser(),
         new Libraries.CouchDbPythonLibraryParser(),
@@ -274,7 +274,7 @@ public class PythonParser : IProjectParser, IFileParser
                 var lines = await File.ReadAllLinesAsync(pyprojectPath);
                 string? name = null;
                 var version = "1.0.0";
-                
+
                 var inProjectSection = false;
                 foreach (var rawLine in lines)
                 {
@@ -553,7 +553,7 @@ public class PythonParser : IProjectParser, IFileParser
             {
                 leftNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
             }
-            
+
             var rightNode = node.GetChildForField("right");
             if (rightNode == null || rightNode.Id == IntPtr.Zero)
             {
@@ -576,7 +576,7 @@ public class PythonParser : IProjectParser, IFileParser
             {
                 var name = leftNode.Text;
                 var initializerText = rightNode != null && rightNode.Id != IntPtr.Zero ? rightNode.Text : "";
-                
+
                 bool isConstant = name.All(c => !char.IsLower(c));
                 string scope = DeterminePythonScope(node);
 

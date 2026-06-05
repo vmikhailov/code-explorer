@@ -15,7 +15,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
-    public IEnumerable<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.AxiosLibraryParser(),
         new Libraries.ElasticsearchTsLibraryParser(),
@@ -34,11 +34,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
         // Generic Cloud Services
         new GenericLibraryParser("Stripe", "cloud", ["stripe"], libraryName: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["aws-sdk", "@aws-sdk"], libraryName: "AWS"),
-        new GenericLibraryParser("Azure", "cloud", ["@azure"], libraryName: "Azure"),
+        new GenericLibraryParser("AWS", "cloud", ["aws-sdk", "@aws-sdk/*"], libraryName: "AWS"),
+        new GenericLibraryParser("Azure", "cloud", ["@azure/*"], libraryName: "Azure"),
 
         // Generic Frameworks
-        new GenericLibraryParser("NestJS", "framework", ["@nestjs/core"], libraryName: "NestJS"),
+        new GenericLibraryParser("NestJS", "framework", ["@nestjs/*"], libraryName: "NestJS"),
         new GenericLibraryParser("Express", "framework", ["express"], libraryName: "Express"),
         new GenericLibraryParser("NextJS", "framework", ["next"], libraryName: "Next.js"),
         new GenericLibraryParser("React", "framework", ["react"], libraryName: "React"),
@@ -570,7 +570,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         if (projectDir != null)
         {
             var deps = _tsDepsCache.GetOrAdd(projectDir, _ => LoadPackageJsonDependencies(projectDir));
-            
+
             if (importPath.StartsWith("@"))
             {
                 var parts = importPath.Split('/');

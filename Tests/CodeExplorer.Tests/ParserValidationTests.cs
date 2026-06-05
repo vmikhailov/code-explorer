@@ -902,5 +902,62 @@ async function testDb(client: any) {
             }
         }
     }
+
+    [Test]
+    public void Test_PatternMatcher_WildcardMatching()
+    {
+        // Exact
+        Assert.That(PatternMatcher.IsMatch("mongoose", "mongoose"), Is.True);
+        Assert.That(PatternMatcher.IsMatch("mongoose-sub", "mongoose"), Is.False);
+
+        // Scoped wildcard /*
+        Assert.That(PatternMatcher.IsMatch("@nestjs/common", "@nestjs/*"), Is.True);
+        Assert.That(PatternMatcher.IsMatch("@nestjs/core", "@nestjs/*"), Is.True);
+        Assert.That(PatternMatcher.IsMatch("@nestjs", "@nestjs/*"), Is.True);
+        Assert.That(PatternMatcher.IsMatch("@nestjs-other", "@nestjs/*"), Is.False);
+
+        // General prefix wildcard *
+        Assert.That(PatternMatcher.IsMatch("firebase-admin", "firebase*"), Is.True);
+        Assert.That(PatternMatcher.IsMatch("firebase", "firebase*"), Is.True);
+        Assert.That(PatternMatcher.IsMatch("fireb", "firebase*"), Is.False);
+
+        // Fallback part-based matching
+        Assert.That(PatternMatcher.IsMatch("System.Data.SqlClient", "System.Data"), Is.True);
+    }
+
+    [Test]
+    public void Test_SortedMappings_PriorityMatching()
+    {
+        // Mock library parsers
+        var parserGeneric = new GenericLibraryParser("Firebase", "cloud", ["firebase*"], libraryName: "Firebase");
+        var parserSpecific = new GenericLibraryParser("FirebaseAdmin", "cloud", ["firebase-admin"], libraryName: "FirebaseAdmin");
+
+        var allParsers = new List<ILibraryParser> { parserGeneric, parserSpecific };
+
+        // Flatten patterns and sort them
+        var mappings = new List<(string Pattern, ILibraryParser Parser)>();
+        foreach (var parser in allParsers)
+        {
+            foreach (var pattern in parser.SupportedPatterns)
+            {
+                mappings.Add((pattern, parser));
+            }
+        }
+        var sortedMappings = mappings.OrderByDescending(m => m.Pattern.Length).ToList();
+
+        // The longer pattern "firebase-admin" (length 14) should come before "firebase*" (length 9)
+        Assert.That(sortedMappings[0].Pattern, Is.EqualTo("firebase-admin"));
+        Assert.That(sortedMappings[0].Parser, Is.SameAs(parserSpecific));
+        Assert.That(sortedMappings[1].Pattern, Is.EqualTo("firebase*"));
+        Assert.That(sortedMappings[1].Parser, Is.SameAs(parserGeneric));
+
+        // Resolve "firebase-admin" using sorted list: should match parserSpecific
+        var matchAdmin = sortedMappings.FirstOrDefault(m => PatternMatcher.IsMatch("firebase-admin", m.Pattern));
+        Assert.That(matchAdmin.Parser, Is.SameAs(parserSpecific));
+
+        // Resolve "firebase" using sorted list: should match parserGeneric
+        var matchFirebase = sortedMappings.FirstOrDefault(m => PatternMatcher.IsMatch("firebase", m.Pattern));
+        Assert.That(matchFirebase.Parser, Is.SameAs(parserGeneric));
+    }
 }
 

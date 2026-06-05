@@ -33,9 +33,25 @@ public static class TreeSitterFileParser
                 .Select(i => i.Path)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            var detectedParsers = fileParser.LibraryParsers
-                .Where(lp => fileImports.Any(import => lp.Supports(import)))
-                .ToList();
+            var mappings = new List<(string Pattern, ILibraryParser Parser)>();
+            foreach (var lp in fileParser.LibraryParsers)
+            {
+                foreach (var pattern in lp.SupportedPatterns)
+                {
+                    mappings.Add((pattern, lp));
+                }
+            }
+            var sortedMappings = mappings.OrderByDescending(m => m.Pattern.Length).ToList();
+
+            var detectedParsers = new List<ILibraryParser>();
+            foreach (var import in fileImports)
+            {
+                var match = sortedMappings.FirstOrDefault(m => PatternMatcher.IsMatch(import, m.Pattern));
+                if (match.Parser != null && !detectedParsers.Contains(match.Parser))
+                {
+                    detectedParsers.Add(match.Parser);
+                }
+            }
 
             foreach (var lp in detectedParsers.Where(p => !p.IsImplemented))
             {

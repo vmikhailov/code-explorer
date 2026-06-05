@@ -10,7 +10,7 @@ public class NpgsqlLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "PostgreSQL";
     public string LibraryId => "postgres";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Npgsql");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Npgsql"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

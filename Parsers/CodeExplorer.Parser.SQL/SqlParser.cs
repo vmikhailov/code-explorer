@@ -24,7 +24,7 @@ public class SqlParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => [];
 
-    public IEnumerable<ILibraryParser> LibraryParsers => [];
+    public IReadOnlyList<ILibraryParser> LibraryParsers => [];
 
     public bool CanParse(string fileExtension)
     {
@@ -215,8 +215,8 @@ public class SqlParser : IProjectParser, IFileParser
             var current = tempScopes[i];
             var start = current.Match.Index;
             var nextGo = cleanSql.IndexOf("GO", start, StringComparison.OrdinalIgnoreCase);
-            var end = (nextGo != -1) 
-                ? nextGo 
+            var end = (nextGo != -1)
+                ? nextGo
                 : ((i + 1 < tempScopes.Count) ? tempScopes[i + 1].Match.Index : cleanSql.Length);
 
             var body = cleanSql.Substring(start, end - start);
@@ -307,7 +307,7 @@ public class SqlParser : IProjectParser, IFileParser
             var targetProcRaw = execMatch.Groups[1].Value;
             var targetProcParts = targetProcRaw.Split('.');
             var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"', '`') : targetProcRaw.Trim('[', ']', '"', '`');
-            
+
             queryNode.References.Add(new Reference(queryNodeId, targetProcName, OntologyConstants.Relationships.Calls));
         }
     }

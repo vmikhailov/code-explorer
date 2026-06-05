@@ -10,7 +10,7 @@ public class MongoDbCsLibraryParser : ILibraryParser
     public string LibraryType => "db:document";
     public string LibraryName => "MongoDB";
     public string LibraryId => "mongodb";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "MongoDB.Driver");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["MongoDB.Driver"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

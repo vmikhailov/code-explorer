@@ -5,8 +5,8 @@ namespace CodeExplorer.Core.Parser;
 
 public class GenericLibraryParser : ILibraryParser
 {
-    private readonly IEnumerable<string> _supportedLibraries;
     public string Name { get; }
+    public IReadOnlyList<string> SupportedPatterns { get; }
     public bool IsImplemented => false;
 
     public string LibraryType { get; }
@@ -14,24 +14,21 @@ public class GenericLibraryParser : ILibraryParser
     public string LibraryId { get; }
     public bool IsBuiltIn { get; }
 
-    public bool Supports(string libraryName) =>
-        _supportedLibraries.Any(sl => ILibraryParser.IsLibraryMatch(libraryName, sl));
-
     public GenericLibraryParser(
         string name,
         string libraryType,
-        IEnumerable<string> supportedLibraries,
+        IReadOnlyList<string> supportedPatterns,
         string? libraryName = null,
         string? libraryId = null,
         bool isBuiltIn = false)
     {
         Name = name;
         LibraryType = libraryType;
-        _supportedLibraries = supportedLibraries;
+        SupportedPatterns = supportedPatterns ?? Array.Empty<string>();
         LibraryName = libraryName ?? name;
         IsBuiltIn = isBuiltIn;
 
-        var firstLib = _supportedLibraries.FirstOrDefault();
+        var firstLib = System.Linq.Enumerable.FirstOrDefault(SupportedPatterns);
         LibraryId = libraryId ?? (firstLib != null ? firstLib.ToLowerInvariant() : name.ToLowerInvariant());
     }
 

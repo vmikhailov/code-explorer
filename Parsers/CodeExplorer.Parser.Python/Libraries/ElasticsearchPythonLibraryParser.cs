@@ -10,7 +10,7 @@ public class ElasticsearchPythonLibraryParser : ILibraryParser
     public string LibraryType => "db:search";
     public string LibraryName => "Elasticsearch";
     public string LibraryId => "elasticsearch";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "elasticsearch");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["elasticsearch"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

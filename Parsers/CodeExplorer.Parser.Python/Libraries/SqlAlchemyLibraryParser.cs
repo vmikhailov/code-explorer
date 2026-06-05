@@ -10,7 +10,7 @@ public class SqlAlchemyLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "SQLAlchemy";
     public string LibraryId => "sqlalchemy";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "sqlalchemy");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["sqlalchemy"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

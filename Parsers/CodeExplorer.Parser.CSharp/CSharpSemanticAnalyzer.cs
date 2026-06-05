@@ -8,7 +8,7 @@ public class CSharpSemanticAnalyzer : BaseSemanticAnalyzer
     {
     }
 
-    public CSharpSemanticAnalyzer(IEnumerable<ILibraryParser> libraryParsers) : base(libraryParsers)
+    public CSharpSemanticAnalyzer(IReadOnlyList<ILibraryParser> libraryParsers) : base(libraryParsers)
     {
     }
 }

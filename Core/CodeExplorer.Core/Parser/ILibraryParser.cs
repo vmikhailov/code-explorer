@@ -11,9 +11,15 @@ public interface ILibraryParser
     string Name { get; }
 
     /// <summary>
+    /// The library/package patterns that trigger this parser (e.g., ["mongoose", "@nestjs/*"]).
+    /// </summary>
+    System.Collections.Generic.IReadOnlyList<string> SupportedPatterns { get; }
+
+    /// <summary>
     /// Checks if this library parser supports the specified library name.
     /// </summary>
-    bool Supports(string libraryName);
+    bool Supports(string libraryName) =>
+        System.Linq.Enumerable.Any(SupportedPatterns, pat => PatternMatcher.IsMatch(libraryName, pat));
 
     /// <summary>
     /// Performs a part-based matching of library names, splitting by '.' and '/' and comparing segments.

@@ -10,7 +10,7 @@ public class GoSqlLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "SQL";
     public string LibraryId => "sql";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "database/sql");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["database/sql"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

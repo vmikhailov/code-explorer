@@ -8,7 +8,7 @@ public class PythonSemanticAnalyzer : BaseSemanticAnalyzer
     {
     }
 
-    public PythonSemanticAnalyzer(IEnumerable<ILibraryParser> libraryParsers) : base(libraryParsers)
+    public PythonSemanticAnalyzer(IReadOnlyList<ILibraryParser> libraryParsers) : base(libraryParsers)
     {
     }
 }

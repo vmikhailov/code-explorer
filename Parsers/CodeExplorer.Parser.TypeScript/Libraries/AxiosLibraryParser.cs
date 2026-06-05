@@ -15,7 +15,7 @@ public class AxiosLibraryParser : ILibraryParser
 
     public string LibraryId => "axios";
 
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "axios") || ILibraryParser.IsLibraryMatch(libraryName, "@nestjs/axios");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["axios", "@nestjs/axios"];
 
     public bool IsImplemented => true;
 

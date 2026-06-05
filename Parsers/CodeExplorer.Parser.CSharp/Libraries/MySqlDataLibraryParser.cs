@@ -10,7 +10,7 @@ public class MySqlDataLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "MySQL";
     public string LibraryId => "mysql";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "MySql.Data");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["MySql.Data"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

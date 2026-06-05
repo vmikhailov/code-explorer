@@ -14,7 +14,7 @@ public class GoParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["vendor"];
 
-    public IEnumerable<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.ElasticsearchGoLibraryParser(),
         new Libraries.GoRedisLegacyLibraryParser(),
@@ -370,7 +370,7 @@ public class GoParser : IProjectParser, IFileParser
             var moduleName = _goModCache.GetOrAdd(goModFile, f => LoadGoModuleName(f));
             if (!string.IsNullOrEmpty(moduleName))
             {
-                if (importPath.Equals(moduleName, StringComparison.OrdinalIgnoreCase) || 
+                if (importPath.Equals(moduleName, StringComparison.OrdinalIgnoreCase) ||
                     importPath.StartsWith(moduleName + "/", StringComparison.OrdinalIgnoreCase))
                 {
                     return ImportType.Internal;

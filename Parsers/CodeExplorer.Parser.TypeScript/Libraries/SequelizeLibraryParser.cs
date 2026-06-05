@@ -10,7 +10,7 @@ public class SequelizeLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "Sequelize";
     public string LibraryId => "sequelize";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "sequelize");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["sequelize"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

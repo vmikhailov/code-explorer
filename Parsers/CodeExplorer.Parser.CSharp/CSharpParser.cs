@@ -14,7 +14,7 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["bin", "obj", ".vs"];
 
-    public IEnumerable<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.CouchbaseLibraryParser(),
         new Libraries.DapperLibraryParser(),
@@ -87,9 +87,9 @@ public class CSharpParser : IProjectParser, IFileParser
             return "ExternalService";
         }
 
-        if (node.Type.Contains("string") && 
-            node.Type != "interpolated_string_expression" && 
-            node.Type != "interpolated_verbatim_string_expression" && 
+        if (node.Type.Contains("string") &&
+            node.Type != "interpolated_string_expression" &&
+            node.Type != "interpolated_verbatim_string_expression" &&
             node.Type != "interpolated_raw_string_expression")
         {
             if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
@@ -249,9 +249,9 @@ public class CSharpParser : IProjectParser, IFileParser
     {
         TryDetectCalls(node, scopeSymbolId, references);
         TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
-        if (node.Type.Contains("string") && 
-            node.Type != "interpolated_string_expression" && 
-            node.Type != "interpolated_verbatim_string_expression" && 
+        if (node.Type.Contains("string") &&
+            node.Type != "interpolated_string_expression" &&
+            node.Type != "interpolated_verbatim_string_expression" &&
             node.Type != "interpolated_raw_string_expression")
         {
             NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
@@ -330,10 +330,10 @@ public class CSharpParser : IProjectParser, IFileParser
             // Check OutputType (if Exe and not packable, return null)
             var outputType = doc.Descendants("OutputType").FirstOrDefault()?.Value;
             var hasGeneratePackageOnBuild = doc.Descendants("GeneratePackageOnBuild").FirstOrDefault()?.Value;
-            var generateOnBuild = !string.IsNullOrEmpty(hasGeneratePackageOnBuild) && 
+            var generateOnBuild = !string.IsNullOrEmpty(hasGeneratePackageOnBuild) &&
                                   bool.TryParse(hasGeneratePackageOnBuild, out var gen) && gen;
 
-            var explicitPackable = !string.IsNullOrEmpty(isPackableStr) && 
+            var explicitPackable = !string.IsNullOrEmpty(isPackableStr) &&
                                    bool.TryParse(isPackableStr, out var p) && p;
 
             if (string.Equals(outputType, "Exe", StringComparison.OrdinalIgnoreCase) && !generateOnBuild && !explicitPackable)
@@ -341,12 +341,12 @@ public class CSharpParser : IProjectParser, IFileParser
                 return null;
             }
 
-            var packageId = doc.Descendants("PackageId").FirstOrDefault()?.Value 
-                         ?? doc.Descendants("AssemblyName").FirstOrDefault()?.Value 
+            var packageId = doc.Descendants("PackageId").FirstOrDefault()?.Value
+                         ?? doc.Descendants("AssemblyName").FirstOrDefault()?.Value
                          ?? Path.GetFileNameWithoutExtension(csprojFile);
 
-            var version = doc.Descendants("Version").FirstOrDefault()?.Value 
-                       ?? doc.Descendants("PackageVersion").FirstOrDefault()?.Value 
+            var version = doc.Descendants("Version").FirstOrDefault()?.Value
+                       ?? doc.Descendants("PackageVersion").FirstOrDefault()?.Value
                        ?? "1.0.0";
 
             return new ProducedPackageInfo(packageId, version, "nuget");
@@ -426,7 +426,7 @@ public class CSharpParser : IProjectParser, IFileParser
             var rootNamespace = _csProjCache.GetOrAdd(csprojFile, f => Path.GetFileNameWithoutExtension(f));
             var rootPrefix = rootNamespace.Split('.')[0]; // e.g. "CodeExplorer" from "CodeExplorer.Core"
 
-            if (importPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) || 
+            if (importPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) ||
                 importPath.StartsWith(rootNamespace, StringComparison.OrdinalIgnoreCase))
             {
                 return ImportType.Internal;
@@ -437,7 +437,7 @@ public class CSharpParser : IProjectParser, IFileParser
         var builtInPrefixes = new[] { "System", "Microsoft.Win32", "Microsoft.CSharp", "Microsoft.VisualBasic" };
         foreach (var prefix in builtInPrefixes)
         {
-            if (importPath.Equals(prefix, StringComparison.OrdinalIgnoreCase) || 
+            if (importPath.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
                 importPath.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase))
             {
                 return ImportType.External;

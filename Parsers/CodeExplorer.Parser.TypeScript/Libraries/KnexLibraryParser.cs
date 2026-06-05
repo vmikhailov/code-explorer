@@ -10,7 +10,7 @@ public class KnexLibraryParser : ILibraryParser
     public string LibraryType => "db:relational";
     public string LibraryName => "Knex";
     public string LibraryId => "knex";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "knex");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["knex"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

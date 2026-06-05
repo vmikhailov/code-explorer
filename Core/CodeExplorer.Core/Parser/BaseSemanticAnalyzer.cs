@@ -7,11 +7,22 @@ namespace CodeExplorer.Core.Parser;
 
 public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 {
-    protected readonly IEnumerable<ILibraryParser> _libraryParsers;
+    protected readonly IReadOnlyList<ILibraryParser> _libraryParsers;
+    protected readonly IReadOnlyList<(string Pattern, ILibraryParser Parser)> _sortedMappings;
 
-    protected BaseSemanticAnalyzer(IEnumerable<ILibraryParser> libraryParsers)
+    protected BaseSemanticAnalyzer(IReadOnlyList<ILibraryParser> libraryParsers)
     {
-        _libraryParsers = libraryParsers ?? Array.Empty<ILibraryParser>();
+        _libraryParsers = libraryParsers;
+
+        var mappings = new List<(string Pattern, ILibraryParser Parser)>();
+        foreach (var parser in libraryParsers)
+        {
+            foreach (var pattern in parser.SupportedPatterns)
+            {
+                mappings.Add((pattern, parser));
+            }
+        }
+        _sortedMappings = mappings.OrderByDescending(m => m.Pattern.Length).ToList();
     }
 
     protected static readonly Regex ConfigRegex = new(
@@ -36,24 +47,20 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
     public virtual async Task AnalyzeAndEnrichAsync(ProjectNode projectNode, ParsingContext ctx)
     {
-        var files = new List<FileNode>();
-        FindAllFiles(projectNode, files);
+        var files = FindAllFiles(projectNode);
 
-        var projectPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var internalPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var child in projectNode.Children.OfType<PackageNode>())
-        {
-            projectPackages.Add(child.Name);
-            internalPackages.Add(child.Name);
-        }
+        var packageNames = projectNode.Children
+            .OfType<PackageNode>()
+            .Select(p => p.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Determine active library parsers based on project-level packages + built-in standard ones
-        var activeLibraryParsers = _libraryParsers.ToList();
-        if (projectPackages.Count > 0)
+        var activeLibraryParsers = _libraryParsers;
+        if (packageNames.Count > 0)
         {
             activeLibraryParsers = _libraryParsers.Where(lp =>
                 lp.IsBuiltIn ||
-                projectPackages.Any(pp => lp.Supports(pp))
+                packageNames.Any(lp.Supports)
             ).ToList();
         }
 
@@ -79,10 +86,13 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var matchedParsers = new List<ILibraryParser>();
             foreach (var import in fileImports)
             {
-                var parser = activeLibraryParsers.FirstOrDefault(lp => lp.Supports(import));
-                if (parser != null && !matchedParsers.Contains(parser))
+                var match = _sortedMappings.FirstOrDefault(m => PatternMatcher.IsMatch(import, m.Pattern));
+                if (match.Parser != null)
                 {
-                    matchedParsers.Add(parser);
+                    if (activeLibraryParsers.Contains(match.Parser) && !matchedParsers.Contains(match.Parser))
+                    {
+                        matchedParsers.Add(match.Parser);
+                    }
                 }
             }
 
@@ -99,7 +109,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                         {
                             dbType = parts[1];
                         }
-                        
+
                         var dbId = $"{projectNode.Id}db:{parser.LibraryId}";
                         lock (projectNode.Children)
                         {
@@ -110,7 +120,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                                 projectNode.Children.Add(dbNode);
                             }
                         }
-                        
+
                         var usesDbRel = new UsesDbRelationship(file.Id, dbId);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
                         break;
@@ -148,11 +158,11 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                 }
             }
 
-            foreach (var child in projectNode.Children.OfType<PackageNode>())
-            {
-                var isInternal = internalPackages.Contains(child.Name);
-                child.SetExtension("is_external", isInternal ? "false" : "true");
-            }
+            // foreach (var child in projectNode.Children.OfType<PackageNode>())
+            // {
+            //     var isInternal = internalPackages.Contains(child.Name);
+            //     child.SetExtension("is_external", isInternal ? "false" : "true");
+            // }
 
             var fileVariables = ctx.RawVariables.Where(v => v.FilePath == relativePath).ToList();
             foreach (var rawVar in fileVariables)
@@ -200,16 +210,18 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
         await Task.CompletedTask;
     }
 
-    private static void FindAllFiles(IOntologyNode node, List<FileNode> files)
+    private static List<FileNode> FindAllFiles(IOntologyNode node)
     {
+        var files = new List<FileNode>();
         if (node is FileNode f)
         {
             files.Add(f);
         }
         foreach (var child in node.Children)
         {
-            FindAllFiles(child, files);
+            files.AddRange(FindAllFiles(child));
         }
+        return files;
     }
 
     private static bool TryInsertVariable(IOntologyNode parentNode, VariableNode varNode, int line)

@@ -10,7 +10,7 @@ public class ElasticsearchNetLibraryParser : ILibraryParser
     public string LibraryType => "db:search";
     public string LibraryName => "Elasticsearch";
     public string LibraryId => "elasticsearch";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "Elasticsearch.Net");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["Elasticsearch.Net"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

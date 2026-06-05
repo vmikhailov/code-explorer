@@ -49,5 +49,5 @@ public interface IFileParser
     /// <summary>
     /// The library-specific parsers registered for this language.
     /// </summary>
-    IEnumerable<ILibraryParser> LibraryParsers { get; }
+    IReadOnlyList<ILibraryParser> LibraryParsers { get; }
 }

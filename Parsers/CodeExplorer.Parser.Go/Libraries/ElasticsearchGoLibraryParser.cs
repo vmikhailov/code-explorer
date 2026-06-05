@@ -10,7 +10,7 @@ public class ElasticsearchGoLibraryParser : ILibraryParser
     public string LibraryType => "db:search";
     public string LibraryName => "Elasticsearch";
     public string LibraryId => "elasticsearch";
-    public bool Supports(string libraryName) => ILibraryParser.IsLibraryMatch(libraryName, "github.com/elastic/go-elasticsearch");
+    public System.Collections.Generic.IReadOnlyList<string> SupportedPatterns => ["github.com/elastic/go-elasticsearch"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

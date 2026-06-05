@@ -13,7 +13,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
-    public IEnumerable<ILibraryParser> LibraryParsers => _tsParser.LibraryParsers;
+    public IReadOnlyList<ILibraryParser> LibraryParsers => _tsParser.LibraryParsers;
 
     public bool CanParse(string fileExtension)
     {
@@ -175,7 +175,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
             if (root.TryGetProperty("private", out var privateProp))
             {
                 if (privateProp.ValueKind == System.Text.Json.JsonValueKind.True ||
-                    (privateProp.ValueKind == System.Text.Json.JsonValueKind.String && 
+                    (privateProp.ValueKind == System.Text.Json.JsonValueKind.String &&
                      string.Equals(privateProp.GetString(), "true", StringComparison.OrdinalIgnoreCase)))
                 {
                     return null;
