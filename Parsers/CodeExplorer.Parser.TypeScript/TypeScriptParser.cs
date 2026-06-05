@@ -553,6 +553,100 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private ImportType ResolveTsImportType(string importPath, string filePath)
+    {
+        if (string.IsNullOrEmpty(importPath)) return ImportType.External;
+
+        if (importPath.StartsWith('.') || importPath.StartsWith('/') || importPath.StartsWith('\\'))
+            return ImportType.Internal;
+
+        if (importPath.StartsWith("@/"))
+            return ImportType.Internal;
+
+        var dir = Path.GetDirectoryName(filePath);
+        var projectDir = FindProjectDirectoryWithPackageJson(dir);
+        if (projectDir != null)
+        {
+            var deps = _tsDepsCache.GetOrAdd(projectDir, _ => LoadPackageJsonDependencies(projectDir));
+            
+            if (importPath.StartsWith("@"))
+            {
+                var parts = importPath.Split('/');
+                if (parts.Length < 2) return ImportType.Internal;
+
+                var scopeAndPackage = $"{parts[0]}/{parts[1]}";
+                if (deps.Contains(scopeAndPackage) || deps.Contains(importPath))
+                    return ImportType.External;
+
+                if (deps.Any(d => d.StartsWith(parts[0] + "/")))
+                    return ImportType.External;
+
+                return ImportType.Internal;
+            }
+            else
+            {
+                var parts = importPath.Split('/');
+                var firstSegment = parts[0];
+                if (deps.Contains(firstSegment) || deps.Contains(importPath))
+                    return ImportType.External;
+
+                var builtIns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "fs", "path", "os", "http", "https", "crypto", "child_process", "dns", "events", "net", "stream", "util", "url", "zlib"
+                };
+                if (builtIns.Contains(firstSegment))
+                    return ImportType.External;
+
+                return ImportType.Internal;
+            }
+        }
+
+        return ImportType.External;
+    }
+
+    private string? FindProjectDirectoryWithPackageJson(string? dir)
+    {
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir, "package.json")))
+                return dir;
+            dir = Path.GetDirectoryName(dir);
+        }
+        return null;
+    }
+
+    private HashSet<string> LoadPackageJsonDependencies(string projectDir)
+    {
+        var deps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var path = Path.Combine(projectDir, "package.json");
+        if (!File.Exists(path)) return deps;
+
+        try
+        {
+            var content = File.ReadAllText(path);
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            var depProperties = new[] { "dependencies", "devDependencies" };
+            foreach (var propName in depProperties)
+            {
+                if (root.TryGetProperty(propName, out var depsObj) && depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var prop in depsObj.EnumerateObject())
+                    {
+                        deps.Add(prop.Name);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+        return deps;
+    }
+
     public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
     {
         if (node.Type == "import_statement")
@@ -565,7 +659,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
             if (sourceNode != null && sourceNode.Id != IntPtr.Zero)
             {
                 var importPath = sourceNode.Text.Trim('\'', '"');
-                ctx.AddRawImport(new RawImport(importPath, filePath));
+                var type = ResolveTsImportType(importPath, filePath);
+                ctx.AddRawImport(new RawImport(importPath, filePath, type));
             }
         }
         else if (node.Type == "call_expression")
@@ -580,7 +675,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     if (firstArg != null)
                     {
                         var importPath = firstArg.Text.Trim('\'', '"');
-                        ctx.AddRawImport(new RawImport(importPath, filePath));
+                        var type = ResolveTsImportType(importPath, filePath);
+                        ctx.AddRawImport(new RawImport(importPath, filePath, type));
                     }
                 }
             }

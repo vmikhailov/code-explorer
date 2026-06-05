@@ -354,6 +354,66 @@ public class GoParser : IProjectParser, IFileParser
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _goModCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private ImportType ResolveGoImportType(string importPath, string filePath)
+    {
+        if (string.IsNullOrEmpty(importPath)) return ImportType.External;
+
+        if (importPath.StartsWith('.') || importPath.StartsWith('/') || importPath.StartsWith('\\'))
+            return ImportType.Internal;
+
+        var dir = Path.GetDirectoryName(filePath);
+        var goModFile = FindGoModFile(dir);
+        if (goModFile != null)
+        {
+            var moduleName = _goModCache.GetOrAdd(goModFile, f => LoadGoModuleName(f));
+            if (!string.IsNullOrEmpty(moduleName))
+            {
+                if (importPath.Equals(moduleName, StringComparison.OrdinalIgnoreCase) || 
+                    importPath.StartsWith(moduleName + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ImportType.Internal;
+                }
+            }
+        }
+
+        return ImportType.External;
+    }
+
+    private string? FindGoModFile(string? dir)
+    {
+        while (dir != null)
+        {
+            var path = Path.Combine(dir, "go.mod");
+            if (File.Exists(path))
+                return path;
+            dir = Path.GetDirectoryName(dir);
+        }
+        return null;
+    }
+
+    private string LoadGoModuleName(string goModFile)
+    {
+        try
+        {
+            var lines = File.ReadLines(goModFile);
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("module "))
+                {
+                    return trimmed.Substring("module ".Length).Trim();
+                }
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+        return string.Empty;
+    }
+
     public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
     {
         if (node.Type == "import_spec")
@@ -366,7 +426,8 @@ public class GoParser : IProjectParser, IFileParser
             if (pathNode != null && pathNode.Id != IntPtr.Zero)
             {
                 var importPath = pathNode.Text.Trim('"');
-                ctx.AddRawImport(new RawImport(importPath, filePath));
+                var type = ResolveGoImportType(importPath, filePath);
+                ctx.AddRawImport(new RawImport(importPath, filePath, type));
             }
         }
         else if (node.Type is "var_spec" or "const_spec")

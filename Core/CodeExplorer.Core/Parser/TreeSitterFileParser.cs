@@ -29,7 +29,7 @@ public static class TreeSitterFileParser
 
             // Fetch imported library names for this file
             var fileImports = ctx.RawImports
-                .Where(i => i.FilePath == relativePath)
+                .Where(i => i.FilePath == relativePath && i.Type == ImportType.External)
                 .Select(i => i.Path)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

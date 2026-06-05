@@ -1,8 +1,15 @@
 namespace CodeExplorer.Core.Parser;
 
+public enum ImportType
+{
+    External,
+    Internal
+}
+
 public record RawImport(
     string Path,
-    string FilePath
+    string FilePath,
+    ImportType Type = ImportType.External
 );
 
 public record RawVariable(

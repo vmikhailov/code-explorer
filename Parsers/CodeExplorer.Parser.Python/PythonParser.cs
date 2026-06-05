@@ -440,6 +440,84 @@ public class PythonParser : IProjectParser, IFileParser
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, HashSet<string>> _pyRootCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private ImportType ResolvePyImportType(string importPath, string filePath, ParsingContext ctx)
+    {
+        if (string.IsNullOrEmpty(importPath)) return ImportType.External;
+
+        // Python relative imports start with '.'
+        if (importPath.StartsWith('.'))
+            return ImportType.Internal;
+
+        var dir = Path.GetDirectoryName(filePath);
+        var projectRoot = FindPythonProjectRoot(dir, ctx.AbsoluteWorkspacePath);
+        if (projectRoot != null)
+        {
+            var internalNames = _pyRootCache.GetOrAdd(projectRoot, r => LoadLocalPythonNames(r));
+            var parts = importPath.Split('.');
+            var firstSegment = parts[0];
+
+            if (internalNames.Contains(firstSegment))
+            {
+                return ImportType.Internal;
+            }
+        }
+
+        return ImportType.External;
+    }
+
+    private string? FindPythonProjectRoot(string? dir, string workspaceRoot)
+    {
+        var current = dir;
+        string? bestRoot = null;
+        while (current != null)
+        {
+            if (File.Exists(Path.Combine(current, "requirements.txt")) ||
+                File.Exists(Path.Combine(current, "pyproject.toml")) ||
+                File.Exists(Path.Combine(current, "setup.py")) ||
+                Directory.Exists(Path.Combine(current, ".git")))
+            {
+                return current;
+            }
+            if (current.Replace('\\', '/').Equals(workspaceRoot.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+            {
+                bestRoot = current;
+            }
+            current = Path.GetDirectoryName(current);
+        }
+        return bestRoot ?? dir;
+    }
+
+    private HashSet<string> LoadLocalPythonNames(string projectRoot)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (Directory.Exists(projectRoot))
+            {
+                foreach (var d in Directory.GetDirectories(projectRoot))
+                {
+                    var name = Path.GetFileName(d);
+                    var lower = name.ToLowerInvariant();
+                    if (lower == "venv" || lower == "env" || lower == ".venv" || lower == "build" || lower == "dist" || lower == ".git")
+                        continue;
+                    names.Add(name);
+                }
+                foreach (var f in Directory.GetFiles(projectRoot, "*.py"))
+                {
+                    var name = Path.GetFileNameWithoutExtension(f);
+                    names.Add(name);
+                }
+            }
+        }
+        catch
+        {
+            // Ignore
+        }
+        return names;
+    }
+
     public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
     {
         if (node.Type == "import_statement")
@@ -449,7 +527,8 @@ public class PythonParser : IProjectParser, IFileParser
                 if (child.Type is "dotted_name" or "aliased_name")
                 {
                     var importPath = child.Text;
-                    ctx.AddRawImport(new RawImport(importPath, filePath));
+                    var type = ResolvePyImportType(importPath, filePath, ctx);
+                    ctx.AddRawImport(new RawImport(importPath, filePath, type));
                 }
             }
         }
@@ -463,7 +542,8 @@ public class PythonParser : IProjectParser, IFileParser
             if (moduleNode != null && moduleNode.Id != IntPtr.Zero)
             {
                 var importPath = moduleNode.Text;
-                ctx.AddRawImport(new RawImport(importPath, filePath));
+                var type = ResolvePyImportType(importPath, filePath, ctx);
+                ctx.AddRawImport(new RawImport(importPath, filePath, type));
             }
         }
         else if (node.Type == "assignment")

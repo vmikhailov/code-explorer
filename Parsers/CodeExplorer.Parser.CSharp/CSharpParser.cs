@@ -413,6 +413,52 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _csProjCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private ImportType ResolveCsImportType(string importPath, string filePath)
+    {
+        if (string.IsNullOrEmpty(importPath)) return ImportType.External;
+
+        var dir = Path.GetDirectoryName(filePath);
+        var csprojFile = FindCsprojFile(dir);
+        if (csprojFile != null)
+        {
+            var rootNamespace = _csProjCache.GetOrAdd(csprojFile, f => Path.GetFileNameWithoutExtension(f));
+            var rootPrefix = rootNamespace.Split('.')[0]; // e.g. "CodeExplorer" from "CodeExplorer.Core"
+
+            if (importPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) || 
+                importPath.StartsWith(rootNamespace, StringComparison.OrdinalIgnoreCase))
+            {
+                return ImportType.Internal;
+            }
+        }
+
+        // Standard built-in .NET namespaces
+        var builtInPrefixes = new[] { "System", "Microsoft.Win32", "Microsoft.CSharp", "Microsoft.VisualBasic" };
+        foreach (var prefix in builtInPrefixes)
+        {
+            if (importPath.Equals(prefix, StringComparison.OrdinalIgnoreCase) || 
+                importPath.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase))
+            {
+                return ImportType.External;
+            }
+        }
+
+        return ImportType.External;
+    }
+
+    private string? FindCsprojFile(string? dir)
+    {
+        while (dir != null && Directory.Exists(dir))
+        {
+            var files = Directory.GetFiles(dir, "*.csproj");
+            if (files.Length > 0)
+                return files[0];
+            dir = Path.GetDirectoryName(dir);
+        }
+        return null;
+    }
+
     public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
     {
         if (node.Type == "using_directive")
@@ -425,7 +471,8 @@ public class CSharpParser : IProjectParser, IFileParser
             if (nameNode != null && nameNode.Id != IntPtr.Zero)
             {
                 var importPath = nameNode.Text;
-                ctx.AddRawImport(new RawImport(importPath, filePath));
+                var type = ResolveCsImportType(importPath, filePath);
+                ctx.AddRawImport(new RawImport(importPath, filePath, type));
             }
         }
         else if (node.Type == "variable_declarator" || node.Type == "property_declaration")

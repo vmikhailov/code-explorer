@@ -34,10 +34,6 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
         RegexOptions.Compiled
     );
 
-
-
-
-
     public virtual async Task AnalyzeAndEnrichAsync(ProjectNode projectNode, ParsingContext ctx)
     {
         var files = new List<FileNode>();
@@ -76,7 +72,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var relativePath = file.Path;
             // Extract libraries used as list of string
             var fileImports = ctx.RawImports
-                .Where(i => i.FilePath == relativePath)
+                .Where(i => i.FilePath == relativePath && i.Type == ImportType.External)
                 .Select(i => i.Path)
                 .ToList();
 
@@ -107,7 +103,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                         var dbId = $"{projectNode.Id}db:{parser.LibraryId}";
                         lock (projectNode.Children)
                         {
-                            if (!projectNode.Children.Any(c => c.Id == dbId))
+                            if (projectNode.Children.All(c => c.Id != dbId))
                             {
                                 var dbNode = new DbNode(dbId, dbEngine, dbId);
                                 dbNode.SetExtension("db_type", dbType);
