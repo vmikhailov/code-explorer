@@ -101,7 +101,29 @@ public static class LibraryParserRegistry
         }
     }
 
+    private static string GetLanguageForParser(ILibraryParser parser)
+    {
+        var typeNamespace = parser.GetType().Namespace ?? "";
+        if (typeNamespace.Contains(".TypeScript", StringComparison.OrdinalIgnoreCase)) return "typescript";
+        if (typeNamespace.Contains(".CSharp", StringComparison.OrdinalIgnoreCase)) return "c-sharp";
+        if (typeNamespace.Contains(".Go", StringComparison.OrdinalIgnoreCase)) return "go";
+        if (typeNamespace.Contains(".Python", StringComparison.OrdinalIgnoreCase)) return "python";
+
+        var asmName = parser.GetType().Assembly.GetName().Name ?? "";
+        if (asmName.Contains(".TypeScript", StringComparison.OrdinalIgnoreCase)) return "typescript";
+        if (asmName.Contains(".CSharp", StringComparison.OrdinalIgnoreCase)) return "c-sharp";
+        if (asmName.Contains(".Go", StringComparison.OrdinalIgnoreCase)) return "go";
+        if (asmName.Contains(".Python", StringComparison.OrdinalIgnoreCase)) return "python";
+
+        return "";
+    }
+
     public static List<ILibraryParser> GetParsersFor(HashSet<string> importedLibraries)
+    {
+        return GetParsersFor(null, importedLibraries);
+    }
+
+    public static List<ILibraryParser> GetParsersFor(string? language, HashSet<string> importedLibraries)
     {
         EnsureDiscovered();
         lock (LockObj)
@@ -111,7 +133,14 @@ public static class LibraryParserRegistry
             {
                 if (ParsersByLibrary.TryGetValue(lib, out var list))
                 {
-                    result.AddRange(list);
+                    foreach (var parser in list)
+                    {
+                        if (string.IsNullOrEmpty(language) || 
+                            GetLanguageForParser(parser).Equals(language, StringComparison.OrdinalIgnoreCase))
+                        {
+                            result.Add(parser);
+                        }
+                    }
                 }
             }
             return result.Distinct().ToList();
