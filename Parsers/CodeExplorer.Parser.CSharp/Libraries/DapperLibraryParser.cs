@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -14,7 +11,7 @@ public class DapperLibraryParser : ILibraryParser
 
     public string Category => "database";
 
-    public IEnumerable<string> SupportedLibraries => new[] { "Dapper" };
+    public IEnumerable<string> SupportedLibraries => ["Dapper"];
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

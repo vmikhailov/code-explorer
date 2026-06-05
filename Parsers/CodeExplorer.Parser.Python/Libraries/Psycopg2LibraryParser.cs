@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,7 +8,7 @@ public class Psycopg2LibraryParser : ILibraryParser
 {
     public string Name => "Psycopg2LibraryParser";
     public string Category => "database";
-    public IEnumerable<string> SupportedLibraries => new[] { "psycopg2" };
+    public IEnumerable<string> SupportedLibraries => ["psycopg2"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

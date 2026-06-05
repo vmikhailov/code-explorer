@@ -283,12 +283,12 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         var query =
             "MATCH (n)-[r]->(m) WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] AS toLabel RETURN fromLabel, relType, toLabel";
         var resultJson = await dbClient.ExecuteQueryAsync(query);
-        var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? new();
+        var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? [];
 
         var propQuery =
             "MATCH (n) WITH DISTINCT labels(n) AS labels, keys(n) AS keys UNWIND labels AS label UNWIND keys AS key RETURN DISTINCT label, key";
         var propJson = await dbClient.ExecuteQueryAsync(propQuery);
-        var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? new();
+        var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? [];
 
         var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
         return JsonSerializer.Serialize(new { taxonomy }, new JsonSerializerOptions { WriteIndented = true });
@@ -419,7 +419,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             try
             {
                 var single = JsonSerializer.Deserialize<McpRAGNode>(nodesJson);
-                if (single != null) nodes = new List<McpRAGNode> { single };
+                if (single != null) nodes = [single];
             }
             catch
             {
@@ -562,7 +562,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         {
             if (prop.TryGetValue("label", out var label) && prop.TryGetValue("key", out var key))
             {
-                if (!nodes.ContainsKey(label)) nodes[label] = (new List<string>(), new(), new());
+                if (!nodes.ContainsKey(label)) nodes[label] = ([], [], []);
                 nodes[label].properties.Add(key);
             }
         }
@@ -572,8 +572,8 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             if (triplet.TryGetValue("fromLabel", out var from) && triplet.TryGetValue("relType", out var rel) &&
                 triplet.TryGetValue("toLabel", out var to))
             {
-                if (!nodes.ContainsKey(from)) nodes[from] = (new List<string>(), new(), new());
-                if (!nodes.ContainsKey(to)) nodes[to] = (new List<string>(), new(), new());
+                if (!nodes.ContainsKey(from)) nodes[from] = ([], [], []);
+                if (!nodes.ContainsKey(to)) nodes[to] = ([], [], []);
 
                 nodes[from].outgoing.Add((rel, to));
                 nodes[to].incoming.Add((rel, from));

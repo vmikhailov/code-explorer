@@ -1,4 +1,3 @@
-using System.IO;
 using System.Threading.Channels;
 using NUnit.Framework;
 using CodeExplorer.Common;
@@ -553,7 +552,7 @@ export class OrdersController {
             // Invoke ScanDirectoryAsync via reflection
             var rootScan = typeof(WorkspaceLevelParser).GetMethod("ScanDirectoryAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.That(rootScan, Is.Not.Null);
-            await (Task)rootScan.Invoke(scanParser, new object[] { tempWorkspace, workspaceNode });
+            await (Task)rootScan.Invoke(scanParser, [tempWorkspace, workspaceNode]);
 
             // Before pruning, ProjectB and EmptyFolder are in the tree
             Assert.That(workspaceNode.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.True);
@@ -828,13 +827,13 @@ public class Service
             var csFileNode = await TreeSitterFileParser.ParseFileAsync(csFilePath, "Service.cs", "1", csFileParser, ctx);
 
             // Verify Dapper query extraction
-            var csQueries = FindQueryNodes(new[] { csFileNode });
+            var csQueries = FindQueryNodes([csFileNode]);
             var dapperNode = csQueries.FirstOrDefault(q => q.Name.Contains("SELECT"));
             Assert.That(dapperNode, Is.Not.Null);
             Assert.That(dapperNode.Name, Is.EqualTo("SELECT Query: SELECT name FROM users WHERE id = @id"));
 
             // Verify Flurl external service extraction
-            var csExtServices = FindExternalServiceNodes(new[] { csFileNode });
+            var csExtServices = FindExternalServiceNodes([csFileNode]);
             var flurlNode = csExtServices.FirstOrDefault();
             Assert.That(flurlNode, Is.Not.Null);
             Assert.That(flurlNode.Name, Is.EqualTo("api.github.com"));
@@ -857,7 +856,7 @@ async function testDb(client: any) {
             var tsFileParser = new CodeExplorer.Parser.TypeScript.TypeScriptParser();
             var tsFileNode = await TreeSitterFileParser.ParseFileAsync(tsFilePath, "app.ts", "1", tsFileParser, ctx);
 
-            var tsQueries = FindQueryNodes(new[] { tsFileNode });
+            var tsQueries = FindQueryNodes([tsFileNode]);
 
             // Verify Mongoose model & query extraction
             var modelNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose Model"));

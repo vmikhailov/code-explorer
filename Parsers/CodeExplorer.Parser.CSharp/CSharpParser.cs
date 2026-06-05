@@ -1,8 +1,4 @@
-using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 using TreeSitter;

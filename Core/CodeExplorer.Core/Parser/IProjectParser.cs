@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common.Nodes;
-
 namespace CodeExplorer.Core.Parser;
 
 public interface IProjectParser

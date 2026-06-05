@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,7 +8,7 @@ public class MongoGoLibraryParser : ILibraryParser
 {
     public string Name => "MongoGoLibraryParser";
     public string Category => "database";
-    public IEnumerable<string> SupportedLibraries => new[] { "go.mongodb.org/mongo-driver" };
+    public IEnumerable<string> SupportedLibraries => ["go.mongodb.org/mongo-driver"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

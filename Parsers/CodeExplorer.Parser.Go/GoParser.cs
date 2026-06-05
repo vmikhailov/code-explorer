@@ -1,6 +1,3 @@
-using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -15,7 +12,7 @@ public class GoParser : IProjectParser, IFileParser
 
     public string ProjectType => "go";
 
-    public IReadOnlyCollection<string> ExcludedFolders => new[] { "vendor" };
+    public IReadOnlyCollection<string> ExcludedFolders => ["vendor"];
 
     public bool CanParse(string fileExtension)
     {

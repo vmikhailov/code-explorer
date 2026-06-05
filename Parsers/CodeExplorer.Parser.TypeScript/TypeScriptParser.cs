@@ -13,7 +13,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public string ProjectType => "typescript";
 
-    public IReadOnlyCollection<string> ExcludedFolders => new[] { "node_modules", "dist", "build", ".next", "out" };
+    public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
     public bool CanParse(string fileExtension)
     {

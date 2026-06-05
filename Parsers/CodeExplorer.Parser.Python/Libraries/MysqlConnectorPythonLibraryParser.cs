@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,7 +8,7 @@ public class MysqlConnectorPythonLibraryParser : ILibraryParser
 {
     public string Name => "MysqlConnectorPythonLibraryParser";
     public string Category => "database";
-    public IEnumerable<string> SupportedLibraries => new[] { "mysql-connector-python" };
+    public IEnumerable<string> SupportedLibraries => ["mysql-connector-python"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

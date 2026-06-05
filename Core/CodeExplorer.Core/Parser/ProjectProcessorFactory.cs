@@ -1,7 +1,3 @@
-using System;
-using System.IO;
-using System.Linq;
-
 namespace CodeExplorer.Core.Parser;
 
 public static class ProjectProcessorFactory

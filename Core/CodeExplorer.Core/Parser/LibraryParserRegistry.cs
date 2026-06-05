@@ -1,13 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 
 namespace CodeExplorer.Core.Parser;
 
 public static class LibraryParserRegistry
 {
-    private static readonly List<ILibraryParser> RegisteredParsers = new();
+    private static readonly List<ILibraryParser> RegisteredParsers = [];
     private static readonly Dictionary<string, List<ILibraryParser>> ParsersByLibrary = new(StringComparer.OrdinalIgnoreCase);
     private static bool _discovered = false;
     private static readonly object LockObj = new();
@@ -93,7 +90,7 @@ public static class LibraryParserRegistry
             {
                 if (!ParsersByLibrary.TryGetValue(lib, out var list))
                 {
-                    list = new List<ILibraryParser>();
+                    list = [];
                     ParsersByLibrary[lib] = list;
                 }
                 list.Add(parser);

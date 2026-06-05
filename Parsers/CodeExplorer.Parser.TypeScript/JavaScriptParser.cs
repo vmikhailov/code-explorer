@@ -11,7 +11,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public string ProjectType => "javascript";
 
-    public IReadOnlyCollection<string> ExcludedFolders => new[] { "node_modules", "dist", "build", ".next", "out" };
+    public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
     public bool CanParse(string fileExtension)
     {

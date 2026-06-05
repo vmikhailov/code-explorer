@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,7 +8,7 @@ public class KnexLibraryParser : ILibraryParser
 {
     public string Name => "KnexLibraryParser";
     public string Category => "database";
-    public IEnumerable<string> SupportedLibraries => new[] { "knex" };
+    public IEnumerable<string> SupportedLibraries => ["knex"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

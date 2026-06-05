@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,7 +8,7 @@ public class PythonRedisLibraryParser : ILibraryParser
 {
     public string Name => "PythonRedisLibraryParser";
     public string Category => "database";
-    public IEnumerable<string> SupportedLibraries => new[] { "redis" };
+    public IEnumerable<string> SupportedLibraries => ["redis"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

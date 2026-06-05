@@ -1,4 +1,3 @@
-using System.IO;
 using CodeExplorer.Core.Common.Nodes;
 
 namespace CodeExplorer.Core.Parser;

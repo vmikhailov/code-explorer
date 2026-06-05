@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,7 +8,7 @@ public class GormLibraryParser : ILibraryParser
 {
     public string Name => "GormLibraryParser";
     public string Category => "database";
-    public IEnumerable<string> SupportedLibraries => new[] { "gorm.io/gorm" };
+    public IEnumerable<string> SupportedLibraries => ["gorm.io/gorm"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

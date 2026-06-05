@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,7 +8,7 @@ public class GoSqlDriverMysqlLibraryParser : ILibraryParser
 {
     public string Name => "GoSqlDriverMysqlLibraryParser";
     public string Category => "database";
-    public IEnumerable<string> SupportedLibraries => new[] { "github.com/go-sql-driver/mysql" };
+    public IEnumerable<string> SupportedLibraries => ["github.com/go-sql-driver/mysql"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();

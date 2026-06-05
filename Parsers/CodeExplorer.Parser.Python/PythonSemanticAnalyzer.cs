@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Python;

@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -14,7 +11,7 @@ public class FlurlLibraryParser : ILibraryParser
 
     public string Category => "api";
 
-    public IEnumerable<string> SupportedLibraries => new[] { "Flurl", "Flurl.Http" };
+    public IEnumerable<string> SupportedLibraries => ["Flurl", "Flurl.Http"];
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

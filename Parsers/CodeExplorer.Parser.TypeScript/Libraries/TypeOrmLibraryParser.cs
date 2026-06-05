@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,7 +8,7 @@ public class TypeOrmLibraryParser : ILibraryParser
 {
     public string Name => "TypeOrmLibraryParser";
     public string Category => "database";
-    public IEnumerable<string> SupportedLibraries => new[] { "typeorm" };
+    public IEnumerable<string> SupportedLibraries => ["typeorm"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();
