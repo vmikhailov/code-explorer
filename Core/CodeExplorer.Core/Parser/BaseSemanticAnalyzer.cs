@@ -131,10 +131,7 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                 .Select(i => i.Path)
                 .ToList();
 
-            ILibraryParser? dbParser = null;
-            ILibraryParser? apiParser = null;
-            ILibraryParser? cloudParser = null;
-
+            var matchedParsers = new List<ILibraryParser>();
             foreach (var import in fileImports)
             {
                 // Try to resolve each library against only the active project-level packages
@@ -144,52 +141,45 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                     var parser = activeLibraryParsers.FirstOrDefault(lp => lp.SupportedLibraries.Any(sl =>
                         sl.Equals(resolvedName, StringComparison.OrdinalIgnoreCase)));
 
-                    if (parser != null)
+                    if (parser != null && !matchedParsers.Contains(parser))
                     {
-                        if (parser.LibraryType.StartsWith("db", StringComparison.OrdinalIgnoreCase) && dbParser == null)
-                        {
-                            dbParser = parser;
-                        }
-                        else if (parser.LibraryType == "api" && apiParser == null)
-                        {
-                            apiParser = parser;
-                        }
-                        else if (parser.LibraryType == "cloud" && cloudParser == null)
-                        {
-                            cloudParser = parser;
-                        }
+                        matchedParsers.Add(parser);
                     }
                 }
             }
 
-            if (dbParser != null)
+            foreach (var parser in matchedParsers)
             {
-                var dbEngine = dbParser.LibraryName;
-                var dbType = "unknown";
-                var parts = dbParser.LibraryType.Split(':');
-                if (parts.Length > 1)
+                var mainType = parser.LibraryType.Split(':')[0].ToLowerInvariant();
+                switch (mainType)
                 {
-                    dbType = parts[1];
+                    case "db":
+                        var dbEngine = parser.LibraryName;
+                        var dbType = "unknown";
+                        var parts = parser.LibraryType.Split(':');
+                        if (parts.Length > 1)
+                        {
+                            dbType = parts[1];
+                        }
+                        file.SetExtension("db_type", dbType);
+                        var dbId = $"{ctx.WorkspaceId}:db:{parser.LibraryId}";
+                        var dbNode = new DbNode(dbId, dbEngine, dbId);
+                        dbNode.SetExtension("db_type", dbType);
+                        file.Children.Add(dbNode);
+                        break;
+
+                    case "api":
+                        file.SetExtension("api_library", parser.LibraryName);
+                        break;
+
+                    case "cloud":
+                        var cloudService = parser.LibraryName;
+                        file.SetExtension("cloud_service", cloudService);
+                        var cloudId = $"{ctx.WorkspaceId}:cloud:{parser.LibraryId}";
+                        var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
+                        file.Children.Add(cloudNode);
+                        break;
                 }
-                file.SetExtension("db_type", dbType);
-                var dbId = $"{ctx.WorkspaceId}:db:{dbParser.LibraryId}";
-                var dbNode = new DbNode(dbId, dbEngine, dbId);
-                dbNode.SetExtension("db_type", dbType);
-                file.Children.Add(dbNode);
-            }
-
-            if (apiParser != null)
-            {
-                file.SetExtension("api_library", apiParser.LibraryName);
-            }
-
-            if (cloudParser != null)
-            {
-                var cloudService = cloudParser.LibraryName;
-                file.SetExtension("cloud_service", cloudService);
-                var cloudId = $"{ctx.WorkspaceId}:cloud:{cloudParser.LibraryId}";
-                var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
-                file.Children.Add(cloudNode);
             }
 
             foreach (var child in projectNode.Children.OfType<PackageNode>())
