@@ -118,6 +118,14 @@ public static class OntologyUploader
         {
             return new UsesDbRelationship(parentId, child.Id);
         }
+        if (child.Kind == OntologyConstants.NodeLabels.API)
+        {
+            return new UsesApiRelationship(parentId, child.Id);
+        }
+        if (child.Kind == OntologyConstants.NodeLabels.CloudService)
+        {
+            return new UsesCloudRelationship(parentId, child.Id);
+        }
         if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
             return new ImplementedByRelationship(child.Id, parentId); // EntryPoint -> IMPLEMENTED_BY -> Function

@@ -587,25 +587,34 @@ export class OrdersController {
             var fileNode = projectA.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
             Assert.That(fileNode, Is.Not.Null);
             
-            // Check Repository.cs extensions
-            Assert.That(fileNode.Extensions, Is.Not.Null);
-            Assert.That(fileNode.Extensions.ContainsKey("db_type"), Is.True);
-            Assert.That(fileNode.Extensions["db_type"], Is.EqualTo("relational"));
-            Assert.That(fileNode.Extensions.ContainsKey("cloud_service"), Is.True);
-            Assert.That(fileNode.Extensions["cloud_service"], Is.EqualTo("Stripe"));
+            // Check Repository.cs extensions (file-level extensions are removed)
+            if (fileNode.Extensions != null)
+            {
+                Assert.That(fileNode.Extensions.ContainsKey("db_type"), Is.False);
+                Assert.That(fileNode.Extensions.ContainsKey("cloud_service"), Is.False);
+            }
 
-            // Check if DbNode child was added
-            var dbNode = fileNode.Children.OfType<DbNode>().FirstOrDefault();
+            // Check if DbNode child was added at the project level
+            var dbNode = projectA.Children.OfType<DbNode>().FirstOrDefault();
             Assert.That(dbNode, Is.Not.Null);
             Assert.That(dbNode.Name, Is.EqualTo("Dapper"));
             Assert.That(dbNode.Extensions, Is.Not.Null);
             Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
             Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
 
-            // Check if CloudServiceNode child was added
-            var cloudNode = fileNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
+            // Check if CloudServiceNode child was added at the project level
+            var cloudNode = projectA.Children.OfType<CloudServiceNode>().FirstOrDefault();
             Assert.That(cloudNode, Is.Not.Null);
             Assert.That(cloudNode.Name, Is.EqualTo("Stripe"));
+
+            // Check that file-to-library relationships are created in the context
+            var usesDb = ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_DB");
+            Assert.That(usesDb, Is.Not.Null);
+            Assert.That(usesDb.To, Is.EqualTo(dbNode.Id));
+
+            var usesCloud = ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_CLOUD");
+            Assert.That(usesCloud, Is.Not.Null);
+            Assert.That(usesCloud.To, Is.EqualTo(cloudNode.Id));
 
             // Check variable nodes under ClassNode (Repository)
             var classNode = fileNode.Children.OfType<ClassNode>().FirstOrDefault();
@@ -762,10 +771,11 @@ END;
             ctx.RawImports.Add(new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs"));
             await csAnalyzer.AnalyzeAndEnrichAsync(csProj, ctx);
             
-            var csDbNode = csFile.Children.OfType<DbNode>().FirstOrDefault();
+            var csDbNode = csProj.Children.OfType<DbNode>().FirstOrDefault();
             Assert.That(csDbNode, Is.Not.Null);
             Assert.That(csDbNode.Name, Is.EqualTo("Microsoft.EntityFrameworkCore"));
             Assert.That(csDbNode.Extensions["db_type"], Is.EqualTo("relational"));
+            Assert.That(ctx.GlobalProjectDependencies.Any(r => r.From == csFile.Id && r.To == csDbNode.Id && r.Kind == "USES_DB"), Is.True);
 
             // Test TypeScript Semantic Analyzer with document (mongoose)
             var tsAnalyzer = new TypeScriptSemanticAnalyzer();
@@ -775,10 +785,11 @@ END;
             ctx.RawImports.Add(new RawImport("mongoose", "index.ts"));
             await tsAnalyzer.AnalyzeAndEnrichAsync(tsProj, ctx);
 
-            var tsDbNode = tsFile.Children.OfType<DbNode>().FirstOrDefault();
+            var tsDbNode = tsProj.Children.OfType<DbNode>().FirstOrDefault();
             Assert.That(tsDbNode, Is.Not.Null);
             Assert.That(tsDbNode.Name, Is.EqualTo("MongoDB"));
             Assert.That(tsDbNode.Extensions["db_type"], Is.EqualTo("document"));
+            Assert.That(ctx.GlobalProjectDependencies.Any(r => r.From == tsFile.Id && r.To == tsDbNode.Id && r.Kind == "USES_DB"), Is.True);
 
             // Test Python Semantic Analyzer with keyvalue (redis)
             var pyAnalyzer = new PythonSemanticAnalyzer();
@@ -788,10 +799,11 @@ END;
             ctx.RawImports.Add(new RawImport("redis", "main.py"));
             await pyAnalyzer.AnalyzeAndEnrichAsync(pyProj, ctx);
 
-            var pyDbNode = pyFile.Children.OfType<DbNode>().FirstOrDefault();
+            var pyDbNode = pyProj.Children.OfType<DbNode>().FirstOrDefault();
             Assert.That(pyDbNode, Is.Not.Null);
             Assert.That(pyDbNode.Name, Is.EqualTo("Redis"));
             Assert.That(pyDbNode.Extensions["db_type"], Is.EqualTo("keyvalue"));
+            Assert.That(ctx.GlobalProjectDependencies.Any(r => r.From == pyFile.Id && r.To == pyDbNode.Id && r.Kind == "USES_DB"), Is.True);
         }
         finally
         {

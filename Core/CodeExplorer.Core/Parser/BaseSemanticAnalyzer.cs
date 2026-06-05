@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -161,23 +163,51 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                         {
                             dbType = parts[1];
                         }
-                        file.SetExtension("db_type", dbType);
-                        var dbId = $"{ctx.WorkspaceId}:db:{parser.LibraryId}";
-                        var dbNode = new DbNode(dbId, dbEngine, dbId);
-                        dbNode.SetExtension("db_type", dbType);
-                        file.Children.Add(dbNode);
+                        
+                        var dbId = $"{projectNode.Id}db:{parser.LibraryId}";
+                        lock (projectNode.Children)
+                        {
+                            if (!projectNode.Children.Any(c => c.Id == dbId))
+                            {
+                                var dbNode = new DbNode(dbId, dbEngine, dbId);
+                                dbNode.SetExtension("db_type", dbType);
+                                projectNode.Children.Add(dbNode);
+                            }
+                        }
+                        
+                        var usesDbRel = new UsesDbRelationship(file.Id, dbId);
+                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
                         break;
 
                     case "api":
-                        file.SetExtension("api_library", parser.LibraryName);
+                        var apiId = $"{projectNode.Id}api:{parser.LibraryId}";
+                        lock (projectNode.Children)
+                        {
+                            if (!projectNode.Children.Any(c => c.Id == apiId))
+                            {
+                                var apiNode = new ApiNode(apiId, parser.LibraryName, apiId);
+                                projectNode.Children.Add(apiNode);
+                            }
+                        }
+
+                        var usesApiRel = new UsesApiRelationship(file.Id, apiId);
+                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesApiRel));
                         break;
 
                     case "cloud":
                         var cloudService = parser.LibraryName;
-                        file.SetExtension("cloud_service", cloudService);
-                        var cloudId = $"{ctx.WorkspaceId}:cloud:{parser.LibraryId}";
-                        var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
-                        file.Children.Add(cloudNode);
+                        var cloudId = $"{projectNode.Id}cloud:{parser.LibraryId}";
+                        lock (projectNode.Children)
+                        {
+                            if (!projectNode.Children.Any(c => c.Id == cloudId))
+                            {
+                                var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
+                                projectNode.Children.Add(cloudNode);
+                            }
+                        }
+
+                        var usesCloudRel = new UsesCloudRelationship(file.Id, cloudId);
+                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesCloudRel));
                         break;
                 }
             }
