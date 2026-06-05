@@ -9,7 +9,11 @@ public class FlurlLibraryParser : ILibraryParser
 {
     public string Name => "FlurlLibraryParser";
 
-    public string Category => "api";
+    public string LibraryType => "api";
+
+    public string LibraryName => "Flurl";
+
+    public string LibraryId => "flurl";
 
     public IEnumerable<string> SupportedLibraries => ["Flurl", "Flurl.Http"];
 

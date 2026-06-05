@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Go.Libraries;
 public class GormLibraryParser : ILibraryParser
 {
     public string Name => "GormLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "GORM";
+    public string LibraryId => "gorm";
     public IEnumerable<string> SupportedLibraries => ["gorm.io/gorm"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

@@ -30,16 +30,21 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.SqlAlchemyLibraryParser(),
 
         // Generic Cloud Services
-        new GenericLibraryParser("Stripe", "cloud", ["stripe"], cloudService: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["boto3"], cloudService: "AWS"),
-        new GenericLibraryParser("GCP", "cloud", ["google-cloud-", "google.cloud", "firebase-admin"], cloudService: "GCP"),
-        new GenericLibraryParser("Azure", "cloud", ["azure-", "azure."], cloudService: "Azure"),
+        new GenericLibraryParser("Stripe", "cloud", ["stripe"], libraryName: "Stripe"),
+        new GenericLibraryParser("AWS", "cloud", ["boto3"], libraryName: "AWS"),
+        new GenericLibraryParser("GCP", "cloud", ["google-cloud-", "google.cloud", "firebase-admin"], libraryName: "GCP"),
+        new GenericLibraryParser("Azure", "cloud", ["azure-", "azure."], libraryName: "Azure"),
+
+        // Generic Frameworks
+        new GenericLibraryParser("Django", "framework", ["django"], libraryName: "Django"),
+        new GenericLibraryParser("Flask", "framework", ["flask"], libraryName: "Flask"),
+        new GenericLibraryParser("FastAPI", "framework", ["fastapi"], libraryName: "FastAPI"),
 
         // Generic API Clients
-        new GenericLibraryParser("requests", "api", ["requests"], apiLibrary: "requests"),
-        new GenericLibraryParser("urllib", "api", ["urllib.request", "urllib3", "urllib"], apiLibrary: "requests"),
-        new GenericLibraryParser("httpx", "api", ["httpx"], apiLibrary: "httpx"),
-        new GenericLibraryParser("aiohttp", "api", ["aiohttp"], apiLibrary: "aiohttp"),
+        new GenericLibraryParser("requests", "api", ["requests"], libraryName: "requests"),
+        new GenericLibraryParser("urllib", "api", ["urllib.request", "urllib3", "urllib"], libraryName: "requests", isBuiltIn: true),
+        new GenericLibraryParser("httpx", "api", ["httpx"], libraryName: "httpx"),
+        new GenericLibraryParser("aiohttp", "api", ["aiohttp"], libraryName: "aiohttp"),
     ];
 
     public PythonParser()

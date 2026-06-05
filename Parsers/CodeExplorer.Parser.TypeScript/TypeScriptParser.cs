@@ -33,21 +33,28 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.GcpLibraryParser(),
 
         // Generic Cloud Services
-        new GenericLibraryParser("Stripe", "cloud", ["stripe"], cloudService: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["aws-sdk", "@aws-sdk"], cloudService: "AWS"),
-        new GenericLibraryParser("Azure", "cloud", ["@azure"], cloudService: "Azure"),
+        new GenericLibraryParser("Stripe", "cloud", ["stripe"], libraryName: "Stripe"),
+        new GenericLibraryParser("AWS", "cloud", ["aws-sdk", "@aws-sdk"], libraryName: "AWS"),
+        new GenericLibraryParser("Azure", "cloud", ["@azure"], libraryName: "Azure"),
+
+        // Generic Frameworks
+        new GenericLibraryParser("NestJS", "framework", ["@nestjs/core"], libraryName: "NestJS"),
+        new GenericLibraryParser("Express", "framework", ["express"], libraryName: "Express"),
+        new GenericLibraryParser("NextJS", "framework", ["next"], libraryName: "Next.js"),
+        new GenericLibraryParser("React", "framework", ["react"], libraryName: "React"),
+        new GenericLibraryParser("Angular", "framework", ["@angular/core"], libraryName: "Angular"),
 
         // Generic API Clients
-        new GenericLibraryParser("request", "api", ["request"], apiLibrary: "request"),
-        new GenericLibraryParser("superagent", "api", ["superagent"], apiLibrary: "superagent"),
-        new GenericLibraryParser("node-fetch", "api", ["node-fetch"], apiLibrary: "fetch"),
-        new GenericLibraryParser("got", "api", ["got"], apiLibrary: "got"),
-        new GenericLibraryParser("undici", "api", ["undici"], apiLibrary: "undici"),
-        new GenericLibraryParser("ky", "api", ["ky"], apiLibrary: "ky"),
-        new GenericLibraryParser("bent", "api", ["bent"], apiLibrary: "bent"),
-        new GenericLibraryParser("urllib", "api", ["urllib"], apiLibrary: "urllib"),
-        new GenericLibraryParser("cross-fetch", "api", ["cross-fetch"], apiLibrary: "fetch"),
-        new GenericLibraryParser("isomorphic-fetch", "api", ["isomorphic-fetch"], apiLibrary: "fetch"),
+        new GenericLibraryParser("request", "api", ["request"], libraryName: "request"),
+        new GenericLibraryParser("superagent", "api", ["superagent"], libraryName: "superagent"),
+        new GenericLibraryParser("node-fetch", "api", ["node-fetch"], libraryName: "fetch"),
+        new GenericLibraryParser("got", "api", ["got"], libraryName: "got"),
+        new GenericLibraryParser("undici", "api", ["undici"], libraryName: "undici"),
+        new GenericLibraryParser("ky", "api", ["ky"], libraryName: "ky"),
+        new GenericLibraryParser("bent", "api", ["bent"], libraryName: "bent"),
+        new GenericLibraryParser("urllib", "api", ["urllib"], libraryName: "urllib"),
+        new GenericLibraryParser("cross-fetch", "api", ["cross-fetch"], libraryName: "fetch"),
+        new GenericLibraryParser("isomorphic-fetch", "api", ["isomorphic-fetch"], libraryName: "fetch"),
     ];
 
     public TypeScriptParser()

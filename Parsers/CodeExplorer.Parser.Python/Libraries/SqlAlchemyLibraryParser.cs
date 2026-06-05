@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Python.Libraries;
 public class SqlAlchemyLibraryParser : ILibraryParser
 {
     public string Name => "SqlAlchemyLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "SQLAlchemy";
+    public string LibraryId => "sqlalchemy";
     public IEnumerable<string> SupportedLibraries => ["sqlalchemy"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

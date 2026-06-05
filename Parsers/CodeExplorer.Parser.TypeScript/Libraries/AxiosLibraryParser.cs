@@ -9,7 +9,11 @@ public class AxiosLibraryParser : ILibraryParser
 {
     public string Name => "AxiosLibraryParser";
 
-    public string Category => "api";
+    public string LibraryType => "api";
+
+    public string LibraryName => "Axios";
+
+    public string LibraryId => "axios";
 
     public IEnumerable<string> SupportedLibraries => ["axios", "@nestjs/axios"];
 

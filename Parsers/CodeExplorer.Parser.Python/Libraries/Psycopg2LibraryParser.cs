@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Python.Libraries;
 public class Psycopg2LibraryParser : ILibraryParser
 {
     public string Name => "Psycopg2LibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "PostgreSQL";
+    public string LibraryId => "postgres";
     public IEnumerable<string> SupportedLibraries => ["psycopg2"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

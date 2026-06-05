@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Python.Libraries;
 public class PineconeLibraryParser : ILibraryParser
 {
     public string Name => "PineconeLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:vector";
+    public string LibraryName => "Pinecone";
+    public string LibraryId => "pinecone";
     public IEnumerable<string> SupportedLibraries => ["pinecone-client"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

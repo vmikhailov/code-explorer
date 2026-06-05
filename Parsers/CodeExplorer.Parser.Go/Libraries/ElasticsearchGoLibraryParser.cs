@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Go.Libraries;
 public class ElasticsearchGoLibraryParser : ILibraryParser
 {
     public string Name => "ElasticsearchGoLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:search";
+    public string LibraryName => "Elasticsearch";
+    public string LibraryId => "elasticsearch";
     public IEnumerable<string> SupportedLibraries => ["github.com/elastic/go-elasticsearch"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

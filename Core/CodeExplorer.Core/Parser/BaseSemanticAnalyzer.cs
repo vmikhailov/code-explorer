@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using CodeExplorer.Core.Common.Nodes;
 
 namespace CodeExplorer.Core.Parser;
@@ -46,13 +41,15 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
         RegexOptions.Compiled
     );
 
-    private string? FindResolvedLibraryName(string importPath)
+
+
+    private string? FindResolvedLibraryName(string importPath, HashSet<string> activeLibraryNames)
     {
         var clean = Path.GetFileName(importPath);
-        if (_supportedLibraryNames.Contains(importPath)) return importPath;
-        if (_supportedLibraryNames.Contains(clean)) return clean;
+        if (activeLibraryNames.Contains(importPath)) return importPath;
+        if (activeLibraryNames.Contains(clean)) return clean;
 
-        foreach (var lib in _supportedLibraryNames)
+        foreach (var lib in activeLibraryNames)
         {
             if (importPath.StartsWith(lib + ".", StringComparison.OrdinalIgnoreCase) ||
                 importPath.StartsWith(lib + "/", StringComparison.OrdinalIgnoreCase) ||
@@ -69,10 +66,49 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
         var files = new List<FileNode>();
         FindAllFiles(projectNode, files);
 
+        var projectPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var internalPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var child in projectNode.Children.OfType<PackageNode>())
         {
+            projectPackages.Add(child.Name);
             internalPackages.Add(child.Name);
+        }
+
+        // Determine active library parsers based on project-level packages + built-in standard ones
+        var activeLibraryParsers = _libraryParsers.ToList();
+        if (projectPackages.Count > 0)
+        {
+            activeLibraryParsers = _libraryParsers.Where(lp =>
+                lp.IsBuiltIn ||
+                lp.SupportedLibraries.Any(sl =>
+                    projectPackages.Any(pp =>
+                        pp.Equals(sl, StringComparison.OrdinalIgnoreCase) ||
+                        pp.StartsWith(sl + ".", StringComparison.OrdinalIgnoreCase) ||
+                        pp.StartsWith(sl + "/", StringComparison.OrdinalIgnoreCase) ||
+                        sl.StartsWith(pp + ".", StringComparison.OrdinalIgnoreCase) ||
+                        sl.StartsWith(pp + "/", StringComparison.OrdinalIgnoreCase)
+                    )
+                )
+            ).ToList();
+        }
+
+        var activeLibraryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var lp in activeLibraryParsers)
+        {
+            foreach (var lib in lp.SupportedLibraries)
+            {
+                activeLibraryNames.Add(lib);
+            }
+        }
+
+        // Detect and enrich project-level framework
+        foreach (var lp in activeLibraryParsers)
+        {
+            if (lp.LibraryType == "framework")
+            {
+                projectNode.SetExtension("framework", lp.LibraryName);
+                break;
+            }
         }
 
         foreach (var file in files)
@@ -90,24 +126,24 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
             foreach (var import in fileImports)
             {
-                // Try to resolve each library
-                var resolvedName = FindResolvedLibraryName(import);
+                // Try to resolve each library against only the active project-level packages
+                var resolvedName = FindResolvedLibraryName(import, activeLibraryNames);
                 if (resolvedName != null)
                 {
-                    var parser = _libraryParsers.FirstOrDefault(lp => lp.SupportedLibraries.Any(sl =>
+                    var parser = activeLibraryParsers.FirstOrDefault(lp => lp.SupportedLibraries.Any(sl =>
                         sl.Equals(resolvedName, StringComparison.OrdinalIgnoreCase)));
 
                     if (parser != null)
                     {
-                        if (parser.Category == "database" && dbParser == null)
+                        if (parser.LibraryType.StartsWith("db", StringComparison.OrdinalIgnoreCase) && dbParser == null)
                         {
                             dbParser = parser;
                         }
-                        else if (parser.Category == "api" && apiParser == null)
+                        else if (parser.LibraryType == "api" && apiParser == null)
                         {
                             apiParser = parser;
                         }
-                        else if (parser.Category == "cloud" && cloudParser == null)
+                        else if (parser.LibraryType == "cloud" && cloudParser == null)
                         {
                             cloudParser = parser;
                         }
@@ -117,10 +153,15 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
             if (dbParser != null)
             {
-                var dbEngine = dbParser.DbEngine ?? "unknown";
-                var dbType = dbParser.DbType ?? "unknown";
+                var dbEngine = dbParser.LibraryName;
+                var dbType = "unknown";
+                var parts = dbParser.LibraryType.Split(':');
+                if (parts.Length > 1)
+                {
+                    dbType = parts[1];
+                }
                 file.SetExtension("db_type", dbType);
-                var dbId = $"{ctx.WorkspaceId}:db:{dbEngine.ToLowerInvariant()}";
+                var dbId = $"{ctx.WorkspaceId}:db:{dbParser.LibraryId}";
                 var dbNode = new DbNode(dbId, dbEngine, dbId);
                 dbNode.SetExtension("db_type", dbType);
                 file.Children.Add(dbNode);
@@ -128,15 +169,14 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
             if (apiParser != null)
             {
-                var apiLib = apiParser.ApiLibrary ?? "unknown";
-                file.SetExtension("api_library", apiLib);
+                file.SetExtension("api_library", apiParser.LibraryName);
             }
 
             if (cloudParser != null)
             {
-                var cloudService = cloudParser.CloudService ?? "unknown";
+                var cloudService = cloudParser.LibraryName;
                 file.SetExtension("cloud_service", cloudService);
-                var cloudId = $"{ctx.WorkspaceId}:cloud:{cloudService.ToLowerInvariant()}";
+                var cloudId = $"{ctx.WorkspaceId}:cloud:{cloudParser.LibraryId}";
                 var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
                 file.Children.Add(cloudNode);
             }

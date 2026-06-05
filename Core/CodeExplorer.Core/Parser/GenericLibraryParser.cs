@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using TreeSitter;
 
@@ -7,31 +6,30 @@ namespace CodeExplorer.Core.Parser;
 public class GenericLibraryParser : ILibraryParser
 {
     public string Name { get; }
-    public string Category { get; }
     public IEnumerable<string> SupportedLibraries { get; }
     public bool IsImplemented => false;
 
-    public string? DbEngine { get; }
-    public string? DbType { get; }
-    public string? ApiLibrary { get; }
-    public string? CloudService { get; }
+    public string LibraryType { get; }
+    public string LibraryName { get; }
+    public string LibraryId { get; }
+    public bool IsBuiltIn { get; }
 
     public GenericLibraryParser(
         string name,
-        string category,
+        string libraryType,
         IEnumerable<string> supportedLibraries,
-        string? dbEngine = null,
-        string? dbType = null,
-        string? apiLibrary = null,
-        string? cloudService = null)
+        string? libraryName = null,
+        string? libraryId = null,
+        bool isBuiltIn = false)
     {
         Name = name;
-        Category = category;
+        LibraryType = libraryType;
         SupportedLibraries = supportedLibraries;
-        DbEngine = dbEngine;
-        DbType = dbType;
-        ApiLibrary = apiLibrary;
-        CloudService = cloudService;
+        LibraryName = libraryName ?? name;
+        IsBuiltIn = isBuiltIn;
+
+        var firstLib = Enumerable.FirstOrDefault(SupportedLibraries);
+        LibraryId = libraryId ?? (firstLib != null ? firstLib.ToLowerInvariant() : name.ToLowerInvariant());
     }
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;

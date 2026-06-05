@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 public class PgLibraryParser : ILibraryParser
 {
     public string Name => "PgLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "PostgreSQL";
+    public string LibraryId => "postgres";
     public IEnumerable<string> SupportedLibraries => ["pg"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

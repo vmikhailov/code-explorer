@@ -30,18 +30,21 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.StackExchangeRedisLibraryParser(),
 
         // Generic Cloud Services
-        new GenericLibraryParser("Stripe", "cloud", ["stripe", "Stripe"], cloudService: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["Amazon.S3", "AWSSDK"], cloudService: "AWS"),
-        new GenericLibraryParser("GCP", "cloud", ["Google.Cloud."], cloudService: "GCP"),
-        new GenericLibraryParser("Azure", "cloud", ["Azure."], cloudService: "Azure"),
+        new GenericLibraryParser("Stripe", "cloud", ["stripe", "Stripe"], libraryName: "Stripe"),
+        new GenericLibraryParser("AWS", "cloud", ["Amazon.S3", "AWSSDK"], libraryName: "AWS"),
+        new GenericLibraryParser("GCP", "cloud", ["Google.Cloud."], libraryName: "GCP"),
+        new GenericLibraryParser("Azure", "cloud", ["Azure."], libraryName: "Azure"),
+
+        // Generic Frameworks
+        new GenericLibraryParser("AspNetCore", "framework", ["Microsoft.AspNetCore.App", "Microsoft.AspNetCore"], libraryName: "ASP.NET Core"),
 
         // Generic API Clients
-        new GenericLibraryParser("HttpClient", "api", ["System.Net.Http"], apiLibrary: "HttpClient"),
-        new GenericLibraryParser("RestSharp", "api", ["RestSharp"], apiLibrary: "RestSharp"),
-        new GenericLibraryParser("Refit", "api", ["Refit"], apiLibrary: "Refit"),
-        new GenericLibraryParser("WebApiClient", "api", ["WebApiClient"], apiLibrary: "WebApiClient"),
-        new GenericLibraryParser("Apizr", "api", ["Apizr"], apiLibrary: "Apizr"),
-        new GenericLibraryParser("NotoriousClient", "api", ["NotoriousClient"], apiLibrary: "NotoriousClient"),
+        new GenericLibraryParser("HttpClient", "api", ["System.Net.Http"], libraryName: "HttpClient", isBuiltIn: true),
+        new GenericLibraryParser("RestSharp", "api", ["RestSharp"], libraryName: "RestSharp"),
+        new GenericLibraryParser("Refit", "api", ["Refit"], libraryName: "Refit"),
+        new GenericLibraryParser("WebApiClient", "api", ["WebApiClient"], libraryName: "WebApiClient"),
+        new GenericLibraryParser("Apizr", "api", ["Apizr"], libraryName: "Apizr"),
+        new GenericLibraryParser("NotoriousClient", "api", ["NotoriousClient"], libraryName: "NotoriousClient"),
     ];
 
     public CSharpParser()

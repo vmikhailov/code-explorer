@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Python.Libraries;
 public class PythonRedisLibraryParser : ILibraryParser
 {
     public string Name => "PythonRedisLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:keyvalue";
+    public string LibraryName => "Redis";
+    public string LibraryId => "redis";
     public IEnumerable<string> SupportedLibraries => ["redis"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

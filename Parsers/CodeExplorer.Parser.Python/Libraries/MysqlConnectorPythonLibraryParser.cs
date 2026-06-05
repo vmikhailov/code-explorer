@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Python.Libraries;
 public class MysqlConnectorPythonLibraryParser : ILibraryParser
 {
     public string Name => "MysqlConnectorPythonLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "MySQL";
+    public string LibraryId => "mysql";
     public IEnumerable<string> SupportedLibraries => ["mysql-connector-python"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

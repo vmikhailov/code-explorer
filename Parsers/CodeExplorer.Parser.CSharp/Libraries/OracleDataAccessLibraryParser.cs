@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 public class OracleDataAccessLibraryParser : ILibraryParser
 {
     public string Name => "OracleDataAccessLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "Oracle";
+    public string LibraryId => "oracle";
     public IEnumerable<string> SupportedLibraries => ["Oracle.ManagedDataAccess"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

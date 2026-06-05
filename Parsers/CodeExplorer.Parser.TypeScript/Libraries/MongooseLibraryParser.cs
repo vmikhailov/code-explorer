@@ -9,7 +9,11 @@ public class MongooseLibraryParser : ILibraryParser
 {
     public string Name => "MongooseLibraryParser";
 
-    public string Category => "database";
+    public string LibraryType => "db:document";
+
+    public string LibraryName => "MongoDB";
+
+    public string LibraryId => "mongoose";
 
     public IEnumerable<string> SupportedLibraries => ["mongoose"];
 

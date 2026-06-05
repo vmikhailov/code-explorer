@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Go.Libraries;
 public class GoRedisLibraryParser : ILibraryParser
 {
     public string Name => "GoRedisLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:keyvalue";
+    public string LibraryName => "Redis";
+    public string LibraryId => "redis";
     public IEnumerable<string> SupportedLibraries => ["github.com/redis/go-redis"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 public class NpgsqlLibraryParser : ILibraryParser
 {
     public string Name => "NpgsqlLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "PostgreSQL";
+    public string LibraryId => "postgres";
     public IEnumerable<string> SupportedLibraries => ["Npgsql"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

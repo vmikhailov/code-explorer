@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 public class EfCoreLibraryParser : ILibraryParser
 {
     public string Name => "EfCoreLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "Microsoft.EntityFrameworkCore";
+    public string LibraryId => "microsoft.entityframeworkcore";
     public IEnumerable<string> SupportedLibraries => ["Microsoft.EntityFrameworkCore"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

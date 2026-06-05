@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 public class MicrosoftDataSqlClientLibraryParser : ILibraryParser
 {
     public string Name => "MicrosoftDataSqlClientLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "SQL Server";
+    public string LibraryId => "mssql";
     public IEnumerable<string> SupportedLibraries => ["Microsoft.Data.SqlClient"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

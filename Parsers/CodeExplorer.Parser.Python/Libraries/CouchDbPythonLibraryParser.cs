@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Python.Libraries;
 public class CouchDbPythonLibraryParser : ILibraryParser
 {
     public string Name => "CouchDbPythonLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:document";
+    public string LibraryName => "CouchDB";
+    public string LibraryId => "couchdb";
     public IEnumerable<string> SupportedLibraries => ["couchdb"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

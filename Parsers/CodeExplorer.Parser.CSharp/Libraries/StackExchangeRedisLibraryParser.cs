@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 public class StackExchangeRedisLibraryParser : ILibraryParser
 {
     public string Name => "StackExchangeRedisLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:keyvalue";
+    public string LibraryName => "Redis";
+    public string LibraryId => "redis";
     public IEnumerable<string> SupportedLibraries => ["StackExchange.Redis"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

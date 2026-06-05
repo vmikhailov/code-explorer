@@ -9,7 +9,11 @@ public class RedisLibraryParser : ILibraryParser
 {
     public string Name => "RedisLibraryParser";
 
-    public string Category => "database";
+    public string LibraryType => "db:keyvalue";
+
+    public string LibraryName => "Redis";
+
+    public string LibraryId => "redis";
 
     public IEnumerable<string> SupportedLibraries => ["redis", "ioredis"];
 

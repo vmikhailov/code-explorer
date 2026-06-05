@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Python.Libraries;
 public class PeeweeLibraryParser : ILibraryParser
 {
     public string Name => "PeeweeLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "Peewee";
+    public string LibraryId => "peewee";
     public IEnumerable<string> SupportedLibraries => ["peewee"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

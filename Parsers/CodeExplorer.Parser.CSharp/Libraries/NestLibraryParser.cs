@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 public class NestLibraryParser : ILibraryParser
 {
     public string Name => "NestLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:search";
+    public string LibraryName => "Elasticsearch";
+    public string LibraryId => "elasticsearch";
     public IEnumerable<string> SupportedLibraries => ["Nest"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

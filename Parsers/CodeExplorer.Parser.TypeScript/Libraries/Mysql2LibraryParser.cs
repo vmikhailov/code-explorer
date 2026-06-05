@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 public class Mysql2LibraryParser : ILibraryParser
 {
     public string Name => "Mysql2LibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "MySQL";
+    public string LibraryId => "mysql";
     public IEnumerable<string> SupportedLibraries => ["mysql2"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

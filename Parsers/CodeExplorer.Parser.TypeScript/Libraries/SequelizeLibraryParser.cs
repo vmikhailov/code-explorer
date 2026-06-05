@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 public class SequelizeLibraryParser : ILibraryParser
 {
     public string Name => "SequelizeLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "Sequelize";
+    public string LibraryId => "sequelize";
     public IEnumerable<string> SupportedLibraries => ["sequelize"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

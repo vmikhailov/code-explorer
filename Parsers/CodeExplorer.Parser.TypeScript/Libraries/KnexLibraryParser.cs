@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 public class KnexLibraryParser : ILibraryParser
 {
     public string Name => "KnexLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "Knex";
+    public string LibraryId => "knex";
     public IEnumerable<string> SupportedLibraries => ["knex"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

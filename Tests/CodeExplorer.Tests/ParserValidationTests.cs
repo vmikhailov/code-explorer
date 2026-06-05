@@ -510,7 +510,14 @@ export class OrdersController {
             // Project A: C# project using database package (Dapper) and containing configuration + constants + empty subfolder
             var projADir = Path.Combine(tempWorkspace, "ProjectA").Replace('\\', '/');
             Directory.CreateDirectory(projADir);
-            await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
+                "  <ItemGroup>\n" +
+                "    <PackageReference Include=\"Dapper\" Version=\"1.0.0\" />\n" +
+                "    <PackageReference Include=\"Stripe.net\" Version=\"1.0.0\" />\n" +
+                "    <PackageReference Include=\"Microsoft.AspNetCore.App\" Version=\"1.0.0\" />\n" +
+                "  </ItemGroup>\n" +
+                "</Project>");
             
             // Empty folder in Project A to verify pruning
             var emptySubDir = Path.Combine(projADir, "EmptyFolder").Replace('\\', '/');
@@ -570,6 +577,11 @@ export class OrdersController {
             // EmptyFolder is removed
             var folderA = projectA.Children.FirstOrDefault(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder");
             Assert.That(folderA, Is.Null);
+
+            // Verify project framework detection
+            Assert.That(projectA.Extensions, Is.Not.Null);
+            Assert.That(projectA.Extensions.ContainsKey("framework"), Is.True);
+            Assert.That(projectA.Extensions["framework"], Is.EqualTo("ASP.NET Core"));
 
             // 3. Verify semantic analysis
             var fileNode = projectA.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");

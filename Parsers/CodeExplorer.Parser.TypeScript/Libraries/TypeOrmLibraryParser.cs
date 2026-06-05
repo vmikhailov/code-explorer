@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 public class TypeOrmLibraryParser : ILibraryParser
 {
     public string Name => "TypeOrmLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "TypeORM";
+    public string LibraryId => "typeorm";
     public IEnumerable<string> SupportedLibraries => ["typeorm"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

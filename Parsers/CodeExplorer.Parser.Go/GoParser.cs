@@ -27,18 +27,23 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.MongoGoLibraryParser(),
 
         // Generic Cloud Services
-        new GenericLibraryParser("Stripe", "cloud", ["github.com/stripe/stripe-go"], cloudService: "Stripe"),
-        new GenericLibraryParser("AWS", "cloud", ["github.com/aws/aws-sdk-go"], cloudService: "AWS"),
-        new GenericLibraryParser("GCP", "cloud", ["cloud.google.com/", "firebase.google.com/"], cloudService: "GCP"),
-        new GenericLibraryParser("Azure", "cloud", ["/Azure/", "/azure-sdk-for-go"], cloudService: "Azure"),
+        new GenericLibraryParser("Stripe", "cloud", ["github.com/stripe/stripe-go"], libraryName: "Stripe"),
+        new GenericLibraryParser("AWS", "cloud", ["github.com/aws/aws-sdk-go"], libraryName: "AWS"),
+        new GenericLibraryParser("GCP", "cloud", ["cloud.google.com/", "firebase.google.com/"], libraryName: "GCP"),
+        new GenericLibraryParser("Azure", "cloud", ["/Azure/", "/azure-sdk-for-go"], libraryName: "Azure"),
+
+        // Generic Frameworks
+        new GenericLibraryParser("Gin", "framework", ["github.com/gin-gonic/gin"], libraryName: "Gin"),
+        new GenericLibraryParser("Echo", "framework", ["github.com/labstack/echo"], libraryName: "Echo"),
+        new GenericLibraryParser("Fiber", "framework", ["github.com/gofiber/fiber"], libraryName: "Fiber"),
 
         // Generic API Clients
-        new GenericLibraryParser("net/http", "api", ["net/http"], apiLibrary: "http/https"),
-        new GenericLibraryParser("resty", "api", ["github.com/go-resty/resty"], apiLibrary: "Resty"),
-        new GenericLibraryParser("req", "api", ["github.com/imroc/req"], apiLibrary: "req"),
-        new GenericLibraryParser("grequests", "api", ["github.com/levigross/grequests"], apiLibrary: "grequests"),
-        new GenericLibraryParser("gorequest", "api", ["github.com/parnurzeal/gorequest"], apiLibrary: "gorequest"),
-        new GenericLibraryParser("surf", "api", ["github.com/go-surf/surf"], apiLibrary: "surf"),
+        new GenericLibraryParser("net/http", "api", ["net/http"], libraryName: "http/https", isBuiltIn: true),
+        new GenericLibraryParser("resty", "api", ["github.com/go-resty/resty"], libraryName: "Resty"),
+        new GenericLibraryParser("req", "api", ["github.com/imroc/req"], libraryName: "req"),
+        new GenericLibraryParser("grequests", "api", ["github.com/levigross/grequests"], libraryName: "grequests"),
+        new GenericLibraryParser("gorequest", "api", ["github.com/parnurzeal/gorequest"], libraryName: "gorequest"),
+        new GenericLibraryParser("surf", "api", ["github.com/go-surf/surf"], libraryName: "surf"),
     ];
 
     public GoParser()

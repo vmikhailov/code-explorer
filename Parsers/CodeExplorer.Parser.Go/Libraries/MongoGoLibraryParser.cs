@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Go.Libraries;
 public class MongoGoLibraryParser : ILibraryParser
 {
     public string Name => "MongoGoLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:document";
+    public string LibraryName => "MongoDB";
+    public string LibraryId => "mongodb";
     public IEnumerable<string> SupportedLibraries => ["go.mongodb.org/mongo-driver"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

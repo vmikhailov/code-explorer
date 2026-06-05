@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 public class Neo4jLibraryParser : ILibraryParser
 {
     public string Name => "Neo4jLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:graph";
+    public string LibraryName => "Neo4j";
+    public string LibraryId => "neo4j";
     public IEnumerable<string> SupportedLibraries => ["neo4j-driver"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

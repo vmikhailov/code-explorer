@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Go;

@@ -9,7 +9,11 @@ public class DapperLibraryParser : ILibraryParser
 {
     public string Name => "DapperLibraryParser";
 
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+
+    public string LibraryName => "Dapper";
+
+    public string LibraryId => "dapper";
 
     public IEnumerable<string> SupportedLibraries => ["Dapper"];
 

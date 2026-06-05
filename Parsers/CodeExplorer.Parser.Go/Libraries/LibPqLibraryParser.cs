@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.Go.Libraries;
 public class LibPqLibraryParser : ILibraryParser
 {
     public string Name => "LibPqLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:relational";
+    public string LibraryName => "PostgreSQL";
+    public string LibraryId => "postgres";
     public IEnumerable<string> SupportedLibraries => ["github.com/lib/pq"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

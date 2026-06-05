@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 public class CouchbaseLibraryParser : ILibraryParser
 {
     public string Name => "CouchbaseLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:document";
+    public string LibraryName => "Couchbase";
+    public string LibraryId => "couchbase";
     public IEnumerable<string> SupportedLibraries => ["Couchbase"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();

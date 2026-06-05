@@ -7,7 +7,9 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 public class InfluxDbLibraryParser : ILibraryParser
 {
     public string Name => "InfluxDbLibraryParser";
-    public string Category => "database";
+    public string LibraryType => "db:timeseries";
+    public string LibraryName => "InfluxDB";
+    public string LibraryId => "influxdb";
     public IEnumerable<string> SupportedLibraries => ["influxdb"];
 
     public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
