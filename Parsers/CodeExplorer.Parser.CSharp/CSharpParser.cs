@@ -28,8 +28,13 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.NpgsqlLibraryParser(),
         new Libraries.OracleDataAccessLibraryParser(),
         new Libraries.StackExchangeRedisLibraryParser(),
-        new Libraries.SystemDataSqlClientLibraryParser()
     ];
+
+    public CSharpParser()
+    {
+        _analyzer = new CSharpSemanticAnalyzer(LibraryParsers);
+    }
+
 
     public bool CanParse(string fileExtension)
     {
@@ -387,7 +392,7 @@ public class CSharpParser : IProjectParser, IFileParser
         return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
     }
 
-    private readonly CSharpSemanticAnalyzer _analyzer = new();
+    private readonly CSharpSemanticAnalyzer _analyzer;
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 

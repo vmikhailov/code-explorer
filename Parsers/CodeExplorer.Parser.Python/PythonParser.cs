@@ -30,6 +30,11 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.SqlAlchemyLibraryParser()
     ];
 
+    public PythonParser()
+    {
+        _analyzer = new PythonSemanticAnalyzer(LibraryParsers);
+    }
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".py", StringComparison.OrdinalIgnoreCase);
@@ -414,7 +419,7 @@ public class PythonParser : IProjectParser, IFileParser
         return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
     }
 
-    private readonly PythonSemanticAnalyzer _analyzer = new();
+    private readonly PythonSemanticAnalyzer _analyzer;
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 

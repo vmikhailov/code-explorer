@@ -27,6 +27,11 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.MongoGoLibraryParser()
     ];
 
+    public GoParser()
+    {
+        _analyzer = new GoSemanticAnalyzer(LibraryParsers);
+    }
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".go", StringComparison.OrdinalIgnoreCase);
@@ -326,7 +331,7 @@ public class GoParser : IProjectParser, IFileParser
         return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
     }
 
-    private readonly GoSemanticAnalyzer _analyzer = new();
+    private readonly GoSemanticAnalyzer _analyzer;
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 

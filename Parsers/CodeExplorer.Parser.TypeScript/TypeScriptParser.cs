@@ -32,6 +32,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.TypeOrmLibraryParser()
     ];
 
+    public TypeScriptParser()
+    {
+        _analyzer = new TypeScriptSemanticAnalyzer(LibraryParsers);
+    }
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
@@ -519,7 +524,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
     }
 
-    private readonly TypeScriptSemanticAnalyzer _analyzer = new();
+    private readonly TypeScriptSemanticAnalyzer _analyzer;
 
     public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 

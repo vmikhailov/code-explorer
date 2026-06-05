@@ -1,33 +1,43 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using CodeExplorer.Core.Common.Nodes;
 
 namespace CodeExplorer.Core.Parser;
 
 public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 {
-    protected abstract IReadOnlyDictionary<string, HashSet<string>> DbPackages { get; }
+    protected readonly IEnumerable<ILibraryParser> _libraryParsers;
 
-    protected virtual bool IsDbPackage(string importPath)
+    private static readonly List<ILibraryParser> StandardLibraryParsers =
+    [
+        // Cloud Services
+        new GenericLibraryParser("StripeLibraryParser", "cloud", ["stripe", "stripe-go", "Stripe"], cloudService: "Stripe"),
+        new GenericLibraryParser("AwsLibraryParser", "cloud", ["Amazon.S3", "aws-sdk", "boto3", "github.com/aws/aws-sdk-go", "@aws-sdk"], cloudService: "AWS"),
+        new GenericLibraryParser("GcpLibraryParser", "cloud", ["google-cloud-", "google.cloud", "@google-cloud/", "cloud.google.com/", "firebase"], cloudService: "GCP"),
+        new GenericLibraryParser("AzureLibraryParser", "cloud", ["Azure.", "@azure/", "azure-", "/Azure/", "/azure-sdk-for-go"], cloudService: "Azure"),
+
+        // Common API Libraries
+        new GenericLibraryParser("AxiosLibraryParser", "api", ["axios"], apiLibrary: "Axios"),
+        new GenericLibraryParser("HttpClientLibraryParser", "api", ["system.net.http", "httpclient", "net/http", "http", "https", "requests", "urllib", "httpx", "aiohttp"], apiLibrary: "HttpClient"),
+        new GenericLibraryParser("RestSharpLibraryParser", "api", ["restsharp"], apiLibrary: "RestSharp"),
+        new GenericLibraryParser("FlurlLibraryParser", "api", ["flurl"], apiLibrary: "Flurl"),
+        new GenericLibraryParser("RefitLibraryParser", "api", ["refit"], apiLibrary: "Refit"),
+        new GenericLibraryParser("RestyLibraryParser", "api", ["resty"], apiLibrary: "Resty"),
+        new GenericLibraryParser("ReqLibraryParser", "api", ["req"], apiLibrary: "req"),
+        new GenericLibraryParser("GrequestsLibraryParser", "api", ["grequests"], apiLibrary: "grequests"),
+        new GenericLibraryParser("UndiciLibraryParser", "api", ["undici"], apiLibrary: "undici")
+    ];
+
+    protected BaseSemanticAnalyzer(IEnumerable<ILibraryParser> libraryParsers)
     {
-        var clean = Path.GetFileName(importPath);
-        return DbPackages.Values.Any(set => set.Contains(importPath) || set.Contains(clean));
+        var active = libraryParsers ?? Array.Empty<ILibraryParser>();
+        // Merge standard library parsers with language specific library parsers
+        _libraryParsers = active.Concat(StandardLibraryParsers).ToList();
     }
-
-    protected virtual string GetDbType(string importPath)
-    {
-        var clean = Path.GetFileName(importPath);
-        foreach (var kvp in DbPackages)
-        {
-            if (kvp.Value.Contains(importPath) || kvp.Value.Contains(clean))
-            {
-                return kvp.Key;
-            }
-        }
-        return "unknown";
-    }
-
-    protected abstract bool IsApiPackage(string importPath);
-    protected virtual bool IsCloudPackage(string importPath) => false;
 
     protected static readonly Regex ConfigRegex = new(
         @"(?i)(config|settings?|cfg|\benv\b|db_?conn|\burl\b|\buri\b|\bport\b|\bhost\b|user(name)?|pass(word)?|token|secret|\bkey\b|auth|api_?key|connection_?string)",
@@ -65,14 +75,41 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
             var relativePath = file.Path;
             var fileImports = ctx.RawImports.Where(i => i.FilePath == relativePath).ToList();
 
-            var firstDbImport = fileImports.FirstOrDefault(i => IsDbPackage(i.Path));
-            var firstApiImport = fileImports.FirstOrDefault(i => IsApiPackage(i.Path));
-            var firstCloudImport = fileImports.FirstOrDefault(i => IsCloudPackage(i.Path));
+            ILibraryParser? dbParser = null;
+            ILibraryParser? apiParser = null;
+            ILibraryParser? cloudParser = null;
 
-            if (firstDbImport != null)
+            foreach (var import in fileImports)
             {
-                var dbEngine = MapPackageToDbEngine(firstDbImport.Path);
-                var dbType = GetDbType(firstDbImport.Path);
+                var clean = Path.GetFileName(import.Path);
+                var parser = _libraryParsers.FirstOrDefault(lp => lp.SupportedLibraries.Any(sl =>
+                    sl.Equals(import.Path, StringComparison.OrdinalIgnoreCase) ||
+                    sl.Equals(clean, StringComparison.OrdinalIgnoreCase) ||
+                    import.Path.StartsWith(sl + ".", StringComparison.OrdinalIgnoreCase) ||
+                    import.Path.StartsWith(sl + "/", StringComparison.OrdinalIgnoreCase) ||
+                    (sl.Contains('/') && import.Path.StartsWith(sl, StringComparison.OrdinalIgnoreCase))));
+
+                if (parser != null)
+                {
+                    if (parser.Category == "database" && dbParser == null)
+                    {
+                        dbParser = parser;
+                    }
+                    else if (parser.Category == "api" && apiParser == null)
+                    {
+                        apiParser = parser;
+                    }
+                    else if (parser.Category == "cloud" && cloudParser == null)
+                    {
+                        cloudParser = parser;
+                    }
+                }
+            }
+
+            if (dbParser != null)
+            {
+                var dbEngine = dbParser.DbEngine ?? "unknown";
+                var dbType = dbParser.DbType ?? "unknown";
                 file.SetExtension("db_type", dbType);
                 var dbId = $"{ctx.WorkspaceId}:db:{dbEngine.ToLowerInvariant()}";
                 var dbNode = new DbNode(dbId, dbEngine, dbId);
@@ -80,15 +117,15 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
                 file.Children.Add(dbNode);
             }
 
-            if (firstApiImport != null)
+            if (apiParser != null)
             {
-                var apiLib = MapPackageToApiLibrary(firstApiImport.Path);
+                var apiLib = apiParser.ApiLibrary ?? "unknown";
                 file.SetExtension("api_library", apiLib);
             }
 
-            if (firstCloudImport != null)
+            if (cloudParser != null)
             {
-                var cloudService = MapPackageToCloudService(firstCloudImport.Path);
+                var cloudService = cloudParser.CloudService ?? "unknown";
                 file.SetExtension("cloud_service", cloudService);
                 var cloudId = $"{ctx.WorkspaceId}:cloud:{cloudService.ToLowerInvariant()}";
                 var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
@@ -175,84 +212,5 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
         parentNode.Children.Add(varNode);
         return true;
-    }
-
-    protected virtual string MapPackageToDbEngine(string packageName)
-    {
-        var lower = packageName.ToLowerInvariant();
-        if (lower.Contains("pg") || lower.Contains("npgsql") || lower.Contains("postgres"))
-            return "PostgreSQL";
-        if (lower.Contains("sqlclient") || lower.Contains("mssql") || lower.Contains("entityframeworkcore.sqlserver"))
-            return "SQL Server";
-        if (lower.Contains("sqlite"))
-            return "SQLite";
-        if (lower.Contains("mysql"))
-            return "MySQL";
-        if (lower.Contains("mongo"))
-            return "MongoDB";
-        if (lower.Contains("redis"))
-            return "Redis";
-        if (lower.Contains("clickhouse"))
-            return "ClickHouse";
-        return packageName;
-    }
-
-    protected virtual string MapPackageToCloudService(string packageName)
-    {
-        var lower = packageName.ToLowerInvariant();
-        if (lower.Contains("aws") || lower.Contains("boto3"))
-            return "AWS";
-        if (lower.Contains("google.cloud") || lower.Contains("google-cloud") || lower.Contains("firebase"))
-            return "GCP";
-        if (lower.Contains("azure"))
-            return "Azure";
-        if (lower.Contains("stripe"))
-            return "Stripe";
-        return packageName;
-    }
-
-    protected virtual string MapPackageToApiLibrary(string packageName)
-    {
-        var lower = packageName.ToLowerInvariant();
-        var clean = Path.GetFileName(lower);
-
-        if (clean.Contains("axios"))
-            return "Axios";
-        if (clean == "net/http" || clean == "http" || clean == "https")
-            return "http/https";
-        if (clean.Contains("system.net.http") || clean == "httpclient")
-            return "HttpClient";
-        if (clean.Contains("fetch") || clean.Contains("isomorphic-fetch") || clean.Contains("cross-fetch"))
-            return "fetch";
-        if (clean.Contains("superagent"))
-            return "superagent";
-        if (clean.Contains("got"))
-            return "got";
-        if (clean.Contains("requests") || clean.Contains("urllib"))
-            return "requests";
-        if (clean.Contains("httpx"))
-            return "httpx";
-        if (clean.Contains("aiohttp"))
-            return "aiohttp";
-        if (clean.Contains("restsharp"))
-            return "RestSharp";
-        if (clean.Contains("flurl"))
-            return "Flurl";
-        if (clean.Contains("refit"))
-            return "Refit";
-        if (clean.Contains("resty"))
-            return "Resty";
-        if (clean.Contains("req"))
-            return "req";
-        if (clean.Contains("grequests"))
-            return "grequests";
-        if (clean.Contains("undici"))
-            return "undici";
-        if (clean.Contains("ky"))
-            return "ky";
-        if (clean.Contains("bent"))
-            return "bent";
-
-        return packageName;
     }
 }
