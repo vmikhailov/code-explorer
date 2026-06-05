@@ -1,4 +1,8 @@
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -23,7 +27,7 @@ public class PythonParser : IProjectParser, IFileParser
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName is "requirements.txt" or "pyproject.toml" or "setup.py")
+            if (fileName is "requirements.txt" or "pyproject.toml" or "setup.py" or "setup.cfg")
             {
                 return true;
             }
@@ -39,6 +43,21 @@ public class PythonParser : IProjectParser, IFileParser
             {
                 return "Query";
             }
+        }
+
+        if (IsPythonDecoratorEntryPoint(node))
+        {
+            return "EntryPoint";
+        }
+
+        if (IsDjangoPath(node))
+        {
+            return "EntryPoint";
+        }
+
+        if (IsPythonHttpClientCall(node))
+        {
+            return "ExternalService";
         }
 
         return node.Type switch
@@ -63,6 +82,21 @@ public class PythonParser : IProjectParser, IFileParser
             {
                 return $"{firstWord} Query";
             }
+        }
+
+        if (IsPythonDecoratorEntryPoint(node))
+        {
+            return ExtractPythonDecoratorRoute(node);
+        }
+
+        if (IsDjangoPath(node))
+        {
+            return ExtractDjangoPathRoute(node);
+        }
+
+        if (IsPythonHttpClientCall(node))
+        {
+            return ExtractPythonHttpClientTarget(node);
         }
 
         var nameNode = node.GetChildForField("name");
@@ -99,6 +133,48 @@ public class PythonParser : IProjectParser, IFileParser
         if (node.Type == "string")
         {
             NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
+        }
+
+        // If this is a function_definition preceded by a decorator, check if parent is decorated_definition
+        if (node.Type == "function_definition")
+        {
+            var parent = node.Parent;
+            if (parent != null && parent.Type == "decorated_definition")
+            {
+                foreach (var child in parent.Children)
+                {
+                    if (IsPythonDecoratorEntryPoint(child))
+                    {
+                        var route = ExtractPythonDecoratorRoute(child);
+                        if (!string.IsNullOrEmpty(route))
+                        {
+                            references.Add(new Reference(scopeSymbolId, route.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (IsDjangoPath(node))
+        {
+            var route = ExtractDjangoPathRoute(node);
+            if (!string.IsNullOrEmpty(route))
+            {
+                var args = node.Children.FirstOrDefault(c => c.Type == "argument_list");
+                if (args != null && args.Children.Count > 1)
+                {
+                    var viewArg = args.Children.Skip(1).FirstOrDefault(c => c.Type is "identifier" or "attribute");
+                    if (viewArg != null)
+                    {
+                        var viewName = viewArg.Text;
+                        if (viewName.Contains('.'))
+                        {
+                            viewName = viewName.Split('.').Last();
+                        }
+                        references.Add(new Reference(viewName, route.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    }
+                }
+            }
         }
     }
 
@@ -323,5 +399,258 @@ public class PythonParser : IProjectParser, IFileParser
     {
         var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
         return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+    }
+
+    private readonly PythonSemanticAnalyzer _analyzer = new();
+
+    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
+
+    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    {
+        if (node.Type == "import_statement")
+        {
+            foreach (var child in node.Children)
+            {
+                if (child.Type is "dotted_name" or "aliased_name")
+                {
+                    var importPath = child.Text;
+                    ctx.AddRawImport(new RawImport(importPath, filePath));
+                }
+            }
+        }
+        else if (node.Type == "import_from_statement")
+        {
+            var moduleNode = node.GetChildForField("module_name");
+            if (moduleNode == null || moduleNode.Id == IntPtr.Zero)
+            {
+                moduleNode = node.Children.FirstOrDefault(c => c.Type == "dotted_name");
+            }
+            if (moduleNode != null && moduleNode.Id != IntPtr.Zero)
+            {
+                var importPath = moduleNode.Text;
+                ctx.AddRawImport(new RawImport(importPath, filePath));
+            }
+        }
+        else if (node.Type == "assignment")
+        {
+            var leftNode = node.GetChildForField("left");
+            if (leftNode == null || leftNode.Id == IntPtr.Zero)
+            {
+                leftNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
+            }
+            
+            var rightNode = node.GetChildForField("right");
+            if (rightNode == null || rightNode.Id == IntPtr.Zero)
+            {
+                int eqIdx = -1;
+                for (int i = 0; i < node.Children.Count; i++)
+                {
+                    if (node.Children[i].Text == "=")
+                    {
+                        eqIdx = i;
+                        break;
+                    }
+                }
+                if (eqIdx >= 0 && eqIdx + 1 < node.Children.Count)
+                {
+                    rightNode = node.Children[eqIdx + 1];
+                }
+            }
+
+            if (leftNode != null && leftNode.Id != IntPtr.Zero && leftNode.Type == "identifier")
+            {
+                var name = leftNode.Text;
+                var initializerText = rightNode != null && rightNode.Id != IntPtr.Zero ? rightNode.Text : "";
+                
+                bool isConstant = name.All(c => !char.IsLower(c));
+                string scope = DeterminePythonScope(node);
+
+                ctx.AddRawVariable(new RawVariable(
+                    name,
+                    initializerText,
+                    scope,
+                    isConstant,
+                    filePath,
+                    node.StartPosition.Row,
+                    node.EndPosition.Row,
+                    node.StartPosition.Column,
+                    node.EndPosition.Column
+                ));
+            }
+        }
+    }
+
+    private static string DeterminePythonScope(Node node)
+    {
+        var curr = node.Parent;
+        while (curr != null && curr.Id != IntPtr.Zero)
+        {
+            if (curr.Type == "class_definition")
+                return "class";
+            if (curr.Type == "function_definition")
+                return "local";
+            curr = curr.Parent;
+        }
+        return "global";
+    }
+
+    private static bool IsPythonDecoratorEntryPoint(Node node)
+    {
+        if (node.Type != "decorator") return false;
+        var call = node.Children.FirstOrDefault(c => c.Type == "call");
+        if (call == null) return false;
+        var func = call.GetChildForField("function");
+        if (func == null || (func.Id == IntPtr.Zero && call.Children.Count > 0)) func = call.Children[0];
+        if (func == null || func.Id == IntPtr.Zero) return false;
+
+        if (func.Type == "attribute")
+        {
+            var attr = func.GetChildForField("attribute");
+            if (attr != null && attr.Id != IntPtr.Zero)
+            {
+                var attrName = attr.Text;
+                if (attrName is "route" or "get" or "post" or "put" or "delete" or "patch")
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static string? ExtractPythonDecoratorRoute(Node decoratorNode)
+    {
+        var call = decoratorNode.Children.FirstOrDefault(c => c.Type == "call");
+        if (call == null) return null;
+        var func = call.GetChildForField("function");
+        if (func == null || (func.Id == IntPtr.Zero && call.Children.Count > 0)) func = call.Children[0];
+        if (func == null || func.Id == IntPtr.Zero) return null;
+
+        string method = "GET";
+        if (func.Type == "attribute")
+        {
+            var attr = func.GetChildForField("attribute");
+            if (attr != null && attr.Id != IntPtr.Zero)
+            {
+                var attrName = attr.Text;
+                if (attrName != "route")
+                {
+                    method = attrName.ToUpperInvariant();
+                }
+                else
+                {
+                    var argList = call.Children.FirstOrDefault(c => c.Type == "argument_list");
+                    if (argList != null)
+                    {
+                        var keywordArg = argList.Children.FirstOrDefault(c => c.Type == "keyword_argument" && c.Text.StartsWith("methods"));
+                        if (keywordArg != null)
+                        {
+                            var listNode = keywordArg.Children.FirstOrDefault(c => c.Type == "list");
+                            if (listNode != null)
+                            {
+                                var firstStr = listNode.Children.FirstOrDefault(c => c.Type == "string");
+                                if (firstStr != null)
+                                {
+                                    method = firstStr.Text.Trim('\'', '"').ToUpperInvariant();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        var args = call.Children.FirstOrDefault(c => c.Type == "argument_list");
+        string routeVal = "/";
+        if (args != null && args.Children.Count > 1)
+        {
+            var firstArg = args.Children.FirstOrDefault(c => c.Type == "string");
+            if (firstArg != null)
+            {
+                routeVal = firstArg.Text.Trim('\'', '"');
+            }
+        }
+
+        return $"{method}:{routeVal}";
+    }
+
+    private static bool IsDjangoPath(Node node)
+    {
+        if (node.Type != "call") return false;
+        var func = node.GetChildForField("function");
+        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
+        if (func == null || func.Id == IntPtr.Zero) return false;
+
+        return func.Type == "identifier" && (func.Text == "path" || func.Text == "re_path");
+    }
+
+    private static string? ExtractDjangoPathRoute(Node callNode)
+    {
+        var args = callNode.Children.FirstOrDefault(c => c.Type == "argument_list");
+        if (args != null && args.Children.Count > 1)
+        {
+            var firstArg = args.Children.FirstOrDefault(c => c.Type == "string");
+            if (firstArg != null)
+            {
+                var routeVal = firstArg.Text.Trim('\'', '"');
+                return $"GET:{routeVal}";
+            }
+        }
+        return "GET:/";
+    }
+
+    private static bool IsPythonHttpClientCall(Node node)
+    {
+        if (node.Type != "call") return false;
+        var func = node.GetChildForField("function");
+        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
+        if (func == null || func.Id == IntPtr.Zero) return false;
+
+        if (func.Type == "attribute")
+        {
+            var obj = func.GetChildForField("value") ?? func.GetChildForField("object") ?? (func.Children.Count > 0 ? func.Children[0] : null);
+            var attr = func.GetChildForField("attribute");
+            if (obj != null && attr != null && attr.Id != IntPtr.Zero)
+            {
+                var objName = obj.Text;
+                var attrName = attr.Text;
+
+                if (objName is "requests" or "httpx" or "urllib.request" or "urllib")
+                {
+                    return attrName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head" or "urlopen";
+                }
+                if (objName.Contains("session") || objName.Contains("client") || objName.Contains("http"))
+                {
+                    return attrName is "get" or "post" or "put" or "delete" or "request" or "patch";
+                }
+            }
+        }
+        return false;
+    }
+
+    private static string? ExtractPythonHttpClientTarget(Node node)
+    {
+        var args = node.Children.FirstOrDefault(c => c.Type == "argument_list");
+        if (args != null && args.Children.Count > 1)
+        {
+            var firstArg = args.Children.FirstOrDefault(c => c.Type == "string");
+            if (firstArg != null)
+            {
+                var text = firstArg.Text.Trim('\'', '"');
+                if (text.Contains("://"))
+                {
+                    try
+                    {
+                        var uri = new Uri(text);
+                        return $"http:{uri.Host}";
+                    }
+                    catch
+                    {
+                    }
+                }
+                return $"http:{text}";
+            }
+        }
+        return "http:unknown-service";
     }
 }

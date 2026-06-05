@@ -39,6 +39,8 @@ public static class TreeSitterFileParser
         ParsingContext ctx,
         string filePath)
     {
+        parser.CollectSemanticData(node, filePath, ctx);
+
         var kind = parser.MapNodeType(node);
         string? name = null;
         if (kind != null)
@@ -83,9 +85,9 @@ public static class TreeSitterFileParser
             {
                 nextParent.References.Add(new Reference(currentParentId, node.Text, OntologyConstants.Relationships.PotentialType));
             }
-
-            parser.CollectReferences(node, currentParentId, nextParent.References);
         }
+
+        parser.CollectReferences(node, currentParentId, nextParent.References);
 
         foreach (var child in node.Children)
         {

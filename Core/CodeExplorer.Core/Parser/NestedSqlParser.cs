@@ -260,6 +260,7 @@ public static class NestedSqlParser
             {
                 var dbNodeId = $"db:{dbKey}";
                 dbNode = new DbNode(dbNodeId, dbName, filePath);
+                dbNode.SetExtension("db_type", "relational");
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }
@@ -293,6 +294,7 @@ public static class NestedSqlParser
             {
                 var dbNodeId = $"db:{dbKey}";
                 dbNode = new DbNode(dbNodeId, dbName, filePath);
+                dbNode.SetExtension("db_type", "relational");
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }

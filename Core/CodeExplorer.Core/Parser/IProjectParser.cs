@@ -1,3 +1,5 @@
+using CodeExplorer.Core.Common.Nodes;
+
 namespace CodeExplorer.Core.Parser;
 
 public interface IProjectParser
@@ -26,4 +28,9 @@ public interface IProjectParser
     /// Parses the project dependencies (local project directory paths and external packages) in the given directory.
     /// </summary>
     Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory);
+
+    /// <summary>
+    /// Gets the semantic analyzer for this project type.
+    /// </summary>
+    ISemanticAnalyzer GetSemanticAnalyzer();
 }

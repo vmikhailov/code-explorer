@@ -102,6 +102,35 @@ public class TypeScriptParser : IProjectParser, IFileParser
             }
         }
 
+        if (node.Type is "arrow_function" or "function_expression")
+        {
+            var parent = node.Parent;
+            if (parent != null && parent.Id != IntPtr.Zero)
+            {
+                if (parent.Type == "variable_declarator")
+                {
+                    var parentNameNode = parent.GetChildForField("name");
+                    if (parentNameNode != null && parentNameNode.Id != IntPtr.Zero)
+                    {
+                        return parentNameNode.Text;
+                    }
+                    var firstIdent = parent.Children.FirstOrDefault(c => c.Type == "identifier");
+                    if (firstIdent != null && firstIdent.Id != IntPtr.Zero)
+                    {
+                        return firstIdent.Text;
+                    }
+                }
+                else if (parent.Type == "assignment_expression")
+                {
+                    var leftNode = parent.GetChildForField("left");
+                    if (leftNode != null && leftNode.Id != IntPtr.Zero)
+                    {
+                        return leftNode.Text;
+                    }
+                }
+            }
+        }
+
         var nameNode = node.GetChildForField("name");
         if (nameNode != null && nameNode.Id != IntPtr.Zero)
         {
@@ -179,7 +208,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         if (func.Type == "member_expression")
         {
             var obj = func.GetChildForField("object");
-            if (obj != null && (obj.Text.Contains("app") || obj.Text.Contains("router") || obj.Text.Contains("express")))
+            if (obj != null && (obj.Text == "app" || obj.Text == "router" || obj.Text == "express"))
             {
                 var prop = func.GetChildForField("property");
                 if (prop != null && prop.Id != IntPtr.Zero)
@@ -222,18 +251,29 @@ public class TypeScriptParser : IProjectParser, IFileParser
         if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
         if (func == null || func.Id == IntPtr.Zero) return false;
 
-        if (func.Type == "identifier" && func.Text == "fetch") return true;
+        if (func.Type == "identifier")
+        {
+            return func.Text is "fetch" or "nodeFetch" or "got" or "superagent" or "axios";
+        }
 
         if (func.Type == "member_expression")
         {
             var obj = func.GetChildForField("object");
-            if (obj != null && obj.Text == "axios")
+            if (obj != null)
             {
+                var objName = obj.Text;
                 var prop = func.GetChildForField("property");
                 if (prop != null)
                 {
-                    var method = prop.Text;
-                    return method is "get" or "post" or "put" or "delete" or "request";
+                    var propName = prop.Text;
+                    if (objName is "axios" or "got" or "superagent" or "request")
+                    {
+                        return propName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head";
+                    }
+                    if (objName is "http" or "https")
+                    {
+                        return propName is "get" or "request" or "post";
+                    }
                 }
             }
         }
@@ -307,40 +347,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
         }
 
         return idx > 0 ? children[idx - 1] : null;
-    }
-
-    private static Node? GetNextNamedSibling(Node node)
-    {
-        var parent = node.Parent;
-        if (parent == null || parent.Id == IntPtr.Zero) return null;
-
-        var children = parent.Children;
-        int idx = -1;
-        for (int i = 0; i < children.Count; i++)
-        {
-            if (children[i].Id == node.Id)
-            {
-                idx = i;
-                break;
-            }
-        }
-
-        if (idx >= 0)
-        {
-            for (int i = idx + 1; i < children.Count; i++)
-            {
-                var sibling = children[i];
-                if (sibling.Type == "method_definition")
-                {
-                    return sibling;
-                }
-                if (sibling.Type == "class_declaration")
-                {
-                    return sibling;
-                }
-            }
-        }
-        return null;
     }
 
     private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
@@ -493,5 +499,129 @@ public class TypeScriptParser : IProjectParser, IFileParser
     {
         var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
         return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+    }
+
+    private readonly TypeScriptSemanticAnalyzer _analyzer = new();
+
+    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
+
+    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    {
+        if (node.Type == "import_statement")
+        {
+            var sourceNode = node.GetChildForField("source");
+            if (sourceNode == null || sourceNode.Id == IntPtr.Zero)
+            {
+                sourceNode = node.Children.FirstOrDefault(c => c.Type == "string");
+            }
+            if (sourceNode != null && sourceNode.Id != IntPtr.Zero)
+            {
+                var importPath = sourceNode.Text.Trim('\'', '"');
+                ctx.AddRawImport(new RawImport(importPath, filePath));
+            }
+        }
+        else if (node.Type == "call_expression")
+        {
+            var funcNode = node.GetChildForField("function");
+            if (funcNode != null && funcNode.Text == "require")
+            {
+                var argList = node.GetChildForField("arguments");
+                if (argList != null && argList.Children.Count > 1)
+                {
+                    var firstArg = argList.Children.FirstOrDefault(c => c.Type == "string");
+                    if (firstArg != null)
+                    {
+                        var importPath = firstArg.Text.Trim('\'', '"');
+                        ctx.AddRawImport(new RawImport(importPath, filePath));
+                    }
+                }
+            }
+        }
+        else if (node.Type == "variable_declarator")
+        {
+            var nameNode = node.GetChildForField("name");
+            if (nameNode == null || nameNode.Id == IntPtr.Zero)
+            {
+                nameNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
+            }
+            var name = nameNode?.Text;
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                var valueNode = node.GetChildForField("value");
+                string initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
+                bool isConstant = IsTypeScriptConstant(node);
+                string scope = DetermineTypeScriptScope(node);
+
+                ctx.AddRawVariable(new RawVariable(
+                    name,
+                    initializerText,
+                    scope,
+                    isConstant,
+                    filePath,
+                    node.StartPosition.Row,
+                    node.EndPosition.Row,
+                    node.StartPosition.Column,
+                    node.EndPosition.Column
+                ));
+            }
+        }
+        else if (node.Type == "public_field_definition")
+        {
+            var nameNode = node.GetChildForField("name");
+            if (nameNode == null || nameNode.Id == IntPtr.Zero)
+            {
+                nameNode = node.Children.FirstOrDefault(c => c.Type == "property_identifier");
+            }
+            var name = nameNode?.Text;
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                var valueNode = node.GetChildForField("value");
+                string initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
+                bool isConstant = false;
+                string scope = "class";
+
+                ctx.AddRawVariable(new RawVariable(
+                    name,
+                    initializerText,
+                    scope,
+                    isConstant,
+                    filePath,
+                    node.StartPosition.Row,
+                    node.EndPosition.Row,
+                    node.StartPosition.Column,
+                    node.EndPosition.Column
+                ));
+            }
+        }
+    }
+
+    private static bool IsTypeScriptConstant(Node node)
+    {
+        var curr = node.Parent;
+        while (curr != null && curr.Id != IntPtr.Zero)
+        {
+            if (curr.Type == "lexical_declaration")
+            {
+                return curr.Text.StartsWith("const");
+            }
+            curr = curr.Parent;
+        }
+        return false;
+    }
+
+    private static string DetermineTypeScriptScope(Node node)
+    {
+        var curr = node.Parent;
+        while (curr != null && curr.Id != IntPtr.Zero)
+        {
+            if (curr.Type is "class_declaration" or "interface_declaration")
+                return "class";
+            if (curr.Type is "function_declaration" or "arrow_function" or "method_definition" or "statement_block")
+                return "local";
+            curr = curr.Parent;
+        }
+        return "global";
     }
 }

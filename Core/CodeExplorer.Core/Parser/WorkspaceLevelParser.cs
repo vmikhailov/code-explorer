@@ -39,13 +39,13 @@ public class WorkspaceLevelParser
 
         var hostPath = PathTools.NormalizeToHostPath(_ctx.HostWorkspacePath);
         var workspaceNode = new WorkspaceNode(
-            wsId,
+            wsId.ToString(),
             folderName,
             hostPath
         );
 
         // Parse and add Git settings if the workspace has a .git folder
-        var gitSettingsNode = GitSettingsParser.Parse(wsId, _absoluteWorkspacePath);
+        var gitSettingsNode = GitSettingsParser.Parse(wsId.ToString(), _absoluteWorkspacePath);
         if (gitSettingsNode != null)
         {
             workspaceNode.Children.Add(gitSettingsNode);
@@ -53,6 +53,9 @@ public class WorkspaceLevelParser
 
         // 2. Recursively scan, discovering projects inline!
         await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode);
+
+        // Prune empty folder/project nodes to avoid adding empty projects/folders to the graph
+        OntologyPruner.PruneEmptyFolders(workspaceNode);
 
         // 3. Perform late binding
         await PerformLateBindingAsync(workspaceNode);
@@ -90,13 +93,10 @@ public class WorkspaceLevelParser
         }
 
         // 3. Scan folder for project signatures to detect projects dynamically
-        var filesInDir = Directory.GetFiles(currentDir);
-        var matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(currentDir, filesInDir));
-
-        if (matchedParser != null)
+        var processor = ProjectProcessorFactory.CreateProcessor(_ctx, currentDir, parentNode.Id);
+        if (processor != null)
         {
-            var projectParser = new ProjectLevelParser(_ctx, currentDir, parentNode.Id, matchedParser);
-            var projectNode = await projectParser.ParseProjectAsync();
+            var projectNode = await processor.ProcessAsync();
             parentNode.Children.Add(projectNode);
             return;
         }
@@ -118,7 +118,7 @@ public class WorkspaceLevelParser
         }
 
         // Scan root level loose files
-        foreach (var file in filesInDir)
+        foreach (var file in Directory.GetFiles(currentDir))
         {
             var ext = Path.GetExtension(file).ToLower();
             var relativeFile = Path.GetRelativePath(_absoluteWorkspacePath, file).Replace('\\', '/');

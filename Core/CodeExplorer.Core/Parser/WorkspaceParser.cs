@@ -16,7 +16,7 @@ public class WorkspaceParser
         {
             lock (ProjectParsers)
             {
-                if (!ProjectParsers.Any(p => p.GetType() == projectParser.GetType()))
+                if (ProjectParsers.All(p => p.GetType() != projectParser.GetType()))
                     ProjectParsers.Add(projectParser);
             }
         }
@@ -24,7 +24,7 @@ public class WorkspaceParser
         {
             lock (FileParsers)
             {
-                if (!FileParsers.Any(p => p.GetType() == fileParser.GetType()))
+                if (FileParsers.All(p => p.GetType() != fileParser.GetType()))
                     FileParsers.Add(fileParser);
             }
         }
@@ -105,25 +105,21 @@ public class WorkspaceParser
                     {
                         if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Interface, refItem.TargetName), out var targetNodeId))
                         {
-                            IOntologyRelationship rel = refItem.Kind == OntologyConstants.Relationships.Implements
-                                ? new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId)
-                                : new InheritsFromRelationship(refItem.ScopeSymbolId, targetNodeId);
+                            IOntologyRelationship rel = new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId);
                             referenceRelationships.Add(Relationship.FromRelationship(rel));
                             inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
                         }
                         else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Class, refItem.TargetName), out var targetClassId))
                         {
-                            IOntologyRelationship rel = refItem.Kind == OntologyConstants.Relationships.Implements
-                                ? new ImplementsRelationship(refItem.ScopeSymbolId, targetClassId)
-                                : new InheritsFromRelationship(refItem.ScopeSymbolId, targetClassId);
+                            IOntologyRelationship rel = new InheritsFromRelationship(refItem.ScopeSymbolId, targetClassId);
                             referenceRelationships.Add(Relationship.FromRelationship(rel));
                             inheritanceRels.Add((refItem.ScopeSymbolId, targetClassId));
                         }
                         else if (refItem.Kind == OntologyConstants.Relationships.Implements &&
                                  ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.EntryPoint, refItem.TargetName), out var targetEpId))
                         {
-                            referenceRelationships.Add(Relationship.FromRelationship(new ImplementsRelationship(refItem.ScopeSymbolId, targetEpId)));
-                            inheritanceRels.Add((refItem.ScopeSymbolId, targetEpId));
+                            referenceRelationships.Add(Relationship.FromRelationship(new ImplementedByRelationship(targetEpId, refItem.ScopeSymbolId)));
+                            inheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
                         }
                     }
                 }

@@ -25,6 +25,25 @@ public class ParsingContext
     public List<Reference> GlobalReferences { get; }
     public List<Relationship> GlobalProjectDependencies { get; }
     
+    public List<RawImport> RawImports { get; } = [];
+    public List<RawVariable> RawVariables { get; } = [];
+
+    public void AddRawImport(RawImport imp)
+    {
+        lock (RawImports)
+        {
+            RawImports.Add(imp);
+        }
+    }
+
+    public void AddRawVariable(RawVariable var)
+    {
+        lock (RawVariables)
+        {
+            RawVariables.Add(var);
+        }
+    }
+
     public Dictionary<string, int> NodesByKind { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     private int _totalNodesCount;

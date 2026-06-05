@@ -190,6 +190,9 @@ func clean() {
     {
         var dbNode = queryNode.Children.OfType<DbNode>().FirstOrDefault(d => d.Name.Equals(expectedDb, StringComparison.OrdinalIgnoreCase));
         Assert.That(dbNode, Is.Not.Null, $"Should contain DB node: {expectedDb}");
+        Assert.That(dbNode.Extensions, Is.Not.Null);
+        Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
+        Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
 
         var schemaNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault(s => s.Name.Equals(expectedSchema, StringComparison.OrdinalIgnoreCase));
         Assert.That(schemaNode, Is.Not.Null, $"Should contain Schema/DataSet node: {expectedSchema}");
@@ -304,6 +307,17 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         {
             if (node is ExternalServiceNode e) result.Add(e);
             result.AddRange(FindExternalServiceNodes(node.Children));
+        }
+        return result;
+    }
+
+    private List<Reference> FindReferences(IEnumerable<IOntologyNode> nodes)
+    {
+        var result = new List<Reference>();
+        foreach (var node in nodes)
+        {
+            result.AddRange(node.References);
+            result.AddRange(FindReferences(node.Children));
         }
         return result;
     }
@@ -476,6 +490,297 @@ export class OrdersController {
             Assert.That(results.RelationshipsCount, Is.GreaterThan(0));
             
             Console.WriteLine($"[IntegrationTest] Parsed {results.NodesCount} nodes and {results.RelationshipsCount} relationships successfully.");
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Test_SemanticAnalysisAndOntologyEnrichment()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "semantic_test_workspace_" + Guid.NewGuid()).Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+        
+        try
+        {
+            // Project A: C# project using database package (Dapper) and containing configuration + constants + empty subfolder
+            var projADir = Path.Combine(tempWorkspace, "ProjectA").Replace('\\', '/');
+            Directory.CreateDirectory(projADir);
+            await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            
+            // Empty folder in Project A to verify pruning
+            var emptySubDir = Path.Combine(projADir, "EmptyFolder").Replace('\\', '/');
+            Directory.CreateDirectory(emptySubDir);
+
+            var projAFile = Path.Combine(projADir, "Repository.cs").Replace('\\', '/');
+            var projACode = @"
+            using System;
+            using Dapper;
+            using Stripe;
+            class Repository {
+                private const string CONNECTION_STRING_URL = ""Server=myServerAddress;Database=myDataBase;User Id=myUsername;Password=myPassword;"";
+                public static readonly int MAX_RETRIES = 5;
+                void RunQuery() {
+                    var sql = ""SELECT * FROM Users"";
+                    int timeoutSeconds = 30;
+                }
+            }";
+            await File.WriteAllTextAsync(projAFile, projACode);
+
+            // Project B: Empty project (should be pruned from graph completely)
+            var projBDir = Path.Combine(tempWorkspace, "ProjectB").Replace('\\', '/');
+            Directory.CreateDirectory(projBDir);
+            await File.WriteAllTextAsync(Path.Combine(projBDir, "ProjectB.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+
+            // Setup parsing context
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+            
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+            ctx.WorkspaceId = "1";
+
+            // Register CSharp parser
+            WorkspaceParser.Register(new CSharpParser());
+
+            var scanParser = new WorkspaceLevelParser(ctx);
+            var workspaceNode = new WorkspaceNode("1", "TestWorkspace", tempWorkspace);
+            
+            // Invoke ScanDirectoryAsync via reflection
+            var rootScan = typeof(WorkspaceLevelParser).GetMethod("ScanDirectoryAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.That(rootScan, Is.Not.Null);
+            await (Task)rootScan.Invoke(scanParser, new object[] { tempWorkspace, workspaceNode });
+
+            // Before pruning, ProjectB and EmptyFolder are in the tree
+            Assert.That(workspaceNode.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.True);
+            
+            var projectA = workspaceNode.Children.FirstOrDefault(c => c is ProjectNode pn && pn.Name == "ProjectA");
+            Assert.That(projectA, Is.Not.Null);
+            Assert.That(projectA.Children.Any(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
+
+            // 2. Perform pruning
+            OntologyPruner.PruneEmptyFolders(workspaceNode);
+
+            // After pruning:
+            // ProjectB is removed because it is an empty project
+            Assert.That(workspaceNode.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.False);
+            // EmptyFolder is removed
+            var folderA = projectA.Children.FirstOrDefault(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder");
+            Assert.That(folderA, Is.Null);
+
+            // 3. Verify semantic analysis
+            var fileNode = projectA.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
+            Assert.That(fileNode, Is.Not.Null);
+            
+            // Check Repository.cs extensions
+            Assert.That(fileNode.Extensions, Is.Not.Null);
+            Assert.That(fileNode.Extensions.ContainsKey("uses_database"), Is.True);
+            Assert.That(fileNode.Extensions["uses_database"], Is.EqualTo("true"));
+            Assert.That(fileNode.Extensions.ContainsKey("uses_cloud"), Is.True);
+            Assert.That(fileNode.Extensions["uses_cloud"], Is.EqualTo("true"));
+
+            // Check if DbNode child was added
+            var dbNode = fileNode.Children.OfType<DbNode>().FirstOrDefault();
+            Assert.That(dbNode, Is.Not.Null);
+            Assert.That(dbNode.Name, Is.EqualTo("Dapper"));
+            Assert.That(dbNode.Extensions, Is.Not.Null);
+            Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
+            Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
+
+            // Check if CloudServiceNode child was added
+            var cloudNode = fileNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
+            Assert.That(cloudNode, Is.Not.Null);
+            Assert.That(cloudNode.Name, Is.EqualTo("Stripe"));
+
+            // Check variable nodes under ClassNode (Repository)
+            var classNode = fileNode.Children.OfType<ClassNode>().FirstOrDefault();
+            Assert.That(classNode, Is.Not.Null);
+
+            var variables = classNode.Children.OfType<VariableNode>().ToList();
+            Assert.That(variables.Any(v => v.Name == "CONNECTION_STRING_URL"), Is.True);
+            Assert.That(variables.Any(v => v.Name == "MAX_RETRIES"), Is.True);
+            Assert.That(variables.Any(v => v.Name == "timeoutSeconds"), Is.False); // local non-config is ignored
+            
+            var connStrVar = variables.First(v => v.Name == "CONNECTION_STRING_URL");
+            Assert.That(connStrVar.Extensions, Is.Not.Null);
+            Assert.That(connStrVar.Extensions["variable_type"], Contains.Substring("config"));
+            Assert.That(connStrVar.Extensions["variable_type"], Contains.Substring("constant"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Test_NewParserFeatures()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "new_features_test_workspace_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+            ctx.WorkspaceId = "1";
+
+            // 1. Python Parser - Flask & HTTP calls
+            var pythonParser = new PythonParser();
+            var pyFile = Path.Combine(tempWorkspace, "app.py");
+            var pyCode = @"
+@app.route('/charge', methods=['POST'])
+def process_payment():
+    requests.post('https://api.stripe.com/v3/charges')
+";
+            await File.WriteAllTextAsync(pyFile, pyCode);
+            var pyNode = await pythonParser.ParseAsync(pyFile, "parent", ctx);
+            Assert.That(pyNode, Is.Not.Null);
+
+            var pyEntryPoints = FindEntryPointNodes(pyNode.Children);
+            Assert.That(pyEntryPoints, Has.Count.EqualTo(1));
+            Assert.That(pyEntryPoints[0].Name, Is.EqualTo("POST /charge"));
+
+            var pyExtServices = FindExternalServiceNodes(pyNode.Children);
+            Assert.That(pyExtServices, Has.Count.EqualTo(1));
+            Assert.That(pyExtServices[0].Name, Is.EqualTo("api.stripe.com"));
+
+            // Verify reference from process_payment function to EntryPoint POST:/charge is collected
+            var pyRefs = FindReferences(pyNode.Children);
+            Assert.That(pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == "IMPLEMENTS"), Is.True);
+
+            // 2. Go Parser - Gin & HTTP Get calls
+            var goParser = new GoParser();
+            var goFile = Path.Combine(tempWorkspace, "main.go");
+            var goCode = @"
+package main
+import ""net/http""
+func Register(r *gin.Engine) {
+    r.GET(""/api/v1/users"", GetUsers)
+}
+";
+            await File.WriteAllTextAsync(goFile, goCode);
+            // Debug: print the Go AST
+            var goSourceText = await File.ReadAllTextAsync(goFile);
+            using var goLang = new TreeSitter.Language("go");
+            using var goTsParser = new TreeSitter.Parser(goLang);
+            using var goTree = goTsParser.Parse(goSourceText);
+            Console.WriteLine("--- GO AST START ---");
+            PrintTsAst(goTree.RootNode, "");
+            Console.WriteLine("--- GO AST END ---");
+
+            var goNode = await goParser.ParseAsync(goFile, "parent", ctx);
+            Assert.That(goNode, Is.Not.Null);
+
+            var goEntryPoints = FindEntryPointNodes(goNode.Children);
+            Assert.That(goEntryPoints, Has.Count.EqualTo(1));
+            Assert.That(goEntryPoints[0].Name, Is.EqualTo("GET /api/v1/users"));
+
+            // Verify Go references
+            var goRefs = FindReferences(goNode.Children);
+            Assert.That(goRefs.Any(r => r.TargetName == "GET /api/v1/users" && r.Kind == "IMPLEMENTS" && r.ScopeSymbolId == "GetUsers"), Is.True);
+
+            // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
+            var sqlParser = new CodeExplorer.Parser.SQL.SqlParser();
+            var sqlFile = Path.Combine(tempWorkspace, "sp.sql");
+            var sqlCode = @"
+CREATE OR REPLACE PROCEDURE `my_schema`.`my_proc`()
+BEGIN
+    CREATE TABLE IF NOT EXISTS `my_schema`.`my_table` (id INT);
+    EXEC `my_schema`.`another_proc`;
+END;
+";
+            await File.WriteAllTextAsync(sqlFile, sqlCode);
+            var sqlNode = await sqlParser.ParseAsync(sqlFile, "parent", ctx);
+            Assert.That(sqlNode, Is.Not.Null);
+
+            // Schema and DB hierarchy check
+            var dbNode = sqlNode.Children.OfType<DbNode>().FirstOrDefault();
+            Assert.That(dbNode, Is.Not.Null);
+            Assert.That(dbNode.Extensions, Is.Not.Null);
+            Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
+            Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
+
+            var schemaNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault(s => s.Name == "my_schema");
+            Assert.That(schemaNode, Is.Not.Null);
+
+            var procNode = schemaNode.Children.OfType<ProcedureNode>().FirstOrDefault(p => p.Name == "my_proc");
+            Assert.That(procNode, Is.Not.Null);
+
+            var tableNode = schemaNode.Children.OfType<TableNode>().FirstOrDefault(t => t.Name == "my_table");
+            Assert.That(tableNode, Is.Not.Null);
+
+            var queryNode = procNode.Children.OfType<QueryNode>().FirstOrDefault();
+            Assert.That(queryNode, Is.Not.Null);
+            Assert.That(queryNode.References.Any(r => r.TargetName == "another_proc" && r.Kind == "CALLS"), Is.True);
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Test_SemanticAnalyzer_DbTypeMapping()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "db_type_mapping_test_workspace_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+            ctx.WorkspaceId = "1";
+
+            // Test C# Semantic Analyzer with relational (EntityFramework)
+            var csAnalyzer = new CodeExplorer.Parser.CSharp.CSharpSemanticAnalyzer();
+            var csProj = new ProjectNode("cs_project", "cs_project", "cs_project", "csharp");
+            var csFile = new FileNode("cs_file", "Repository.cs", "Repository.cs", tempWorkspace + "/Repository.cs");
+            csProj.Children.Add(csFile);
+            ctx.RawImports.Add(new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs"));
+            await csAnalyzer.AnalyzeAndEnrichAsync(csProj, ctx);
+            
+            var csDbNode = csFile.Children.OfType<DbNode>().FirstOrDefault();
+            Assert.That(csDbNode, Is.Not.Null);
+            Assert.That(csDbNode.Name, Is.EqualTo("Microsoft.EntityFrameworkCore"));
+            Assert.That(csDbNode.Extensions["db_type"], Is.EqualTo("relational"));
+
+            // Test TypeScript Semantic Analyzer with document (mongoose)
+            var tsAnalyzer = new CodeExplorer.Parser.TypeScript.TypeScriptSemanticAnalyzer();
+            var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
+            var tsFile = new FileNode("ts_file", "index.ts", "index.ts", tempWorkspace + "/index.ts");
+            tsProj.Children.Add(tsFile);
+            ctx.RawImports.Add(new RawImport("mongoose", "index.ts"));
+            await tsAnalyzer.AnalyzeAndEnrichAsync(tsProj, ctx);
+
+            var tsDbNode = tsFile.Children.OfType<DbNode>().FirstOrDefault();
+            Assert.That(tsDbNode, Is.Not.Null);
+            Assert.That(tsDbNode.Name, Is.EqualTo("MongoDB"));
+            Assert.That(tsDbNode.Extensions["db_type"], Is.EqualTo("document"));
+
+            // Test Python Semantic Analyzer with keyvalue (redis)
+            var pyAnalyzer = new CodeExplorer.Parser.Python.PythonSemanticAnalyzer();
+            var pyProj = new ProjectNode("py_project", "py_project", "py_project", "python");
+            var pyFile = new FileNode("py_file", "main.py", "main.py", tempWorkspace + "/main.py");
+            pyProj.Children.Add(pyFile);
+            ctx.RawImports.Add(new RawImport("redis", "main.py"));
+            await pyAnalyzer.AnalyzeAndEnrichAsync(pyProj, ctx);
+
+            var pyDbNode = pyFile.Children.OfType<DbNode>().FirstOrDefault();
+            Assert.That(pyDbNode, Is.Not.Null);
+            Assert.That(pyDbNode.Name, Is.EqualTo("Redis"));
+            Assert.That(pyDbNode.Extensions["db_type"], Is.EqualTo("keyvalue"));
         }
         finally
         {

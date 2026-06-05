@@ -120,7 +120,7 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
-            return new ImplementsRelationship(parentId, child.Id); // Function -> IMPLEMENTS -> EntryPoint
+            return new ImplementedByRelationship(child.Id, parentId); // EntryPoint -> IMPLEMENTED_BY -> Function
         }
         if (child.Kind == OntologyConstants.NodeLabels.ExternalService)
         {

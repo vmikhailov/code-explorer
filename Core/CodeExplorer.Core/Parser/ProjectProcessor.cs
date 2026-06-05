@@ -1,32 +1,38 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser;
 
-public class ProjectLevelParser
+public class ProjectProcessor
 {
     private readonly ParsingContext _ctx;
     private readonly string _projectDir;
     private readonly string _parentContainerId;
     private readonly IProjectParser _projectParser;
+    private readonly ISemanticAnalyzer _semanticAnalyzer;
     private readonly string _projectNodeId;
     private readonly GitIgnoreMatcher _gitignore;
 
-    public ProjectLevelParser(ParsingContext ctx, string projectDir, string parentContainerId, IProjectParser projectParser)
+    public ProjectProcessor(ParsingContext ctx, string projectDir, string parentContainerId, IProjectParser projectParser)
     {
         _ctx = ctx;
         _projectDir = projectDir.Replace('\\', '/');
         _parentContainerId = parentContainerId;
         _projectParser = projectParser;
+        _semanticAnalyzer = projectParser.GetSemanticAnalyzer();
         var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, projectDir).Replace('\\', '/');
         if (relativeProjectDir == ".") relativeProjectDir = "";
         _projectNodeId = $"{_ctx.WorkspaceId}:project:{relativeProjectDir}:";
         _gitignore = new GitIgnoreMatcher(_projectDir);
     }
 
-
-    public async Task<ProjectNode> ParseProjectAsync()
+    public async Task<ProjectNode> ProcessAsync()
     {
         var folderName = Path.GetFileName(_projectDir);
         if (string.IsNullOrEmpty(folderName)) folderName = _projectDir;
@@ -45,6 +51,9 @@ public class ProjectLevelParser
         // 2. Parse dependencies and produced packages
         await ParseDependenciesAsync(projectNode);
         await LinkProducedPackageAsync(projectNode);
+
+        // 3. Perform semantic analysis & ontology enrichment
+        await _semanticAnalyzer.AnalyzeAndEnrichAsync(projectNode, _ctx);
 
         await Console.Error.WriteLineAsync($"[WorkspaceParser] Completed scan of project '{folderName}'.");
         return projectNode;
@@ -84,17 +93,10 @@ public class ProjectLevelParser
         // Recurse directories
         foreach (var subDir in Directory.GetDirectories(currentDir))
         {
-            var filesInSubDir = Directory.GetFiles(subDir);
-            IProjectParser? matchedParser = null;
-            lock (WorkspaceParser.ProjectParsers)
+            var processor = ProjectProcessorFactory.CreateProcessor(_ctx, subDir, currentParentNode.Id);
+            if (processor != null)
             {
-                matchedParser = WorkspaceParser.ProjectParsers.FirstOrDefault(p => p.IsProjectDirectory(subDir, filesInSubDir));
-            }
-
-            if (matchedParser != null)
-            {
-                var nestedProjectParser = new ProjectLevelParser(_ctx, subDir, currentParentNode.Id, matchedParser);
-                var nestedProjectNode = await nestedProjectParser.ParseProjectAsync();
+                var nestedProjectNode = await processor.ProcessAsync();
                 currentParentNode.Children.Add(nestedProjectNode);
             }
             else

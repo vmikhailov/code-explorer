@@ -261,4 +261,16 @@ public class JavaScriptParser : IProjectParser, IFileParser
         var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
         return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
     }
+
+    private readonly TypeScriptParser _tsParser = new();
+
+    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    {
+        _tsParser.CollectSemanticData(node, filePath, ctx);
+    }
+
+    public ISemanticAnalyzer GetSemanticAnalyzer()
+    {
+        return _tsParser.GetSemanticAnalyzer();
+    }
 }

@@ -1,4 +1,8 @@
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -47,7 +51,10 @@ public class CSharpParser : IProjectParser, IFileParser
             return "ExternalService";
         }
 
-        if (node.Type.Contains("string"))
+        if (node.Type.Contains("string") && 
+            node.Type != "interpolated_string_expression" && 
+            node.Type != "interpolated_verbatim_string_expression" && 
+            node.Type != "interpolated_raw_string_expression")
         {
             if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
             {
@@ -206,7 +213,10 @@ public class CSharpParser : IProjectParser, IFileParser
     {
         TryDetectCalls(node, scopeSymbolId, references);
         TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
-        if (node.Type.Contains("string"))
+        if (node.Type.Contains("string") && 
+            node.Type != "interpolated_string_expression" && 
+            node.Type != "interpolated_verbatim_string_expression" && 
+            node.Type != "interpolated_raw_string_expression")
         {
             NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
         }
@@ -361,5 +371,94 @@ public class CSharpParser : IProjectParser, IFileParser
     {
         var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
         return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+    }
+
+    private readonly CSharpSemanticAnalyzer _analyzer = new();
+
+    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
+
+    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    {
+        if (node.Type == "using_directive")
+        {
+            var nameNode = node.GetChildForField("name");
+            if (nameNode == null || nameNode.Id == IntPtr.Zero)
+            {
+                nameNode = node.Children.FirstOrDefault(c => c.Type is "qualified_name" or "identifier");
+            }
+            if (nameNode != null && nameNode.Id != IntPtr.Zero)
+            {
+                var importPath = nameNode.Text;
+                ctx.AddRawImport(new RawImport(importPath, filePath));
+            }
+        }
+        else if (node.Type == "variable_declarator" || node.Type == "property_declaration")
+        {
+            var name = node.GetChildForField("name")?.Text;
+            if (string.IsNullOrEmpty(name))
+            {
+                name = node.Children.FirstOrDefault(c => c.Type == "identifier")?.Text;
+            }
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                var valueNode = node.GetChildForField("value");
+                if (valueNode == null || valueNode.Id == IntPtr.Zero)
+                {
+                    var eqClause = node.Children.FirstOrDefault(c => c.Type == "equals_value_clause");
+                    if (eqClause != null && eqClause.Children.Count > 1)
+                    {
+                        valueNode = eqClause.Children[1];
+                    }
+                }
+                string initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
+                bool isConstant = IsCSharpConstant(node);
+                string scope = DetermineCSharpScope(node);
+
+                ctx.AddRawVariable(new RawVariable(
+                    name,
+                    initializerText,
+                    scope,
+                    isConstant,
+                    filePath,
+                    node.StartPosition.Row,
+                    node.EndPosition.Row,
+                    node.StartPosition.Column,
+                    node.EndPosition.Column
+                ));
+            }
+        }
+    }
+
+    private static bool IsCSharpConstant(Node node)
+    {
+        var curr = node;
+        while (curr != null && curr.Id != IntPtr.Zero)
+        {
+            if (curr.Type is "field_declaration" or "local_declaration_statement")
+            {
+                foreach (var child in curr.Children)
+                {
+                    if (child.Type is "const" or "readonly" || child.Text is "const" or "readonly")
+                        return true;
+                }
+            }
+            curr = curr.Parent;
+        }
+        return false;
+    }
+
+    private static string DetermineCSharpScope(Node node)
+    {
+        var curr = node.Parent;
+        while (curr != null && curr.Id != IntPtr.Zero)
+        {
+            if (curr.Type is "class_declaration" or "struct_declaration" or "record_declaration" or "interface_declaration")
+                return "class";
+            if (curr.Type is "method_declaration" or "local_function_statement" or "block" or "constructor_declaration")
+                return "local";
+            curr = curr.Parent;
+        }
+        return "global";
     }
 }

@@ -40,4 +40,9 @@ public interface IFileParser
     /// Analyzes an AST node inside a containing scope and extracts any referenced symbols (calls, type uses, base classes).
     /// </summary>
     void CollectReferences(Node node, string scopeSymbolId, List<Reference> references);
+
+    /// <summary>
+    /// Collects raw semantic data (imports, variables) from a Tree-sitter AST node.
+    /// </summary>
+    void CollectSemanticData(Node node, string filePath, ParsingContext ctx);
 }

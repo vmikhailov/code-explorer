@@ -95,12 +95,12 @@ public class SqlParser : IProjectParser, IFileParser
         ParsingContext ctx)
     {
         // 2. Identify Database (DB)
-        var dbMatch = Regex.Match(cleanSql, @"CREATE\s+DATABASE\s+([a-zA-Z0-9_\[\]""#@]+)", RegexOptions.IgnoreCase);
+        var dbMatch = Regex.Match(cleanSql, @"CREATE\s+DATABASE\s+([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
         string dbNodeId;
         string dbName;
         if (dbMatch.Success)
         {
-            dbName = dbMatch.Groups[1].Value.Trim('[', ']', '"');
+            dbName = dbMatch.Groups[1].Value.Trim('[', ']', '"', '`');
             dbNodeId = $"{ctx.WorkspaceId}:db:{dbName.ToLowerInvariant()}";
         }
         else
@@ -112,13 +112,14 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         var dbNode = new DbNode(dbNodeId, dbName, relativePath);
+        dbNode.SetExtension("db_type", "relational");
         fileNode.Children.Add(dbNode);
 
         // 3. Identify Schema (DataSet)
-        var schemaMatches = Regex.Matches(cleanSql, @"CREATE\s+SCHEMA\s+([a-zA-Z0-9_\[\]""#@]+)", RegexOptions.IgnoreCase);
+        var schemaMatches = Regex.Matches(cleanSql, @"CREATE\s+SCHEMA\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
         foreach (Match match in schemaMatches)
         {
-            var schemaName = match.Groups[1].Value.Trim('[', ']', '"');
+            var schemaName = match.Groups[1].Value.Trim('[', ']', '"', '`');
             var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
             var schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
             datasets[schemaName] = schemaNode;
@@ -126,7 +127,7 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         // 4. Identify Tables
-        var tableMatches = Regex.Matches(cleanSql, @"CREATE\s+TABLE\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
+        var tableMatches = Regex.Matches(cleanSql, @"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_\.\[\]""#@`]+)", RegexOptions.IgnoreCase);
         foreach (Match match in tableMatches)
         {
             var rawTableName = match.Groups[1].Value;
@@ -135,12 +136,12 @@ public class SqlParser : IProjectParser, IFileParser
             var tableName = rawTableName;
             if (parts.Length > 1)
             {
-                schemaName = parts[0].Trim('[', ']', '"');
-                tableName = parts[1].Trim('[', ']', '"');
+                schemaName = parts[0].Trim('[', ']', '"', '`');
+                tableName = parts[1].Trim('[', ']', '"', '`');
             }
             else
             {
-                tableName = rawTableName.Trim('[', ']', '"');
+                tableName = rawTableName.Trim('[', ']', '"', '`');
             }
 
             var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
@@ -166,7 +167,7 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         // 5. Identify Procedures / Functions and their boundaries
-        var procMatches = Regex.Matches(cleanSql, @"CREATE\s+(?:PROCEDURE|PROC|FUNCTION)\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
+        var procMatches = Regex.Matches(cleanSql, @"CREATE\s+(?:OR\s+(?:REPLACE|ALTER)\s+)?(?:PROCEDURE|PROC|FUNCTION)\s+([a-zA-Z0-9_\.\[\]""#@`]+)", RegexOptions.IgnoreCase);
         var tempScopes = new List<(Match Match, string Name, string RawName, string Id, ProcedureNode Node)>();
         for (var i = 0; i < procMatches.Count; i++)
         {
@@ -177,12 +178,12 @@ public class SqlParser : IProjectParser, IFileParser
             var procName = rawProcName;
             if (parts.Length > 1)
             {
-                schemaName = parts[0].Trim('[', ']', '"');
-                procName = parts[1].Trim('[', ']', '"');
+                schemaName = parts[0].Trim('[', ']', '"', '`');
+                procName = parts[1].Trim('[', ']', '"', '`');
             }
             else
             {
-                procName = rawProcName.Trim('[', ']', '"');
+                procName = rawProcName.Trim('[', ']', '"', '`');
             }
 
             var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
@@ -234,7 +235,7 @@ public class SqlParser : IProjectParser, IFileParser
                 var firstWord = statement.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
                     .FirstOrDefault()?.ToUpperInvariant();
 
-                if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE")
+                if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "EXEC" or "CALL")
                 {
                     queryCounter++;
                     var queryName = $"{firstWord} Query #{queryCounter}";
@@ -276,7 +277,7 @@ public class SqlParser : IProjectParser, IFileParser
             var firstWord = statement.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
                 .FirstOrDefault()?.ToUpperInvariant();
 
-            if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE")
+            if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "EXEC" or "CALL")
             {
                 queryCounter++;
                 var queryName = $"{firstWord} Query #{queryCounter}";
@@ -298,12 +299,12 @@ public class SqlParser : IProjectParser, IFileParser
 
     private void TryDetectCalls(string statement, QueryNode queryNode, string queryNodeId)
     {
-        var execMatches = Regex.Matches(statement, @"EXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@]+)", RegexOptions.IgnoreCase);
+        var execMatches = Regex.Matches(statement, @"EXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@`]+)", RegexOptions.IgnoreCase);
         foreach (Match execMatch in execMatches)
         {
             var targetProcRaw = execMatch.Groups[1].Value;
             var targetProcParts = targetProcRaw.Split('.');
-            var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"') : targetProcRaw.Trim('[', ']', '"');
+            var targetProcName = targetProcParts.Length > 1 ? targetProcParts[1].Trim('[', ']', '"', '`') : targetProcRaw.Trim('[', ']', '"', '`');
             
             queryNode.References.Add(new Reference(queryNodeId, targetProcName, OntologyConstants.Relationships.Calls));
         }
@@ -336,4 +337,12 @@ public class SqlParser : IProjectParser, IFileParser
             }
         }
     }
+
+    public void CollectSemanticData(TreeSitter.Node node, string filePath, ParsingContext ctx)
+    {
+    }
+
+    private readonly SqlSemanticAnalyzer _analyzer = new();
+
+    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
 }

@@ -11,3 +11,32 @@ public interface IOntologyNode
     List<IOntologyNode> Children { get; }
     List<Reference> References { get; }
 }
+
+public static class OntologyNodeExtensions
+{
+    public static void SetExtension(this IOntologyNode node, string key, string value)
+    {
+        var extensions = node.Extensions;
+        if (extensions == null)
+        {
+            extensions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var backingField = node.GetType().GetField("<Extensions>k__BackingField", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (backingField != null)
+            {
+                backingField.SetValue(node, extensions);
+            }
+            else
+            {
+                var prop = node.GetType().GetProperty("Extensions");
+                if (prop != null && prop.CanWrite)
+                {
+                    prop.SetValue(node, extensions);
+                }
+            }
+        }
+        if (node.Extensions != null)
+        {
+            node.Extensions[key] = value;
+        }
+    }
+}
