@@ -12,9 +12,9 @@ public class ProjectProcessor
     private readonly string _projectDir;
     private readonly string _parentContainerId;
     private readonly IProjectParser _projectParser;
-    private readonly ISemanticAnalyzer _semanticAnalyzer;
     private readonly string _projectNodeId;
     private readonly GitIgnoreMatcher _gitignore;
+    private readonly List<SyntaxTree> _projectSyntaxTrees = new();
 
     public ProjectProcessor(ParsingContext ctx, string projectDir, string parentContainerId, IProjectParser projectParser)
     {
@@ -22,7 +22,6 @@ public class ProjectProcessor
         _projectDir = projectDir.Replace('\\', '/');
         _parentContainerId = parentContainerId;
         _projectParser = projectParser;
-        _semanticAnalyzer = projectParser.GetSemanticAnalyzer();
         var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, projectDir).Replace('\\', '/');
         if (relativeProjectDir == ".") relativeProjectDir = "";
         _projectNodeId = $"{_ctx.WorkspaceId}:project:{relativeProjectDir}:";
@@ -59,11 +58,19 @@ public class ProjectProcessor
         try
         {
             // 3. Perform semantic analysis & ontology enrichment
-            await _semanticAnalyzer.AnalyzeAndEnrichAsync(projectNode, _ctx);
+            foreach (var syntaxTree in _projectSyntaxTrees)
+            {
+                var semanticModel = _projectParser.GetSemanticModel(syntaxTree);
+                await semanticModel.AnalyzeAndEnrichAsync(projectNode, _ctx);
+            }
         }
         finally
         {
-            _ctx.DisposeParsedAsts();
+            foreach (var st in _projectSyntaxTrees)
+            {
+                st.Dispose();
+            }
+            _projectSyntaxTrees.Clear();
         }
 
         await Console.Error.WriteLineAsync($"[WorkspaceParser] Completed scan of project '{folderName}'.");
@@ -143,10 +150,23 @@ public class ProjectProcessor
                     continue;
                 }
 
-                var fileNode = await fileParser.ParseAsync(file, currentParentNode.Id, _ctx);
-                if (fileNode != null)
+                var syntaxTree = await fileParser.ParseAsync(file, currentParentNode.Id, _ctx.WorkspaceId, _ctx.AbsoluteWorkspacePath);
+                if (syntaxTree != null)
                 {
-                    currentParentNode.Children.Add(fileNode);
+                    if (syntaxTree.FileNode != null)
+                    {
+                        currentParentNode.Children.Add(syntaxTree.FileNode);
+                    }
+                    _projectSyntaxTrees.Add(syntaxTree);
+
+                    lock (_ctx.RawImports)
+                    {
+                        _ctx.RawImports.AddRange(syntaxTree.RawImports);
+                    }
+                    lock (_ctx.RawVariables)
+                    {
+                        _ctx.RawVariables.AddRange(syntaxTree.RawVariables);
+                    }
                 }
             }
         }

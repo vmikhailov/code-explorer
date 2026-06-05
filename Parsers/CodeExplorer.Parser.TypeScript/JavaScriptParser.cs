@@ -258,21 +258,22 @@ public class JavaScriptParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+
+    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
-        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
-        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
+        return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
     private readonly TypeScriptParser _tsParser = new();
 
-    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
     {
-        _tsParser.CollectSemanticData(node, filePath, ctx);
+        _tsParser.CollectSemanticData(node, filePath, rawImports, rawVariables);
     }
 
-    public ISemanticAnalyzer GetSemanticAnalyzer()
+    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree)
     {
-        return _tsParser.GetSemanticAnalyzer();
+        return _tsParser.GetSemanticModel(syntaxTree);
     }
 }

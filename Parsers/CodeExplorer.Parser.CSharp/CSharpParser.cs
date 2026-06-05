@@ -50,7 +50,6 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public CSharpParser()
     {
-        _analyzer = new CSharpSemanticAnalyzer(LibraryParsers);
     }
 
 
@@ -404,15 +403,13 @@ public class CSharpParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
-        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
-        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
+        return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    private readonly CSharpSemanticAnalyzer _analyzer;
-
-    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
+    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree) => new CSharpSemanticModel(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, string> _csProjCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -460,7 +457,7 @@ public class CSharpParser : IProjectParser, IFileParser
         return null;
     }
 
-    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
     {
         if (node.Type == "using_directive")
         {
@@ -473,7 +470,7 @@ public class CSharpParser : IProjectParser, IFileParser
             {
                 var importPath = nameNode.Text;
                 var type = ResolveCsImportType(importPath, filePath);
-                ctx.AddRawImport(new RawImport(importPath, filePath, type));
+                rawImports.Add(new RawImport(importPath, filePath, type));
             }
         }
         else if (node.Type == "variable_declarator" || node.Type == "property_declaration")
@@ -499,7 +496,7 @@ public class CSharpParser : IProjectParser, IFileParser
                 bool isConstant = IsCSharpConstant(node);
                 string scope = DetermineCSharpScope(node);
 
-                ctx.AddRawVariable(new RawVariable(
+                rawVariables.Add(new RawVariable(
                     name,
                     initializerText,
                     scope,

@@ -10,6 +10,7 @@ public class WorkspaceLevelParser
     private readonly ParsingContext _ctx;
     private readonly string _absoluteWorkspacePath;
     private readonly GitIgnoreMatcher _gitignore;
+    private readonly List<SyntaxTree> _workspaceSyntaxTrees = new();
 
     public WorkspaceLevelParser(ParsingContext ctx)
     {
@@ -51,17 +52,28 @@ public class WorkspaceLevelParser
             workspaceNode.Children.Add(gitSettingsNode);
         }
 
-        // 2. Recursively scan, discovering projects inline!
-        await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode);
+        try
+        {
+            // 2. Recursively scan, discovering projects inline!
+            await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode);
 
-        // Prune empty folder/project nodes to avoid adding empty projects/folders to the graph
-        OntologyPruner.PruneEmptyFolders(workspaceNode);
+            // Prune empty folder/project nodes to avoid adding empty projects/folders to the graph
+            OntologyPruner.PruneEmptyFolders(workspaceNode);
 
-        // 3. Perform late binding
-        await PerformLateBindingAsync(workspaceNode);
+            // 3. Perform late binding
+            await PerformLateBindingAsync(workspaceNode);
 
-        // 4. Upload the entire Workspace Node tree using OntologyUploader
-        await OntologyUploader.UploadNodeTreeAsync(workspaceNode, null, _ctx);
+            // 4. Upload the entire Workspace Node tree using OntologyUploader
+            await OntologyUploader.UploadNodeTreeAsync(workspaceNode, null, _ctx);
+        }
+        finally
+        {
+            foreach (var st in _workspaceSyntaxTrees)
+            {
+                st.Dispose();
+            }
+            _workspaceSyntaxTrees.Clear();
+        }
     }
 
     private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode)
@@ -137,10 +149,23 @@ public class WorkspaceLevelParser
 
             if (fileParser != null)
             {
-                var fileNode = await fileParser.ParseAsync(file, currentParentNode.Id, _ctx);
-                if (fileNode != null)
+                var syntaxTree = await fileParser.ParseAsync(file, currentParentNode.Id, _ctx.WorkspaceId, _ctx.AbsoluteWorkspacePath);
+                if (syntaxTree != null)
                 {
-                    currentParentNode.Children.Add(fileNode);
+                    if (syntaxTree.FileNode != null)
+                    {
+                        currentParentNode.Children.Add(syntaxTree.FileNode);
+                    }
+                    _workspaceSyntaxTrees.Add(syntaxTree);
+
+                    lock (_ctx.RawImports)
+                    {
+                        _ctx.RawImports.AddRange(syntaxTree.RawImports);
+                    }
+                    lock (_ctx.RawVariables)
+                    {
+                        _ctx.RawVariables.AddRange(syntaxTree.RawVariables);
+                    }
                 }
             }
         }

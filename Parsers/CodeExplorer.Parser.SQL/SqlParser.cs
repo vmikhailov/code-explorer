@@ -66,10 +66,10 @@ public class SqlParser : IProjectParser, IFileParser
 
     public bool UsesTreeSitter => false;
 
-    public async Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
-        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
-        var fileNodeId = $"{ctx.WorkspaceId}:file:{relativePath}";
+        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
+        var fileNodeId = $"{workspaceId}:file:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
         var sqlText = await File.ReadAllTextAsync(filePath);
@@ -82,9 +82,9 @@ public class SqlParser : IProjectParser, IFileParser
         var tables = new Dictionary<string, TableNode>(StringComparer.OrdinalIgnoreCase);
         var procedures = new List<ProcedureScope>();
 
-        TryDetectContains(cleanSql, fileNode, fileNodeId, relativePath, datasets, tables, procedures, ctx);
+        TryDetectContains(cleanSql, fileNode, fileNodeId, relativePath, datasets, tables, procedures, workspaceId);
 
-        return fileNode;
+        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, new List<RawImport>(), new List<RawVariable>());
     }
 
     private void TryDetectContains(
@@ -95,7 +95,7 @@ public class SqlParser : IProjectParser, IFileParser
         Dictionary<string, DataSetNode> datasets,
         Dictionary<string, TableNode> tables,
         List<ProcedureScope> procedures,
-        ParsingContext ctx)
+        string workspaceId)
     {
         // 2. Identify Database (DB)
         var dbMatch = Regex.Match(cleanSql, @"CREATE\s+DATABASE\s+([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
@@ -104,14 +104,14 @@ public class SqlParser : IProjectParser, IFileParser
         if (dbMatch.Success)
         {
             dbName = dbMatch.Groups[1].Value.Trim('[', ']', '"', '`');
-            dbNodeId = $"{ctx.WorkspaceId}:db:{dbName.ToLowerInvariant()}";
+            dbNodeId = $"{workspaceId}:db:{dbName.ToLowerInvariant()}";
         }
         else
         {
             var dirName = Path.GetFileName(Path.GetDirectoryName(fileNode.FullPath));
             if (string.IsNullOrEmpty(dirName)) dirName = "DefaultDB";
             dbName = dirName;
-            dbNodeId = $"{ctx.WorkspaceId}:db:{dbName.ToLowerInvariant()}";
+            dbNodeId = $"{workspaceId}:db:{dbName.ToLowerInvariant()}";
         }
 
         var dbNode = new DbNode(dbNodeId, dbName, relativePath);
@@ -160,13 +160,6 @@ public class SqlParser : IProjectParser, IFileParser
             tables[tableName] = tableNode;
             tables[rawTableName] = tableNode;
             schemaNode.Children.Add(tableNode);
-
-            // Register global table symbol
-            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Table, tableName, tableNodeId);
-            if (parts.Length > 1)
-            {
-                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Table, rawTableName, tableNodeId);
-            }
         }
 
         // 5. Identify Procedures / Functions and their boundaries
@@ -201,13 +194,6 @@ public class SqlParser : IProjectParser, IFileParser
             var procNode = new ProcedureNode(procNodeId, procName, relativePath);
             tempScopes.Add((match, procName, rawProcName, procNodeId, procNode));
             schemaNode.Children.Add(procNode);
-
-            // Register global procedure symbol
-            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Procedure, procName, procNodeId);
-            if (parts.Length > 1)
-            {
-                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Procedure, rawProcName, procNodeId);
-            }
         }
 
         // Resolve boundaries for each procedure body
@@ -341,11 +327,9 @@ public class SqlParser : IProjectParser, IFileParser
         }
     }
 
-    public void CollectSemanticData(TreeSitter.Node node, string filePath, ParsingContext ctx)
+    public void CollectSemanticData(TreeSitter.Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
     {
     }
 
-    private readonly SqlSemanticAnalyzer _analyzer = new();
-
-    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
+    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree) => new SqlSemanticModel(syntaxTree);
 }

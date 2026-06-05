@@ -40,7 +40,8 @@ public class ParserValidationTests
                 continue;
             }
 
-            var fileNode = await parser.ParseAsync(file, "parent-id", ctx);
+            using var syntaxTree = await parser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var fileNode = syntaxTree.FileNode;
             Assert.That(fileNode, Is.Not.Null);
 
             Console.WriteLine($"\n================== PARSED FILE: {fileNode.Name} ==================");
@@ -69,7 +70,8 @@ async function clearDataAllLeads(bundle_ids: string) {
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-            var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
+            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var fileNode = syntaxTree.FileNode;
             Assert.That(fileNode, Is.Not.Null);
 
             var queryNodes = FindQueryNodes(fileNode.Children);
@@ -110,7 +112,8 @@ class Test {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
+            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
             var sqlQuery = queryNodes[0];
@@ -140,7 +143,8 @@ def clean_db():
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
+            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
             var sqlQuery = queryNodes[0];
@@ -172,7 +176,8 @@ func clean() {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
+            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
             var sqlQuery = queryNodes[0];
@@ -232,7 +237,8 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
+            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var fileNode = syntaxTree.FileNode;
 
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -351,7 +357,8 @@ public class OrdersController : ControllerBase
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
+            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var fileNode = syntaxTree.FileNode;
 
             var entryPoints = FindEntryPointNodes(fileNode.Children);
             Assert.That(entryPoints, Is.Not.Empty);
@@ -406,7 +413,8 @@ export class OrdersController {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            var fileNode = await parser.ParseAsync(tempFile, "parent-id", ctx);
+            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var fileNode = syntaxTree.FileNode;
 
             var entryPoints = FindEntryPointNodes(fileNode.Children);
             Assert.That(entryPoints, Is.Not.Empty);
@@ -703,7 +711,8 @@ def process_payment():
     requests.post('https://api.stripe.com/v3/charges')
 ";
             await File.WriteAllTextAsync(pyFile, pyCode);
-            var pyNode = await pythonParser.ParseAsync(pyFile, "parent", ctx);
+            using var pySyntax = await pythonParser.ParseAsync(pyFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var pyNode = pySyntax.FileNode;
             Assert.That(pyNode, Is.Not.Null);
 
             var pyEntryPoints = FindEntryPointNodes(pyNode.Children);
@@ -738,7 +747,8 @@ func Register(r *gin.Engine) {
             PrintTsAst(goTree!.RootNode, "");
             Console.WriteLine("--- GO AST END ---");
 
-            var goNode = await goParser.ParseAsync(goFile, "parent", ctx);
+            using var goSyntax = await goParser.ParseAsync(goFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var goNode = goSyntax.FileNode;
             Assert.That(goNode, Is.Not.Null);
 
             var goEntryPoints = FindEntryPointNodes(goNode.Children);
@@ -760,7 +770,8 @@ BEGIN
 END;
 ";
             await File.WriteAllTextAsync(sqlFile, sqlCode);
-            var sqlNode = await sqlParser.ParseAsync(sqlFile, "parent", ctx);
+            using var sqlSyntax = await sqlParser.ParseAsync(sqlFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var sqlNode = sqlSyntax.FileNode;
             Assert.That(sqlNode, Is.Not.Null);
 
             // Schema and DB hierarchy check
@@ -793,7 +804,7 @@ END;
     }
 
     [Test]
-    public async Task Test_SemanticAnalyzer_DbTypeMapping()
+    public async Task Test_SemanticModel_DbTypeMapping()
     {
         var tempWorkspace = Path.Combine(Path.GetTempPath(), "db_type_mapping_test_workspace_" + Guid.NewGuid());
         Directory.CreateDirectory(tempWorkspace);
@@ -806,12 +817,21 @@ END;
             ctx.WorkspaceId = "1";
 
             // Test C# Semantic Analyzer with relational (EntityFramework)
-            var csAnalyzer = new CSharpSemanticAnalyzer();
+            // Test C# Semantic Model with relational (EntityFramework)
             var csProj = new ProjectNode("cs_project", "cs_project", "cs_project", "csharp");
             var csFile = new FileNode("cs_file", "Repository.cs", "Repository.cs", tempWorkspace + "/Repository.cs");
             csProj.Children.Add(csFile);
-            ctx.RawImports.Add(new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs"));
-            await csAnalyzer.AnalyzeAndEnrichAsync(csProj, ctx);
+            var csSyntaxTree = new SyntaxTree(
+                csFile.FullPath, 
+                csFile.Path, 
+                null, 
+                null, 
+                null, 
+                csFile, 
+                [new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs") { Type = ImportType.External }], 
+                []);
+            var csModel = new CSharpSemanticModel(csSyntaxTree);
+            await csModel.AnalyzeAndEnrichAsync(csProj, ctx);
 
             var csDbGroup = csProj.Children.OfType<DataBasesNode>().FirstOrDefault();
             Assert.That(csDbGroup, Is.Not.Null);
@@ -821,13 +841,21 @@ END;
             Assert.That(csDbNode!.Extensions!["db_type"], Is.EqualTo("relational"));
             Assert.That(ctx.GlobalProjectDependencies.Any(r => r.From == csFile.Id && r.To == csDbNode.Id && r.Kind == "USES_DB"), Is.True);
 
-            // Test TypeScript Semantic Analyzer with document (mongoose)
-            var tsAnalyzer = new TypeScriptSemanticAnalyzer();
+            // Test TypeScript Semantic Model with document (mongoose)
             var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
             var tsFile = new FileNode("ts_file", "index.ts", "index.ts", tempWorkspace + "/index.ts");
             tsProj.Children.Add(tsFile);
-            ctx.RawImports.Add(new RawImport("mongoose", "index.ts"));
-            await tsAnalyzer.AnalyzeAndEnrichAsync(tsProj, ctx);
+            var tsSyntaxTree = new SyntaxTree(
+                tsFile.FullPath, 
+                tsFile.Path, 
+                null, 
+                null, 
+                null, 
+                tsFile, 
+                [new RawImport("mongoose", "index.ts") { Type = ImportType.External }], 
+                []);
+            var tsModel = new TypeScriptSemanticModel(tsSyntaxTree);
+            await tsModel.AnalyzeAndEnrichAsync(tsProj, ctx);
 
             var tsDbGroup = tsProj.Children.OfType<DataBasesNode>().FirstOrDefault();
             Assert.That(tsDbGroup, Is.Not.Null);
@@ -837,13 +865,21 @@ END;
             Assert.That(tsDbNode!.Extensions!["db_type"], Is.EqualTo("document"));
             Assert.That(ctx.GlobalProjectDependencies.Any(r => r.From == tsFile.Id && r.To == tsDbNode.Id && r.Kind == "USES_DB"), Is.True);
 
-            // Test Python Semantic Analyzer with keyvalue (redis)
-            var pyAnalyzer = new PythonSemanticAnalyzer();
+            // Test Python Semantic Model with keyvalue (redis)
             var pyProj = new ProjectNode("py_project", "py_project", "py_project", "python");
             var pyFile = new FileNode("py_file", "main.py", "main.py", tempWorkspace + "/main.py");
             pyProj.Children.Add(pyFile);
-            ctx.RawImports.Add(new RawImport("redis", "main.py"));
-            await pyAnalyzer.AnalyzeAndEnrichAsync(pyProj, ctx);
+            var pySyntaxTree = new SyntaxTree(
+                pyFile.FullPath, 
+                pyFile.Path, 
+                null, 
+                null, 
+                null, 
+                pyFile, 
+                [new RawImport("redis", "main.py") { Type = ImportType.External }], 
+                []);
+            var pyModel = new PythonSemanticModel(pySyntaxTree);
+            await pyModel.AnalyzeAndEnrichAsync(pyProj, ctx);
 
             var pyDbGroup = pyProj.Children.OfType<DataBasesNode>().FirstOrDefault();
             Assert.That(pyDbGroup, Is.Not.Null);
@@ -896,7 +932,8 @@ public class Service
             await File.WriteAllTextAsync(csFilePath, csContent);
 
             var csFileParser = new CSharpParser();
-            var csFileNode = await TreeSitterFileParser.ParseFileAsync(csFilePath, "Service.cs", "1", csFileParser, ctx);
+            using var csSyntaxTree = await TreeSitterFileParser.ParseFileAsync(csFilePath, "Service.cs", "1", csFileParser, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var csFileNode = csSyntaxTree.FileNode;
 
             // Verify Dapper query extraction
             var csQueries = FindQueryNodes([csFileNode]);
@@ -926,7 +963,8 @@ async function testDb(client: any) {
             await File.WriteAllTextAsync(tsFilePath, tsContent);
 
             var tsFileParser = new TypeScriptParser();
-            var tsFileNode = await TreeSitterFileParser.ParseFileAsync(tsFilePath, "app.ts", "1", tsFileParser, ctx);
+            using var tsSyntaxTree = await TreeSitterFileParser.ParseFileAsync(tsFilePath, "app.ts", "1", tsFileParser, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var tsFileNode = tsSyntaxTree.FileNode;
 
             var tsQueries = FindQueryNodes([tsFileNode]);
 

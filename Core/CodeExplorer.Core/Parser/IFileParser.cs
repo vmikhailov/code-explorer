@@ -22,9 +22,9 @@ public interface IFileParser
     bool UsesTreeSitter { get; }
 
     /// <summary>
-    /// Parses the file and returns a rich FileNode with all child symbols nested.
+    /// Parses the file and returns a rich SyntaxTree with the AST and child symbols.
     /// </summary>
-    Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx);
+    Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath);
 
     /// <summary>
     /// Maps a Tree-sitter AST node to a CodeExplorer ontological kind (Class, Interface, Function, Variable, or null).
@@ -44,7 +44,7 @@ public interface IFileParser
     /// <summary>
     /// Collects raw semantic data (imports, variables) from a Tree-sitter AST node.
     /// </summary>
-    void CollectSemanticData(Node node, string filePath, ParsingContext ctx);
+    void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables);
 
     /// <summary>
     /// The library-specific parsers registered for this language.

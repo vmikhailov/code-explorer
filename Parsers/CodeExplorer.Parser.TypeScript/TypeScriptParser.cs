@@ -58,11 +58,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new GenericLibraryParser("isomorphic-fetch", "fetch", "api", ["isomorphic-fetch"]),
     ];
 
-    public TypeScriptParser()
-    {
-        _analyzer = new TypeScriptSemanticAnalyzer(LibraryParsers);
-    }
-
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
@@ -544,15 +539,13 @@ public class TypeScriptParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
-        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
-        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
+        return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    private readonly TypeScriptSemanticAnalyzer _analyzer;
-
-    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
+    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree) => new TypeScriptSemanticModel(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -648,7 +641,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return deps;
     }
 
-    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
     {
         if (node.Type == "import_statement")
         {
@@ -661,7 +654,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
             {
                 var importPath = sourceNode.Text.Trim('\'', '"');
                 var type = ResolveTsImportType(importPath, filePath);
-                ctx.AddRawImport(new RawImport(importPath, filePath, type));
+                rawImports.Add(new RawImport(importPath, filePath, type));
             }
         }
         else if (node.Type == "call_expression")
@@ -677,7 +670,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     {
                         var importPath = firstArg.Text.Trim('\'', '"');
                         var type = ResolveTsImportType(importPath, filePath);
-                        ctx.AddRawImport(new RawImport(importPath, filePath, type));
+                        rawImports.Add(new RawImport(importPath, filePath, type));
                     }
                 }
             }
@@ -698,7 +691,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 bool isConstant = IsTypeScriptConstant(node);
                 string scope = DetermineTypeScriptScope(node);
 
-                ctx.AddRawVariable(new RawVariable(
+                rawVariables.Add(new RawVariable(
                     name,
                     initializerText,
                     scope,
@@ -727,7 +720,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 bool isConstant = false;
                 string scope = "class";
 
-                ctx.AddRawVariable(new RawVariable(
+                rawVariables.Add(new RawVariable(
                     name,
                     initializerText,
                     scope,

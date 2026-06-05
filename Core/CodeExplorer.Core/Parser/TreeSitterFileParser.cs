@@ -7,30 +7,35 @@ namespace CodeExplorer.Core.Parser;
 
 public static class TreeSitterFileParser
 {
-    public static async Task<FileNode> ParseFileAsync(
+    public static async Task<SyntaxTree> ParseFileAsync(
         string filePath,
         string relativePath,
         string parentNodeId,
         IFileParser fileParser,
-        ParsingContext ctx)
+        string workspaceId,
+        string absoluteWorkspacePath)
     {
+        filePath = filePath.Replace('\\', '/');
+        relativePath = relativePath.Replace('\\', '/');
         var sourceText = await File.ReadAllTextAsync(filePath);
         var language = new Language(fileParser.LanguageName);
         var parser = new TreeSitter.Parser(language);
         var tree = parser.Parse(sourceText);
 
-        var fileNodeId = $"{ctx.WorkspaceId}:file:{relativePath}";
+        var fileNodeId = $"{workspaceId}:file:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
+
+        var rawImports = new List<RawImport>();
+        var rawVariables = new List<RawVariable>();
 
         if (tree != null)
         {
-            ctx.RegisterAst(filePath, tree, parser, language);
             // First pass: collect all imports and raw variables
-            CollectSemanticDataRecursive(tree.RootNode, fileParser, relativePath, ctx);
+            CollectSemanticDataRecursive(tree.RootNode, fileParser, relativePath, rawImports, rawVariables);
 
             // Fetch imported library names for this file
-            var fileImports = ctx.RawImports
-                .Where(i => i.FilePath == relativePath && i.Type == ImportType.External)
+            var fileImports = rawImports
+                .Where(i => i.Type == ImportType.External)
                 .Select(i => i.Path)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -54,8 +59,10 @@ public static class TreeSitterFileParser
                 .Where(lp => lp.IsImplemented)
                 .ToList();
 
+            var localCtx = new ParsingContext(absoluteWorkspacePath, absoluteWorkspacePath, null!, null!) { WorkspaceId = workspaceId };
+
             // Second pass: build the ontology node tree
-            TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx, relativePath, activeLibraryParsers);
+            TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, localCtx, relativePath, activeLibraryParsers);
         }
         else
         {
@@ -64,19 +71,20 @@ public static class TreeSitterFileParser
         }
 
         Console.WriteLine($"Finished parsing file: {relativePath} with {fileNode.Children.Count} top-level symbols.");
-        return fileNode;
+        return new SyntaxTree(filePath, relativePath, tree, parser, language, fileNode, rawImports, rawVariables);
     }
 
     private static void CollectSemanticDataRecursive(
         Node node,
         IFileParser parser,
         string filePath,
-        ParsingContext ctx)
+        List<RawImport> rawImports,
+        List<RawVariable> rawVariables)
     {
-        parser.CollectSemanticData(node, filePath, ctx);
+        parser.CollectSemanticData(node, filePath, rawImports, rawVariables);
         foreach (var child in node.Children)
         {
-            CollectSemanticDataRecursive(child, parser, filePath, ctx);
+            CollectSemanticDataRecursive(child, parser, filePath, rawImports, rawVariables);
         }
     }
 

@@ -51,7 +51,6 @@ public class PythonParser : IProjectParser, IFileParser
 
     public PythonParser()
     {
-        _analyzer = new PythonSemanticAnalyzer(LibraryParsers);
     }
 
     public bool CanParse(string fileExtension)
@@ -432,19 +431,17 @@ public class PythonParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
-        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
-        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
+        return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    private readonly PythonSemanticAnalyzer _analyzer;
-
-    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
+    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree) => new PythonSemanticModel(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _pyRootCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private ImportType ResolvePyImportType(string importPath, string filePath, ParsingContext ctx)
+    private ImportType ResolvePyImportType(string importPath, string filePath, string? absoluteWorkspacePath)
     {
         if (string.IsNullOrEmpty(importPath)) return ImportType.External;
 
@@ -453,7 +450,7 @@ public class PythonParser : IProjectParser, IFileParser
             return ImportType.Internal;
 
         var dir = Path.GetDirectoryName(filePath);
-        var projectRoot = FindPythonProjectRoot(dir, ctx.AbsoluteWorkspacePath);
+        var projectRoot = FindPythonProjectRoot(dir, absoluteWorkspacePath);
         if (projectRoot != null)
         {
             var internalNames = _pyRootCache.GetOrAdd(projectRoot, r => LoadLocalPythonNames(r));
@@ -469,7 +466,7 @@ public class PythonParser : IProjectParser, IFileParser
         return ImportType.External;
     }
 
-    private string? FindPythonProjectRoot(string? dir, string workspaceRoot)
+    private string? FindPythonProjectRoot(string? dir, string? workspaceRoot)
     {
         var current = dir;
         string? bestRoot = null;
@@ -482,7 +479,7 @@ public class PythonParser : IProjectParser, IFileParser
             {
                 return current;
             }
-            if (current.Replace('\\', '/').Equals(workspaceRoot.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+            if (workspaceRoot != null && current.Replace('\\', '/').Equals(workspaceRoot.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
             {
                 bestRoot = current;
             }
@@ -520,7 +517,7 @@ public class PythonParser : IProjectParser, IFileParser
         return names;
     }
 
-    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
     {
         if (node.Type == "import_statement")
         {
@@ -529,8 +526,8 @@ public class PythonParser : IProjectParser, IFileParser
                 if (child.Type is "dotted_name" or "aliased_name")
                 {
                     var importPath = child.Text;
-                    var type = ResolvePyImportType(importPath, filePath, ctx);
-                    ctx.AddRawImport(new RawImport(importPath, filePath, type));
+                    var type = ResolvePyImportType(importPath, filePath, null);
+                    rawImports.Add(new RawImport(importPath, filePath, type));
                 }
             }
         }
@@ -544,8 +541,8 @@ public class PythonParser : IProjectParser, IFileParser
             if (moduleNode != null && moduleNode.Id != IntPtr.Zero)
             {
                 var importPath = moduleNode.Text;
-                var type = ResolvePyImportType(importPath, filePath, ctx);
-                ctx.AddRawImport(new RawImport(importPath, filePath, type));
+                var type = ResolvePyImportType(importPath, filePath, null);
+                rawImports.Add(new RawImport(importPath, filePath, type));
             }
         }
         else if (node.Type == "assignment")
@@ -582,7 +579,7 @@ public class PythonParser : IProjectParser, IFileParser
                 bool isConstant = name.All(c => !char.IsLower(c));
                 string scope = DeterminePythonScope(node);
 
-                ctx.AddRawVariable(new RawVariable(
+                rawVariables.Add(new RawVariable(
                     name,
                     initializerText,
                     scope,

@@ -49,7 +49,6 @@ public class GoParser : IProjectParser, IFileParser
 
     public GoParser()
     {
-        _analyzer = new GoSemanticAnalyzer(LibraryParsers);
     }
 
     public bool CanParse(string fileExtension)
@@ -345,15 +344,13 @@ public class GoParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
-    public Task<FileNode> ParseAsync(string filePath, string parentNodeId, ParsingContext ctx)
+    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
-        var relativePath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
-        return TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, ctx);
+        var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
+        return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    private readonly GoSemanticAnalyzer _analyzer;
-
-    public ISemanticAnalyzer GetSemanticAnalyzer() => _analyzer;
+    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree) => new GoSemanticModel(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, string> _goModCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -415,7 +412,7 @@ public class GoParser : IProjectParser, IFileParser
         return string.Empty;
     }
 
-    public void CollectSemanticData(Node node, string filePath, ParsingContext ctx)
+    public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
     {
         if (node.Type == "import_spec")
         {
@@ -428,7 +425,7 @@ public class GoParser : IProjectParser, IFileParser
             {
                 var importPath = pathNode.Text.Trim('"');
                 var type = ResolveGoImportType(importPath, filePath);
-                ctx.AddRawImport(new RawImport(importPath, filePath, type));
+                rawImports.Add(new RawImport(importPath, filePath, type));
             }
         }
         else if (node.Type is "var_spec" or "const_spec")
@@ -461,7 +458,7 @@ public class GoParser : IProjectParser, IFileParser
                 var name = identifiers[i].Text;
                 var initializerText = i < values.Count ? values[i].Text : "";
 
-                ctx.AddRawVariable(new RawVariable(
+                rawVariables.Add(new RawVariable(
                     name,
                     initializerText,
                     scope,
@@ -507,7 +504,7 @@ public class GoParser : IProjectParser, IFileParser
                     var name = names[i];
                     var initializerText = i < values.Count ? values[i] : "";
 
-                    ctx.AddRawVariable(new RawVariable(
+                    rawVariables.Add(new RawVariable(
                         name,
                         initializerText,
                         scope,
