@@ -71,9 +71,9 @@ public abstract class BaseSemanticAnalyzer : ISemanticAnalyzer
 
             if (firstDbImport != null)
             {
-                file.SetExtension("uses_database", "true");
                 var dbEngine = MapPackageToDbEngine(firstDbImport.Path);
                 var dbType = GetDbType(firstDbImport.Path);
+                file.SetExtension("db_type", dbType);
                 var dbId = $"{ctx.WorkspaceId}:db:{dbEngine.ToLowerInvariant()}";
                 var dbNode = new DbNode(dbId, dbEngine, dbId);
                 dbNode.SetExtension("db_type", dbType);

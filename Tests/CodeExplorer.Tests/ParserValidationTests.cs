@@ -577,8 +577,8 @@ export class OrdersController {
             
             // Check Repository.cs extensions
             Assert.That(fileNode.Extensions, Is.Not.Null);
-            Assert.That(fileNode.Extensions.ContainsKey("uses_database"), Is.True);
-            Assert.That(fileNode.Extensions["uses_database"], Is.EqualTo("true"));
+            Assert.That(fileNode.Extensions.ContainsKey("db_type"), Is.True);
+            Assert.That(fileNode.Extensions["db_type"], Is.EqualTo("relational"));
             Assert.That(fileNode.Extensions.ContainsKey("uses_cloud"), Is.True);
             Assert.That(fileNode.Extensions["uses_cloud"], Is.EqualTo("true"));
 
