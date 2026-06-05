@@ -13,6 +13,8 @@ public class FlurlLibraryParser : ILibraryParser
 
     public IEnumerable<string> SupportedLibraries => ["Flurl", "Flurl.Http"];
 
+    public bool IsImplemented => true;
+
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
         if (IsFlurlCall(node))

@@ -13,6 +13,8 @@ public class DapperLibraryParser : ILibraryParser
 
     public IEnumerable<string> SupportedLibraries => ["Dapper"];
 
+    public bool IsImplemented => true;
+
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
         if (IsDapperCall(node))

@@ -21,6 +21,12 @@ public interface ILibraryParser
     IEnumerable<string> SupportedLibraries { get; }
 
     /// <summary>
+    /// Gets a value indicating whether this library parser is implemented.
+    /// Defaults to false.
+    /// </summary>
+    bool IsImplemented => false;
+
+    /// <summary>
     /// Maps a Tree-sitter AST node to a CodeExplorer ontological kind (Class, Interface, Function, Variable, Query, EntryPoint, ExternalService, or null).
     /// </summary>
     string? MapNodeType(Node node, ParsingContext ctx);

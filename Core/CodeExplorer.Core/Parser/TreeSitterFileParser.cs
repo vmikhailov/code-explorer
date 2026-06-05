@@ -33,8 +33,17 @@ public static class TreeSitterFileParser
                 .Select(i => i.Path)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            var activeLibraryParsers = fileParser.LibraryParsers
+            var detectedParsers = fileParser.LibraryParsers
                 .Where(lp => lp.SupportedLibraries.Any(sl => fileImports.Contains(sl)))
+                .ToList();
+
+            foreach (var lp in detectedParsers.Where(p => !p.IsImplemented))
+            {
+                Console.WriteLine($"Library '{lp.Name}' detected but parser is not implemented yet.");
+            }
+
+            var activeLibraryParsers = detectedParsers
+                .Where(lp => lp.IsImplemented)
                 .ToList();
 
             // Second pass: build the ontology node tree

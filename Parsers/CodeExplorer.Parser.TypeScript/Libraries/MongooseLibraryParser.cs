@@ -13,6 +13,8 @@ public class MongooseLibraryParser : ILibraryParser
 
     public IEnumerable<string> SupportedLibraries => ["mongoose"];
 
+    public bool IsImplemented => true;
+
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
         if (IsMongooseCall(node))

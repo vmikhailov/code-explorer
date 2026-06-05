@@ -13,6 +13,8 @@ public class RedisLibraryParser : ILibraryParser
 
     public IEnumerable<string> SupportedLibraries => ["redis", "ioredis"];
 
+    public bool IsImplemented => true;
+
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
         if (IsRedisCall(node))

@@ -13,6 +13,8 @@ public class AxiosLibraryParser : ILibraryParser
 
     public IEnumerable<string> SupportedLibraries => ["axios"];
 
+    public bool IsImplemented => true;
+
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
         if (IsAxiosCall(node))
