@@ -65,18 +65,7 @@ public static class OntologyUploader
             ctx.AddRelsCount(1);
         }
 
-        // Special: If EntryPoint, also link Project to EntryPoint via EXPOSES
-        if (node.Kind == OntologyConstants.NodeLabels.EntryPoint && node.Extensions != null && node.Extensions.TryGetValue("file_path", out var relativeFilePath))
-        {
-            var fullPath = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, relativeFilePath));
-            var projectDir = FindProjectDirectory(fullPath, ctx.AbsoluteWorkspacePath);
-            var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, projectDir).Replace('\\', '/');
-            if (relativeProjectDir == ".") relativeProjectDir = "";
-            var projectNodeId = $"{ctx.WorkspaceId}:project:{relativeProjectDir}:";
-            var exposesRel = Relationship.FromRelationship(new ExposesRelationship(projectNodeId, node.Id));
-            collectedRelationships.Add(exposesRel);
-            ctx.AddRelsCount(1);
-        }
+        // Removed direct Project-to-EntryPoint EXPOSES relationship as they are now grouped under EntryPoints node
 
         // Special: If Project, link it to GitSettings via USES_GIT
         if (node.Kind == OntologyConstants.NodeLabels.Project)
@@ -128,6 +117,10 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
+            if (parentId.Contains(":entrypoints"))
+            {
+                return new ExposesRelationship(parentId, child.Id); // EntryPoints -> EXPOSES -> EntryPoint
+            }
             return new ImplementedByRelationship(child.Id, parentId); // EntryPoint -> IMPLEMENTED_BY -> Function
         }
         if (child.Kind == OntologyConstants.NodeLabels.ExternalService)

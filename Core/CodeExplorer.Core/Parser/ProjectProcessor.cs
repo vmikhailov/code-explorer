@@ -1,3 +1,5 @@
+using System.Linq;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
@@ -42,6 +44,9 @@ public class ProjectProcessor
 
         // 1. Scan directory recursively and build the rich node tree
         await ScanDirectoryAsync(_projectDir, projectNode);
+
+        // Group EntryPoints under a single intermediate node to simplify browsing
+        GroupEntryPoints(projectNode);
 
         // 2. Parse dependencies and produced packages
         await ParseDependenciesAsync(projectNode);
@@ -239,5 +244,47 @@ public class ProjectProcessor
             fileName.EndsWith(".test.js") || fileName.EndsWith(".spec.js")) return true;
             
         return false;
+    }
+
+    private void GroupEntryPoints(ProjectNode projectNode)
+    {
+        var entryPoints = new List<EntryPointNode>();
+        var parentMap = new Dictionary<string, string>();
+
+        FindAndCollectEntryPoints(projectNode, entryPoints, parentMap);
+
+        if (entryPoints.Count > 0)
+        {
+            var entryPointsNodeId = $"{_projectNodeId}entrypoints";
+            var entryPointsNode = new EntryPointsNode(entryPointsNodeId, "EntryPoints", projectNode.Path);
+            projectNode.Children.Add(entryPointsNode);
+
+            foreach (var ep in entryPoints)
+            {
+                entryPointsNode.Children.Add(ep);
+                if (parentMap.TryGetValue(ep.Id, out var parentId))
+                {
+                    var implRel = new ImplementedByRelationship(ep.Id, parentId);
+                    _ctx.AddGlobalProjectDependency(Relationship.FromRelationship(implRel));
+                }
+            }
+        }
+    }
+
+    private void FindAndCollectEntryPoints(IOntologyNode node, List<EntryPointNode> entryPoints, Dictionary<string, string> parentMap)
+    {
+        var epsInNode = node.Children.OfType<EntryPointNode>().ToList();
+        foreach (var ep in epsInNode)
+        {
+            entryPoints.Add(ep);
+            parentMap[ep.Id] = node.Id;
+            node.Children.Remove(ep);
+        }
+
+        var childrenCopy = node.Children.ToList();
+        foreach (var child in childrenCopy)
+        {
+            FindAndCollectEntryPoints(child, entryPoints, parentMap);
+        }
     }
 }

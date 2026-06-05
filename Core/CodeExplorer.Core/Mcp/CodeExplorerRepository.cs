@@ -411,8 +411,27 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                              "**Relationships**:\n" +
                              "  - `(Workspace)-[:CONTAINS]->(GitSettings)`",
 
+            "entrypoint" => "### Kind: EntryPoint\n" +
+                            "**Purpose**: Represents an exposed API route, message listener, or application entry point.\n" +
+                            "**Key Properties**:\n" +
+                            "  - `name` (string): The endpoint name/method/path (e.g. 'GET /api/orders').\n" +
+                            "  - `protocol` (string): The communication protocol ('http', 'ws', 'event').\n" +
+                            "  - `route_or_topic` (string): The routing path or message topic.\n" +
+                            "**Relationships**:\n" +
+                            "  - `(EntryPoints)-[:EXPOSES]->(EntryPoint)`\n" +
+                            "  - `(EntryPoint)-[:IMPLEMENTED_BY]->(Function)`",
+
+            "entrypoints" => "### Kind: EntryPoints\n" +
+                             "**Purpose**: Represents an intermediate node grouping all EntryPoint / API definition nodes of a project.\n" +
+                             "**Key Properties**:\n" +
+                             "  - `name` (string): Constant name 'EntryPoints'.\n" +
+                             "  - `path` (string): The path of the parent project.\n" +
+                             "**Relationships**:\n" +
+                             "  - `(Project)-[:CONTAINS]->(EntryPoints)`\n" +
+                             "  - `(EntryPoints)-[:EXPOSES]->(EntryPoint)`",
+
              _ =>
-                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package', 'Dependencies', 'GitSettings'."
+                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'File', 'Class', 'Function', 'Variable', 'Package', 'Dependencies', 'EntryPoints', 'EntryPoint', 'GitSettings'."
         };
     }
 
