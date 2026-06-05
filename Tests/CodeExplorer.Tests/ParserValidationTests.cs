@@ -490,16 +490,17 @@ export class OrdersController {
             Assert.That(results.RelationshipsCount, Is.GreaterThan(0));
 
             // Verify EntryPoints grouping in the database
-            var entryPointsCountBJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
+            var wsPathQuery = CodeExplorer.Core.Common.PathTools.NormalizeToHostPath(tempWorkspace).Replace("\\", "\\\\");
+            var entryPointsCountBJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
             Assert.That(entryPointsCountBJson, Contains.Substring("\"count\": 1"));
 
-            var entryPointsCountAJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectA'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
+            var entryPointsCountAJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectA'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
             Assert.That(entryPointsCountAJson, Contains.Substring("\"count\": 0"));
 
-            var containsEpJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}}) RETURN ep.name");
+            var containsEpJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}}) RETURN ep.name");
             Assert.That(containsEpJson, Contains.Substring("POST charge"));
 
-            var implByJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{tempWorkspace}'}})-[:CONTAINS*1..]->(p:Project)-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}})-[:IMPLEMENTED_BY]->(f:Function {{name: 'charge'}}) RETURN f.name");
+            var implByJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project)-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}})-[:IMPLEMENTED_BY]->(f:Function {{name: 'charge'}}) RETURN f.name");
             Assert.That(implByJson, Contains.Substring("charge"));
 
             Console.WriteLine($"[IntegrationTest] Parsed {results.NodesCount} nodes and {results.RelationshipsCount} relationships successfully.");

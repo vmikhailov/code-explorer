@@ -56,8 +56,15 @@ public class ProjectProcessor
         await ParseDependenciesAsync(projectNode);
         await LinkProducedPackageAsync(projectNode);
 
-        // 3. Perform semantic analysis & ontology enrichment
-        await _semanticAnalyzer.AnalyzeAndEnrichAsync(projectNode, _ctx);
+        try
+        {
+            // 3. Perform semantic analysis & ontology enrichment
+            await _semanticAnalyzer.AnalyzeAndEnrichAsync(projectNode, _ctx);
+        }
+        finally
+        {
+            _ctx.DisposeParsedAsts();
+        }
 
         await Console.Error.WriteLineAsync($"[WorkspaceParser] Completed scan of project '{folderName}'.");
         return projectNode;

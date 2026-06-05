@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Database;
+using TreeSitter;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -12,6 +13,30 @@ public class ParsingContext
     public Channel<Func<Task>> SharedChannel { get; }
     public bool Clear { get; }
     public string WorkspaceId { get; set; } = string.Empty;
+
+    public Dictionary<string, (Tree Tree, TreeSitter.Parser Parser, Language Language)> ParsedAsts { get; } = [];
+
+    public void RegisterAst(string filePath, Tree tree, TreeSitter.Parser parser, Language language)
+    {
+        lock (ParsedAsts)
+        {
+            ParsedAsts[filePath] = (tree, parser, language);
+        }
+    }
+
+    public void DisposeParsedAsts()
+    {
+        lock (ParsedAsts)
+        {
+            foreach (var kv in ParsedAsts.Values)
+            {
+                kv.Tree.Dispose();
+                kv.Parser.Dispose();
+                kv.Language.Dispose();
+            }
+            ParsedAsts.Clear();
+        }
+    }
     
     private readonly System.Diagnostics.Stopwatch _sessionStopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -146,10 +171,10 @@ public class ParsingContext
     public int GetTotalNodesPersisted() => _nodesPersisted;
     public int GetTotalRelsPersisted() => _relsPersisted;
 
-    public async Task EnqueueUploadNodesAsync(List<Node> nodes)
+    public async Task EnqueueUploadNodesAsync(List<CodeExplorer.Core.Database.Node> nodes)
     {
         if (nodes == null || nodes.Count == 0) return;
-        var copy = new List<Node>(nodes);
+        var copy = new List<CodeExplorer.Core.Database.Node>(nodes);
         await SharedChannel.Writer.WriteAsync(async () =>
         {
             await DbClient.UploadNodesAsync(copy);

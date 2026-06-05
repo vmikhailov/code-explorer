@@ -15,15 +15,16 @@ public static class TreeSitterFileParser
         ParsingContext ctx)
     {
         var sourceText = await File.ReadAllTextAsync(filePath);
-        using var language = new Language(fileParser.LanguageName);
-        using var parser = new TreeSitter.Parser(language);
-        using var tree = parser.Parse(sourceText);
+        var language = new Language(fileParser.LanguageName);
+        var parser = new TreeSitter.Parser(language);
+        var tree = parser.Parse(sourceText);
 
         var fileNodeId = $"{ctx.WorkspaceId}:file:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
 
         if (tree != null)
         {
+            ctx.RegisterAst(filePath, tree, parser, language);
             // First pass: collect all imports and raw variables
             CollectSemanticDataRecursive(tree.RootNode, fileParser, relativePath, ctx);
 
@@ -55,6 +56,11 @@ public static class TreeSitterFileParser
 
             // Second pass: build the ontology node tree
             TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx, relativePath, activeLibraryParsers);
+        }
+        else
+        {
+            parser.Dispose();
+            language.Dispose();
         }
 
         Console.WriteLine($"Finished parsing file: {relativePath} with {fileNode.Children.Count} top-level symbols.");
