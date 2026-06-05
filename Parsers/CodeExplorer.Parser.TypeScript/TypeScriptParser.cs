@@ -8,6 +8,13 @@ namespace CodeExplorer.Parser.TypeScript;
 
 public class TypeScriptParser : IProjectParser, IFileParser
 {
+    static TypeScriptParser()
+    {
+        LibraryParserRegistry.Register(new Libraries.AxiosLibraryParser());
+        LibraryParserRegistry.Register(new Libraries.MongooseLibraryParser());
+        LibraryParserRegistry.Register(new Libraries.RedisLibraryParser());
+    }
+
     public string LanguageName => "typescript";
 
     public string ProjectType => "typescript";
@@ -253,7 +260,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
         if (func.Type == "identifier")
         {
-            return func.Text is "fetch" or "nodeFetch" or "got" or "superagent" or "axios";
+            return func.Text is "fetch" or "nodeFetch" or "got" or "superagent";
         }
 
         if (func.Type == "member_expression")
@@ -266,7 +273,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 if (prop != null)
                 {
                     var propName = prop.Text;
-                    if (objName is "axios" or "got" or "superagent" or "request")
+                    if (objName is "got" or "superagent" or "request")
                     {
                         return propName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head";
                     }

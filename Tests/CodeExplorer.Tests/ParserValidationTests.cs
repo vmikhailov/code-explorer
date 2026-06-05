@@ -790,5 +790,100 @@ END;
             }
         }
     }
+
+    [Test]
+    public async Task Test_LibraryParsers_CSharpAndTS()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "lib_parsers_test_workspace_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+            ctx.WorkspaceId = "1";
+
+            // 1. C# file parsing test (Dapper and Flurl)
+            var csFilePath = Path.Combine(tempWorkspace, "Service.cs");
+            var csContent = @"
+using Dapper;
+using Flurl.Http;
+
+public class Service
+{
+    public void RunDapper(System.Data.IDbConnection conn)
+    {
+        conn.Query(""SELECT name FROM users WHERE id = @id"");
+    }
+
+    public async System.Threading.Tasks.Task RunFlurl()
+    {
+        await ""http://api.github.com/v3"".AppendPathSegment(""users"").GetJsonAsync();
+    }
+}";
+            await File.WriteAllTextAsync(csFilePath, csContent);
+
+            var csFileParser = new CodeExplorer.Parser.CSharp.CSharpParser();
+            var csFileNode = await TreeSitterFileParser.ParseFileAsync(csFilePath, "Service.cs", "1", csFileParser, ctx);
+
+            Console.WriteLine("=== RAW IMPORTS ===");
+            foreach (var imp in ctx.RawImports)
+            {
+                Console.WriteLine($"Import: {imp.Path} in {imp.FilePath}");
+            }
+
+            Console.WriteLine("=== FILE NODE CHILDREN ===");
+            foreach (var child in csFileNode.Children)
+            {
+                Console.WriteLine($"Child: {child.GetType().Name} - Name: {child.Name}");
+            }
+            var dapperNode = csFileNode.Children.OfType<QueryNode>().FirstOrDefault(q => q.Name.Contains("SELECT"));
+            Assert.That(dapperNode, Is.Not.Null);
+            Assert.That(dapperNode.Name, Is.EqualTo("SELECT Query: SELECT name FROM users WHERE id = @id"));
+
+            // Verify Flurl external service extraction
+            var flurlNode = csFileNode.Children.OfType<ExternalServiceNode>().FirstOrDefault();
+            Assert.That(flurlNode, Is.Not.Null);
+            Assert.That(flurlNode.Name, Is.EqualTo("api.github.com"));
+
+            // 2. TS file parsing test (Mongoose and Redis)
+            var tsFilePath = Path.Combine(tempWorkspace, "app.ts");
+            var tsContent = @"
+import mongoose from 'mongoose';
+import redis from 'redis';
+
+const schema = new mongoose.Schema({});
+const Product = mongoose.model('Product', schema);
+
+async function testDb(client: any) {
+    await Product.find();
+    await client.set('foo', 'bar');
+}";
+            await File.WriteAllTextAsync(tsFilePath, tsContent);
+
+            var tsFileParser = new CodeExplorer.Parser.TypeScript.TypeScriptParser();
+            var tsFileNode = await TreeSitterFileParser.ParseFileAsync(tsFilePath, "app.ts", "1", tsFileParser, ctx);
+
+            // Verify Mongoose model & query extraction
+            var modelNode = tsFileNode.Children.OfType<QueryNode>().FirstOrDefault(q => q.Name.Contains("Mongoose Model"));
+            Assert.That(modelNode, Is.Not.Null);
+            Assert.That(modelNode.Name, Is.EqualTo("Mongoose Model: Product"));
+
+            var findNode = tsFileNode.Children.OfType<QueryNode>().FirstOrDefault(q => q.Name.Contains("Mongoose: Product.find"));
+            Assert.That(findNode, Is.Not.Null);
+
+            // Verify Redis query extraction
+            var redisNode = tsFileNode.Children.OfType<QueryNode>().FirstOrDefault(q => q.Name.Contains("Redis: client.set"));
+            Assert.That(redisNode, Is.Not.Null);
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
 }
 

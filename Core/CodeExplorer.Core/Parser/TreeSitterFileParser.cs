@@ -24,11 +24,36 @@ public static class TreeSitterFileParser
 
         if (tree != null)
         {
-            TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx, relativePath);
+            // First pass: collect all imports and raw variables
+            CollectSemanticDataRecursive(tree.RootNode, fileParser, relativePath, ctx);
+
+            // Fetch imported library names for this file
+            var fileImports = ctx.RawImports
+                .Where(i => i.FilePath == relativePath)
+                .Select(i => i.Path)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var activeLibraryParsers = LibraryParserRegistry.GetParsersFor(fileImports);
+
+            // Second pass: build the ontology node tree
+            TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, ctx, relativePath, activeLibraryParsers);
         }
 
         Console.WriteLine($"Finished parsing file: {relativePath} with {fileNode.Children.Count} top-level symbols.");
         return fileNode;
+    }
+
+    private static void CollectSemanticDataRecursive(
+        Node node,
+        IFileParser parser,
+        string filePath,
+        ParsingContext ctx)
+    {
+        parser.CollectSemanticData(node, filePath, ctx);
+        foreach (var child in node.Children)
+        {
+            CollectSemanticDataRecursive(child, parser, filePath, ctx);
+        }
     }
 
     private static void TraverseAndBuildTree(
@@ -37,15 +62,39 @@ public static class TreeSitterFileParser
         string parentId,
         IFileParser parser,
         ParsingContext ctx,
-        string filePath)
+        string filePath,
+        List<ILibraryParser> activeLibraryParsers)
     {
-        parser.CollectSemanticData(node, filePath, ctx);
+        // 1. Try to map using library parsers first
+        string? kind = null;
+        ILibraryParser? matchingLibParser = null;
+        foreach (var libParser in activeLibraryParsers)
+        {
+            kind = libParser.MapNodeType(node, ctx);
+            if (kind != null)
+            {
+                matchingLibParser = libParser;
+                break;
+            }
+        }
 
-        var kind = parser.MapNodeType(node);
+        // 2. Fall back to standard file parser mapping
+        if (kind == null)
+        {
+            kind = parser.MapNodeType(node);
+        }
+
         string? name = null;
         if (kind != null)
         {
-            name = parser.ExtractIdentifier(node);
+            if (matchingLibParser != null)
+            {
+                name = matchingLibParser.ExtractIdentifier(node, ctx);
+            }
+            else
+            {
+                name = parser.ExtractIdentifier(node);
+            }
         }
 
         var nextParent = currentParent;
@@ -87,11 +136,18 @@ public static class TreeSitterFileParser
             }
         }
 
-        parser.CollectReferences(node, currentParentId, nextParent.References);
+        if (matchingLibParser != null)
+        {
+            matchingLibParser.CollectReferences(node, currentParentId, nextParent.References, ctx);
+        }
+        else
+        {
+            parser.CollectReferences(node, currentParentId, nextParent.References);
+        }
 
         foreach (var child in node.Children)
         {
-            TraverseAndBuildTree(child, nextParent, currentParentId, parser, ctx, filePath);
+            TraverseAndBuildTree(child, nextParent, currentParentId, parser, ctx, filePath, activeLibraryParsers);
         }
     }
 

@@ -11,6 +11,12 @@ namespace CodeExplorer.Parser.CSharp;
 
 public class CSharpParser : IProjectParser, IFileParser
 {
+    static CSharpParser()
+    {
+        LibraryParserRegistry.Register(new Libraries.DapperLibraryParser());
+        LibraryParserRegistry.Register(new Libraries.FlurlLibraryParser());
+    }
+
     public string LanguageName => "c-sharp";
 
     public string ProjectType => "csharp";
