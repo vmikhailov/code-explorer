@@ -23,10 +23,20 @@ COPY . .
 WORKDIR /src/UI/CodeExplorer
 RUN dotnet publish CodeExplorer.csproj -c Release -o /app/publish
 
+# Clean up unused platform runtimes to significantly shrink the final image
+RUN rm -rf /app/publish/runtimes/win* \
+           /app/publish/runtimes/osx* \
+           /app/publish/runtimes/linux-x86 \
+           /app/publish/runtimes/linux-arm \
+           /app/publish/runtimes/linux-musl*
+
 # Use ASP.NET runtime for running the server
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+
+# Resolve Docker Desktop VM symlinks for macOS/Windows path resolution
+RUN ln -s /host/host_mnt /host_mnt
 
 # Expose default SSE/REST HTTP port
 EXPOSE 8085
