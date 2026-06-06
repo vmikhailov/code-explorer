@@ -12,7 +12,7 @@ public static class GitSettingsParser
             return null;
         }
 
-        string branch = "Unknown";
+        var branch = "Unknown";
         try
         {
             var headPath = Path.Combine(gitDir, "HEAD");
@@ -38,16 +38,16 @@ public static class GitSettingsParser
             // Ignore and fallback
         }
 
-        string originUrl = "";
-        string userName = "";
-        string userEmail = "";
+        var originUrl = "";
+        var userName = "";
+        var userEmail = "";
 
         try
         {
             var configPath = Path.Combine(gitDir, "config");
             if (File.Exists(configPath))
             {
-                string currentSection = "";
+                var currentSection = "";
                 foreach (var rawLine in File.ReadLines(configPath))
                 {
                     var line = rawLine.Trim();

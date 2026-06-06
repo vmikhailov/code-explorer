@@ -539,7 +539,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             return "No valid code contexts retrieved.";
         }
 
-        string hostWorkspacePath = "";
+        var hostWorkspacePath = "";
 
         try
         {
@@ -562,7 +562,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             // Ignore database query errors and proceed with empty path
         }
 
-        string? workspaceRoot = Environment.GetEnvironmentVariable("WORKSPACE_ROOT");
+        var workspaceRoot = Environment.GetEnvironmentVariable("WORKSPACE_ROOT");
 
         if (string.IsNullOrEmpty(workspaceRoot))
         {
@@ -594,7 +594,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                 continue;
             }
 
-            string relativePath = PathTools.GetRelativePath(node.file_path, hostWorkspacePath);
+            var relativePath = PathTools.GetRelativePath(node.file_path, hostWorkspacePath);
 
             var joinedPath = Path.Combine(workspaceRoot, relativePath);
             var absPath = Path.GetFullPath(joinedPath);

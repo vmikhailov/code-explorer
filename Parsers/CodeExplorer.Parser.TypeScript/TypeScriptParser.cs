@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -38,24 +37,21 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new GenericLibraryParser("aws", "AWS", "cloud", ["aws-sdk", "@aws-sdk/*"]),
         new GenericLibraryParser("azure", "Azure", "cloud", ["@azure/*"]),
 
+        new Libraries.NestJsLibraryParser(),
+        new Libraries.ExpressLibraryParser(),
+        new Libraries.FetchLibraryParser(),
+
         // Generic Frameworks
-        new GenericLibraryParser("nestjs", "NestJS", "framework", ["@nestjs/*"]),
-        new GenericLibraryParser("express", "Express", "framework", ["express"]),
         new GenericLibraryParser("nextjs", "Next.js", "framework", ["next"]),
         new GenericLibraryParser("react", "React", "framework", ["react"]),
         new GenericLibraryParser("angular", "Angular", "framework", ["@angular/core"]),
 
         // Generic API Clients
         new GenericLibraryParser("request", "request", "api", ["request"]),
-        new GenericLibraryParser("superagent", "superagent", "api", ["superagent"]),
-        new GenericLibraryParser("node-fetch", "fetch", "api", ["node-fetch"]),
-        new GenericLibraryParser("got", "got", "api", ["got"]),
         new GenericLibraryParser("undici", "undici", "api", ["undici"]),
         new GenericLibraryParser("ky", "ky", "api", ["ky"]),
         new GenericLibraryParser("bent", "bent", "api", ["bent"]),
         new GenericLibraryParser("urllib", "urllib", "api", ["urllib"]),
-        new GenericLibraryParser("cross-fetch", "fetch", "api", ["cross-fetch"]),
-        new GenericLibraryParser("isomorphic-fetch", "fetch", "api", ["isomorphic-fetch"]),
     ];
 
     public bool CanParse(string fileExtension)
@@ -77,368 +73,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return false;
     }
 
-    public string? MapNodeType(Node node)
+    public BaseParserVisitor CreateVisitor(
+        TreeSitter.Node rootNode,
+        List<ILibraryParser> activeLibraryParsers)
     {
-        if (IsTsDecoratorEntryPoint(node) || IsExpressRoute(node))
-        {
-            return "EntryPoint";
-        }
-
-        if (IsTsHttpClientCall(node))
-        {
-            return "ExternalService";
-        }
-
-        if (node.Type is "string" or "template_string")
-        {
-            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
-            {
-                return "Query";
-            }
-        }
-
-        return node.Type switch
-        {
-            "class_declaration" or
-            "class_expression" or
-            "enum_declaration" => "Class",
-
-            "interface_declaration" or
-            "type_alias_declaration" => "Interface",
-
-            "method_definition" or
-            "function_declaration" or
-            "function_expression" or
-            "generator_function_declaration" or
-            "arrow_function" => "Function",
-
-            "variable_declarator" or
-            "formal_parameters" or
-            "property_signature" or
-            "public_field_definition" => "Variable",
-
-            _ => null
-        };
-    }
-
-    public string? ExtractIdentifier(Node node)
-    {
-        if (IsTsDecoratorEntryPoint(node))
-        {
-            return ExtractTsDecoratorRoute(node);
-        }
-
-        if (IsExpressRoute(node))
-        {
-            return ExtractExpressRoute(node);
-        }
-
-        if (IsTsHttpClientCall(node))
-        {
-            return ExtractTsHttpClientTarget(node);
-        }
-
-        if (node.Type is "string" or "template_string")
-        {
-            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
-            {
-                return $"{firstWord} Query";
-            }
-        }
-
-        if (node.Type is "arrow_function" or "function_expression")
-        {
-            var parent = node.Parent;
-            if (parent != null && parent.Id != IntPtr.Zero)
-            {
-                if (parent.Type == "variable_declarator")
-                {
-                    var parentNameNode = parent.GetChildForField("name");
-                    if (parentNameNode != null && parentNameNode.Id != IntPtr.Zero)
-                    {
-                        return parentNameNode.Text;
-                    }
-                    var firstIdent = parent.Children.FirstOrDefault(c => c.Type == "identifier");
-                    if (firstIdent != null && firstIdent.Id != IntPtr.Zero)
-                    {
-                        return firstIdent.Text;
-                    }
-                }
-                else if (parent.Type == "assignment_expression")
-                {
-                    var leftNode = parent.GetChildForField("left");
-                    if (leftNode != null && leftNode.Id != IntPtr.Zero)
-                    {
-                        return leftNode.Text;
-                    }
-                }
-            }
-        }
-
-        var nameNode = node.GetChildForField("name");
-        if (nameNode != null && nameNode.Id != IntPtr.Zero)
-        {
-            return nameNode.Text;
-        }
-
-        // Fallback: search for first-level identifier or variable_name
-        foreach (var child in node.Children)
-        {
-            if (child.Type is "identifier" or "variable_name")
-            {
-                return child.Text;
-            }
-        }
-
-        // Fallback: search first-level recursively for contains("name")
-        foreach (var child in node.Children)
-        {
-            if (child.Type.Contains("name"))
-            {
-                return child.Text;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsTsDecoratorEntryPoint(Node node)
-    {
-        if (node.Type != "decorator") return false;
-        var call = node.Children.FirstOrDefault(c => c.Type == "call_expression");
-        if (call == null) return false;
-        var func = call.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && call.Children.Count > 0)) func = call.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
-        var name = func.Text;
-        return name is "Controller" or "Get" or "Post" or "Put" or "Delete" or "Patch" or "SubscribeMessage";
-    }
-
-    private static string? ExtractTsDecoratorRoute(Node node)
-    {
-        var call = node.Children.FirstOrDefault(c => c.Type == "call_expression");
-        if (call == null) return null;
-        var func = call.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && call.Children.Count > 0)) func = call.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return null;
-        var name = func.Text;
-
-        var args = call.Children.FirstOrDefault(c => c.Type == "arguments");
-        string routeVal = "/";
-        if (args != null && args.Children.Count > 2)
-        {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-            if (firstArg != null)
-            {
-                routeVal = firstArg.Text.Trim('\'', '"', '`');
-            }
-        }
-
-        if (name == "SubscribeMessage")
-        {
-            return $"ws:{routeVal}";
-        }
-        var method = name == "Controller" ? "GET" : name.ToUpperInvariant();
-        return $"{method}:{routeVal}";
-    }
-
-    private static bool IsExpressRoute(Node node)
-    {
-        if (node.Type != "call_expression") return false;
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
-
-        if (func.Type == "member_expression")
-        {
-            var obj = func.GetChildForField("object");
-            if (obj != null && (obj.Text == "app" || obj.Text == "router" || obj.Text == "express"))
-            {
-                var prop = func.GetChildForField("property");
-                if (prop != null && prop.Id != IntPtr.Zero)
-                {
-                    var method = prop.Text;
-                    return method is "get" or "post" or "put" or "delete";
-                }
-            }
-        }
-        return false;
-    }
-
-    private static string? ExtractExpressRoute(Node node)
-    {
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return null;
-        var prop = func.GetChildForField("property");
-        if (prop == null) return null;
-        var method = prop.Text.ToUpperInvariant();
-
-        var args = node.Children.FirstOrDefault(c => c.Type == "arguments");
-        string routeVal = "/";
-        if (args != null)
-        {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-            if (firstArg != null)
-            {
-                routeVal = firstArg.Text.Trim('\'', '"', '`');
-            }
-        }
-        return $"{method}:{routeVal}";
-    }
-
-    private static bool IsTsHttpClientCall(Node node)
-    {
-        if (node.Type != "call_expression") return false;
-
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
-
-        if (func.Type == "identifier")
-        {
-            return func.Text is "fetch" or "nodeFetch" or "got" or "superagent";
-        }
-
-        if (func.Type == "member_expression")
-        {
-            var obj = func.GetChildForField("object");
-            if (obj != null)
-            {
-                var objName = obj.Text;
-                var prop = func.GetChildForField("property");
-                if (prop != null)
-                {
-                    var propName = prop.Text;
-                    if (objName is "got" or "superagent" or "request")
-                    {
-                        return propName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head";
-                    }
-                    if (objName is "http" or "https")
-                    {
-                        return propName is "get" or "request" or "post";
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    private static string? ExtractTsHttpClientTarget(Node node)
-    {
-        var args = node.Children.FirstOrDefault(c => c.Type == "arguments");
-        if (args != null)
-        {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-            if (firstArg != null)
-            {
-                var text = firstArg.Text.Trim('\'', '"', '`');
-                if (text.Contains("://"))
-                {
-                    try
-                    {
-                        var uri = new Uri(text);
-                        return $"http:{uri.Host}";
-                    }
-                    catch
-                    {
-                    }
-                }
-                return $"http:{text}";
-            }
-        }
-        return "http:unknown-service";
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        TryDetectCalls(node, scopeSymbolId, references);
-        TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
-        if (node.Type is "string" or "template_string")
-        {
-            NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
-        }
-
-        // If this is a method_definition preceded by an EntryPoint decorator, link via IMPLEMENTS
-        if (node.Type == "method_definition")
-        {
-            var prevSibling = GetPreviousNamedSibling(node);
-            if (prevSibling != null && prevSibling.Type == "decorator" && IsTsDecoratorEntryPoint(prevSibling))
-            {
-                var route = ExtractTsDecoratorRoute(prevSibling);
-                if (!string.IsNullOrEmpty(route))
-                {
-                    references.Add(new Reference(scopeSymbolId, route.Replace(":", " "), OntologyConstants.Relationships.Implements));
-                }
-            }
-        }
-    }
-
-    private static Node? GetPreviousNamedSibling(Node node)
-    {
-        var parent = node.Parent;
-        if (parent == null || parent.Id == IntPtr.Zero) return null;
-
-        var children = parent.Children;
-        int idx = -1;
-        for (int i = 0; i < children.Count; i++)
-        {
-            if (children[i].Id == node.Id)
-            {
-                idx = i;
-                break;
-            }
-        }
-
-        return idx > 0 ? children[idx - 1] : null;
-    }
-
-    private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        if (node.Type == "call_expression")
-        {
-            var callName = FindCallName(node);
-            if (!string.IsNullOrEmpty(callName))
-            {
-                references.Add(new Reference(scopeSymbolId, callName, "CALLS"));
-            }
-        }
-    }
-
-    private void TryDetectInheritsFromAndImplements(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        if (node.Type == "extends_clause" || node.Type == "implements_clause")
-        {
-            var kind = node.Type == "implements_clause" ? "IMPLEMENTS" : "INHERITS_FROM";
-            foreach (var child in node.Children)
-            {
-                if (child.Type.Contains("identifier") || child.Type.Contains("name"))
-                {
-                    references.Add(new Reference(scopeSymbolId, child.Text, kind));
-                }
-            }
-        }
-    }
-
-    private static string? FindCallName(Node callNode)
-    {
-        var expr = callNode.GetChildForField("function");
-        if (expr != null && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
-        {
-            expr = callNode.Children[0];
-        }
-        if (expr == null || expr.Id == IntPtr.Zero) return null;
-
-        if (expr.Type == "identifier")
-        {
-            return expr.Text;
-        }
-        if (expr.Type == "member_expression")
-        {
-            var propChild = expr.GetChildForField("property");
-            if (propChild != null && propChild.Id != IntPtr.Zero) return propChild.Text;
-        }
-        return null;
+        return new TypeScriptFileVisitor(rootNode, activeLibraryParsers, this);
     }
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
@@ -545,11 +184,16 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree) => new TypeScriptSemanticModel(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new TypeScriptSyntaxEnricher(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private ImportType ResolveTsImportType(string importPath, string filePath)
+    public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
+    {
+        return ResolveTsImportType(importPath, filePath);
+    }
+
+    public ImportType ResolveTsImportType(string importPath, string filePath)
     {
         if (string.IsNullOrEmpty(importPath)) return ImportType.External;
 
@@ -641,125 +285,41 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return deps;
     }
 
-    public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
-    {
-        if (node.Type == "import_statement")
-        {
-            var sourceNode = node.GetChildForField("source");
-            if (sourceNode == null || sourceNode.Id == IntPtr.Zero)
-            {
-                sourceNode = node.Children.FirstOrDefault(c => c.Type == "string");
-            }
-            if (sourceNode != null && sourceNode.Id != IntPtr.Zero)
-            {
-                var importPath = sourceNode.Text.Trim('\'', '"');
-                var type = ResolveTsImportType(importPath, filePath);
-                rawImports.Add(new RawImport(importPath, filePath, type));
-            }
-        }
-        else if (node.Type == "call_expression")
-        {
-            var funcNode = node.GetChildForField("function");
-            if (funcNode != null && funcNode.Text == "require")
-            {
-                var argList = node.GetChildForField("arguments");
-                if (argList != null && argList.Children.Count > 1)
-                {
-                    var firstArg = argList.Children.FirstOrDefault(c => c.Type == "string");
-                    if (firstArg != null)
-                    {
-                        var importPath = firstArg.Text.Trim('\'', '"');
-                        var type = ResolveTsImportType(importPath, filePath);
-                        rawImports.Add(new RawImport(importPath, filePath, type));
-                    }
-                }
-            }
-        }
-        else if (node.Type == "variable_declarator")
-        {
-            var nameNode = node.GetChildForField("name");
-            if (nameNode == null || nameNode.Id == IntPtr.Zero)
-            {
-                nameNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
-            }
-            var name = nameNode?.Text;
-
-            if (!string.IsNullOrEmpty(name))
-            {
-                var valueNode = node.GetChildForField("value");
-                string initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
-                bool isConstant = IsTypeScriptConstant(node);
-                string scope = DetermineTypeScriptScope(node);
-
-                rawVariables.Add(new RawVariable(
-                    name,
-                    initializerText,
-                    scope,
-                    isConstant,
-                    filePath,
-                    node.StartPosition.Row,
-                    node.EndPosition.Row,
-                    node.StartPosition.Column,
-                    node.EndPosition.Column
-                ));
-            }
-        }
-        else if (node.Type == "public_field_definition")
-        {
-            var nameNode = node.GetChildForField("name");
-            if (nameNode == null || nameNode.Id == IntPtr.Zero)
-            {
-                nameNode = node.Children.FirstOrDefault(c => c.Type == "property_identifier");
-            }
-            var name = nameNode?.Text;
-
-            if (!string.IsNullOrEmpty(name))
-            {
-                var valueNode = node.GetChildForField("value");
-                string initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
-                bool isConstant = false;
-                string scope = "class";
-
-                rawVariables.Add(new RawVariable(
-                    name,
-                    initializerText,
-                    scope,
-                    isConstant,
-                    filePath,
-                    node.StartPosition.Row,
-                    node.EndPosition.Row,
-                    node.StartPosition.Column,
-                    node.EndPosition.Column
-                ));
-            }
-        }
-    }
-
-    private static bool IsTypeScriptConstant(Node node)
-    {
-        var curr = node.Parent;
-        while (curr != null && curr.Id != IntPtr.Zero)
-        {
-            if (curr.Type == "lexical_declaration")
-            {
-                return curr.Text.StartsWith("const");
-            }
-            curr = curr.Parent;
-        }
-        return false;
-    }
-
-    private static string DetermineTypeScriptScope(Node node)
+    private static string GetContainingScopeName(Node node)
     {
         var curr = node.Parent;
         while (curr != null && curr.Id != IntPtr.Zero)
         {
             if (curr.Type is "class_declaration" or "interface_declaration")
-                return "class";
-            if (curr.Type is "function_declaration" or "arrow_function" or "method_definition" or "statement_block")
-                return "local";
+            {
+                var nameNode = curr.GetChildForField("name");
+                if (nameNode != null && nameNode.Id != IntPtr.Zero) return nameNode.Text;
+            }
+            else if (curr.Type is "function_declaration" or "method_definition")
+            {
+                var nameNode = curr.GetChildForField("name");
+                if (nameNode != null && nameNode.Id != IntPtr.Zero)
+                {
+                    var nameText = nameNode.Text;
+                    if (nameText == "constructor")
+                    {
+                        var classNode = curr.Parent;
+                        while (classNode != null && classNode.Id != IntPtr.Zero)
+                        {
+                            if (classNode.Type is "class_declaration" or "interface_declaration")
+                            {
+                                var classNameNode = classNode.GetChildForField("name");
+                                if (classNameNode != null && classNameNode.Id != IntPtr.Zero) return classNameNode.Text;
+                            }
+                            classNode = classNode.Parent;
+                        }
+                    }
+                    return nameText;
+                }
+            }
             curr = curr.Parent;
         }
         return "global";
     }
+
 }

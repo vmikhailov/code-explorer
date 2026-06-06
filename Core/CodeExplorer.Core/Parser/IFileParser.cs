@@ -27,24 +27,17 @@ public interface IFileParser
     Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath);
 
     /// <summary>
-    /// Maps a Tree-sitter AST node to a CodeExplorer ontological kind (Class, Interface, Function, Variable, or null).
+    /// Creates a language-specific AST visitor to traverse and extract symbols, references, and semantic data.
     /// </summary>
-    string? MapNodeType(Node node);
+    BaseParserVisitor CreateVisitor(
+        Node rootNode,
+        List<ILibraryParser> activeLibraryParsers
+    );
 
     /// <summary>
-    /// Extracts the identifier/name of the symbol node, resolving any language-specific syntax or field quirks.
+    /// Resolves the import type (Internal/External) for the given import path in a file.
     /// </summary>
-    string? ExtractIdentifier(Node node);
-
-    /// <summary>
-    /// Analyzes an AST node inside a containing scope and extracts any referenced symbols (calls, type uses, base classes).
-    /// </summary>
-    void CollectReferences(Node node, string scopeSymbolId, List<Reference> references);
-
-    /// <summary>
-    /// Collects raw semantic data (imports, variables) from a Tree-sitter AST node.
-    /// </summary>
-    void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables);
+    ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath);
 
     /// <summary>
     /// The library-specific parsers registered for this language.

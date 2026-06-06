@@ -5,17 +5,17 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser;
 
-public abstract class BaseSemanticModel : ISemanticModel
+public abstract class BaseSyntaxEnricher : ISyntaxEnricher
 {
-    protected IReadOnlyList<ILibraryParser> LibraryParsers { get; }
-    protected LibraryTrieRegistry TrieRegistry { get; }
-    protected SyntaxTree SyntaxTree { get; }
+    protected readonly IReadOnlyList<ILibraryParser> _libraryParsers;
+    protected readonly LibraryTrieRegistry _trieRegistry;
+    protected readonly SyntaxTree _syntaxTree;
 
-    protected BaseSemanticModel(IReadOnlyList<ILibraryParser> libraryParsers, SyntaxTree syntaxTree)
+    protected BaseSyntaxEnricher(IReadOnlyList<ILibraryParser> libraryParsers, SyntaxTree syntaxTree)
     {
-        LibraryParsers = libraryParsers;
-        TrieRegistry = new LibraryTrieRegistry(libraryParsers);
-        SyntaxTree = syntaxTree;
+        _libraryParsers = libraryParsers;
+        _trieRegistry = new LibraryTrieRegistry(libraryParsers);
+        _syntaxTree = syntaxTree;
     }
 
     protected static readonly Regex ConfigRegex = new(
@@ -38,7 +38,7 @@ public abstract class BaseSemanticModel : ISemanticModel
         RegexOptions.Compiled
     );
 
-    public virtual async Task AnalyzeAndEnrichAsync(ProjectNode projectNode, ParsingContext ctx)
+    public virtual async Task EnrichAsync(ProjectNode projectNode, ParsingContext ctx)
     {
         var packageNames = projectNode.Children
             .OfType<PackageNode>()
@@ -52,7 +52,7 @@ public abstract class BaseSemanticModel : ISemanticModel
         {
             foreach (var pkg in packageNames)
             {
-                var match = TrieRegistry.Match(pkg);
+                var match = _trieRegistry.Match(pkg);
                 if (match is { Type: "framework" } && frameworkParser == null)
                 {
                     frameworkParser = match;
@@ -60,11 +60,11 @@ public abstract class BaseSemanticModel : ISemanticModel
             }
 
             // Fallback to built-in frameworks if no match found
-            frameworkParser ??= LibraryParsers.FirstOrDefault(lp => lp.IsBuiltIn && lp.Type == "framework");
+            frameworkParser ??= _libraryParsers.FirstOrDefault(lp => lp.IsBuiltIn && lp.Type == "framework");
         }
         else
         {
-            frameworkParser = LibraryParsers.FirstOrDefault(lp => lp.Type == "framework");
+            frameworkParser = _libraryParsers.FirstOrDefault(lp => lp.Type == "framework");
         }
 
         if (frameworkParser != null)
@@ -72,12 +72,12 @@ public abstract class BaseSemanticModel : ISemanticModel
             projectNode.SetExtension("framework", frameworkParser.Name);
         }
 
-        var fileNode = SyntaxTree.FileNode;
+        var fileNode = _syntaxTree.FileNode;
         if (fileNode != null)
         {
             var relativePath = fileNode.Path;
             // Extract libraries used as list of string
-            var fileImports = SyntaxTree.RawImports
+            var fileImports = _syntaxTree.RawImports
                 .Where(i => i.Type == ImportType.External)
                 .Select(i => i.Path)
                 .ToList();
@@ -85,7 +85,7 @@ public abstract class BaseSemanticModel : ISemanticModel
             var matchedParsers = new List<ILibraryParser>();
             foreach (var import in fileImports)
             {
-                var match = TrieRegistry.Match(import);
+                var match = _trieRegistry.Match(import);
                 if (match != null && !matchedParsers.Contains(match))
                 {
                     matchedParsers.Add(match);
@@ -178,7 +178,7 @@ public abstract class BaseSemanticModel : ISemanticModel
                 }
             }
 
-            var fileVariables = SyntaxTree.RawVariables;
+            var fileVariables = _syntaxTree.RawVariables;
             foreach (var rawVar in fileVariables)
             {
                 var isConfig = ConfigRegex.IsMatch(rawVar.Name) ||

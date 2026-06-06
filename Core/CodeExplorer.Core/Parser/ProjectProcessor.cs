@@ -1,5 +1,3 @@
-using System.Linq;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
@@ -28,7 +26,7 @@ public class ProjectProcessor
         _gitignore = new GitIgnoreMatcher(_projectDir);
     }
 
-    public async Task<ProjectNode> ProcessAsync()
+    public async Task<ProjectNode> ParseStructureAsync()
     {
         var folderName = Path.GetFileName(_projectDir);
         if (string.IsNullOrEmpty(folderName)) folderName = _projectDir;
@@ -55,13 +53,28 @@ public class ProjectProcessor
         await ParseDependenciesAsync(projectNode);
         await LinkProducedPackageAsync(projectNode);
 
+        lock (_ctx.ProjectsToEnrich)
+        {
+            _ctx.ProjectsToEnrich.Add((this, projectNode));
+        }
+
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Completed structural scan of project '{folderName}'.");
+        return projectNode;
+    }
+
+    public async Task EnrichAsync(ProjectNode projectNode)
+    {
+        var folderName = Path.GetFileName(_projectDir);
+        if (string.IsNullOrEmpty(folderName)) folderName = _projectDir;
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Starting syntax enrichment of project '{folderName}'...");
+
         try
         {
-            // 3. Perform semantic analysis & ontology enrichment
+            // Perform semantic analysis & ontology enrichment
             foreach (var syntaxTree in _projectSyntaxTrees)
             {
-                var semanticModel = _projectParser.GetSemanticModel(syntaxTree);
-                await semanticModel.AnalyzeAndEnrichAsync(projectNode, _ctx);
+                var enricher = _projectParser.GetSyntaxEnricher(syntaxTree);
+                await enricher.EnrichAsync(projectNode, _ctx);
             }
         }
         finally
@@ -73,8 +86,7 @@ public class ProjectProcessor
             _projectSyntaxTrees.Clear();
         }
 
-        await Console.Error.WriteLineAsync($"[WorkspaceParser] Completed scan of project '{folderName}'.");
-        return projectNode;
+        await Console.Error.WriteLineAsync($"[WorkspaceParser] Completed syntax enrichment of project '{folderName}'.");
     }
 
     private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode)
@@ -114,7 +126,7 @@ public class ProjectProcessor
             var processor = ProjectProcessorFactory.CreateProcessor(_ctx, subDir, currentParentNode.Id);
             if (processor != null)
             {
-                var nestedProjectNode = await processor.ProcessAsync();
+                var nestedProjectNode = await processor.ParseStructureAsync();
                 currentParentNode.Children.Add(nestedProjectNode);
             }
             else
@@ -166,6 +178,10 @@ public class ProjectProcessor
                     lock (_ctx.RawVariables)
                     {
                         _ctx.RawVariables.AddRange(syntaxTree.RawVariables);
+                    }
+                    lock (_ctx.RawTypeBindings)
+                    {
+                        _ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
                     }
                 }
             }

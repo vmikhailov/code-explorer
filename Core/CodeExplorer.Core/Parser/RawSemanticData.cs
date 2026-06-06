@@ -23,3 +23,10 @@ public record RawVariable(
     int StartCol,
     int EndCol
 );
+
+public record RawTypeBinding(
+    string VariableName,
+    string TypeName,
+    string FilePath,
+    string ScopeId
+);

@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Common.Nodes;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -27,6 +28,8 @@ public class ParsingContext
     
     public List<RawImport> RawImports { get; } = [];
     public List<RawVariable> RawVariables { get; } = [];
+    public List<RawTypeBinding> RawTypeBindings { get; } = [];
+    public List<(ProjectProcessor Processor, ProjectNode Node)> ProjectsToEnrich { get; } = [];
 
     public void AddRawImport(RawImport imp)
     {
@@ -41,6 +44,14 @@ public class ParsingContext
         lock (RawVariables)
         {
             RawVariables.Add(var);
+        }
+    }
+
+    public void AddRawTypeBinding(RawTypeBinding binding)
+    {
+        lock (RawTypeBindings)
+        {
+            RawTypeBindings.Add(binding);
         }
     }
 

@@ -584,6 +584,13 @@ export class OrdersController {
             Assert.That(rootScan, Is.Not.Null);
             await (Task)rootScan.Invoke(scanParser, [tempWorkspace, workspaceNode])!;
 
+            // Run the enrichment pass since we split it
+            foreach (var (projProcessor, projNode) in ctx.ProjectsToEnrich)
+            {
+                await projProcessor.EnrichAsync(projNode);
+            }
+            ctx.ProjectsToEnrich.Clear();
+
             // Before pruning, ProjectB and EmptyFolder are in the tree
             Assert.That(workspaceNode.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.True);
 
@@ -829,9 +836,10 @@ END;
                 null, 
                 csFile, 
                 [new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs") { Type = ImportType.External }], 
+                [],
                 []);
-            var csModel = new CSharpSemanticModel(csSyntaxTree);
-            await csModel.AnalyzeAndEnrichAsync(csProj, ctx);
+            var csModel = new CSharpParser().GetSyntaxEnricher(csSyntaxTree);
+            await csModel.EnrichAsync(csProj, ctx);
 
             var csDbGroup = csProj.Children.OfType<DataBasesNode>().FirstOrDefault();
             Assert.That(csDbGroup, Is.Not.Null);
@@ -853,9 +861,10 @@ END;
                 null, 
                 tsFile, 
                 [new RawImport("mongoose", "index.ts") { Type = ImportType.External }], 
+                [],
                 []);
-            var tsModel = new TypeScriptSemanticModel(tsSyntaxTree);
-            await tsModel.AnalyzeAndEnrichAsync(tsProj, ctx);
+            var tsModel = new TypeScriptParser().GetSyntaxEnricher(tsSyntaxTree);
+            await tsModel.EnrichAsync(tsProj, ctx);
 
             var tsDbGroup = tsProj.Children.OfType<DataBasesNode>().FirstOrDefault();
             Assert.That(tsDbGroup, Is.Not.Null);
@@ -877,9 +886,10 @@ END;
                 null, 
                 pyFile, 
                 [new RawImport("redis", "main.py") { Type = ImportType.External }], 
+                [],
                 []);
-            var pyModel = new PythonSemanticModel(pySyntaxTree);
-            await pyModel.AnalyzeAndEnrichAsync(pyProj, ctx);
+            var pyModel = new PythonParser().GetSyntaxEnricher(pySyntaxTree);
+            await pyModel.EnrichAsync(pyProj, ctx);
 
             var pyDbGroup = pyProj.Children.OfType<DataBasesNode>().FirstOrDefault();
             Assert.That(pyDbGroup, Is.Not.Null);
@@ -1022,6 +1032,59 @@ async function testDb(client: any) {
 
         // Unmatched
         Assert.That(registry.Match("stripe"), Is.Null);
+    }
+
+    [Test]
+    public async Task Test_TypeBindingsAndCallsResolution()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_typebinding_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var projDir = Path.Combine(tempWorkspace, "ProjectA");
+            Directory.CreateDirectory(projDir);
+
+            var orderServiceFile = Path.Combine(projDir, "OrderService.ts");
+            var orderServiceCode = @"
+export class PaymentService {
+    async charge() {}
+}
+
+export class OrderService {
+    constructor(private paymentService: PaymentService) {}
+    async process() {
+        await this.paymentService.charge();
+    }
+}";
+            await File.WriteAllTextAsync(orderServiceFile, orderServiceCode);
+
+            // Setup parsing
+            await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+
+            // Register parsers if they aren't already registered
+            WorkspaceParser.Register(new TypeScriptParser());
+
+            // Run scanner
+            var parser = new WorkspaceParser(tempWorkspace, tempWorkspace, client, clear: true);
+            var results = await parser.IndexAsync();
+
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
+
+            // Verify using Memgraph query that Function 'process' CALLS Function 'charge' in Class 'PaymentService'
+            var callsQuery = $"MATCH (c:Class {{name: 'PaymentService'}})-[:CONTAINS]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
+            var queryResult = await client.ExecuteQueryAsync(callsQuery);
+            
+            Assert.That(queryResult, Contains.Substring("\"f1Name\": \"process\""));
+            Assert.That(queryResult, Contains.Substring("\"f2Name\": \"charge\""));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
     }
 }
 

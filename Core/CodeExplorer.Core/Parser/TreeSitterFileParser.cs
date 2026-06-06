@@ -1,3 +1,7 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -27,13 +31,19 @@ public static class TreeSitterFileParser
 
         var rawImports = new List<RawImport>();
         var rawVariables = new List<RawVariable>();
+        var rawTypeBindings = new List<RawTypeBinding>();
 
         if (tree != null)
         {
-            // First pass: collect all imports and raw variables
-            CollectSemanticDataRecursive(tree.RootNode, fileParser, relativePath, rawImports, rawVariables);
+            // First pass: collect imports to identify active library parsers
+            var preVisitor = fileParser.CreateVisitor(tree.RootNode, new List<ILibraryParser>());
+            preVisitor.Visit(tree.RootNode);
+            rawImports = preVisitor.RawImports.Select(ri => ri with {
+                FilePath = relativePath,
+                Type = fileParser.ResolveImportType(ri.Path, relativePath, absoluteWorkspacePath)
+            }).ToList();
 
-            // Fetch imported library names for this file
+            // Match imports to find active library parsers
             var fileImports = rawImports
                 .Where(i => i.Type == ImportType.External)
                 .Select(i => i.Path)
@@ -59,10 +69,29 @@ public static class TreeSitterFileParser
                 .Where(lp => lp.IsImplemented)
                 .ToList();
 
-            var localCtx = new ParsingContext(absoluteWorkspacePath, absoluteWorkspacePath, null!, null!) { WorkspaceId = workspaceId };
+            // Second pass: build the actual ontology tree and collect all semantic data
+            var mainVisitor = fileParser.CreateVisitor(tree.RootNode, activeLibraryParsers);
+            mainVisitor.Visit(tree.RootNode);
 
-            // Second pass: build the ontology node tree
-            TraverseAndBuildTree(tree.RootNode, fileNode, fileNodeId, fileParser, localCtx, relativePath, activeLibraryParsers);
+            // Map syntactic tree to ontology nodes
+            foreach (var childSyntactic in mainVisitor.RootSymbol.Children)
+            {
+                var childNode = MapSyntacticSymbolToOntology(childSyntactic, Path.GetFileName(filePath), relativePath, workspaceId, fileNode.Id);
+                fileNode.Children.Add(childNode);
+            }
+
+            foreach (var reference in mainVisitor.RootSymbol.References)
+            {
+                fileNode.References.Add(reference with { ScopeSymbolId = fileNode.Id });
+            }
+
+            rawImports = mainVisitor.RawImports.Select(ri => ri with {
+                FilePath = relativePath,
+                Type = fileParser.ResolveImportType(ri.Path, relativePath, absoluteWorkspacePath)
+            }).ToList();
+
+            rawVariables = mainVisitor.RawVariables.Select(rv => rv with { FilePath = relativePath }).ToList();
+            rawTypeBindings = mainVisitor.RawTypeBindings.Select(rt => rt with { FilePath = relativePath }).ToList();
         }
         else
         {
@@ -71,127 +100,57 @@ public static class TreeSitterFileParser
         }
 
         Console.WriteLine($"Finished parsing file: {relativePath} with {fileNode.Children.Count} top-level symbols.");
-        return new SyntaxTree(filePath, relativePath, tree, parser, language, fileNode, rawImports, rawVariables);
+        return new SyntaxTree(filePath, relativePath, tree, parser, language, fileNode, rawImports, rawVariables, rawTypeBindings);
     }
 
-    private static void CollectSemanticDataRecursive(
-        Node node,
-        IFileParser parser,
-        string filePath,
-        List<RawImport> rawImports,
-        List<RawVariable> rawVariables)
+    private static IOntologyNode MapSyntacticSymbolToOntology(
+        SyntacticSymbol syntactic,
+        string fileName,
+        string relativePath,
+        string workspaceId,
+        string parentScopeId)
     {
-        parser.CollectSemanticData(node, filePath, rawImports, rawVariables);
-        foreach (var child in node.Children)
+        var node = syntactic.Node;
+        var kind = syntactic.Kind;
+        var name = syntactic.Name;
+
+        var symbolId = $"{workspaceId}:symbol:{relativePath}:{kind}:{name}:{node.StartPosition.Row}";
+
+        IOntologyNode typedNode = kind switch
         {
-            CollectSemanticDataRecursive(child, parser, filePath, rawImports, rawVariables);
+            OntologyConstants.NodeLabels.Class => new ClassNode(symbolId, name, symbolId, fileName, relativePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+            OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, fileName, relativePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+            OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, fileName, relativePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
+            OntologyConstants.NodeLabels.Query => NestedSqlParser.ParseNestedSql(syntactic.Text ?? node.Text, symbolId, relativePath) ?? new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(syntactic.Text ?? node.Text), relativePath),
+            OntologyConstants.NodeLabels.EntryPoint => CreateEntryPointNode(name, node, relativePath, workspaceId),
+            OntologyConstants.NodeLabels.ExternalService => CreateExternalServiceNode(name, node, relativePath, workspaceId),
+            _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
+        };
+
+        // Recursively map children
+        foreach (var childSyntactic in syntactic.Children)
+        {
+            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId);
+            typedNode.Children.Add(childNode);
         }
+
+        // Rewrite references to use the correct parent scope ID if empty
+        foreach (var reference in syntactic.References)
+        {
+            var resolvedScopeId = string.IsNullOrEmpty(reference.ScopeSymbolId) ? symbolId : reference.ScopeSymbolId;
+            typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId });
+        }
+
+        return typedNode;
     }
 
-    private static void TraverseAndBuildTree(
-        Node node,
-        IOntologyNode currentParent,
-        string parentId,
-        IFileParser parser,
-        ParsingContext ctx,
-        string filePath,
-        List<ILibraryParser> activeLibraryParsers)
+    private static EntryPointNode CreateEntryPointNode(string name, Node node, string relativePath, string workspaceId)
     {
-        // 1. Try to map using library parsers first
-        string? kind = null;
-        ILibraryParser? matchingLibParser = null;
-        foreach (var libParser in activeLibraryParsers)
-        {
-            kind = libParser.MapNodeType(node, ctx);
-            if (kind != null)
-            {
-                matchingLibParser = libParser;
-                break;
-            }
-        }
-
-        // 2. Fall back to standard file parser mapping
-        if (kind == null)
-        {
-            kind = parser.MapNodeType(node);
-        }
-
-        string? name = null;
-        if (kind != null)
-        {
-            if (matchingLibParser != null)
-            {
-                name = matchingLibParser.ExtractIdentifier(node, ctx);
-            }
-            else
-            {
-                name = parser.ExtractIdentifier(node);
-            }
-        }
-
-        var nextParent = currentParent;
-        var currentParentId = parentId;
-
-        if (kind != null && !string.IsNullOrEmpty(name))
-        {
-            if (kind == OntologyConstants.NodeLabels.Variable)
-            {
-                // Skip variable nodes in the graph as it is too deep level
-            }
-            else
-            {
-                var symbolId = $"{ctx.WorkspaceId}:symbol:{filePath}:{kind}:{name}:{node.StartPosition.Row}";
-                IOntologyNode typedNode = kind switch
-                {
-                    OntologyConstants.NodeLabels.Class => new ClassNode(symbolId, name, symbolId, Path.GetFileName(filePath), filePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                    OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, Path.GetFileName(filePath), filePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                    OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, Path.GetFileName(filePath), filePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                    // OntologyConstants.NodeLabels.Variable => new VariableNode(symbolId, name, symbolId, Path.GetFileName(filePath), node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-                    OntologyConstants.NodeLabels.Query => NestedSqlParser.ParseNestedSql(node.Text, symbolId, filePath) ?? new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(node.Text), filePath),
-                    OntologyConstants.NodeLabels.EntryPoint => CreateEntryPointNode(name, filePath, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, node),
-                    OntologyConstants.NodeLabels.ExternalService => CreateExternalServiceNode(name, filePath, ctx.WorkspaceId, node),
-                    _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
-                };
-
-                currentParent.Children.Add(typedNode);
-                nextParent = typedNode;
-                currentParentId = typedNode.Id;
-            }
-        }
-
-        // Collect references inside the current symbol scope
-        if (currentParentId.Contains(":symbol:"))
-        {
-            if (node.Type is "identifier" or "type_identifier")
-            {
-                nextParent.References.Add(new Reference(currentParentId, node.Text, OntologyConstants.Relationships.PotentialType));
-            }
-        }
-
-        if (matchingLibParser != null)
-        {
-            matchingLibParser.CollectReferences(node, currentParentId, nextParent.References, ctx);
-        }
-        else
-        {
-            parser.CollectReferences(node, currentParentId, nextParent.References);
-        }
-
-        foreach (var child in node.Children)
-        {
-            TraverseAndBuildTree(child, nextParent, currentParentId, parser, ctx, filePath, activeLibraryParsers);
-        }
-    }
-
-    private static EntryPointNode CreateEntryPointNode(string name, string filePath, string workspaceId, string workspacePath, Node node)
-    {
-        var fullPath = Path.GetFullPath(Path.Combine(workspacePath, filePath));
-        var projectDir = FindProjectDirectory(fullPath, workspacePath);
-        var projectName = Path.GetFileName(projectDir);
+        var projectName = GetProjectNameFromRelativePath(relativePath);
         if (string.IsNullOrEmpty(projectName)) projectName = "default";
 
-        string protocol = "http";
-        string route = name;
+        var protocol = "http";
+        var route = name;
 
         if (name.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
         {
@@ -212,16 +171,16 @@ public static class TreeSitterFileParser
         var entryPointId = $"{workspaceId}:entrypoint:{projectName}:{protocol}:{name.Replace(":", "_")}";
         var ext = new Dictionary<string, string>
         {
-            { "file_path", filePath },
+            { "file_path", relativePath },
             { "start_line", node.StartPosition.Row.ToString() }
         };
-        return new EntryPointNode(entryPointId, name.Replace(":", " "), protocol, route, filePath, ext);
+        return new EntryPointNode(entryPointId, name.Replace(":", " "), protocol, route, relativePath, ext);
     }
 
-    private static ExternalServiceNode CreateExternalServiceNode(string name, string filePath, string workspaceId, Node node)
+    private static ExternalServiceNode CreateExternalServiceNode(string name, Node node, string relativePath, string workspaceId)
     {
-        string protocol = "http";
-        string domainOrService = name;
+        var protocol = "http";
+        var domainOrService = name;
 
         if (name.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
         {
@@ -238,25 +197,22 @@ public static class TreeSitterFileParser
         var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";
         var ext = new Dictionary<string, string>
         {
-            { "file_path", filePath },
+            { "file_path", relativePath },
             { "start_line", node.StartPosition.Row.ToString() }
         };
-        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, filePath, ext);
+        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, relativePath, ext);
     }
 
-    private static string FindProjectDirectory(string filePath, string workspacePath)
+    private static string GetProjectNameFromRelativePath(string relativePath)
     {
-        var dir = Path.GetDirectoryName(filePath);
-        while (dir != null && dir.Replace('\\', '/').StartsWith(workspacePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+        var cleanPath = relativePath.Replace('\\', '/').Trim('/');
+        var parts = cleanPath.Split('/');
+        if (parts.Length == 0) return "default";
+
+        if (parts.Length >= 2 && (parts[0] is "Core" or "Parsers" or "Tests"))
         {
-            if (Directory.GetFiles(dir, "*.csproj").Length > 0 ||
-                File.Exists(Path.Combine(dir, "package.json")) ||
-                File.Exists(Path.Combine(dir, "go.mod")))
-            {
-                return dir;
-            }
-            dir = Path.GetDirectoryName(dir);
+            return parts[1];
         }
-        return Path.GetDirectoryName(filePath) ?? "";
+        return parts[0];
     }
 }

@@ -37,21 +37,16 @@ public class SqlParser : IProjectParser, IFileParser
         //return filesInDirectory.Any(f => Path.GetExtension(f).Equals(".sql", StringComparison.OrdinalIgnoreCase));
     }
 
-    public string? MapNodeType(TreeSitter.Node node)
+    public BaseParserVisitor CreateVisitor(
+        TreeSitter.Node rootNode,
+        List<ILibraryParser> activeLibraryParsers)
     {
-        // Custom parser does not use TreeSitter Nodes
-        return null;
+        throw new NotSupportedException("SQL Parser does not use TreeSitter visitors.");
     }
 
-    public string? ExtractIdentifier(TreeSitter.Node node)
+    public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
     {
-        // Custom parser does not use TreeSitter Nodes
-        return null;
-    }
-
-    public void CollectReferences(TreeSitter.Node node, string scopeSymbolId, List<Reference> references)
-    {
-        // Custom parser does not use TreeSitter Nodes
+        return ImportType.External;
     }
 
     public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
@@ -84,7 +79,7 @@ public class SqlParser : IProjectParser, IFileParser
 
         TryDetectContains(cleanSql, fileNode, fileNodeId, relativePath, datasets, tables, procedures, workspaceId);
 
-        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, new List<RawImport>(), new List<RawVariable>());
+        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, new List<RawImport>(), new List<RawVariable>(), new List<RawTypeBinding>());
     }
 
     private void TryDetectContains(
@@ -249,7 +244,7 @@ public class SqlParser : IProjectParser, IFileParser
         var charArray = cleanSql.ToCharArray();
         foreach (var proc in procedures)
         {
-            for (int idx = proc.StartIndex; idx < proc.EndIndex; idx++)
+            for (var idx = proc.StartIndex; idx < proc.EndIndex; idx++)
             {
                 charArray[idx] = ' ';
             }
@@ -327,9 +322,9 @@ public class SqlParser : IProjectParser, IFileParser
         }
     }
 
-    public void CollectSemanticData(TreeSitter.Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
+    public void CollectSemanticData(TreeSitter.Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables, List<RawTypeBinding> rawTypeBindings)
     {
     }
 
-    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree) => new SqlSemanticModel(syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SqlSyntaxEnricher(syntaxTree);
 }

@@ -57,6 +57,14 @@ public class WorkspaceLevelParser
             // 2. Recursively scan, discovering projects inline!
             await ScanDirectoryAsync(_absoluteWorkspacePath, workspaceNode);
 
+            // 2.5 Run syntax enrichment pass across all projects
+            _ctx.Log($"[WorkspaceParser] Starting syntax enrichment pass for {_ctx.ProjectsToEnrich.Count} projects...");
+            foreach (var (projProcessor, projNode) in _ctx.ProjectsToEnrich)
+            {
+                await projProcessor.EnrichAsync(projNode);
+            }
+            _ctx.ProjectsToEnrich.Clear();
+
             // Prune empty folder/project nodes to avoid adding empty projects/folders to the graph
             OntologyPruner.PruneEmptyFolders(workspaceNode);
 
@@ -108,7 +116,7 @@ public class WorkspaceLevelParser
         var processor = ProjectProcessorFactory.CreateProcessor(_ctx, currentDir, parentNode.Id);
         if (processor != null)
         {
-            var projectNode = await processor.ProcessAsync();
+            var projectNode = await processor.ParseStructureAsync();
             parentNode.Children.Add(projectNode);
             return;
         }
@@ -165,6 +173,10 @@ public class WorkspaceLevelParser
                     lock (_ctx.RawVariables)
                     {
                         _ctx.RawVariables.AddRange(syntaxTree.RawVariables);
+                    }
+                    lock (_ctx.RawTypeBindings)
+                    {
+                        _ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
                     }
                 }
             }

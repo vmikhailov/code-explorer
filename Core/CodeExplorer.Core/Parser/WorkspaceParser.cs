@@ -89,7 +89,7 @@ public class WorkspaceParser
         }
 
         // 6. Deferred Global Reference Resolution & Final Reference Upload
-        int totalReferences = ctx.GlobalReferences.Count;
+        var totalReferences = ctx.GlobalReferences.Count;
         ctx.Log($"[WorkspaceParser] Resolving {totalReferences} global cross-references...");
         var referenceRelationships = new List<Relationship>();
         var inheritanceRels = new HashSet<(string From, string To)>();
@@ -126,7 +126,7 @@ public class WorkspaceParser
             }
 
             // Pass 2: Resolve all other relationships using the cached inheritance relationships.
-            int resolvedCount = 0;
+            var resolvedCount = 0;
             foreach (var refItem in ctx.GlobalReferences)
             {
                 resolvedCount++;
@@ -139,11 +139,60 @@ public class WorkspaceParser
                 {
                     lock (ctx.GlobalSymbols)
                     {
-                        if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Function, refItem.TargetName), out var targetNodeId))
+                        var targetName = refItem.TargetName;
+                        if (targetName.Contains('.'))
+                        {
+                            var dotIdx = targetName.LastIndexOf('.');
+                            var varName = targetName.Substring(0, dotIdx);
+                            var methodName = targetName.Substring(dotIdx + 1);
+
+                            string? filePath = null;
+                            var scopeParts = refItem.ScopeSymbolId.Split(':');
+                            if (scopeParts.Length > 2 && scopeParts[1] == "symbol")
+                            {
+                                filePath = scopeParts[2];
+                            }
+
+                            if (filePath != null)
+                            {
+                                RawTypeBinding? binding = null;
+                                lock (ctx.RawTypeBindings)
+                                {
+                                    // Priority 1: Match by scope name
+                                    binding = ctx.RawTypeBindings.FirstOrDefault(b =>
+                                        b.FilePath == filePath &&
+                                        b.VariableName == varName &&
+                                        refItem.ScopeSymbolId.Contains($":{b.ScopeId}:"));
+
+                                    // Priority 2: Fallback to any binding in the same file
+                                    if (binding == null)
+                                    {
+                                        binding = ctx.RawTypeBindings.FirstOrDefault(b =>
+                                            b.FilePath == filePath &&
+                                            b.VariableName == varName);
+                                    }
+                                }
+
+                                if (binding != null)
+                                {
+                                    targetName = $"{binding.TypeName}.{methodName}";
+                                }
+                                else
+                                {
+                                    targetName = methodName;
+                                }
+                            }
+                            else
+                            {
+                                targetName = methodName;
+                            }
+                        }
+
+                        if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Function, targetName), out var targetNodeId))
                         {
                             referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
                         }
-                        else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Procedure, refItem.TargetName), out var targetProcId))
+                        else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Procedure, targetName), out var targetProcId))
                         {
                             referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetProcId)));
                         }
@@ -218,6 +267,11 @@ public class WorkspaceParser
             await _dbClient.UploadRelationshipsAsync(referenceRelationships);
             ctx.TotalRelsCount += referenceRelationships.Count;
         }
+
+        // Run Layer 2 PostIndexAnalyzer
+        ctx.Log($"[WorkspaceParser] Running Layer 2 semantic analysis via PostIndexAnalyzer...");
+        var postAnalyzer = new PostIndexAnalyzer(_dbClient);
+        await postAnalyzer.RunAsync(ctx.WorkspaceId);
 
         ctx.Log($"[WorkspaceParser] Indexing process completed successfully! Total Nodes: {ctx.TotalNodesCount}, Total Relationships: {ctx.TotalRelsCount}.");
 

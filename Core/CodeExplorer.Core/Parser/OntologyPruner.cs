@@ -8,7 +8,7 @@ public static class OntologyPruner
     public static bool PruneEmptyFolders(IOntologyNode node)
     {
         // 1. Recursively prune children first (in reverse to support safe deletion during iteration)
-        for (int i = node.Children.Count - 1; i >= 0; i--)
+        for (var i = node.Children.Count - 1; i >= 0; i--)
         {
             var child = node.Children[i];
             if (child.Kind == OntologyConstants.NodeLabels.WorkspaceFolder ||

@@ -71,242 +71,11 @@ public class CSharpParser : IProjectParser, IFileParser
         return false;
     }
 
-    public string? MapNodeType(Node node)
+    public BaseParserVisitor CreateVisitor(
+        TreeSitter.Node rootNode,
+        List<ILibraryParser> activeLibraryParsers)
     {
-        if (node.Type == "attribute")
-        {
-            var nameNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
-            if (nameNode != null && (nameNode.Text == "Route" || nameNode.Text.StartsWith("Http")))
-            {
-                return "EntryPoint";
-            }
-        }
-
-        if (IsHttpClientCall(node))
-        {
-            return "ExternalService";
-        }
-
-        if (node.Type.Contains("string") &&
-            node.Type != "interpolated_string_expression" &&
-            node.Type != "interpolated_verbatim_string_expression" &&
-            node.Type != "interpolated_raw_string_expression")
-        {
-            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
-            {
-                return "Query";
-            }
-        }
-
-        return node.Type switch
-        {
-            "class_declaration" or
-            "struct_declaration" or
-            "record_declaration" => "Class",
-
-            "interface_declaration" => "Interface",
-
-            "method_declaration" or
-            "function_declaration" or
-            "constructor_declaration" or
-            "local_function_statement" => "Function",
-
-            "variable_declarator" or
-            "parameter" or
-            "property_declaration" or
-            "field_declaration" => "Variable",
-
-            _ => null
-        };
-    }
-
-    public string? ExtractIdentifier(Node node)
-    {
-        if (node.Type == "attribute")
-        {
-            return ExtractCSharpAttributeRoute(node);
-        }
-
-        if (IsHttpClientCall(node))
-        {
-            return ExtractHttpClientTarget(node);
-        }
-
-        if (node.Type.Contains("string"))
-        {
-            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
-            {
-                return $"{firstWord} Query";
-            }
-        }
-
-        var nameNode = node.GetChildForField("name");
-        if (nameNode != null && nameNode.Id != IntPtr.Zero)
-        {
-            return nameNode.Text;
-        }
-
-        // Fallback: search for first-level identifier or variable_name
-        foreach (var child in node.Children)
-        {
-            if (child.Type is "identifier" or "variable_name")
-            {
-                return child.Text;
-            }
-        }
-
-        // Fallback: search first-level recursively for contains("name")
-        foreach (var child in node.Children)
-        {
-            if (child.Type.Contains("name"))
-            {
-                return child.Text;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsHttpClientCall(Node node)
-    {
-        if (node.Type != "invocation_expression") return false;
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
-
-        if (func.Type == "member_access_expression")
-        {
-            var nameChild = func.GetChildForField("name");
-            if (nameChild != null && nameChild.Id != IntPtr.Zero)
-            {
-                var methodName = nameChild.Text;
-                return methodName is "GetAsync" or "PostAsync" or "PutAsync" or "DeleteAsync" or "SendAsync" or "PostAsJsonAsync" or "GetFromJsonAsync";
-            }
-        }
-        return false;
-    }
-
-    private static string? ExtractHttpClientTarget(Node node)
-    {
-        var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-        if (argList != null && argList.Children.Count > 1)
-        {
-            var arg = argList.Children.FirstOrDefault(c => c.Type == "argument");
-            if (arg != null)
-            {
-                var valNode = arg.Children.FirstOrDefault();
-                if (valNode != null)
-                {
-                    var text = valNode.Text.Trim('"');
-                    if (text.Contains("://"))
-                    {
-                        try
-                        {
-                            var uri = new Uri(text);
-                            return $"http:{uri.Host}";
-                        }
-                        catch
-                        {
-                        }
-                    }
-                    return $"http:{text}";
-                }
-            }
-        }
-        return "http:unknown-service";
-    }
-
-    private static string? ExtractCSharpAttributeRoute(Node attributeNode)
-    {
-        var nameNode = attributeNode.Children.FirstOrDefault(c => c.Type == "identifier");
-        if (nameNode == null) return null;
-        var name = nameNode.Text;
-        if (name != "Route" && name != "HttpGet" && name != "HttpPost" && name != "HttpPut" && name != "HttpDelete" && name != "HttpPatch")
-        {
-            return null;
-        }
-
-        var argList = attributeNode.Children.FirstOrDefault(c => c.Type == "attribute_argument_list");
-        string routeVal = "/";
-        if (argList != null)
-        {
-            var arg = argList.Children.FirstOrDefault(c => c.Type == "attribute_argument");
-            if (arg != null)
-            {
-                var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                if (strNode != null)
-                {
-                    routeVal = strNode.Text.Trim('"');
-                }
-            }
-        }
-
-        var method = name == "Route" ? "GET" : name.Replace("Http", "").ToUpperInvariant();
-        return $"{method}:{routeVal}";
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        TryDetectCalls(node, scopeSymbolId, references);
-        TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
-        if (node.Type.Contains("string") &&
-            node.Type != "interpolated_string_expression" &&
-            node.Type != "interpolated_verbatim_string_expression" &&
-            node.Type != "interpolated_raw_string_expression")
-        {
-            NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
-        }
-    }
-
-    private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        if (node.Type == "invocation_expression")
-        {
-            var callName = FindCallName(node);
-            if (!string.IsNullOrEmpty(callName))
-            {
-                references.Add(new Reference(scopeSymbolId, callName, "CALLS"));
-            }
-        }
-    }
-
-    private void TryDetectInheritsFromAndImplements(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        if (node.Type == "base_list")
-        {
-            foreach (var child in node.Children)
-            {
-                if (child.Type.Contains("identifier") || child.Type.Contains("name"))
-                {
-                    var baseName = child.Text;
-                    var refKind = baseName.StartsWith('I') && baseName.Length > 1 && char.IsUpper(baseName[1])
-                        ? "IMPLEMENTS"
-                        : "INHERITS_FROM";
-                    references.Add(new Reference(scopeSymbolId, baseName, refKind));
-                }
-            }
-        }
-    }
-
-    private static string? FindCallName(Node callNode)
-    {
-        var expr = callNode.GetChildForField("function");
-        if (expr != null && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
-        {
-            expr = callNode.Children[0];
-        }
-        if (expr == null || expr.Id == IntPtr.Zero) return null;
-
-        if (expr.Type == "identifier")
-        {
-            return expr.Text;
-        }
-        if (expr.Type == "member_access_expression")
-        {
-            var nameChild = expr.GetChildForField("name");
-            if (nameChild != null && nameChild.Id != IntPtr.Zero) return nameChild.Text;
-        }
-        return null;
+        return new CSharpFileVisitor(rootNode, activeLibraryParsers, this);
     }
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
@@ -409,11 +178,11 @@ public class CSharpParser : IProjectParser, IFileParser
         return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree) => new CSharpSemanticModel(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new CSharpSyntaxEnricher(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, string> _csProjCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private ImportType ResolveCsImportType(string importPath, string filePath)
+    public ImportType ResolveCsImportType(string importPath, string filePath)
     {
         if (string.IsNullOrEmpty(importPath)) return ImportType.External;
 
@@ -443,6 +212,11 @@ public class CSharpParser : IProjectParser, IFileParser
         }
 
         return ImportType.External;
+    }
+
+    public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
+    {
+        return ResolveCsImportType(importPath, filePath);
     }
 
     private string? FindCsprojFile(string? dir)
@@ -492,9 +266,9 @@ public class CSharpParser : IProjectParser, IFileParser
                         valueNode = eqClause.Children[1];
                     }
                 }
-                string initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
-                bool isConstant = IsCSharpConstant(node);
-                string scope = DetermineCSharpScope(node);
+                var initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
+                var isConstant = IsCSharpConstant(node);
+                var scope = DetermineCSharpScope(node);
 
                 rawVariables.Add(new RawVariable(
                     name,

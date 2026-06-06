@@ -1,23 +1,19 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.SQL;
 
-public class SqlSemanticModel : ISemanticModel
+public class SqlSyntaxEnricher : ISyntaxEnricher
 {
     private readonly SyntaxTree _syntaxTree;
 
-    public SqlSemanticModel(SyntaxTree syntaxTree)
+    public SqlSyntaxEnricher(SyntaxTree syntaxTree)
     {
         _syntaxTree = syntaxTree;
     }
 
-    public Task AnalyzeAndEnrichAsync(ProjectNode projectNode, ParsingContext ctx)
+    public Task EnrichAsync(ProjectNode projectNode, ParsingContext ctx)
     {
         if (_syntaxTree.FileNode != null)
         {

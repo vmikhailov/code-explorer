@@ -28,7 +28,7 @@ public interface ILibraryParser
         var minLen = Math.Min(aParts.Length, bParts.Length);
         if (minLen == 0) return false;
 
-        for (int i = 0; i < minLen; i++)
+        for (var i = 0; i < minLen; i++)
         {
             if (!aParts[i].Equals(bParts[i], StringComparison.OrdinalIgnoreCase))
                 return false;

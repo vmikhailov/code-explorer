@@ -23,9 +23,9 @@ public class McpIntegrationTests
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
 
         // Wait for the server to become available
-        bool available = false;
+        var available = false;
         Exception? lastEx = null;
-        for (int i = 0; i < 40; i++)
+        for (var i = 0; i < 40; i++)
         {
             try
             {
@@ -281,7 +281,7 @@ public class SseSession : IAsyncDisposable
         try
         {
             using var doc = JsonDocument.Parse(data);
-            if (doc.RootElement.TryGetProperty("id", out var idElement) && idElement.TryGetInt32(out int id))
+            if (doc.RootElement.TryGetProperty("id", out var idElement) && idElement.TryGetInt32(out var id))
             {
                 lock (_lock)
                 {

@@ -312,6 +312,22 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         }
     }
 
+    public async Task ExecuteWriteAsync(string query, object? parameters = null)
+    {
+        await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
+        await session.ExecuteWriteAsync(async tx =>
+        {
+            if (parameters != null)
+            {
+                await tx.RunAsync(query, parameters);
+            }
+            else
+            {
+                await tx.RunAsync(query);
+            }
+        });
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _driver.DisposeAsync();

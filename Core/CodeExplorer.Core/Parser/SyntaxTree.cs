@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Core.Common.Nodes;
 using TreeSitter;
 
@@ -15,6 +13,7 @@ public class SyntaxTree : IDisposable
     public FileNode FileNode { get; }
     public List<RawImport> RawImports { get; }
     public List<RawVariable> RawVariables { get; }
+    public List<RawTypeBinding> RawTypeBindings { get; }
 
     public SyntaxTree(
         string filePath,
@@ -24,7 +23,8 @@ public class SyntaxTree : IDisposable
         Language? language,
         FileNode fileNode,
         List<RawImport> rawImports,
-        List<RawVariable> rawVariables)
+        List<RawVariable> rawVariables,
+        List<RawTypeBinding> rawTypeBindings)
     {
         FilePath = filePath;
         RelativePath = relativePath;
@@ -34,6 +34,7 @@ public class SyntaxTree : IDisposable
         FileNode = fileNode;
         RawImports = rawImports;
         RawVariables = rawVariables;
+        RawTypeBindings = rawTypeBindings;
     }
 
     public void Dispose()

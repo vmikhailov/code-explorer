@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace CodeExplorer.Core.Parser;
 
 public interface IProjectParser
@@ -30,7 +28,7 @@ public interface IProjectParser
     Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory);
 
     /// <summary>
-    /// Gets the semantic model for this project type.
+    /// Gets the syntax enricher for this project type.
     /// </summary>
-    ISemanticModel GetSemanticModel(SyntaxTree syntaxTree);
+    ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree);
 }

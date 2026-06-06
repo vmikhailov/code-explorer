@@ -34,131 +34,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
         return false;
     }
 
-    public string? MapNodeType(Node node)
-    {
-        if (node.Type is "string" or "template_string")
-        {
-            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
-            {
-                return "Query";
-            }
-        }
 
-        return node.Type switch
-        {
-            "class_declaration" or
-            "class_expression" => "Class",
-
-            "method_definition" or
-            "function_declaration" or
-            "function_expression" or
-            "generator_function_declaration" or
-            "arrow_function" => "Function",
-
-            "variable_declarator" or
-            "formal_parameters" or
-            "property_signature" or
-            "public_field_definition" or
-            "field_definition" => "Variable",
-
-            _ => null
-        };
-    }
-
-    public string? ExtractIdentifier(Node node)
-    {
-        if (node.Type is "string" or "template_string")
-        {
-            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
-            {
-                return $"{firstWord} Query";
-            }
-        }
-
-        var nameNode = node.GetChildForField("name");
-        if (nameNode != null && nameNode.Id != IntPtr.Zero)
-        {
-            return nameNode.Text;
-        }
-
-        // Fallback: search for first-level identifier or variable_name
-        foreach (var child in node.Children)
-        {
-            if (child.Type is "identifier" or "variable_name")
-            {
-                return child.Text;
-            }
-        }
-
-        // Fallback: search first-level recursively for contains("name")
-        foreach (var child in node.Children)
-        {
-            if (child.Type.Contains("name"))
-            {
-                return child.Text;
-            }
-        }
-
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        TryDetectCalls(node, scopeSymbolId, references);
-        TryDetectInheritsFromAndImplements(node, scopeSymbolId, references);
-        if (node.Type is "string" or "template_string")
-        {
-            NestedSqlParser.TryDetectSqlDependencies(node.Text, scopeSymbolId, references);
-        }
-    }
-
-    private void TryDetectCalls(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        if (node.Type == "call_expression")
-        {
-            var callName = FindCallName(node);
-            if (!string.IsNullOrEmpty(callName))
-            {
-                references.Add(new Reference(scopeSymbolId, callName, "CALLS"));
-            }
-        }
-    }
-
-    private void TryDetectInheritsFromAndImplements(Node node, string scopeSymbolId, List<Reference> references)
-    {
-        if (node.Type == "extends_clause" || node.Type == "implements_clause")
-        {
-            var kind = node.Type == "implements_clause" ? "IMPLEMENTS" : "INHERITS_FROM";
-            foreach (var child in node.Children)
-            {
-                if (child.Type.Contains("identifier") || child.Type.Contains("name"))
-                {
-                    references.Add(new Reference(scopeSymbolId, child.Text, kind));
-                }
-            }
-        }
-    }
-
-    private static string? FindCallName(Node callNode)
-    {
-        var expr = callNode.GetChildForField("function");
-        if (expr != null && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
-        {
-            expr = callNode.Children[0];
-        }
-        if (expr == null || expr.Id == IntPtr.Zero) return null;
-
-        if (expr.Type == "identifier")
-        {
-            return expr.Text;
-        }
-        if (expr.Type == "member_expression")
-        {
-            var propChild = expr.GetChildForField("property");
-            if (propChild != null && propChild.Id != IntPtr.Zero) return propChild.Text;
-        }
-        return null;
-    }
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
@@ -267,13 +143,20 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     private readonly TypeScriptParser _tsParser = new();
 
-    public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
+    public BaseParserVisitor CreateVisitor(
+        TreeSitter.Node rootNode,
+        List<ILibraryParser> activeLibraryParsers)
     {
-        _tsParser.CollectSemanticData(node, filePath, rawImports, rawVariables);
+        return _tsParser.CreateVisitor(rootNode, activeLibraryParsers);
     }
 
-    public ISemanticModel GetSemanticModel(SyntaxTree syntaxTree)
+    public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
     {
-        return _tsParser.GetSemanticModel(syntaxTree);
+        return _tsParser.ResolveImportType(importPath, filePath, absoluteWorkspacePath);
+    }
+
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree)
+    {
+        return _tsParser.GetSyntaxEnricher(syntaxTree);
     }
 }

@@ -51,5 +51,7 @@ public static class OntologyConstants
         public const string UsesGit = "USES_GIT";
         public const string UsesApi = "USES_API";
         public const string UsesCloud = "USES_CLOUD";
+        public const string TransitivelyCalls = "TRANSITIVELY_CALLS";
+        public const string AttributedTo = "ATTRIBUTED_TO";
     }
 }
