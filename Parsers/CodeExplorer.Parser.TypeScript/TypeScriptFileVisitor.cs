@@ -108,30 +108,22 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         if (node.Type != "decorator") return false;
 
         var call = node.Children.FirstOrDefault(c => c.Type == "call_expression");
-        if (call == null) return false;
+        var func = call?.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        var func = call.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && call.Children.Count > 0)) func = call.Children[0];
-
-        if (func.Id == IntPtr.Zero) return false;
-
-        var name = func.Text;
+        var name = func!.Text;
         return name is "Controller" or "Get" or "Post" or "Put" or "Delete" or "Patch" or "SubscribeMessage";
     }
 
     private static string? ExtractTsDecoratorRoute(Node node)
     {
         var call = node.Children.FirstOrDefault(c => c.Type == "call_expression");
-        if (call == null) return null;
+        var func = call?.GetFunctionNode();
+        if (!func.IsValid()) return null;
 
-        var func = call.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && call.Children.Count > 0)) func = call.Children[0];
+        var name = func!.Text;
 
-        if (func.Id == IntPtr.Zero) return null;
-
-        var name = func.Text;
-
-        var args = call.Children.FirstOrDefault(c => c.Type == "arguments");
+        var args = call!.Children.FirstOrDefault(c => c.Type == "arguments");
         var routeVal = "/";
 
         if (args != null && args.Children.Count > 2)
@@ -157,12 +149,10 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     {
         if (node.Type != "call_expression") return false;
 
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        if (func.Id == IntPtr.Zero) return false;
-
-        if (func.Type == "member_expression")
+        if (func!.Type == "member_expression")
         {
             var obj = func.GetChildForField("object");
 
@@ -171,9 +161,9 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             {
                 var prop = func.GetChildForField("property");
 
-                if (prop != null && prop.Id != IntPtr.Zero)
+                if (prop.IsValid())
                 {
-                    var method = prop.Text;
+                    var method = prop!.Text;
                     return method is "get" or "post" or "put" or "delete";
                 }
             }
@@ -184,15 +174,13 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     private static string? ExtractExpressRoute(Node node)
     {
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return null;
 
-        if (func.Id == IntPtr.Zero) return null;
+        var prop = func!.GetChildForField("property");
+        if (!prop.IsValid()) return null;
 
-        var prop = func.GetChildForField("property");
-        if (prop == null) return null;
-
-        var method = prop.Text.ToUpperInvariant();
+        var method = prop!.Text.ToUpperInvariant();
 
         var args = node.Children.FirstOrDefault(c => c.Type == "arguments");
         var routeVal = "/";
@@ -214,12 +202,10 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     {
         if (node.Type != "call_expression") return false;
 
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        
-        if (func.Id == IntPtr.Zero) return false;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "identifier" && func.Text == "fetch") return true;
+        if (func!.Type == "identifier" && func.Text == "fetch") return true;
 
         if (func.Type == "member_expression")
         {
@@ -315,42 +301,30 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         {
             var parent = node.Parent;
 
-            if (parent != null && parent.Id != IntPtr.Zero)
+            if (parent.IsValid())
             {
-                if (parent.Type == "variable_declarator")
+                if (parent!.Type == "variable_declarator")
                 {
-                    var parentNameNode = parent.GetChildForField("name");
-
-                    if (parentNameNode != null && parentNameNode.Id != IntPtr.Zero)
-                    {
-                        return parentNameNode.Text;
-                    }
+                    var parentName = parent.GetChildFieldText("name");
+                    if (parentName != null) return parentName;
 
                     var firstIdent = parent.Children.FirstOrDefault(c => c.Type == "identifier");
 
-                    if (firstIdent != null && firstIdent.Id != IntPtr.Zero)
+                    if (firstIdent.IsValid())
                     {
-                        return firstIdent.Text;
+                        return firstIdent!.Text;
                     }
                 }
                 else if (parent.Type == "assignment_expression")
                 {
-                    var leftNode = parent.GetChildForField("left");
-
-                    if (leftNode != null && leftNode.Id != IntPtr.Zero)
-                    {
-                        return leftNode.Text;
-                    }
+                    var leftText = parent.GetChildFieldText("left");
+                    if (leftText != null) return leftText;
                 }
             }
         }
 
-        var nameNode = node.GetChildForField("name");
-
-        if (nameNode != null && nameNode.Id != IntPtr.Zero)
-        {
-            return nameNode.Text;
-        }
+        var nameText = node.GetChildFieldText("name");
+        if (nameText != null) return nameText;
 
         foreach (var child in node.Children)
         {
@@ -443,16 +417,11 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override string? FindCallName(Node callNode)
     {
-        var expr = callNode.GetChildForField("function");
+        var expr = callNode.GetFunctionNode();
 
-        if (expr != null && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
-        {
-            expr = callNode.Children[0];
-        }
+        if (!expr.IsValid()) return null;
 
-        if (expr == null || expr.Id == IntPtr.Zero) return null;
-
-        if (expr.Type == "identifier")
+        if (expr!.Type == "identifier")
         {
             return expr.Text;
         }
@@ -460,7 +429,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         if (expr.Type == "member_expression")
         {
             var propChild = expr.GetChildForField("property");
-            if (propChild != null && propChild.Id != IntPtr.Zero) return propChild.Text;
+            if (propChild.IsValid()) return propChild!.Text;
         }
 
         return null;
@@ -617,38 +586,38 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     {
         var curr = node.Parent;
 
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "class_declaration" or "interface_declaration")
+            if (curr!.Type is "class_declaration" or "interface_declaration")
             {
-                var nameNode = curr.GetChildForField("name");
-                if (nameNode != null && nameNode.Id != IntPtr.Zero) return nameNode.Text;
+                var nameText = curr.GetChildFieldText("name");
+                if (nameText != null) return nameText;
             }
             else if (curr.Type is "function_declaration" or "method_definition")
             {
-                var nameNode = curr.GetChildForField("name");
+                var nameText = curr.GetChildFieldText("name");
 
-                if (nameNode != null && nameNode.Id != IntPtr.Zero)
+                if (nameText != null)
                 {
-                    var nameText = nameNode.Text;
+                    var nameTextStr = nameText;
 
-                    if (nameText == "constructor")
+                    if (nameTextStr == "constructor")
                     {
                         var classNode = curr.Parent;
 
-                        while (classNode != null && classNode.Id != IntPtr.Zero)
+                        while (classNode.IsValid())
                         {
-                            if (classNode.Type is "class_declaration" or "interface_declaration")
+                            if (classNode!.Type is "class_declaration" or "interface_declaration")
                             {
-                                var classNameNode = classNode.GetChildForField("name");
-                                if (classNameNode != null && classNameNode.Id != IntPtr.Zero) return classNameNode.Text;
+                                var classNameText = classNode.GetChildFieldText("name");
+                                if (classNameText != null) return classNameText;
                             }
 
                             classNode = classNode.Parent;
                         }
                     }
 
-                    return nameText;
+                    return nameTextStr;
                 }
             }
 

@@ -35,6 +35,32 @@ It also serves as a **Model Context Protocol (MCP)** server, allowing AI agents 
 
 ---
 
+## 🏛️ Architecture: Two-Pass Semantic Pipeline
+
+CodeExplorer uses a decoupled two-pass pipeline to ingest and analyze codebases safely, isolating AST parsing from database mapping and resolution.
+
+```mermaid
+graph TD
+    A[Source File] -->|Parse AST| B[Tree-sitter Root Node]
+    B -->|Pass 1: AST Visitors| C[In-Memory SyntacticSymbol Tree]
+    C -->|Pass 2: Map to Ontology| D[FileNode, ClassNode, FunctionNode...]
+    D -->|Post-Index Analyzer| E[Memgraph Database]
+    E -->|Late Binding Resolution| F[Semantic Graph with CALLS & IMPLEMENTS]
+```
+
+### 1. Pass 1: Pure Syntactic AST Visitors
+AST parsing is performed in isolation. Language-specific visitor classes (e.g., `CSharpFileVisitor`, `TypeScriptFileVisitor`) inherit from `BaseParserVisitor`.
+*   **In-Memory Isolation**: Visitors have no access to database classes, file system IO, or ontology nodes. They process the syntax tree entirely in memory.
+*   **Node Extensions**: Employs safety-first helper extension methods (via `NodeExtensions`) to query Tree-sitter nodes safely, handle nullable nodes, extract named field text, and resolve function targets cleanly.
+*   **Syntactic Symbol Output**: Visitors output a pure in-memory `SyntacticSymbol` tree describing the hierarchical structure of declarations and references found in the AST.
+
+### 2. Pass 2: Ontology Mapping & Resolution
+Once the syntactic structure is captured:
+*   **Ontology Mapping**: The parser maps `SyntacticSymbol` trees into concrete database ontology models (`FileNode`, `ClassNode`, `EntryPointNode`, `QueryNode`, etc.).
+*   **Late-Bound Resolution**: A post-index analysis pass executes Cypher queries to link cross-file, late-bound dependencies (e.g., connecting a frontend HTTP call to its backend controller endpoint, or resolving interface implementations).
+
+---
+
 ## 🛠️ Tech Stack & Requirements
 
 *   **Runtime**: [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
