@@ -12,6 +12,20 @@ It also serves as a **Model Context Protocol (MCP)** server, allowing AI agents 
 
 ---
 
+## 🔍 CodeExplorer vs. Classic LSP (Language Server Protocol)
+
+While classic LSPs are optimized for real-time text editor experiences, CodeExplorer is architected for AI-native code reasoning and cross-project indexing:
+
+| Dimension | Classic LSP (e.g., `gopls`, `Pyright`) | CodeExplorer (Memgraph + MCP) |
+| :--- | :--- | :--- |
+| **Primary Consumer** | Humans (real-time IDE autocompletion/linting). | **AI Agents / LLMs** (autonomous workspace exploration). |
+| **Storage Strategy** | Stateful, in-memory AST caches per editor session. | **Persistent Graph Database** (Memgraph/Neo4j). |
+| **Polyglot Scope** | Single-language boundary per server instance. | **Unified Cross-Language Graph** (bridges C#, Go, Python, TS, and SQL). |
+| **Querying** | Fixed RPC methods (`goto definition`, `find references`). | **Arbitrary Cypher Queries** (unlimited multi-hop semantic traversal). |
+| **Update Loop** | Instantaneous, keystroke-by-keystroke. | Batch ingestion pipeline (triggered via CLI or Webhooks). |
+
+---
+
 ## 🚀 Key Features
 
 *   **Dynamic On-the-Fly Scanning**: Recursively scans directories to detect project boundaries dynamically without hardcoded limits.
