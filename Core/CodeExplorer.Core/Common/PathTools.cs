@@ -12,7 +12,7 @@ public static class PathTools
     /// Translates a host file path (e.g. C:\Work\...) to the corresponding path inside the container
     /// (e.g. /host/Work/...) if running inside a container where the "/host" directory is mounted.
     /// </summary>
-    public static string TranslateHostPathToContainerPath(string path)
+    public static string? TranslateHostPathToContainerPath(string? path)
     {
         if (string.IsNullOrEmpty(path))
         {
@@ -46,7 +46,7 @@ public static class PathTools
     /// Gets the relative path of a file relative to the workspace, normalizing path separators
     /// and stripping drive letters if present.
     /// </summary>
-    public static string GetRelativePath(string filePath, string hostWorkspacePath)
+    public static string GetRelativePath(string filePath, string? hostWorkspacePath)
     {
         if (string.IsNullOrEmpty(filePath))
         {
@@ -54,7 +54,7 @@ public static class PathTools
         }
 
         var normalizedFilePath = filePath.Replace('\\', '/');
-        var normalizedHostPath = hostWorkspacePath.Replace('\\', '/');
+        var normalizedHostPath = hostWorkspacePath?.Replace('\\', '/') ?? string.Empty;
 
         if (!string.IsNullOrEmpty(normalizedHostPath) && normalizedFilePath.StartsWith(normalizedHostPath, StringComparison.OrdinalIgnoreCase))
         {

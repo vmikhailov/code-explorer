@@ -122,6 +122,7 @@ public class Program
             builder.Services.AddSingleton<CodeExplorerRepository>();
             builder.Services.AddSingleton<WorkspaceIndexer>();
             builder.Services.AddSingleton<WorkspaceRegistry>();
+            builder.Services.AddHttpContextAccessor();
 
             // Register official MCP server
 #pragma warning disable MCP9004
@@ -154,7 +155,6 @@ public class Program
                     context.Response.Redirect("/swagger");
                     return;
                 }
-
                 await next();
             });
 
@@ -178,6 +178,7 @@ public class Program
             builder.Services.AddSingleton<CodeExplorerRepository>();
             builder.Services.AddSingleton<WorkspaceIndexer>();
             builder.Services.AddSingleton<WorkspaceRegistry>();
+            builder.Services.AddHttpContextAccessor();
 
             // Register official MCP server with Stdio transport
             builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<McpGraphHandler>();

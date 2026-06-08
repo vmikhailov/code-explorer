@@ -14,8 +14,6 @@ public class McpIntegrationTests
 {
     private static Task? _serverTask;
     private static HttpClient? _httpClient;
-    private static SseSession? _sseSession;
-    private static string? _postEndpoint;
     private static string? _tempWorkspace;
 
     [OneTimeSetUp]
@@ -69,14 +67,6 @@ public class McpIntegrationTests
             Assert.Fail($"MCP Server failed to start on port 8085. Last exception: {lastEx?.Message}\n{lastEx?.StackTrace}");
         }
 
-        // Initialize the SSE session
-        _sseSession = new SseSession(_httpClient, _tempWorkspace);
-        
-        // Wait for the post endpoint to be received
-        _postEndpoint = await _sseSession.EndpointPathTask.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(_postEndpoint, Is.Not.Null);
-        Console.WriteLine($"Connected to SSE. Endpoint: {_postEndpoint}");
-
         // Perform the handshake (initialize request)
         var initJson = @"{
             ""jsonrpc"": ""2.0"",
@@ -95,11 +85,10 @@ public class McpIntegrationTests
         var responsePost = await PostMessageAsync(initJson);
         Assert.That(responsePost.IsSuccessStatusCode, Is.True, $"Initialize POST returned {responsePost.StatusCode}");
 
-        // Wait for initialize response
-        var initResponseStr = await _sseSession.WaitForNextMessageAsync(100, TimeSpan.FromSeconds(10));
-        Assert.That(initResponseStr, Is.Not.Null);
-        
-        using var doc = JsonDocument.Parse(initResponseStr);
+        var initResponseStr = await responsePost.Content.ReadAsStringAsync();
+        Console.WriteLine($"[SSE DEBUG] Response body: {initResponseStr}");
+        var json = ExtractJsonFromSse(initResponseStr);
+        using var doc = JsonDocument.Parse(json);
         Assert.That(doc.RootElement.GetProperty("id").GetInt32(), Is.EqualTo(100));
         Console.WriteLine("Initialization handshake completed successfully!");
 
@@ -116,11 +105,6 @@ public class McpIntegrationTests
     [OneTimeTearDown]
     public async Task OneTimeTearDown()
     {
-        if (_sseSession != null)
-        {
-            await _sseSession.DisposeAsync();
-        }
-
         _httpClient?.Dispose();
 
         if (Program.App != null)
@@ -156,10 +140,17 @@ public class McpIntegrationTests
 
     private async Task<HttpResponseMessage> PostMessageAsync(string jsonPayload)
     {
-        var relPath = _postEndpoint!.StartsWith("/") ? _postEndpoint : $"/{_postEndpoint}";
-        var url = $"http://127.0.0.1:8085{relPath}";
-        var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-        return await _httpClient!.PostAsync(url, content);
+        var url = "http://127.0.0.1:8085/mcp";
+        if (!string.IsNullOrEmpty(_tempWorkspace))
+        {
+            url += $"?ws={Uri.EscapeDataString(_tempWorkspace)}";
+        }
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json-seq"));
+        return await _httpClient!.SendAsync(request);
     }
 
     private async Task CallToolAndAssertSuccessAsync(string toolName, string argumentsJson, int responseId)
@@ -179,10 +170,10 @@ public class McpIntegrationTests
         var responsePost = await PostMessageAsync(payload);
         Assert.That(responsePost.IsSuccessStatusCode, Is.True, $"Calling {toolName} returned POST status {responsePost.StatusCode}");
 
-        var sseMessageStr = await _sseSession!.WaitForNextMessageAsync(responseId, TimeSpan.FromSeconds(15));
-        Assert.That(sseMessageStr, Is.Not.Null);
-
-        using var doc = JsonDocument.Parse(sseMessageStr);
+        var responseStr = await responsePost.Content.ReadAsStringAsync();
+        Assert.That(responseStr, Is.Not.Null);
+        var json = ExtractJsonFromSse(responseStr);
+        using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         
         Assert.That(root.GetProperty("id").GetInt32(), Is.EqualTo(responseId));
@@ -213,6 +204,37 @@ public class McpIntegrationTests
         }
 
         Console.WriteLine($"Tool {toolName} executed successfully.");
+    }
+
+    private static string ExtractJsonFromSse(string responseStr)
+    {
+        if (string.IsNullOrEmpty(responseStr))
+        {
+            throw new Exception("Response is empty.");
+        }
+        if (responseStr.TrimStart().StartsWith("{"))
+        {
+            return responseStr;
+        }
+        using var reader = new StringReader(responseStr);
+        string? line;
+        string? currentEvent = null;
+        while ((line = reader.ReadLine()) != null)
+        {
+            if (line.StartsWith("event:"))
+            {
+                currentEvent = line["event:".Length..].Trim();
+            }
+            else if (line.StartsWith("data:"))
+            {
+                var data = line["data:".Length..].Trim();
+                if (currentEvent == "message" || currentEvent == null)
+                {
+                    return data;
+                }
+            }
+        }
+        throw new Exception($"Could not find data event in response: {responseStr}");
     }
 
     [Test]
@@ -249,128 +271,5 @@ public class McpIntegrationTests
     public async Task Test_GetProjectDependencies()
     {
         await CallToolAndAssertSuccessAsync("get_project_dependencies", "{}", 6);
-    }
-}
-
-public class SseSession : IAsyncDisposable
-{
-    private readonly HttpClient _client;
-    private readonly Task _readTask;
-    private readonly CancellationTokenSource _cts;
-    private readonly TaskCompletionSource<string> _endpointTcs = new();
-    private readonly Dictionary<int, TaskCompletionSource<string>> _messageWaiters = new();
-    private readonly object _lock = new();
-
-    public SseSession(HttpClient client, string? workspacePath = null)
-    {
-        _client = client;
-        _cts = new CancellationTokenSource();
-        _readTask = ReadStreamAsync(workspacePath);
-    }
-
-    public Task<string> EndpointPathTask => _endpointTcs.Task;
-
-    private async Task ReadStreamAsync(string? workspacePath)
-    {
-        try
-        {
-            var url = "http://127.0.0.1:8085/sse";
-            if (!string.IsNullOrEmpty(workspacePath))
-            {
-                url += $"?workspacePath={Uri.EscapeDataString(workspacePath)}";
-            }
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-
-            using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, _cts.Token);
-            using var stream = await response.Content.ReadAsStreamAsync(_cts.Token);
-            using var reader = new StreamReader(stream);
-
-            string? currentEvent = null;
-            while (!_cts.Token.IsCancellationRequested)
-            {
-                var line = await reader.ReadLineAsync(_cts.Token);
-                if (line == null) break;
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                if (line.StartsWith("event:"))
-                {
-                    currentEvent = line["event:".Length..].Trim();
-                }
-                else if (line.StartsWith("data:"))
-                {
-                    var data = line["data:".Length..].Trim();
-                    if (currentEvent == "endpoint")
-                    {
-                        _endpointTcs.TrySetResult(data);
-                    }
-                    else if (currentEvent == "message")
-                    {
-                        ProcessMessage(data);
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _endpointTcs.TrySetException(ex);
-        }
-    }
-
-    private void ProcessMessage(string data)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(data);
-            if (doc.RootElement.TryGetProperty("id", out var idElement) && idElement.TryGetInt32(out var id))
-            {
-                lock (_lock)
-                {
-                    if (_messageWaiters.TryGetValue(id, out var tcs))
-                    {
-                        tcs.TrySetResult(data);
-                        _messageWaiters.Remove(id);
-                    }
-                    else
-                    {
-                        _messageWaiters[id] = new TaskCompletionSource<string>();
-                        _messageWaiters[id].TrySetResult(data);
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error processing SSE message JSON: {ex.Message}");
-        }
-    }
-
-    public Task<string> WaitForNextMessageAsync(int id, TimeSpan timeout)
-    {
-        TaskCompletionSource<string> tcs;
-        lock (_lock)
-        {
-            if (!_messageWaiters.TryGetValue(id, out tcs!))
-            {
-                tcs = new TaskCompletionSource<string>();
-                _messageWaiters[id] = tcs;
-            }
-            else if (tcs.Task.IsCompleted)
-            {
-                return tcs.Task;
-            }
-        }
-        return tcs.Task.WaitAsync(timeout);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        _cts.Cancel();
-        try
-        {
-            await _readTask;
-        }
-        catch { }
-        _cts.Dispose();
     }
 }

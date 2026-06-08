@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using JetBrains.Annotations;
+using Microsoft.AspNetCore.Http;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using static System.IO.Directory;
@@ -10,11 +11,25 @@ namespace CodeExplorer.Core.Mcp;
 public class McpGraphHandler(
     CodeExplorerRepository repository,
     WorkspaceRegistry workspaceRegistry,
-    McpServer mcpServer)
+    McpServer mcpServer,
+    IHttpContextAccessor httpContextAccessor)
 {
-    private string GetCurrentWorkspacePath()
+    private string? GetCurrentWorkspacePath()
     {
-        return workspaceRegistry.GetWorkspacePath(mcpServer.SessionId ?? "") ?? GetCurrentDirectory();
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext != null)
+        {
+            var workspacePath = httpContext.Request.Query["ws"].ToString();
+            if (string.IsNullOrEmpty(workspacePath))
+            {
+                workspacePath = httpContext.Request.Query["workspacePath"].ToString();
+            }
+            if (!string.IsNullOrEmpty(workspacePath))
+            {
+                return workspacePath;
+            }
+        }
+        return null;
     }
 
     private static CallToolResult WrapResult(string text)
