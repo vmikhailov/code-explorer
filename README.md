@@ -14,7 +14,11 @@ It also serves as a **Model Context Protocol (MCP)** server, allowing AI agents 
 
 ## 🔍 CodeExplorer vs. Classic LSP (Language Server Protocol)
 
-While classic LSPs are optimized for real-time text editor experiences, CodeExplorer is architected for AI-native code reasoning and cross-project indexing:
+They serve fundamentally different purposes:
+* **Classic LSP** is designed for **active human interaction in text editors** (real-time autocompletions, diagnostics, and active inline linting as you type).
+* **CodeExplorer** is a **global codebase knowledge graph** designed for structural reasoning, architectural mapping, and multi-hop relationship queries by AI agents and LLMs.
+
+While classic LSPs are optimized for local, real-time editing experiences, CodeExplorer is architected for AI-native code reasoning and cross-project indexing:
 
 | Dimension | Classic LSP (e.g., `gopls`, `Pyright`) | CodeExplorer (Memgraph + MCP) |
 | :--- | :--- | :--- |
@@ -23,6 +27,20 @@ While classic LSPs are optimized for real-time text editor experiences, CodeExpl
 | **Polyglot Scope** | Single-language boundary per server instance. | **Unified Cross-Language Graph** (bridges C#, Go, Python, TS, and SQL). |
 | **Querying** | Fixed RPC methods (`goto definition`, `find references`). | **Arbitrary Cypher Queries** (unlimited multi-hop semantic traversal). |
 | **Update Loop** | Instantaneous, keystroke-by-keystroke. | Batch ingestion pipeline (triggered via CLI or Webhooks). |
+
+### 🧠 Core Architectural Differences
+
+1. **Language-Agnostic Knowledge Graph vs. Compiler Isolated ASTs**
+   * **Classic LSP**: Operates strictly within compile-time boundaries. A C# compiler knows C#, and a database server knows SQL, but they cannot talk to one another.
+   * **CodeExplorer**: Normalizes ASTs from multiple languages (via Tree-sitter and SQL ScriptDom) into a single, unified taxonomy inside a graph database. This lets you trace connections from a React frontend HTTP post to an Express route, to a database connection write.
+
+2. **Querying Capabilities**
+   * **Classic LSP**: Provides predefined features (Find References, Rename, Signature Help).
+   * **CodeExplorer**: Enables graph traversal algorithms. You can write Cypher queries to detect cyclic dependencies, find unreachable code paths, count coupling metrics between folders, and extract semantic context.
+
+3. **LLM-Native Optimization**
+   * **Classic LSP**: Emits details focused on IDE presentation (ranges, lines, hovers).
+   * **CodeExplorer**: Emits structured JSON representing architectural layout (e.g., Taxonomy, entry points, dependencies) designed to fit directly into the context window of LLM reasoning engines.
 
 ---
 
