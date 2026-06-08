@@ -15,13 +15,30 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             new JsonSerializerOptions { WriteIndented = true });
     }
 
+    private static string CleanPathForComparison(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return string.Empty;
+        var clean = path.Replace('\\', '/');
+        var driveMatch = System.Text.RegularExpressions.Regex.Match(clean, @"^[A-Za-z]:");
+        if (driveMatch.Success)
+        {
+            clean = clean.Substring(driveMatch.Length);
+        }
+        if (clean.StartsWith("/host", StringComparison.OrdinalIgnoreCase))
+        {
+            clean = clean.Substring(5);
+        }
+        return clean.Trim('/').ToLowerInvariant();
+    }
+
     private async Task<string?> GetWorkspaceIdAsync(string? workspacePath)
     {
         if (string.IsNullOrEmpty(workspacePath)) return null;
         var normalized = PathTools.NormalizeToHostPath(workspacePath);
         var normalizedAlt = normalized.Contains('/') ? normalized.Replace('/', '\\') : normalized.Replace('\\', '/');
 
-        var query = "MATCH (w:Workspace) WHERE w.path = $path OR w.path = $altPath RETURN w.id AS id LIMIT 1";
+        // 1. Try exact (case-insensitive) match via database query first
+        var query = "MATCH (w:Workspace) WHERE toLower(w.path) = toLower($path) OR toLower(w.path) = toLower($altPath) RETURN w.id AS id LIMIT 1";
         var resultJson = await dbClient.ExecuteQueryAsync(query, new Dictionary<string, object?>
         {
             ["path"] = normalized,
@@ -36,10 +53,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                 if (idProp.ValueKind == JsonValueKind.String)
                 {
                     var idVal = idProp.GetString();
-                    if (!string.IsNullOrEmpty(idVal))
-                    {
-                        return idVal;
-                    }
+                    if (!string.IsNullOrEmpty(idVal)) return idVal;
                 }
                 else if (idProp.ValueKind == JsonValueKind.Number)
                 {
@@ -47,6 +61,61 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                 }
             }
         }
+
+        // 2. Fetch all workspaces to perform suffix/crossover path matching in C#
+        var allQuery = "MATCH (w:Workspace) RETURN w.id AS id, w.path AS path";
+        var allResult = await dbClient.ExecuteQueryAsync(allQuery);
+        using var allDoc = JsonDocument.Parse(allResult);
+        if (allDoc.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            var arrayLength = allDoc.RootElement.GetArrayLength();
+            
+            // Fallback 2a: If there's exactly one workspace in the database, use it
+            if (arrayLength == 1)
+            {
+                var singleRow = allDoc.RootElement[0];
+                if (singleRow.TryGetProperty("id", out var fallbackIdProp))
+                {
+                    if (fallbackIdProp.ValueKind == JsonValueKind.String)
+                    {
+                        var fallbackId = fallbackIdProp.GetString();
+                        if (!string.IsNullOrEmpty(fallbackId)) return fallbackId;
+                    }
+                    else if (fallbackIdProp.ValueKind == JsonValueKind.Number)
+                    {
+                        return fallbackIdProp.GetInt64().ToString();
+                    }
+                }
+            }
+
+            // Fallback 2b: Try suffix cleaning match
+            var inputCleaned = CleanPathForComparison(workspacePath);
+            foreach (var row in allDoc.RootElement.EnumerateArray())
+            {
+                string? dbPath = null;
+                if (row.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
+                {
+                    dbPath = pathProp.GetString();
+                }
+
+                if (dbPath != null && CleanPathForComparison(dbPath) == inputCleaned)
+                {
+                    if (row.TryGetProperty("id", out var idProp))
+                    {
+                        if (idProp.ValueKind == JsonValueKind.String)
+                        {
+                            var idVal = idProp.GetString();
+                            if (!string.IsNullOrEmpty(idVal)) return idVal;
+                        }
+                        else if (idProp.ValueKind == JsonValueKind.Number)
+                        {
+                            return idProp.GetInt64().ToString();
+                        }
+                    }
+                }
+            }
+        }
+
         throw new InvalidOperationException($"Workspace at path '{workspacePath}' is not indexed yet. Please run ingest/index first.");
     }
 
@@ -85,7 +154,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                 parameters["workspacePath"] = normalized;
                 parameters["altWorkspacePath"] = normalizedAlt;
 
-                query = "MATCH (w:Workspace) WHERE w.path = $workspacePath OR w.path = $altWorkspacePath " +
+                query = "MATCH (w:Workspace) WHERE toLower(w.path) = toLower($workspacePath) OR toLower(w.path) = toLower($altWorkspacePath) " +
                         "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(wf:WorkspaceFolder) " +
                         "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(p:Project) " +
                         "OPTIONAL MATCH (p)-[:CONTAINS]->(:DataBases)-[:USES_DB]->(db:DB) " +
@@ -196,40 +265,40 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         {
             query = $"MATCH (n:Function) WHERE n.name CONTAINS $name{prefixClause} " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
-                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
                     "RETURN 'Function' AS type, n.name AS name, n.symbol AS fullName, " +
                     "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     THEN w.path + '/' + f.path " +
                     "     ELSE n.file_path " + "END AS filePath LIMIT 10";
         }
         else if (symbolType == "Class")
         {
             query = $"MATCH (n:Class) WHERE n.name CONTAINS $name{prefixClause} " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
-                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
                     "RETURN 'Class' AS type, n.name AS name, n.symbol AS fullName, " +
                     "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     THEN w.path + '/' + f.path " +
                     "     ELSE n.file_path " + "END AS filePath LIMIT 10";
         }
         else if (symbolType == "Interface")
         {
             query = $"MATCH (n:Interface) WHERE n.name CONTAINS $name{prefixClause} " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
-                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
                     "RETURN 'Interface' AS type, n.name AS name, n.symbol AS fullName, " +
                     "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     THEN w.path + '/' + f.path " +
                     "     ELSE n.file_path " + "END AS filePath LIMIT 10";
         }
         else
         {
             query = $"MATCH (n) WHERE (n:Function OR n:Class OR n:Interface) AND n.name CONTAINS $name{prefixClause} " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
-                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
                     "RETURN labels(n)[0] AS type, n.name AS name, n.symbol AS fullName, " +
                     "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     THEN w.path + '/' + f.path " +
                     "     ELSE n.file_path " + "END AS filePath LIMIT 10";
         }
 
@@ -303,10 +372,10 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                     "AND target.id STARTS WITH $wsIdPrefix " +
                     "MATCH (target)<-[:USES_TYPE|CALLS]-(dependent) " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(dependent) " +
-                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
                     "RETURN labels(dependent)[0] AS dependentType, dependent.name AS dependentName, dependent.symbol AS dependentSymbol, " +
                     "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     THEN w.path + '/' + f.path " +
                     "     ELSE null " + "END AS filePath";
         }
         else
@@ -314,10 +383,10 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             query = "MATCH (target) WHERE (target:Class OR target:Interface OR target:Function) AND (target.symbol = $symbolName OR target.name = $symbolName) " +
                     "MATCH (target)<-[:USES_TYPE|CALLS]-(dependent) " +
                     "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(dependent) " +
-                    "OPTIONAL MATCH fileDir = (w:Workspace)-[:CONTAINS*1..]->(f) " +
+                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
                     "RETURN labels(dependent)[0] AS dependentType, dependent.name AS dependentName, dependent.symbol AS dependentSymbol, " +
                     "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + reduce(s = '', x IN nodes(fileDir)[1..size(nodes(fileDir))-1] | s + CASE WHEN x.path = '' THEN '' ELSE x.path + '/' END) + f.path " +
+                    "     THEN w.path + '/' + f.path " +
                     "     ELSE null " + "END AS filePath";
         }
         return await ExecuteAndFormatQueryAsync(query, parameters);

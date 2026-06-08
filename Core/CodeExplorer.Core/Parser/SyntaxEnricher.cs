@@ -5,35 +5,35 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser;
 
-public abstract class BaseSyntaxEnricher : ISyntaxEnricher
+public class SyntaxEnricher : ISyntaxEnricher
 {
-    protected readonly IReadOnlyList<ILibraryParser> _libraryParsers;
-    protected readonly LibraryTrieRegistry _trieRegistry;
-    protected readonly SyntaxTree _syntaxTree;
+    private readonly IReadOnlyList<ILibraryParser> _libraryParsers;
+    private readonly LibraryTrieRegistry _trieRegistry;
+    private readonly SyntaxTree _syntaxTree;
 
-    protected BaseSyntaxEnricher(IReadOnlyList<ILibraryParser> libraryParsers, SyntaxTree syntaxTree)
+    public SyntaxEnricher(IReadOnlyList<ILibraryParser> libraryParsers, SyntaxTree syntaxTree)
     {
         _libraryParsers = libraryParsers;
         _trieRegistry = new LibraryTrieRegistry(libraryParsers);
         _syntaxTree = syntaxTree;
     }
 
-    protected static readonly Regex ConfigRegex = new(
+    private static readonly Regex ConfigRegex = new(
         @"(?i)(config|settings?|cfg|\benv\b|db_?conn|\burl\b|\buri\b|\bport\b|\bhost\b|user(name)?|pass(word)?|token|secret|\bkey\b|auth|api_?key|connection_?string)",
         RegexOptions.Compiled
     );
 
-    protected static readonly Regex ConfigInitializerRegex = new(
+    private static readonly Regex ConfigInitializerRegex = new(
         @"(?i)(process\.env|Configuration\[|Environment\.GetEnvironmentVariable|System\.Environment|import\.meta\.env|dotenv|require\(['""]dotenv['""]\))",
         RegexOptions.Compiled
     );
 
-    protected static readonly Regex EtlRegex = new(
+    private static readonly Regex EtlRegex = new(
         @"(?i)(\betl\b|\bsql\b|\bquery\b|\bselect\b|\binsert\b|\bupsert\b|\bschema\b|\btable\b|\bcolumn\b|\bdatabase\b|\bmigration\b|\bextract\b|\btransform\b|\bload\b)",
         RegexOptions.Compiled
     );
 
-    protected static readonly Regex SqlQueryRegex = new(
+    private static readonly Regex SqlQueryRegex = new(
         @"(?i)^[\s@$""'\`]*\s*(select|insert|update|delete|create\s+table|drop\s+table|merge|alter\s+table)\b",
         RegexOptions.Compiled
     );

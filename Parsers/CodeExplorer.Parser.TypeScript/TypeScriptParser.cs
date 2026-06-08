@@ -196,7 +196,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new TypeScriptSyntaxEnricher(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
 

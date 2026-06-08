@@ -111,7 +111,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         {
             await tx.RunAsync(
                 $"MATCH (r:{OntologyConstants.NodeLabels.Workspace}) " +
-                $"WHERE r.path = $workspacePath OR r.path = $normalizedPath " +
+                $"WHERE toLower(r.path) = toLower($workspacePath) OR toLower(r.path) = toLower($normalizedPath) " +
                 $"WITH r MATCH (r)-[:{OntologyConstants.Relationships.Contains}*0..]->(n) DETACH DELETE n",
                 new { workspacePath, normalizedPath }
             );
@@ -126,7 +126,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         var existingId = await session.ExecuteReadAsync(async tx =>
         {
             var cursor = await tx.RunAsync(
-                $"MATCH (w:{OntologyConstants.NodeLabels.Workspace}) WHERE w.path = $workspacePath OR w.path = $normalizedPath RETURN w.id AS id",
+                $"MATCH (w:{OntologyConstants.NodeLabels.Workspace}) WHERE toLower(w.path) = toLower($workspacePath) OR toLower(w.path) = toLower($normalizedPath) RETURN w.id AS id",
                 new { workspacePath, normalizedPath }
             );
             if (await cursor.FetchAsync())

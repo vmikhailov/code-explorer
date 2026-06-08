@@ -54,11 +54,10 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
     *   **Go** (`.go`)
     *   **Python** (`.py`)
     *   **SQL & Embedded SQL** (`.sql` scripts, as well as SQL strings embedded inside C#, JS, TS, Python, and Go code)
-*   **Rich Ontology Extraction**: Extracts and maps codebases into structured semantic hierarchies. For a detailed specification, see the [Ontology Specification](docs/ontology.md). Maps:
-    *   *Structural*: Workspaces, Projects, Folders, Files.
-    *   *Code Elements*: Classes, Interfaces, Functions, Procedures.
-    *   *Data/Database*: Tables, Database nodes, Schemas/DataSets, SQL queries (inserts, selects, deletes, updates, etc.).
-    *   *Messaging & APIs*: Service Ingress/Egress, EntryPoints (controllers, subscribers), and ExternalServices (HTTP/HttpClient calls, publishers).
+*   **Rich Ontology Extraction**: Extracts and maps codebases into three core structural layers (for a detailed specification, see the [Ontology Specification](docs/ontology.md)):
+    *   **File & Directory Structure**: Scans and maps workspaces, projects/module boundaries (e.g., `.csproj`, `go.mod`, `package.json`), project folders, and individual source files.
+    *   **Code & Class Structure**: Identifies AST-level nodes (classes, interfaces, enums, functions, methods, and variables) along with their code dependencies and inheritance hierarchy (`CALLS`, `IMPLEMENTS`, `INHERITS_FROM`).
+    *   **Ingress & Egress (API & Data Boundaries)**: Resolves system boundaries, mapping incoming **Ingress** (HTTP route controllers, queue consumers, CLI stubs), outgoing **Egress** (external HTTP/gRPC client calls), databases (tables, stored procedures, embedded SQL queries), and message brokers.
 *   **Global Resolution & Late Binding**:
     *   Resolves type inheritance (`INHERITS_FROM`), interface implementations (`IMPLEMENTS`), and function calls (`CALLS`).
     *   Late-binds API endpoints and message queue topics across microservices dynamically once all project scans are completed.

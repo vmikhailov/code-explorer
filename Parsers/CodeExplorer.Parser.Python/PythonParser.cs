@@ -262,7 +262,7 @@ public class PythonParser : IProjectParser, IFileParser
         return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new PythonSyntaxEnricher(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _pyRootCache = new(StringComparer.OrdinalIgnoreCase);
 
