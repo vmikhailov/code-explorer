@@ -1,6 +1,10 @@
-using System.Text;
+using System.IO;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
+using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Parser;
+using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -12,10 +16,30 @@ public class McpIntegrationTests
     private static HttpClient? _httpClient;
     private static SseSession? _sseSession;
     private static string? _postEndpoint;
+    private static string? _tempWorkspace;
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
+        // 1. Create a temporary workspace and index it
+        _tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_mcp_test_" + Guid.NewGuid()).Replace('\\', '/');
+        var projDir = Path.Combine(_tempWorkspace, "CodeExplorer").Replace('\\', '/');
+        Directory.CreateDirectory(projDir);
+        await File.WriteAllTextAsync(Path.Combine(projDir, "package.json"), "{}");
+        var fileCode = @"
+        import { Controller, Post } from '@nestjs/common';
+        @Controller('orders')
+        export class OrdersController {
+            @Post('charge')
+            async chargeOrder() {}
+        }";
+        await File.WriteAllTextAsync(Path.Combine(projDir, "server.ts"), fileCode);
+
+        await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+        WorkspaceIndexer.Register(new TypeScriptParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
+
         // Start the server in a background thread
         _serverTask = Task.Run(() => Program.Main(["mcp", "--port", "8085"]));
 
@@ -46,7 +70,7 @@ public class McpIntegrationTests
         }
 
         // Initialize the SSE session
-        _sseSession = new SseSession(_httpClient);
+        _sseSession = new SseSession(_httpClient, _tempWorkspace);
         
         // Wait for the post endpoint to be received
         _postEndpoint = await _sseSession.EndpointPathTask.WaitAsync(TimeSpan.FromSeconds(10));
@@ -114,6 +138,18 @@ public class McpIntegrationTests
             catch (Exception ex)
             {
                 Console.WriteLine($"Server task finished with exception: {ex.Message}");
+            }
+        }
+
+        if (!string.IsNullOrEmpty(_tempWorkspace) && Directory.Exists(_tempWorkspace))
+        {
+            try
+            {
+                Directory.Delete(_tempWorkspace, true);
+            }
+            catch
+            {
+                // ignore
             }
         }
     }
@@ -194,7 +230,7 @@ public class McpIntegrationTests
     [Test]
     public async Task Test_ExecuteCustomReadCypher()
     {
-        await CallToolAndAssertSuccessAsync("execute_custom_read_cypher", "{\"query\": \"MATCH (n) RETURN count(n) AS nodeCount\"}", 3);
+        await CallToolAndAssertSuccessAsync("execute_custom_read_cypher", "{\"query\": \"MATCH (n) WHERE toString(n.id) STARTS WITH $workspaceIdPrefix RETURN count(n) AS nodeCount\"}", 3);
     }
 
     [Test]
@@ -225,20 +261,25 @@ public class SseSession : IAsyncDisposable
     private readonly Dictionary<int, TaskCompletionSource<string>> _messageWaiters = new();
     private readonly object _lock = new();
 
-    public SseSession(HttpClient client)
+    public SseSession(HttpClient client, string? workspacePath = null)
     {
         _client = client;
         _cts = new CancellationTokenSource();
-        _readTask = ReadStreamAsync();
+        _readTask = ReadStreamAsync(workspacePath);
     }
 
     public Task<string> EndpointPathTask => _endpointTcs.Task;
 
-    private async Task ReadStreamAsync()
+    private async Task ReadStreamAsync(string? workspacePath)
     {
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, "http://127.0.0.1:8085/sse");
+            var url = "http://127.0.0.1:8085/sse";
+            if (!string.IsNullOrEmpty(workspacePath))
+            {
+                url += $"?workspacePath={Uri.EscapeDataString(workspacePath)}";
+            }
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 
             using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, _cts.Token);

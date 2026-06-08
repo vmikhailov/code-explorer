@@ -79,11 +79,12 @@ public class WorkspacesController : ControllerBase
     }
 
     [HttpGet("taxonomy")]
-    public async Task<IActionResult> GetTaxonomyAsync()
+    public async Task<IActionResult> GetTaxonomyAsync([FromQuery] string? workspacePath = null)
     {
         try
         {
-            var resultJson = await _repository.GetTaxonomyAsync();
+            var path = workspacePath ?? Directory.GetCurrentDirectory();
+            var resultJson = await _repository.GetTaxonomyAsync(path);
             return Content(resultJson, "application/json");
         }
         catch (Exception ex)

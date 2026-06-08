@@ -2,12 +2,21 @@ using System.ComponentModel;
 using JetBrains.Annotations;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
+using static System.IO.Directory;
 
 namespace CodeExplorer.Core.Mcp;
 
 [McpServerToolType]
-public class McpGraphHandler(CodeExplorerRepository repository)
+public class McpGraphHandler(
+    CodeExplorerRepository repository,
+    WorkspaceRegistry workspaceRegistry,
+    McpServer mcpServer)
 {
+    private string GetCurrentWorkspacePath()
+    {
+        return workspaceRegistry.GetWorkspacePath(mcpServer.SessionId ?? "") ?? GetCurrentDirectory();
+    }
+
     private static CallToolResult WrapResult(string text)
     {
         return new CallToolResult
@@ -53,13 +62,31 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         }
     }
 
+    // [UsedImplicitly]
+    // [McpServerTool(Name = "initialize")]
+    // [Description("Initialize the workspace")]
+    // public async Task<CallToolResult> InitializeAsync(
+    //     [Description("Workspace path")] string? path = null)
+    // {
+    //     return new CallToolResult
+    //     {
+    //         Content = new List<ContentBlock>
+    //         {
+    //             new TextContentBlock
+    //             {
+    //                 Text = "Initializing workspace..."
+    //             }
+    //         }
+    //     };
+    // }
+
     [UsedImplicitly]
     [McpServerTool]
     [Description("Returns the high-level infrastructure map of the workspace, including workspace folders, projects, their internal folders, and associated databases. Use this at the start of a task to understand the component boundaries.")]
     public async Task<CallToolResult> GetArchitectureMapAsync(
         [Description("Optional filter for a specific project name (e.g., 'AuthService'). If omitted, returns the top-level workspace structure.")] string? projectName = null)
     {
-        return await ExecuteAsync(() => repository.GetArchitectureMapAsync(projectName));
+        return await ExecuteAsync(() => repository.GetArchitectureMapAsync(projectName, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -68,7 +95,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
     public async Task<CallToolResult> GetProjectDependenciesAsync(
         [Description("Optional name of a specific project to isolate its incoming and outgoing dependencies.")] string? projectFilter = null)
     {
-        return await ExecuteAsync(() => repository.GetProjectDependenciesAsync(projectFilter));
+        return await ExecuteAsync(() => repository.GetProjectDependenciesAsync(projectFilter, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -81,7 +108,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'filePath' argument.");
         }
-        return await ExecuteAsync(() => repository.GetFileOutlineAsync(filePath));
+        return await ExecuteAsync(() => repository.GetFileOutlineAsync(filePath, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -95,7 +122,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'name' argument.");
         }
-        return await ExecuteAsync(() => repository.FindSymbolAsync(name, symbolType));
+        return await ExecuteAsync(() => repository.FindSymbolAsync(name, symbolType, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -110,7 +137,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'startFunction' or 'endFunction' argument.");
         }
-        return await ExecuteAsync(() => repository.GetCallChainAsync(startFunction, endFunction, maxDepth));
+        return await ExecuteAsync(() => repository.GetCallChainAsync(startFunction, endFunction, maxDepth, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -124,7 +151,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'interfaceName' or 'methodName' argument.");
         }
-        return await ExecuteAsync(() => repository.ResolveCallTargetAsync(interfaceName, methodName));
+        return await ExecuteAsync(() => repository.ResolveCallTargetAsync(interfaceName, methodName, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -137,7 +164,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'symbolName' argument.");
         }
-        return await ExecuteAsync(() => repository.AnalyzeCodeImpactAsync(symbolName));
+        return await ExecuteAsync(() => repository.AnalyzeCodeImpactAsync(symbolName, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -150,7 +177,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'tableName' argument.");
         }
-        return await ExecuteAsync(() => repository.InspectDataLineageAsync(tableName));
+        return await ExecuteAsync(() => repository.InspectDataLineageAsync(tableName, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -163,7 +190,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'projectName' argument.");
         }
-        return await ExecuteAsync(() => repository.GetProjectEntryPointsAsync(projectName));
+        return await ExecuteAsync(() => repository.GetProjectEntryPointsAsync(projectName, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -177,7 +204,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'projectName' argument.");
         }
-        return await ExecuteAsync(() => repository.FindRefactoringOpportunitiesAsync(projectName, metricType));
+        return await ExecuteAsync(() => repository.FindRefactoringOpportunitiesAsync(projectName, metricType, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -190,7 +217,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'query' argument.");
         }
-        return await ExecuteAsync(() => repository.ExecuteCustomReadCypherAsync(query));
+        return await ExecuteAsync(() => repository.ExecuteCustomReadCypherAsync(query, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -198,7 +225,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
     [Description("Retrieves the full structural taxonomy database schema mapping all active node types and their incoming/outgoing relationships.")]
     public async Task<CallToolResult> GetTaxonomyAsync()
     {
-        return await ExecuteAsync(() => repository.GetTaxonomyAsync());
+        return await ExecuteAsync(() => repository.GetTaxonomyAsync(GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
@@ -211,7 +238,7 @@ public class McpGraphHandler(CodeExplorerRepository repository)
         {
             return WrapError("Missing 'nodesJson' argument.");
         }
-        return await ExecuteAsync(() => repository.FetchCodeSnippetsAsync(nodesJson));
+        return await ExecuteAsync(() => repository.FetchCodeSnippetsAsync(nodesJson, GetCurrentWorkspacePath()));
     }
 
     [UsedImplicitly]
