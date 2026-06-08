@@ -13,52 +13,52 @@ public class ExpressLibraryParser : ILibraryParser
     public IReadOnlyList<string> SupportedPatterns => ["express", "@types/express"];
     public bool IsImplemented => true;
 
-    private static readonly HashSet<string> HttpMethods = ["get", "post", "put", "delete", "patch"];
+    private static readonly NodeSelector _expressRouteSelector = NodeSelector.New()
+        .HasType("call_expression")
+        .FunctionNode
+        .HasType("member_expression")
+        .HasChild("object", NodeSelector.New().TextContains("app|router|express"))
+        .HasChild("property", NodeSelector.New().Text("get|post|put|delete"));
+
+    private static readonly NodeSelector _expressRouteMethodSelector = NodeSelector.New()
+        .FunctionNode
+        .GetChildForField("property");
+
+    private static readonly NodeSelector _callFirstStringArgSelector = NodeSelector.New()
+        .GetChildForField("arguments")
+        .FirstChild;
+
+    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
+    {
+        { OntologyConstants.NodeLabels.EntryPoint, _expressRouteSelector }
+    };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsExpressRoute(node)) return OntologyConstants.NodeLabels.EntryPoint;
+        if (_expressRouteSelector.Matches(node)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
     }
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx)
     {
-        if (IsExpressRoute(node)) return ExtractRoute(node);
+        if (_expressRouteSelector.Matches(node))
+        {
+            var prop = _expressRouteMethodSelector.Select(node);
+            if (!prop.IsValid()) return null;
+
+            var method = prop!.Text.ToUpperInvariant();
+            var routeVal = "/";
+
+            var firstArg = _callFirstStringArgSelector.Select(node);
+            if (firstArg.IsValid() && (firstArg!.Type == "string" || firstArg.Type == "template_string"))
+            {
+                routeVal = firstArg.Text.Trim('\'', '"', '`');
+            }
+
+            return $"{method}:{routeVal}";
+        }
         return null;
     }
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
-
-    private static bool IsExpressRoute(Node node)
-    {
-        if (node.Type != "call_expression") return false;
-        var func = node.GetChildForField("function")
-                   ?? (node.Children.Count > 0 ? node.Children[0] : null);
-        if (func == null || func.Id == IntPtr.Zero) return false;
-
-        if (func.Type != "member_expression") return false;
-        var obj = func.GetChildForField("object");
-        var prop = func.GetChildForField("property");
-        return obj != null && prop != null && prop.Id != IntPtr.Zero
-            && obj.Text is "app" or "router" or "express"
-            && HttpMethods.Contains(prop.Text);
-    }
-
-    private static string? ExtractRoute(Node node)
-    {
-        var func = node.GetChildForField("function")
-                   ?? (node.Children.Count > 0 ? node.Children[0] : null);
-        if (func == null) return null;
-        var prop = func.GetChildForField("property");
-        if (prop == null) return null;
-
-        var args = node.Children.FirstOrDefault(c => c.Type == "arguments");
-        var routeVal = "/";
-        if (args != null)
-        {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-            if (firstArg != null) routeVal = firstArg.Text.Trim('\'', '"', '`');
-        }
-        return $"{prop.Text.ToUpperInvariant()}:{routeVal}";
-    }
 }

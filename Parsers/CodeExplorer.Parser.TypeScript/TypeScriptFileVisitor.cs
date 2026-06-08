@@ -12,29 +12,42 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 {
     private readonly TypeScriptParser _parser;
 
-    public TypeScriptFileVisitor(Node rootNode, List<ILibraryParser> activeLibraryParsers, TypeScriptParser parser) :
-        base(rootNode, activeLibraryParsers)
+    public TypeScriptFileVisitor(
+        Node rootNode,
+        List<ILibraryParser> activeLibraryParsers,
+        TypeScriptParser parser,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry) :
+        base(rootNode, activeLibraryParsers, relativePath, absoluteWorkspacePath, fileParser, libraryRegistry)
     {
         _parser = parser;
+
+        // Register a sequence detector rule for CommonJS 'require' statements
+        SequenceDetector.Register([
+            n => n.Type == "call_expression" && n.GetChildForField("function")?.Text == "require"
+        ], path =>
+        {
+            var callNode = path[^1];
+            var argList = callNode.GetChildForField("arguments");
+
+            if (argList != null && argList.Children.Count > 1)
+            {
+                var firstArg = argList.Children.FirstOrDefault(c => c.Type == "string");
+
+                if (firstArg != null)
+                {
+                    var importPath = firstArg.Text.Trim('\'', '"');
+                    RawImports.Add(new RawImport(importPath, ""));
+                    ResolveAndInjectLibraryParser(importPath);
+                }
+            }
+        });
     }
 
     protected override string? MapNodeType(Node node)
     {
-        if (IsTsDecoratorEntryPoint(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-
-        if (IsExpressRoute(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-
-        if (IsTsHttpClientCall(node))
-        {
-            return OntologyConstants.NodeLabels.ExternalService;
-        }
-
         if (node.Type is "string" or "template_string")
         {
             if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
@@ -55,21 +68,6 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override string? ExtractIdentifier(Node node)
     {
-        if (IsTsDecoratorEntryPoint(node))
-        {
-            return ExtractTsDecoratorRoute(node);
-        }
-
-        if (IsExpressRoute(node))
-        {
-            return ExtractExpressRoute(node);
-        }
-
-        if (IsTsHttpClientCall(node))
-        {
-            return ExtractTsHttpClientTarget(node);
-        }
-
         if (node.Type is "string" or "template_string")
         {
             if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
@@ -103,159 +101,6 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         }
     }
 
-    private static bool IsTsDecoratorEntryPoint(Node node)
-    {
-        if (node.Type != "decorator") return false;
-
-        var call = node.Children.FirstOrDefault(c => c.Type == "call_expression");
-        var func = call?.GetFunctionNode();
-        if (!func.IsValid()) return false;
-
-        var name = func!.Text;
-        return name is "Controller" or "Get" or "Post" or "Put" or "Delete" or "Patch" or "SubscribeMessage";
-    }
-
-    private static string? ExtractTsDecoratorRoute(Node node)
-    {
-        var call = node.Children.FirstOrDefault(c => c.Type == "call_expression");
-        var func = call?.GetFunctionNode();
-        if (!func.IsValid()) return null;
-
-        var name = func!.Text;
-
-        var args = call!.Children.FirstOrDefault(c => c.Type == "arguments");
-        var routeVal = "/";
-
-        if (args != null && args.Children.Count > 2)
-        {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-
-            if (firstArg != null)
-            {
-                routeVal = firstArg.Text.Trim('\'', '"', '`');
-            }
-        }
-
-        if (name == "SubscribeMessage")
-        {
-            return $"ws:{routeVal}";
-        }
-
-        var method = name == "Controller" ? "GET" : name.ToUpperInvariant();
-        return $"{method}:{routeVal}";
-    }
-
-    private static bool IsExpressRoute(Node node)
-    {
-        if (node.Type != "call_expression") return false;
-
-        var func = node.GetFunctionNode();
-        if (!func.IsValid()) return false;
-
-        if (func!.Type == "member_expression")
-        {
-            var obj = func.GetChildForField("object");
-
-            if (obj != null &&
-                (obj.Text.Contains("app") || obj.Text.Contains("router") || obj.Text.Contains("express")))
-            {
-                var prop = func.GetChildForField("property");
-
-                if (prop.IsValid())
-                {
-                    var method = prop!.Text;
-                    return method is "get" or "post" or "put" or "delete";
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static string? ExtractExpressRoute(Node node)
-    {
-        var func = node.GetFunctionNode();
-        if (!func.IsValid()) return null;
-
-        var prop = func!.GetChildForField("property");
-        if (!prop.IsValid()) return null;
-
-        var method = prop!.Text.ToUpperInvariant();
-
-        var args = node.Children.FirstOrDefault(c => c.Type == "arguments");
-        var routeVal = "/";
-
-        if (args != null)
-        {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-
-            if (firstArg != null)
-            {
-                routeVal = firstArg.Text.Trim('\'', '"', '`');
-            }
-        }
-
-        return $"{method}:{routeVal}";
-    }
-
-    private static bool IsTsHttpClientCall(Node node)
-    {
-        if (node.Type != "call_expression") return false;
-
-        var func = node.GetFunctionNode();
-        if (!func.IsValid()) return false;
-
-        if (func!.Type == "identifier" && func.Text == "fetch") return true;
-
-        if (func.Type == "member_expression")
-        {
-            var obj = func.GetChildForField("object");
-
-            if (obj != null && obj.Text == "axios")
-            {
-                var prop = func.GetChildForField("property");
-
-                if (prop != null)
-                {
-                    var method = prop.Text;
-                    return method is "get" or "post" or "put" or "delete" or "request";
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static string? ExtractTsHttpClientTarget(Node node)
-    {
-        var args = node.Children.FirstOrDefault(c => c.Type == "arguments");
-
-        if (args != null)
-        {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-
-            if (firstArg != null)
-            {
-                var text = firstArg.Text.Trim('\'', '"', '`');
-
-                if (text.Contains("://"))
-                {
-                    try
-                    {
-                        var uri = new Uri(text);
-                        return $"http:{uri.Host}";
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                return $"http:{text}";
-            }
-        }
-
-        return "http:unknown-service";
-    }
 
     private static Node? GetNextNamedSibling(Node node)
     {
@@ -392,29 +237,6 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         VisitChildren(node, depth);
     }
 
-    protected override void VisitCallExpression(Node node, int depth)
-    {
-        var funcNode = node.GetChildForField("function");
-
-        if (funcNode != null && funcNode.Text == "require")
-        {
-            var argList = node.GetChildForField("arguments");
-
-            if (argList != null && argList.Children.Count > 1)
-            {
-                var firstArg = argList.Children.FirstOrDefault(c => c.Type == "string");
-
-                if (firstArg != null)
-                {
-                    var importPath = firstArg.Text.Trim('\'', '"');
-                    RawImports.Add(new RawImport(importPath, "", ImportType.External));
-                }
-            }
-        }
-
-        base.VisitCallExpression(node, depth);
-    }
-
     protected override string? FindCallName(Node callNode)
     {
         var expr = callNode.GetFunctionNode();
@@ -468,6 +290,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         {
             var importPath = sourceNode.Text.Trim('\'', '"');
             RawImports.Add(new RawImport(importPath, "", ImportType.External));
+            ResolveAndInjectLibraryParser(importPath);
         }
     }
 

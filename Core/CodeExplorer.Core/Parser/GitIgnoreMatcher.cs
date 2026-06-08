@@ -1,10 +1,10 @@
 using System.Text.RegularExpressions;
+
 namespace CodeExplorer.Core.Parser;
 
 public class GitIgnoreMatcher
 {
-    private readonly List<(string Pattern, Regex Regex, bool IsDirectoryOnly)> _rules =
-        [];
+    private readonly List<(string Pattern, Regex Regex, bool IsDirectoryOnly)> _rules = [];
 
     public GitIgnoreMatcher(string workspaceRoot)
     {
@@ -17,6 +17,7 @@ public class GitIgnoreMatcher
             if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
 
             var isDirectoryOnly = false;
+
             if (trimmed.EndsWith('/'))
             {
                 isDirectoryOnly = true;
@@ -24,6 +25,7 @@ public class GitIgnoreMatcher
             }
 
             var isAnchored = false;
+
             if (trimmed.StartsWith('/'))
             {
                 isAnchored = true;
@@ -31,9 +33,7 @@ public class GitIgnoreMatcher
             }
 
             var escaped = Regex.Escape(trimmed);
-            var regexPattern = escaped
-                .Replace("\\*", ".*")
-                .Replace("\\?", ".");
+            var regexPattern = escaped.Replace("\\*", ".*").Replace("\\?", ".");
 
             if (isAnchored)
             {

@@ -30,31 +30,6 @@ public class ParsingContext
     public List<RawVariable> RawVariables { get; } = [];
     public List<RawTypeBinding> RawTypeBindings { get; } = [];
     public List<(ProjectProcessor Processor, ProjectNode Node)> ProjectsToEnrich { get; } = [];
-
-    public void AddRawImport(RawImport imp)
-    {
-        lock (RawImports)
-        {
-            RawImports.Add(imp);
-        }
-    }
-
-    public void AddRawVariable(RawVariable var)
-    {
-        lock (RawVariables)
-        {
-            RawVariables.Add(var);
-        }
-    }
-
-    public void AddRawTypeBinding(RawTypeBinding binding)
-    {
-        lock (RawTypeBindings)
-        {
-            RawTypeBindings.Add(binding);
-        }
-    }
-
     public Dictionary<string, int> NodesByKind { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     private int _totalNodesCount;
@@ -62,63 +37,45 @@ public class ParsingContext
 
     public int TotalNodesCount
     {
-        get { lock (this) return _totalNodesCount; }
-        set { lock (this) _totalNodesCount = value; }
+        get => _totalNodesCount;
+        set => _totalNodesCount = value;
     }
 
     public int TotalRelsCount
     {
-        get { lock (this) return _totalRelsCount; }
-        set { lock (this) _totalRelsCount = value; }
+        get => _totalRelsCount;
+        set => _totalRelsCount = value;
     }
 
     public void IncrementNodeKind(string kind)
     {
-        lock (NodesByKind)
-        {
-            if (!NodesByKind.TryGetValue(kind, out var count)) count = 0;
-            NodesByKind[kind] = count + 1;
-        }
+        var count = NodesByKind.GetValueOrDefault(kind, 0);
+        NodesByKind[kind] = count + 1;
     }
 
     public void AddNodesCount(int count)
     {
-        lock (this)
-        {
-            _totalNodesCount += count;
-        }
+        _totalNodesCount += count;
     }
 
     public void AddRelsCount(int count)
     {
-        lock (this)
-        {
-            _totalRelsCount += count;
-        }
+        _totalRelsCount += count;
     }
 
     public void AddGlobalSymbol(string kind, string name, string id)
     {
-        lock (GlobalSymbols)
-        {
-            GlobalSymbols[(kind, name)] = id;
-        }
+        GlobalSymbols[(kind, name)] = id;
     }
 
     public void AddGlobalReferences(IEnumerable<Reference> references)
     {
-        lock (GlobalReferences)
-        {
-            GlobalReferences.AddRange(references);
-        }
+        GlobalReferences.AddRange(references);
     }
 
     public void AddGlobalProjectDependency(Relationship dependency)
     {
-        lock (GlobalProjectDependencies)
-        {
-            GlobalProjectDependencies.Add(dependency);
-        }
+        GlobalProjectDependencies.Add(dependency);
     }
 
     private int _nodesPersisted;
@@ -128,20 +85,14 @@ public class ParsingContext
 
     public void RecordNodesPersisted(int count)
     {
-        lock (this)
-        {
-            _nodesPersisted += count;
-            ReportProgressIfNeeded();
-        }
+        _nodesPersisted += count;
+        ReportProgressIfNeeded();
     }
 
     public void RecordRelationshipsPersisted(int count)
     {
-        lock (this)
-        {
-            _relsPersisted += count;
-            ReportProgressIfNeeded();
-        }
+        _relsPersisted += count;
+        ReportProgressIfNeeded();
     }
 
     private void ReportProgressIfNeeded()
@@ -157,10 +108,11 @@ public class ParsingContext
     public int GetTotalNodesPersisted() => _nodesPersisted;
     public int GetTotalRelsPersisted() => _relsPersisted;
 
-    public async Task EnqueueUploadNodesAsync(List<CodeExplorer.Core.Database.Node> nodes)
+    public async Task EnqueueUploadNodesAsync(List<Node> nodes)
     {
-        if (nodes == null || nodes.Count == 0) return;
-        var copy = new List<CodeExplorer.Core.Database.Node>(nodes);
+        if (nodes.Count == 0) return;
+
+        var copy = new List<Node>(nodes);
         await SharedChannel.Writer.WriteAsync(async () =>
         {
             await DbClient.UploadNodesAsync(copy);
@@ -170,7 +122,7 @@ public class ParsingContext
 
     public async Task EnqueueUploadRelationshipsAsync(List<Relationship> rels)
     {
-        if (rels == null || rels.Count == 0) return;
+        if (rels.Count == 0) return;
         var copy = new List<Relationship>(rels);
         await SharedChannel.Writer.WriteAsync(async () =>
         {

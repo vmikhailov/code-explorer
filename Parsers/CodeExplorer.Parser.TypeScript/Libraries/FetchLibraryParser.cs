@@ -15,56 +15,47 @@ public class FetchLibraryParser : ILibraryParser
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;   // fetch is available without import in browsers/Node 18+
 
-    private static readonly HashSet<string> DirectCallNames = ["fetch", "nodeFetch", "got", "superagent"];
-    private static readonly HashSet<string> ObjectNames = ["got", "superagent", "request", "http", "https"];
-    private static readonly HashSet<string> HttpMethods = ["get", "post", "put", "delete", "request", "patch", "head"];
+    private static readonly NodeSelector _fetchCallSelector = NodeSelector.New()
+        .HasType("call_expression")
+        .FunctionNode
+        .Where(NodeSelector.Or(
+            NodeSelector.New().HasType("identifier").Text("fetch|nodeFetch|got|superagent"),
+            NodeSelector.New()
+                .HasType("member_expression")
+                .HasChild("object", NodeSelector.New().Text("got|superagent|request|http|https"))
+                .HasChild("property", NodeSelector.New().Text("get|post|put|delete|request|patch|head"))
+        ));
+
+    private static readonly NodeSelector _callFirstStringArgSelector = NodeSelector.New()
+        .GetChildForField("arguments")
+        .FirstChild;
+
+    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
+    {
+        { OntologyConstants.NodeLabels.ExternalService, _fetchCallSelector }
+    };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsHttpCall(node)) return OntologyConstants.NodeLabels.ExternalService;
+        if (_fetchCallSelector.Matches(node)) return OntologyConstants.NodeLabels.ExternalService;
         return null;
     }
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx)
     {
-        if (IsHttpCall(node)) return ExtractTarget(node);
-        return null;
-    }
-
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
-
-    private static bool IsHttpCall(Node node)
-    {
-        if (node.Type != "call_expression") return false;
-        var func = node.GetChildForField("function")
-                   ?? (node.Children.Count > 0 ? node.Children[0] : null);
-        if (func == null || func.Id == IntPtr.Zero) return false;
-
-        if (func.Type == "identifier") return DirectCallNames.Contains(func.Text);
-
-        if (func.Type == "member_expression")
+        if (_fetchCallSelector.Matches(node))
         {
-            var obj = func.GetChildForField("object");
-            var prop = func.GetChildForField("property");
-            if (obj != null && prop != null && prop.Id != IntPtr.Zero)
-                return ObjectNames.Contains(obj.Text) && HttpMethods.Contains(prop.Text);
-        }
-        return false;
-    }
-
-    private static string? ExtractTarget(Node node)
-    {
-        var args = node.Children.FirstOrDefault(c => c.Type == "arguments");
-        if (args != null)
-        {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-            if (firstArg != null)
+            var firstArg = _callFirstStringArgSelector.Select(node);
+            if (firstArg.IsValid() && (firstArg!.Type == "string" || firstArg.Type == "template_string"))
             {
                 var url = firstArg.Text.Trim('\'', '"', '`');
                 if (Uri.TryCreate(url, UriKind.Absolute, out var uri)) return uri.Host;
                 return url;
             }
+            return "http:unknown-service";
         }
-        return "http:unknown-service";
+        return null;
     }
+
+    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 }

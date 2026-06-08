@@ -40,7 +40,9 @@ public class ParserValidationTests
                 continue;
             }
 
-            using var syntaxTree = await parser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using var syntaxTree =
+                await parser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             Assert.That(fileNode, Is.Not.Null);
 
@@ -56,6 +58,7 @@ public class ParserValidationTests
         var workspacePath = Path.GetTempPath();
 
         var tempFile = Path.Combine(workspacePath, "embedded_sql_test.ts");
+
         var code = @"
 async function clearDataAllLeads(bundle_ids: string) {
     const query = `DELETE FROM tracking.data_all_leads WHERE bundle_id in (${bundle_ids})`;
@@ -70,7 +73,9 @@ async function clearDataAllLeads(bundle_ids: string) {
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using var syntaxTree =
+                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             Assert.That(fileNode, Is.Not.Null);
 
@@ -79,7 +84,9 @@ async function clearDataAllLeads(bundle_ids: string) {
 
             var sqlQuery = queryNodes[0];
             Assert.That(sqlQuery.Name, Is.EqualTo("DELETE Query"));
-            Assert.That(sqlQuery.QueryText, Contains.Substring("DELETE FROM tracking.data_all_leads WHERE bundle_id in"));
+
+            Assert.That(sqlQuery.QueryText,
+                Contains.Substring("DELETE FROM tracking.data_all_leads WHERE bundle_id in"));
 
             var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
             Assert.That(dependsOn, Contains.Item("tracking"));
@@ -99,20 +106,25 @@ async function clearDataAllLeads(bundle_ids: string) {
         var parser = new CSharpParser();
         var workspacePath = Path.GetTempPath();
         var tempFile = Path.Combine(workspacePath, "embedded_sql_test.cs");
+
         var code = """
-class Test {
-    void Clean() {
-        string query = "SELECT id, name FROM users WHERE active = 1";
-    }
-}
-""";
+                   class Test {
+                       void Clean() {
+                           string query = "SELECT id, name FROM users WHERE active = 1";
+                       }
+                   }
+                   """;
         await File.WriteAllTextAsync(tempFile, code);
+
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var syntaxTree =
+                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -124,7 +136,10 @@ class Test {
 
             AssertSqlHierarchy(sqlQuery, "default", "dbo", "users");
         }
-        finally { if (File.Exists(tempFile)) File.Delete(tempFile); }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
     }
 
     [Test]
@@ -133,17 +148,22 @@ class Test {
         var parser = new PythonParser();
         var workspacePath = Path.GetTempPath();
         var tempFile = Path.Combine(workspacePath, "embedded_sql_test.py");
+
         var code = """
-def clean_db():
-    query = 'INSERT INTO logs (message, created_at) VALUES ("test", 123)'
-""";
+                   def clean_db():
+                       query = 'INSERT INTO logs (message, created_at) VALUES ("test", 123)'
+                   """;
         await File.WriteAllTextAsync(tempFile, code);
+
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var syntaxTree =
+                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -155,7 +175,10 @@ def clean_db():
 
             AssertSqlHierarchy(sqlQuery, "default", "dbo", "logs");
         }
-        finally { if (File.Exists(tempFile)) File.Delete(tempFile); }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
     }
 
     [Test]
@@ -164,19 +187,24 @@ def clean_db():
         var parser = new GoParser();
         var workspacePath = Path.GetTempPath();
         var tempFile = Path.Combine(workspacePath, "embedded_sql_test.go");
+
         var code = """
-package main
-func clean() {
-    query := `UPDATE transactions SET status = 'failed' WHERE id = 1`
-}
-""";
+                   package main
+                   func clean() {
+                       query := `UPDATE transactions SET status = 'failed' WHERE id = 1`
+                   }
+                   """;
         await File.WriteAllTextAsync(tempFile, code);
+
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var syntaxTree =
+                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -188,21 +216,27 @@ func clean() {
 
             AssertSqlHierarchy(sqlQuery, "default", "dbo", "transactions");
         }
-        finally { if (File.Exists(tempFile)) File.Delete(tempFile); }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
     }
 
     private void AssertSqlHierarchy(QueryNode queryNode, string expectedDb, string expectedSchema, string expectedTable)
     {
-        var dbNode = queryNode.Children.OfType<DbNode>().FirstOrDefault(d => d.Name.Equals(expectedDb, StringComparison.OrdinalIgnoreCase));
+        var dbNode = queryNode.Children.OfType<DbNode>()
+            .FirstOrDefault(d => d.Name.Equals(expectedDb, StringComparison.OrdinalIgnoreCase));
         Assert.That(dbNode, Is.Not.Null, $"Should contain DB node: {expectedDb}");
         Assert.That(dbNode.Extensions, Is.Not.Null);
         Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
         Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
 
-        var schemaNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault(s => s.Name.Equals(expectedSchema, StringComparison.OrdinalIgnoreCase));
+        var schemaNode = dbNode.Children.OfType<DataSetNode>()
+            .FirstOrDefault(s => s.Name.Equals(expectedSchema, StringComparison.OrdinalIgnoreCase));
         Assert.That(schemaNode, Is.Not.Null, $"Should contain Schema/DataSet node: {expectedSchema}");
 
-        var tableNode = schemaNode.Children.OfType<TableNode>().FirstOrDefault(t => t.Name.Equals(expectedTable, StringComparison.OrdinalIgnoreCase));
+        var tableNode = schemaNode.Children.OfType<TableNode>()
+            .FirstOrDefault(t => t.Name.Equals(expectedTable, StringComparison.OrdinalIgnoreCase));
         Assert.That(tableNode, Is.Not.Null, $"Should contain Table node: {expectedTable}");
     }
 
@@ -220,6 +254,7 @@ func clean() {
         var parser = new TypeScriptParser();
         var workspacePath = Path.GetTempPath();
         var tempFile = Path.Combine(workspacePath, "complex_template_test.ts");
+
         var code = @"
 async function getStages(tableName: string, bundle_id: number, site_id: string) {
     const query = `
@@ -232,12 +267,16 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
 }
 ";
         await File.WriteAllTextAsync(tempFile, code);
+
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var syntaxTree =
+                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
 
             var queryNodes = FindQueryNodes(fileNode.Children);
@@ -247,9 +286,14 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
 
             // Since tableName is a variable, it should be skipped and no database node hierarchy should be created for it.
             var hasDbNode = sqlQuery.Children.OfType<DbNode>().Any();
-            Assert.That(hasDbNode, Is.False, "Should have skipped tableName because it is a template variable placeholder.");
+
+            Assert.That(hasDbNode, Is.False,
+                "Should have skipped tableName because it is a template variable placeholder.");
         }
-        finally { if (File.Exists(tempFile)) File.Delete(tempFile); }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
     }
 
     private void PrintNodes(IEnumerable<IOntologyNode> nodes, string indent)
@@ -258,14 +302,18 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         {
             var name = GetNodeName(node);
             Console.WriteLine($"{indent}- Node ID: {node.Id}, Kind: {node.Kind}, Name: {name}");
+
             if (node.References.Any())
             {
                 Console.WriteLine($"{indent}  References:");
+
                 foreach (var r in node.References)
                 {
-                    Console.WriteLine($"{indent}    * ScopeSymbolId: {r.ScopeSymbolId}, TargetName: {r.TargetName}, Kind: {r.Kind}");
+                    Console.WriteLine(
+                        $"{indent}    * ScopeSymbolId: {r.ScopeSymbolId}, TargetName: {r.TargetName}, Kind: {r.Kind}");
                 }
             }
+
             PrintNodes(node.Children, indent + "  ");
         }
     }
@@ -287,44 +335,52 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
     private List<QueryNode> FindQueryNodes(IEnumerable<IOntologyNode> nodes)
     {
         var result = new List<QueryNode>();
+
         foreach (var node in nodes)
         {
             if (node is QueryNode q) result.Add(q);
             result.AddRange(FindQueryNodes(node.Children));
         }
+
         return result;
     }
 
     private List<EntryPointNode> FindEntryPointNodes(IEnumerable<IOntologyNode> nodes)
     {
         var result = new List<EntryPointNode>();
+
         foreach (var node in nodes)
         {
             if (node is EntryPointNode e) result.Add(e);
             result.AddRange(FindEntryPointNodes(node.Children));
         }
+
         return result;
     }
 
     private List<ExternalServiceNode> FindExternalServiceNodes(IEnumerable<IOntologyNode> nodes)
     {
         var result = new List<ExternalServiceNode>();
+
         foreach (var node in nodes)
         {
             if (node is ExternalServiceNode e) result.Add(e);
             result.AddRange(FindExternalServiceNodes(node.Children));
         }
+
         return result;
     }
 
     private List<Reference> FindReferences(IEnumerable<IOntologyNode> nodes)
     {
         var result = new List<Reference>();
+
         foreach (var node in nodes)
         {
             result.AddRange(node.References);
             result.AddRange(FindReferences(node.Children));
         }
+
         return result;
     }
 
@@ -334,30 +390,35 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         var parser = new CSharpParser();
         var workspacePath = Path.GetTempPath();
         var tempFile = Path.Combine(workspacePath, "csharp_api_test.cs");
-        var code = """
-using System.Net.Http;
-using Microsoft.AspNetCore.Mvc;
 
-[ApiController]
-[Route("api/[controller]")]
-public class OrdersController : ControllerBase
-{
-    [HttpPost("charge")]
-    public async Task<IActionResult> ChargeOrder()
-    {
-        var client = new HttpClient();
-        await client.PostAsync("http://api.stripe.com/v1/charges", null);
-        return Ok();
-    }
-}
-""";
+        var code = """
+                   using System.Net.Http;
+                   using Microsoft.AspNetCore.Mvc;
+
+                   [ApiController]
+                   [Route("api/[controller]")]
+                   public class OrdersController : ControllerBase
+                   {
+                       [HttpPost("charge")]
+                       public async Task<IActionResult> ChargeOrder()
+                       {
+                           var client = new HttpClient();
+                           await client.PostAsync("http://api.stripe.com/v1/charges", null);
+                           return Ok();
+                       }
+                   }
+                   """;
         await File.WriteAllTextAsync(tempFile, code);
+
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var syntaxTree =
+                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
 
             var entryPoints = FindEntryPointNodes(fileNode.Children);
@@ -372,7 +433,10 @@ public class OrdersController : ControllerBase
             Assert.That(es, Is.Not.Null);
             Assert.That(es.Protocol, Is.EqualTo("http"));
         }
-        finally { if (File.Exists(tempFile)) File.Delete(tempFile); }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
     }
 
     [Test]
@@ -381,6 +445,7 @@ public class OrdersController : ControllerBase
         var parser = new TypeScriptParser();
         var workspacePath = Path.GetTempPath();
         var tempFile = Path.Combine(workspacePath, "typescript_api_test.ts");
+
         var code = @"
 import { Controller, Post, Get } from '@nestjs/common';
 import axios from 'axios';
@@ -399,6 +464,7 @@ export class OrdersController {
 }
 ";
         await File.WriteAllTextAsync(tempFile, code);
+
         try
         {
             // Debug: print the Tree-sitter AST nodes
@@ -413,7 +479,10 @@ export class OrdersController {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-            using var syntaxTree = await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var syntaxTree =
+                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
 
             var entryPoints = FindEntryPointNodes(fileNode.Children);
@@ -432,12 +501,16 @@ export class OrdersController {
             Assert.That(es, Is.Not.Null);
             Assert.That(es.Protocol, Is.EqualTo("http"));
         }
-        finally { if (File.Exists(tempFile)) File.Delete(tempFile); }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
     }
 
     private void PrintTsAst(TreeSitter.Node node, string indent)
     {
         Console.WriteLine($"{indent}Type: {node.Type}, Text: {node.Text.Replace("\n", " ")}");
+
         foreach (var child in node.Children)
         {
             PrintTsAst(child, indent + "  ");
@@ -447,7 +520,8 @@ export class OrdersController {
     [Test]
     public async Task Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding()
     {
-        var tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_test_workspace_" + Guid.NewGuid()).Replace('\\', '/');
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_test_workspace_" + Guid.NewGuid())
+            .Replace('\\', '/');
         Directory.CreateDirectory(tempWorkspace);
 
         try
@@ -455,9 +529,12 @@ export class OrdersController {
             // Project A: C# project
             var projADir = Path.Combine(tempWorkspace, "ProjectA").Replace('\\', '/');
             Directory.CreateDirectory(projADir);
-            await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+
+            await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
             var projAFile = Path.Combine(projADir, "Client.cs").Replace('\\', '/');
+
             var projACode = @"
             using System.Net.Http;
             class Client {
@@ -474,6 +551,7 @@ export class OrdersController {
             await File.WriteAllTextAsync(Path.Combine(projBDir, "package.json"), "{}");
 
             var projBFile = Path.Combine(projBDir, "server.ts").Replace('\\', '/');
+
             var projBCode = @"
             import { Controller, Post } from '@nestjs/common';
             @Controller('orders')
@@ -487,31 +565,38 @@ export class OrdersController {
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
 
             // Register parsers if they aren't already registered
-            WorkspaceParser.Register(new CSharpParser());
-            WorkspaceParser.Register(new TypeScriptParser());
+            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.Register(new TypeScriptParser());
 
             // Run scanner
-            var parser = new WorkspaceParser(tempWorkspace, tempWorkspace, client, clear: true);
-            var results = await parser.IndexAsync();
+            var parser = new WorkspaceIndexer(client);
+            var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
             Assert.That(results.NodesCount, Is.GreaterThan(0));
             Assert.That(results.RelationshipsCount, Is.GreaterThan(0));
 
             // Verify EntryPoints grouping in the database
-            var wsPathQuery = CodeExplorer.Core.Common.PathTools.NormalizeToHostPath(tempWorkspace).Replace("\\", "\\\\");
-            var entryPointsCountBJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
+            var wsPathQuery = CodeExplorer.Core.Common.PathTools.NormalizeToHostPath(tempWorkspace)
+                .Replace("\\", "\\\\");
+
+            var entryPointsCountBJson = await client.ExecuteQueryAsync(
+                $"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
             Assert.That(entryPointsCountBJson, Contains.Substring("\"count\": 1"));
 
-            var entryPointsCountAJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectA'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
+            var entryPointsCountAJson = await client.ExecuteQueryAsync(
+                $"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectA'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
             Assert.That(entryPointsCountAJson, Contains.Substring("\"count\": 0"));
 
-            var containsEpJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}}) RETURN ep.name");
+            var containsEpJson = await client.ExecuteQueryAsync(
+                $"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}}) RETURN ep.name");
             Assert.That(containsEpJson, Contains.Substring("POST charge"));
 
-            var implByJson = await client.ExecuteQueryAsync($"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project)-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}})-[:IMPLEMENTED_BY]->(f:Function {{name: 'charge'}}) RETURN f.name");
+            var implByJson = await client.ExecuteQueryAsync(
+                $"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project)-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}})-[:IMPLEMENTED_BY]->(f:Function {{name: 'charge'}}) RETURN f.name");
             Assert.That(implByJson, Contains.Substring("charge"));
 
-            Console.WriteLine($"[IntegrationTest] Parsed {results.NodesCount} nodes and {results.RelationshipsCount} relationships successfully.");
+            Console.WriteLine(
+                $"[IntegrationTest] Parsed {results.NodesCount} nodes and {results.RelationshipsCount} relationships successfully.");
         }
         finally
         {
@@ -525,7 +610,8 @@ export class OrdersController {
     [Test]
     public async Task Test_SemanticAnalysisAndOntologyEnrichment()
     {
-        var tempWorkspace = Path.Combine(Path.GetTempPath(), "semantic_test_workspace_" + Guid.NewGuid()).Replace('\\', '/');
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "semantic_test_workspace_" + Guid.NewGuid())
+            .Replace('\\', '/');
         Directory.CreateDirectory(tempWorkspace);
 
         try
@@ -533,20 +619,20 @@ export class OrdersController {
             // Project A: C# project using database package (Dapper) and containing configuration + constants + empty subfolder
             var projADir = Path.Combine(tempWorkspace, "ProjectA").Replace('\\', '/');
             Directory.CreateDirectory(projADir);
+
             await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"),
-                "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
-                "  <ItemGroup>\n" +
+                "<Project Sdk=\"Microsoft.NET.Sdk\">\n" + "  <ItemGroup>\n" +
                 "    <PackageReference Include=\"Dapper\" Version=\"1.0.0\" />\n" +
                 "    <PackageReference Include=\"Stripe.net\" Version=\"1.0.0\" />\n" +
                 "    <PackageReference Include=\"Microsoft.AspNetCore.App\" Version=\"1.0.0\" />\n" +
-                "  </ItemGroup>\n" +
-                "</Project>");
+                "  </ItemGroup>\n" + "</Project>");
 
             // Empty folder in Project A to verify pruning
             var emptySubDir = Path.Combine(projADir, "EmptyFolder").Replace('\\', '/');
             Directory.CreateDirectory(emptySubDir);
 
             var projAFile = Path.Combine(projADir, "Repository.cs").Replace('\\', '/');
+
             var projACode = @"
             using System;
             using Dapper;
@@ -564,7 +650,9 @@ export class OrdersController {
             // Project B: Empty project (should be pruned from graph completely)
             var projBDir = Path.Combine(tempWorkspace, "ProjectB").Replace('\\', '/');
             Directory.CreateDirectory(projBDir);
-            await File.WriteAllTextAsync(Path.Combine(projBDir, "ProjectB.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+
+            await File.WriteAllTextAsync(Path.Combine(projBDir, "ProjectB.csproj"),
+                "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
             // Setup parsing context
             var channel = Channel.CreateUnbounded<Func<Task>>();
@@ -574,13 +662,14 @@ export class OrdersController {
             ctx.WorkspaceId = "1";
 
             // Register CSharp parser
-            WorkspaceParser.Register(new CSharpParser());
+            WorkspaceIndexer.Register(new CSharpParser());
 
-            var scanParser = new WorkspaceLevelParser(ctx);
+            var scanParser = new WorkspaceParser(ctx);
             var workspaceNode = new WorkspaceNode("1", "TestWorkspace", tempWorkspace);
 
             // Invoke ScanDirectoryAsync via reflection
-            var rootScan = typeof(WorkspaceLevelParser).GetMethod("ScanDirectoryAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var rootScan = typeof(WorkspaceParser).GetMethod("ScanDirectoryAsync",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             Assert.That(rootScan, Is.Not.Null);
             await (Task)rootScan.Invoke(scanParser, [tempWorkspace, workspaceNode])!;
 
@@ -589,6 +678,7 @@ export class OrdersController {
             {
                 await projProcessor.EnrichAsync(projNode);
             }
+
             ctx.ProjectsToEnrich.Clear();
 
             // Before pruning, ProjectB and EmptyFolder are in the tree
@@ -606,8 +696,10 @@ export class OrdersController {
             // After pruning:
             // ProjectB is removed because it is an empty project
             Assert.That(workspaceNode.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.False);
+
             // EmptyFolder is removed
-            var folderA = filesNode.Children.FirstOrDefault(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder");
+            var folderA =
+                filesNode.Children.FirstOrDefault(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder");
             Assert.That(folderA, Is.Null);
 
             // Verify project framework detection
@@ -665,11 +757,13 @@ export class OrdersController {
             Assert.That(cloudNode.Name, Is.EqualTo("Stripe"));
 
             // Check that file-to-library relationships are created in the context
-            var usesDb = ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_DB");
+            var usesDb =
+                ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_DB");
             Assert.That(usesDb, Is.Not.Null);
             Assert.That(usesDb.To, Is.EqualTo(dbNode.Id));
 
-            var usesCloud = ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_CLOUD");
+            var usesCloud =
+                ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_CLOUD");
             Assert.That(usesCloud, Is.Not.Null);
             Assert.That(usesCloud.To, Is.EqualTo(cloudNode.Id));
 
@@ -712,13 +806,17 @@ export class OrdersController {
             // 1. Python Parser - Flask & HTTP calls
             var pythonParser = new PythonParser();
             var pyFile = Path.Combine(tempWorkspace, "app.py");
+
             var pyCode = @"
 @app.route('/charge', methods=['POST'])
 def process_payment():
     requests.post('https://api.stripe.com/v3/charges')
 ";
             await File.WriteAllTextAsync(pyFile, pyCode);
-            using var pySyntax = await pythonParser.ParseAsync(pyFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var pySyntax =
+                await pythonParser.ParseAsync(pyFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(pySyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var pyNode = pySyntax.FileNode;
             Assert.That(pyNode, Is.Not.Null);
 
@@ -737,6 +835,7 @@ def process_payment():
             // 2. Go Parser - Gin & HTTP Get calls
             var goParser = new GoParser();
             var goFile = Path.Combine(tempWorkspace, "main.go");
+
             var goCode = @"
 package main
 import ""net/http""
@@ -745,6 +844,7 @@ func Register(r *gin.Engine) {
 }
 ";
             await File.WriteAllTextAsync(goFile, goCode);
+
             // Debug: print the Go AST
             var goSourceText = await File.ReadAllTextAsync(goFile);
             using var goLang = new TreeSitter.Language("go");
@@ -754,7 +854,9 @@ func Register(r *gin.Engine) {
             PrintTsAst(goTree!.RootNode, "");
             Console.WriteLine("--- GO AST END ---");
 
-            using var goSyntax = await goParser.ParseAsync(goFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using var goSyntax =
+                await goParser.ParseAsync(goFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(goSyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var goNode = goSyntax.FileNode;
             Assert.That(goNode, Is.Not.Null);
 
@@ -764,11 +866,16 @@ func Register(r *gin.Engine) {
 
             // Verify Go references
             var goRefs = FindReferences(goNode.Children);
-            Assert.That(goRefs.Any(r => r.TargetName == "GET /api/v1/users" && r.Kind == "IMPLEMENTS" && r.ScopeSymbolId == "GetUsers"), Is.True);
+
+            Assert.That(
+                goRefs.Any(r =>
+                    r.TargetName == "GET /api/v1/users" && r.Kind == "IMPLEMENTS" && r.ScopeSymbolId == "GetUsers"),
+                Is.True);
 
             // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
             var sqlParser = new Parser.SQL.SqlParser();
             var sqlFile = Path.Combine(tempWorkspace, "sp.sql");
+
             var sqlCode = @"
 CREATE OR REPLACE PROCEDURE `my_schema`.`my_proc`()
 BEGIN
@@ -777,7 +884,9 @@ BEGIN
 END;
 ";
             await File.WriteAllTextAsync(sqlFile, sqlCode);
-            using var sqlSyntax = await sqlParser.ParseAsync(sqlFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var sqlSyntax =
+                await sqlParser.ParseAsync(sqlFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var sqlNode = sqlSyntax.FileNode;
             Assert.That(sqlNode, Is.Not.Null);
 
@@ -828,17 +937,12 @@ END;
             var csProj = new ProjectNode("cs_project", "cs_project", "cs_project", "csharp");
             var csFile = new FileNode("cs_file", "Repository.cs", "Repository.cs", tempWorkspace + "/Repository.cs");
             csProj.Children.Add(csFile);
-            var csSyntaxTree = new SyntaxTree(
-                csFile.FullPath, 
-                csFile.Path, 
-                null, 
-                null, 
-                null, 
-                csFile, 
-                [new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs") { Type = ImportType.External }], 
-                [],
+            var csParser = new CSharpParser();
+
+            var csSyntaxTree = new SyntaxTree(csFile.FullPath, csFile.Path, null, null, null, csFile, csParser,
+                [new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs") { Type = ImportType.External }], [],
                 []);
-            var csModel = new CSharpParser().GetSyntaxEnricher(csSyntaxTree);
+            var csModel = csParser.GetSyntaxEnricher(csSyntaxTree);
             await csModel.EnrichAsync(csProj, ctx);
 
             var csDbGroup = csProj.Children.OfType<DataBasesNode>().FirstOrDefault();
@@ -847,23 +951,20 @@ END;
             Assert.That(csDbNode, Is.Not.Null);
             Assert.That(csDbNode.Name, Is.EqualTo("Microsoft.EntityFrameworkCore"));
             Assert.That(csDbNode!.Extensions!["db_type"], Is.EqualTo("relational"));
-            Assert.That(ctx.GlobalProjectDependencies.Any(r => r.From == csFile.Id && r.To == csDbNode.Id && r.Kind == "USES_DB"), Is.True);
+
+            Assert.That(
+                ctx.GlobalProjectDependencies.Any(r =>
+                    r.From == csFile.Id && r.To == csDbNode.Id && r.Kind == "USES_DB"), Is.True);
 
             // Test TypeScript Semantic Model with document (mongoose)
             var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
             var tsFile = new FileNode("ts_file", "index.ts", "index.ts", tempWorkspace + "/index.ts");
             tsProj.Children.Add(tsFile);
-            var tsSyntaxTree = new SyntaxTree(
-                tsFile.FullPath, 
-                tsFile.Path, 
-                null, 
-                null, 
-                null, 
-                tsFile, 
-                [new RawImport("mongoose", "index.ts") { Type = ImportType.External }], 
-                [],
-                []);
-            var tsModel = new TypeScriptParser().GetSyntaxEnricher(tsSyntaxTree);
+            var tsParser = new TypeScriptParser();
+
+            var tsSyntaxTree = new SyntaxTree(tsFile.FullPath, tsFile.Path, null, null, null, tsFile, tsParser,
+                [new RawImport("mongoose", "index.ts") { Type = ImportType.External }], [], []);
+            var tsModel = tsParser.GetSyntaxEnricher(tsSyntaxTree);
             await tsModel.EnrichAsync(tsProj, ctx);
 
             var tsDbGroup = tsProj.Children.OfType<DataBasesNode>().FirstOrDefault();
@@ -872,23 +973,20 @@ END;
             Assert.That(tsDbNode, Is.Not.Null);
             Assert.That(tsDbNode.Name, Is.EqualTo("MongoDB"));
             Assert.That(tsDbNode!.Extensions!["db_type"], Is.EqualTo("document"));
-            Assert.That(ctx.GlobalProjectDependencies.Any(r => r.From == tsFile.Id && r.To == tsDbNode.Id && r.Kind == "USES_DB"), Is.True);
+
+            Assert.That(
+                ctx.GlobalProjectDependencies.Any(r =>
+                    r.From == tsFile.Id && r.To == tsDbNode.Id && r.Kind == "USES_DB"), Is.True);
 
             // Test Python Semantic Model with keyvalue (redis)
             var pyProj = new ProjectNode("py_project", "py_project", "py_project", "python");
             var pyFile = new FileNode("py_file", "main.py", "main.py", tempWorkspace + "/main.py");
             pyProj.Children.Add(pyFile);
-            var pySyntaxTree = new SyntaxTree(
-                pyFile.FullPath, 
-                pyFile.Path, 
-                null, 
-                null, 
-                null, 
-                pyFile, 
-                [new RawImport("redis", "main.py") { Type = ImportType.External }], 
-                [],
-                []);
-            var pyModel = new PythonParser().GetSyntaxEnricher(pySyntaxTree);
+            var pyParser = new PythonParser();
+
+            var pySyntaxTree = new SyntaxTree(pyFile.FullPath, pyFile.Path, null, null, null, pyFile, pyParser,
+                [new RawImport("redis", "main.py") { Type = ImportType.External }], [], []);
+            var pyModel = pyParser.GetSyntaxEnricher(pySyntaxTree);
             await pyModel.EnrichAsync(pyProj, ctx);
 
             var pyDbGroup = pyProj.Children.OfType<DataBasesNode>().FirstOrDefault();
@@ -897,7 +995,10 @@ END;
             Assert.That(pyDbNode, Is.Not.Null);
             Assert.That(pyDbNode.Name, Is.EqualTo("Redis"));
             Assert.That(pyDbNode!.Extensions!["db_type"], Is.EqualTo("keyvalue"));
-            Assert.That(ctx.GlobalProjectDependencies.Any(r => r.From == pyFile.Id && r.To == pyDbNode.Id && r.Kind == "USES_DB"), Is.True);
+
+            Assert.That(
+                ctx.GlobalProjectDependencies.Any(r =>
+                    r.From == pyFile.Id && r.To == pyDbNode.Id && r.Kind == "USES_DB"), Is.True);
         }
         finally
         {
@@ -923,6 +1024,7 @@ END;
 
             // 1. C# file parsing test (Dapper and Flurl)
             var csFilePath = Path.Combine(tempWorkspace, "Service.cs");
+
             var csContent = @"
 using Dapper;
 using Flurl.Http;
@@ -942,7 +1044,10 @@ public class Service
             await File.WriteAllTextAsync(csFilePath, csContent);
 
             var csFileParser = new CSharpParser();
-            using var csSyntaxTree = await TreeSitterFileParser.ParseFileAsync(csFilePath, "Service.cs", "1", csFileParser, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var csSyntaxTree = await SyntaxTree.ParseAsync(csFilePath, "Service.cs", "1", csFileParser,
+                ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(csSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var csFileNode = csSyntaxTree.FileNode;
 
             // Verify Dapper query extraction
@@ -959,6 +1064,7 @@ public class Service
 
             // 2. TS file parsing test (Mongoose and Redis)
             var tsFilePath = Path.Combine(tempWorkspace, "app.ts");
+
             var tsContent = @"
 import mongoose from 'mongoose';
 import redis from 'redis';
@@ -973,7 +1079,10 @@ async function testDb(client: any) {
             await File.WriteAllTextAsync(tsFilePath, tsContent);
 
             var tsFileParser = new TypeScriptParser();
-            using var tsSyntaxTree = await TreeSitterFileParser.ParseFileAsync(tsFilePath, "app.ts", "1", tsFileParser, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            using var tsSyntaxTree = await SyntaxTree.ParseAsync(tsFilePath, "app.ts", "1", tsFileParser,
+                ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            ProjectProcessor.ProcessVisitor(tsSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var tsFileNode = tsSyntaxTree.FileNode;
 
             var tsQueries = FindQueryNodes([tsFileNode]);
@@ -999,13 +1108,14 @@ async function testDb(client: any) {
         }
     }
 
-
     [Test]
     public void Test_LibraryTrieRegistry_Matching()
     {
         var parserNest = new GenericLibraryParser("nestjs", "NestJS", "framework", ["@nestjs/*"]);
         var parserFirebaseGeneric = new GenericLibraryParser("firebase", "Firebase", "cloud", ["firebase*"]);
-        var parserFirebaseSpecific = new GenericLibraryParser("firebaseadmin", "FirebaseAdmin", "cloud", ["firebase-admin"]);
+
+        var parserFirebaseSpecific =
+            new GenericLibraryParser("firebaseadmin", "FirebaseAdmin", "cloud", ["firebase-admin"]);
         var parserSql = new GenericLibraryParser("sqlclient", "SqlClient", "db", ["System.Data"]);
         var parserGoogleCloud = new GenericLibraryParser("gcp", "GCP", "cloud", ["Google.Cloud."]);
 
@@ -1046,6 +1156,7 @@ async function testDb(client: any) {
             Directory.CreateDirectory(projDir);
 
             var orderServiceFile = Path.Combine(projDir, "OrderService.ts");
+
             var orderServiceCode = @"
 export class PaymentService {
     async charge() {}
@@ -1063,20 +1174,77 @@ export class OrderService {
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
 
             // Register parsers if they aren't already registered
-            WorkspaceParser.Register(new TypeScriptParser());
+            WorkspaceIndexer.Register(new TypeScriptParser());
 
             // Run scanner
-            var parser = new WorkspaceParser(tempWorkspace, tempWorkspace, client, clear: true);
-            var results = await parser.IndexAsync();
+            var parser = new WorkspaceIndexer(client);
+            var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
             Assert.That(results.NodesCount, Is.GreaterThan(0));
 
             // Verify using Memgraph query that Function 'process' CALLS Function 'charge' in Class 'PaymentService'
-            var callsQuery = $"MATCH (c:Class {{name: 'PaymentService'}})-[:CONTAINS]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
+            var callsQuery =
+                $"MATCH (c:Class {{name: 'PaymentService'}})-[:CONTAINS]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
             var queryResult = await client.ExecuteQueryAsync(callsQuery);
-            
+
             Assert.That(queryResult, Contains.Substring("\"f1Name\": \"process\""));
             Assert.That(queryResult, Contains.Substring("\"f2Name\": \"charge\""));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Test_NestedProjectsResolution()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_nested_project_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var projADir = Path.Combine(tempWorkspace, "ProjectA");
+            Directory.CreateDirectory(projADir);
+            await File.WriteAllTextAsync(Path.Combine(projADir, "package.json"), "{}");
+            await File.WriteAllTextAsync(Path.Combine(projADir, "serviceA.ts"), "export class ServiceA {}");
+
+            var projBDir = Path.Combine(projADir, "ProjectB");
+            Directory.CreateDirectory(projBDir);
+            await File.WriteAllTextAsync(Path.Combine(projBDir, "package.json"), "{}");
+            await File.WriteAllTextAsync(Path.Combine(projBDir, "serviceB.ts"), "export class ServiceB {}");
+
+            // Setup parsing
+            await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+
+            // Register parsers if they aren't already registered
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            // Run scanner
+            var parser = new WorkspaceIndexer(client);
+            var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
+
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
+
+            // Verify using Memgraph queries
+            // ProjectA should CONTAINS ProjectB (nested project node)
+            var projectAQuery = "MATCH (p:Project {name: 'ProjectA'}) RETURN p.id AS id";
+            var projectBQuery = "MATCH (p:Project {name: 'ProjectB'}) RETURN p.id AS id";
+
+            var containsQuery =
+                "MATCH (p1:Project {name: 'ProjectA'})-[:CONTAINS]->(p2:Project {name: 'ProjectB'}) RETURN p1.name AS p1Name, p2.name AS p2Name";
+
+            var resA = await client.ExecuteQueryAsync(projectAQuery);
+            var resB = await client.ExecuteQueryAsync(projectBQuery);
+            var resContains = await client.ExecuteQueryAsync(containsQuery);
+
+            Assert.That(resA, Contains.Substring("ProjectA"));
+            Assert.That(resB, Contains.Substring("ProjectB"));
+            Assert.That(resContains, Contains.Substring("\"p1Name\": \"ProjectA\""));
+            Assert.That(resContains, Contains.Substring("\"p2Name\": \"ProjectB\""));
         }
         finally
         {

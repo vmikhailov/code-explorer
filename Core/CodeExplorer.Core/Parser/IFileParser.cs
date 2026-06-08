@@ -31,7 +31,11 @@ public interface IFileParser
     /// </summary>
     BaseParserVisitor CreateVisitor(
         Node rootNode,
-        List<ILibraryParser> activeLibraryParsers
+        List<ILibraryParser> activeLibraryParsers,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry
     );
 
     /// <summary>

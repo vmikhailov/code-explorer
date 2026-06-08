@@ -67,9 +67,21 @@ public class GoParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         TreeSitter.Node rootNode,
-        List<ILibraryParser> activeLibraryParsers)
+        List<ILibraryParser> activeLibraryParsers,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry)
     {
-        return new GoFileVisitor(rootNode, activeLibraryParsers, this);
+        return new GoFileVisitor(
+            rootNode,
+            activeLibraryParsers,
+            this,
+            relativePath,
+            absoluteWorkspacePath,
+            fileParser,
+            libraryRegistry
+        );
     }
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
@@ -170,7 +182,7 @@ public class GoParser : IProjectParser, IFileParser
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
+        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
     public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new GoSyntaxEnricher(LibraryParsers, syntaxTree);

@@ -139,20 +139,4 @@ public static class OntologyUploader
 
         return new ContainsRelationship(parentId, child.Id);
     }
-
-    private static string FindProjectDirectory(string filePath, string workspacePath)
-    {
-        var dir = Path.GetDirectoryName(filePath);
-        while (dir != null && dir.Replace('\\', '/').StartsWith(workspacePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
-        {
-            if (Directory.GetFiles(dir, "*.csproj").Length > 0 ||
-                File.Exists(Path.Combine(dir, "package.json")) ||
-                File.Exists(Path.Combine(dir, "go.mod")))
-            {
-                return dir.Replace('\\', '/');
-            }
-            dir = Path.GetDirectoryName(dir);
-        }
-        return (Path.GetDirectoryName(filePath) ?? "").Replace('\\', '/');
-    }
 }

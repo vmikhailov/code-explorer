@@ -15,8 +15,12 @@ public class GoFileVisitor : BaseParserVisitor
     public GoFileVisitor(
         Node rootNode,
         List<ILibraryParser> activeLibraryParsers,
-        GoParser parser)
-        : base(rootNode, activeLibraryParsers)
+        GoParser parser,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry)
+        : base(rootNode, activeLibraryParsers, relativePath, absoluteWorkspacePath, fileParser, libraryRegistry)
     {
         _parser = parser;
     }
@@ -150,6 +154,7 @@ public class GoFileVisitor : BaseParserVisitor
         {
             var importPath = pathNode.Text.Trim('"');
             RawImports.Add(new RawImport(importPath, "", ImportType.External));
+            ResolveAndInjectLibraryParser(importPath);
         }
         VisitChildren(node, depth);
     }

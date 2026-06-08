@@ -1,4 +1,5 @@
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Core.Parser;
@@ -11,9 +12,9 @@ namespace CodeExplorer.Core.Web.Controllers;
 public class WorkspacesController : ControllerBase
 {
     private readonly CodeExplorerRepository _repository;
-    private readonly WorkspaceIndexerService _indexer;
+    private readonly WorkspaceIndexer _indexer;
 
-    public WorkspacesController(CodeExplorerRepository repository, WorkspaceIndexerService indexer)
+    public WorkspacesController(CodeExplorerRepository repository, WorkspaceIndexer indexer)
     {
         _repository = repository;
         _indexer = indexer;
@@ -24,7 +25,7 @@ public class WorkspacesController : ControllerBase
     {
         try
         {
-            var (nodesCount, relsCount, nodesByKind) = await _indexer.IndexWorkspaceAsync(request.Dir, request.Clear);
+            var (nodesCount, relsCount, nodesByKind) = await _indexer.IndexAsync(request.Dir, request.Dir, request.Clear);
             return Ok(new
             {
                 message = "Workspace indexed successfully.",

@@ -107,22 +107,19 @@ public abstract class BaseSyntaxEnricher : ISyntaxEnricher
                         }
 
                         var dbId = $"{projectNode.Id}db:{parser.Id}";
-                        lock (projectNode.Children)
+                        var databasesNode = projectNode.Children.OfType<DataBasesNode>().FirstOrDefault();
+                        if (databasesNode == null)
                         {
-                            var databasesNode = projectNode.Children.OfType<DataBasesNode>().FirstOrDefault();
-                            if (databasesNode == null)
-                            {
-                                var dbGroupNodeId = $"{projectNode.Id}databases";
-                                databasesNode = new DataBasesNode(dbGroupNodeId, "DataBases", projectNode.Path);
-                                projectNode.Children.Add(databasesNode);
-                            }
+                            var dbGroupNodeId = $"{projectNode.Id}databases";
+                            databasesNode = new DataBasesNode(dbGroupNodeId, "DataBases", projectNode.Path);
+                            projectNode.Children.Add(databasesNode);
+                        }
 
-                            if (databasesNode.Children.All(c => c.Id != dbId))
-                            {
-                                var dbNode = new DbNode(dbId, dbEngine, dbId);
-                                dbNode.SetExtension("db_type", dbType);
-                                databasesNode.Children.Add(dbNode);
-                            }
+                        if (databasesNode.Children.All(c => c.Id != dbId))
+                        {
+                            var dbNode = new DbNode(dbId, dbEngine, dbId);
+                            dbNode.SetExtension("db_type", dbType);
+                            databasesNode.Children.Add(dbNode);
                         }
 
                         var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId);
@@ -131,21 +128,18 @@ public abstract class BaseSyntaxEnricher : ISyntaxEnricher
 
                     case "api":
                         var apiId = $"{projectNode.Id}api:{parser.Id}";
-                        lock (projectNode.Children)
+                        var apisNode = projectNode.Children.OfType<ApisInUseNode>().FirstOrDefault();
+                        if (apisNode == null)
                         {
-                            var apisNode = projectNode.Children.OfType<ApisInUseNode>().FirstOrDefault();
-                            if (apisNode == null)
-                            {
-                                var apiGroupNodeId = $"{projectNode.Id}apis";
-                                apisNode = new ApisInUseNode(apiGroupNodeId, "ApisInUse", projectNode.Path);
-                                projectNode.Children.Add(apisNode);
-                            }
+                            var apiGroupNodeId = $"{projectNode.Id}apis";
+                            apisNode = new ApisInUseNode(apiGroupNodeId, "ApisInUse", projectNode.Path);
+                            projectNode.Children.Add(apisNode);
+                        }
 
-                            if (!apisNode.Children.Any(c => c.Id == apiId))
-                            {
-                                var apiNode = new ApiInUseNode(apiId, parser.Name, apiId);
-                                apisNode.Children.Add(apiNode);
-                            }
+                        if (!apisNode.Children.Any(c => c.Id == apiId))
+                        {
+                            var apiNode = new ApiInUseNode(apiId, parser.Name, apiId);
+                            apisNode.Children.Add(apiNode);
                         }
 
                         var usesApiRel = new UsesApiRelationship(fileNode.Id, apiId);
@@ -155,21 +149,18 @@ public abstract class BaseSyntaxEnricher : ISyntaxEnricher
                     case "cloud":
                         var cloudService = parser.Name;
                         var cloudId = $"{projectNode.Id}cloud:{parser.Id}";
-                        lock (projectNode.Children)
+                        var cloudServicesNode = projectNode.Children.OfType<CloudServicesNode>().FirstOrDefault();
+                        if (cloudServicesNode == null)
                         {
-                            var cloudServicesNode = projectNode.Children.OfType<CloudServicesNode>().FirstOrDefault();
-                            if (cloudServicesNode == null)
-                            {
-                                var cloudGroupNodeId = $"{projectNode.Id}cloudservices";
-                                cloudServicesNode = new CloudServicesNode(cloudGroupNodeId, "CloudServices", projectNode.Path);
-                                projectNode.Children.Add(cloudServicesNode);
-                            }
+                            var cloudGroupNodeId = $"{projectNode.Id}cloudservices";
+                            cloudServicesNode = new CloudServicesNode(cloudGroupNodeId, "CloudServices", projectNode.Path);
+                            projectNode.Children.Add(cloudServicesNode);
+                        }
 
-                            if (!cloudServicesNode.Children.Any(c => c.Id == cloudId))
-                            {
-                                var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
-                                cloudServicesNode.Children.Add(cloudNode);
-                            }
+                        if (!cloudServicesNode.Children.Any(c => c.Id == cloudId))
+                        {
+                            var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
+                            cloudServicesNode.Children.Add(cloudNode);
                         }
 
                         var usesCloudRel = new UsesCloudRelationship(fileNode.Id, cloudId);

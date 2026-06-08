@@ -138,16 +138,27 @@ public class JavaScriptParser : IProjectParser, IFileParser
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await TreeSitterFileParser.ParseFileAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
+        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
     private readonly TypeScriptParser _tsParser = new();
 
     public BaseParserVisitor CreateVisitor(
         TreeSitter.Node rootNode,
-        List<ILibraryParser> activeLibraryParsers)
+        List<ILibraryParser> activeLibraryParsers,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry)
     {
-        return _tsParser.CreateVisitor(rootNode, activeLibraryParsers);
+        return _tsParser.CreateVisitor(
+            rootNode,
+            activeLibraryParsers,
+            relativePath,
+            absoluteWorkspacePath,
+            fileParser,
+            libraryRegistry
+        );
     }
 
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)

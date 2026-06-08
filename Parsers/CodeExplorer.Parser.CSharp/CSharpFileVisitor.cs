@@ -15,8 +15,12 @@ public class CSharpFileVisitor : BaseParserVisitor
     public CSharpFileVisitor(
         Node rootNode,
         List<ILibraryParser> activeLibraryParsers,
-        CSharpParser parser)
-        : base(rootNode, activeLibraryParsers)
+        CSharpParser parser,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry)
+        : base(rootNode, activeLibraryParsers, relativePath, absoluteWorkspacePath, fileParser, libraryRegistry)
     {
         _parser = parser;
     }
@@ -250,6 +254,7 @@ public class CSharpFileVisitor : BaseParserVisitor
         {
             var importPath = nameNode.Text;
             RawImports.Add(new RawImport(importPath, "", ImportType.External));
+            ResolveAndInjectLibraryParser(importPath);
         }
         VisitChildren(node, depth);
     }

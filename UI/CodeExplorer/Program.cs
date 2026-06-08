@@ -23,12 +23,12 @@ public class Program
 
     public static async Task<int> Main(string[] args)
     {
-        WorkspaceParser.Register(new CSharpParser());
-        WorkspaceParser.Register(new GoParser());
-        WorkspaceParser.Register(new PythonParser());
-        WorkspaceParser.Register(new TypeScriptParser());
-        WorkspaceParser.Register(new JavaScriptParser());
-        WorkspaceParser.Register(new SqlParser());
+        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.Register(new GoParser());
+        WorkspaceIndexer.Register(new PythonParser());
+        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.Register(new JavaScriptParser());
+        WorkspaceIndexer.Register(new SqlParser());
 
         return await CommandLineParser.Default.ParseArguments<IngestOptions, QueryOptions, McpOptions>(args)
             .MapResult(
@@ -52,8 +52,8 @@ public class Program
                 await client.ClearDatabaseAsync();
             }
 
-            var indexer = new WorkspaceIndexerService(client);
-            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexWorkspaceAsync(opts.Dir, opts.Clear && !opts.ClearAll);
+            var indexer = new WorkspaceIndexer(client);
+            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(opts.Dir, opts.Dir, opts.Clear && !opts.ClearAll);
 
             Console.WriteLine($"Parsed and uploaded {nodesCount} nodes and {relsCount} relationships successfully!");
             Console.WriteLine("Nodes breakdown by kind:");
@@ -116,7 +116,7 @@ public class Program
             // Register database client and other services
             builder.Services.AddSingleton(client);
             builder.Services.AddSingleton<CodeExplorerRepository>();
-            builder.Services.AddSingleton<WorkspaceIndexerService>();
+            builder.Services.AddSingleton<WorkspaceIndexer>();
 
             // Register official MCP server
 #pragma warning disable MCP9004
@@ -168,7 +168,7 @@ public class Program
 
             builder.Services.AddSingleton(client);
             builder.Services.AddSingleton<CodeExplorerRepository>();
-            builder.Services.AddSingleton<WorkspaceIndexerService>();
+            builder.Services.AddSingleton<WorkspaceIndexer>();
 
             // Register official MCP server with Stdio transport
             builder.Services.AddMcpServer()

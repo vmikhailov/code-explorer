@@ -15,8 +15,12 @@ public class PythonFileVisitor : BaseParserVisitor
     public PythonFileVisitor(
         Node rootNode,
         List<ILibraryParser> activeLibraryParsers,
-        PythonParser parser)
-        : base(rootNode, activeLibraryParsers)
+        PythonParser parser,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry)
+        : base(rootNode, activeLibraryParsers, relativePath, absoluteWorkspacePath, fileParser, libraryRegistry)
     {
         _parser = parser;
     }
@@ -168,6 +172,7 @@ public class PythonFileVisitor : BaseParserVisitor
                 {
                     var importPath = child.Text;
                     RawImports.Add(new RawImport(importPath, "", ImportType.External));
+                    ResolveAndInjectLibraryParser(importPath);
                 }
             }
         }
@@ -182,6 +187,7 @@ public class PythonFileVisitor : BaseParserVisitor
             {
                 var importPath = moduleNode.Text;
                 RawImports.Add(new RawImport(importPath, "", ImportType.External));
+                ResolveAndInjectLibraryParser(importPath);
             }
         }
         VisitChildren(node, depth);

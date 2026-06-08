@@ -39,7 +39,11 @@ public class SqlParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         TreeSitter.Node rootNode,
-        List<ILibraryParser> activeLibraryParsers)
+        List<ILibraryParser> activeLibraryParsers,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry)
     {
         throw new NotSupportedException("SQL Parser does not use TreeSitter visitors.");
     }
@@ -79,7 +83,7 @@ public class SqlParser : IProjectParser, IFileParser
 
         TryDetectContains(cleanSql, fileNode, fileNodeId, relativePath, datasets, tables, procedures, workspaceId);
 
-        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, new List<RawImport>(), new List<RawVariable>(), new List<RawTypeBinding>());
+        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, this, new List<RawImport>(), new List<RawVariable>(), new List<RawTypeBinding>());
     }
 
     private void TryDetectContains(

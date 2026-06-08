@@ -10,6 +10,34 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 {
     protected readonly List<ILibraryParser> LibraryParsers;
 
+    public string RelativePath { get; }
+    public string AbsoluteWorkspacePath { get; }
+    public IFileParser FileParser { get; }
+    public LibraryTrieRegistry LibraryRegistry { get; }
+
+    public void ResolveAndInjectLibraryParser(string importPath)
+    {
+        var type = FileParser.ResolveImportType(importPath, RelativePath, AbsoluteWorkspacePath);
+        if (type == ImportType.External)
+        {
+            var match = LibraryRegistry.Match(importPath);
+            if (match != null)
+            {
+                if (match.IsImplemented)
+                {
+                    if (!LibraryParsers.Contains(match))
+                    {
+                        LibraryParsers.Add(match);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Library '{match.Name}' detected but parser is not implemented yet.");
+                }
+            }
+        }
+    }
+
     public List<RawImport> RawImports { get; } = new();
     public List<RawVariable> RawVariables { get; } = new();
     public List<RawTypeBinding> RawTypeBindings { get; } = new();
@@ -18,9 +46,21 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     protected readonly Stack<SyntacticSymbol> SymbolStack = new();
     protected readonly Stack<IntPtr> PushedNodeIds = new();
 
-    protected BaseParserVisitor(Node rootNode, List<ILibraryParser> libraryParsers)
+    public SequenceDetector<Node> SequenceDetector { get; } = new();
+
+    protected BaseParserVisitor(
+        Node rootNode,
+        List<ILibraryParser> libraryParsers,
+        string relativePath,
+        string absoluteWorkspacePath,
+        IFileParser fileParser,
+        LibraryTrieRegistry libraryRegistry)
     {
         LibraryParsers = libraryParsers;
+        RelativePath = relativePath;
+        AbsoluteWorkspacePath = absoluteWorkspacePath;
+        FileParser = fileParser;
+        LibraryRegistry = libraryRegistry;
         RootSymbol = new SyntacticSymbol("file", "root", rootNode);
         SymbolStack.Push(RootSymbol);
     }
@@ -40,25 +80,33 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitNode(Node node, int depth)
     {
-        // 1. General reference collection
-        var currentScope = SymbolStack.Peek();
-
-        if (currentScope.Kind != "file")
+        SequenceDetector.Push(node);
+        try
         {
-            if (node.Type is "identifier" or "type_identifier")
+            // 1. General reference collection
+            var currentScope = SymbolStack.Peek();
+
+            if (currentScope.Kind != "file")
             {
-                currentScope.References.Add(new Reference("", node.Text,
-                    OntologyConstants.Relationships.PotentialType));
+                if (node.Type is "identifier" or "type_identifier")
+                {
+                    currentScope.References.Add(new Reference("", node.Text,
+                        OntologyConstants.Relationships.PotentialType));
+                }
             }
-        }
 
-        foreach (var libParser in LibraryParsers)
+            foreach (var libParser in LibraryParsers)
+            {
+                libParser.CollectReferences(node, "", currentScope.References, null!);
+            }
+
+            // 2. Dispatch to specific typed visit methods
+            Dispatch(node, depth);
+        }
+        finally
         {
-            libParser.CollectReferences(node, "", currentScope.References, null!);
+            SequenceDetector.Pop();
         }
-
-        // 2. Dispatch to specific typed visit methods
-        Dispatch(node, depth);
     }
 
     protected virtual void Dispatch(Node node, int depth)
@@ -169,6 +217,14 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     {
         foreach (var lp in LibraryParsers)
         {
+            foreach (var kvp in lp.Selectors)
+            {
+                if (kvp.Value.Matches(node))
+                {
+                    return kvp.Key;
+                }
+            }
+
             var kind = lp.MapNodeType(node, null!);
             if (kind != null) return kind;
         }
@@ -180,7 +236,17 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     {
         foreach (var lp in LibraryParsers)
         {
-            if (lp.MapNodeType(node, null!) == kind)
+            var isMatch = false;
+            if (lp.Selectors.TryGetValue(kind, out var sel))
+            {
+                isMatch = sel.Matches(node);
+            }
+            else
+            {
+                isMatch = lp.MapNodeType(node, null!) == kind;
+            }
+
+            if (isMatch)
             {
                 var name = lp.ExtractIdentifier(node, null!);
                 if (name != null) return name;

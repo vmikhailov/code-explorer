@@ -60,6 +60,11 @@ public interface ILibraryParser
     string Id { get; }
 
     /// <summary>
+    /// Declarative selectors mapping ontological kinds to their corresponding matcher selectors.
+    /// </summary>
+    IReadOnlyDictionary<string, NodeSelector> Selectors => System.Collections.Immutable.ImmutableDictionary<string, NodeSelector>.Empty;
+
+    /// <summary>
     /// Maps a Tree-sitter AST node to a CodeExplorer ontological kind (Class, Interface, Function, Variable, Query, EntryPoint, ExternalService, or null).
     /// </summary>
     string? MapNodeType(Node node, ParsingContext ctx);
