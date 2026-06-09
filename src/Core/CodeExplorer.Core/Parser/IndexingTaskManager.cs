@@ -167,7 +167,7 @@ public class IndexingTaskManager
                     {
                         _status.State = IndexingState.Failed.ToString();
                         _status.EndTime = DateTime.UtcNow;
-                        _status.ErrorMessage = ex.Message;
+                        _status.ErrorMessage = ex.ToString();
                         if (_activeContext != null)
                         {
                             _status.NodesPersisted = _activeContext.GetTotalNodesPersisted();

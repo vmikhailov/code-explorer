@@ -1,6 +1,6 @@
 # CodeExplorer 🔍
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](#docker-deployment)
 
@@ -187,23 +187,28 @@ Once the MCP server is running (e.g. on port `8085`), it registers the following
 ## 📂 Project Structure
 
 ```text
-├── Core/
-│   └── CodeExplorer.Core/       # Core parsing engines, ontology definitions, database client, and MCP handlers.
-├── Parsers/
-│   ├── CodeExplorer.Parser.CSharp/       # C# AST Parser
-│   ├── CodeExplorer.Parser.Go/           # Go AST Parser
-│   ├── CodeExplorer.Parser.Python/       # Python AST Parser
-│   ├── CodeExplorer.Parser.SQL/          # SQL ScriptDom Parser
-│   └── CodeExplorer.Parser.TypeScript/   # TypeScript/JavaScript AST Parser
-├── UI/
-│   └── CodeExplorer/            # Command Line Interface (CLI) and Web API (MCP SSE Server) Host.
-├── Tests/
+├── docs/                        # Architectural and ontology documentation.
+├── src/
+│   ├── Core/
+│   │   └── CodeExplorer.Core/   # Core parsing engines, ontology definitions, database client, and MCP handlers.
+│   ├── Parsers/
+│   │   ├── CodeExplorer.Parser.CSharp/       # C# AST Parser
+│   │   ├── CodeExplorer.Parser.Go/           # Go AST Parser
+│   │   ├── CodeExplorer.Parser.Python/       # Python AST Parser
+│   │   ├── CodeExplorer.Parser.SQL/          # SQL ScriptDom Parser
+│   │   └── CodeExplorer.Parser.TypeScript/   # TypeScript/JavaScript AST Parser
+│   ├── Tools/
+│   │   └── CodeExplorer.OntologyGen/         # Ontological markdown generation tool.
+│   └── UI/
+│   │   └── CodeExplorer/        # Command Line Interface (CLI) and Web API (MCP SSE Server) Host.
+├── tests/
 │   └── CodeExplorer.Tests/      # End-to-end integration tests and parser validations.
-└── build.sh                     # Automated build and test script.
+├── build.sh                     # Automated build and test script.
+└── CodeExplorer.slnx            # Solution layout file.
 ```
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU Affero General Public License v3 (AGPL-3.0) - see the [LICENSE](LICENSE) file for details.
