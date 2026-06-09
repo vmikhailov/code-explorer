@@ -9,13 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents an intermediate node grouping all runtime entry points, databases, endpoints, cloud services, and APIs used in the entire workspace.",
     layer: OntologyConstants.Layers.Semantic
 )]
-[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<TopicNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ProjectSemanticNode>(OntologyConstants.Relationships.Contains)]
 public record SemanticStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

@@ -14,6 +14,8 @@ The graph ontology is structured into five distinct, decoupled layers:
 graph TD
     Workspace[Workspace] -->|CONTAINS| FilesStructure[FilesStructure]
     Workspace -->|CONTAINS| ProjectsStructure[ProjectsStructure]
+    Workspace -->|CONTAINS| SyntaxStructure[SyntaxStructure]
+    Workspace -->|CONTAINS| SemanticStructure[SemanticStructure]
     
     subgraph Layer1 [Layer 1: Physical Topology]
         FilesStructure -->|CONTAINS| Folder[Folder]
@@ -26,25 +28,25 @@ graph TD
     subgraph Layer2 [Layer 2: Project Boundary]
         ProjectsStructure -->|CONTAINS| Project[Project]
         Project -->|DEPENDS_ON| Package[Package]
-        Project -->|CONTAINS| SyntaxStructure[SyntaxStructure]
-        Project -->|CONTAINS| SemanticStructure[SemanticStructure]
     end
 
     subgraph Layer3 [Layer 3: Syntactic AST]
-        SyntaxStructure -->|CONTAINS| Type[Type]
-        SyntaxStructure -->|CONTAINS| Function[Function]
+        SyntaxStructure -->|CONTAINS| ProjectSyntax[ProjectSyntax]
+        ProjectSyntax -->|CONTAINS| Type[Type]
+        ProjectSyntax -->|CONTAINS| Function[Function]
         Type -->|HAS_METHOD| Function
         Type -->|HAS_MEMBER| Member[Member]
         Function -->|HAS_VARIABLE| Member
     end
 
     subgraph Layer4 [Layer 4: Semantic Runtime]
-        SemanticStructure -->|CONTAINS| Endpoint[Endpoint]
-        SemanticStructure -->|CONTAINS| Database[Database]
-        SemanticStructure -->|CONTAINS| Topic[Topic]
-        SemanticStructure -->|CONTAINS| EntryPoint[EntryPoint]
-        SemanticStructure -->|CONTAINS| CloudService[CloudService]
-        SemanticStructure -->|CONTAINS| ApiInUse[ApiInUse]
+        SemanticStructure -->|CONTAINS| ProjectSemantic[ProjectSemantic]
+        ProjectSemantic -->|CONTAINS| Endpoint[Endpoint]
+        ProjectSemantic -->|CONTAINS| Database[Database]
+        ProjectSemantic -->|CONTAINS| Topic[Topic]
+        ProjectSemantic -->|CONTAINS| EntryPoint[EntryPoint]
+        ProjectSemantic -->|CONTAINS| CloudService[CloudService]
+        ProjectSemantic -->|CONTAINS| ApiInUse[ApiInUse]
     end
 
     subgraph Layer5 [Layer 5: Cross-Project / Late-Bound Dependencies]
@@ -69,6 +71,8 @@ graph TD
         Function -.->|CALLS| Function
         Function -.->|USES_TYPE| Type
         Project -.->|DEPENDS_ON| Project
+        ProjectSyntax -.->|BELONGS_TO| Project
+        ProjectSemantic -.->|BELONGS_TO| Project
     end
 ```
 
@@ -160,8 +164,6 @@ Tracks the logical compilation/module scopes (projects and packages).
 
 ### Relationships
 *   `ProjectsStructure -[CONTAINS]-> Project`
-*   `Project -[CONTAINS]-> SyntaxStructure`
-*   `Project -[CONTAINS]-> SemanticStructure`
 *   `Project -[DEPENDS_ON]-> Package`
 
 ---
@@ -173,10 +175,16 @@ This layer represents the declarations found inside AST parser visitors. Nodes i
 ### Nodes
 
 #### 1. **`SyntaxStructure`**
-*   **Description:** A structural grouping node representing all AST syntax structures declared in a project.
+*   **Description:** A structural grouping node representing all AST syntax structures declared in the entire workspace.
 *   **Properties:**
-    *   `id` (string): Unique URN ending in `:syntax_structure`.
-    *   `name` (string): `"SyntaxStructure"`.
+     *   `id` (string): Unique URN ending in `:syntax_structure`.
+     *   `name` (string): `"SyntaxStructure"`.
+
+#### 1b. **`ProjectSyntax`**
+*   **Description:** A structural grouping node representing syntactic AST declarations of a specific project.
+*   **Properties:**
+     *   `id` (string): Unique URN ending in `:project_syntax`.
+     *   `name` (string): `"ProjectSyntax"`.
 
 #### 2. **`Type`**
 *   **Description:** A type declaration (Class, Interface, Struct, Record, Enum, or Union type).
@@ -210,8 +218,10 @@ This layer represents the declarations found inside AST parser visitors. Nodes i
     *   `end_line` (int): 1-indexed ending line.
 
 ### Relationships
-*   `SyntaxStructure -[CONTAINS]-> Type`
-*   `SyntaxStructure -[CONTAINS]-> Function`
+*   `SyntaxStructure -[CONTAINS]-> ProjectSyntax`
+*   `ProjectSyntax -[CONTAINS]-> Type`
+*   `ProjectSyntax -[CONTAINS]-> Function`
+*   `ProjectSyntax -[BELONGS_TO]-> Project`
 *   `Type -[HAS_METHOD]-> Function`
 *   `Type -[HAS_MEMBER]-> Member`
 *   `Function -[HAS_VARIABLE]-> Member` (for local variables and method parameters)
@@ -225,10 +235,16 @@ The semantic model captures runtime entry points, external API boundaries, datab
 ### Nodes
 
 #### 1. **`SemanticStructure`**
-*   **Description:** A structural grouping node representing logical semantic runtime elements of a project.
+*   **Description:** A structural grouping node representing all runtime semantic elements of the entire workspace.
 *   **Properties:**
     *   `id` (string): Unique URN ending in `:semantic_structure`.
     *   `name` (string): `"SemanticStructure"`.
+
+#### 1b. **`ProjectSemantic`**
+*   **Description:** A structural grouping node representing logical semantic runtime elements of a specific project.
+*   **Properties:**
+    *   `id` (string): Unique URN ending in `:project_semantic`.
+    *   `name` (string): `"ProjectSemantic"`.
 
 #### 2. **`Endpoint`**
 *   **Description:** An exposed HTTP API endpoint route.
@@ -270,12 +286,14 @@ The semantic model captures runtime entry points, external API boundaries, datab
     *   `name` (string): Library/API name.
 
 ### Relationships
-*   `SemanticStructure -[CONTAINS]-> Endpoint`
-*   `SemanticStructure -[CONTAINS]-> Database`
-*   `SemanticStructure -[CONTAINS]-> Topic`
-*   `SemanticStructure -[CONTAINS]-> EntryPoint`
-*   `SemanticStructure -[CONTAINS]-> CloudService`
-*   `SemanticStructure -[CONTAINS]-> ApiInUse`
+*   `SemanticStructure -[CONTAINS]-> ProjectSemantic`
+*   `ProjectSemantic -[CONTAINS]-> Endpoint`
+*   `ProjectSemantic -[CONTAINS]-> Database`
+*   `ProjectSemantic -[CONTAINS]-> Topic`
+*   `ProjectSemantic -[CONTAINS]-> EntryPoint`
+*   `ProjectSemantic -[CONTAINS]-> CloudService`
+*   `ProjectSemantic -[CONTAINS]-> ApiInUse`
+*   `ProjectSemantic -[BELONGS_TO]-> Project`
 
 ---
 
@@ -324,8 +342,10 @@ To maintain integrity across multiple workspaces, every node identifier must be 
 | **Layer 1** | **`FilesStructure`** | `{workspaceId}:files_structure` | `1:files_structure` |
 | **Layer 2** | **`ProjectsStructure`** | `{workspaceId}:projects_structure` | `1:projects_structure` |
 | **Layer 2** | **`Project`** | `{workspaceId}:project:{relativeProjectDir}:` | `1:project:Core/:` |
-| **Layer 3** | **`SyntaxStructure`** | `{workspaceId}:project:{relativeProjectDir}:syntax_structure` | `1:project:Core/:syntax_structure` |
-| **Layer 4** | **`SemanticStructure`** | `{workspaceId}:project:{relativeProjectDir}:semantic_structure` | `1:project:Core/:semantic_structure` |
+| **Layer 3** | **`SyntaxStructure`** | `{workspaceId}:syntax_structure` | `1:syntax_structure` |
+| **Layer 3** | **`ProjectSyntax`** | `{workspaceId}:project:{relativeProjectDir}:project_syntax` | `1:project:Core/:project_syntax` |
+| **Layer 4** | **`SemanticStructure`** | `{workspaceId}:semantic_structure` | `1:semantic_structure` |
+| **Layer 4** | **`ProjectSemantic`** | `{workspaceId}:project:{relativeProjectDir}:project_semantic` | `1:project:Core/:project_semantic` |
 | **Layer 1** | **`Folder`** | `{workspaceId}:folder:{absoluteFolderPath}` | `1:folder:/Work/Personal/code-explorer/Core` |
 | **Layer 1** | **`File`** | `{workspaceId}:file:{relativeFilePath}` | `1:file:Core/OrdersService.cs` |
 | **Layer 3** | **`Type`** | `{workspaceId}:symbol:{relativeFilePath}:Type:{name}:{line}` | `1:symbol:Core/OrdersService.cs:Type:OrdersService:5` |

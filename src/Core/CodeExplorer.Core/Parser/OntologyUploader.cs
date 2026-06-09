@@ -130,7 +130,7 @@ public static class OntologyUploader
 
     private static IOntologyRelationship GetRelationship(string parentId, IOntologyNode child)
     {
-        if (parentId.Contains("files_structure") || parentId.Contains("syntax_structure") || parentId.Contains("semantic_structure"))
+        if (parentId.Contains("files_structure") || parentId.Contains("syntax_structure") || parentId.Contains("semantic_structure") || parentId.Contains("project_syntax") || parentId.Contains("project_semantic"))
         {
             return new ContainsRelationship(parentId, child.Id);
         }

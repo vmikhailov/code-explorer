@@ -9,8 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
     purpose: "Represents an intermediate node grouping all AST/syntactic declarations of the entire workspace.",
     layer: OntologyConstants.Layers.Syntactic
 )]
-[OntologyEdge<TypeNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ProjectSyntaxNode>(OntologyConstants.Relationships.Contains)]
 public record SyntaxStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

@@ -16,7 +16,9 @@ public static class OntologyPruner
                 child.Kind == OntologyConstants.NodeLabels.FilesStructure ||
                 child.Kind == OntologyConstants.NodeLabels.ProjectsStructure ||
                 child.Kind == OntologyConstants.NodeLabels.SyntaxStructure ||
-                child.Kind == OntologyConstants.NodeLabels.SemanticStructure)
+                child.Kind == OntologyConstants.NodeLabels.ProjectSyntax ||
+                child.Kind == OntologyConstants.NodeLabels.SemanticStructure ||
+                child.Kind == OntologyConstants.NodeLabels.ProjectSemantic)
             {
                 var shouldPruneChild = PruneEmptyFolders(child);
                 if (shouldPruneChild)

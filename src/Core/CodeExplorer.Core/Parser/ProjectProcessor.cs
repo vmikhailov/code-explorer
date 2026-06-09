@@ -79,6 +79,18 @@ public class ProjectProcessor
             var syntaxStructureNode = _ctx.SyntaxStructure;
             var semanticStructureNode = _ctx.SemanticStructure;
 
+            ProjectSyntaxNode? projectSyntaxNode = null;
+            if (syntaxStructureNode != null)
+            {
+                var projectSyntaxId = $"{_ctx.WorkspaceId}:project:{_relativeProjectDir}:project_syntax";
+                projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", _relativeProjectDir);
+                syntaxStructureNode.Children.Add(projectSyntaxNode);
+
+                var belongsToRel = Relationship.FromRelationship(new BelongsToRelationship(projectSyntaxNode.Id, projectNode.Id));
+                await _ctx.EnqueueUploadRelationshipsAsync([belongsToRel]);
+                _ctx.AddRelsCount(1);
+            }
+
             // Perform semantic analysis & ontology enrichment
             foreach (var syntaxTree in _projectSyntaxTrees)
             {
@@ -88,13 +100,13 @@ public class ProjectProcessor
                     ProcessVisitor(syntaxTree, _ctx.WorkspaceId, _ctx.AbsoluteWorkspacePath);
                 }
 
-                if (syntaxStructureNode != null && syntaxTree.FileNode != null)
+                if (projectSyntaxNode != null && syntaxTree.FileNode != null)
                 {
                     foreach (var child in syntaxTree.FileNode.Children)
                     {
                         if (child is TypeNode || child is FunctionNode || child is MemberNode)
                         {
-                            syntaxStructureNode.Children.Add(child);
+                            projectSyntaxNode.Children.Add(child);
                         }
                     }
                 }
@@ -107,8 +119,20 @@ public class ProjectProcessor
                 await enricher.EnrichAsync(projectNode, _ctx);
             }
 
-            // Collect and link semantic nodes parsed from files
+            ProjectSemanticNode? projectSemanticNode = null;
             if (semanticStructureNode != null)
+            {
+                var projectSemanticId = $"{_ctx.WorkspaceId}:project:{_relativeProjectDir}:project_semantic";
+                projectSemanticNode = new ProjectSemanticNode(projectSemanticId, "ProjectSemantic", _relativeProjectDir);
+                semanticStructureNode.Children.Add(projectSemanticNode);
+
+                var belongsToRel = Relationship.FromRelationship(new BelongsToRelationship(projectSemanticNode.Id, projectNode.Id));
+                await _ctx.EnqueueUploadRelationshipsAsync([belongsToRel]);
+                _ctx.AddRelsCount(1);
+            }
+
+            // Collect and link semantic nodes parsed from files
+            if (projectSemanticNode != null)
             {
                 var semanticNodes = new List<IOntologyNode>();
                 foreach (var syntaxTree in _projectSyntaxTrees)
@@ -120,15 +144,15 @@ public class ProjectProcessor
                 }
                 foreach (var semNode in semanticNodes)
                 {
-                    if (!semanticStructureNode.Children.Any(c => c.Id == semNode.Id))
+                    if (!projectSemanticNode.Children.Any(c => c.Id == semNode.Id))
                     {
-                        semanticStructureNode.Children.Add(semNode);
+                        projectSemanticNode.Children.Add(semNode);
                     }
                 }
             }
 
             // Group EntryPoints under a single intermediate node to simplify browsing
-            GroupEntryPoints();
+            GroupEntryPoints(projectSemanticNode);
         }
         finally
         {
@@ -362,7 +386,7 @@ public class ProjectProcessor
         return false;
     }
 
-    private void GroupEntryPoints()
+    private void GroupEntryPoints(ProjectSemanticNode? projectSemanticNode)
     {
         var entryPoints = new List<EntryPointNode>();
         var parentMap = new Dictionary<string, string>();
@@ -377,12 +401,11 @@ public class ProjectProcessor
 
         if (entryPoints.Count > 0)
         {
-            var semanticStructureNode = _ctx.SemanticStructure;
-            if (semanticStructureNode != null)
+            if (projectSemanticNode != null)
             {
                 foreach (var ep in entryPoints)
                 {
-                    semanticStructureNode.Children.Add(ep);
+                    projectSemanticNode.Children.Add(ep);
 
                     if (parentMap.TryGetValue(ep.Id, out var parentId))
                     {

@@ -30,6 +30,7 @@ graph TD
     subgraph Layer3 ["Layer 3: Syntactic Structure"]
         Function["Function"]
         Member["Member"]
+        ProjectSyntax["ProjectSyntax"]
         SyntaxStructure["SyntaxStructure"]
         Type["Type"]
     end
@@ -43,6 +44,7 @@ graph TD
         EntryPoint["EntryPoint"]
         ExternalService["ExternalService"]
         Procedure["Procedure"]
+        ProjectSemantic["ProjectSemantic"]
         Query["Query"]
         SemanticStructure["SemanticStructure"]
         Table["Table"]
@@ -75,17 +77,21 @@ graph TD
     Project -->|LOCATED_IN| Workspace
     Project -->|DEPENDS_ON| Project
     Project -->|DEPENDS_ON| Package
+    ProjectSemantic -->|CONTAINS| EntryPoint
+    ProjectSemantic -->|CONTAINS| Endpoint
+    ProjectSemantic -->|CONTAINS| Database
+    ProjectSemantic -->|CONTAINS| Topic
+    ProjectSemantic -->|CONTAINS| CloudService
+    ProjectSemantic -->|CONTAINS| ApiInUse
+    ProjectSemantic -->|CONTAINS| ExternalService
+    ProjectSemantic -->|BELONGS_TO| Project
     ProjectsStructure -->|CONTAINS| Project
+    ProjectSyntax -->|CONTAINS| Type
+    ProjectSyntax -->|CONTAINS| Function
+    ProjectSyntax -->|BELONGS_TO| Project
     Query -->|DEPENDS_ON| Table
-    SemanticStructure -->|CONTAINS| EntryPoint
-    SemanticStructure -->|CONTAINS| Endpoint
-    SemanticStructure -->|CONTAINS| Database
-    SemanticStructure -->|CONTAINS| Topic
-    SemanticStructure -->|CONTAINS| CloudService
-    SemanticStructure -->|CONTAINS| ApiInUse
-    SemanticStructure -->|CONTAINS| ExternalService
-    SyntaxStructure -->|CONTAINS| Type
-    SyntaxStructure -->|CONTAINS| Function
+    SemanticStructure -->|CONTAINS| ProjectSemantic
+    SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|QUERIED_BY| Function
     Table -->|QUERIED_BY| Query
     Topic -->|PUBLISHED_BY| Function
@@ -301,7 +307,9 @@ graph TD
 | :--- | :--- |
 | `Package` | `IMPLEMENTED_BY` |
 | `Project` | `DEPENDS_ON` |
+| `ProjectSemantic` | `BELONGS_TO` |
 | `ProjectsStructure` | `CONTAINS` |
+| `ProjectSyntax` | `BELONGS_TO` |
 
 **Properties:**
 
@@ -362,7 +370,7 @@ graph TD
 | `EntryPoint` | `TRIGGERS` |
 | `ExternalService` | `CALLED_BY` |
 | `Function` | `CALLS` |
-| `SyntaxStructure` | `CONTAINS` |
+| `ProjectSyntax` | `CONTAINS` |
 | `Table` | `QUERIED_BY` |
 | `Topic` | `PUBLISHED_BY` |
 | `Topic` | `SUBSCRIBED_BY` |
@@ -416,6 +424,33 @@ graph TD
 
 ---
 
+#### `ProjectSyntax`
+
+> Represents an intermediate node grouping AST/syntactic declarations of a specific project.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `Type` |
+| `CONTAINS` | `Function` |
+| `BELONGS_TO` | `Project` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `SyntaxStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
 #### `SyntaxStructure`
 
 > Represents an intermediate node grouping all AST/syntactic declarations of the entire workspace.
@@ -424,8 +459,7 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `CONTAINS` | `Type` |
-| `CONTAINS` | `Function` |
+| `CONTAINS` | `ProjectSyntax` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -466,7 +500,7 @@ graph TD
 | `EntryPoint` | `EXPOSED_BY` |
 | `Function` | `USES_TYPE` |
 | `Member` | `OF_TYPE` |
-| `SyntaxStructure` | `CONTAINS` |
+| `ProjectSyntax` | `CONTAINS` |
 | `Type` | `USES_TYPE` |
 | `Type` | `IMPLEMENTS` |
 | `Type` | `INHERITS_FROM` |
@@ -498,7 +532,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `SemanticStructure` | `CONTAINS` |
+| `ProjectSemantic` | `CONTAINS` |
 
 **Properties:**
 
@@ -517,7 +551,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `SemanticStructure` | `CONTAINS` |
+| `ProjectSemantic` | `CONTAINS` |
 
 **Properties:**
 
@@ -544,7 +578,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `SemanticStructure` | `CONTAINS` |
+| `ProjectSemantic` | `CONTAINS` |
 
 **Properties:**
 
@@ -585,7 +619,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `ExternalService` | `CALLS_ENDPOINT` |
-| `SemanticStructure` | `CONTAINS` |
+| `ProjectSemantic` | `CONTAINS` |
 
 **Properties:**
 
@@ -613,7 +647,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `SemanticStructure` | `CONTAINS` |
+| `ProjectSemantic` | `CONTAINS` |
 
 **Properties:**
 
@@ -640,7 +674,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `SemanticStructure` | `CONTAINS` |
+| `ProjectSemantic` | `CONTAINS` |
 
 ---
 
@@ -653,6 +687,38 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `CONTAINS` | `Query` |
+
+---
+
+#### `ProjectSemantic`
+
+> Represents an intermediate node grouping semantic runtime declarations of a specific project.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `EntryPoint` |
+| `CONTAINS` | `Endpoint` |
+| `CONTAINS` | `Database` |
+| `CONTAINS` | `Topic` |
+| `CONTAINS` | `CloudService` |
+| `CONTAINS` | `ApiInUse` |
+| `CONTAINS` | `ExternalService` |
+| `BELONGS_TO` | `Project` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
 
 ---
 
@@ -684,13 +750,7 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `CONTAINS` | `EntryPoint` |
-| `CONTAINS` | `Endpoint` |
-| `CONTAINS` | `Database` |
-| `CONTAINS` | `Topic` |
-| `CONTAINS` | `CloudService` |
-| `CONTAINS` | `ApiInUse` |
-| `CONTAINS` | `ExternalService` |
+| `CONTAINS` | `ProjectSemantic` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -742,7 +802,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `SemanticStructure` | `CONTAINS` |
+| `ProjectSemantic` | `CONTAINS` |
 
 **Properties:**
 
@@ -810,6 +870,7 @@ graph TD
 | Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:projects_structure` |
 | Layer 3: Syntactic Structure | `Function` | `{workspaceId}:symbol:{filePath}:Function:{name}:{line}` |
 | Layer 3: Syntactic Structure | `Member` | `{workspaceId}:symbol:{filePath}:Member:{name}:{line}` |
+| Layer 3: Syntactic Structure | `ProjectSyntax` | `{workspaceId}:project:{relativeProjectDir}:project_syntax` |
 | Layer 3: Syntactic Structure | `SyntaxStructure` | `{workspaceId}:syntax_structure` |
 | Layer 3: Syntactic Structure | `Type` | `{workspaceId}:symbol:{filePath}:Type:{name}:{line}` |
 | Layer 4: Semantic Structure | `ApiInUse` | `{workspaceId}:project:{relativeProjectDir}:api:{apiName}` |
@@ -820,6 +881,7 @@ graph TD
 | Layer 4: Semantic Structure | `EntryPoint` | `{workspaceId}:entrypoint:{type}:{name}` |
 | Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:externalservice:{protocol}:{host}` |
 | Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:procedure:{procedureName}` |
+| Layer 4: Semantic Structure | `ProjectSemantic` | `{workspaceId}:project:{relativeProjectDir}:project_semantic` |
 | Layer 4: Semantic Structure | `Query` | `{workspaceId}:query:{queryHash}` |
 | Layer 4: Semantic Structure | `SemanticStructure` | `{workspaceId}:semantic_structure` |
 | Layer 4: Semantic Structure | `Table` | `{workspaceId}:table:{tableName}` |
