@@ -35,9 +35,12 @@ public class WorkspaceIndexer
     public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
         string hostWorkspacePath,
         string containerWorkspacePath,
-        bool clear)
+        bool clear,
+        CancellationToken cancellationToken = default,
+        Action<ParsingContext>? onContextCreated = null)
     {
-        var ctx = CreateContext(hostWorkspacePath, containerWorkspacePath, clear);
+        var ctx = CreateContext(hostWorkspacePath, containerWorkspacePath, clear, cancellationToken);
+        onContextCreated?.Invoke(ctx);
 
         await RunLayer1ScanAsync(ctx);
         await UploadProjectDependenciesAsync(ctx);
@@ -50,7 +53,7 @@ public class WorkspaceIndexer
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
     }
 
-    private ParsingContext CreateContext(string hostWorkspacePath, string containerWorkspacePath, bool clear)
+    private ParsingContext CreateContext(string hostWorkspacePath, string containerWorkspacePath, bool clear, CancellationToken cancellationToken)
     {
         var resolvedPath = PathTools.TranslateHostPathToContainerPath(containerWorkspacePath);
 
@@ -65,7 +68,7 @@ public class WorkspaceIndexer
         var sharedChannel = Channel.CreateUnbounded<Func<Task>>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
-        return new ParsingContext(absoluteWorkspacePath, hostWorkspacePath, _dbClient, sharedChannel, clear);
+        return new ParsingContext(absoluteWorkspacePath, hostWorkspacePath, _dbClient, sharedChannel, clear, cancellationToken: cancellationToken);
     }
 
     private async Task RunLayer1ScanAsync(ParsingContext ctx)
@@ -97,13 +100,25 @@ public class WorkspaceIndexer
         // Create root indices sequentially
         await _dbClient.CreateIndicesAsync();
 
-        // Run WorkspaceParser
-        var scanner = new WorkspaceParser(ctx);
-        await scanner.ParseAsync();
-
-        // Complete persistence channel & await background consumer
-        ctx.SharedChannel.Writer.Complete();
-        await consumerTask;
+        try
+        {
+            // Run WorkspaceParser
+            var scanner = new WorkspaceParser(ctx);
+            await scanner.ParseAsync();
+        }
+        finally
+        {
+            // Complete persistence channel & await background consumer
+            ctx.SharedChannel.Writer.Complete();
+            try
+            {
+                await consumerTask;
+            }
+            catch (Exception ex)
+            {
+                ctx.Log($"[WorkspaceIndexer] Consumer task finished with error: {ex.Message}");
+            }
+        }
 
         ctx.Log(
             $"[WorkspaceIndexer] All background channel persistence writes completed! Total parsed: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
@@ -130,6 +145,8 @@ public class WorkspaceIndexer
         // Pass 1: Resolve all inheritance (Implements / InheritsFrom) relationships first and cache them in a HashSet.
         foreach (var refItem in ctx.GlobalReferences)
         {
+            ctx.CancellationToken.ThrowIfCancellationRequested();
+
             if (refItem.Kind == OntologyConstants.Relationships.Implements ||
                 refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
             {
@@ -173,6 +190,7 @@ public class WorkspaceIndexer
 
         foreach (var refItem in ctx.GlobalReferences)
         {
+            ctx.CancellationToken.ThrowIfCancellationRequested();
             resolvedCount++;
 
             if (resolvedCount % 100000 == 0)

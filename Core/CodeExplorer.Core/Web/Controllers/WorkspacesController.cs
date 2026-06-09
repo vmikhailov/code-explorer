@@ -11,36 +11,68 @@ namespace CodeExplorer.Core.Web.Controllers;
 public class WorkspacesController : ControllerBase
 {
     private readonly CodeExplorerRepository _repository;
-    private readonly WorkspaceIndexer _indexer;
+    private readonly IndexingTaskManager _taskManager;
 
-    public WorkspacesController(CodeExplorerRepository repository, WorkspaceIndexer indexer)
+    public WorkspacesController(CodeExplorerRepository repository, IndexingTaskManager taskManager)
     {
         _repository = repository;
-        _indexer = indexer;
+        _taskManager = taskManager;
     }
 
     [HttpPost("index")]
-    public async Task<IActionResult> IndexAsync([FromBody] WorkspaceIndexRequest request)
+    [HttpPost("index/start")]
+    public IActionResult StartIndexAsync([FromBody] WorkspaceIndexRequest request)
     {
         try
         {
-            var (nodesCount, relsCount, nodesByKind) = await _indexer.IndexAsync(request.Dir, request.Dir, request.Clear);
-            return Ok(new
+            if (string.IsNullOrEmpty(request.Dir))
             {
-                message = "Workspace indexed successfully.",
-                directory = request.Dir,
-                nodesCount,
-                relationshipsCount = relsCount,
-                nodesByKind
-            });
-        }
-        catch (DirectoryNotFoundException ex)
-        {
-            return NotFound(new { error = ex.Message });
+                return BadRequest(new { error = "Directory 'dir' is required." });
+            }
+
+            var success = _taskManager.StartIndex(request.Dir, request.Dir, request.Clear, out var message);
+            if (!success)
+            {
+                return Conflict(new { error = message, status = _taskManager.GetStatus() });
+            }
+
+            return Accepted(new { message, status = _taskManager.GetStatus() });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ex.Message);
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("index/stop")]
+    public IActionResult StopIndex()
+    {
+        try
+        {
+            var success = _taskManager.StopIndex(out var message);
+            if (!success)
+            {
+                return BadRequest(new { error = message });
+            }
+
+            return Ok(new { message, status = _taskManager.GetStatus() });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("index/status")]
+    public IActionResult GetIndexStatus()
+    {
+        try
+        {
+            return Ok(_taskManager.GetStatus());
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
         }
     }
 

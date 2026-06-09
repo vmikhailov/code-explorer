@@ -28,8 +28,10 @@ public class WorkspaceParser
         // 0. Get or create Workspace ID from database (auto-incremented)
         var wsId = await _ctx.DbClient.GetOrCreateWorkspaceIdAsync(_ctx.HostWorkspacePath);
         _ctx.WorkspaceId = wsId;
+        _ctx.CancellationToken.ThrowIfCancellationRequested();
 
         await _ctx.DbClient.SaveEmptyWorkspaceNodeAsync(wsId, _ctx.HostWorkspacePath);
+        _ctx.CancellationToken.ThrowIfCancellationRequested();
 
         var folderName = Path.GetFileName(_ctx.HostWorkspacePath);
         if (string.IsNullOrEmpty(folderName)) folderName = _ctx.HostWorkspacePath;
@@ -77,18 +79,22 @@ public class WorkspaceParser
 
         foreach (var (projProcessor, projNode) in _ctx.ProjectsToEnrich)
         {
+            _ctx.CancellationToken.ThrowIfCancellationRequested();
             await projProcessor.EnrichAsync(projNode);
         }
         
         // 3. Upload the entire Workspace Node tree using OntologyUploader
+        _ctx.CancellationToken.ThrowIfCancellationRequested();
         await OntologyUploader.UploadNodeTreeAsync(workspaceNode, null, _ctx);
 
         // 4. Perform late binding
+        _ctx.CancellationToken.ThrowIfCancellationRequested();
         await PerformLateBindingAsync(workspaceNode);
     }
 
     private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode)
     {
+        _ctx.CancellationToken.ThrowIfCancellationRequested();
         var relativeDir = Path.GetRelativePath(_absoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
 

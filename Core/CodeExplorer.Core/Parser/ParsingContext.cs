@@ -15,6 +15,7 @@ public class ParsingContext
     public MemgraphClient DbClient { get; }
     public Channel<Func<Task>> SharedChannel { get; }
     public bool Clear { get; }
+    public CancellationToken CancellationToken { get; }
     public string WorkspaceId { get; set; } = string.Empty;
     public ProjectsStructureNode? ProjectsStructure { get; set; }
     public SyntaxStructureNode? SyntaxStructure { get; set; }
@@ -145,13 +146,15 @@ public class ParsingContext
         bool clear = false,
         Dictionary<(string Kind, string Name), string>? globalSymbols = null,
         List<Reference>? globalReferences = null,
-        List<Relationship>? globalProjectDependencies = null)
+        List<Relationship>? globalProjectDependencies = null,
+        CancellationToken cancellationToken = default)
     {
         AbsoluteWorkspacePath = absoluteWorkspacePath.Replace('\\', '/');
         HostWorkspacePath = hostWorkspacePath;
         DbClient = dbClient;
         SharedChannel = sharedChannel;
         Clear = clear;
+        CancellationToken = cancellationToken;
         GlobalSymbols = globalSymbols ?? new Dictionary<(string Kind, string Name), string>();
         GlobalReferences = globalReferences ?? [];
         GlobalProjectDependencies = globalProjectDependencies ?? [];

@@ -121,6 +121,7 @@ public class Program
             builder.Services.AddSingleton(client);
             builder.Services.AddSingleton<CodeExplorerRepository>();
             builder.Services.AddSingleton<WorkspaceIndexer>();
+            builder.Services.AddSingleton<IndexingTaskManager>();
             builder.Services.AddSingleton<WorkspaceRegistry>();
             builder.Services.AddHttpContextAccessor();
 
@@ -177,6 +178,7 @@ public class Program
             builder.Services.AddSingleton(client);
             builder.Services.AddSingleton<CodeExplorerRepository>();
             builder.Services.AddSingleton<WorkspaceIndexer>();
+            builder.Services.AddSingleton<IndexingTaskManager>();
             builder.Services.AddSingleton<WorkspaceRegistry>();
             builder.Services.AddHttpContextAccessor();
 

@@ -82,6 +82,7 @@ public class ProjectProcessor
             // Perform semantic analysis & ontology enrichment
             foreach (var syntaxTree in _projectSyntaxTrees)
             {
+                _ctx.CancellationToken.ThrowIfCancellationRequested();
                 if (syntaxTree.Tree != null)
                 {
                     ProcessVisitor(syntaxTree, _ctx.WorkspaceId, _ctx.AbsoluteWorkspacePath);
@@ -144,6 +145,7 @@ public class ProjectProcessor
 
     private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode, ProjectNode projectNode)
     {
+        _ctx.CancellationToken.ThrowIfCancellationRequested();
         var dirNameLower = Path.GetFileName(currentDir).ToLowerInvariant();
 
         var genericExclusions = new HashSet<string>

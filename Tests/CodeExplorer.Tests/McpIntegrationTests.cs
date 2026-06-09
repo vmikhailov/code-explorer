@@ -348,6 +348,73 @@ public class McpIntegrationTests
     }
 
     [Test]
+    public async Task Test_RestIndexingBackground_Lifecycle()
+    {
+        // 1. Create a dedicated temporary workspace for this test
+        var localTempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_bg_test_" + Guid.NewGuid()).Replace('\\', '/');
+        var projDir = Path.Combine(localTempWorkspace, "CodeExplorer").Replace('\\', '/');
+        Directory.CreateDirectory(projDir);
+        await File.WriteAllTextAsync(Path.Combine(projDir, "package.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(projDir, "dummy.ts"), "export class Dummy {}");
+
+        try
+        {
+            // 2. Get initial status (should be Idle or previous run's final state)
+            var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/index/status");
+            Assert.That(response.IsSuccessStatusCode, Is.True);
+            var statusStr = await response.Content.ReadAsStringAsync();
+            using (var doc = JsonDocument.Parse(statusStr))
+            {
+                var state = doc.RootElement.GetProperty("state").GetString();
+                Assert.That(state, Is.Not.Null);
+            }
+
+            // 3. Start indexing in background
+            var startRequest = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{TestPort}/api/workspaces/index");
+            var startPayload = JsonSerializer.Serialize(new { dir = localTempWorkspace, clear = true });
+            startRequest.Content = new StringContent(startPayload, Encoding.UTF8, "application/json");
+            var startResponse = await _httpClient.SendAsync(startRequest);
+            Assert.That(startResponse.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.Accepted));
+
+            // 4. Poll status until it is Completed
+            string finalState = "Running";
+            for (int i = 0; i < 20; i++)
+            {
+                await Task.Delay(200);
+                var statusResp = await _httpClient.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/index/status");
+                Assert.That(statusResp.IsSuccessStatusCode, Is.True);
+                var currentStatus = await statusResp.Content.ReadAsStringAsync();
+                using var currentDoc = JsonDocument.Parse(currentStatus);
+                finalState = currentDoc.RootElement.GetProperty("state").GetString() ?? "Running";
+                if (finalState != "Running")
+                {
+                    break;
+                }
+            }
+            Assert.That(finalState, Is.EqualTo("Completed"));
+
+            // 5. Test Stop on a fresh run
+            startRequest = new HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{TestPort}/api/workspaces/index/start");
+            startRequest.Content = new StringContent(startPayload, Encoding.UTF8, "application/json");
+            startResponse = await _httpClient.SendAsync(startRequest);
+            
+            if (startResponse.StatusCode == System.Net.HttpStatusCode.Accepted)
+            {
+                // Stop it immediately
+                var stopResponse = await _httpClient.PostAsync($"http://127.0.0.1:{TestPort}/api/workspaces/index/stop", null);
+                Assert.That(stopResponse.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.OK).Or.EqualTo(System.Net.HttpStatusCode.BadRequest));
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(localTempWorkspace))
+            {
+                try { Directory.Delete(localTempWorkspace, true); } catch {}
+            }
+        }
+    }
+
+    [Test]
     public async Task Test_RestNodeDefinition_ReturnsSuccess()
     {
         var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/node-definition?kind=Workspace");
