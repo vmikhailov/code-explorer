@@ -47,6 +47,7 @@ graph TD
         ProjectSemantic -->|CONTAINS| EntryPoint[EntryPoint]
         ProjectSemantic -->|CONTAINS| CloudService[CloudService]
         ProjectSemantic -->|CONTAINS| ApiInUse[ApiInUse]
+        ProjectSemantic -->|CONTAINS| ExternalService[ExternalService]
     end
 
     subgraph Layer5 [Layer 5: Cross-Project / Late-Bound Dependencies]
@@ -59,15 +60,19 @@ graph TD
         Function -.->|DECLARED_IN| File
         Member -.->|DECLARED_IN| File
         
-        %% Syntactic to Semantic links
-        Function -->|EXPOSES_ENDPOINT| Endpoint
-        Function -->|QUERIES_DB| Database
-        Function -->|PUBLISHES_TO| Topic
-        Function -->|SUBSCRIBES_TO| Topic
+        %% Semantic to Syntactic links (pointing downward to respect layering)
+        Endpoint -->|TRIGGERS| Function
+        Endpoint -->|EXPOSED_BY| Function
+        Endpoint -->|EXPOSED_BY| Type
+        EntryPoint -->|TRIGGERS| Function
+        EntryPoint -->|EXPOSED_BY| Type
+        Database -->|QUERIED_BY| Function
+        Topic -->|PUBLISHED_BY| Function
+        Topic -->|SUBSCRIBED_BY| Function
         
         %% Cross-Project / Egress links
-        Function -.->|CALLS_ENDPOINT| Endpoint
-        ExternalService[ExternalService] -.->|CALLS_ENDPOINT| Endpoint
+        ExternalService -->|CALLS_ENDPOINT| Endpoint
+        ExternalService -->|CALLED_BY| Function
         Function -.->|CALLS| Function
         Function -.->|USES_TYPE| Type
         Project -.->|DEPENDS_ON| Project
@@ -285,6 +290,12 @@ The semantic model captures runtime entry points, external API boundaries, datab
     *   `id` (string): Unique ApiInUse URN.
     *   `name` (string): Library/API name.
 
+#### 8. **`ExternalService`**
+*   **Description:** A physical/logical external host dependency.
+*   **Properties:**
+    *   `id` (string): Unique ExternalService URN.
+    *   `name` (string): Service host or name.
+
 ### Relationships
 *   `SemanticStructure -[CONTAINS]-> ProjectSemantic`
 *   `ProjectSemantic -[CONTAINS]-> Endpoint`
@@ -293,6 +304,7 @@ The semantic model captures runtime entry points, external API boundaries, datab
 *   `ProjectSemantic -[CONTAINS]-> EntryPoint`
 *   `ProjectSemantic -[CONTAINS]-> CloudService`
 *   `ProjectSemantic -[CONTAINS]-> ApiInUse`
+*   `ProjectSemantic -[CONTAINS]-> ExternalService`
 *   `ProjectSemantic -[BELONGS_TO]-> Project`
 
 ---
@@ -314,11 +326,13 @@ System bindings contain cross-cutting relationships that connect the separate bu
 *   `Function -[DECLARED_IN]-> File`
 *   `Member -[DECLARED_IN]-> File`
 
-### Links: Syntactic AST to Runtime Semantics
-*   `Function -[EXPOSES_ENDPOINT]-> Endpoint` (API ingress routing)
-*   `Function -[QUERIES_DB]-> Database` (Data persistence mapping)
-*   `Function -[PUBLISHES_TO]-> Topic` (Asynchronous event output)
-*   `Function -[SUBSCRIBES_TO]-> Topic` (Asynchronous event input)
+### Links: Runtime Semantics to Syntactic AST (Downward Links to Respect Layering)
+*   `Endpoint -[EXPOSED_BY]-> Function` / `Endpoint -[EXPOSED_BY]-> Type` (API ingress routing)
+*   `Endpoint -[TRIGGERS]-> Function` (API request handler routing)
+*   `EntryPoint -[TRIGGERS]-> Function` / `EntryPoint -[EXPOSED_BY]-> Type` (Non-HTTP trigger routing)
+*   `Database -[QUERIED_BY]-> Function` (Data persistence mapping)
+*   `Topic -[PUBLISHED_BY]-> Function` (Asynchronous event output)
+*   `Topic -[SUBSCRIBED_BY]-> Function` (Asynchronous event input)
 
 ### Links: Code-Level Compiler Connections (Intra-Project)
 *   `Type -[INHERITS_FROM]-> Type` (Inheritance / Interface implementations)
@@ -327,8 +341,8 @@ System bindings contain cross-cutting relationships that connect the separate bu
 *   `Function -[USES_TYPE]-> Type` (Instantiation / Casting / Parameter usage)
 
 ### Links: Microservice Integration Connections (Inter-Project)
-*   `Function -[CALLS_ENDPOINT]-> Endpoint` (API egress via HttpClient / Axios)
-*   `ExternalService -[CALLS_ENDPOINT]-> Endpoint` (Integration map)
+*   `ExternalService -[CALLED_BY]-> Function` (Egress client function call)
+*   `ExternalService -[CALLS_ENDPOINT]-> Endpoint` (Cross-project integration map)
 
 ---
 
@@ -346,6 +360,7 @@ To maintain integrity across multiple workspaces, every node identifier must be 
 | **Layer 3** | **`ProjectSyntax`** | `{workspaceId}:project:{relativeProjectDir}:project_syntax` | `1:project:Core/:project_syntax` |
 | **Layer 4** | **`SemanticStructure`** | `{workspaceId}:semantic_structure` | `1:semantic_structure` |
 | **Layer 4** | **`ProjectSemantic`** | `{workspaceId}:project:{relativeProjectDir}:project_semantic` | `1:project:Core/:project_semantic` |
+| **Layer 4** | **`ExternalService`** | `{workspaceId}:externalservice:{protocol}:{host}` | `1:externalservice:http:some-api.com` |
 | **Layer 1** | **`Folder`** | `{workspaceId}:folder:{absoluteFolderPath}` | `1:folder:/Work/Personal/code-explorer/Core` |
 | **Layer 1** | **`File`** | `{workspaceId}:file:{relativeFilePath}` | `1:file:Core/OrdersService.cs` |
 | **Layer 3** | **`Type`** | `{workspaceId}:symbol:{relativeFilePath}:Type:{name}:{line}` | `1:symbol:Core/OrdersService.cs:Type:OrdersService:5` |
