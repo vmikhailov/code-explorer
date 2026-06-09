@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copy solution and project files first to leverage Docker cache
-COPY CodeExplorer.sln Directory.Build.props ./
+COPY CodeExplorer.slnx Directory.Build.props ./
 COPY Core/CodeExplorer.Core/CodeExplorer.Core.csproj Core/CodeExplorer.Core/
 COPY Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj Parsers/CodeExplorer.Parser.CSharp/
 COPY Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj Parsers/CodeExplorer.Parser.Go/
@@ -14,7 +14,7 @@ COPY UI/CodeExplorer/CodeExplorer.csproj UI/CodeExplorer/
 COPY Tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj Tests/CodeExplorer.Tests/
 
 # Restore dependencies
-RUN dotnet restore CodeExplorer.sln
+RUN dotnet restore CodeExplorer.slnx
 
 # Copy the rest of the source code
 COPY . .

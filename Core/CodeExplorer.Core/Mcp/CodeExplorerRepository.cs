@@ -548,7 +548,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
 
                 while (!string.IsNullOrEmpty(current))
                 {
-                    if (File.Exists(Path.Combine(current, "CodeExplorer.sln")))
+                    if (File.Exists(Path.Combine(current, "CodeExplorer.slnx")) || File.Exists(Path.Combine(current, "CodeExplorer.sln")))
                     {
                         workspaceRoot = current;
                         break;
