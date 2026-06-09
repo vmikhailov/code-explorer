@@ -18,6 +18,9 @@ public class McpIntegrationTests
     private static HttpClient? _httpClient;
     private static string? _tempWorkspace;
     private static string? _resolvedBoltUrl;
+    private static string? _sessionId;
+    private static Stream? _sseStream;
+    private static StreamReader? _sseReader;
 
     public static string GetBoltUrl()
     {
@@ -136,6 +139,37 @@ public class McpIntegrationTests
             Assert.Fail($"MCP Server failed to start on port {TestPort}. Last exception: {lastEx?.Message}\n{lastEx?.StackTrace}");
         }
 
+        // Establish the SSE GET stream connection
+        var sseUrl = $"http://127.0.0.1:{TestPort}/mcp/sse";
+        if (!string.IsNullOrEmpty(_tempWorkspace))
+        {
+            sseUrl += $"?ws={Uri.EscapeDataString(_tempWorkspace)}";
+        }
+
+        var sseRequest = new HttpRequestMessage(HttpMethod.Get, sseUrl);
+        var sseResponse = await _httpClient.SendAsync(sseRequest, HttpCompletionOption.ResponseHeadersRead);
+        Assert.That(sseResponse.IsSuccessStatusCode, Is.True, $"SSE GET returned {sseResponse.StatusCode}");
+
+        _sseStream = await sseResponse.Content.ReadAsStreamAsync();
+        _sseReader = new StreamReader(_sseStream);
+
+        // Read the first event to get the session ID
+        var eventLine = await _sseReader.ReadLineAsync();
+        var dataLine = await _sseReader.ReadLineAsync();
+        
+        Assert.That(eventLine, Does.StartWith("event:"));
+        Assert.That(dataLine, Does.StartWith("data:"));
+
+        var relativeEndpoint = dataLine["data:".Length..].Trim();
+        var queryIndex = relativeEndpoint.IndexOf('?');
+        Assert.That(queryIndex, Is.GreaterThan(0));
+        var queryString = relativeEndpoint.Substring(queryIndex + 1);
+        var queryParams = System.Web.HttpUtility.ParseQueryString(queryString);
+        _sessionId = queryParams["sessionId"];
+        Assert.That(_sessionId, Is.Not.Null.And.Not.Empty);
+
+        Console.WriteLine($"Established SSE session: {_sessionId}");
+
         // Perform the handshake (initialize request)
         var initJson = @"{
             ""jsonrpc"": ""2.0"",
@@ -154,14 +188,13 @@ public class McpIntegrationTests
         var responsePost = await PostMessageAsync(initJson);
         Assert.That(responsePost.IsSuccessStatusCode, Is.True, $"Initialize POST returned {responsePost.StatusCode}");
 
-        var initResponseStr = await responsePost.Content.ReadAsStringAsync();
+        var initResponseStr = await ReadNextSseResponseAsync();
         Console.WriteLine($"[SSE DEBUG] Response body: {initResponseStr}");
-        var json = ExtractJsonFromSse(initResponseStr);
-        using var doc = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(initResponseStr);
         Assert.That(doc.RootElement.GetProperty("id").GetInt32(), Is.EqualTo(100));
         Console.WriteLine("Initialization handshake completed successfully!");
 
-        // Send initialized notification
+        // Send initialized notification (notification has no response)
         var initializedJson = @"{
             ""jsonrpc"": ""2.0"",
             ""method"": ""notifications/initialized"",
@@ -174,6 +207,8 @@ public class McpIntegrationTests
     [OneTimeTearDown]
     public async Task OneTimeTearDown()
     {
+        _sseReader?.Dispose();
+        _sseStream?.Dispose();
         _httpClient?.Dispose();
 
         if (Program.App != null)
@@ -223,17 +258,33 @@ public class McpIntegrationTests
 
     private async Task<HttpResponseMessage> PostMessageAsync(string jsonPayload)
     {
-        var url = $"http://127.0.0.1:{TestPort}/mcp";
+        var url = $"http://127.0.0.1:{TestPort}/mcp/message?sessionId={_sessionId}";
         if (!string.IsNullOrEmpty(_tempWorkspace))
         {
-            url += $"?ws={Uri.EscapeDataString(_tempWorkspace)}";
+            url += $"&ws={Uri.EscapeDataString(_tempWorkspace)}";
         }
         var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json-seq"));
         return await _httpClient!.SendAsync(request);
+    }
+
+    private async Task<string> ReadNextSseResponseAsync()
+    {
+        string? line;
+        string? dataJson = null;
+        while ((line = await _sseReader!.ReadLineAsync()) != null)
+        {
+            if (line.StartsWith("data:"))
+            {
+                dataJson = line["data:".Length..].Trim();
+            }
+            if (string.IsNullOrWhiteSpace(line) && dataJson != null)
+            {
+                return dataJson;
+            }
+        }
+        throw new Exception("SSE stream closed before reading response.");
     }
 
     private async Task CallToolAndAssertSuccessAsync(string toolName, string argumentsJson, int responseId)
@@ -253,10 +304,9 @@ public class McpIntegrationTests
         var responsePost = await PostMessageAsync(payload);
         Assert.That(responsePost.IsSuccessStatusCode, Is.True, $"Calling {toolName} returned POST status {responsePost.StatusCode}");
 
-        var responseStr = await responsePost.Content.ReadAsStringAsync();
+        var responseStr = await ReadNextSseResponseAsync();
         Assert.That(responseStr, Is.Not.Null);
-        var json = ExtractJsonFromSse(responseStr);
-        using var doc = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(responseStr);
         var root = doc.RootElement;
         
         Assert.That(root.GetProperty("id").GetInt32(), Is.EqualTo(responseId));
@@ -287,37 +337,6 @@ public class McpIntegrationTests
         }
 
         Console.WriteLine($"Tool {toolName} executed successfully.");
-    }
-
-    private static string ExtractJsonFromSse(string responseStr)
-    {
-        if (string.IsNullOrEmpty(responseStr))
-        {
-            throw new Exception("Response is empty.");
-        }
-        if (responseStr.TrimStart().StartsWith("{"))
-        {
-            return responseStr;
-        }
-        using var reader = new StringReader(responseStr);
-        string? line;
-        string? currentEvent = null;
-        while ((line = reader.ReadLine()) != null)
-        {
-            if (line.StartsWith("event:"))
-            {
-                currentEvent = line["event:".Length..].Trim();
-            }
-            else if (line.StartsWith("data:"))
-            {
-                var data = line["data:".Length..].Trim();
-                if (currentEvent == "message" || currentEvent == null)
-                {
-                    return data;
-                }
-            }
-        }
-        throw new Exception($"Could not find data event in response: {responseStr}");
     }
 
     [Test]

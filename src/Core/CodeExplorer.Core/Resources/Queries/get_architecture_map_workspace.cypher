@@ -1,7 +1,7 @@
-MATCH (w:Workspace) WHERE toLower(w.path) = toLower($workspacePath) OR toLower(w.path) = toLower($altWorkspacePath)
+MATCH (w:Workspace) WHERE w.id = $workspaceId OR toString(w.id) = toString($workspaceId)
 OPTIONAL MATCH (w)-[:CONTAINS*1..]->(wf:WorkspaceFolder)
 WITH w, collect(DISTINCT wf.name) AS workspaceFolders
-OPTIONAL MATCH (w)-[:CONTAINS*1..]->(p:Project)
+OPTIONAL MATCH (w)-[:CONTAINS]->(:ProjectsStructure)<-[:LOCATED_IN]-(p:Project)
 WITH w, workspaceFolders, p
 OPTIONAL MATCH (p)-[:CONTAINS]->(:DataBases)-[:USES_DB]->(db:DB)
 WITH w, workspaceFolders, p, collect(DISTINCT db.name) AS projectDbs
@@ -19,5 +19,6 @@ WITH w, workspaceFolders,
          databases: projectDbs,
          ingress: projectIngress,
          egress: projectEgress
-     }) AS projects
+     }) AS projectsRaw
+WITH w, workspaceFolders, [x IN projectsRaw WHERE x.name IS NOT NULL] AS projects
 RETURN w.name AS workspace, w.path AS path, workspaceFolders, projects

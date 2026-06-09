@@ -142,10 +142,8 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
         {
             if (!string.IsNullOrEmpty(workspacePath))
             {
-                var normalized = PathTools.NormalizeToHostPath(workspacePath);
-                var normalizedAlt = normalized.Contains('/') ? normalized.Replace('/', '\\') : normalized.Replace('\\', '/');
-                parameters["workspacePath"] = normalized;
-                parameters["altWorkspacePath"] = normalizedAlt;
+                var wsId = await GetWorkspaceIdAsync(workspacePath);
+                parameters["workspaceId"] = wsId!;
 
                 query = Queries.Get("get_architecture_map_workspace");
             }

@@ -130,8 +130,8 @@ public class Program
 #pragma warning disable MCPEXP002
             builder.Services.AddMcpServer().WithHttpTransport(o =>
             {
-                o.Stateless = true;
-                o.EnableLegacySse = false; // required for new SDKs
+                o.Stateless = false;
+                o.EnableLegacySse = true;
             }).WithTools<McpGraphHandler>();
 #pragma warning restore MCPEXP002
 #pragma warning restore MCP9004
