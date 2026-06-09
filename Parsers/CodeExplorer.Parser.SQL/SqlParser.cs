@@ -113,8 +113,7 @@ public class SqlParser : IProjectParser, IFileParser
             dbNodeId = $"{workspaceId}:db:{dbName.ToLowerInvariant()}";
         }
 
-        var dbNode = new DbNode(dbNodeId, dbName, relativePath);
-        dbNode.SetExtension("db_type", "relational");
+        var dbNode = new DatabaseNode(dbNodeId, dbName, relativePath, "relational");
         fileNode.Children.Add(dbNode);
 
         // 3. Identify Schema (DataSet)

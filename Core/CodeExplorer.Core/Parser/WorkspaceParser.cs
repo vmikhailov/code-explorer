@@ -53,11 +53,11 @@ public class WorkspaceParser
             await projProcessor.EnrichAsync(projNode);
         }
         
-        // 3. Perform late binding
-        await PerformLateBindingAsync(workspaceNode);
-
-        // 4. Upload the entire Workspace Node tree using OntologyUploader
+        // 3. Upload the entire Workspace Node tree using OntologyUploader
         await OntologyUploader.UploadNodeTreeAsync(workspaceNode, null, _ctx);
+
+        // 4. Perform late binding
+        await PerformLateBindingAsync(workspaceNode);
     }
 
     private async Task ScanDirectoryAsync(string currentDir, IOntologyNode parentNode)
@@ -115,8 +115,9 @@ public class WorkspaceParser
 
         if (!string.IsNullOrEmpty(relativeDir))
         {
-            var folderId = $"{_ctx.WorkspaceId}:workspacefolder:{relativeDir}";
-            var folderNode = new WorkspaceFolderNode(folderId, dirName, relativeDir);
+            var absoluteFolderPath = Path.GetFullPath(currentDir).Replace('\\', '/');
+            var folderId = $"{_ctx.WorkspaceId}:folder:{absoluteFolderPath}";
+            var folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
             parentNode.Children.Add(folderNode);
             currentParentNode = folderNode;
         }
@@ -131,12 +132,13 @@ public class WorkspaceParser
     private async Task PerformLateBindingAsync(IOntologyNode rootNode)
     {
         var entryPoints = new List<EntryPointNode>();
+        var endpoints = new List<EndpointNode>();
         var externalServices = new List<ExternalServiceNode>();
 
-        CollectPublicSymbols(rootNode, entryPoints, externalServices);
+        CollectPublicSymbols(rootNode, entryPoints, endpoints, externalServices);
 
         _ctx.Log(
-            $"[LateBinding] Found {entryPoints.Count} EntryPoints and {externalServices.Count} ExternalServices in the workspace.");
+            $"[LateBinding] Found {entryPoints.Count} EntryPoints, {endpoints.Count} Endpoints, and {externalServices.Count} ExternalServices in the workspace.");
 
         var lateBoundRels = new List<Relationship>();
 
@@ -149,6 +151,17 @@ public class WorkspaceParser
                     _ctx.Log(
                         $"[LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsRelationship(extService.Id, entryPoint.Id));
+                    lateBoundRels.Add(rel);
+                }
+            }
+
+            foreach (var endpoint in endpoints)
+            {
+                if (IsMatch(extService, endpoint))
+                {
+                    _ctx.Log(
+                        $"[LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
+                    var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Id, endpoint.Id));
                     lateBoundRels.Add(rel);
                 }
             }
@@ -165,11 +178,16 @@ public class WorkspaceParser
     private void CollectPublicSymbols(
         IOntologyNode node,
         List<EntryPointNode> entryPoints,
+        List<EndpointNode> endpoints,
         List<ExternalServiceNode> externalServices)
     {
         if (node is EntryPointNode ep)
         {
             entryPoints.Add(ep);
+        }
+        else if (node is EndpointNode endp)
+        {
+            endpoints.Add(endp);
         }
         else if (node is ExternalServiceNode es)
         {
@@ -178,32 +196,56 @@ public class WorkspaceParser
 
         foreach (var child in node.Children)
         {
-            CollectPublicSymbols(child, entryPoints, externalServices);
+            CollectPublicSymbols(child, entryPoints, endpoints, externalServices);
         }
     }
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint)
     {
-        if (!string.Equals(extService.Protocol, entryPoint.Protocol, StringComparison.OrdinalIgnoreCase))
+        var servicePathNorm = NormalizePath(extService.Path);
+        var serviceDomainNorm = NormalizePath(extService.DomainOrService);
+        var entryNorm = NormalizePath(entryPoint.Name);
+
+        if (string.IsNullOrEmpty(entryNorm))
         {
             return false;
         }
 
-        var serviceNorm = NormalizePath(extService.DomainOrService);
-        var routeNorm = NormalizePath(entryPoint.RouteOrTopic);
-
-        if (string.IsNullOrEmpty(serviceNorm) || string.IsNullOrEmpty(routeNorm))
-        {
-            return false;
-        }
-
-        if (string.Equals(serviceNorm, routeNorm, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(servicePathNorm, entryNorm, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(serviceDomainNorm, entryNorm, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        if (serviceNorm.EndsWith("/" + routeNorm, StringComparison.OrdinalIgnoreCase) ||
-            serviceNorm.EndsWith(routeNorm, StringComparison.OrdinalIgnoreCase))
+        return false;
+    }
+
+    private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint)
+    {
+        var servicePathNorm = NormalizePath(extService.Path);
+        var serviceDomainNorm = NormalizePath(extService.DomainOrService);
+        var routeNorm = NormalizePath(endpoint.RouteTemplate);
+
+        if (string.IsNullOrEmpty(routeNorm))
+        {
+            return false;
+        }
+
+        if (string.Equals(servicePathNorm, routeNorm, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(servicePathNorm) &&
+            (servicePathNorm.EndsWith("/" + routeNorm, StringComparison.OrdinalIgnoreCase) ||
+             servicePathNorm.EndsWith(routeNorm, StringComparison.OrdinalIgnoreCase) ||
+             routeNorm.EndsWith("/" + servicePathNorm, StringComparison.OrdinalIgnoreCase) ||
+             routeNorm.EndsWith(servicePathNorm, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (string.Equals(serviceDomainNorm, routeNorm, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

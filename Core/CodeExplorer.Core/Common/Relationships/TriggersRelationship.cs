@@ -1,7 +1,9 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes;
 
 namespace CodeExplorer.Core.Common.Relationships;
 
+[OntologyRelationship(OntologyConstants.Relationships.Triggers, "Links an entry point or API endpoint to the handler function it triggers.")]
 public record TriggersRelationship(
     [property: JsonIgnore] string From,
     [property: JsonIgnore] string To,

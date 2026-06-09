@@ -1,0 +1,2117 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="03197ea2-09f2-411d-a79c-6b42237566c2" name="slava@VMIKHAILOV-PC 2026-06-09 11:29:21" runUser="VMIKHAILOV-PC\slava" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-06-09T11:29:21.3470799+02:00" queuing="2026-06-09T11:29:21.3470803+02:00" start="2026-06-09T11:29:17.5866626+02:00" finish="2026-06-09T11:29:22.6186139+02:00" />
+  <TestSettings name="default" id="32b1d890-41f1-4075-9252-4ad881ec14ef">
+    <Deployment runDeploymentRoot="slava_VMIKHAILOV-PC_2026-06-09_11_29_21" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="e7e75e51-ed2a-45d9-9438-5a8255de0fe3" testId="064f1795-ec2d-e527-345b-47eb28bc964e" testName="ZooHasOwnsEdgeToAnimal" computerName="VMIKHAILOV-PC" duration="00:00:00.0004630" startTime="2026-06-09T11:29:21.5888331+02:00" endTime="2026-06-09T11:29:21.5892964+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e7e75e51-ed2a-45d9-9438-5a8255de0fe3" />
+    <UnitTestResult executionId="8a802d64-81aa-479c-a8cd-26c31bfcf49d" testId="7c4f96b5-ad6d-ed38-7cc4-c7c63b0cc0d3" testName="AnimalNodeHasSpeciesProperty" computerName="VMIKHAILOV-PC" duration="00:00:00.0007850" startTime="2026-06-09T11:29:21.5403987+02:00" endTime="2026-06-09T11:29:21.5411833+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8a802d64-81aa-479c-a8cd-26c31bfcf49d" />
+    <UnitTestResult executionId="8e055a1b-a869-475f-b7f0-03b2e845e484" testId="409cf1d9-4aaf-0c34-9d4f-bbad2a2eff3b" testName="Test_CSharpParser_ApiIngressEgress" computerName="VMIKHAILOV-PC" duration="00:00:00.0181380" startTime="2026-06-09T11:29:21.5925710+02:00" endTime="2026-06-09T11:29:21.6107087+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8e055a1b-a869-475f-b7f0-03b2e845e484">
+      <Output>
+        <StdOut>Library 'ASP.NET Core' detected but parser is not implemented yet.&#xD;
+Finished parsing file: csharp_api_test.cs with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="dc19d97e-d9ea-477c-a812-f49eff8fdb29" testId="aff40392-b700-df85-6cfd-9259f81629f3" testName="GetNodeDefinition_ReturnsErrorForInvalidKind(&quot;&quot;)" computerName="VMIKHAILOV-PC" duration="00:00:00.0001490" startTime="2026-06-09T11:29:21.5896287+02:00" endTime="2026-06-09T11:29:21.5897773+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="dc19d97e-d9ea-477c-a812-f49eff8fdb29" />
+    <UnitTestResult executionId="36fa1921-f9b8-4571-82a2-31eba1f11d9b" testId="4d11df0c-1411-4c54-5c74-302856344ad6" testName="ToSnakeCase_ConvertsCorrectly" computerName="VMIKHAILOV-PC" duration="00:00:00.0002660" startTime="2026-06-09T11:29:21.5921531+02:00" endTime="2026-06-09T11:29:21.5924192+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="36fa1921-f9b8-4571-82a2-31eba1f11d9b" />
+    <UnitTestResult executionId="ee269e0b-e259-488c-a038-8a7ff8077319" testId="634fec66-9b38-9f1c-5df3-b0a491fdb825" testName="Test_GetNodeDefinition" computerName="VMIKHAILOV-PC" duration="00:00:00.0185580" startTime="2026-06-09T11:29:21.1788907+02:00" endTime="2026-06-09T11:29:21.1974488+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ee269e0b-e259-488c-a038-8a7ff8077319">
+      <Output>
+        <StdOut>Tool get_node_definition executed successfully.&#xD;
+Tool get_node_definition executed successfully.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="97d073b2-3f62-472f-a4a3-4cec5e75b1dc" testId="e5d084c0-c0bc-01cf-2e2c-c60b564f710d" testName="ExtractsAnimalNode" computerName="VMIKHAILOV-PC" duration="00:00:00.0003640" startTime="2026-06-09T11:29:21.5412106+02:00" endTime="2026-06-09T11:29:21.5415742+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="97d073b2-3f62-472f-a4a3-4cec5e75b1dc" />
+    <UnitTestResult executionId="afb87b8d-ec13-4be8-a6e5-10774c773036" testId="5340d87e-c8e3-6c15-d217-d325d0c2b6dc" testName="Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding" computerName="VMIKHAILOV-PC" duration="00:00:00.2109580" startTime="2026-06-09T11:29:22.3110942+02:00" endTime="2026-06-09T11:29:22.5220516+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="afb87b8d-ec13-4be8-a6e5-10774c773036">
+      <Output>
+        <StdOut>Finished parsing file: ProjectA/Client.cs with 1 top-level symbols.&#xD;
+Finished parsing file: ProjectB/server.ts with 2 top-level symbols.&#xD;
+[DEBUG NODES] [&#xD;
+  {&#xD;
+    "label": "Workspace",&#xD;
+    "id": 97,&#xD;
+    "name": "codeexplorer_test_workspace_11110383-ed08-4eac-bc39-40e5967ec7f8"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Project",&#xD;
+    "id": "97:project:ProjectA:",&#xD;
+    "name": "ProjectA"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Project",&#xD;
+    "id": "97:project:ProjectB:",&#xD;
+    "name": "ProjectB"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Files",&#xD;
+    "id": "97:project:ProjectA:files",&#xD;
+    "name": "Files"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Files",&#xD;
+    "id": "97:project:ProjectB:files",&#xD;
+    "name": "Files"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "File",&#xD;
+    "id": "97:file:ProjectA/Client.cs",&#xD;
+    "name": "Client.cs"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "File",&#xD;
+    "id": "97:file:ProjectB/server.ts",&#xD;
+    "name": "server.ts"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Type",&#xD;
+    "id": "97:symbol:ProjectA/Client.cs:Type:Client:2",&#xD;
+    "name": "Client"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Type",&#xD;
+    "id": "97:symbol:ProjectB/server.ts:Type:OrdersController:3",&#xD;
+    "name": "OrdersController"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Function",&#xD;
+    "id": "97:symbol:ProjectA/Client.cs:Function:Call:3",&#xD;
+    "name": "Call"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Function",&#xD;
+    "id": "97:symbol:ProjectB/server.ts:Function:charge:5",&#xD;
+    "name": "charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "ExternalService",&#xD;
+    "id": "97:externalservice:http:localhost",&#xD;
+    "name": "localhost"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Package",&#xD;
+    "id": "97:package:projecta",&#xD;
+    "name": "ProjectA"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Package",&#xD;
+    "id": "97:package:projectb",&#xD;
+    "name": "ProjectB"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "ApisInUse",&#xD;
+    "id": "97:project:ProjectA:apis",&#xD;
+    "name": "ApisInUse"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "ApiInUse",&#xD;
+    "id": "97:project:ProjectA:api:httpclient",&#xD;
+    "name": "HttpClient"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Endpoint",&#xD;
+    "id": "97:endpoint:GET:orders",&#xD;
+    "name": "GET:orders"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Endpoint",&#xD;
+    "id": "97:endpoint:POST:charge",&#xD;
+    "name": "POST:charge"&#xD;
+  }&#xD;
+]&#xD;
+[DEBUG RELS] [&#xD;
+  {&#xD;
+    "from_label": "Workspace",&#xD;
+    "from_name": "codeexplorer_test_workspace_11110383-ed08-4eac-bc39-40e5967ec7f8",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "Project",&#xD;
+    "to_name": "ProjectA"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Workspace",&#xD;
+    "from_name": "codeexplorer_test_workspace_11110383-ed08-4eac-bc39-40e5967ec7f8",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "Project",&#xD;
+    "to_name": "ProjectB"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectA",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "Files",&#xD;
+    "to_name": "Files"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectA",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "ApisInUse",&#xD;
+    "to_name": "ApisInUse"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectA",&#xD;
+    "rel_type": "DEPENDS_ON",&#xD;
+    "to_label": "Package",&#xD;
+    "to_name": "ProjectA"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectB",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "Files",&#xD;
+    "to_name": "Files"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectB",&#xD;
+    "rel_type": "DEPENDS_ON",&#xD;
+    "to_label": "Package",&#xD;
+    "to_name": "ProjectB"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Files",&#xD;
+    "from_name": "Files",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "File",&#xD;
+    "to_name": "Client.cs"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Files",&#xD;
+    "from_name": "Files",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "File",&#xD;
+    "to_name": "server.ts"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "File",&#xD;
+    "from_name": "Client.cs",&#xD;
+    "rel_type": "USES_API",&#xD;
+    "to_label": "ApiInUse",&#xD;
+    "to_name": "HttpClient"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "File",&#xD;
+    "from_name": "server.ts",&#xD;
+    "rel_type": "EXPOSES_ENDPOINT",&#xD;
+    "to_label": "Endpoint",&#xD;
+    "to_name": "GET:orders"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "Client",&#xD;
+    "rel_type": "DECLARED_IN",&#xD;
+    "to_label": "File",&#xD;
+    "to_name": "Client.cs"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "Client",&#xD;
+    "rel_type": "HAS_METHOD",&#xD;
+    "to_label": "Function",&#xD;
+    "to_name": "Call"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "OrdersController",&#xD;
+    "rel_type": "DECLARED_IN",&#xD;
+    "to_label": "File",&#xD;
+    "to_name": "server.ts"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "OrdersController",&#xD;
+    "rel_type": "HAS_METHOD",&#xD;
+    "to_label": "Function",&#xD;
+    "to_name": "charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "OrdersController",&#xD;
+    "rel_type": "EXPOSES_ENDPOINT",&#xD;
+    "to_label": "Endpoint",&#xD;
+    "to_name": "POST:charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Function",&#xD;
+    "from_name": "Call",&#xD;
+    "rel_type": "CALLS",&#xD;
+    "to_label": "ExternalService",&#xD;
+    "to_name": "localhost"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Function",&#xD;
+    "from_name": "Call",&#xD;
+    "rel_type": "TRANSITIVELY_CALLS",&#xD;
+    "to_label": "ExternalService",&#xD;
+    "to_name": "localhost"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Function",&#xD;
+    "from_name": "charge",&#xD;
+    "rel_type": "EXPOSES_ENDPOINT",&#xD;
+    "to_label": "Endpoint",&#xD;
+    "to_name": "POST:charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "ExternalService",&#xD;
+    "from_name": "localhost",&#xD;
+    "rel_type": "CALLS_ENDPOINT",&#xD;
+    "to_label": "Endpoint",&#xD;
+    "to_name": "POST:charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "ApisInUse",&#xD;
+    "from_name": "ApisInUse",&#xD;
+    "rel_type": "USES_API",&#xD;
+    "to_label": "ApiInUse",&#xD;
+    "to_name": "HttpClient"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Endpoint",&#xD;
+    "from_name": "POST:charge",&#xD;
+    "rel_type": "TRIGGERS",&#xD;
+    "to_label": "Function",&#xD;
+    "to_name": "charge"&#xD;
+  }&#xD;
+]&#xD;
+[IntegrationTest] Parsed 18 nodes and 24 relationships successfully.</StdOut>
+        <StdErr>[2026-06-09 11:29:22.317] [+0ms] [WorkspaceIndexer] Starting background database persistence loop...&#xD;
+&#xD;
+[2026-06-09 11:29:22.317] [+0ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:/Users/viach/AppData/Local/Temp/codeexplorer_test_workspace_11110383-ed08-4eac-bc39-40e5967ec7f8'...&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed structural scan of project 'ProjectA'.&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectB'...&#xD;
+&#xD;
+[WorkspaceParser] Completed structural scan of project 'ProjectB'.&#xD;
+&#xD;
+[2026-06-09 11:29:22.393] [+76ms] [WorkspaceParser] Starting syntax enrichment pass for 2 projects...&#xD;
+&#xD;
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.&#xD;
+&#xD;
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...&#xD;
+&#xD;
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.&#xD;
+&#xD;
+[2026-06-09 11:29:22.406] [+88ms] [LateBinding] Found 0 EntryPoints, 2 Endpoints, and 1 ExternalServices in the workspace.&#xD;
+&#xD;
+[2026-06-09 11:29:22.406] [+89ms] [LateBinding] Binding ExternalService '97:externalservice:http:localhost' to Endpoint '97:endpoint:POST:charge'&#xD;
+&#xD;
+[2026-06-09 11:29:22.407] [+90ms] [LateBinding] Enqueuing 1 late-bound relationships...&#xD;
+&#xD;
+[2026-06-09 11:29:22.471] [+153ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 18 nodes, 20 relationships.&#xD;
+&#xD;
+[2026-06-09 11:29:22.471] [+153ms] [WorkspaceIndexer] Uploading 1 local project dependency relationships...&#xD;
+&#xD;
+[2026-06-09 11:29:22.475] [+157ms] [WorkspaceIndexer] Resolving 16 global cross-references...&#xD;
+&#xD;
+[2026-06-09 11:29:22.475] [+158ms] [WorkspaceIndexer] Uploading 3 resolved reference relationships...&#xD;
+&#xD;
+[2026-06-09 11:29:22.482] [+164ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...&#xD;
+&#xD;
+[2026-06-09 11:29:22.492] [+175ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 18, Total Relationships: 24.</StdErr>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="a9d4438b-21c8-4773-b9fb-8e79cf77461a" testId="7fa66c33-802c-7c54-0272-604536e55d42" testName="Test_GetArchitectureMap" computerName="VMIKHAILOV-PC" duration="00:00:00.0218620" startTime="2026-06-09T11:29:21.1569899+02:00" endTime="2026-06-09T11:29:21.1788518+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a9d4438b-21c8-4773-b9fb-8e79cf77461a">
+      <Output>
+        <StdOut>Tool get_architecture_map executed successfully.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="e46c7727-de1c-4b43-b8f7-048ef2c7a35a" testId="944dd5c8-41c4-fa6f-4451-325a75784f0a" testName="Test_RestNodeDefinition_ReturnsSuccess" computerName="VMIKHAILOV-PC" duration="00:00:00.0086470" startTime="2026-06-09T11:29:21.3110699+02:00" endTime="2026-06-09T11:29:21.3197163+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e46c7727-de1c-4b43-b8f7-048ef2c7a35a" />
+    <UnitTestResult executionId="7663e658-094d-4e03-a4b0-8b0e6195f57c" testId="ab81f5de-c238-6660-da6c-8a4b6a09bbe6" testName="Test_PythonParser_EmbeddedSql" computerName="VMIKHAILOV-PC" duration="00:00:00.0097750" startTime="2026-06-09T11:29:22.0585470+02:00" endTime="2026-06-09T11:29:22.0683217+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7663e658-094d-4e03-a4b0-8b0e6195f57c">
+      <Output>
+        <StdOut>Finished parsing file: embedded_sql_test.py with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="612bcc29-55a9-447e-a9f7-7f08646be78e" testId="5b7c0f44-52ee-7103-b3b4-4c58dcf1602d" testName="Test_NodeSelector_HasType_And_FirstChild_And_GetChildForField" computerName="VMIKHAILOV-PC" duration="00:00:00.0055870" startTime="2026-06-09T11:29:21.3923347+02:00" endTime="2026-06-09T11:29:21.3979212+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="612bcc29-55a9-447e-a9f7-7f08646be78e" />
+    <UnitTestResult executionId="c61df7d8-225f-4469-8ad0-83bb23d766c4" testId="1321424e-71d4-f678-e899-b35e3515bfd3" testName="ExtractsExpectedRelationshipCount" computerName="VMIKHAILOV-PC" duration="00:00:00.0002599" startTime="2026-06-09T11:29:21.5434346+02:00" endTime="2026-06-09T11:29:21.5436944+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c61df7d8-225f-4469-8ad0-83bb23d766c4" />
+    <UnitTestResult executionId="848af82b-d82a-4706-8889-4f8a9a4a6d12" testId="59a010d1-e0e8-eea2-aa6c-7c8370226c6b" testName="GetNodeDefinition_ReturnsValidInboundRelationships" computerName="VMIKHAILOV-PC" duration="00:00:00.0009210" startTime="2026-06-09T11:29:21.5907924+02:00" endTime="2026-06-09T11:29:21.5917135+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="848af82b-d82a-4706-8889-4f8a9a4a6d12" />
+    <UnitTestResult executionId="aa5cfbb2-9160-4c06-8e34-60055f8c1b8c" testId="e9999937-0ac7-f12a-f169-0b64f1c307cf" testName="Test_NodeSelector_Or_And_HasChild_And_FunctionNode" computerName="VMIKHAILOV-PC" duration="00:00:00.0044870" startTime="2026-06-09T11:29:21.3979662+02:00" endTime="2026-06-09T11:29:21.4024529+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="aa5cfbb2-9160-4c06-8e34-60055f8c1b8c" />
+    <UnitTestResult executionId="a581f1d3-a71c-4fe3-bc69-7fbabfdd4ed5" testId="65d83d89-502c-3ee0-911d-2af51dbe6d35" testName="Test_SequenceDetector_SuffixStrategy" computerName="VMIKHAILOV-PC" duration="00:00:00.0044380" startTime="2026-06-09T11:29:22.5275515+02:00" endTime="2026-06-09T11:29:22.5319884+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a581f1d3-a71c-4fe3-bc69-7fbabfdd4ed5" />
+    <UnitTestResult executionId="5769b51d-8cb6-490e-b359-5238cf405ade" testId="d6dacabc-5ab5-5902-20c4-f1a891423d63" testName="Test_SequenceDetector_SubsequenceStrategy" computerName="VMIKHAILOV-PC" duration="00:00:00.0003760" startTime="2026-06-09T11:29:22.5271591+02:00" endTime="2026-06-09T11:29:22.5275354+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5769b51d-8cb6-490e-b359-5238cf405ade" />
+    <UnitTestResult executionId="0064bdf9-9b2a-4c5f-9692-736144381739" testId="26387328-3835-9acb-0daf-f2897623cbe4" testName="Test_TypeScriptParser_EmbeddedSql_ComplexTemplate" computerName="VMIKHAILOV-PC" duration="00:00:00.0078900" startTime="2026-06-09T11:29:22.2993637+02:00" endTime="2026-06-09T11:29:22.3072534+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0064bdf9-9b2a-4c5f-9692-736144381739">
+      <Output>
+        <StdOut>Finished parsing file: complex_template_test.ts with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="702fdd41-8d70-48d0-a238-a2997c5d6f6b" testId="83d77d86-4d55-32be-e16d-e8e8fc886083" testName="RenderedMarkdownContainsRelationshipsSection" computerName="VMIKHAILOV-PC" duration="00:00:00.0006020" startTime="2026-06-09T11:29:21.5882111+02:00" endTime="2026-06-09T11:29:21.5888128+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="702fdd41-8d70-48d0-a238-a2997c5d6f6b">
+      <Output>
+        <ErrorInfo>
+          <Message>  Assert.That(md, Does.Contain("## Relationships"))&#xD;
+  Expected: String containing "## Relationships"&#xD;
+  But was:  "&lt;!-- AUTO-GENERATED — do not edit manually. Re-generated on every build by OntologyGen. --&gt;&#xD;
+&#xD;
+# CodeExplorer Ontology&#xD;
+&#xD;
+&gt; This document is generated from source annotations during the build.&#xD;
+&gt; Edit the `[OntologyNode]`, `[OntologyEdge&lt;&gt;]`, `[OntologyProperty]`, and `[OntologyRelationship]` attributes in the source files to update it.&#xD;
+&#xD;
+---&#xD;
+&#xD;
+## \ud83d\udcca Architectural Overview (Mermaid Diagram)&#xD;
+&#xD;
+```mermaid&#xD;
+graph TD&#xD;
+    subgraph Layer1 ["Layer 4: SemanticStructure (Runtime Map)"]&#xD;
+        Animal["Animal"]&#xD;
+        Habitat["Habitat"]&#xD;
+        Zoo["Zoo"]&#xD;
+    end&#xD;
+&#xD;
+    Animal --&gt;|LIVES_IN| Habitat&#xD;
+    Zoo --&gt;|OWNS| Animal&#xD;
+```&#xD;
+&#xD;
+---&#xD;
+&#xD;
+## \ud83d\udcc2 Layered Definitions&#xD;
+&#xD;
+### \ud83d\udcc2 Layer 4: SemanticStructure (Runtime Map)&#xD;
+&#xD;
+#### `Animal`&#xD;
+&#xD;
+&gt; Represents an animal living in a zoo.&#xD;
+&#xD;
+**Outbound edges:**&#xD;
+&#xD;
+| Relationship | To |&#xD;
+| :--- | :--- |&#xD;
+| `LIVES_IN` | `Habitat` |&#xD;
+&#xD;
+**Incoming edges** *(derived from other nodes' declarations)*:&#xD;
+&#xD;
+| From | Relationship |&#xD;
+| :--- | :--- |&#xD;
+| `Zoo` | `OWNS` |&#xD;
+&#xD;
+**Properties:**&#xD;
+&#xD;
+| Property | Type | Description |&#xD;
+| :--- | :--- | :--- |&#xD;
+| `Name` | `string` | The name of the animal. |&#xD;
+| `Species` | `string` | The species of the animal. |&#xD;
+| `Path` | `string` | The path of the animal relative to its parent. |&#xD;
+&#xD;
+---&#xD;
+&#xD;
+#### `Habitat`&#xD;
+&#xD;
+&gt; Represents a physical habitat environment.&#xD;
+&#xD;
+**Incoming edges** *(derived from other nodes' declarations)*:&#xD;
+&#xD;
+| From | Relationship |&#xD;
+| :--- | :--- |&#xD;
+| `Animal` | `LIVES_IN` |&#xD;
+&#xD;
+**Properties:**&#xD;
+&#xD;
+| Property | Type | Description |&#xD;
+| :--- | :--- | :--- |&#xD;
+| `Name` | `string` | The name of the habitat. |&#xD;
+| `Climate` | `string` | The climate type (tropical, arctic, etc.). |&#xD;
+| `Path` | `string` | The path of the habitat relative to its parent. |&#xD;
+&#xD;
+---&#xD;
+&#xD;
+#### `Zoo`&#xD;
+&#xD;
+&gt; Represents a zoo that contains animals.&#xD;
+&#xD;
+**Outbound edges:**&#xD;
+&#xD;
+| Relationship | To |&#xD;
+| :--- | :--- |&#xD;
+| `OWNS` | `Animal` |&#xD;
+&#xD;
+**Properties:**&#xD;
+&#xD;
+| Property | Type | Description |&#xD;
+| :--- | :--- | :--- |&#xD;
+| `Name` | `string` | The name of the zoo. |&#xD;
+| `Path` | `string` | The path of the zoo relative to its parent. |&#xD;
+&#xD;
+---&#xD;
+&#xD;
+## \ud83d\udcc2 Layer 5: SystemBindings (Integration Links)&#xD;
+&#xD;
+&gt; This layer contains the relationship edges that connect nodes across layers into a unified semantic map.&#xD;
+&#xD;
+| Relationship Label | Description |&#xD;
+| :--- | :--- |&#xD;
+| `LIVES_IN` | Links an Animal to the Habitat it lives in. |&#xD;
+| `OWNS` | Links a Zoo to an Animal it owns. |&#xD;
+&#xD;
+---&#xD;
+&#xD;
+## \ud83c\udff7️ Uniform Resource Name (URN) &amp; ID Schemes&#xD;
+&#xD;
+&gt; Every node in the CodeExplorer graph has a structured ID (URN) that guarantees uniqueness across projects and workspaces.&#xD;
+&#xD;
+| Layer | Node Label | ID / URN Scheme |&#xD;
+| :--- | :--- | :--- |&#xD;
+| Layer 4: SemanticStructure (Runtime Map) | `Animal` | `{workspaceId}:animal:{name}` |&#xD;
+| Layer 4: SemanticStructure (Runtime Map) | `Habitat` | `{workspaceId}:habitat:{name}` |&#xD;
+| Layer 4: SemanticStructure (Runtime Map) | `Zoo` | `{workspaceId}:zoo:{name}` |&#xD;
+&#xD;
+"&#xD;
+</Message>
+          <StackTrace>   at CodeExplorer.Tests.OntologyGen.OntologyGenTests.RenderedMarkdownContainsRelationshipsSection() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\OntologyGen\OntologyGenTests.cs:line 206&#xD;
+
+1)    at CodeExplorer.Tests.OntologyGen.OntologyGenTests.RenderedMarkdownContainsRelationshipsSection() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\OntologyGen\OntologyGenTests.cs:line 206&#xD;
+
+</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="f03a70ff-712d-49ec-837b-22d6e43a3d23" testId="d5e37d0f-1386-1733-569a-866c6ac4c784" testName="RenderedMarkdownContainsIncomingEdgeForAnimal" computerName="VMIKHAILOV-PC" duration="00:00:00.0009840" startTime="2026-06-09T11:29:21.5865133+02:00" endTime="2026-06-09T11:29:21.5874976+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f03a70ff-712d-49ec-837b-22d6e43a3d23" />
+    <UnitTestResult executionId="a4753896-87cb-4f5b-b5c4-4725c258e284" testId="c05771fc-06a9-9a59-3bdc-aec48ad63b68" testName="PropertiesWithoutAttributeAreExcluded" computerName="VMIKHAILOV-PC" duration="00:00:00.0003280" startTime="2026-06-09T11:29:21.5456588+02:00" endTime="2026-06-09T11:29:21.5459864+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a4753896-87cb-4f5b-b5c4-4725c258e284" />
+    <UnitTestResult executionId="f55f3ab0-2720-4b0b-82d3-653090c819a1" testId="d8c99413-886d-5f23-138b-1bb8819af7a8" testName="ExtractsZooNode" computerName="VMIKHAILOV-PC" duration="00:00:00.0003130" startTime="2026-06-09T11:29:21.5442318+02:00" endTime="2026-06-09T11:29:21.5445445+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f55f3ab0-2720-4b0b-82d3-653090c819a1" />
+    <UnitTestResult executionId="bc821cd1-faef-4e21-b9e7-e995865a5f4a" testId="5bc770e5-3363-ff19-c1e1-3ff5f8a596fc" testName="Test_FindRefactoringOpportunities" computerName="VMIKHAILOV-PC" duration="00:00:00.0221020" startTime="2026-06-09T11:29:21.1348238+02:00" endTime="2026-06-09T11:29:21.1569257+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bc821cd1-faef-4e21-b9e7-e995865a5f4a">
+      <Output>
+        <StdOut>Tool find_refactoring_opportunities executed successfully.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="9e5d6a5b-f135-4461-84f0-6343b920549b" testId="26049e90-1a44-234b-b819-41f395f82e8b" testName="Test_TypeScriptParser_WithExamples" computerName="VMIKHAILOV-PC" duration="00:00:00.0037770" startTime="2026-06-09T11:29:22.3072852+02:00" endTime="2026-06-09T11:29:22.3110613+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9e5d6a5b-f135-4461-84f0-6343b920549b">
+      <Output>
+        <StdOut>Multiple failures or warnings in test:&#xD;
+  1) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/cron/cron.service.ts&#xD;
+  2) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/services/calibrate-min-roi.service.ts&#xD;
+  3) Example file not found: /Users/slava/Projects/ATS/src/services/calc-epm/src/interfaces/configs/config.models.ts</StdOut>
+        <ErrorInfo>
+          <Message>Multiple failures or warnings in test:&#xD;
+  1) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/cron/cron.service.ts&#xD;
+  2) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/services/calibrate-min-roi.service.ts&#xD;
+  3) Example file not found: /Users/slava/Projects/ATS/src/services/calc-epm/src/interfaces/configs/config.models.ts&#xD;
+</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="d44077d1-ab36-49a9-9ca1-fb801b184b12" testId="eff3846e-7703-24aa-4ed3-627eb8ce07d4" testName="Test_TypeBindingsAndCallsResolution" computerName="VMIKHAILOV-PC" duration="00:00:00.1536710" startTime="2026-06-09T11:29:22.1247387+02:00" endTime="2026-06-09T11:29:22.2784091+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d44077d1-ab36-49a9-9ca1-fb801b184b12">
+      <Output>
+        <StdOut>Finished parsing file: ProjectA/OrderService.ts with 2 top-level symbols.</StdOut>
+        <StdErr>[2026-06-09 11:29:22.127] [+0ms] [WorkspaceIndexer] Starting background database persistence loop...&#xD;
+&#xD;
+[2026-06-09 11:29:22.127] [+0ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:\Users\viach\AppData\Local\Temp\codeexplorer_typebinding_test_5b2bc760-8ac5-43fb-aa84-ea2a0385f97e'...&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed structural scan of project 'ProjectA'.&#xD;
+&#xD;
+[2026-06-09 11:29:22.204] [+76ms] [WorkspaceParser] Starting syntax enrichment pass for 1 projects...&#xD;
+&#xD;
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.&#xD;
+&#xD;
+[2026-06-09 11:29:22.206] [+78ms] [LateBinding] Found 0 EntryPoints, 0 Endpoints, and 0 ExternalServices in the workspace.&#xD;
+&#xD;
+[2026-06-09 11:29:22.251] [+123ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 10 nodes, 10 relationships.&#xD;
+&#xD;
+[2026-06-09 11:29:22.251] [+123ms] [WorkspaceIndexer] Resolving 5 global cross-references...&#xD;
+&#xD;
+[2026-06-09 11:29:22.252] [+124ms] [WorkspaceIndexer] Uploading 1 resolved reference relationships...&#xD;
+&#xD;
+[2026-06-09 11:29:22.256] [+128ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...&#xD;
+&#xD;
+[2026-06-09 11:29:22.270] [+142ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 10, Total Relationships: 11.</StdErr>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="c5adf12b-126c-41e1-ab43-c13952821b71" testId="43892e30-ab0b-e331-5e73-65d4c45cbf31" testName="RenderedMarkdownContainsNodeLabels" computerName="VMIKHAILOV-PC" duration="00:00:00.0004570" startTime="2026-06-09T11:29:21.5875225+02:00" endTime="2026-06-09T11:29:21.5879795+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c5adf12b-126c-41e1-ab43-c13952821b71" />
+    <UnitTestResult executionId="5039b881-c70c-437b-8f9e-640273e46f3d" testId="8b4a6ba4-e572-be65-6027-061e836eecf0" testName="HabitatNodeHasNoOutboundEdges" computerName="VMIKHAILOV-PC" duration="00:00:00.0010830" startTime="2026-06-09T11:29:21.5445588+02:00" endTime="2026-06-09T11:29:21.5456418+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5039b881-c70c-437b-8f9e-640273e46f3d" />
+    <UnitTestResult executionId="fe8b9cfa-d414-497b-b86b-72fede43fa5b" testId="792bb060-7c38-a6a5-e218-d560a600dbaf" testName="KindMapping_ContainsCoreNodeKinds" computerName="VMIKHAILOV-PC" duration="00:00:00.0004080" startTime="2026-06-09T11:29:21.5917321+02:00" endTime="2026-06-09T11:29:21.5921402+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="fe8b9cfa-d414-497b-b86b-72fede43fa5b" />
+    <UnitTestResult executionId="b3298188-06a4-45ea-81ba-5b1c8ebd6761" testId="85ee8d19-3d41-0274-b6db-a2e1180f5efb" testName="AnimalHasLivesInEdgeToHabitat" computerName="VMIKHAILOV-PC" duration="00:00:00.0007910" startTime="2026-06-09T11:29:21.5395804+02:00" endTime="2026-06-09T11:29:21.5403716+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b3298188-06a4-45ea-81ba-5b1c8ebd6761" />
+    <UnitTestResult executionId="81f6766b-8d7c-4f39-b96d-9991c6176251" testId="157f4b26-e5c0-71d8-8d5c-e9bc4b76c0b6" testName="Test_GetTaxonomy" computerName="VMIKHAILOV-PC" duration="00:00:00.0351630" startTime="2026-06-09T11:29:21.2218728+02:00" endTime="2026-06-09T11:29:21.2570352+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="81f6766b-8d7c-4f39-b96d-9991c6176251">
+      <Output>
+        <StdOut>Tool get_taxonomy executed successfully.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="e0ccdc8d-f68f-4eda-b369-ae04268cdcf8" testId="e398d22f-5462-d616-38a1-5c629a1164f6" testName="Test_CSharpParser_EmbeddedSql" computerName="VMIKHAILOV-PC" duration="00:00:00.1469860" startTime="2026-06-09T11:29:21.6107413+02:00" endTime="2026-06-09T11:29:21.7577272+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e0ccdc8d-f68f-4eda-b369-ae04268cdcf8">
+      <Output>
+        <StdOut>Finished parsing file: embedded_sql_test.cs with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="151bbef2-5a73-45f2-a56d-4e189e224c97" testId="706cedb9-1d75-9965-972b-ba750cb205df" testName="GetNodeDefinition_ReturnsErrorForInvalidKind(null)" computerName="VMIKHAILOV-PC" duration="00:00:00.0001299" startTime="2026-06-09T11:29:21.5894891+02:00" endTime="2026-06-09T11:29:21.5896186+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="151bbef2-5a73-45f2-a56d-4e189e224c97" />
+    <UnitTestResult executionId="a3ce71ec-216c-45b7-bcf0-2b14b015759a" testId="a64005aa-4aad-a917-86f4-b587b7050287" testName="Test_RestTaxonomy_ReturnsSuccess" computerName="VMIKHAILOV-PC" duration="00:00:00.0409500" startTime="2026-06-09T11:29:21.3197448+02:00" endTime="2026-06-09T11:29:21.3606942+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a3ce71ec-216c-45b7-bcf0-2b14b015759a" />
+    <UnitTestResult executionId="e1b8563e-53bb-4af7-8d58-5faec510d209" testId="429e712c-f669-8ba0-0b6d-b1af27a09f95" testName="Test_SemanticAnalysisAndOntologyEnrichment" computerName="VMIKHAILOV-PC" duration="00:00:00.0486990" startTime="2026-06-09T11:29:22.0683519+02:00" endTime="2026-06-09T11:29:22.1170501+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e1b8563e-53bb-4af7-8d58-5faec510d209">
+      <Output>
+        <StdOut>Library 'Stripe' detected but parser is not implemented yet.&#xD;
+Finished parsing file: ProjectA/Repository.cs with 1 top-level symbols.</StdOut>
+        <StdErr>[WorkspaceParser] Starting scan of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed structural scan of project 'ProjectA'.&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectB'...&#xD;
+&#xD;
+[WorkspaceParser] Completed structural scan of project 'ProjectB'.&#xD;
+&#xD;
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.&#xD;
+&#xD;
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...&#xD;
+&#xD;
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.</StdErr>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="1ae116bd-8bda-4892-a251-8d907e16f838" testId="07206732-c079-3f39-ef03-b6df241afe66" testName="Test_GetProjectEntryPoints" computerName="VMIKHAILOV-PC" duration="00:00:00.0120610" startTime="2026-06-09T11:29:21.2097744+02:00" endTime="2026-06-09T11:29:21.2218347+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1ae116bd-8bda-4892-a251-8d907e16f838">
+      <Output>
+        <StdOut>Tool get_project_entry_points executed successfully.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="00929cb1-4482-4470-89d8-18ef4083acb0" testId="7d851cb4-9ee4-e73b-60f4-fab17ed64b66" testName="Test_NodeSelector_Select" computerName="VMIKHAILOV-PC" duration="00:00:00.0032340" startTime="2026-06-09T11:29:21.4024874+02:00" endTime="2026-06-09T11:29:21.4057210+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="00929cb1-4482-4470-89d8-18ef4083acb0" />
+    <UnitTestResult executionId="9a45de65-249b-4c16-bb65-f1496c82eefe" testId="52b7b850-0627-f16e-49a9-f3cf9b8beb64" testName="Test_RestNodeDefinition_ReturnsNotFoundForUnknown" computerName="VMIKHAILOV-PC" duration="00:00:00.0068200" startTime="2026-06-09T11:29:21.3042141+02:00" endTime="2026-06-09T11:29:21.3110334+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9a45de65-249b-4c16-bb65-f1496c82eefe" />
+    <UnitTestResult executionId="9552feb2-bbfb-4d23-a937-2a8e0aeb336e" testId="c9360d09-c15b-f9fa-6f4c-6b11834504df" testName="Test_RestNodeDefinition_ReturnsBadRequestForEmpty" computerName="VMIKHAILOV-PC" duration="00:00:00.0471009" startTime="2026-06-09T11:29:21.2570775+02:00" endTime="2026-06-09T11:29:21.3041784+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9552feb2-bbfb-4d23-a937-2a8e0aeb336e" />
+    <UnitTestResult executionId="add808c4-4ec2-4624-9c10-d69b84c35f5a" testId="991dd2f3-5757-8f8f-ad0a-5936c68085f2" testName="Test_TypeScriptParser_ApiIngressEgress" computerName="VMIKHAILOV-PC" duration="00:00:00.0089960" startTime="2026-06-09T11:29:22.2784414+02:00" endTime="2026-06-09T11:29:22.2874371+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="add808c4-4ec2-4624-9c10-d69b84c35f5a">
+      <Output>
+        <StdOut>--- TS AST START ---&#xD;
+Type: program, Text: import { Controller, Post, Get } from '@nestjs/common';&#xD;
+ import axios from 'axios';&#xD;
+ &#xD;
+ @Controller('orders')&#xD;
+ export class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+ &#xD;
+  Type: import_statement, Text: import { Controller, Post, Get } from '@nestjs/common';&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_clause, Text: { Controller, Post, Get }&#xD;
+      Type: named_imports, Text: { Controller, Post, Get }&#xD;
+        Type: {, Text: {&#xD;
+        Type: import_specifier, Text: Controller&#xD;
+          Type: identifier, Text: Controller&#xD;
+        Type: ,, Text: ,&#xD;
+        Type: import_specifier, Text: Post&#xD;
+          Type: identifier, Text: Post&#xD;
+        Type: ,, Text: ,&#xD;
+        Type: import_specifier, Text: Get&#xD;
+          Type: identifier, Text: Get&#xD;
+        Type: }, Text: }&#xD;
+    Type: from, Text: from&#xD;
+    Type: string, Text: '@nestjs/common'&#xD;
+      Type: ', Text: '&#xD;
+      Type: string_fragment, Text: @nestjs/common&#xD;
+      Type: ', Text: '&#xD;
+    Type: ;, Text: ;&#xD;
+  Type: import_statement, Text: import axios from 'axios';&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_clause, Text: axios&#xD;
+      Type: identifier, Text: axios&#xD;
+    Type: from, Text: from&#xD;
+    Type: string, Text: 'axios'&#xD;
+      Type: ', Text: '&#xD;
+      Type: string_fragment, Text: axios&#xD;
+      Type: ', Text: '&#xD;
+    Type: ;, Text: ;&#xD;
+  Type: export_statement, Text: @Controller('orders')&#xD;
+ export class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+    Type: decorator, Text: @Controller('orders')&#xD;
+      Type: @, Text: @&#xD;
+      Type: call_expression, Text: Controller('orders')&#xD;
+        Type: identifier, Text: Controller&#xD;
+        Type: arguments, Text: ('orders')&#xD;
+          Type: (, Text: (&#xD;
+          Type: string, Text: 'orders'&#xD;
+            Type: ', Text: '&#xD;
+            Type: string_fragment, Text: orders&#xD;
+            Type: ', Text: '&#xD;
+          Type: ), Text: )&#xD;
+    Type: export, Text: export&#xD;
+    Type: class_declaration, Text: class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+      Type: class, Text: class&#xD;
+      Type: type_identifier, Text: OrdersController&#xD;
+      Type: class_body, Text: {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+        Type: {, Text: {&#xD;
+        Type: decorator, Text: @Post('charge')&#xD;
+          Type: @, Text: @&#xD;
+          Type: call_expression, Text: Post('charge')&#xD;
+            Type: identifier, Text: Post&#xD;
+            Type: arguments, Text: ('charge')&#xD;
+              Type: (, Text: (&#xD;
+              Type: string, Text: 'charge'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: charge&#xD;
+                Type: ', Text: '&#xD;
+              Type: ), Text: )&#xD;
+        Type: method_definition, Text: async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+          Type: async, Text: async&#xD;
+          Type: property_identifier, Text: chargeOrder&#xD;
+          Type: formal_parameters, Text: ()&#xD;
+            Type: (, Text: (&#xD;
+            Type: ), Text: )&#xD;
+          Type: statement_block, Text: {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+            Type: {, Text: {&#xD;
+            Type: expression_statement, Text: await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+              Type: await_expression, Text: await axios.post('http://api.stripe.com/v1/charges', {})&#xD;
+                Type: await, Text: await&#xD;
+                Type: call_expression, Text: axios.post('http://api.stripe.com/v1/charges', {})&#xD;
+                  Type: member_expression, Text: axios.post&#xD;
+                    Type: identifier, Text: axios&#xD;
+                    Type: ., Text: .&#xD;
+                    Type: property_identifier, Text: post&#xD;
+                  Type: arguments, Text: ('http://api.stripe.com/v1/charges', {})&#xD;
+                    Type: (, Text: (&#xD;
+                    Type: string, Text: 'http://api.stripe.com/v1/charges'&#xD;
+                      Type: ', Text: '&#xD;
+                      Type: string_fragment, Text: http://api.stripe.com/v1/charges&#xD;
+                      Type: ', Text: '&#xD;
+                    Type: ,, Text: ,&#xD;
+                    Type: object, Text: {}&#xD;
+                      Type: {, Text: {&#xD;
+                      Type: }, Text: }&#xD;
+                    Type: ), Text: )&#xD;
+              Type: ;, Text: ;&#xD;
+            Type: }, Text: }&#xD;
+        Type: decorator, Text: @SubscribeMessage('ping')&#xD;
+          Type: @, Text: @&#xD;
+          Type: call_expression, Text: SubscribeMessage('ping')&#xD;
+            Type: identifier, Text: SubscribeMessage&#xD;
+            Type: arguments, Text: ('ping')&#xD;
+              Type: (, Text: (&#xD;
+              Type: string, Text: 'ping'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: ping&#xD;
+                Type: ', Text: '&#xD;
+              Type: ), Text: )&#xD;
+        Type: method_definition, Text: onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+          Type: property_identifier, Text: onPing&#xD;
+          Type: formal_parameters, Text: ()&#xD;
+            Type: (, Text: (&#xD;
+            Type: ), Text: )&#xD;
+          Type: statement_block, Text: {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+            Type: {, Text: {&#xD;
+            Type: return_statement, Text: return 'pong';&#xD;
+              Type: return, Text: return&#xD;
+              Type: string, Text: 'pong'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: pong&#xD;
+                Type: ', Text: '&#xD;
+              Type: ;, Text: ;&#xD;
+            Type: }, Text: }&#xD;
+        Type: }, Text: }&#xD;
+--- TS AST END ---&#xD;
+Finished parsing file: typescript_api_test.ts with 2 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="7b770a71-be4f-44ff-9ea0-d3ccc18c0a4d" testId="de2a1624-e5ac-5513-5d43-13d7dc0617d7" testName="Test_GetProjectDependencies" computerName="VMIKHAILOV-PC" duration="00:00:00.0122620" startTime="2026-06-09T11:29:21.1974800+02:00" endTime="2026-06-09T11:29:21.2097418+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7b770a71-be4f-44ff-9ea0-d3ccc18c0a4d">
+      <Output>
+        <StdOut>Tool get_project_dependencies executed successfully.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="019bb26b-d783-457d-8cbc-7224c05ed3ac" testId="b86144c5-e162-ce78-1d12-c45c2331977a" testName="Test_GoParser_EmbeddedSql" computerName="VMIKHAILOV-PC" duration="00:00:00.0200180" startTime="2026-06-09T11:29:21.7577894+02:00" endTime="2026-06-09T11:29:21.7778071+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="019bb26b-d783-457d-8cbc-7224c05ed3ac">
+      <Output>
+        <StdOut>Finished parsing file: embedded_sql_test.go with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="feceebd5-5853-4b35-8726-a0c0af1138e1" testId="0a39a0b3-181d-fd7d-571d-2b3d1965b834" testName="Test_NewParserFeatures" computerName="VMIKHAILOV-PC" duration="00:00:00.0327080" startTime="2026-06-09T11:29:22.0258005+02:00" endTime="2026-06-09T11:29:22.0585078+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="feceebd5-5853-4b35-8726-a0c0af1138e1">
+      <Output>
+        <StdOut>Finished parsing file: app.py with 2 top-level symbols.&#xD;
+--- GO AST START ---&#xD;
+Type: source_file, Text: package main&#xD;
+ import "net/http"&#xD;
+ func Register(r *gin.Engine) {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+ &#xD;
+  Type: package_clause, Text: package main&#xD;
+    Type: package, Text: package&#xD;
+    Type: package_identifier, Text: main&#xD;
+  Type: import_declaration, Text: import "net/http"&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_spec, Text: "net/http"&#xD;
+      Type: interpreted_string_literal, Text: "net/http"&#xD;
+        Type: ", Text: "&#xD;
+        Type: interpreted_string_literal_content, Text: net/http&#xD;
+        Type: ", Text: "&#xD;
+  Type: function_declaration, Text: func Register(r *gin.Engine) {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+    Type: func, Text: func&#xD;
+    Type: identifier, Text: Register&#xD;
+    Type: parameter_list, Text: (r *gin.Engine)&#xD;
+      Type: (, Text: (&#xD;
+      Type: parameter_declaration, Text: r *gin.Engine&#xD;
+        Type: identifier, Text: r&#xD;
+        Type: pointer_type, Text: *gin.Engine&#xD;
+          Type: *, Text: *&#xD;
+          Type: qualified_type, Text: gin.Engine&#xD;
+            Type: package_identifier, Text: gin&#xD;
+            Type: ., Text: .&#xD;
+            Type: type_identifier, Text: Engine&#xD;
+      Type: ), Text: )&#xD;
+    Type: block, Text: {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+      Type: {, Text: {&#xD;
+      Type: statement_list, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+ &#xD;
+        Type: expression_statement, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+          Type: call_expression, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+            Type: selector_expression, Text: r.GET&#xD;
+              Type: identifier, Text: r&#xD;
+              Type: ., Text: .&#xD;
+              Type: field_identifier, Text: GET&#xD;
+            Type: argument_list, Text: ("/api/v1/users", GetUsers)&#xD;
+              Type: (, Text: (&#xD;
+              Type: interpreted_string_literal, Text: "/api/v1/users"&#xD;
+                Type: ", Text: "&#xD;
+                Type: interpreted_string_literal_content, Text: /api/v1/users&#xD;
+                Type: ", Text: "&#xD;
+              Type: ,, Text: ,&#xD;
+              Type: identifier, Text: GetUsers&#xD;
+              Type: ), Text: )&#xD;
+      Type: }, Text: }&#xD;
+--- GO AST END ---&#xD;
+Library 'http/https' detected but parser is not implemented yet.&#xD;
+Finished parsing file: main.go with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="bcfb42b6-95cb-4159-a043-5f4c8967f509" testId="f8217231-c2a5-b351-7488-d5dd582ac607" testName="GetNodeDefinition_ReturnsValidDefinitionForWorkspace" computerName="VMIKHAILOV-PC" duration="00:00:00.0007210" startTime="2026-06-09T11:29:21.5900595+02:00" endTime="2026-06-09T11:29:21.5907807+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bcfb42b6-95cb-4159-a043-5f4c8967f509" />
+    <UnitTestResult executionId="d8f0b880-0ef5-486e-9936-2dfaaa29f1df" testId="010ce5f3-4265-a014-d9c1-5a5bcab4eb1c" testName="Test_ExecuteCustomReadCypher" computerName="VMIKHAILOV-PC" duration="00:00:00.0994510" startTime="2026-06-09T11:29:21.0330071+02:00" endTime="2026-06-09T11:29:21.1323702+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d8f0b880-0ef5-486e-9936-2dfaaa29f1df">
+      <Output>
+        <StdOut>Tool execute_custom_read_cypher executed successfully.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="4d799334-f235-4b70-82b2-d641235be455" testId="a8b8cc6d-5a49-4731-650c-54d876cbd17f" testName="Test_NestedProjectsResolution" computerName="VMIKHAILOV-PC" duration="00:00:00.2275790" startTime="2026-06-09T11:29:21.7979091+02:00" endTime="2026-06-09T11:29:22.0254875+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4d799334-f235-4b70-82b2-d641235be455">
+      <Output>
+        <StdOut>Finished parsing file: ProjectA/ProjectB/serviceB.ts with 1 top-level symbols.&#xD;
+Finished parsing file: ProjectA/serviceA.ts with 1 top-level symbols.</StdOut>
+        <StdErr>[2026-06-09 11:29:21.803] [+0ms] [WorkspaceIndexer] Starting background database persistence loop...&#xD;
+&#xD;
+[2026-06-09 11:29:21.803] [+0ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:\Users\viach\AppData\Local\Temp\codeexplorer_nested_project_test_12160da7-bb02-483c-b86c-ab0314c57988'...&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Starting scan of project 'ProjectB'...&#xD;
+&#xD;
+[WorkspaceParser] Completed structural scan of project 'ProjectB'.&#xD;
+&#xD;
+[WorkspaceParser] Completed structural scan of project 'ProjectA'.&#xD;
+&#xD;
+[2026-06-09 11:29:21.935] [+131ms] [WorkspaceParser] Starting syntax enrichment pass for 2 projects...&#xD;
+&#xD;
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...&#xD;
+&#xD;
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.&#xD;
+&#xD;
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...&#xD;
+&#xD;
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.&#xD;
+&#xD;
+[2026-06-09 11:29:21.938] [+134ms] [LateBinding] Found 0 EntryPoints, 0 Endpoints, and 0 ExternalServices in the workspace.&#xD;
+&#xD;
+[2026-06-09 11:29:21.991] [+188ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 11 nodes, 12 relationships.&#xD;
+&#xD;
+[2026-06-09 11:29:21.991] [+188ms] [WorkspaceIndexer] Resolving 2 global cross-references...&#xD;
+&#xD;
+[2026-06-09 11:29:21.991] [+188ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...&#xD;
+&#xD;
+[2026-06-09 11:29:22.005] [+202ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 11, Total Relationships: 12.</StdErr>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="7772dfa4-ab0d-40b7-974c-3b9f756bf532" testId="c5e28637-7f64-2d30-b6ab-268beea8c124" testName="Test_NestedSqlParser_CleanQueryText_NestedQuotes" computerName="VMIKHAILOV-PC" duration="00:00:00.0002660" startTime="2026-06-09T11:29:22.0255210+02:00" endTime="2026-06-09T11:29:22.0257866+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7772dfa4-ab0d-40b7-974c-3b9f756bf532" />
+    <UnitTestResult executionId="d6f1ab05-b7b2-4959-92d4-ea25f0b0cc6f" testId="5544b065-4ef6-d969-12f2-c6c1610e4bdd" testName="RenderedMarkdownContainsIdSchemeTable" computerName="VMIKHAILOV-PC" duration="00:00:00.0280280" startTime="2026-06-09T11:29:21.5583015+02:00" endTime="2026-06-09T11:29:21.5863285+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d6f1ab05-b7b2-4959-92d4-ea25f0b0cc6f">
+      <Output>
+        <ErrorInfo>
+          <Message>  Assert.That(md, Does.Contain("Node ID Schemes"))&#xD;
+  Expected: String containing "Node ID Schemes"&#xD;
+  But was:  "&lt;!-- AUTO-GENERATED — do not edit manually. Re-generated on every build by OntologyGen. --&gt;&#xD;
+&#xD;
+# CodeExplorer Ontology&#xD;
+&#xD;
+&gt; This document is generated from source annotations during the build.&#xD;
+&gt; Edit the `[OntologyNode]`, `[OntologyEdge&lt;&gt;]`, `[OntologyProperty]`, and `[OntologyRelationship]` attributes in the source files to update it.&#xD;
+&#xD;
+---&#xD;
+&#xD;
+## \ud83d\udcca Architectural Overview (Mermaid Diagram)&#xD;
+&#xD;
+```mermaid&#xD;
+graph TD&#xD;
+    subgraph Layer1 ["Layer 4: SemanticStructure (Runtime Map)"]&#xD;
+        Animal["Animal"]&#xD;
+        Habitat["Habitat"]&#xD;
+        Zoo["Zoo"]&#xD;
+    end&#xD;
+&#xD;
+    Animal --&gt;|LIVES_IN| Habitat&#xD;
+    Zoo --&gt;|OWNS| Animal&#xD;
+```&#xD;
+&#xD;
+---&#xD;
+&#xD;
+## \ud83d\udcc2 Layered Definitions&#xD;
+&#xD;
+### \ud83d\udcc2 Layer 4: SemanticStructure (Runtime Map)&#xD;
+&#xD;
+#### `Animal`&#xD;
+&#xD;
+&gt; Represents an animal living in a zoo.&#xD;
+&#xD;
+**Outbound edges:**&#xD;
+&#xD;
+| Relationship | To |&#xD;
+| :--- | :--- |&#xD;
+| `LIVES_IN` | `Habitat` |&#xD;
+&#xD;
+**Incoming edges** *(derived from other nodes' declarations)*:&#xD;
+&#xD;
+| From | Relationship |&#xD;
+| :--- | :--- |&#xD;
+| `Zoo` | `OWNS` |&#xD;
+&#xD;
+**Properties:**&#xD;
+&#xD;
+| Property | Type | Description |&#xD;
+| :--- | :--- | :--- |&#xD;
+| `Name` | `string` | The name of the animal. |&#xD;
+| `Species` | `string` | The species of the animal. |&#xD;
+| `Path` | `string` | The path of the animal relative to its parent. |&#xD;
+&#xD;
+---&#xD;
+&#xD;
+#### `Habitat`&#xD;
+&#xD;
+&gt; Represents a physical habitat environment.&#xD;
+&#xD;
+**Incoming edges** *(derived from other nodes' declarations)*:&#xD;
+&#xD;
+| From | Relationship |&#xD;
+| :--- | :--- |&#xD;
+| `Animal` | `LIVES_IN` |&#xD;
+&#xD;
+**Properties:**&#xD;
+&#xD;
+| Property | Type | Description |&#xD;
+| :--- | :--- | :--- |&#xD;
+| `Name` | `string` | The name of the habitat. |&#xD;
+| `Climate` | `string` | The climate type (tropical, arctic, etc.). |&#xD;
+| `Path` | `string` | The path of the habitat relative to its parent. |&#xD;
+&#xD;
+---&#xD;
+&#xD;
+#### `Zoo`&#xD;
+&#xD;
+&gt; Represents a zoo that contains animals.&#xD;
+&#xD;
+**Outbound edges:**&#xD;
+&#xD;
+| Relationship | To |&#xD;
+| :--- | :--- |&#xD;
+| `OWNS` | `Animal` |&#xD;
+&#xD;
+**Properties:**&#xD;
+&#xD;
+| Property | Type | Description |&#xD;
+| :--- | :--- | :--- |&#xD;
+| `Name` | `string` | The name of the zoo. |&#xD;
+| `Path` | `string` | The path of the zoo relative to its parent. |&#xD;
+&#xD;
+---&#xD;
+&#xD;
+## \ud83d\udcc2 Layer 5: SystemBindings (Integration Links)&#xD;
+&#xD;
+&gt; This layer contains the relationship edges that connect nodes across layers into a unified semantic map.&#xD;
+&#xD;
+| Relationship Label | Description |&#xD;
+| :--- | :--- |&#xD;
+| `LIVES_IN` | Links an Animal to the Habitat it lives in. |&#xD;
+| `OWNS` | Links a Zoo to an Animal it owns. |&#xD;
+&#xD;
+---&#xD;
+&#xD;
+## \ud83c\udff7️ Uniform Resource Name (URN) &amp; ID Schemes&#xD;
+&#xD;
+&gt; Every node in the CodeExplorer graph has a structured ID (URN) that guarantees uniqueness across projects and workspaces.&#xD;
+&#xD;
+| Layer | Node Label | ID / URN Scheme |&#xD;
+| :--- | :--- | :--- |&#xD;
+| Layer 4: SemanticStructure (Runtime Map) | `Animal` | `{workspaceId}:animal:{name}` |&#xD;
+| Layer 4: SemanticStructure (Runtime Map) | `Habitat` | `{workspaceId}:habitat:{name}` |&#xD;
+| Layer 4: SemanticStructure (Runtime Map) | `Zoo` | `{workspaceId}:zoo:{name}` |&#xD;
+&#xD;
+"&#xD;
+</Message>
+          <StackTrace>   at CodeExplorer.Tests.OntologyGen.OntologyGenTests.RenderedMarkdownContainsIdSchemeTable() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\OntologyGen\OntologyGenTests.cs:line 198&#xD;
+
+1)    at CodeExplorer.Tests.OntologyGen.OntologyGenTests.RenderedMarkdownContainsIdSchemeTable() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\OntologyGen\OntologyGenTests.cs:line 198&#xD;
+
+</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="6675c881-dc69-45ae-9826-7f367fa9a700" testId="3414f8bd-eadc-ccec-e02c-291431d2c668" testName="Test_SequenceDetector_Predicates" computerName="VMIKHAILOV-PC" duration="00:00:00.0020770" startTime="2026-06-09T11:29:22.5250592+02:00" endTime="2026-06-09T11:29:22.5271357+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6675c881-dc69-45ae-9826-7f367fa9a700" />
+    <UnitTestResult executionId="4c7d662d-021a-4e51-924e-25b98d04bdc5" testId="a06b5a07-181f-a998-7c15-021a53531ad5" testName="Test_TypeScriptParser_EmbeddedSql" computerName="VMIKHAILOV-PC" duration="00:00:00.0118670" startTime="2026-06-09T11:29:22.2874661+02:00" endTime="2026-06-09T11:29:22.2993322+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4c7d662d-021a-4e51-924e-25b98d04bdc5">
+      <Output>
+        <StdOut>Finished parsing file: embedded_sql_test.ts with 1 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="a3f6f8fe-0c0c-43d4-9eec-f897b2ed8319" testId="30c6fa6f-3df1-8de9-23aa-e7174b1c6926" testName="ExtractsExpectedNodeCount" computerName="VMIKHAILOV-PC" duration="00:00:00.0017990" startTime="2026-06-09T11:29:21.5415993+02:00" endTime="2026-06-09T11:29:21.5433980+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a3f6f8fe-0c0c-43d4-9eec-f897b2ed8319" />
+    <UnitTestResult executionId="e9a128de-8286-44e0-b8b8-f4c769097089" testId="f5813a33-cc5f-0cd6-fbfb-13f9f0a397b9" testName="Test_LibraryParsers_CSharpAndTS" computerName="VMIKHAILOV-PC" duration="00:00:00.0188020" startTime="2026-06-09T11:29:21.7778441+02:00" endTime="2026-06-09T11:29:21.7966454+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e9a128de-8286-44e0-b8b8-f4c769097089">
+      <Output>
+        <StdOut>Finished parsing file: Service.cs with 1 top-level symbols.&#xD;
+Finished parsing file: app.ts with 2 top-level symbols.</StdOut>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="887f3533-4251-400f-88e9-e9ef42efe96a" testId="25f5d524-9c2c-04a3-7f83-2b5e20748677" testName="Test_LibraryTrieRegistry_Matching" computerName="VMIKHAILOV-PC" duration="00:00:00.0011940" startTime="2026-06-09T11:29:21.7966842+02:00" endTime="2026-06-09T11:29:21.7978784+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="887f3533-4251-400f-88e9-e9ef42efe96a" />
+    <UnitTestResult executionId="16d34c1e-5883-4f87-b092-f4ab0684b5aa" testId="6bd5140b-91bb-7e40-552d-b80a49c68dfe" testName="Test_SemanticModel_DbTypeMapping" computerName="VMIKHAILOV-PC" duration="00:00:00.0076230" startTime="2026-06-09T11:29:22.1170821+02:00" endTime="2026-06-09T11:29:22.1247049+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="16d34c1e-5883-4f87-b092-f4ab0684b5aa" />
+    <UnitTestResult executionId="9ee394f2-86fc-40c1-b066-19cba58dc777" testId="16b3faed-9a4a-e453-df5f-6e6391da06ad" testName="GetNodeDefinition_ReturnsErrorForInvalidKind(&quot;   &quot;)" computerName="VMIKHAILOV-PC" duration="00:00:00.0000120" startTime="2026-06-09T11:29:21.5897965+02:00" endTime="2026-06-09T11:29:21.5898085+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9ee394f2-86fc-40c1-b066-19cba58dc777" />
+    <UnitTestResult executionId="9c131ee3-f0df-49bd-8365-8ac83c9dc875" testId="4ffc9986-a00a-e878-63c6-9794020ef2b1" testName="Test_SequenceDetector_ExactStrategy" computerName="VMIKHAILOV-PC" duration="00:00:00.0026189" startTime="2026-06-09T11:29:22.5224152+02:00" endTime="2026-06-09T11:29:22.5250342+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9c131ee3-f0df-49bd-8365-8ac83c9dc875" />
+    <UnitTestResult executionId="0850d79b-6f9a-4964-bb6c-6b6f7d43b93e" testId="0d754ae8-3f7c-70f6-3217-d6fef196b896" testName="RenderedMarkdownContainsOutboundEdge" computerName="VMIKHAILOV-PC" duration="00:00:00.0002020" startTime="2026-06-09T11:29:21.5879980+02:00" endTime="2026-06-09T11:29:21.5881996+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0850d79b-6f9a-4964-bb6c-6b6f7d43b93e" />
+    <UnitTestResult executionId="52d53d78-7bc0-43c8-ba9b-953dab98e5ec" testId="63af5b5a-3aaa-e535-e901-a168f5346d47" testName="GetNodeDefinition_ReturnsErrorForUnknownKind" computerName="VMIKHAILOV-PC" duration="00:00:00.0002260" startTime="2026-06-09T11:29:21.5898230+02:00" endTime="2026-06-09T11:29:21.5900488+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="52d53d78-7bc0-43c8-ba9b-953dab98e5ec" />
+    <UnitTestResult executionId="b2c06c2d-6bf2-47dc-b0d2-5673db05f7a6" testId="edfb4c29-6d7b-b162-5247-800e0a9f418f" testName="RenderedMarkdownContainsAutoGeneratedHeader" computerName="VMIKHAILOV-PC" duration="00:00:00.0122650" startTime="2026-06-09T11:29:21.5460006+02:00" endTime="2026-06-09T11:29:21.5582655+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b2c06c2d-6bf2-47dc-b0d2-5673db05f7a6" />
+    <UnitTestResult executionId="11b4d3f5-3dfa-4760-a499-5158186aef59" testId="9672c432-8278-c900-578d-1ea9ca977fb6" testName="ExtractsOwnsRelationship" computerName="VMIKHAILOV-PC" duration="00:00:00.0005060" startTime="2026-06-09T11:29:21.5437102+02:00" endTime="2026-06-09T11:29:21.5442162+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="11b4d3f5-3dfa-4760-a499-5158186aef59" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Test_FindRefactoringOpportunities" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="5bc770e5-3363-ff19-c1e1-3ff5f8a596fc">
+      <Execution id="bc821cd1-faef-4e21-b9e7-e995865a5f4a" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_FindRefactoringOpportunities" />
+    </UnitTest>
+    <UnitTest name="GetNodeDefinition_ReturnsErrorForInvalidKind(&quot;&quot;)" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="aff40392-b700-df85-6cfd-9259f81629f3">
+      <Execution id="dc19d97e-d9ea-477c-a812-f49eff8fdb29" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyRegistryTests" name="GetNodeDefinition_ReturnsErrorForInvalidKind(&quot;&quot;)" />
+    </UnitTest>
+    <UnitTest name="GetNodeDefinition_ReturnsErrorForUnknownKind" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="63af5b5a-3aaa-e535-e901-a168f5346d47">
+      <Execution id="52d53d78-7bc0-43c8-ba9b-953dab98e5ec" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyRegistryTests" name="GetNodeDefinition_ReturnsErrorForUnknownKind" />
+    </UnitTest>
+    <UnitTest name="Test_NewParserFeatures" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="0a39a0b3-181d-fd7d-571d-2b3d1965b834">
+      <Execution id="feceebd5-5853-4b35-8726-a0c0af1138e1" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_NewParserFeatures" />
+    </UnitTest>
+    <UnitTest name="Test_GoParser_EmbeddedSql" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="b86144c5-e162-ce78-1d12-c45c2331977a">
+      <Execution id="019bb26b-d783-457d-8cbc-7224c05ed3ac" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_GoParser_EmbeddedSql" />
+    </UnitTest>
+    <UnitTest name="Test_RestNodeDefinition_ReturnsNotFoundForUnknown" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="52b7b850-0627-f16e-49a9-f3cf9b8beb64">
+      <Execution id="9a45de65-249b-4c16-bb65-f1496c82eefe" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_RestNodeDefinition_ReturnsNotFoundForUnknown" />
+    </UnitTest>
+    <UnitTest name="Test_CSharpParser_EmbeddedSql" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="e398d22f-5462-d616-38a1-5c629a1164f6">
+      <Execution id="e0ccdc8d-f68f-4eda-b369-ae04268cdcf8" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_CSharpParser_EmbeddedSql" />
+    </UnitTest>
+    <UnitTest name="Test_SequenceDetector_SubsequenceStrategy" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="d6dacabc-5ab5-5902-20c4-f1a891423d63">
+      <Execution id="5769b51d-8cb6-490e-b359-5238cf405ade" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.SequenceDetectorTests" name="Test_SequenceDetector_SubsequenceStrategy" />
+    </UnitTest>
+    <UnitTest name="RenderedMarkdownContainsNodeLabels" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="43892e30-ab0b-e331-5e73-65d4c45cbf31">
+      <Execution id="c5adf12b-126c-41e1-ab43-c13952821b71" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="RenderedMarkdownContainsNodeLabels" />
+    </UnitTest>
+    <UnitTest name="AnimalHasLivesInEdgeToHabitat" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="85ee8d19-3d41-0274-b6db-a2e1180f5efb">
+      <Execution id="b3298188-06a4-45ea-81ba-5b1c8ebd6761" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="AnimalHasLivesInEdgeToHabitat" />
+    </UnitTest>
+    <UnitTest name="Test_RestTaxonomy_ReturnsSuccess" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="a64005aa-4aad-a917-86f4-b587b7050287">
+      <Execution id="a3ce71ec-216c-45b7-bcf0-2b14b015759a" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_RestTaxonomy_ReturnsSuccess" />
+    </UnitTest>
+    <UnitTest name="Test_NestedSqlParser_CleanQueryText_NestedQuotes" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="c5e28637-7f64-2d30-b6ab-268beea8c124">
+      <Execution id="7772dfa4-ab0d-40b7-974c-3b9f756bf532" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_NestedSqlParser_CleanQueryText_NestedQuotes" />
+    </UnitTest>
+    <UnitTest name="Test_SequenceDetector_Predicates" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="3414f8bd-eadc-ccec-e02c-291431d2c668">
+      <Execution id="6675c881-dc69-45ae-9826-7f367fa9a700" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.SequenceDetectorTests" name="Test_SequenceDetector_Predicates" />
+    </UnitTest>
+    <UnitTest name="RenderedMarkdownContainsAutoGeneratedHeader" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="edfb4c29-6d7b-b162-5247-800e0a9f418f">
+      <Execution id="b2c06c2d-6bf2-47dc-b0d2-5673db05f7a6" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="RenderedMarkdownContainsAutoGeneratedHeader" />
+    </UnitTest>
+    <UnitTest name="Test_ExecuteCustomReadCypher" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="010ce5f3-4265-a014-d9c1-5a5bcab4eb1c">
+      <Execution id="d8f0b880-0ef5-486e-9936-2dfaaa29f1df" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_ExecuteCustomReadCypher" />
+    </UnitTest>
+    <UnitTest name="Test_NodeSelector_Select" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="7d851cb4-9ee4-e73b-60f4-fab17ed64b66">
+      <Execution id="00929cb1-4482-4470-89d8-18ef4083acb0" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.NodeSelectorTests" name="Test_NodeSelector_Select" />
+    </UnitTest>
+    <UnitTest name="Test_SequenceDetector_ExactStrategy" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="4ffc9986-a00a-e878-63c6-9794020ef2b1">
+      <Execution id="9c131ee3-f0df-49bd-8365-8ac83c9dc875" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.SequenceDetectorTests" name="Test_SequenceDetector_ExactStrategy" />
+    </UnitTest>
+    <UnitTest name="Test_NodeSelector_HasType_And_FirstChild_And_GetChildForField" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="5b7c0f44-52ee-7103-b3b4-4c58dcf1602d">
+      <Execution id="612bcc29-55a9-447e-a9f7-7f08646be78e" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.NodeSelectorTests" name="Test_NodeSelector_HasType_And_FirstChild_And_GetChildForField" />
+    </UnitTest>
+    <UnitTest name="Test_TypeScriptParser_EmbeddedSql" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="a06b5a07-181f-a998-7c15-021a53531ad5">
+      <Execution id="4c7d662d-021a-4e51-924e-25b98d04bdc5" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeScriptParser_EmbeddedSql" />
+    </UnitTest>
+    <UnitTest name="Test_GetTaxonomy" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="157f4b26-e5c0-71d8-8d5c-e9bc4b76c0b6">
+      <Execution id="81f6766b-8d7c-4f39-b96d-9991c6176251" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_GetTaxonomy" />
+    </UnitTest>
+    <UnitTest name="ExtractsOwnsRelationship" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="9672c432-8278-c900-578d-1ea9ca977fb6">
+      <Execution id="11b4d3f5-3dfa-4760-a499-5158186aef59" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="ExtractsOwnsRelationship" />
+    </UnitTest>
+    <UnitTest name="ZooHasOwnsEdgeToAnimal" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="064f1795-ec2d-e527-345b-47eb28bc964e">
+      <Execution id="e7e75e51-ed2a-45d9-9438-5a8255de0fe3" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="ZooHasOwnsEdgeToAnimal" />
+    </UnitTest>
+    <UnitTest name="Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="5340d87e-c8e3-6c15-d217-d325d0c2b6dc">
+      <Execution id="afb87b8d-ec13-4be8-a6e5-10774c773036" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding" />
+    </UnitTest>
+    <UnitTest name="RenderedMarkdownContainsOutboundEdge" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="0d754ae8-3f7c-70f6-3217-d6fef196b896">
+      <Execution id="0850d79b-6f9a-4964-bb6c-6b6f7d43b93e" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="RenderedMarkdownContainsOutboundEdge" />
+    </UnitTest>
+    <UnitTest name="Test_GetProjectDependencies" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="de2a1624-e5ac-5513-5d43-13d7dc0617d7">
+      <Execution id="7b770a71-be4f-44ff-9ea0-d3ccc18c0a4d" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_GetProjectDependencies" />
+    </UnitTest>
+    <UnitTest name="Test_PythonParser_EmbeddedSql" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="ab81f5de-c238-6660-da6c-8a4b6a09bbe6">
+      <Execution id="7663e658-094d-4e03-a4b0-8b0e6195f57c" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_PythonParser_EmbeddedSql" />
+    </UnitTest>
+    <UnitTest name="GetNodeDefinition_ReturnsErrorForInvalidKind(null)" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="706cedb9-1d75-9965-972b-ba750cb205df">
+      <Execution id="151bbef2-5a73-45f2-a56d-4e189e224c97" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyRegistryTests" name="GetNodeDefinition_ReturnsErrorForInvalidKind(null)" />
+    </UnitTest>
+    <UnitTest name="Test_RestNodeDefinition_ReturnsBadRequestForEmpty" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="c9360d09-c15b-f9fa-6f4c-6b11834504df">
+      <Execution id="9552feb2-bbfb-4d23-a937-2a8e0aeb336e" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_RestNodeDefinition_ReturnsBadRequestForEmpty" />
+    </UnitTest>
+    <UnitTest name="PropertiesWithoutAttributeAreExcluded" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="c05771fc-06a9-9a59-3bdc-aec48ad63b68">
+      <Execution id="a4753896-87cb-4f5b-b5c4-4725c258e284" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="PropertiesWithoutAttributeAreExcluded" />
+    </UnitTest>
+    <UnitTest name="Test_TypeScriptParser_WithExamples" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="26049e90-1a44-234b-b819-41f395f82e8b">
+      <Execution id="9e5d6a5b-f135-4461-84f0-6343b920549b" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeScriptParser_WithExamples" />
+    </UnitTest>
+    <UnitTest name="Test_GetNodeDefinition" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="634fec66-9b38-9f1c-5df3-b0a491fdb825">
+      <Execution id="ee269e0b-e259-488c-a038-8a7ff8077319" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_GetNodeDefinition" />
+    </UnitTest>
+    <UnitTest name="Test_GetProjectEntryPoints" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="07206732-c079-3f39-ef03-b6df241afe66">
+      <Execution id="1ae116bd-8bda-4892-a251-8d907e16f838" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_GetProjectEntryPoints" />
+    </UnitTest>
+    <UnitTest name="ExtractsExpectedNodeCount" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="30c6fa6f-3df1-8de9-23aa-e7174b1c6926">
+      <Execution id="a3f6f8fe-0c0c-43d4-9eec-f897b2ed8319" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="ExtractsExpectedNodeCount" />
+    </UnitTest>
+    <UnitTest name="Test_CSharpParser_ApiIngressEgress" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="409cf1d9-4aaf-0c34-9d4f-bbad2a2eff3b">
+      <Execution id="8e055a1b-a869-475f-b7f0-03b2e845e484" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_CSharpParser_ApiIngressEgress" />
+    </UnitTest>
+    <UnitTest name="ExtractsZooNode" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="d8c99413-886d-5f23-138b-1bb8819af7a8">
+      <Execution id="f55f3ab0-2720-4b0b-82d3-653090c819a1" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="ExtractsZooNode" />
+    </UnitTest>
+    <UnitTest name="HabitatNodeHasNoOutboundEdges" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="8b4a6ba4-e572-be65-6027-061e836eecf0">
+      <Execution id="5039b881-c70c-437b-8f9e-640273e46f3d" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="HabitatNodeHasNoOutboundEdges" />
+    </UnitTest>
+    <UnitTest name="Test_SequenceDetector_SuffixStrategy" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="65d83d89-502c-3ee0-911d-2af51dbe6d35">
+      <Execution id="a581f1d3-a71c-4fe3-bc69-7fbabfdd4ed5" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.SequenceDetectorTests" name="Test_SequenceDetector_SuffixStrategy" />
+    </UnitTest>
+    <UnitTest name="Test_RestNodeDefinition_ReturnsSuccess" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="944dd5c8-41c4-fa6f-4451-325a75784f0a">
+      <Execution id="e46c7727-de1c-4b43-b8f7-048ef2c7a35a" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_RestNodeDefinition_ReturnsSuccess" />
+    </UnitTest>
+    <UnitTest name="Test_LibraryParsers_CSharpAndTS" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="f5813a33-cc5f-0cd6-fbfb-13f9f0a397b9">
+      <Execution id="e9a128de-8286-44e0-b8b8-f4c769097089" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_LibraryParsers_CSharpAndTS" />
+    </UnitTest>
+    <UnitTest name="Test_NodeSelector_Or_And_HasChild_And_FunctionNode" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="e9999937-0ac7-f12a-f169-0b64f1c307cf">
+      <Execution id="aa5cfbb2-9160-4c06-8e34-60055f8c1b8c" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.NodeSelectorTests" name="Test_NodeSelector_Or_And_HasChild_And_FunctionNode" />
+    </UnitTest>
+    <UnitTest name="RenderedMarkdownContainsIdSchemeTable" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="5544b065-4ef6-d969-12f2-c6c1610e4bdd">
+      <Execution id="d6f1ab05-b7b2-4959-92d4-ea25f0b0cc6f" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="RenderedMarkdownContainsIdSchemeTable" />
+    </UnitTest>
+    <UnitTest name="ExtractsAnimalNode" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="e5d084c0-c0bc-01cf-2e2c-c60b564f710d">
+      <Execution id="97d073b2-3f62-472f-a4a3-4cec5e75b1dc" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="ExtractsAnimalNode" />
+    </UnitTest>
+    <UnitTest name="Test_TypeScriptParser_ApiIngressEgress" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="991dd2f3-5757-8f8f-ad0a-5936c68085f2">
+      <Execution id="add808c4-4ec2-4624-9c10-d69b84c35f5a" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeScriptParser_ApiIngressEgress" />
+    </UnitTest>
+    <UnitTest name="GetNodeDefinition_ReturnsValidInboundRelationships" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="59a010d1-e0e8-eea2-aa6c-7c8370226c6b">
+      <Execution id="848af82b-d82a-4706-8889-4f8a9a4a6d12" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyRegistryTests" name="GetNodeDefinition_ReturnsValidInboundRelationships" />
+    </UnitTest>
+    <UnitTest name="Test_LibraryTrieRegistry_Matching" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="25f5d524-9c2c-04a3-7f83-2b5e20748677">
+      <Execution id="887f3533-4251-400f-88e9-e9ef42efe96a" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_LibraryTrieRegistry_Matching" />
+    </UnitTest>
+    <UnitTest name="RenderedMarkdownContainsRelationshipsSection" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="83d77d86-4d55-32be-e16d-e8e8fc886083">
+      <Execution id="702fdd41-8d70-48d0-a238-a2997c5d6f6b" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="RenderedMarkdownContainsRelationshipsSection" />
+    </UnitTest>
+    <UnitTest name="RenderedMarkdownContainsIncomingEdgeForAnimal" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="d5e37d0f-1386-1733-569a-866c6ac4c784">
+      <Execution id="f03a70ff-712d-49ec-837b-22d6e43a3d23" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="RenderedMarkdownContainsIncomingEdgeForAnimal" />
+    </UnitTest>
+    <UnitTest name="Test_TypeScriptParser_EmbeddedSql_ComplexTemplate" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="26387328-3835-9acb-0daf-f2897623cbe4">
+      <Execution id="0064bdf9-9b2a-4c5f-9692-736144381739" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeScriptParser_EmbeddedSql_ComplexTemplate" />
+    </UnitTest>
+    <UnitTest name="ToSnakeCase_ConvertsCorrectly" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="4d11df0c-1411-4c54-5c74-302856344ad6">
+      <Execution id="36fa1921-f9b8-4571-82a2-31eba1f11d9b" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyRegistryTests" name="ToSnakeCase_ConvertsCorrectly" />
+    </UnitTest>
+    <UnitTest name="GetNodeDefinition_ReturnsErrorForInvalidKind(&quot;   &quot;)" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="16b3faed-9a4a-e453-df5f-6e6391da06ad">
+      <Execution id="9ee394f2-86fc-40c1-b066-19cba58dc777" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyRegistryTests" name="GetNodeDefinition_ReturnsErrorForInvalidKind(&quot;   &quot;)" />
+    </UnitTest>
+    <UnitTest name="Test_GetArchitectureMap" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="7fa66c33-802c-7c54-0272-604536e55d42">
+      <Execution id="a9d4438b-21c8-4773-b9fb-8e79cf77461a" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.McpIntegrationTests" name="Test_GetArchitectureMap" />
+    </UnitTest>
+    <UnitTest name="KindMapping_ContainsCoreNodeKinds" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="792bb060-7c38-a6a5-e218-d560a600dbaf">
+      <Execution id="fe8b9cfa-d414-497b-b86b-72fede43fa5b" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyRegistryTests" name="KindMapping_ContainsCoreNodeKinds" />
+    </UnitTest>
+    <UnitTest name="Test_SemanticAnalysisAndOntologyEnrichment" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="429e712c-f669-8ba0-0b6d-b1af27a09f95">
+      <Execution id="e1b8563e-53bb-4af7-8d58-5faec510d209" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_SemanticAnalysisAndOntologyEnrichment" />
+    </UnitTest>
+    <UnitTest name="GetNodeDefinition_ReturnsValidDefinitionForWorkspace" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="f8217231-c2a5-b351-7488-d5dd582ac607">
+      <Execution id="bcfb42b6-95cb-4159-a043-5f4c8967f509" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyRegistryTests" name="GetNodeDefinition_ReturnsValidDefinitionForWorkspace" />
+    </UnitTest>
+    <UnitTest name="Test_SemanticModel_DbTypeMapping" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="6bd5140b-91bb-7e40-552d-b80a49c68dfe">
+      <Execution id="16d34c1e-5883-4f87-b092-f4ab0684b5aa" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_SemanticModel_DbTypeMapping" />
+    </UnitTest>
+    <UnitTest name="ExtractsExpectedRelationshipCount" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="1321424e-71d4-f678-e899-b35e3515bfd3">
+      <Execution id="c61df7d8-225f-4469-8ad0-83bb23d766c4" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="ExtractsExpectedRelationshipCount" />
+    </UnitTest>
+    <UnitTest name="Test_NestedProjectsResolution" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="a8b8cc6d-5a49-4731-650c-54d876cbd17f">
+      <Execution id="4d799334-f235-4b70-82b2-d641235be455" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_NestedProjectsResolution" />
+    </UnitTest>
+    <UnitTest name="Test_TypeBindingsAndCallsResolution" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="eff3846e-7703-24aa-4ed3-627eb8ce07d4">
+      <Execution id="d44077d1-ab36-49a9-9ca1-fb801b184b12" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.ParserValidationTests" name="Test_TypeBindingsAndCallsResolution" />
+    </UnitTest>
+    <UnitTest name="AnimalNodeHasSpeciesProperty" storage="c:\work\personal\code-explorer\.build\bin_debug_anycpu\codeexplorer.tests\codeexplorer.tests.dll" id="7c4f96b5-ad6d-ed38-7cc4-c7c63b0cc0d3">
+      <Execution id="8a802d64-81aa-479c-a8cd-26c31bfcf49d" />
+      <TestMethod codeBase="C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll" adapterTypeName="executor://nunit3testexecutor/" className="CodeExplorer.Tests.OntologyGen.OntologyGenTests" name="AnimalNodeHasSpeciesProperty" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="064f1795-ec2d-e527-345b-47eb28bc964e" executionId="e7e75e51-ed2a-45d9-9438-5a8255de0fe3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7c4f96b5-ad6d-ed38-7cc4-c7c63b0cc0d3" executionId="8a802d64-81aa-479c-a8cd-26c31bfcf49d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="409cf1d9-4aaf-0c34-9d4f-bbad2a2eff3b" executionId="8e055a1b-a869-475f-b7f0-03b2e845e484" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="aff40392-b700-df85-6cfd-9259f81629f3" executionId="dc19d97e-d9ea-477c-a812-f49eff8fdb29" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4d11df0c-1411-4c54-5c74-302856344ad6" executionId="36fa1921-f9b8-4571-82a2-31eba1f11d9b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="634fec66-9b38-9f1c-5df3-b0a491fdb825" executionId="ee269e0b-e259-488c-a038-8a7ff8077319" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e5d084c0-c0bc-01cf-2e2c-c60b564f710d" executionId="97d073b2-3f62-472f-a4a3-4cec5e75b1dc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5340d87e-c8e3-6c15-d217-d325d0c2b6dc" executionId="afb87b8d-ec13-4be8-a6e5-10774c773036" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7fa66c33-802c-7c54-0272-604536e55d42" executionId="a9d4438b-21c8-4773-b9fb-8e79cf77461a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="944dd5c8-41c4-fa6f-4451-325a75784f0a" executionId="e46c7727-de1c-4b43-b8f7-048ef2c7a35a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ab81f5de-c238-6660-da6c-8a4b6a09bbe6" executionId="7663e658-094d-4e03-a4b0-8b0e6195f57c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5b7c0f44-52ee-7103-b3b4-4c58dcf1602d" executionId="612bcc29-55a9-447e-a9f7-7f08646be78e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1321424e-71d4-f678-e899-b35e3515bfd3" executionId="c61df7d8-225f-4469-8ad0-83bb23d766c4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="59a010d1-e0e8-eea2-aa6c-7c8370226c6b" executionId="848af82b-d82a-4706-8889-4f8a9a4a6d12" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e9999937-0ac7-f12a-f169-0b64f1c307cf" executionId="aa5cfbb2-9160-4c06-8e34-60055f8c1b8c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="65d83d89-502c-3ee0-911d-2af51dbe6d35" executionId="a581f1d3-a71c-4fe3-bc69-7fbabfdd4ed5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d6dacabc-5ab5-5902-20c4-f1a891423d63" executionId="5769b51d-8cb6-490e-b359-5238cf405ade" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="26387328-3835-9acb-0daf-f2897623cbe4" executionId="0064bdf9-9b2a-4c5f-9692-736144381739" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="83d77d86-4d55-32be-e16d-e8e8fc886083" executionId="702fdd41-8d70-48d0-a238-a2997c5d6f6b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d5e37d0f-1386-1733-569a-866c6ac4c784" executionId="f03a70ff-712d-49ec-837b-22d6e43a3d23" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c05771fc-06a9-9a59-3bdc-aec48ad63b68" executionId="a4753896-87cb-4f5b-b5c4-4725c258e284" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d8c99413-886d-5f23-138b-1bb8819af7a8" executionId="f55f3ab0-2720-4b0b-82d3-653090c819a1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5bc770e5-3363-ff19-c1e1-3ff5f8a596fc" executionId="bc821cd1-faef-4e21-b9e7-e995865a5f4a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="26049e90-1a44-234b-b819-41f395f82e8b" executionId="9e5d6a5b-f135-4461-84f0-6343b920549b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="eff3846e-7703-24aa-4ed3-627eb8ce07d4" executionId="d44077d1-ab36-49a9-9ca1-fb801b184b12" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="43892e30-ab0b-e331-5e73-65d4c45cbf31" executionId="c5adf12b-126c-41e1-ab43-c13952821b71" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8b4a6ba4-e572-be65-6027-061e836eecf0" executionId="5039b881-c70c-437b-8f9e-640273e46f3d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="792bb060-7c38-a6a5-e218-d560a600dbaf" executionId="fe8b9cfa-d414-497b-b86b-72fede43fa5b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="85ee8d19-3d41-0274-b6db-a2e1180f5efb" executionId="b3298188-06a4-45ea-81ba-5b1c8ebd6761" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="157f4b26-e5c0-71d8-8d5c-e9bc4b76c0b6" executionId="81f6766b-8d7c-4f39-b96d-9991c6176251" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e398d22f-5462-d616-38a1-5c629a1164f6" executionId="e0ccdc8d-f68f-4eda-b369-ae04268cdcf8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="706cedb9-1d75-9965-972b-ba750cb205df" executionId="151bbef2-5a73-45f2-a56d-4e189e224c97" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a64005aa-4aad-a917-86f4-b587b7050287" executionId="a3ce71ec-216c-45b7-bcf0-2b14b015759a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="429e712c-f669-8ba0-0b6d-b1af27a09f95" executionId="e1b8563e-53bb-4af7-8d58-5faec510d209" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="07206732-c079-3f39-ef03-b6df241afe66" executionId="1ae116bd-8bda-4892-a251-8d907e16f838" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7d851cb4-9ee4-e73b-60f4-fab17ed64b66" executionId="00929cb1-4482-4470-89d8-18ef4083acb0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="52b7b850-0627-f16e-49a9-f3cf9b8beb64" executionId="9a45de65-249b-4c16-bb65-f1496c82eefe" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c9360d09-c15b-f9fa-6f4c-6b11834504df" executionId="9552feb2-bbfb-4d23-a937-2a8e0aeb336e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="991dd2f3-5757-8f8f-ad0a-5936c68085f2" executionId="add808c4-4ec2-4624-9c10-d69b84c35f5a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="de2a1624-e5ac-5513-5d43-13d7dc0617d7" executionId="7b770a71-be4f-44ff-9ea0-d3ccc18c0a4d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b86144c5-e162-ce78-1d12-c45c2331977a" executionId="019bb26b-d783-457d-8cbc-7224c05ed3ac" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0a39a0b3-181d-fd7d-571d-2b3d1965b834" executionId="feceebd5-5853-4b35-8726-a0c0af1138e1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f8217231-c2a5-b351-7488-d5dd582ac607" executionId="bcfb42b6-95cb-4159-a043-5f4c8967f509" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="010ce5f3-4265-a014-d9c1-5a5bcab4eb1c" executionId="d8f0b880-0ef5-486e-9936-2dfaaa29f1df" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a8b8cc6d-5a49-4731-650c-54d876cbd17f" executionId="4d799334-f235-4b70-82b2-d641235be455" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c5e28637-7f64-2d30-b6ab-268beea8c124" executionId="7772dfa4-ab0d-40b7-974c-3b9f756bf532" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5544b065-4ef6-d969-12f2-c6c1610e4bdd" executionId="d6f1ab05-b7b2-4959-92d4-ea25f0b0cc6f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3414f8bd-eadc-ccec-e02c-291431d2c668" executionId="6675c881-dc69-45ae-9826-7f367fa9a700" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a06b5a07-181f-a998-7c15-021a53531ad5" executionId="4c7d662d-021a-4e51-924e-25b98d04bdc5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="30c6fa6f-3df1-8de9-23aa-e7174b1c6926" executionId="a3f6f8fe-0c0c-43d4-9eec-f897b2ed8319" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f5813a33-cc5f-0cd6-fbfb-13f9f0a397b9" executionId="e9a128de-8286-44e0-b8b8-f4c769097089" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="25f5d524-9c2c-04a3-7f83-2b5e20748677" executionId="887f3533-4251-400f-88e9-e9ef42efe96a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6bd5140b-91bb-7e40-552d-b80a49c68dfe" executionId="16d34c1e-5883-4f87-b092-f4ab0684b5aa" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="16b3faed-9a4a-e453-df5f-6e6391da06ad" executionId="9ee394f2-86fc-40c1-b066-19cba58dc777" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4ffc9986-a00a-e878-63c6-9794020ef2b1" executionId="9c131ee3-f0df-49bd-8365-8ac83c9dc875" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0d754ae8-3f7c-70f6-3217-d6fef196b896" executionId="0850d79b-6f9a-4964-bb6c-6b6f7d43b93e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="63af5b5a-3aaa-e535-e901-a168f5346d47" executionId="52d53d78-7bc0-43c8-ba9b-953dab98e5ec" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="edfb4c29-6d7b-b162-5247-800e0a9f418f" executionId="b2c06c2d-6bf2-47dc-b0d2-5673db05f7a6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9672c432-8278-c900-578d-1ea9ca977fb6" executionId="11b4d3f5-3dfa-4760-a499-5158186aef59" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="59" executed="58" passed="56" failed="2" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>NUnit Adapter 4.5.0.0: Test execution started&#xD;
+Running all tests in C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll&#xD;
+   NUnit3TestExecutor discovered 59 of 59 NUnit test cases using Current Discovery mode, Non-Explicit run&#xD;
+Test_TypeScriptParser_WithExamples: Multiple failures or warnings in test:&#xD;
+  1) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/cron/cron.service.ts&#xD;
+  2) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/services/calibrate-min-roi.service.ts&#xD;
+  3) Example file not found: /Users/slava/Projects/ATS/src/services/calc-epm/src/interfaces/configs/config.models.ts&#xD;
+&#xD;
+Test 'Test_TypeScriptParser_WithExamples' was skipped in the test run.&#xD;
+NUnit Adapter 4.5.0.0: Test execution complete&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:18.8548872+02:00">
+        <Text>[2026-06-09 11:29:18.839] [+7ms] [WorkspaceIndexer] Starting background database persistence loop...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:18.8553304+02:00">
+        <Text>[2026-06-09 11:29:18.848] [+10ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:/Users/viach/AppData/Local/Temp/codeexplorer_mcp_test_4e31fda2-4faf-4e60-aa6e-494c16ef7164'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:19.5903089+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'CodeExplorer'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:19.6866522+02:00">
+        <Text>[WorkspaceParser] Completed structural scan of project 'CodeExplorer'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:19.6904806+02:00">
+        <Text>[2026-06-09 11:29:19.689] [+851ms] [WorkspaceParser] Starting syntax enrichment pass for 1 projects...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:19.6934960+02:00">
+        <Text>[WorkspaceParser] Starting syntax enrichment of project 'CodeExplorer'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:19.7750567+02:00">
+        <Text>[WorkspaceParser] Completed syntax enrichment of project 'CodeExplorer'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:19.8592008+02:00">
+        <Text>[2026-06-09 11:29:19.858] [+1020ms] [LateBinding] Found 0 EntryPoints, 2 Endpoints, and 0 ExternalServices in the workspace.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:20.0970414+02:00">
+        <Text>[2026-06-09 11:29:20.096] [+1258ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 9 nodes, 9 relationships.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:20.1060895+02:00">
+        <Text>[2026-06-09 11:29:20.104] [+1266ms] [WorkspaceIndexer] Resolving 9 global cross-references...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:20.1113733+02:00">
+        <Text>[2026-06-09 11:29:20.110] [+1272ms] [WorkspaceIndexer] Uploading 3 resolved reference relationships...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:20.1272694+02:00">
+        <Text>[2026-06-09 11:29:20.126] [+1288ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:20.1537095+02:00">
+        <Text>[2026-06-09 11:29:20.153] [+1315ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 9, Total Relationships: 12.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:20.6223739+02:00">
+        <Text>Starting Unified CodeExplorer Web Service (MCP + REST Management) on http://localhost:8185...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:20.6224430+02:00">
+        <Text>Swagger UI available at http://localhost:8185/swagger</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.1449228+02:00">
+        <Text>Tool execute_custom_read_cypher executed successfully.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.1579983+02:00">
+        <Text>Tool find_refactoring_opportunities executed successfully.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.1795672+02:00">
+        <Text>Tool get_architecture_map executed successfully.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.1980599+02:00">
+        <Text>Tool get_node_definition executed successfully.&#xD;
+Tool get_node_definition executed successfully.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.2103992+02:00">
+        <Text>Tool get_project_dependencies executed successfully.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.2224205+02:00">
+        <Text>Tool get_project_entry_points executed successfully.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.2580672+02:00">
+        <Text>Tool get_taxonomy executed successfully.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.6113684+02:00">
+        <Text>Library 'ASP.NET Core' detected but parser is not implemented yet.&#xD;
+Finished parsing file: csharp_api_test.cs with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.7585006+02:00">
+        <Text>Finished parsing file: embedded_sql_test.cs with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.7790009+02:00">
+        <Text>Finished parsing file: embedded_sql_test.go with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.7972039+02:00">
+        <Text>Finished parsing file: Service.cs with 1 top-level symbols.&#xD;
+Finished parsing file: app.ts with 2 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.8037300+02:00">
+        <Text>[2026-06-09 11:29:21.803] [+0ms] [WorkspaceIndexer] Starting background database persistence loop...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.8039197+02:00">
+        <Text>[2026-06-09 11:29:21.803] [+0ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:\Users\viach\AppData\Local\Temp\codeexplorer_nested_project_test_12160da7-bb02-483c-b86c-ab0314c57988'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9244134+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9249978+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectB'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9339813+02:00">
+        <Text>[WorkspaceParser] Completed structural scan of project 'ProjectB'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9354809+02:00">
+        <Text>[WorkspaceParser] Completed structural scan of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9356214+02:00">
+        <Text>[2026-06-09 11:29:21.935] [+131ms] [WorkspaceParser] Starting syntax enrichment pass for 2 projects...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9357437+02:00">
+        <Text>[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9360727+02:00">
+        <Text>[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9362668+02:00">
+        <Text>[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9370190+02:00">
+        <Text>[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9386153+02:00">
+        <Text>[2026-06-09 11:29:21.938] [+134ms] [LateBinding] Found 0 EntryPoints, 0 Endpoints, and 0 ExternalServices in the workspace.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9921212+02:00">
+        <Text>[2026-06-09 11:29:21.991] [+188ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 11 nodes, 12 relationships.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9922823+02:00">
+        <Text>[2026-06-09 11:29:21.991] [+188ms] [WorkspaceIndexer] Resolving 2 global cross-references...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:21.9924665+02:00">
+        <Text>[2026-06-09 11:29:21.991] [+188ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0062115+02:00">
+        <Text>[2026-06-09 11:29:22.005] [+202ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 11, Total Relationships: 12.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0265283+02:00">
+        <Text>Finished parsing file: ProjectA/ProjectB/serviceB.ts with 1 top-level symbols.&#xD;
+Finished parsing file: ProjectA/serviceA.ts with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0593577+02:00">
+        <Text>Finished parsing file: app.py with 2 top-level symbols.&#xD;
+--- GO AST START ---&#xD;
+Type: source_file, Text: package main&#xD;
+ import "net/http"&#xD;
+ func Register(r *gin.Engine) {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+ &#xD;
+  Type: package_clause, Text: package main&#xD;
+    Type: package, Text: package&#xD;
+    Type: package_identifier, Text: main&#xD;
+  Type: import_declaration, Text: import "net/http"&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_spec, Text: "net/http"&#xD;
+      Type: interpreted_string_literal, Text: "net/http"&#xD;
+        Type: ", Text: "&#xD;
+        Type: interpreted_string_literal_content, Text: net/http&#xD;
+        Type: ", Text: "&#xD;
+  Type: function_declaration, Text: func Register(r *gin.Engine) {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+    Type: func, Text: func&#xD;
+    Type: identifier, Text: Register&#xD;
+    Type: parameter_list, Text: (r *gin.Engine)&#xD;
+      Type: (, Text: (&#xD;
+      Type: parameter_declaration, Text: r *gin.Engine&#xD;
+        Type: identifier, Text: r&#xD;
+        Type: pointer_type, Text: *gin.Engine&#xD;
+          Type: *, Text: *&#xD;
+          Type: qualified_type, Text: gin.Engine&#xD;
+            Type: package_identifier, Text: gin&#xD;
+            Type: ., Text: .&#xD;
+            Type: type_identifier, Text: Engine&#xD;
+      Type: ), Text: )&#xD;
+    Type: block, Text: {&#xD;
+     r.GET("/api/v1/users", GetUsers)&#xD;
+ }&#xD;
+      Type: {, Text: {&#xD;
+      Type: statement_list, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+ &#xD;
+        Type: expression_statement, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+          Type: call_expression, Text: r.GET("/api/v1/users", GetUsers)&#xD;
+            Type: selector_expression, Text: r.GET&#xD;
+              Type: identifier, Text: r&#xD;
+              Type: ., Text: .&#xD;
+              Type: field_identifier, Text: GET&#xD;
+            Type: argument_list, Text: ("/api/v1/users", GetUsers)&#xD;
+              Type: (, Text: (&#xD;
+              Type: interpreted_string_literal, Text: "/api/v1/users"&#xD;
+                Type: ", Text: "&#xD;
+                Type: interpreted_string_literal_content, Text: /api/v1/users&#xD;
+                Type: ", Text: "&#xD;
+              Type: ,, Text: ,&#xD;
+              Type: identifier, Text: GetUsers&#xD;
+              Type: ), Text: )&#xD;
+      Type: }, Text: }&#xD;
+--- GO AST END ---&#xD;
+Library 'http/https' detected but parser is not implemented yet.&#xD;
+Finished parsing file: main.go with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0688461+02:00">
+        <Text>Finished parsing file: embedded_sql_test.py with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0760806+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0813417+02:00">
+        <Text>[WorkspaceParser] Completed structural scan of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0814075+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectB'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0821719+02:00">
+        <Text>[WorkspaceParser] Completed structural scan of project 'ProjectB'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.0823254+02:00">
+        <Text>[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.1097059+02:00">
+        <Text>[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.1098644+02:00">
+        <Text>[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.1130701+02:00">
+        <Text>[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.1176087+02:00">
+        <Text>Library 'Stripe' detected but parser is not implemented yet.&#xD;
+Finished parsing file: ProjectA/Repository.cs with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.1283520+02:00">
+        <Text>[2026-06-09 11:29:22.127] [+0ms] [WorkspaceIndexer] Starting background database persistence loop...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.1285027+02:00">
+        <Text>[2026-06-09 11:29:22.127] [+0ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:\Users\viach\AppData\Local\Temp\codeexplorer_typebinding_test_5b2bc760-8ac5-43fb-aa84-ea2a0385f97e'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2039119+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2051971+02:00">
+        <Text>[WorkspaceParser] Completed structural scan of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2053253+02:00">
+        <Text>[2026-06-09 11:29:22.204] [+76ms] [WorkspaceParser] Starting syntax enrichment pass for 1 projects...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2054797+02:00">
+        <Text>[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2056865+02:00">
+        <Text>[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2068688+02:00">
+        <Text>[2026-06-09 11:29:22.206] [+78ms] [LateBinding] Found 0 EntryPoints, 0 Endpoints, and 0 ExternalServices in the workspace.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2518629+02:00">
+        <Text>[2026-06-09 11:29:22.251] [+123ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 10 nodes, 10 relationships.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2519310+02:00">
+        <Text>[2026-06-09 11:29:22.251] [+123ms] [WorkspaceIndexer] Resolving 5 global cross-references...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2529610+02:00">
+        <Text>[2026-06-09 11:29:22.252] [+124ms] [WorkspaceIndexer] Uploading 1 resolved reference relationships...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2566379+02:00">
+        <Text>[2026-06-09 11:29:22.256] [+128ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2709866+02:00">
+        <Text>[2026-06-09 11:29:22.270] [+142ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 10, Total Relationships: 11.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2791593+02:00">
+        <Text>Finished parsing file: ProjectA/OrderService.ts with 2 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2932349+02:00">
+        <Text>--- TS AST START ---&#xD;
+Type: program, Text: import { Controller, Post, Get } from '@nestjs/common';&#xD;
+ import axios from 'axios';&#xD;
+ &#xD;
+ @Controller('orders')&#xD;
+ export class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+ &#xD;
+  Type: import_statement, Text: import { Controller, Post, Get } from '@nestjs/common';&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_clause, Text: { Controller, Post, Get }&#xD;
+      Type: named_imports, Text: { Controller, Post, Get }&#xD;
+        Type: {, Text: {&#xD;
+        Type: import_specifier, Text: Controller&#xD;
+          Type: identifier, Text: Controller&#xD;
+        Type: ,, Text: ,&#xD;
+        Type: import_specifier, Text: Post&#xD;
+          Type: identifier, Text: Post&#xD;
+        Type: ,, Text: ,&#xD;
+        Type: import_specifier, Text: Get&#xD;
+          Type: identifier, Text: Get&#xD;
+        Type: }, Text: }&#xD;
+    Type: from, Text: from&#xD;
+    Type: string, Text: '@nestjs/common'&#xD;
+      Type: ', Text: '&#xD;
+      Type: string_fragment, Text: @nestjs/common&#xD;
+      Type: ', Text: '&#xD;
+    Type: ;, Text: ;&#xD;
+  Type: import_statement, Text: import axios from 'axios';&#xD;
+    Type: import, Text: import&#xD;
+    Type: import_clause, Text: axios&#xD;
+      Type: identifier, Text: axios&#xD;
+    Type: from, Text: from&#xD;
+    Type: string, Text: 'axios'&#xD;
+      Type: ', Text: '&#xD;
+      Type: string_fragment, Text: axios&#xD;
+      Type: ', Text: '&#xD;
+    Type: ;, Text: ;&#xD;
+  Type: export_statement, Text: @Controller('orders')&#xD;
+ export class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+    Type: decorator, Text: @Controller('orders')&#xD;
+      Type: @, Text: @&#xD;
+      Type: call_expression, Text: Controller('orders')&#xD;
+        Type: identifier, Text: Controller&#xD;
+        Type: arguments, Text: ('orders')&#xD;
+          Type: (, Text: (&#xD;
+          Type: string, Text: 'orders'&#xD;
+            Type: ', Text: '&#xD;
+            Type: string_fragment, Text: orders&#xD;
+            Type: ', Text: '&#xD;
+          Type: ), Text: )&#xD;
+    Type: export, Text: export&#xD;
+    Type: class_declaration, Text: class OrdersController {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+      Type: class, Text: class&#xD;
+      Type: type_identifier, Text: OrdersController&#xD;
+      Type: class_body, Text: {&#xD;
+     @Post('charge')&#xD;
+     async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+ &#xD;
+     @SubscribeMessage('ping')&#xD;
+     onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+ }&#xD;
+        Type: {, Text: {&#xD;
+        Type: decorator, Text: @Post('charge')&#xD;
+          Type: @, Text: @&#xD;
+          Type: call_expression, Text: Post('charge')&#xD;
+            Type: identifier, Text: Post&#xD;
+            Type: arguments, Text: ('charge')&#xD;
+              Type: (, Text: (&#xD;
+              Type: string, Text: 'charge'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: charge&#xD;
+                Type: ', Text: '&#xD;
+              Type: ), Text: )&#xD;
+        Type: method_definition, Text: async chargeOrder() {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+          Type: async, Text: async&#xD;
+          Type: property_identifier, Text: chargeOrder&#xD;
+          Type: formal_parameters, Text: ()&#xD;
+            Type: (, Text: (&#xD;
+            Type: ), Text: )&#xD;
+          Type: statement_block, Text: {&#xD;
+         await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+     }&#xD;
+            Type: {, Text: {&#xD;
+            Type: expression_statement, Text: await axios.post('http://api.stripe.com/v1/charges', {});&#xD;
+              Type: await_expression, Text: await axios.post('http://api.stripe.com/v1/charges', {})&#xD;
+                Type: await, Text: await&#xD;
+                Type: call_expression, Text: axios.post('http://api.stripe.com/v1/charges', {})&#xD;
+                  Type: member_expression, Text: axios.post&#xD;
+                    Type: identifier, Text: axios&#xD;
+                    Type: ., Text: .&#xD;
+                    Type: property_identifier, Text: post&#xD;
+                  Type: arguments, Text: ('http://api.stripe.com/v1/charges', {})&#xD;
+                    Type: (, Text: (&#xD;
+                    Type: string, Text: 'http://api.stripe.com/v1/charges'&#xD;
+                      Type: ', Text: '&#xD;
+                      Type: string_fragment, Text: http://api.stripe.com/v1/charges&#xD;
+                      Type: ', Text: '&#xD;
+                    Type: ,, Text: ,&#xD;
+                    Type: object, Text: {}&#xD;
+                      Type: {, Text: {&#xD;
+                      Type: }, Text: }&#xD;
+                    Type: ), Text: )&#xD;
+              Type: ;, Text: ;&#xD;
+            Type: }, Text: }&#xD;
+        Type: decorator, Text: @SubscribeMessage('ping')&#xD;
+          Type: @, Text: @&#xD;
+          Type: call_expression, Text: SubscribeMessage('ping')&#xD;
+            Type: identifier, Text: SubscribeMessage&#xD;
+            Type: arguments, Text: ('ping')&#xD;
+              Type: (, Text: (&#xD;
+              Type: string, Text: 'ping'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: ping&#xD;
+                Type: ', Text: '&#xD;
+              Type: ), Text: )&#xD;
+        Type: method_definition, Text: onPing() {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+          Type: property_identifier, Text: onPing&#xD;
+          Type: formal_parameters, Text: ()&#xD;
+            Type: (, Text: (&#xD;
+            Type: ), Text: )&#xD;
+          Type: statement_block, Text: {&#xD;
+         return 'pong';&#xD;
+     }&#xD;
+            Type: {, Text: {&#xD;
+            Type: return_statement, Text: return 'pong';&#xD;
+              Type: return, Text: return&#xD;
+              Type: string, Text: 'pong'&#xD;
+                Type: ', Text: '&#xD;
+                Type: string_fragment, Text: pong&#xD;
+                Type: ', Text: '&#xD;
+              Type: ;, Text: ;&#xD;
+            Type: }, Text: }&#xD;
+        Type: }, Text: }&#xD;
+--- TS AST END ---&#xD;
+Finished parsing file: typescript_api_test.ts with 2 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.2999069+02:00">
+        <Text>Finished parsing file: embedded_sql_test.ts with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3077728+02:00">
+        <Text>Finished parsing file: complex_template_test.ts with 1 top-level symbols.&#xD;
+</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3197739+02:00">
+        <Text>[2026-06-09 11:29:22.317] [+0ms] [WorkspaceIndexer] Starting background database persistence loop...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3198156+02:00">
+        <Text>[2026-06-09 11:29:22.317] [+0ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:/Users/viach/AppData/Local/Temp/codeexplorer_test_workspace_11110383-ed08-4eac-bc39-40e5967ec7f8'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3914428+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3926057+02:00">
+        <Text>[WorkspaceParser] Completed structural scan of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3927394+02:00">
+        <Text>[WorkspaceParser] Starting scan of project 'ProjectB'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3942740+02:00">
+        <Text>[WorkspaceParser] Completed structural scan of project 'ProjectB'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3943619+02:00">
+        <Text>[2026-06-09 11:29:22.393] [+76ms] [WorkspaceParser] Starting syntax enrichment pass for 2 projects...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3945204+02:00">
+        <Text>[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3958009+02:00">
+        <Text>[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3959080+02:00">
+        <Text>[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.3969710+02:00">
+        <Text>[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4066176+02:00">
+        <Text>[2026-06-09 11:29:22.406] [+88ms] [LateBinding] Found 0 EntryPoints, 2 Endpoints, and 1 ExternalServices in the workspace.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4069274+02:00">
+        <Text>[2026-06-09 11:29:22.406] [+89ms] [LateBinding] Binding ExternalService '97:externalservice:http:localhost' to Endpoint '97:endpoint:POST:charge'</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4081166+02:00">
+        <Text>[2026-06-09 11:29:22.407] [+90ms] [LateBinding] Enqueuing 1 late-bound relationships...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4715095+02:00">
+        <Text>[2026-06-09 11:29:22.471] [+153ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 18 nodes, 20 relationships.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4716256+02:00">
+        <Text>[2026-06-09 11:29:22.471] [+153ms] [WorkspaceIndexer] Uploading 1 local project dependency relationships...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4754461+02:00">
+        <Text>[2026-06-09 11:29:22.475] [+157ms] [WorkspaceIndexer] Resolving 16 global cross-references...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4757263+02:00">
+        <Text>[2026-06-09 11:29:22.475] [+158ms] [WorkspaceIndexer] Uploading 3 resolved reference relationships...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4826882+02:00">
+        <Text>[2026-06-09 11:29:22.482] [+164ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.4931439+02:00">
+        <Text>[2026-06-09 11:29:22.492] [+175ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 18, Total Relationships: 24.</Text>
+      </RunInfo>
+      <RunInfo computerName="VMIKHAILOV-PC" outcome="Warning" timestamp="2026-06-09T11:29:22.5231347+02:00">
+        <Text>Finished parsing file: ProjectA/Client.cs with 1 top-level symbols.&#xD;
+Finished parsing file: ProjectB/server.ts with 2 top-level symbols.&#xD;
+[DEBUG NODES] [&#xD;
+  {&#xD;
+    "label": "Workspace",&#xD;
+    "id": 97,&#xD;
+    "name": "codeexplorer_test_workspace_11110383-ed08-4eac-bc39-40e5967ec7f8"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Project",&#xD;
+    "id": "97:project:ProjectA:",&#xD;
+    "name": "ProjectA"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Project",&#xD;
+    "id": "97:project:ProjectB:",&#xD;
+    "name": "ProjectB"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Files",&#xD;
+    "id": "97:project:ProjectA:files",&#xD;
+    "name": "Files"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Files",&#xD;
+    "id": "97:project:ProjectB:files",&#xD;
+    "name": "Files"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "File",&#xD;
+    "id": "97:file:ProjectA/Client.cs",&#xD;
+    "name": "Client.cs"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "File",&#xD;
+    "id": "97:file:ProjectB/server.ts",&#xD;
+    "name": "server.ts"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Type",&#xD;
+    "id": "97:symbol:ProjectA/Client.cs:Type:Client:2",&#xD;
+    "name": "Client"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Type",&#xD;
+    "id": "97:symbol:ProjectB/server.ts:Type:OrdersController:3",&#xD;
+    "name": "OrdersController"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Function",&#xD;
+    "id": "97:symbol:ProjectA/Client.cs:Function:Call:3",&#xD;
+    "name": "Call"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Function",&#xD;
+    "id": "97:symbol:ProjectB/server.ts:Function:charge:5",&#xD;
+    "name": "charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "ExternalService",&#xD;
+    "id": "97:externalservice:http:localhost",&#xD;
+    "name": "localhost"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Package",&#xD;
+    "id": "97:package:projecta",&#xD;
+    "name": "ProjectA"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Package",&#xD;
+    "id": "97:package:projectb",&#xD;
+    "name": "ProjectB"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "ApisInUse",&#xD;
+    "id": "97:project:ProjectA:apis",&#xD;
+    "name": "ApisInUse"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "ApiInUse",&#xD;
+    "id": "97:project:ProjectA:api:httpclient",&#xD;
+    "name": "HttpClient"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Endpoint",&#xD;
+    "id": "97:endpoint:GET:orders",&#xD;
+    "name": "GET:orders"&#xD;
+  },&#xD;
+  {&#xD;
+    "label": "Endpoint",&#xD;
+    "id": "97:endpoint:POST:charge",&#xD;
+    "name": "POST:charge"&#xD;
+  }&#xD;
+]&#xD;
+[DEBUG RELS] [&#xD;
+  {&#xD;
+    "from_label": "Workspace",&#xD;
+    "from_name": "codeexplorer_test_workspace_11110383-ed08-4eac-bc39-40e5967ec7f8",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "Project",&#xD;
+    "to_name": "ProjectA"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Workspace",&#xD;
+    "from_name": "codeexplorer_test_workspace_11110383-ed08-4eac-bc39-40e5967ec7f8",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "Project",&#xD;
+    "to_name": "ProjectB"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectA",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "Files",&#xD;
+    "to_name": "Files"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectA",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "ApisInUse",&#xD;
+    "to_name": "ApisInUse"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectA",&#xD;
+    "rel_type": "DEPENDS_ON",&#xD;
+    "to_label": "Package",&#xD;
+    "to_name": "ProjectA"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectB",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "Files",&#xD;
+    "to_name": "Files"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Project",&#xD;
+    "from_name": "ProjectB",&#xD;
+    "rel_type": "DEPENDS_ON",&#xD;
+    "to_label": "Package",&#xD;
+    "to_name": "ProjectB"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Files",&#xD;
+    "from_name": "Files",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "File",&#xD;
+    "to_name": "Client.cs"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Files",&#xD;
+    "from_name": "Files",&#xD;
+    "rel_type": "CONTAINS",&#xD;
+    "to_label": "File",&#xD;
+    "to_name": "server.ts"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "File",&#xD;
+    "from_name": "Client.cs",&#xD;
+    "rel_type": "USES_API",&#xD;
+    "to_label": "ApiInUse",&#xD;
+    "to_name": "HttpClient"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "File",&#xD;
+    "from_name": "server.ts",&#xD;
+    "rel_type": "EXPOSES_ENDPOINT",&#xD;
+    "to_label": "Endpoint",&#xD;
+    "to_name": "GET:orders"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "Client",&#xD;
+    "rel_type": "DECLARED_IN",&#xD;
+    "to_label": "File",&#xD;
+    "to_name": "Client.cs"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "Client",&#xD;
+    "rel_type": "HAS_METHOD",&#xD;
+    "to_label": "Function",&#xD;
+    "to_name": "Call"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "OrdersController",&#xD;
+    "rel_type": "DECLARED_IN",&#xD;
+    "to_label": "File",&#xD;
+    "to_name": "server.ts"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "OrdersController",&#xD;
+    "rel_type": "HAS_METHOD",&#xD;
+    "to_label": "Function",&#xD;
+    "to_name": "charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Type",&#xD;
+    "from_name": "OrdersController",&#xD;
+    "rel_type": "EXPOSES_ENDPOINT",&#xD;
+    "to_label": "Endpoint",&#xD;
+    "to_name": "POST:charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Function",&#xD;
+    "from_name": "Call",&#xD;
+    "rel_type": "CALLS",&#xD;
+    "to_label": "ExternalService",&#xD;
+    "to_name": "localhost"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Function",&#xD;
+    "from_name": "Call",&#xD;
+    "rel_type": "TRANSITIVELY_CALLS",&#xD;
+    "to_label": "ExternalService",&#xD;
+    "to_name": "localhost"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Function",&#xD;
+    "from_name": "charge",&#xD;
+    "rel_type": "EXPOSES_ENDPOINT",&#xD;
+    "to_label": "Endpoint",&#xD;
+    "to_name": "POST:charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "ExternalService",&#xD;
+    "from_name": "localhost",&#xD;
+    "rel_type": "CALLS_ENDPOINT",&#xD;
+    "to_label": "Endpoint",&#xD;
+    "to_name": "POST:charge"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "ApisInUse",&#xD;
+    "from_name": "ApisInUse",&#xD;
+    "rel_type": "USES_API",&#xD;
+    "to_label": "ApiInUse",&#xD;
+    "to_name": "HttpClient"&#xD;
+  },&#xD;
+  {&#xD;
+    "from_label": "Endpoint",&#xD;
+    "from_name": "POST:charge",&#xD;
+    "rel_type": "TRIGGERS",&#xD;
+    "to_label": "Function",&#xD;
+    "to_name": "charge"&#xD;
+  }&#xD;
+]&#xD;
+[IntegrationTest] Parsed 18 nodes and 24 relationships successfully.&#xD;
+</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

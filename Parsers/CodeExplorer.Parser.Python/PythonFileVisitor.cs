@@ -49,10 +49,9 @@ public class PythonFileVisitor : BaseParserVisitor
                 return OntologyConstants.NodeLabels.Query;
             }
         }
-
         return node.Type switch
         {
-            "class_definition" => OntologyConstants.NodeLabels.Class,
+            "class_definition" => "Class",
             "function_definition" => OntologyConstants.NodeLabels.Function,
             _ => null
         };
@@ -427,7 +426,7 @@ public class PythonFileVisitor : BaseParserVisitor
                     try
                     {
                         var uri = new Uri(text);
-                        return $"http:{uri.Host}";
+                        return $"{uri.Scheme}:{uri.Host}{uri.AbsolutePath}";
                     }
                     catch
                     {

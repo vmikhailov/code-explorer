@@ -16,28 +16,28 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         var kinds = new[] 
         { 
             OntologyConstants.NodeLabels.Workspace, 
-            OntologyConstants.NodeLabels.WorkspaceFolder, 
-            OntologyConstants.NodeLabels.ProjectFolder,
+            OntologyConstants.NodeLabels.Folder,
             OntologyConstants.NodeLabels.Project, 
             OntologyConstants.NodeLabels.File, 
-            OntologyConstants.NodeLabels.Class, 
-            OntologyConstants.NodeLabels.Interface,
+            OntologyConstants.NodeLabels.Type, 
             OntologyConstants.NodeLabels.Function, 
-            OntologyConstants.NodeLabels.Variable, 
+            OntologyConstants.NodeLabels.Member, 
             OntologyConstants.NodeLabels.Package,
-            OntologyConstants.NodeLabels.Dependencies,
-            OntologyConstants.NodeLabels.EntryPoints,
-            OntologyConstants.NodeLabels.EntryPoint,
-            OntologyConstants.NodeLabels.Files,
-            OntologyConstants.NodeLabels.DataBases,
-            OntologyConstants.NodeLabels.ApisInUse,
-            OntologyConstants.NodeLabels.CloudServices,
-            OntologyConstants.NodeLabels.ApiInUse,
-            OntologyConstants.NodeLabels.DB,
+            OntologyConstants.NodeLabels.FilesStructure,
+            OntologyConstants.NodeLabels.SyntaxStructure,
+            OntologyConstants.NodeLabels.SemanticStructure,
+            OntologyConstants.NodeLabels.Database,
             OntologyConstants.NodeLabels.DataSet,
             OntologyConstants.NodeLabels.Table,
             OntologyConstants.NodeLabels.Procedure,
-            OntologyConstants.NodeLabels.Query
+            OntologyConstants.NodeLabels.Query,
+            OntologyConstants.NodeLabels.Topic,
+            OntologyConstants.NodeLabels.EntryPoint,
+            OntologyConstants.NodeLabels.Endpoint,
+            OntologyConstants.NodeLabels.CloudService,
+            OntologyConstants.NodeLabels.ExternalService,
+            OntologyConstants.NodeLabels.GitSettings,
+            OntologyConstants.NodeLabels.ApiInUse
         };
         await using var session = _driver.AsyncSession(o => o.WithDefaultAccessMode(AccessMode.Write));
         
@@ -75,8 +75,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         var kindsWithName = new[] 
         {
             OntologyConstants.NodeLabels.Project,
-            OntologyConstants.NodeLabels.Class,
-            OntologyConstants.NodeLabels.Interface,
+            OntologyConstants.NodeLabels.Type,
             OntologyConstants.NodeLabels.Function,
             OntologyConstants.NodeLabels.Table
         };
@@ -111,9 +110,9 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         {
             await tx.RunAsync(
                 $"MATCH (r:{OntologyConstants.NodeLabels.Workspace}) " +
-                $"WHERE toLower(r.path) = toLower($workspacePath) OR toLower(r.path) = toLower($normalizedPath) " +
+                $"WHERE r.path IS NOT NULL AND replace(toLower(r.path), '\\\\', '/') = replace(toLower($workspacePath), '\\\\', '/') " +
                 $"WITH r MATCH (r)-[:{OntologyConstants.Relationships.Contains}*0..]->(n) DETACH DELETE n",
-                new { workspacePath, normalizedPath }
+                new { workspacePath }
             );
         });
     }
@@ -126,8 +125,10 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         var existingId = await session.ExecuteReadAsync(async tx =>
         {
             var cursor = await tx.RunAsync(
-                $"MATCH (w:{OntologyConstants.NodeLabels.Workspace}) WHERE toLower(w.path) = toLower($workspacePath) OR toLower(w.path) = toLower($normalizedPath) RETURN w.id AS id",
-                new { workspacePath, normalizedPath }
+                $"MATCH (w:{OntologyConstants.NodeLabels.Workspace}) " +
+                $"WHERE w.path IS NOT NULL AND replace(toLower(w.path), '\\\\', '/') = replace(toLower($workspacePath), '\\\\', '/') " +
+                $"RETURN w.id AS id",
+                new { workspacePath }
             );
             if (await cursor.FetchAsync())
             {

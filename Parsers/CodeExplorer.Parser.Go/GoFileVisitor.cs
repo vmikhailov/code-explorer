@@ -56,7 +56,7 @@ public class GoFileVisitor : BaseParserVisitor
                     break;
                 }
             }
-            return isInterface ? OntologyConstants.NodeLabels.Interface : OntologyConstants.NodeLabels.Class;
+            return isInterface ? "Interface" : "Class";
         }
 
         return node.Type switch
@@ -387,7 +387,7 @@ public class GoFileVisitor : BaseParserVisitor
                     try
                     {
                         var uri = new Uri(text);
-                        return $"http:{uri.Host}";
+                        return $"{uri.Scheme}:{uri.Host}{uri.AbsolutePath}";
                     }
                     catch
                     {

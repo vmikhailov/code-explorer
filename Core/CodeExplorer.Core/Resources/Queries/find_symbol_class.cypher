@@ -1,4 +1,4 @@
-MATCH (n:Class) WHERE n.name CONTAINS $name{prefixClause}
+MATCH (n:Type {kind: 'class'}) WHERE n.name CONTAINS $name{prefixClause}
 OPTIONAL MATCH (f:File)-[:DEFINES|DECLARES*1..]->(n)
 OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f)
 RETURN 'Class' AS type, n.name AS name, n.symbol AS fullName,

@@ -11,10 +11,11 @@ public static class OntologyPruner
         for (var i = node.Children.Count - 1; i >= 0; i--)
         {
             var child = node.Children[i];
-            if (child.Kind == OntologyConstants.NodeLabels.WorkspaceFolder ||
-                child.Kind == OntologyConstants.NodeLabels.ProjectFolder ||
+            if (child.Kind == OntologyConstants.NodeLabels.Folder ||
                 child.Kind == OntologyConstants.NodeLabels.Project ||
-                child.Kind == OntologyConstants.NodeLabels.Files)
+                child.Kind == OntologyConstants.NodeLabels.FilesStructure ||
+                child.Kind == OntologyConstants.NodeLabels.SyntaxStructure ||
+                child.Kind == OntologyConstants.NodeLabels.SemanticStructure)
             {
                 var shouldPruneChild = PruneEmptyFolders(child);
                 if (shouldPruneChild)
@@ -24,7 +25,7 @@ public static class OntologyPruner
             }
         }
 
-        // 2. Check if this node or any descendants have content (File, Package, Class, Query, etc.)
+        // 2. Check if this node or any descendants have content (File, Package, Type, Endpoint, Query, etc.)
         return !HasContentSubtree(node);
     }
 
@@ -32,8 +33,8 @@ public static class OntologyPruner
     {
         if (node.Kind == OntologyConstants.NodeLabels.File ||
             node.Kind == OntologyConstants.NodeLabels.EntryPoint ||
-            node.Kind == OntologyConstants.NodeLabels.Class ||
-            node.Kind == OntologyConstants.NodeLabels.Interface ||
+            node.Kind == OntologyConstants.NodeLabels.Endpoint ||
+            node.Kind == OntologyConstants.NodeLabels.Type ||
             node.Kind == OntologyConstants.NodeLabels.Function ||
             node.Kind == OntologyConstants.NodeLabels.Query)
         {

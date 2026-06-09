@@ -211,6 +211,10 @@ Status updates:
 
 Ensure .NET best practices and performance.
 
+Design patterns:
+- Follow DRY
+- Follow SOLID
+
 Quality checklist:
 - Code analysis passed
 - StyleCop clean

@@ -1,178 +1,755 @@
-# CodeExplorer Decoupled Graph Ontology Specification
+<!-- AUTO-GENERATED — do not edit manually. Re-generated on every build by OntologyGen. -->
 
-This document defines the taxonomy, nodes, properties, and relationships collected by CodeExplorer. The graph is organized into **four decoupled buckets** linked by reference pointers, rather than a single deeply nested physical hierarchy.
+# CodeExplorer Ontology
+
+> This document is generated from source annotations during the build.
+> Edit the `[OntologyNode]`, `[OntologyEdge<>]`, `[OntologyProperty]`, and `[OntologyRelationship]` attributes in the source files to update it.
+
+---
+
+## 📊 Architectural Overview (Mermaid Diagram)
 
 ```mermaid
 graph TD
-    subgraph FilesStructure [1. FilesStructure (Physical)]
-        Folder[Folder] -->|CONTAINS_FILE| File[File]
+    Workspace["Workspace"]
+
+    subgraph Layer1 ["Layer 1: Physical Topology"]
+        File["File"]
+        FilesStructure["FilesStructure"]
+        Folder["Folder"]
+        GitSettings["GitSettings"]
     end
 
-    subgraph ClassStructure [2. ClassStructure (Syntactic)]
-        Project[Project] -->|DECLARES_TYPE| Type[Type]
-        Type -->|HAS_METHOD| Function[Function]
-        Type -->|HAS_MEMBER| Member[Member]
-        Function -->|HAS_VARIABLE| Member
+    subgraph Layer2 ["Layer 2: Project Boundary"]
+        Package["Package"]
+        Project["Project"]
     end
 
-    subgraph SemanticStructure [3. SemanticStructure (Runtime Interfaces)]
-        Endpoint[Endpoint]
-        Database[Database]
-        Topic[Topic]
-        EntryPoint[EntryPoint]
+    subgraph Layer3 ["Layer 3: Syntactic Structure"]
+        Function["Function"]
+        Member["Member"]
+        SyntaxStructure["SyntaxStructure"]
+        Type["Type"]
     end
 
-    %% Cross-Bucket Links (SystemBindings)
-    File -.->|Reference Pointer| Project
-    Type -.->|DECLARED_IN| File
-    Function -.->|DECLARED_IN| File
-    
-    %% Semantic Bindings
-    Function -->|EXPOSES_ENDPOINT| Endpoint
+    subgraph Layer4 ["Layer 4: Semantic Structure"]
+        ApiInUse["ApiInUse"]
+        CloudService["CloudService"]
+        Database["Database"]
+        DataSet["DataSet"]
+        Endpoint["Endpoint"]
+        EntryPoint["EntryPoint"]
+        ExternalService["ExternalService"]
+        Procedure["Procedure"]
+        Query["Query"]
+        SemanticStructure["SemanticStructure"]
+        Table["Table"]
+        Topic["Topic"]
+    end
+
+    DataSet -->|CONTAINS| Table
+    Endpoint -->|TRIGGERS| Function
+    EntryPoint -->|TRIGGERS| Function
+    ExternalService -->|CALLS_ENDPOINT| Endpoint
+    FilesStructure -->|CONTAINS| Folder
+    FilesStructure -->|CONTAINS| File
+    Folder -->|CONTAINS| Folder
+    Folder -->|CONTAINS| File
+    Function -->|DECLARED_IN| File
+    Function -->|CALLS| Function
+    Function -->|USES_TYPE| Type
     Function -->|QUERIES_DB| Database
     Function -->|PUBLISHES_TO| Topic
     Function -->|SUBSCRIBES_TO| Topic
-    Function -.->|CALLS_ENDPOINT| Endpoint
+    Function -->|CALLS| ExternalService
+    Function -->|EXPOSES_ENDPOINT| Endpoint
+    Member -->|DECLARED_IN| File
+    Member -->|OF_TYPE| Type
+    Package -->|IMPLEMENTED_BY| Project
+    Procedure -->|CONTAINS| Query
+    Project -->|CONTAINS| FilesStructure
+    Project -->|CONTAINS| SyntaxStructure
+    Project -->|CONTAINS| SemanticStructure
+    Project -->|DEPENDS_ON| Project
+    Project -->|DEPENDS_ON| Package
+    Query -->|DEPENDS_ON| Table
+    SemanticStructure -->|CONTAINS| EntryPoint
+    SemanticStructure -->|CONTAINS| Endpoint
+    SemanticStructure -->|CONTAINS| Database
+    SemanticStructure -->|CONTAINS| Topic
+    SemanticStructure -->|CONTAINS| CloudService
+    SemanticStructure -->|CONTAINS| ApiInUse
+    SemanticStructure -->|CONTAINS| ExternalService
+    SemanticStructure -->|CONTAINS| Package
+    SyntaxStructure -->|CONTAINS| Type
+    SyntaxStructure -->|CONTAINS| Function
+    Type -->|DECLARED_IN| File
+    Type -->|USES_TYPE| Type
+    Type -->|IMPLEMENTS| Type
+    Type -->|INHERITS_FROM| Type
+    Type -->|POTENTIAL_TYPE| Type
+    Type -->|EXPOSES_ENDPOINT| Endpoint
+    Type -->|EXPOSES| EntryPoint
+    Type -->|HAS_METHOD| Function
+    Type -->|HAS_MEMBER| Member
+    Workspace -->|CONTAINS| Folder
+    Workspace -->|CONTAINS| Project
+    Workspace -->|CONTAINS| File
+    Workspace -->|CONTAINS| GitSettings
 ```
 
 ---
 
-## 1. FilesStructure (Physical Topology)
+## 📂 Layered Definitions
 
-The physical structure tracks the exact directory layout of the workspace on disk. It is decoupled from the syntactic structures, meaning it is only updated when folders or files are created, renamed, or deleted.
+### 🌐 Root System Umbrella
 
-### Nodes
-*   **`Folder`**
-    *   *Description:* A physical directory in the workspace.
-    *   *Properties:*
-        *   `id` (string): Absolute directory path.
-        *   `name` (string): The folder name.
-        *   `path` (string): Absolute filesystem path.
-*   **`File`**
-    *   *Description:* A source code document or data query script.
-    *   *Properties:*
-        *   `id` (string): Absolute file path.
-        *   `name` (string): Filename basename with extension.
-        *   `path` (string): Absolute filesystem path.
-        *   `language` (string): Code language (`csharp`, `go`, `python`, `typescript`, `sql`).
-        *   `hash` (string): MD5/SHA hash of the file contents to verify edit status.
+#### `Workspace`
 
-### Relationships
-*   `Folder -[CONTAINS_FILE]-> File`
-*   `Folder -[CONTAINS_FOLDER]-> Folder`
+> Represents the absolute root of the workspace directory hierarchy.
 
----
+**Outbound edges:**
 
-## 2. ClassStructure (Syntactic Code Models)
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `Folder` |
+| `CONTAINS` | `Project` |
+| `CONTAINS` | `File` |
+| `CONTAINS` | `GitSettings` |
 
-The syntactic structure stores declarations found within the AST. By isolating this bucket, we can surgically drop and rebuild AST nodes for a single modified file without touching the rest of the database.
+**Properties:**
 
-### Nodes
-*   **`Project`**
-    *   *Description:* A compilation unit or package boundary (e.g. C# `.csproj`, Go module, TypeScript `package.json`).
-    *   *Properties:*
-        *   `id` (string): Unique project path/name.
-        *   `name` (string): Project name.
-        *   `language` (string): Core language type.
-        *   `path` (string): Absolute path to the project file/directory.
-*   **`Type`**
-    *   *Description:* Unified class, interface, struct, record, or enum declarations.
-    *   *Properties:*
-        *   `id` (string): Fully qualified type symbol.
-        *   `name` (string): Unqualified name of the type.
-        *   `kind` (string): Specifier (`class`, `interface`, `struct`, `record`, `enum`, `union`).
-        *   `file_path` (string): Absolute path to the declaring file (cached for instant lookup).
-        *   `start_line` / `end_line` (int): Source code bounds.
-*   **`Function`**
-    *   *Description:* Methods, constructors, or free-floating functions.
-    *   *Properties:*
-        *   `id` (string): Fully qualified method/function symbol.
-        *   `name` (string): Unqualified name of the function.
-        *   `signature` (string): Method parameter and return type signature.
-        *   `return_type` (string): Declared return type.
-        *   `file_path` (string): Absolute path to the declaring file (cached).
-        *   `start_line` / `end_line` (int): Source code bounds.
-*   **`Member`**
-    *   *Description:* Fields, properties, method parameters, or local variables.
-    *   *Properties:*
-        *   `id` (string): Fully qualified member symbol.
-        *   `name` (string): Member name.
-        *   `type_name` (string): Declared type name.
-        *   `kind` (string): Specifier (`field`, `property`, `parameter`, `variable`).
-        *   `start_line` / `end_line` (int): Source code bounds.
-
-### Relationships
-*   `Project -[DECLARES_TYPE]-> Type`
-*   `Type -[HAS_METHOD]-> Function`
-*   `Type -[HAS_MEMBER]-> Member`
-*   `Function -[HAS_VARIABLE]-> Member` (For local variables or parameters inside a function scope)
-*   `Type -[DECLARED_IN]-> File` (Link pointing back to FilesStructure)
-*   `Function -[DECLARED_IN]-> File` (Link pointing back to FilesStructure)
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
 
 ---
 
-## 3. SemanticStructure (Runtime System Map)
+### 📂 Layer 1: Physical Topology
 
-The semantic model represents the entry points and external targets of the system, allowing visual mapping of services and microservice architecture.
+#### `File`
 
-### Nodes
-*   **`Endpoint`**
-    *   *Description:* An exposed API route.
-    *   *Properties:*
-        *   `id` (string): HTTP method + route template.
-        *   `http_method` (string): HTTP verb (`GET`, `POST`, `PUT`, `DELETE`).
-        *   `route_template` (string): API route path.
-*   **`Database`**
-    *   *Description:* A physical data store instance or schema.
-    *   *Properties:*
-        *   `id` (string): Unique database/schema name.
-        *   `name` (string): Database name.
-        *   `db_type` (string): Database system type (`sqlserver`, `postgres`, `sqlite`, `mongodb`).
-*   **`Topic`**
-    *   *Description:* Message broker pub/sub queues and exchanges.
-    *   *Properties:*
-        *   `id` (string): Topic/Queue name.
-        *   `name` (string): Topic name.
-        *   `broker_type` (string): Broker engine (`rabbitmq`, `kafka`, `sqs`, `in-memory`).
-*   **`EntryPoint`**
-    *   *Description:* General runtime entry triggers (e.g. gRPC stubs, CLI commands, background processes).
-    *   *Properties:*
-        *   `id` (string): Unique identifier.
-        *   `entry_type` (string): Specifier (`grpc`, `cli`, `cron`).
+> Represents a source code file containing parsable content.
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `FilesStructure` | `CONTAINS` |
+| `Folder` | `CONTAINS` |
+| `Function` | `DECLARED_IN` |
+| `Member` | `DECLARED_IN` |
+| `Type` | `DECLARED_IN` |
+| `Workspace` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
 
 ---
 
-## 4. SystemBindings (Cross-Project Integration & References)
+#### `FilesStructure`
 
-System bindings represent cross-cutting connections that link the physical, syntactic, and semantic models together.
+> Represents an intermediate node grouping all source code files and folders of a project.
 
-### Intra-Project Relationships (Layer 3 Semantics)
-*   `Type -[INHERITS_FROM]-> Type` (Inheritance / Interface implementation)
-*   `Member -[OF_TYPE]-> Type` (Links a property/field to its concrete type node)
-*   `Function -[CALLS]-> Function` (Direct compiler-resolved function call)
-*   `Function -[USES_TYPE]-> Type` (Type references, instances, generics)
+**Outbound edges:**
 
-### Inter-Project Relationships (Layer 4 System Integration)
-*   `Function -[EXPOSES_ENDPOINT]-> Endpoint` (API Ingress)
-*   `Function -[CALLS_ENDPOINT]-> Endpoint` (API Egress)
-*   `Function -[QUERIES_DB]-> Database` (Data Access Lineage)
-*   `Function -[PUBLISHES_TO]-> Topic` (Asynchronous Publishing)
-*   `Function -[SUBSCRIBES_TO]-> Topic` (Asynchronous Subscription)
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `Folder` |
+| `CONTAINS` | `File` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Project` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
 
 ---
 
-## 5. Node URN / ID Schemes
+#### `Folder`
 
-To guarantee uniqueness across multi-project workspaces and multiple database instances, CodeExplorer uses structured Uniform Resource Names (URNs) for node IDs, prefixed by an auto-incremented workspace identifier (`{workspaceId}`). 
+> Represents a directory within the indexed workspace.
 
-| Node Label | ID / URN Scheme | Uniqueness Scope | Example |
-| :--- | :--- | :--- | :--- |
-| **`Folder`** | `{workspaceId}:folder:{absoluteFolderPath}` | Workspace | `1:folder:/Work/Personal/code-explorer/Core` |
-| **`File`** | `{workspaceId}:file:{absoluteFilePath}` | Workspace | `1:file:/Work/Personal/code-explorer/Core/Registry.cs` |
-| **`Project`** | `{workspaceId}:project:{absoluteProjectPath}` | Workspace | `1:project:/Work/Personal/code-explorer/UI/UI.csproj` |
-| **`Type`** | `{workspaceId}:symbol:{file_path}:Type:{name}:{line}` | File | `1:symbol:/Core/Registry.cs:Type:OntologyRegistry:12` |
-| **`Function`** | `{workspaceId}:symbol:{file_path}:Function:{name}:{line}` | File | `1:symbol:/Core/Registry.cs:Function:Register:24` |
-| **`Member`** | `{workspaceId}:symbol:{file_path}:Member:{name}:{line}` | File | `1:symbol:/Core/Registry.cs:Member:KindMapping:15` |
-| **`Endpoint`** | `{workspaceId}:endpoint:{http_method}:{route}` | Workspace | `1:endpoint:POST:/api/v1/users` |
-| **`Database`** | `{workspaceId}:db:{db_type}:{name}` | Workspace | `1:db:sqlserver:orders_db` |
-| **`Topic`** | `{workspaceId}:topic:{broker_type}:{name}` | Workspace | `1:topic:kafka:order-created` |
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `Folder` |
+| `CONTAINS` | `File` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `FilesStructure` | `CONTAINS` |
+| `Folder` | `CONTAINS` |
+| `Workspace` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the folder. |
+
+---
+
+#### `GitSettings`
+
+> Represents the Git repository configuration settings for the workspace.
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Workspace` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Branch` | `string` | The currently checked-out branch name. |
+| `OriginUrl` | `string` | The remote origin repository URL. |
+| `UserName` | `string` | The git user name. |
+| `UserEmail` | `string` | The git user email address. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
+### 📂 Layer 2: Project Boundary
+
+#### `Package`
+
+> Represents an external dependency package or workspace package referenced or produced by projects.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `IMPLEMENTED_BY` | `Project` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Project` | `DEPENDS_ON` |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Version` | `string` | The package version. |
+| `Type` | `string` | The package type or entity type. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
+#### `Project`
+
+> Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `FilesStructure` |
+| `CONTAINS` | `SyntaxStructure` |
+| `CONTAINS` | `SemanticStructure` |
+| `DEPENDS_ON` | `Project` |
+| `DEPENDS_ON` | `Package` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Package` | `IMPLEMENTED_BY` |
+| `Project` | `DEPENDS_ON` |
+| `Workspace` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+
+---
+
+### 📂 Layer 3: Syntactic Structure
+
+#### `Function`
+
+> Represents a parsed method, function, subroutine, or procedure.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+| `CALLS` | `Function` |
+| `USES_TYPE` | `Type` |
+| `QUERIES_DB` | `Database` |
+| `PUBLISHES_TO` | `Topic` |
+| `SUBSCRIBES_TO` | `Topic` |
+| `CALLS` | `ExternalService` |
+| `EXPOSES_ENDPOINT` | `Endpoint` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Endpoint` | `TRIGGERS` |
+| `EntryPoint` | `TRIGGERS` |
+| `Function` | `CALLS` |
+| `SyntaxStructure` | `CONTAINS` |
+| `Type` | `HAS_METHOD` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Symbol` | `string` | A globally unique ID for this symbol scope. |
+| `FilePath` | `string` | The relative path of the declaring file. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `StartLine` | `int` | The starting line number (1-indexed) of the declaration. |
+| `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
+| `StartCol` | `int` | The starting column number of the declaration. |
+| `EndCol` | `int` | The ending column number of the declaration. |
+
+---
+
+#### `Member`
+
+> Represents a declared field, property, parameter, or local variable.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+| `OF_TYPE` | `Type` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Type` | `HAS_MEMBER` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Symbol` | `string` | A globally unique ID for this symbol scope. |
+| `FilePath` | `string` | The relative path of the declaring file. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `StartLine` | `int` | The starting line number (1-indexed) of the declaration. |
+| `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
+| `StartCol` | `int` | The starting column number of the declaration. |
+| `EndCol` | `int` | The ending column number of the declaration. |
+| `MemberKind` | `string` | The specific member kind (field, property, parameter, variable). |
+
+---
+
+#### `SyntaxStructure`
+
+> Represents an intermediate node grouping all AST/syntactic declarations of a project.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `Type` |
+| `CONTAINS` | `Function` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Project` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
+#### `Type`
+
+> Represents a type declaration (Class, Interface, Struct, Record, Enum, or Union type).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+| `USES_TYPE` | `Type` |
+| `IMPLEMENTS` | `Type` |
+| `INHERITS_FROM` | `Type` |
+| `POTENTIAL_TYPE` | `Type` |
+| `EXPOSES_ENDPOINT` | `Endpoint` |
+| `EXPOSES` | `EntryPoint` |
+| `HAS_METHOD` | `Function` |
+| `HAS_MEMBER` | `Member` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Function` | `USES_TYPE` |
+| `Member` | `OF_TYPE` |
+| `SyntaxStructure` | `CONTAINS` |
+| `Type` | `USES_TYPE` |
+| `Type` | `IMPLEMENTS` |
+| `Type` | `INHERITS_FROM` |
+| `Type` | `POTENTIAL_TYPE` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Symbol` | `string` | A globally unique ID for this symbol scope. |
+| `FilePath` | `string` | The relative path of the declaring file. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `StartLine` | `int` | The starting line number (1-indexed) of the declaration. |
+| `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
+| `StartCol` | `int` | The starting column number of the declaration. |
+| `EndCol` | `int` | The ending column number of the declaration. |
+| `TypeKind` | `string` | The specific type kind (class, interface, struct, record, enum). |
+
+---
+
+### 📂 Layer 4: Semantic Structure
+
+#### `ApiInUse`
+
+> Represents an external API library or client service used by the project (e.g. NestJS, Axios, HttpClient).
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
+#### `CloudService`
+
+> Represents a cloud provider service used by the project (e.g. AWS S3, Stripe, Firebase).
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Type` | `string` | The package type or entity type. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
+#### `Database`
+
+> Represents a database instance, catalog, or physical schema.
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Function` | `QUERIES_DB` |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The database engine or catalog name. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `DbType` | `string` | The database system type (sqlserver, postgres, sqlite, mongodb, neo4j). |
+
+---
+
+#### `DataSet`
+
+> Represents a collection of data tables or datasets.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `Table` |
+
+---
+
+#### `Endpoint`
+
+> Represents an exposed HTTP API endpoint route.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `TRIGGERS` | `Function` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `ExternalService` | `CALLS_ENDPOINT` |
+| `Function` | `EXPOSES_ENDPOINT` |
+| `SemanticStructure` | `CONTAINS` |
+| `Type` | `EXPOSES_ENDPOINT` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The HTTP endpoint name (e.g. GET /api/orders). |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `HttpMethod` | `string` | The HTTP Verb (GET, POST, PUT, DELETE). |
+| `RouteTemplate` | `string` | The declared route template. |
+
+---
+
+#### `EntryPoint`
+
+> Represents non-HTTP execution triggers (e.g. gRPC services, CLI command definitions, Cron schedules, queue subscribers).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `TRIGGERS` | `Function` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `SemanticStructure` | `CONTAINS` |
+| `Type` | `EXPOSES` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entry point. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `EntryType` | `string` | The specifier type (grpc, cli, cron, queue-listener). |
+
+---
+
+#### `ExternalService`
+
+> Represents a physical/logical external host dependency.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CALLS_ENDPOINT` | `Endpoint` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Function` | `CALLS` |
+| `SemanticStructure` | `CONTAINS` |
+
+---
+
+#### `Procedure`
+
+> Represents a stored procedure in a database.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `Query` |
+
+---
+
+#### `Query`
+
+> Represents a SQL query.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DEPENDS_ON` | `Table` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Procedure` | `CONTAINS` |
+
+---
+
+#### `SemanticStructure`
+
+> Represents an intermediate node grouping all runtime entry points, databases, endpoints, cloud services, and APIs used by a project.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `EntryPoint` |
+| `CONTAINS` | `Endpoint` |
+| `CONTAINS` | `Database` |
+| `CONTAINS` | `Topic` |
+| `CONTAINS` | `CloudService` |
+| `CONTAINS` | `ApiInUse` |
+| `CONTAINS` | `ExternalService` |
+| `CONTAINS` | `Package` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Project` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
+#### `Table`
+
+> Represents a physical database table.
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `DataSet` | `CONTAINS` |
+| `Query` | `DEPENDS_ON` |
+
+---
+
+#### `Topic`
+
+> Represents a message queue, event exchange, or topic boundary.
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Function` | `PUBLISHES_TO` |
+| `Function` | `SUBSCRIBES_TO` |
+| `SemanticStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the topic or exchange. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `BrokerType` | `string` | The broker system type (rabbitmq, kafka, sqs, in-memory). |
+
+---
+
+## 📂 Layer 5: SystemBindings (Integration Links)
+
+> This layer contains the relationship edges that connect nodes across layers into a unified semantic map.
+
+| Relationship Label | Description |
+| :--- | :--- |
+| `CALLS` | Links a calling function to the function it directly invokes. |
+| `CALLS_ENDPOINT` | Links an external API call to the target HTTP endpoint it invokes. |
+| `CONTAINS` | Represents directory structure containment or syntactic scoping of elements. |
+| `DECLARED_IN` | Links a syntactic type, function, or member declaration to its physical declaring source file. |
+| `DECLARES` | Indicates that a container entity declares a sub-entity. |
+| `DECLARES_TYPE` | Indicates that a project declares a specific type. |
+| `DEFINES` | Indicates that an entity defines a particular property or configuration. |
+| `DEPENDS_ON` | Represents a dependency relationship between projects, packages, or other entities. |
+| `EXPOSES` | Indicates that a container exposes a certain service or entry point. |
+| `EXPOSES_ENDPOINT` | Links a type or function to the HTTP endpoint it exposes. |
+| `HAS_MEMBER` | Links a type declaration to its declared member variables or fields. |
+| `HAS_METHOD` | Links a type declaration to its declared methods or functions. |
+| `HAS_VARIABLE` | Links a function scope to its declared local variables or parameters. |
+| `IMPLEMENTED_BY` | Links a library package to the project that implements or encapsulates it. |
+| `IMPLEMENTS` | Links a class/struct declaration to the interface it implements. |
+| `INHERITS_FROM` | Links a class/interface to its base class or inherited interface. |
+| `OF_TYPE` | Links a member variable or field to its declared type. |
+| `POTENTIAL_TYPE` | Links a variable or parameter to concrete classes that implement its declared interface type. |
+| `PUBLISHES_TO` | Links a function or component to the queue topic or exchange it publishes messages to. |
+| `QUERIES_DB` | Links a function to the database catalog or schema it queries. |
+| `SUBSCRIBES_TO` | Links a function listener or handler to the queue topic or exchange it subscribes to. |
+| `TRANSFORMS_TO` | Links a data model or dataset representing a transformation step to its destination structure. |
+| `TRIGGERS` | Links an entry point or API endpoint to the handler function it triggers. |
+| `USES_API` | Links a project, file, or class to an external API library or client model. |
+| `USES_CLOUD` | Links a project, file, or class to a cloud service resource. |
+| `USES_DB` | Links a project to a database catalog or instance it utilizes. |
+| `USES_GIT` | Links the workspace to its repository configuration. |
+| `USES_TYPE` | Links a calling function or type reference to the type it instantiates or references. |
+
+---
+
+## 🏷️ Uniform Resource Name (URN) & ID Schemes
+
+> Every node in the CodeExplorer graph has a structured ID (URN) that guarantees uniqueness across projects and workspaces.
+
+| Layer | Node Label | ID / URN Scheme |
+| :--- | :--- | :--- |
+| Root / Umbrella | `Workspace` | `{workspaceId}` |
+| Layer 1: Physical Topology | `File` | `{workspaceId}:file:{relativeFilePath}` |
+| Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:project:{relativeProjectDir}:files_structure` |
+| Layer 1: Physical Topology | `Folder` | `{workspaceId}:folder:{relativeDirectoryPath}` |
+| Layer 1: Physical Topology | `GitSettings` | `{workspaceId}:gitsettings` |
+| Layer 2: Project Boundary | `Package` | `{workspaceId}:package:{packageName}` |
+| Layer 2: Project Boundary | `Project` | `{workspaceId}:project:{relativeProjectDir}:` |
+| Layer 3: Syntactic Structure | `Function` | `{workspaceId}:symbol:{filePath}:Function:{name}:{line}` |
+| Layer 3: Syntactic Structure | `Member` | `{workspaceId}:symbol:{filePath}:Member:{name}:{line}` |
+| Layer 3: Syntactic Structure | `SyntaxStructure` | `{workspaceId}:project:{relativeProjectDir}:syntax_structure` |
+| Layer 3: Syntactic Structure | `Type` | `{workspaceId}:symbol:{filePath}:Type:{name}:{line}` |
+| Layer 4: Semantic Structure | `ApiInUse` | `{workspaceId}:project:{relativeProjectDir}:api:{apiName}` |
+| Layer 4: Semantic Structure | `CloudService` | `{workspaceId}:project:{relativeProjectDir}:cloudservice:{serviceName}` |
+| Layer 4: Semantic Structure | `Database` | `{workspaceId}:database:{dbType}:{dbName}` |
+| Layer 4: Semantic Structure | `DataSet` | `{workspaceId}:dataset:{datasetName}` |
+| Layer 4: Semantic Structure | `Endpoint` | `{workspaceId}:endpoint:{httpMethod}:{routeTemplate}` |
+| Layer 4: Semantic Structure | `EntryPoint` | `{workspaceId}:entrypoint:{type}:{name}` |
+| Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:externalservice:{protocol}:{host}` |
+| Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:procedure:{procedureName}` |
+| Layer 4: Semantic Structure | `Query` | `{workspaceId}:query:{queryHash}` |
+| Layer 4: Semantic Structure | `SemanticStructure` | `{workspaceId}:project:{relativeProjectDir}:semantic_structure` |
+| Layer 4: Semantic Structure | `Table` | `{workspaceId}:table:{tableName}` |
+| Layer 4: Semantic Structure | `Topic` | `{workspaceId}:topic:{brokerType}:{topicName}` |
+

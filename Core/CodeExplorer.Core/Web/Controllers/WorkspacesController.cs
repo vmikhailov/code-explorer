@@ -93,6 +93,27 @@ public class WorkspacesController : ControllerBase
         }
     }
 
+    [HttpGet("node-definition")]
+    public IActionResult GetNodeDefinition([FromQuery] string kind)
+    {
+        if (string.IsNullOrWhiteSpace(kind))
+        {
+            return BadRequest(new { error = "Node kind parameter 'kind' is required." });
+        }
+
+        var definition = OntologyRegistry.GetNodeDefinition(kind);
+        if (definition == "Invalid node kind.")
+        {
+            return BadRequest(new { error = definition });
+        }
+        if (definition.StartsWith("Unknown node kind:"))
+        {
+            return NotFound(new { error = definition });
+        }
+
+        return Ok(new { definition });
+    }
+
     [HttpGet("test-files")]
     public IActionResult TestFiles([FromQuery] string dir)
     {

@@ -245,7 +245,7 @@ public static class NestedSqlParser
 
         ExtractSqlDependencies(cleanedSql, rawText, tables, procedures);
 
-        var dbNodes = new Dictionary<string, DbNode>(StringComparer.OrdinalIgnoreCase);
+        var dbNodes = new Dictionary<string, DatabaseNode>(StringComparer.OrdinalIgnoreCase);
         var datasetNodes = new Dictionary<string, DataSetNode>(StringComparer.OrdinalIgnoreCase);
 
         // Process Tables
@@ -259,8 +259,7 @@ public static class NestedSqlParser
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
                 var dbNodeId = $"db:{dbKey}";
-                dbNode = new DbNode(dbNodeId, dbName, filePath);
-                dbNode.SetExtension("db_type", "relational");
+                dbNode = new DatabaseNode(dbNodeId, dbName, filePath, "relational");
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }
@@ -293,8 +292,7 @@ public static class NestedSqlParser
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
                 var dbNodeId = $"db:{dbKey}";
-                dbNode = new DbNode(dbNodeId, dbName, filePath);
-                dbNode.SetExtension("db_type", "relational");
+                dbNode = new DatabaseNode(dbNodeId, dbName, filePath, "relational");
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }

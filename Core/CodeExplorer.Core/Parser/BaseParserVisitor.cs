@@ -280,9 +280,9 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action baseVisit)
     {
-        if (kind == OntologyConstants.NodeLabels.Variable)
+        if (kind == "Variable" || kind == OntologyConstants.NodeLabels.Member)
         {
-            // Skip variable nodes in the graph as they are too deep level
+            // Skip variable/member nodes in the graph as they are too deep level
             baseVisit();
             return;
         }

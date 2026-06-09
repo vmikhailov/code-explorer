@@ -1,4 +1,4 @@
-MATCH (n:Interface) WHERE n.name CONTAINS $name{prefixClause}
+MATCH (n:Type {kind: 'interface'}) WHERE n.name CONTAINS $name{prefixClause}
 OPTIONAL MATCH (f:File)-[:DEFINES|DECLARES*1..]->(n)
 OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f)
 RETURN 'Interface' AS type, n.name AS name, n.symbol AS fullName,

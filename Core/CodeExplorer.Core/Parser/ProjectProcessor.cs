@@ -49,12 +49,21 @@ public class ProjectProcessor
 
         var projectNode = new ProjectNode(_projectNodeId, folderName, _relativeProjectDir, _projectParser.ProjectType);
 
-        // 1. Scan directory recursively and build the rich node tree under FilesNode
-        var filesNodeId = $"{_projectNodeId}files";
-        var filesNode = new FilesNode(filesNodeId, "Files", projectNode.Path);
-        projectNode.Children.Add(filesNode);
+        // 1. Initialize the three standardized intermediate nodes
+        var filesNodeId = $"{_projectNodeId}files_structure";
+        var filesStructureNode = new FilesStructureNode(filesNodeId, "FilesStructure", projectNode.Path);
+        projectNode.Children.Add(filesStructureNode);
 
-        await ScanDirectoryAsync(_projectDir, filesNode, projectNode);
+        var syntaxNodeId = $"{_projectNodeId}syntax_structure";
+        var syntaxStructureNode = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", projectNode.Path);
+        projectNode.Children.Add(syntaxStructureNode);
+
+        var semanticNodeId = $"{_projectNodeId}semantic_structure";
+        var semanticStructureNode = new SemanticStructureNode(semanticNodeId, "SemanticStructure", projectNode.Path);
+        projectNode.Children.Add(semanticStructureNode);
+
+        // 2. Scan directory recursively and build the rich node tree under FilesStructureNode
+        await ScanDirectoryAsync(_projectDir, filesStructureNode, projectNode);
         await ParseDependenciesAsync(projectNode);
         await LinkProducedPackageAsync(projectNode);
 
@@ -74,6 +83,9 @@ public class ProjectProcessor
 
         try
         {
+            var syntaxStructureNode = projectNode.Children.OfType<SyntaxStructureNode>().FirstOrDefault();
+            var semanticStructureNode = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+
             // Perform semantic analysis & ontology enrichment
             foreach (var syntaxTree in _projectSyntaxTrees)
             {
@@ -82,12 +94,37 @@ public class ProjectProcessor
                     ProcessVisitor(syntaxTree, _ctx.WorkspaceId, _ctx.AbsoluteWorkspacePath);
                 }
 
+                if (syntaxStructureNode != null && syntaxTree.FileNode != null)
+                {
+                    foreach (var child in syntaxTree.FileNode.Children)
+                    {
+                        if (child is TypeNode || child is FunctionNode || child is MemberNode)
+                        {
+                            syntaxStructureNode.Children.Add(child);
+                        }
+                    }
+                }
+
                 _ctx.RawImports.AddRange(syntaxTree.RawImports);
                 _ctx.RawVariables.AddRange(syntaxTree.RawVariables);
                 _ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
 
                 var enricher = _projectParser.GetSyntaxEnricher(syntaxTree);
                 await enricher.EnrichAsync(projectNode, _ctx);
+            }
+
+            // Collect and link semantic nodes parsed from files
+            if (semanticStructureNode != null)
+            {
+                var semanticNodes = new List<IOntologyNode>();
+                CollectSemanticNodes(projectNode, semanticNodes);
+                foreach (var semNode in semanticNodes)
+                {
+                    if (!semanticStructureNode.Children.Any(c => c.Id == semNode.Id))
+                    {
+                        semanticStructureNode.Children.Add(semNode);
+                    }
+                }
             }
 
             // Group EntryPoints under a single intermediate node to simplify browsing
@@ -136,8 +173,9 @@ public class ProjectProcessor
         if (currentDir != _projectDir)
         {
             var dirName = Path.GetFileName(currentDir);
-            var folderId = $"{_ctx.WorkspaceId}:projectfolder:{_relativeProjectDir}/{dirName}";
-            var folderNode = new ProjectFolderNode(folderId, dirName, _relativeProjectDir);
+            var absoluteFolderPath = Path.GetFullPath(currentDir).Replace('\\', '/');
+            var folderId = $"{_ctx.WorkspaceId}:folder:{absoluteFolderPath}";
+            var folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
 
             parentNode.Children.Add(folderNode);
             currentParentNode = folderNode;
@@ -219,17 +257,17 @@ public class ProjectProcessor
                 // B. Process external package dependencies
                 if (depInfo.ExternalPackages.Count > 0)
                 {
-                    var depsNodeId = $"{_projectNodeId}dependencies";
-                    var depsNode = new DependenciesNode(depsNodeId, "Dependencies", projectNode.Path);
-                    projectNode.Children.Add(depsNode);
-
-                    foreach (var extPack in depInfo.ExternalPackages)
+                    var semanticStructureNode = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+                    if (semanticStructureNode != null)
                     {
-                        var packageNodeId = $"{_ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
+                        foreach (var extPack in depInfo.ExternalPackages)
+                        {
+                            var packageNodeId = $"{_ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
 
-                        var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
-                            projectNode.Path);
-                        depsNode.Children.Add(packageNode);
+                            var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
+                                projectNode.Path);
+                            semanticStructureNode.Children.Add(packageNode);
+                        }
                     }
                 }
             }
@@ -244,6 +282,7 @@ public class ProjectProcessor
     private async Task LinkProducedPackageAsync(ProjectNode projectNode)
     {
         var packageDetected = false;
+        var semanticStructureNode = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
 
         try
         {
@@ -256,7 +295,14 @@ public class ProjectProcessor
                 var packageNode = new PackageNode(packageNodeId, producedPackage.Name, producedPackage.Version,
                     producedPackage.Type, projectNode.Path);
 
-                projectNode.Children.Add(packageNode);
+                if (semanticStructureNode != null)
+                {
+                    semanticStructureNode.Children.Add(packageNode);
+                }
+                else
+                {
+                    projectNode.Children.Add(packageNode);
+                }
 
                 var implRel =
                     Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, _projectNodeId));
@@ -281,7 +327,14 @@ public class ProjectProcessor
                 var packageNodeId = $"{_ctx.WorkspaceId}:package:{dirName.ToLowerInvariant()}";
                 var packageNode = new PackageNode(packageNodeId, dirName, "1.0.0", "unknown", projectNode.Path);
 
-                projectNode.Children.Add(packageNode);
+                if (semanticStructureNode != null)
+                {
+                    semanticStructureNode.Children.Add(packageNode);
+                }
+                else
+                {
+                    projectNode.Children.Add(packageNode);
+                }
 
                 var implRel =
                     Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, _projectNodeId));
@@ -324,20 +377,32 @@ public class ProjectProcessor
 
         if (entryPoints.Count > 0)
         {
-            var entryPointsNodeId = $"{_projectNodeId}entrypoints";
-            var entryPointsNode = new EntryPointsNode(entryPointsNodeId, "EntryPoints", projectNode.Path);
-            projectNode.Children.Add(entryPointsNode);
-
-            foreach (var ep in entryPoints)
+            var semanticStructureNode = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            if (semanticStructureNode != null)
             {
-                entryPointsNode.Children.Add(ep);
-
-                if (parentMap.TryGetValue(ep.Id, out var parentId))
+                foreach (var ep in entryPoints)
                 {
-                    var implRel = new ImplementedByRelationship(ep.Id, parentId);
-                    _ctx.AddGlobalProjectDependency(Relationship.FromRelationship(implRel));
+                    semanticStructureNode.Children.Add(ep);
+
+                    if (parentMap.TryGetValue(ep.Id, out var parentId))
+                    {
+                        var implRel = new ImplementedByRelationship(ep.Id, parentId);
+                        _ctx.AddGlobalProjectDependency(Relationship.FromRelationship(implRel));
+                    }
                 }
             }
+        }
+    }
+
+    private void CollectSemanticNodes(IOntologyNode node, List<IOntologyNode> semanticNodes)
+    {
+        foreach (var child in node.Children)
+        {
+            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is ApiInUseNode)
+            {
+                semanticNodes.Add(child);
+            }
+            CollectSemanticNodes(child, semanticNodes);
         }
     }
 
@@ -422,25 +487,58 @@ public class ProjectProcessor
         var kind = syntactic.Kind;
         var name = syntactic.Name;
 
-        var symbolId = $"{workspaceId}:symbol:{relativePath}:{kind}:{name}:{node.StartPosition.Row}";
+        var isType = kind == "Class" || kind == "Interface" || kind == OntologyConstants.NodeLabels.Type;
+        var mappedKind = isType ? "Type" : kind;
+        var symbolId = $"{workspaceId}:symbol:{relativePath}:{mappedKind}:{name}:{node.StartPosition.Row}";
 
-        IOntologyNode typedNode = kind switch
+        IOntologyNode typedNode;
+        if (kind == "Class")
         {
-            OntologyConstants.NodeLabels.Class => new ClassNode(symbolId, name, symbolId, fileName, relativePath,
-                node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-            OntologyConstants.NodeLabels.Interface => new InterfaceNode(symbolId, name, symbolId, fileName,
-                relativePath, node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column,
-                node.EndPosition.Column),
-            OntologyConstants.NodeLabels.Function => new FunctionNode(symbolId, name, symbolId, fileName, relativePath,
-                node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column),
-            OntologyConstants.NodeLabels.Query =>
-                NestedSqlParser.ParseNestedSql(syntactic.Text ?? node.Text, symbolId, relativePath) ?? new QueryNode(
-                    symbolId, name, NestedSqlParser.CleanQueryText(syntactic.Text ?? node.Text), relativePath),
-            OntologyConstants.NodeLabels.EntryPoint => CreateEntryPointNode(name, node, relativePath, workspaceId),
-            OntologyConstants.NodeLabels.ExternalService => CreateExternalServiceNode(name, node, relativePath,
-                workspaceId),
-            _ => throw new InvalidOperationException($"Unsupported symbol type: {kind}")
-        };
+            typedNode = new TypeNode(symbolId, name, symbolId, fileName, relativePath,
+                node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column, "class");
+        }
+        else if (kind == "Interface")
+        {
+            typedNode = new TypeNode(symbolId, name, symbolId, fileName, relativePath,
+                node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column, "interface");
+        }
+        else if (kind == OntologyConstants.NodeLabels.Function)
+        {
+            typedNode = new FunctionNode(symbolId, name, symbolId, fileName, relativePath,
+                node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column);
+        }
+        else if (kind == OntologyConstants.NodeLabels.Query)
+        {
+            typedNode = NestedSqlParser.ParseNestedSql(syntactic.Text ?? node.Text, symbolId, relativePath) ?? 
+                        new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(syntactic.Text ?? node.Text), relativePath);
+        }
+        else if (kind == OntologyConstants.NodeLabels.EntryPoint)
+        {
+            var colonIdx = name.IndexOf(':');
+            var isHttp = false;
+            if (colonIdx > 0)
+            {
+                var method = name.Substring(0, colonIdx).ToUpperInvariant();
+                isHttp = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH";
+            }
+
+            if (isHttp)
+            {
+                typedNode = CreateEndpointNode(name, node, relativePath, workspaceId);
+            }
+            else
+            {
+                typedNode = CreateEntryPointNode(name, node, relativePath, workspaceId);
+            }
+        }
+        else if (kind == OntologyConstants.NodeLabels.ExternalService)
+        {
+            typedNode = CreateExternalServiceNode(name, node, relativePath, workspaceId);
+        }
+        else
+        {
+            throw new InvalidOperationException($"Unsupported symbol type: {kind}");
+        }
 
         // Recursively map children
         foreach (var childSyntactic in syntactic.Children)
@@ -452,11 +550,25 @@ public class ProjectProcessor
         // Rewrite references to use the correct parent scope ID if empty
         foreach (var reference in syntactic.References)
         {
-            var resolvedScopeId = string.IsNullOrEmpty(reference.ScopeSymbolId) ? symbolId : reference.ScopeSymbolId;
+            var resolvedScopeId = string.IsNullOrEmpty(reference.ScopeSymbolId) ? typedNode.Id : reference.ScopeSymbolId;
             typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId });
         }
 
         return typedNode;
+    }
+
+    private static EndpointNode CreateEndpointNode(
+        string name,
+        TreeSitter.Node node,
+        string relativePath,
+        string workspaceId)
+    {
+        var idx = name.IndexOf(':');
+        var method = name.Substring(0, idx).ToUpperInvariant();
+        var route = name.Substring(idx + 1);
+
+        var endpointId = $"{workspaceId}:endpoint:{method}:{route}";
+        return new EndpointNode(endpointId, name, relativePath, method, route);
     }
 
     private static EntryPointNode CreateEntryPointNode(
@@ -468,32 +580,33 @@ public class ProjectProcessor
         var projectName = GetProjectNameFromRelativePath(relativePath);
         if (string.IsNullOrEmpty(projectName)) projectName = "default";
 
-        var protocol = "http";
-        var route = name;
+        var entryType = "grpc";
+        var cleanName = name;
 
         if (name.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
         {
-            protocol = "ws";
-            route = name.Substring(3);
+            entryType = "queue-listener";
+            cleanName = name.Substring(3);
         }
         else if (name.StartsWith("event:", StringComparison.OrdinalIgnoreCase))
         {
-            protocol = "event";
-            route = name.Substring(6);
+            entryType = "queue-listener";
+            cleanName = name.Substring(6);
         }
         else if (name.Contains(':'))
         {
             var idx = name.IndexOf(':');
-            route = name.Substring(idx + 1);
+            entryType = name.Substring(0, idx);
+            cleanName = name.Substring(idx + 1);
         }
 
-        var entryPointId = $"{workspaceId}:entrypoint:{projectName}:{protocol}:{name.Replace(":", "_")}";
+        var entryPointId = $"{workspaceId}:entrypoint:{entryType}:{cleanName}";
 
         var ext = new Dictionary<string, string>
         {
             { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
         };
-        return new EntryPointNode(entryPointId, name.Replace(":", " "), protocol, route, relativePath, ext);
+        return new EntryPointNode(entryPointId, cleanName, relativePath, entryType, ext);
     }
 
     private static ExternalServiceNode CreateExternalServiceNode(
@@ -505,16 +618,30 @@ public class ProjectProcessor
         var protocol = "http";
         var domainOrService = name;
 
-        if (name.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
+        if (domainOrService.Contains("://"))
+        {
+            var pIdx = domainOrService.IndexOf("://");
+            protocol = domainOrService.Substring(0, pIdx);
+            domainOrService = domainOrService.Substring(pIdx + 3);
+        }
+        else if (domainOrService.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
         {
             protocol = "ws";
-            domainOrService = name.Substring(3);
+            domainOrService = domainOrService.Substring(3);
         }
-        else if (name.Contains(':'))
+        else if (domainOrService.Contains(':'))
         {
-            var idx = name.IndexOf(':');
-            protocol = name.Substring(0, idx);
-            domainOrService = name.Substring(idx + 1);
+            var idx = domainOrService.IndexOf(':');
+            protocol = domainOrService.Substring(0, idx);
+            domainOrService = domainOrService.Substring(idx + 1);
+        }
+
+        var path = "/";
+        var slashIdx = domainOrService.IndexOf('/');
+        if (slashIdx >= 0)
+        {
+            path = domainOrService.Substring(slashIdx);
+            domainOrService = domainOrService.Substring(0, slashIdx);
         }
 
         var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";
@@ -523,7 +650,7 @@ public class ProjectProcessor
         {
             { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
         };
-        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, relativePath, ext);
+        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path, ext);
     }
 
     private static string GetProjectNameFromRelativePath(string relativePath)

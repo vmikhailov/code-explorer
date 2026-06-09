@@ -22,6 +22,7 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.EfCoreLibraryParser(),
         new Libraries.ElasticsearchNetLibraryParser(),
         new Libraries.FlurlLibraryParser(),
+        new Libraries.HttpClientLibraryParser(),
         new Libraries.MicrosoftDataSqlClientLibraryParser(),
         new Libraries.MongoDbCsLibraryParser(),
         new Libraries.MySqlDataLibraryParser(),
@@ -41,7 +42,6 @@ public class CSharpParser : IProjectParser, IFileParser
         new GenericLibraryParser("aspnetcore", "ASP.NET Core", "framework", ["Microsoft.AspNetCore.App", "Microsoft.AspNetCore"]),
 
         // Generic API Clients
-        new GenericLibraryParser("httpclient", "HttpClient", "api", ["System.Net.Http"], isBuiltIn: true),
         new GenericLibraryParser("restsharp", "RestSharp", "api", ["RestSharp"]),
         new GenericLibraryParser("refit", "Refit", "api", ["Refit"]),
         new GenericLibraryParser("webapiclient", "WebApiClient", "api", ["WebApiClient"]),

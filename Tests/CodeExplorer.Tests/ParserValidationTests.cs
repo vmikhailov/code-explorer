@@ -22,7 +22,7 @@ public class ParserValidationTests
         var workspacePath = "/Users/slava/Projects/ATS/src/services";
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+        await using var client = new MemgraphClient(McpIntegrationTests.GetBoltUrl(), "", "");
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         var filesToTest = new[]
@@ -224,12 +224,10 @@ async function clearDataAllLeads(bundle_ids: string) {
 
     private void AssertSqlHierarchy(QueryNode queryNode, string expectedDb, string expectedSchema, string expectedTable)
     {
-        var dbNode = queryNode.Children.OfType<DbNode>()
+        var dbNode = queryNode.Children.OfType<DatabaseNode>()
             .FirstOrDefault(d => d.Name.Equals(expectedDb, StringComparison.OrdinalIgnoreCase));
         Assert.That(dbNode, Is.Not.Null, $"Should contain DB node: {expectedDb}");
-        Assert.That(dbNode.Extensions, Is.Not.Null);
-        Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
-        Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
+        Assert.That(dbNode.DbType, Is.EqualTo("relational"));
 
         var schemaNode = dbNode.Children.OfType<DataSetNode>()
             .FirstOrDefault(s => s.Name.Equals(expectedSchema, StringComparison.OrdinalIgnoreCase));
@@ -285,7 +283,7 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
             Assert.That(sqlQuery.Name, Is.EqualTo("SELECT Query"));
 
             // Since tableName is a variable, it should be skipped and no database node hierarchy should be created for it.
-            var hasDbNode = sqlQuery.Children.OfType<DbNode>().Any();
+            var hasDbNode = sqlQuery.Children.OfType<DatabaseNode>().Any();
 
             Assert.That(hasDbNode, Is.False,
                 "Should have skipped tableName because it is a template variable placeholder.");
@@ -323,10 +321,9 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         return node switch
         {
             FileNode f => f.Name,
-            ClassNode c => c.Name,
-            InterfaceNode i => i.Name,
+            TypeNode t => t.Name,
             FunctionNode fn => fn.Name,
-            VariableNode v => v.Name,
+            MemberNode m => m.Name,
             QueryNode q => q.Name,
             _ => node.GetType().GetProperty("Name")?.GetValue(node) as string ?? "Unknown"
         };
@@ -340,6 +337,19 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         {
             if (node is QueryNode q) result.Add(q);
             result.AddRange(FindQueryNodes(node.Children));
+        }
+
+        return result;
+    }
+
+    private List<EndpointNode> FindEndpointNodes(IEnumerable<IOntologyNode> nodes)
+    {
+        var result = new List<EndpointNode>();
+
+        foreach (var node in nodes)
+        {
+            if (node is EndpointNode e) result.Add(e);
+            result.AddRange(FindEndpointNodes(node.Children));
         }
 
         return result;
@@ -421,11 +431,11 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
             ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
 
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
-            Assert.That(entryPoints, Is.Not.Empty);
-            var ep = entryPoints.FirstOrDefault(e => e.RouteOrTopic == "charge");
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            Assert.That(endpoints, Is.Not.Empty);
+            var ep = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("charge"));
             Assert.That(ep, Is.Not.Null);
-            Assert.That(ep.Protocol, Is.EqualTo("http"));
+            Assert.That(ep.HttpMethod, Is.EqualTo("POST"));
 
             var externalServices = FindExternalServiceNodes(fileNode.Children);
             Assert.That(externalServices, Is.Not.Empty);
@@ -485,15 +495,16 @@ export class OrdersController {
             ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
 
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
-            Assert.That(entryPoints, Is.Not.Empty);
-            var ep = entryPoints.FirstOrDefault(e => e.RouteOrTopic == "charge");
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            Assert.That(endpoints, Is.Not.Empty);
+            var ep = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("charge"));
             Assert.That(ep, Is.Not.Null);
-            Assert.That(ep.Protocol, Is.EqualTo("http"));
+            Assert.That(ep.HttpMethod, Is.EqualTo("POST"));
 
-            var wsEp = entryPoints.FirstOrDefault(e => e.Protocol == "ws");
+            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var wsEp = entryPoints.FirstOrDefault(e => e.EntryType == "queue-listener");
             Assert.That(wsEp, Is.Not.Null);
-            Assert.That(wsEp.RouteOrTopic, Is.EqualTo("ping"));
+            Assert.That(wsEp.Name, Is.EqualTo("ping"));
 
             var externalServices = FindExternalServiceNodes(fileNode.Children);
             Assert.That(externalServices, Is.Not.Empty);
@@ -575,25 +586,28 @@ export class OrdersController {
             Assert.That(results.NodesCount, Is.GreaterThan(0));
             Assert.That(results.RelationshipsCount, Is.GreaterThan(0));
 
-            // Verify EntryPoints grouping in the database
-            var wsPathQuery = CodeExplorer.Core.Common.PathTools.NormalizeToHostPath(tempWorkspace)
-                .Replace("\\", "\\\\");
+            // Verify Endpoint and CALLS_ENDPOINT in the database
+            var wsId = await client.GetOrCreateWorkspaceIdAsync(tempWorkspace);
 
-            var entryPointsCountBJson = await client.ExecuteQueryAsync(
-                $"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
-            Assert.That(entryPointsCountBJson, Contains.Substring("\"count\": 1"));
+            var debugNodes = await client.ExecuteQueryAsync(
+                $"MATCH (n) WHERE toString(n.id) STARTS WITH '{wsId}:' OR toString(n.id) = '{wsId}' RETURN labels(n)[0] AS label, n.id AS id, n.name AS name");
+            Console.WriteLine($"[DEBUG NODES] {debugNodes}");
 
-            var entryPointsCountAJson = await client.ExecuteQueryAsync(
-                $"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectA'}})-[:CONTAINS]->(d:EntryPoints) RETURN count(d) AS count");
-            Assert.That(entryPointsCountAJson, Contains.Substring("\"count\": 0"));
+            var debugRels = await client.ExecuteQueryAsync(
+                $"MATCH (n)-[r]->(m) WHERE toString(n.id) STARTS WITH '{wsId}:' OR toString(n.id) = '{wsId}' RETURN labels(n)[0] AS from_label, n.name AS from_name, type(r) AS rel_type, labels(m)[0] AS to_label, m.name AS to_name");
+            Console.WriteLine($"[DEBUG RELS] {debugRels}");
 
-            var containsEpJson = await client.ExecuteQueryAsync(
-                $"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project {{name: 'ProjectB'}})-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}}) RETURN ep.name");
-            Assert.That(containsEpJson, Contains.Substring("POST charge"));
+            var endpointCountJson = await client.ExecuteQueryAsync(
+                $"MATCH (ep:Endpoint) WHERE toString(ep.id) STARTS WITH '{wsId}:' RETURN count(ep) AS count");
+            Assert.That(endpointCountJson, Contains.Substring("\"count\": 2"));
 
             var implByJson = await client.ExecuteQueryAsync(
-                $"MATCH (w:Workspace {{path: '{wsPathQuery}'}})-[:CONTAINS*1..]->(p:Project)-[:CONTAINS]->(eps:EntryPoints)-[:EXPOSES]->(ep:EntryPoint {{name: 'POST charge'}})-[:IMPLEMENTED_BY]->(f:Function {{name: 'charge'}}) RETURN f.name");
-            Assert.That(implByJson, Contains.Substring("charge"));
+                $"MATCH (f:Function {{name: 'charge'}})-[:EXPOSES_ENDPOINT]->(ep:Endpoint) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
+            Assert.That(implByJson, Contains.Substring(":endpoint:POST:charge"));
+
+            var lateBoundJson = await client.ExecuteQueryAsync(
+                $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
+            Assert.That(lateBoundJson, Contains.Substring(":endpoint:POST:charge"));
 
             Console.WriteLine(
                 $"[IntegrationTest] Parsed {results.NodesCount} nodes and {results.RelationshipsCount} relationships successfully.");
@@ -686,9 +700,9 @@ export class OrdersController {
 
             var projectA = workspaceNode.Children.FirstOrDefault(c => c is ProjectNode pn && pn.Name == "ProjectA");
             Assert.That(projectA, Is.Not.Null);
-            var filesNode = projectA.Children.OfType<FilesNode>().FirstOrDefault();
+            var filesNode = projectA.Children.OfType<FilesStructureNode>().FirstOrDefault();
             Assert.That(filesNode, Is.Not.Null);
-            Assert.That(filesNode.Children.Any(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
+            Assert.That(filesNode.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
 
             // 2. Perform pruning
             OntologyPruner.PruneEmptyFolders(workspaceNode);
@@ -699,7 +713,7 @@ export class OrdersController {
 
             // EmptyFolder is removed
             var folderA =
-                filesNode.Children.FirstOrDefault(c => c is ProjectFolderNode pfn && pfn.Name == "EmptyFolder");
+                filesNode.Children.FirstOrDefault(c => c is FolderNode pfn && pfn.Name == "EmptyFolder");
             Assert.That(folderA, Is.Null);
 
             // Verify project framework detection
@@ -707,14 +721,12 @@ export class OrdersController {
             Assert.That(projectA.Extensions.ContainsKey("framework"), Is.True);
             Assert.That(projectA.Extensions["framework"], Is.EqualTo("ASP.NET Core"));
 
-            // Verify Dependencies node grouping
-            var depsNode = projectA.Children.OfType<DependenciesNode>().FirstOrDefault();
-            Assert.That(depsNode, Is.Not.Null);
-            Assert.That(depsNode.Name, Is.EqualTo("Dependencies"));
-            Assert.That(depsNode.Kind, Is.EqualTo(OntologyConstants.NodeLabels.Dependencies));
+            // Verify SemanticStructure node grouping
+            var semanticNode = projectA.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            Assert.That(semanticNode, Is.Not.Null);
 
-            // Verify external packages are inside DependenciesNode
-            var extPackages = depsNode.Children.OfType<PackageNode>().ToList();
+            // Verify external packages are inside SemanticStructureNode
+            var extPackages = semanticNode.Children.OfType<PackageNode>().Where(p => p.Name != "ProjectA").ToList();
             Assert.That(extPackages, Has.Count.EqualTo(3));
             Assert.That(extPackages.Any(p => p.Name == "Dapper"), Is.True);
             Assert.That(extPackages.Any(p => p.Name == "Stripe.net"), Is.True);
@@ -726,8 +738,9 @@ export class OrdersController {
             Assert.That(directPackages.Any(p => p.Name == "Stripe.net"), Is.False);
             Assert.That(directPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.False);
 
-            // Verify projectA directly contains the produced package
-            Assert.That(directPackages.Any(p => p.Name == "ProjectA"), Is.True);
+            // Verify semanticNode contains the produced package
+            var semPackages = semanticNode.Children.OfType<PackageNode>().ToList();
+            Assert.That(semPackages.Any(p => p.Name == "ProjectA"), Is.True);
 
             var fileNode = filesNode.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
             Assert.That(fileNode, Is.Not.Null);
@@ -739,20 +752,14 @@ export class OrdersController {
                 Assert.That(fileNode.Extensions.ContainsKey("cloud_service"), Is.False);
             }
 
-            // Check if DbNode child was added at the project level (under DataBasesNode)
-            var databasesNode = projectA.Children.OfType<DataBasesNode>().FirstOrDefault();
-            Assert.That(databasesNode, Is.Not.Null);
-            var dbNode = databasesNode.Children.OfType<DbNode>().FirstOrDefault();
+            // Check if DatabaseNode child was added at the project level (under SemanticStructureNode)
+            var dbNode = semanticNode.Children.OfType<DatabaseNode>().FirstOrDefault();
             Assert.That(dbNode, Is.Not.Null);
             Assert.That(dbNode.Name, Is.EqualTo("Dapper"));
-            Assert.That(dbNode.Extensions, Is.Not.Null);
-            Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
-            Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
+            Assert.That(dbNode.DbType, Is.EqualTo("relational"));
 
-            // Check if CloudServiceNode child was added at the project level (under CloudServicesNode)
-            var cloudServicesNode = projectA.Children.OfType<CloudServicesNode>().FirstOrDefault();
-            Assert.That(cloudServicesNode, Is.Not.Null);
-            var cloudNode = cloudServicesNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
+            // Check if CloudServiceNode child was added at the project level (under SemanticStructureNode)
+            var cloudNode = semanticNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
             Assert.That(cloudNode, Is.Not.Null);
             Assert.That(cloudNode.Name, Is.EqualTo("Stripe"));
 
@@ -767,11 +774,11 @@ export class OrdersController {
             Assert.That(usesCloud, Is.Not.Null);
             Assert.That(usesCloud.To, Is.EqualTo(cloudNode.Id));
 
-            // Check variable nodes under ClassNode (Repository)
-            var classNode = fileNode.Children.OfType<ClassNode>().FirstOrDefault();
+            // Check member nodes under TypeNode (Repository)
+            var classNode = fileNode.Children.OfType<TypeNode>().FirstOrDefault();
             Assert.That(classNode, Is.Not.Null);
 
-            var variables = classNode.Children.OfType<VariableNode>().ToList();
+            var variables = classNode.Children.OfType<MemberNode>().ToList();
             Assert.That(variables.Any(v => v.Name == "CONNECTION_STRING_URL"), Is.True);
             Assert.That(variables.Any(v => v.Name == "MAX_RETRIES"), Is.True);
             Assert.That(variables.Any(v => v.Name == "timeoutSeconds"), Is.False); // local non-config is ignored
@@ -820,15 +827,16 @@ def process_payment():
             var pyNode = pySyntax.FileNode;
             Assert.That(pyNode, Is.Not.Null);
 
-            var pyEntryPoints = FindEntryPointNodes(pyNode.Children);
-            Assert.That(pyEntryPoints, Has.Count.EqualTo(1));
-            Assert.That(pyEntryPoints[0].Name, Is.EqualTo("POST /charge"));
+            var pyEndpoints = FindEndpointNodes(pyNode.Children);
+            Assert.That(pyEndpoints, Has.Count.EqualTo(1));
+            Assert.That(pyEndpoints[0].RouteTemplate, Is.EqualTo("/charge"));
+            Assert.That(pyEndpoints[0].HttpMethod, Is.EqualTo("POST"));
 
             var pyExtServices = FindExternalServiceNodes(pyNode.Children);
             Assert.That(pyExtServices, Has.Count.EqualTo(1));
             Assert.That(pyExtServices[0].Name, Is.EqualTo("api.stripe.com"));
 
-            // Verify reference from process_payment function to EntryPoint POST:/charge is collected
+            // Verify reference from process_payment function to Endpoint POST:/charge is collected
             var pyRefs = FindReferences(pyNode.Children);
             Assert.That(pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == "IMPLEMENTS"), Is.True);
 
@@ -860,9 +868,10 @@ func Register(r *gin.Engine) {
             var goNode = goSyntax.FileNode;
             Assert.That(goNode, Is.Not.Null);
 
-            var goEntryPoints = FindEntryPointNodes(goNode.Children);
-            Assert.That(goEntryPoints, Has.Count.EqualTo(1));
-            Assert.That(goEntryPoints[0].Name, Is.EqualTo("GET /api/v1/users"));
+            var goEndpoints = FindEndpointNodes(goNode.Children);
+            Assert.That(goEndpoints, Has.Count.EqualTo(1));
+            Assert.That(goEndpoints[0].RouteTemplate, Is.EqualTo("/api/v1/users"));
+            Assert.That(goEndpoints[0].HttpMethod, Is.EqualTo("GET"));
 
             // Verify Go references
             var goRefs = FindReferences(goNode.Children);
@@ -891,11 +900,9 @@ END;
             Assert.That(sqlNode, Is.Not.Null);
 
             // Schema and DB hierarchy check
-            var dbNode = sqlNode.Children.OfType<DbNode>().FirstOrDefault();
+            var dbNode = sqlNode.Children.OfType<DatabaseNode>().FirstOrDefault();
             Assert.That(dbNode, Is.Not.Null);
-            Assert.That(dbNode.Extensions, Is.Not.Null);
-            Assert.That(dbNode.Extensions.ContainsKey("db_type"), Is.True);
-            Assert.That(dbNode.Extensions["db_type"], Is.EqualTo("relational"));
+            Assert.That(dbNode.DbType, Is.EqualTo("relational"));
 
             var schemaNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault(s => s.Name == "my_schema");
             Assert.That(schemaNode, Is.Not.Null);
@@ -945,12 +952,12 @@ END;
             var csModel = csParser.GetSyntaxEnricher(csSyntaxTree);
             await csModel.EnrichAsync(csProj, ctx);
 
-            var csDbGroup = csProj.Children.OfType<DataBasesNode>().FirstOrDefault();
+            var csDbGroup = csProj.Children.OfType<SemanticStructureNode>().FirstOrDefault();
             Assert.That(csDbGroup, Is.Not.Null);
-            var csDbNode = csDbGroup.Children.OfType<DbNode>().FirstOrDefault();
+            var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault();
             Assert.That(csDbNode, Is.Not.Null);
             Assert.That(csDbNode.Name, Is.EqualTo("Microsoft.EntityFrameworkCore"));
-            Assert.That(csDbNode!.Extensions!["db_type"], Is.EqualTo("relational"));
+            Assert.That(csDbNode!.DbType, Is.EqualTo("relational"));
 
             Assert.That(
                 ctx.GlobalProjectDependencies.Any(r =>
@@ -967,12 +974,12 @@ END;
             var csGraphModel = csParser.GetSyntaxEnricher(csGraphSyntaxTree);
             await csGraphModel.EnrichAsync(csGraphProj, ctx);
 
-            var csGraphDbGroup = csGraphProj.Children.OfType<DataBasesNode>().FirstOrDefault();
+            var csGraphDbGroup = csGraphProj.Children.OfType<SemanticStructureNode>().FirstOrDefault();
             Assert.That(csGraphDbGroup, Is.Not.Null);
-            var csGraphDbNode = csGraphDbGroup.Children.OfType<DbNode>().FirstOrDefault();
+            var csGraphDbNode = csGraphDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault();
             Assert.That(csGraphDbNode, Is.Not.Null);
             Assert.That(csGraphDbNode.Name, Is.EqualTo("Neo4j"));
-            Assert.That(csGraphDbNode!.Extensions!["db_type"], Is.EqualTo("graph"));
+            Assert.That(csGraphDbNode!.DbType, Is.EqualTo("graph"));
 
             Assert.That(
                 ctx.GlobalProjectDependencies.Any(r =>
@@ -989,12 +996,12 @@ END;
             var tsModel = tsParser.GetSyntaxEnricher(tsSyntaxTree);
             await tsModel.EnrichAsync(tsProj, ctx);
 
-            var tsDbGroup = tsProj.Children.OfType<DataBasesNode>().FirstOrDefault();
+            var tsDbGroup = tsProj.Children.OfType<SemanticStructureNode>().FirstOrDefault();
             Assert.That(tsDbGroup, Is.Not.Null);
-            var tsDbNode = tsDbGroup.Children.OfType<DbNode>().FirstOrDefault();
+            var tsDbNode = tsDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault();
             Assert.That(tsDbNode, Is.Not.Null);
             Assert.That(tsDbNode.Name, Is.EqualTo("MongoDB"));
-            Assert.That(tsDbNode!.Extensions!["db_type"], Is.EqualTo("document"));
+            Assert.That(tsDbNode!.DbType, Is.EqualTo("document"));
 
             Assert.That(
                 ctx.GlobalProjectDependencies.Any(r =>
@@ -1011,12 +1018,12 @@ END;
             var pyModel = pyParser.GetSyntaxEnricher(pySyntaxTree);
             await pyModel.EnrichAsync(pyProj, ctx);
 
-            var pyDbGroup = pyProj.Children.OfType<DataBasesNode>().FirstOrDefault();
+            var pyDbGroup = pyProj.Children.OfType<SemanticStructureNode>().FirstOrDefault();
             Assert.That(pyDbGroup, Is.Not.Null);
-            var pyDbNode = pyDbGroup.Children.OfType<DbNode>().FirstOrDefault();
+            var pyDbNode = pyDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault();
             Assert.That(pyDbNode, Is.Not.Null);
             Assert.That(pyDbNode.Name, Is.EqualTo("Redis"));
-            Assert.That(pyDbNode!.Extensions!["db_type"], Is.EqualTo("keyvalue"));
+            Assert.That(pyDbNode!.DbType, Is.EqualTo("keyvalue"));
 
             Assert.That(
                 ctx.GlobalProjectDependencies.Any(r =>
@@ -1205,9 +1212,9 @@ export class OrderService {
 
             Assert.That(results.NodesCount, Is.GreaterThan(0));
 
-            // Verify using Memgraph query that Function 'process' CALLS Function 'charge' in Class 'PaymentService'
+            // Verify using Memgraph query that Function 'process' CALLS Function 'charge' in Type 'PaymentService'
             var callsQuery =
-                $"MATCH (c:Class {{name: 'PaymentService'}})-[:DECLARES]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
+                $"MATCH (c:Type {{name: 'PaymentService'}})-[:HAS_METHOD]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
             var queryResult = await client.ExecuteQueryAsync(callsQuery);
 
             Assert.That(queryResult, Contains.Substring("\"f1Name\": \"process\""));
@@ -1241,7 +1248,7 @@ export class OrderService {
             await File.WriteAllTextAsync(Path.Combine(projBDir, "serviceB.ts"), "export class ServiceB {}");
 
             // Setup parsing
-            await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+            await using var client = new MemgraphClient(McpIntegrationTests.GetBoltUrl(), "", "");
 
             // Register parsers if they aren't already registered
             WorkspaceIndexer.Register(new TypeScriptParser());

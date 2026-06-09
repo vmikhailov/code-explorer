@@ -1,0 +1,717 @@
+﻿  Determining projects to restore...
+  All projects are up-to-date for restore.
+  CodeExplorer.Core -> C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Core\CodeExplorer.Core.dll
+  [OntologyGen] Scanning C:\Work\Personal\code-explorer\Core\CodeExplorer.Core\Common\Nodes
+  [OntologyGen] Scanning C:\Work\Personal\code-explorer\Core\CodeExplorer.Core\Common\Relationships
+  [OntologyGen] Written 23 nodes, 28 relationships тЖТ C:\Work\Personal\code-explorer\docs\ontology.md
+  CodeExplorer.Parser.TypeScript -> C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Parser.TypeScript\CodeExplorer.Parser.TypeScript.dll
+  CodeExplorer.Parser.Go -> C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Parser.Go\CodeExplorer.Parser.Go.dll
+  CodeExplorer.Parser.Python -> C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Parser.Python\CodeExplorer.Parser.Python.dll
+  CodeExplorer.Parser.SQL -> C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Parser.SQL\CodeExplorer.Parser.SQL.dll
+  CodeExplorer.Parser.CSharp -> C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Parser.CSharp\CodeExplorer.Parser.CSharp.dll
+  CodeExplorer -> C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer\CodeExplorer.dll
+  CodeExplorer.Tests -> C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll
+Test run for C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+NUnit Adapter 4.5.0.0: Test execution started
+Running selected tests in C:\Work\Personal\code-explorer\.Build\bin_Debug_AnyCPU\CodeExplorer.Tests\CodeExplorer.Tests.dll
+   NUnit3TestExecutor discovered 17 of 17 NUnit test cases using Current Discovery mode, Non-Explicit run
+Library 'ASP.NET Core' detected but parser is not implemented yet.
+Finished parsing file: csharp_api_test.cs with 1 top-level symbols.
+
+Finished parsing file: embedded_sql_test.cs with 1 top-level symbols.
+
+Finished parsing file: embedded_sql_test.go with 1 top-level symbols.
+
+Finished parsing file: Service.cs with 1 top-level symbols.
+Finished parsing file: app.ts with 2 top-level symbols.
+
+[2026-06-09 12:35:43.766] [+5ms] [WorkspaceIndexer] Starting background database persistence loop...
+[2026-06-09 12:35:43.771] [+5ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:\Users\viach\AppData\Local\Temp\codeexplorer_nested_project_test_094688d6-8fed-4e9a-8314-be07c846ac96'...
+[WorkspaceParser] Starting scan of project 'ProjectA'...
+[WorkspaceParser] Starting scan of project 'ProjectB'...
+[WorkspaceParser] Completed structural scan of project 'ProjectB'.
+[WorkspaceParser] Completed structural scan of project 'ProjectA'.
+[2026-06-09 12:35:44.109] [+344ms] [WorkspaceParser] Starting syntax enrichment pass for 2 projects...
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.
+[2026-06-09 12:35:44.147] [+381ms] [LateBinding] Found 0 EntryPoints, 0 Endpoints, and 0 ExternalServices in the workspace.
+[2026-06-09 12:35:44.194] [+428ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 15 nodes, 18 relationships.
+[2026-06-09 12:35:44.200] [+434ms] [WorkspaceIndexer] Resolving 2 global cross-references...
+[2026-06-09 12:35:44.201] [+435ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...
+[2026-06-09 12:35:44.226] [+461ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 15, Total Relationships: 18.
+Finished parsing file: ProjectA/ProjectB/serviceB.ts with 1 top-level symbols.
+Finished parsing file: ProjectA/serviceA.ts with 1 top-level symbols.
+
+Finished parsing file: app.py with 2 top-level symbols.
+--- GO AST START ---
+Type: source_file, Text: package main
+ import "net/http"
+ func Register(r *gin.Engine) {
+     r.GET("/api/v1/users", GetUsers)
+ }
+ 
+  Type: package_clause, Text: package main
+    Type: package, Text: package
+    Type: package_identifier, Text: main
+  Type: import_declaration, Text: import "net/http"
+    Type: import, Text: import
+    Type: import_spec, Text: "net/http"
+      Type: interpreted_string_literal, Text: "net/http"
+        Type: ", Text: "
+        Type: interpreted_string_literal_content, Text: net/http
+        Type: ", Text: "
+  Type: function_declaration, Text: func Register(r *gin.Engine) {
+     r.GET("/api/v1/users", GetUsers)
+ }
+    Type: func, Text: func
+    Type: identifier, Text: Register
+    Type: parameter_list, Text: (r *gin.Engine)
+      Type: (, Text: (
+      Type: parameter_declaration, Text: r *gin.Engine
+        Type: identifier, Text: r
+        Type: pointer_type, Text: *gin.Engine
+          Type: *, Text: *
+          Type: qualified_type, Text: gin.Engine
+            Type: package_identifier, Text: gin
+            Type: ., Text: .
+            Type: type_identifier, Text: Engine
+      Type: ), Text: )
+    Type: block, Text: {
+     r.GET("/api/v1/users", GetUsers)
+ }
+      Type: {, Text: {
+      Type: statement_list, Text: r.GET("/api/v1/users", GetUsers)
+ 
+        Type: expression_statement, Text: r.GET("/api/v1/users", GetUsers)
+          Type: call_expression, Text: r.GET("/api/v1/users", GetUsers)
+            Type: selector_expression, Text: r.GET
+              Type: identifier, Text: r
+              Type: ., Text: .
+              Type: field_identifier, Text: GET
+            Type: argument_list, Text: ("/api/v1/users", GetUsers)
+              Type: (, Text: (
+              Type: interpreted_string_literal, Text: "/api/v1/users"
+                Type: ", Text: "
+                Type: interpreted_string_literal_content, Text: /api/v1/users
+                Type: ", Text: "
+              Type: ,, Text: ,
+              Type: identifier, Text: GetUsers
+              Type: ), Text: )
+      Type: }, Text: }
+--- GO AST END ---
+Library 'http/https' detected but parser is not implemented yet.
+Finished parsing file: main.go with 1 top-level symbols.
+
+Finished parsing file: embedded_sql_test.py with 1 top-level symbols.
+
+  Passed Test_CSharpParser_ApiIngressEgress [165 ms]
+  Passed Test_CSharpParser_EmbeddedSql [158 ms]
+  Passed Test_GoParser_EmbeddedSql [20 ms]
+  Passed Test_LibraryParsers_CSharpAndTS [33 ms]
+  Passed Test_LibraryTrieRegistry_Matching [1 ms]
+  Passed Test_NestedProjectsResolution [517 ms]
+  Passed Test_NestedSqlParser_CleanQueryText_NestedQuotes [< 1 ms]
+  Passed Test_NewParserFeatures [47 ms]
+  Passed Test_PythonParser_EmbeddedSql [11 ms]
+[WorkspaceParser] Starting scan of project 'ProjectA'...
+[WorkspaceParser] Completed structural scan of project 'ProjectA'.
+[WorkspaceParser] Starting scan of project 'ProjectB'...
+[WorkspaceParser] Completed structural scan of project 'ProjectB'.
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.
+Library 'Stripe' detected but parser is not implemented yet.
+Finished parsing file: ProjectA/Repository.cs with 1 top-level symbols.
+
+[2026-06-09 12:35:44.444] [+0ms] [WorkspaceIndexer] Starting background database persistence loop...
+[2026-06-09 12:35:44.444] [+0ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:\Users\viach\AppData\Local\Temp\codeexplorer_typebinding_test_2cb0c209-6abe-48db-9348-88c59440ab0f'...
+[WorkspaceParser] Starting scan of project 'ProjectA'...
+[WorkspaceParser] Completed structural scan of project 'ProjectA'.
+[2026-06-09 12:35:44.542] [+97ms] [WorkspaceParser] Starting syntax enrichment pass for 1 projects...
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.
+[2026-06-09 12:35:44.549] [+104ms] [LateBinding] Found 0 EntryPoints, 0 Endpoints, and 0 ExternalServices in the workspace.
+[2026-06-09 12:35:44.603] [+159ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 12 nodes, 14 relationships.
+[2026-06-09 12:35:44.603] [+159ms] [WorkspaceIndexer] Resolving 5 global cross-references...
+[2026-06-09 12:35:44.605] [+160ms] [WorkspaceIndexer] Uploading 1 resolved reference relationships...
+[2026-06-09 12:35:44.609] [+164ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...
+[2026-06-09 12:35:44.624] [+180ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 12, Total Relationships: 15.
+Finished parsing file: ProjectA/OrderService.ts with 2 top-level symbols.
+
+--- TS AST START ---
+Type: program, Text: import { Controller, Post, Get } from '@nestjs/common';
+ import axios from 'axios';
+ 
+ @Controller('orders')
+ export class OrdersController {
+     @Post('charge')
+     async chargeOrder() {
+         await axios.post('http://api.stripe.com/v1/charges', {});
+     }
+ 
+     @SubscribeMessage('ping')
+     onPing() {
+         return 'pong';
+     }
+ }
+ 
+  Type: import_statement, Text: import { Controller, Post, Get } from '@nestjs/common';
+    Type: import, Text: import
+    Type: import_clause, Text: { Controller, Post, Get }
+      Type: named_imports, Text: { Controller, Post, Get }
+        Type: {, Text: {
+        Type: import_specifier, Text: Controller
+          Type: identifier, Text: Controller
+        Type: ,, Text: ,
+        Type: import_specifier, Text: Post
+          Type: identifier, Text: Post
+        Type: ,, Text: ,
+        Type: import_specifier, Text: Get
+          Type: identifier, Text: Get
+        Type: }, Text: }
+    Type: from, Text: from
+    Type: string, Text: '@nestjs/common'
+      Type: ', Text: '
+      Type: string_fragment, Text: @nestjs/common
+      Type: ', Text: '
+    Type: ;, Text: ;
+  Type: import_statement, Text: import axios from 'axios';
+    Type: import, Text: import
+    Type: import_clause, Text: axios
+      Type: identifier, Text: axios
+    Type: from, Text: from
+    Type: string, Text: 'axios'
+      Type: ', Text: '
+      Type: string_fragment, Text: axios
+      Type: ', Text: '
+    Type: ;, Text: ;
+  Type: export_statement, Text: @Controller('orders')
+ export class OrdersController {
+     @Post('charge')
+     async chargeOrder() {
+         await axios.post('http://api.stripe.com/v1/charges', {});
+     }
+ 
+     @SubscribeMessage('ping')
+     onPing() {
+         return 'pong';
+     }
+ }
+    Type: decorator, Text: @Controller('orders')
+      Type: @, Text: @
+      Type: call_expression, Text: Controller('orders')
+        Type: identifier, Text: Controller
+        Type: arguments, Text: ('orders')
+          Type: (, Text: (
+          Type: string, Text: 'orders'
+            Type: ', Text: '
+            Type: string_fragment, Text: orders
+            Type: ', Text: '
+          Type: ), Text: )
+    Type: export, Text: export
+    Type: class_declaration, Text: class OrdersController {
+     @Post('charge')
+     async chargeOrder() {
+         await axios.post('http://api.stripe.com/v1/charges', {});
+     }
+ 
+     @SubscribeMessage('ping')
+     onPing() {
+         return 'pong';
+     }
+ }
+      Type: class, Text: class
+      Type: type_identifier, Text: OrdersController
+      Type: class_body, Text: {
+     @Post('charge')
+     async chargeOrder() {
+         await axios.post('http://api.stripe.com/v1/charges', {});
+     }
+ 
+     @SubscribeMessage('ping')
+     onPing() {
+         return 'pong';
+     }
+ }
+        Type: {, Text: {
+        Type: decorator, Text: @Post('charge')
+          Type: @, Text: @
+          Type: call_expression, Text: Post('charge')
+            Type: identifier, Text: Post
+            Type: arguments, Text: ('charge')
+              Type: (, Text: (
+              Type: string, Text: 'charge'
+                Type: ', Text: '
+                Type: string_fragment, Text: charge
+                Type: ', Text: '
+              Type: ), Text: )
+        Type: method_definition, Text: async chargeOrder() {
+         await axios.post('http://api.stripe.com/v1/charges', {});
+     }
+          Type: async, Text: async
+          Type: property_identifier, Text: chargeOrder
+          Type: formal_parameters, Text: ()
+            Type: (, Text: (
+            Type: ), Text: )
+          Type: statement_block, Text: {
+         await axios.post('http://api.stripe.com/v1/charges', {});
+     }
+            Type: {, Text: {
+            Type: expression_statement, Text: await axios.post('http://api.stripe.com/v1/charges', {});
+              Type: await_expression, Text: await axios.post('http://api.stripe.com/v1/charges', {})
+                Type: await, Text: await
+                Type: call_expression, Text: axios.post('http://api.stripe.com/v1/charges', {})
+                  Type: member_expression, Text: axios.post
+                    Type: identifier, Text: axios
+                    Type: ., Text: .
+                    Type: property_identifier, Text: post
+                  Type: arguments, Text: ('http://api.stripe.com/v1/charges', {})
+                    Type: (, Text: (
+                    Type: string, Text: 'http://api.stripe.com/v1/charges'
+                      Type: ', Text: '
+                      Type: string_fragment, Text: http://api.stripe.com/v1/charges
+                      Type: ', Text: '
+                    Type: ,, Text: ,
+                    Type: object, Text: {}
+                      Type: {, Text: {
+                      Type: }, Text: }
+                    Type: ), Text: )
+              Type: ;, Text: ;
+            Type: }, Text: }
+        Type: decorator, Text: @SubscribeMessage('ping')
+          Type: @, Text: @
+          Type: call_expression, Text: SubscribeMessage('ping')
+            Type: identifier, Text: SubscribeMessage
+            Type: arguments, Text: ('ping')
+              Type: (, Text: (
+              Type: string, Text: 'ping'
+                Type: ', Text: '
+                Type: string_fragment, Text: ping
+                Type: ', Text: '
+              Type: ), Text: )
+        Type: method_definition, Text: onPing() {
+         return 'pong';
+     }
+          Type: property_identifier, Text: onPing
+          Type: formal_parameters, Text: ()
+            Type: (, Text: (
+            Type: ), Text: )
+          Type: statement_block, Text: {
+         return 'pong';
+     }
+            Type: {, Text: {
+            Type: return_statement, Text: return 'pong';
+              Type: return, Text: return
+              Type: string, Text: 'pong'
+                Type: ', Text: '
+                Type: string_fragment, Text: pong
+                Type: ', Text: '
+              Type: ;, Text: ;
+            Type: }, Text: }
+        Type: }, Text: }
+--- TS AST END ---
+Finished parsing file: typescript_api_test.ts with 2 top-level symbols.
+
+Finished parsing file: embedded_sql_test.ts with 1 top-level symbols.
+
+Finished parsing file: complex_template_test.ts with 1 top-level symbols.
+
+Test_TypeScriptParser_WithExamples: Multiple failures or warnings in test:
+  1) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/cron/cron.service.ts
+  2) Example file not found: /Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/services/calibrate-min-roi.service.ts
+  3) Example file not found: /Users/slava/Projects/ATS/src/services/calc-epm/src/interfaces/configs/config.models.ts
+
+[2026-06-09 12:35:44.681] [+0ms] [WorkspaceIndexer] Starting background database persistence loop...
+[2026-06-09 12:35:44.681] [+0ms] [WorkspaceIndexer] Clearing previous root workspace data for 'C:/Users/viach/AppData/Local/Temp/codeexplorer_test_workspace_c9ded03a-3552-49e9-b41c-f7e22581aaed'...
+[WorkspaceParser] Starting scan of project 'ProjectA'...
+[WorkspaceParser] Completed structural scan of project 'ProjectA'.
+[WorkspaceParser] Starting scan of project 'ProjectB'...
+[WorkspaceParser] Completed structural scan of project 'ProjectB'.
+[2026-06-09 12:35:44.789] [+107ms] [WorkspaceParser] Starting syntax enrichment pass for 2 projects...
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectA'...
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectA'.
+[WorkspaceParser] Starting syntax enrichment of project 'ProjectB'...
+[WorkspaceParser] Completed syntax enrichment of project 'ProjectB'.
+[2026-06-09 12:35:44.798] [+116ms] [LateBinding] Found 0 EntryPoints, 5 Endpoints, and 3 ExternalServices in the workspace.
+[2026-06-09 12:35:44.798] [+117ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Binding ExternalService '127:externalservice:http:localhost' to Endpoint '127:endpoint:POST:charge'
+[2026-06-09 12:35:44.800] [+118ms] [LateBinding] Enqueuing 9 late-bound relationships...
+[2026-06-09 12:35:44.869] [+187ms] [WorkspaceIndexer] All background channel persistence writes completed! Total parsed: 21 nodes, 36 relationships.
+[2026-06-09 12:35:44.869] [+187ms] [WorkspaceIndexer] Uploading 1 local project dependency relationships...
+[2026-06-09 12:35:44.873] [+191ms] [WorkspaceIndexer] Resolving 16 global cross-references...
+[2026-06-09 12:35:44.874] [+192ms] [WorkspaceIndexer] Uploading 3 resolved reference relationships...
+[2026-06-09 12:35:44.881] [+200ms] [WorkspaceIndexer] Running Layer 2 semantic analysis via PostIndexAnalyzer...
+[2026-06-09 12:35:44.894] [+212ms] [WorkspaceIndexer] Indexing process completed successfully! Total Nodes: 21, Total Relationships: 40.
+Finished parsing file: ProjectA/Client.cs with 1 top-level symbols.
+Finished parsing file: ProjectB/server.ts with 2 top-level symbols.
+[DEBUG NODES] [
+  {
+    "label": "Workspace",
+    "id": 127,
+    "name": "codeexplorer_test_workspace_c9ded03a-3552-49e9-b41c-f7e22581aaed"
+  },
+  {
+    "label": "Project",
+    "id": "127:project:ProjectA:",
+    "name": "ProjectA"
+  },
+  {
+    "label": "Project",
+    "id": "127:project:ProjectB:",
+    "name": "ProjectB"
+  },
+  {
+    "label": "FilesStructure",
+    "id": "127:project:ProjectA:files_structure",
+    "name": "FilesStructure"
+  },
+  {
+    "label": "FilesStructure",
+    "id": "127:project:ProjectB:files_structure",
+    "name": "FilesStructure"
+  },
+  {
+    "label": "File",
+    "id": "127:file:ProjectA/Client.cs",
+    "name": "Client.cs"
+  },
+  {
+    "label": "File",
+    "id": "127:file:ProjectB/server.ts",
+    "name": "server.ts"
+  },
+  {
+    "label": "Type",
+    "id": "127:symbol:ProjectA/Client.cs:Type:Client:2",
+    "name": "Client"
+  },
+  {
+    "label": "Type",
+    "id": "127:symbol:ProjectB/server.ts:Type:OrdersController:3",
+    "name": "OrdersController"
+  },
+  {
+    "label": "Function",
+    "id": "127:symbol:ProjectA/Client.cs:Function:Call:3",
+    "name": "Call"
+  },
+  {
+    "label": "Function",
+    "id": "127:symbol:ProjectB/server.ts:Function:charge:5",
+    "name": "charge"
+  },
+  {
+    "label": "ExternalService",
+    "id": "127:externalservice:http:localhost",
+    "name": "localhost"
+  },
+  {
+    "label": "SyntaxStructure",
+    "id": "127:project:ProjectA:syntax_structure",
+    "name": "SyntaxStructure"
+  },
+  {
+    "label": "SyntaxStructure",
+    "id": "127:project:ProjectB:syntax_structure",
+    "name": "SyntaxStructure"
+  },
+  {
+    "label": "SemanticStructure",
+    "id": "127:project:ProjectA:semantic_structure",
+    "name": "SemanticStructure"
+  },
+  {
+    "label": "SemanticStructure",
+    "id": "127:project:ProjectB:semantic_structure",
+    "name": "SemanticStructure"
+  },
+  {
+    "label": "Package",
+    "id": "127:package:projecta",
+    "name": "ProjectA"
+  },
+  {
+    "label": "Package",
+    "id": "127:package:projectb",
+    "name": "ProjectB"
+  },
+  {
+    "label": "ApiInUse",
+    "id": "127:project:ProjectA:api:httpclient",
+    "name": "HttpClient"
+  },
+  {
+    "label": "Endpoint",
+    "id": "127:endpoint:GET:orders",
+    "name": "GET:orders"
+  },
+  {
+    "label": "Endpoint",
+    "id": "127:endpoint:POST:charge",
+    "name": "POST:charge"
+  }
+]
+[DEBUG RELS] [
+  {
+    "from_label": "Workspace",
+    "from_name": "codeexplorer_test_workspace_c9ded03a-3552-49e9-b41c-f7e22581aaed",
+    "rel_type": "CONTAINS",
+    "to_label": "Project",
+    "to_name": "ProjectA"
+  },
+  {
+    "from_label": "Workspace",
+    "from_name": "codeexplorer_test_workspace_c9ded03a-3552-49e9-b41c-f7e22581aaed",
+    "rel_type": "CONTAINS",
+    "to_label": "Project",
+    "to_name": "ProjectB"
+  },
+  {
+    "from_label": "Project",
+    "from_name": "ProjectA",
+    "rel_type": "CONTAINS",
+    "to_label": "FilesStructure",
+    "to_name": "FilesStructure"
+  },
+  {
+    "from_label": "Project",
+    "from_name": "ProjectA",
+    "rel_type": "CONTAINS",
+    "to_label": "SyntaxStructure",
+    "to_name": "SyntaxStructure"
+  },
+  {
+    "from_label": "Project",
+    "from_name": "ProjectA",
+    "rel_type": "CONTAINS",
+    "to_label": "SemanticStructure",
+    "to_name": "SemanticStructure"
+  },
+  {
+    "from_label": "Project",
+    "from_name": "ProjectB",
+    "rel_type": "CONTAINS",
+    "to_label": "FilesStructure",
+    "to_name": "FilesStructure"
+  },
+  {
+    "from_label": "Project",
+    "from_name": "ProjectB",
+    "rel_type": "CONTAINS",
+    "to_label": "SyntaxStructure",
+    "to_name": "SyntaxStructure"
+  },
+  {
+    "from_label": "Project",
+    "from_name": "ProjectB",
+    "rel_type": "CONTAINS",
+    "to_label": "SemanticStructure",
+    "to_name": "SemanticStructure"
+  },
+  {
+    "from_label": "FilesStructure",
+    "from_name": "FilesStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "File",
+    "to_name": "Client.cs"
+  },
+  {
+    "from_label": "FilesStructure",
+    "from_name": "FilesStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "File",
+    "to_name": "server.ts"
+  },
+  {
+    "from_label": "File",
+    "from_name": "Client.cs",
+    "rel_type": "USES_API",
+    "to_label": "ApiInUse",
+    "to_name": "HttpClient"
+  },
+  {
+    "from_label": "File",
+    "from_name": "server.ts",
+    "rel_type": "EXPOSES_ENDPOINT",
+    "to_label": "Endpoint",
+    "to_name": "GET:orders"
+  },
+  {
+    "from_label": "Type",
+    "from_name": "Client",
+    "rel_type": "DECLARED_IN",
+    "to_label": "File",
+    "to_name": "Client.cs"
+  },
+  {
+    "from_label": "Type",
+    "from_name": "Client",
+    "rel_type": "HAS_METHOD",
+    "to_label": "Function",
+    "to_name": "Call"
+  },
+  {
+    "from_label": "Type",
+    "from_name": "OrdersController",
+    "rel_type": "DECLARED_IN",
+    "to_label": "File",
+    "to_name": "server.ts"
+  },
+  {
+    "from_label": "Type",
+    "from_name": "OrdersController",
+    "rel_type": "HAS_METHOD",
+    "to_label": "Function",
+    "to_name": "charge"
+  },
+  {
+    "from_label": "Type",
+    "from_name": "OrdersController",
+    "rel_type": "EXPOSES_ENDPOINT",
+    "to_label": "Endpoint",
+    "to_name": "POST:charge"
+  },
+  {
+    "from_label": "Function",
+    "from_name": "Call",
+    "rel_type": "CALLS",
+    "to_label": "ExternalService",
+    "to_name": "localhost"
+  },
+  {
+    "from_label": "Function",
+    "from_name": "Call",
+    "rel_type": "TRANSITIVELY_CALLS",
+    "to_label": "ExternalService",
+    "to_name": "localhost"
+  },
+  {
+    "from_label": "Function",
+    "from_name": "charge",
+    "rel_type": "EXPOSES_ENDPOINT",
+    "to_label": "Endpoint",
+    "to_name": "POST:charge"
+  },
+  {
+    "from_label": "ExternalService",
+    "from_name": "localhost",
+    "rel_type": "CALLS_ENDPOINT",
+    "to_label": "Endpoint",
+    "to_name": "POST:charge"
+  },
+  {
+    "from_label": "SyntaxStructure",
+    "from_name": "SyntaxStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "Type",
+    "to_name": "Client"
+  },
+  {
+    "from_label": "SyntaxStructure",
+    "from_name": "SyntaxStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "Type",
+    "to_name": "OrdersController"
+  },
+  {
+    "from_label": "SemanticStructure",
+    "from_name": "SemanticStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "Package",
+    "to_name": "ProjectA"
+  },
+  {
+    "from_label": "SemanticStructure",
+    "from_name": "SemanticStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "ApiInUse",
+    "to_name": "HttpClient"
+  },
+  {
+    "from_label": "SemanticStructure",
+    "from_name": "SemanticStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "ExternalService",
+    "to_name": "localhost"
+  },
+  {
+    "from_label": "SemanticStructure",
+    "from_name": "SemanticStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "Package",
+    "to_name": "ProjectB"
+  },
+  {
+    "from_label": "SemanticStructure",
+    "from_name": "SemanticStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "Endpoint",
+    "to_name": "GET:orders"
+  },
+  {
+    "from_label": "SemanticStructure",
+    "from_name": "SemanticStructure",
+    "rel_type": "CONTAINS",
+    "to_label": "Endpoint",
+    "to_name": "POST:charge"
+  },
+  {
+    "from_label": "Endpoint",
+    "from_name": "POST:charge",
+    "rel_type": "TRIGGERS",
+    "to_label": "Function",
+    "to_name": "charge"
+  }
+]
+[IntegrationTest] Parsed 21 nodes and 40 relationships successfully.
+
+NUnit Adapter 4.5.0.0: Test execution complete
+  Passed Test_SemanticAnalysisAndOntologyEnrichment [73 ms]
+  Failed Test_SemanticModel_DbTypeMapping [34 ms]
+  Error Message:
+     Assert.That(csDbGroup, Is.Not.Null)
+  Expected: not null
+  But was:  null
+
+  Stack Trace:
+     at CodeExplorer.Tests.ParserValidationTests.Test_SemanticModel_DbTypeMapping() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\ParserValidationTests.cs:line 956
+   at CodeExplorer.Tests.ParserValidationTests.Test_SemanticModel_DbTypeMapping() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\ParserValidationTests.cs:line 1028
+   at NUnit.Framework.Internal.TaskAwaitAdapter.GenericAdapter`1.GetResult()
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await[TResult](Func`1 invoke)
+   at NUnit.Framework.Internal.AsyncToSyncAdapter.Await(Func`1 invoke)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.RunTestMethod(TestExecutionContext context)
+   at NUnit.Framework.Internal.Commands.TestMethodCommand.Execute(TestExecutionContext context)
+   at NUnit.Framework.Internal.Execution.SimpleWorkItem.<>c__DisplayClass3_0.<PerformWork>b__0()
+   at NUnit.Framework.Internal.ContextUtils.<>c__DisplayClass1_0`1.<DoIsolated>b__0(Object _)
+
+1)    at CodeExplorer.Tests.ParserValidationTests.Test_SemanticModel_DbTypeMapping() in C:\Work\Personal\code-explorer\Tests\CodeExplorer.Tests\ParserValidationTests.cs:line 956
+   at System.Runtime.CompilerServices.AsyncMethodBuilderCore.Start[TStateMachine](TStateMachine& stateMachine)
+   at CodeExplorer.Tests.ParserValidationTests.Test_SemanticModel_DbTypeMapping()
+
+
+  Passed Test_TypeBindingsAndCallsResolution [194 ms]
+  Passed Test_TypeScriptParser_ApiIngressEgress [12 ms]
+  Passed Test_TypeScriptParser_EmbeddedSql [15 ms]
+  Passed Test_TypeScriptParser_EmbeddedSql_ComplexTemplate [7 ms]
+  Skipped Test_TypeScriptParser_WithExamples [3 ms]
+  Passed Test_WorkspaceLevelParser_DynamicDetectionAndLateBinding [254 ms]
+
+Total tests: 17
+     Passed: 15
+     Failed: 1
+    Skipped: 1
+ Total time: 2.9137 Seconds

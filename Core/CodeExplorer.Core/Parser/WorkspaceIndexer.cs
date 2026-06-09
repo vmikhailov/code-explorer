@@ -133,28 +133,37 @@ public class WorkspaceIndexer
             if (refItem.Kind == OntologyConstants.Relationships.Implements ||
                 refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
             {
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Interface, refItem.TargetName),
+                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Type, refItem.TargetName),
                         out var targetNodeId))
                 {
-                    IOntologyRelationship rel = new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId);
-                    referenceRelationships.Add(Relationship.FromRelationship(rel));
+                    if (refItem.Kind == OntologyConstants.Relationships.Implements)
+                    {
+                        IOntologyRelationship rel = new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId);
+                        referenceRelationships.Add(Relationship.FromRelationship(rel));
+                    }
+                    else
+                    {
+                        IOntologyRelationship rel = new InheritsFromRelationship(refItem.ScopeSymbolId, targetNodeId);
+                        referenceRelationships.Add(Relationship.FromRelationship(rel));
+                    }
                     inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
                 }
-                else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Class, refItem.TargetName),
-                             out var targetClassId))
+                else if (refItem.Kind == OntologyConstants.Relationships.Implements)
                 {
-                    IOntologyRelationship rel = new InheritsFromRelationship(refItem.ScopeSymbolId, targetClassId);
-                    referenceRelationships.Add(Relationship.FromRelationship(rel));
-                    inheritanceRels.Add((refItem.ScopeSymbolId, targetClassId));
-                }
-                else if (refItem.Kind == OntologyConstants.Relationships.Implements &&
-                         ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.EntryPoint, refItem.TargetName),
+                    if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Endpoint, refItem.TargetName),
+                             out var targetEndpointId))
+                    {
+                        referenceRelationships.Add(
+                            Relationship.FromRelationship(new ExposesEndpointRelationship(refItem.ScopeSymbolId, targetEndpointId)));
+                    }
+                    else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.EntryPoint, refItem.TargetName),
                              out var targetEpId))
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new ImplementedByRelationship(targetEpId,
-                            refItem.ScopeSymbolId)));
-                    inheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
+                    {
+                        referenceRelationships.Add(
+                            Relationship.FromRelationship(new ImplementedByRelationship(targetEpId,
+                                refItem.ScopeSymbolId)));
+                        inheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
+                    }
                 }
             }
         }
@@ -244,35 +253,17 @@ public class WorkspaceIndexer
             }
             else if (refItem.Kind == OntologyConstants.Relationships.UsesType)
             {
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Interface, refItem.TargetName),
+                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Type, refItem.TargetName),
                         out var targetNodeId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId, targetNodeId)));
                 }
-                else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Class, refItem.TargetName),
-                             out var targetClassId))
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId, targetClassId)));
-                }
             }
             else if (refItem.Kind == OntologyConstants.Relationships.PotentialType)
             {
-                string? targetNodeId = null;
-
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Interface, refItem.TargetName),
-                        out var targetIntfId))
-                {
-                    targetNodeId = targetIntfId;
-                }
-                else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Class, refItem.TargetName),
-                             out var targetClassId))
-                {
-                    targetNodeId = targetClassId;
-                }
-
-                if (targetNodeId != null)
+                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Type, refItem.TargetName),
+                        out var targetNodeId))
                 {
                     if (refItem.ScopeSymbolId != targetNodeId)
                     {

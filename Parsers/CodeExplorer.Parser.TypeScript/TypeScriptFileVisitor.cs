@@ -58,8 +58,8 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         return node.Type switch
         {
-            "class_declaration" or "class_expression" or "enum_declaration" => OntologyConstants.NodeLabels.Class,
-            "interface_declaration" or "type_alias_declaration" => OntologyConstants.NodeLabels.Interface,
+            "class_declaration" or "class_expression" or "enum_declaration" => "Class",
+            "interface_declaration" or "type_alias_declaration" => "Interface",
             "method_definition" or "function_declaration" or "function_expression" or "arrow_function" =>
                 OntologyConstants.NodeLabels.Function,
             _ => null

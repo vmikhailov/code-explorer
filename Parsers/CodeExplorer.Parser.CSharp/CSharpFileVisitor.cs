@@ -54,8 +54,8 @@ public class CSharpFileVisitor : BaseParserVisitor
 
         return node.Type switch
         {
-            "class_declaration" or "struct_declaration" or "record_declaration" => OntologyConstants.NodeLabels.Class,
-            "interface_declaration" => OntologyConstants.NodeLabels.Interface,
+            "class_declaration" or "struct_declaration" or "record_declaration" => "Class",
+            "interface_declaration" => "Interface",
             "method_declaration" or "function_declaration" or "constructor_declaration" or "local_function_statement" => OntologyConstants.NodeLabels.Function,
             _ => null
         };

@@ -19,4 +19,17 @@
     <ProjectReference Include="..\..\UI\CodeExplorer\CodeExplorer.csproj" />
   </ItemGroup>
 
+  <!-- Link OntologyGen source files so tests can use the extractor/renderer directly -->
+  <ItemGroup>
+    <Compile Include="..\..\Tools\CodeExplorer.OntologyGen\Models.cs" Link="OntologyGen\Models.cs" />
+    <Compile Include="..\..\Tools\CodeExplorer.OntologyGen\OntologyExtractor.cs"
+      Link="OntologyGen\OntologyExtractor.cs" />
+    <Compile Include="..\..\Tools\CodeExplorer.OntologyGen\MarkdownRenderer.cs"
+      Link="OntologyGen\MarkdownRenderer.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+  </ItemGroup>
+
 </Project>

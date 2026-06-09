@@ -11,8 +11,9 @@ public static class OntologyUploader
     {
         var collectedNodes = new List<Node>();
         var collectedRelationships = new List<Relationship>();
+        var visitedNodeIds = new HashSet<string>();
 
-        CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships);
+        CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships, visitedNodeIds);
 
         // Upload nodes in chunks of 1000
         for (var i = 0; i < collectedNodes.Count; i += 1000)
@@ -34,8 +35,23 @@ public static class OntologyUploader
         IOntologyNode? parentNode,
         ParsingContext ctx,
         List<Node> collectedNodes,
-        List<Relationship> collectedRelationships)
+        List<Relationship> collectedRelationships,
+        HashSet<string> visitedNodeIds)
     {
+        var isDuplicate = visitedNodeIds.Contains(node.Id);
+
+        // 3. Link to parent if present (we still link, even if node is duplicate, to capture secondary parent relationships)
+        if (parentNode != null)
+        {
+            var ontologyRel = GetRelationship(parentNode.Id, node);
+            var dbRel = Relationship.FromRelationship(ontologyRel);
+            collectedRelationships.Add(dbRel);
+            ctx.AddRelsCount(1);
+        }
+
+        if (isDuplicate) return;
+        visitedNodeIds.Add(node.Id);
+
         // 1. Convert and collect the current node
         var dbNode = Node.FromNode(node);
         collectedNodes.Add(dbNode);
@@ -43,18 +59,22 @@ public static class OntologyUploader
         ctx.AddNodesCount(1);
 
         // 2. Map global symbols for reference resolution
-        if (node.Kind == OntologyConstants.NodeLabels.Class ||
-            node.Kind == OntologyConstants.NodeLabels.Interface ||
+        if (node.Kind == OntologyConstants.NodeLabels.Type ||
             node.Kind == OntologyConstants.NodeLabels.Function ||
             node.Kind == OntologyConstants.NodeLabels.Procedure ||
             node.Kind == OntologyConstants.NodeLabels.Table ||
-            node.Kind == OntologyConstants.NodeLabels.EntryPoint)
+            node.Kind == OntologyConstants.NodeLabels.EntryPoint ||
+            node.Kind == OntologyConstants.NodeLabels.Endpoint)
         {
             if (dbNode.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
             {
                 ctx.AddGlobalSymbol(node.Kind, nameStr, node.Id);
+                if (node.Kind == OntologyConstants.NodeLabels.Endpoint || node.Kind == OntologyConstants.NodeLabels.EntryPoint)
+                {
+                    ctx.AddGlobalSymbol(node.Kind, nameStr.Replace(":", " "), node.Id);
+                }
                 if (node.Kind == OntologyConstants.NodeLabels.Function && parentNode != null &&
-                    (parentNode.Kind == OntologyConstants.NodeLabels.Class || parentNode.Kind == OntologyConstants.NodeLabels.Interface))
+                    parentNode.Kind == OntologyConstants.NodeLabels.Type)
                 {
                     var parentName = parentNode.GetType().GetProperty("Name")?.GetValue(parentNode) as string;
                     if (!string.IsNullOrEmpty(parentName))
@@ -64,17 +84,6 @@ public static class OntologyUploader
                 }
             }
         }
-
-        // 3. Link to parent if present
-        if (parentNode != null)
-        {
-            var ontologyRel = GetRelationship(parentNode.Id, node);
-            var dbRel = Relationship.FromRelationship(ontologyRel);
-            collectedRelationships.Add(dbRel);
-            ctx.AddRelsCount(1);
-        }
-
-        // Removed direct Project-to-EntryPoint EXPOSES relationship as they are now grouped under EntryPoints node
 
         // Special: If Project, link it to GitSettings via USES_GIT
         if (node.Kind == OntologyConstants.NodeLabels.Project)
@@ -98,12 +107,17 @@ public static class OntologyUploader
         // 5. Recursively collect all children
         foreach (var child in node.Children)
         {
-            CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships);
+            CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds);
         }
     }
 
     private static IOntologyRelationship GetRelationship(string parentId, IOntologyNode child)
     {
+        if (parentId.Contains("files_structure") || parentId.Contains("syntax_structure") || parentId.Contains("semantic_structure"))
+        {
+            return new ContainsRelationship(parentId, child.Id);
+        }
+
         if (child.Kind == OntologyConstants.NodeLabels.Package)
         {
             return new DependsOnRelationship(parentId, child.Id);
@@ -112,9 +126,21 @@ public static class OntologyUploader
         {
             return new ImplementedByRelationship(parentId, child.Id);
         }
-        if (child.Kind == OntologyConstants.NodeLabels.DB)
+        if (child.Kind == OntologyConstants.NodeLabels.Database)
         {
+            if (parentId.Contains(":symbol:") || parentId.Contains(":function:") || parentId.Contains(":query:"))
+            {
+                return new QueriesDbRelationship(parentId, child.Id);
+            }
             return new UsesDbRelationship(parentId, child.Id);
+        }
+        if (child.Kind == OntologyConstants.NodeLabels.Topic)
+        {
+            return new PublishesToRelationship(parentId, child.Id);
+        }
+        if (child.Kind == OntologyConstants.NodeLabels.Endpoint)
+        {
+            return new ExposesEndpointRelationship(parentId, child.Id);
         }
         if (child.Kind == OntologyConstants.NodeLabels.ApiInUse)
         {
@@ -141,10 +167,37 @@ public static class OntologyUploader
         {
             if (parentId.Contains(":file:"))
             {
-                return new DefinesRelationship(parentId, child.Id);
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            if (parentId.Contains(":project:"))
+            {
+                if (child.Kind == OntologyConstants.NodeLabels.Type)
+                {
+                    return new DeclaresTypeRelationship(parentId, child.Id);
+                }
             }
             if (IsCodeEntityId(parentId))
             {
+                // Parent is Type
+                if (parentId.Contains(":type:") || parentId.Contains(":Type:") || parentId.Contains(":class:") || parentId.Contains(":interface:"))
+                {
+                    if (child.Kind == OntologyConstants.NodeLabels.Function)
+                    {
+                        return new HasMethodRelationship(parentId, child.Id);
+                    }
+                    if (child.Kind == OntologyConstants.NodeLabels.Member)
+                    {
+                        return new HasMemberRelationship(parentId, child.Id);
+                    }
+                }
+                // Parent is Function
+                if (parentId.Contains(":function:"))
+                {
+                    if (child.Kind == OntologyConstants.NodeLabels.Member)
+                    {
+                        return new HasVariableRelationship(parentId, child.Id);
+                    }
+                }
                 return new DeclaresRelationship(parentId, child.Id);
             }
         }
@@ -158,8 +211,10 @@ public static class OntologyUploader
         return lower.Contains(":symbol:") ||
                lower.Contains(":class:") ||
                lower.Contains(":interface:") ||
+               lower.Contains(":type:") ||
                lower.Contains(":function:") ||
                lower.Contains(":variable:") ||
+               lower.Contains(":member:") ||
                lower.Contains(":procedure:") ||
                lower.Contains(":query:") ||
                lower.Contains(":table:");
@@ -167,10 +222,9 @@ public static class OntologyUploader
 
     private static bool IsCodeEntityKind(string kind)
     {
-        return kind == OntologyConstants.NodeLabels.Class ||
-               kind == OntologyConstants.NodeLabels.Interface ||
+        return kind == OntologyConstants.NodeLabels.Type ||
                kind == OntologyConstants.NodeLabels.Function ||
-               kind == OntologyConstants.NodeLabels.Variable ||
+               kind == OntologyConstants.NodeLabels.Member ||
                kind == OntologyConstants.NodeLabels.Query ||
                kind == OntologyConstants.NodeLabels.Procedure ||
                kind == OntologyConstants.NodeLabels.Table;

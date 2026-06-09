@@ -62,7 +62,10 @@ public class HttpClientLibraryParser : ILibraryParser
                 if (valNode != null)
                 {
                     var text = valNode.Text.Trim('"');
-                    if (Uri.TryCreate(text, UriKind.Absolute, out var uri)) return uri.Host;
+                    if (Uri.TryCreate(text, UriKind.Absolute, out var uri))
+                    {
+                        return $"{uri.Scheme}:{uri.Host}{uri.AbsolutePath}";
+                    }
                     return text;
                 }
             }

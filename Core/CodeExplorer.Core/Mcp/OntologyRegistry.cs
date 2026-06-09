@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
 
 namespace CodeExplorer.Core.Mcp;
@@ -40,7 +41,7 @@ public static class OntologyRegistry
 
     public static string GetNodeDefinition(string kind)
     {
-        if (string.IsNullOrEmpty(kind)) return "Invalid node kind.";
+        if (string.IsNullOrWhiteSpace(kind)) return "Invalid node kind.";
         var kindLower = kind.Trim().ToLowerInvariant();
 
         if (!KindMapping.TryGetValue(kindLower, out var map))
@@ -54,17 +55,60 @@ public static class OntologyRegistry
         var (capitalizedKind, nodeType) = map;
         
         var purpose = "Node of kind " + capitalizedKind + ".";
-        var relationshipsMarkdown = "  - None defined.";
-
         var nodeAttr = nodeType.GetCustomAttribute<OntologyNodeAttribute>();
         if (nodeAttr != null)
         {
             purpose = nodeAttr.Purpose;
-            if (nodeAttr.Relationships.Length > 0)
+        }
+
+        var outboundList = new List<string>();
+        foreach (var attr in nodeType.GetCustomAttributes(true))
+        {
+            if (TryGetOntologyEdge(attr, out var relVal, out var toVal))
             {
-                relationshipsMarkdown = string.Join("\n", nodeAttr.Relationships.Select(r => $"  - {r}"));
+                var targetNodeAttr = toVal.GetCustomAttribute<OntologyNodeAttribute>();
+                var targetLabel = targetNodeAttr != null ? targetNodeAttr.Label : toVal.Name.Replace("Node", "");
+                outboundList.Add($"  - `-{relVal}->` {targetLabel}");
             }
         }
+
+        var inboundList = new List<string>();
+        foreach (var mapEntry in KindMapping.Values)
+        {
+            var otherType = mapEntry.NodeType;
+            if (otherType == nodeType) continue;
+
+            foreach (var attr in otherType.GetCustomAttributes(true))
+            {
+                if (TryGetOntologyEdge(attr, out var relVal, out var toVal))
+                {
+                    if (toVal != nodeType)
+                    {
+                        continue;
+                    }
+
+                    var otherNodeAttr = otherType.GetCustomAttribute<OntologyNodeAttribute>();
+                    var otherLabel = otherNodeAttr != null ? otherNodeAttr.Label : otherType.Name.Replace("Node", "");
+                    inboundList.Add($"  - {otherLabel} `-{relVal}->` {capitalizedKind}");
+                }
+            }
+        }
+
+        var relationshipsMarkdownList = new List<string>();
+        if (outboundList.Any())
+        {
+            relationshipsMarkdownList.Add("Outbound:\n" + string.Join("\n", outboundList.ToArray()));
+        }
+        else
+        {
+            relationshipsMarkdownList.Add("Outbound:\n  - None defined.");
+        }
+
+        if (inboundList.Any())
+        {
+            relationshipsMarkdownList.Add("Inbound:\n" + string.Join("\n", inboundList.ToArray()));
+        }
+        var relationshipsMarkdown = string.Join("\n", relationshipsMarkdownList);
 
         var propertiesMarkdownList = new List<string>();
         var properties = nodeType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
@@ -85,7 +129,8 @@ public static class OntologyRegistry
                           underlyingType == typeof(bool) ? "boolean" :
                           underlyingType.Name.ToLowerInvariant();
 
-            var snakeName = ToSnakeCase(prop.Name);
+            var jsonPropAttr = prop.GetCustomAttribute<JsonPropertyNameAttribute>();
+            var snakeName = jsonPropAttr != null ? jsonPropAttr.Name : ToSnakeCase(prop.Name);
             var description = propAttr.Description;
             
             var formattedDesc = string.IsNullOrEmpty(description) ? "" : $": {description}";
@@ -103,5 +148,30 @@ public static class OntologyRegistry
                $"**Purpose**: {purpose}\n" +
                $"**Key Properties**:\n{propertiesMarkdown}\n" +
                $"**Relationships**:\n{relationshipsMarkdown}";
+    }
+
+    private static bool TryGetOntologyEdge(object attr, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? rel, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Type? toType)
+    {
+        rel = null;
+        toType = null;
+        var attrType = attr.GetType();
+
+        if (!attrType.IsGenericType || attrType.GetGenericTypeDefinition() != typeof(OntologyEdgeAttribute<>))
+        {
+            return false;
+        }
+
+        var relProp = attrType.GetProperty("Rel");
+        var toProp = attrType.GetProperty("To");
+
+        if (relProp == null || toProp == null)
+        {
+            return false;
+        }
+
+        rel = relProp.GetValue(attr) as string;
+        toType = toProp.GetValue(attr) as Type;
+
+        return rel != null && toType != null;
     }
 }

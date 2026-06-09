@@ -10,8 +10,6 @@ namespace CodeExplorer.Core.Mcp;
 [McpServerToolType]
 public class McpGraphHandler(
     CodeExplorerRepository repository,
-    WorkspaceRegistry workspaceRegistry,
-    McpServer mcpServer,
     IHttpContextAccessor httpContextAccessor)
 {
     private string? GetCurrentWorkspacePath()

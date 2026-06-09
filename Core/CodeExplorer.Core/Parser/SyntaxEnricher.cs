@@ -42,7 +42,7 @@ public class SyntaxEnricher : ISyntaxEnricher
     {
         var packageNames = projectNode.Children
             .OfType<PackageNode>()
-            .Concat(projectNode.Children.OfType<DependenciesNode>().SelectMany(dn => dn.Children.OfType<PackageNode>()))
+            .Concat(projectNode.Children.OfType<SemanticStructureNode>().SelectMany(dn => dn.Children.OfType<PackageNode>()))
             .Select(p => p.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -107,19 +107,11 @@ public class SyntaxEnricher : ISyntaxEnricher
                         }
 
                         var dbId = $"{projectNode.Id}db:{parser.Id}";
-                        var databasesNode = projectNode.Children.OfType<DataBasesNode>().FirstOrDefault();
-                        if (databasesNode == null)
+                        var semanticNodeForDb = GetOrCreateSemanticStructure(projectNode);
+                        if (semanticNodeForDb.Children.All(c => c.Id != dbId))
                         {
-                            var dbGroupNodeId = $"{projectNode.Id}databases";
-                            databasesNode = new DataBasesNode(dbGroupNodeId, "DataBases", projectNode.Path);
-                            projectNode.Children.Add(databasesNode);
-                        }
-
-                        if (databasesNode.Children.All(c => c.Id != dbId))
-                        {
-                            var dbNode = new DbNode(dbId, dbEngine, dbId);
-                            dbNode.SetExtension("db_type", dbType);
-                            databasesNode.Children.Add(dbNode);
+                            var dbNode = new DatabaseNode(dbId, dbEngine, dbId, dbType);
+                            semanticNodeForDb.Children.Add(dbNode);
                         }
 
                         var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId);
@@ -128,18 +120,11 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                     case "api":
                         var apiId = $"{projectNode.Id}api:{parser.Id}";
-                        var apisNode = projectNode.Children.OfType<ApisInUseNode>().FirstOrDefault();
-                        if (apisNode == null)
-                        {
-                            var apiGroupNodeId = $"{projectNode.Id}apis";
-                            apisNode = new ApisInUseNode(apiGroupNodeId, "ApisInUse", projectNode.Path);
-                            projectNode.Children.Add(apisNode);
-                        }
-
-                        if (!apisNode.Children.Any(c => c.Id == apiId))
+                        var semanticNodeForApi = GetOrCreateSemanticStructure(projectNode);
+                        if (!semanticNodeForApi.Children.Any(c => c.Id == apiId))
                         {
                             var apiNode = new ApiInUseNode(apiId, parser.Name, apiId);
-                            apisNode.Children.Add(apiNode);
+                            semanticNodeForApi.Children.Add(apiNode);
                         }
 
                         var usesApiRel = new UsesApiRelationship(fileNode.Id, apiId);
@@ -149,18 +134,11 @@ public class SyntaxEnricher : ISyntaxEnricher
                     case "cloud":
                         var cloudService = parser.Name;
                         var cloudId = $"{projectNode.Id}cloud:{parser.Id}";
-                        var cloudServicesNode = projectNode.Children.OfType<CloudServicesNode>().FirstOrDefault();
-                        if (cloudServicesNode == null)
-                        {
-                            var cloudGroupNodeId = $"{projectNode.Id}cloudservices";
-                            cloudServicesNode = new CloudServicesNode(cloudGroupNodeId, "CloudServices", projectNode.Path);
-                            projectNode.Children.Add(cloudServicesNode);
-                        }
-
-                        if (!cloudServicesNode.Children.Any(c => c.Id == cloudId))
+                        var semanticNodeForCloud = GetOrCreateSemanticStructure(projectNode);
+                        if (!semanticNodeForCloud.Children.Any(c => c.Id == cloudId))
                         {
                             var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
-                            cloudServicesNode.Children.Add(cloudNode);
+                            semanticNodeForCloud.Children.Add(cloudNode);
                         }
 
                         var usesCloudRel = new UsesCloudRelationship(fileNode.Id, cloudId);
@@ -187,7 +165,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                     if (isGlobal) varTypeStr.Add("global");
 
                     var varType = string.Join(",", varTypeStr);
-                    var varId = $"{ctx.WorkspaceId}:symbol:{relativePath}:Variable:{rawVar.Name}:{rawVar.StartLine}";
+                    var varId = $"{ctx.WorkspaceId}:symbol:{relativePath}:Member:{rawVar.Name}:{rawVar.StartLine}";
 
                     var ext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -196,7 +174,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                         ["is_constant"] = isConstant ? "true" : "false"
                     };
 
-                    var varNode = new VariableNode(
+                    var varNode = new MemberNode(
                         varId,
                         rawVar.Name,
                         varId,
@@ -206,6 +184,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                         rawVar.EndLine,
                         rawVar.StartCol,
                         rawVar.EndCol,
+                        "variable",
                         ext
                     );
 
@@ -217,11 +196,11 @@ public class SyntaxEnricher : ISyntaxEnricher
         await Task.CompletedTask;
     }
 
-    private static bool TryInsertVariable(IOntologyNode parentNode, VariableNode varNode, int line)
+    private static bool TryInsertVariable(IOntologyNode parentNode, MemberNode varNode, int line)
     {
         foreach (var child in parentNode.Children)
         {
-            if (child is ClassNode cn && line >= cn.StartLine && line <= cn.EndLine)
+            if (child is TypeNode cn && line >= cn.StartLine && line <= cn.EndLine)
             {
                 if (TryInsertVariable(cn, varNode, line)) return true;
             }
@@ -234,5 +213,17 @@ public class SyntaxEnricher : ISyntaxEnricher
 
         parentNode.Children.Add(varNode);
         return true;
+    }
+
+    private static SemanticStructureNode GetOrCreateSemanticStructure(ProjectNode projectNode)
+    {
+        var node = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+        if (node == null)
+        {
+            var id = $"{projectNode.Id}semantic_structure";
+            node = new SemanticStructureNode(id, "SemanticStructure", projectNode.Path);
+            projectNode.Children.Add(node);
+        }
+        return node;
     }
 }

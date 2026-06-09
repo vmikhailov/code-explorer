@@ -12,9 +12,76 @@ namespace CodeExplorer.Tests;
 [TestFixture]
 public class McpIntegrationTests
 {
+    private const int TestPort = 8185;
     private static Task? _serverTask;
     private static HttpClient? _httpClient;
     private static string? _tempWorkspace;
+    private static string? _resolvedBoltUrl;
+
+    public static string GetBoltUrl()
+    {
+        if (_resolvedBoltUrl != null) return _resolvedBoltUrl;
+
+        var envUrl = Environment.GetEnvironmentVariable("BOLT_URL");
+        if (!string.IsNullOrEmpty(envUrl))
+        {
+            _resolvedBoltUrl = envUrl;
+            return envUrl;
+        }
+
+        // Check if localhost:7687 is listening
+        try
+        {
+            using var tcp = new System.Net.Sockets.TcpClient();
+            var result = tcp.BeginConnect("127.0.0.1", 7687, null, null);
+            var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(500));
+            if (success)
+            {
+                tcp.EndConnect(result);
+                _resolvedBoltUrl = "bolt://127.0.0.1:7687";
+                return _resolvedBoltUrl;
+            }
+        }
+        catch {}
+
+        // If not, try to find WSL IP and check if 7687 is listening there
+        try
+        {
+            var proc = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "wsl",
+                    Arguments = "-d docker-desktop -e sh -c \"ip address || ifconfig || cat /proc/net/fib_trie\"",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+            proc.Start();
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit();
+
+            var match = System.Text.RegularExpressions.Regex.Match(output, @"inet\s+(172\.\d+\.\d+\.\d+)");
+            if (match.Success)
+            {
+                var wslIp = match.Groups[1].Value;
+                using var tcp = new System.Net.Sockets.TcpClient();
+                var result = tcp.BeginConnect(wslIp, 7687, null, null);
+                var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(500));
+                if (success)
+                {
+                    tcp.EndConnect(result);
+                    _resolvedBoltUrl = $"bolt://{wslIp}:7687";
+                    return _resolvedBoltUrl;
+                }
+            }
+        }
+        catch {}
+
+        _resolvedBoltUrl = "bolt://127.0.0.1:7687";
+        return _resolvedBoltUrl;
+    }
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
@@ -33,13 +100,14 @@ public class McpIntegrationTests
         }";
         await File.WriteAllTextAsync(Path.Combine(projDir, "server.ts"), fileCode);
 
-        await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
+        var boltUrl = GetBoltUrl();
+        await using var client = new MemgraphClient(boltUrl, "", "");
         WorkspaceIndexer.Register(new TypeScriptParser());
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
         // Start the server in a background thread
-        _serverTask = Task.Run(() => Program.Main(["mcp", "--port", "8085"]));
+        _serverTask = Task.Run(() => Program.Main(["mcp", "--port", TestPort.ToString(), "--bolt-url", boltUrl]));
 
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
@@ -51,7 +119,7 @@ public class McpIntegrationTests
         {
             try
             {
-                var response = await _httpClient.GetAsync("http://127.0.0.1:8085/");
+                var response = await _httpClient.GetAsync($"http://127.0.0.1:{TestPort}/");
                 available = true;
                 break;
             }
@@ -64,7 +132,7 @@ public class McpIntegrationTests
 
         if (!available)
         {
-            Assert.Fail($"MCP Server failed to start on port 8085. Last exception: {lastEx?.Message}\n{lastEx?.StackTrace}");
+            Assert.Fail($"MCP Server failed to start on port {TestPort}. Last exception: {lastEx?.Message}\n{lastEx?.StackTrace}");
         }
 
         // Perform the handshake (initialize request)
@@ -140,7 +208,7 @@ public class McpIntegrationTests
 
     private async Task<HttpResponseMessage> PostMessageAsync(string jsonPayload)
     {
-        var url = "http://127.0.0.1:8085/mcp";
+        var url = $"http://127.0.0.1:{TestPort}/mcp";
         if (!string.IsNullOrEmpty(_tempWorkspace))
         {
             url += $"?ws={Uri.EscapeDataString(_tempWorkspace)}";
@@ -278,5 +346,38 @@ public class McpIntegrationTests
     {
         await CallToolAndAssertSuccessAsync("get_node_definition", "{\"kind\": \"Workspace\"}", 7);
         await CallToolAndAssertSuccessAsync("get_node_definition", "{\"kind\": \"Class\"}", 8);
+    }
+
+    [Test]
+    public async Task Test_RestNodeDefinition_ReturnsSuccess()
+    {
+        var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/node-definition?kind=Workspace");
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.That(response.IsSuccessStatusCode, Is.True, $"Failed with status {response.StatusCode} and body: {content}");
+        using var doc = JsonDocument.Parse(content);
+        var definition = doc.RootElement.GetProperty("definition").GetString();
+        Assert.That(definition, Does.Contain("### Kind: Workspace"));
+    }
+
+    [Test]
+    public async Task Test_RestTaxonomy_ReturnsSuccess()
+    {
+        var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/taxonomy?workspacePath={Uri.EscapeDataString(_tempWorkspace!)}");
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.That(response.IsSuccessStatusCode, Is.True, $"Taxonomy request failed with status {response.StatusCode} and body: {content}");
+    }
+
+    [Test]
+    public async Task Test_RestNodeDefinition_ReturnsBadRequestForEmpty()
+    {
+        var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/node-definition?kind=");
+        Assert.That(response.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.BadRequest));
+    }
+
+    [Test]
+    public async Task Test_RestNodeDefinition_ReturnsNotFoundForUnknown()
+    {
+        var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/node-definition?kind=UnknownKindXYZ");
+        Assert.That(response.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.NotFound));
     }
 }
