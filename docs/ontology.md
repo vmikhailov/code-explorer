@@ -1,471 +1,178 @@
-# CodeExplorer Graph Topology & Hierarchy Specification
+# CodeExplorer Decoupled Graph Ontology Specification
 
-This document specifies the taxonomy, nodes, properties, and relationships collected at each level of the CodeExplorer workspace hierarchy.
-
----
-
-## 1. Hierarchy & Topology Map
-
-The system parses workspaces into two interconnected semantic hierarchies: **Code/Workspace Hierarchy** and **Database/Data Lineage Hierarchy**.
+This document defines the taxonomy, nodes, properties, and relationships collected by CodeExplorer. The graph is organized into **four decoupled buckets** linked by reference pointers, rather than a single deeply nested physical hierarchy.
 
 ```mermaid
 graph TD
-    %% Workspace Hierarchy
-    Workspace[Workspace] -->|CONTAINS| WorkspaceFolder[WorkspaceFolder]
-    Workspace -->|CONTAINS| Project[Project]
-    WorkspaceFolder -->|CONTAINS| WorkspaceFolder
-    WorkspaceFolder -->|CONTAINS| Project
-    
-    Project -->|CONTAINS| ProjectFolder[ProjectFolder]
-    Project -->|CONTAINS| File[File]
-    ProjectFolder -->|CONTAINS| ProjectFolder
-    ProjectFolder -->|CONTAINS| File
-    
-    %% Package / Dependencies
-    Project -->|DEPENDS_ON| Package[Package]
-    Package -->|IMPLEMENTED_BY| Project
-    
-    %% File AST Hierarchy
-    File -->|CONTAINS| Class[Class]
-    File -->|CONTAINS| Interface[Interface]
-    File -->|CONTAINS| Function[Function]
-    File -->|CONTAINS| Variable[Variable]
-    
-    Class -->|CONTAINS| Function
-    Class -->|CONTAINS| Variable
-    Interface -->|CONTAINS| Function
-    Interface -->|CONTAINS| Variable
-    Function -->|CONTAINS| Function
-    Function -->|CONTAINS| Variable
-    
-    %% Code Semantic Links
-    Class -->|IMPLEMENTS| Interface
-    Class -->|INHERITS_FROM| Class
-    Interface -->|INHERITS_FROM| Interface
-    Class -->|USES_TYPE| Class
-    Class -->|USES_TYPE| Interface
-    Function -->|CALLS| Function
-    Function -->|USES_TYPE| Class
-    Function -->|USES_TYPE| Interface
+    subgraph FilesStructure [1. FilesStructure (Physical)]
+        Folder[Folder] -->|CONTAINS_FILE| File[File]
+    end
 
-    %% Database Hierarchy
-    Project -->|USES_DB| DB[DB]
-    Class -->|USES_DB| DB[DB]
-    DB -->|CONTAINS| DataSet[DataSet]
-    DataSet -->|CONTAINS| Table[Table]
-    DataSet -->|CONTAINS| Procedure[Procedure]
-    Procedure -->|CONTAINS| Query[Query]
-    File -->|CONTAINS| Query
-    
-    %% Ingress & Routing
-    Project -->|EXPOSES| EntryPoint[EntryPoint]
-    EntryPoint -->|TRIGGERS| Function
+    subgraph ClassStructure [2. ClassStructure (Syntactic)]
+        Project[Project] -->|DECLARES_TYPE| Type[Type]
+        Type -->|HAS_METHOD| Function[Function]
+        Type -->|HAS_MEMBER| Member[Member]
+        Function -->|HAS_VARIABLE| Member
+    end
 
-    %% Messaging & Event Primitives
-    Function -->|PUBLISHES_TO| Queue[Queue]
-    Queue -->|TRIGGERS| Function
-    Function -->|PUBLISHES_TO| CloudService[CloudService]
+    subgraph SemanticStructure [3. SemanticStructure (Runtime Interfaces)]
+        Endpoint[Endpoint]
+        Database[Database]
+        Topic[Topic]
+        EntryPoint[EntryPoint]
+    end
+
+    %% Cross-Bucket Links (SystemBindings)
+    File -.->|Reference Pointer| Project
+    Type -.->|DECLARED_IN| File
+    Function -.->|DECLARED_IN| File
     
-    %% Egress & Integration
-    Function -->|CALLS| ExternalService[ExternalService]
-    Function -->|CALLS| CloudService
-    Function -->|DEPENDS_ON| CloudService
-    
-    %% Data Lineage & DB Links
-    Query -->|DEPENDS_ON| Table
-    Function -->|CALLS| Procedure
-    Function -->|DEPENDS_ON| Table
-    Table -->|TRANSFORMS_TO| Table
+    %% Semantic Bindings
+    Function -->|EXPOSES_ENDPOINT| Endpoint
+    Function -->|QUERIES_DB| Database
+    Function -->|PUBLISHES_TO| Topic
+    Function -->|SUBSCRIBES_TO| Topic
+    Function -.->|CALLS_ENDPOINT| Endpoint
 ```
 
 ---
 
-## 2. Nodes & Attributes Collection
+## 1. FilesStructure (Physical Topology)
 
-### Level 1: Workspace Roots
-* **`Workspace`**
-  * **Description**: The absolute root directory representing the opened codebase.
-  * **Properties collected**:
-    * `id` (string): Auto-incremented workspace identifier (e.g. `1`, `2`).
-    * `name` (string): Name of the root directory.
-    * `path` (string): Absolute filesystem path of the workspace.
-* **`WorkspaceFolder`**
-  * **Description**: Subdirectories sitting directly under the workspace before project boundaries.
-  * **Properties collected**:
-    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:workspacefolder:{relativeDir}`).
-    * `name` (string): Name of the folder.
-    * `path` (string): Relative filesystem path from the parent workspace/folder.
-* **`GitSettings`**
-  * **Description**: Git repository configuration settings (e.g. branch, origin URL, userName, userEmail).
-  * **Properties collected**:
-    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:gitsettings`).
-    * `name` (string): Node display name.
-    * `branch` (string): Active git branch.
-    * `origin_url` (string): Git remote origin URL.
-    * `user_name` (string): Local Git username.
-    * `user_email` (string): Local Git email.
-    * `path` (string): Relative path from the workspace root (always `""`).
+The physical structure tracks the exact directory layout of the workspace on disk. It is decoupled from the syntactic structures, meaning it is only updated when folders or files are created, renamed, or deleted.
 
-### Level 2: Project Declarations
-* **`Project`**
-  * **Description**: A buildable module, solution component, or package root (e.g. `.csproj`, `go.mod`, `package.json`).
-  * **Properties collected**:
-    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:project:{relativeProjectDir}:`).
-    * `name` (string): Project or module name.
-    * `path` (string): Relative directory path from the workspace root.
-    * `project_type` (string): Language type (`csharp`, `go`, `python`, `typescript`, `sql`).
-* **`ProjectFolder`**
-  * **Description**: Subdirectories inside a project structure containing source code files.
-  * **Properties collected**:
-    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:projectfolder:{relativeDir}`).
-    * `name` (string): Folder name.
-    * `path` (string): Relative path from the declaring project parent.
-* **`Package`**
-  * **Description**: External package or library referenced as dependencies (e.g. NuGet packages, npm packages, Go modules).
-  * **Properties collected**:
-    * `id` (string): Unique package key prefixed with workspace ID (`{workspaceId}:package:{packageName}`).
-    * `name` (string): Library name.
-    * `version` (string): Installed version.
-    * `type` (string): Registry ecosystem (`nuget`, `npm`, `go`).
-    * `path` (string): Relative path to the workspace root of the project declaring this dependency.
+### Nodes
+*   **`Folder`**
+    *   *Description:* A physical directory in the workspace.
+    *   *Properties:*
+        *   `id` (string): Absolute directory path.
+        *   `name` (string): The folder name.
+        *   `path` (string): Absolute filesystem path.
+*   **`File`**
+    *   *Description:* A source code document or data query script.
+    *   *Properties:*
+        *   `id` (string): Absolute file path.
+        *   `name` (string): Filename basename with extension.
+        *   `path` (string): Absolute filesystem path.
+        *   `language` (string): Code language (`csharp`, `go`, `python`, `typescript`, `sql`).
+        *   `hash` (string): MD5/SHA hash of the file contents to verify edit status.
 
-### Level 3: Files & General Containers
-* **`File`**
-  * **Description**: Individual source files that contain code or database queries.
-  * **Properties collected**:
-    * `id` (string): Unique identifier prefixed with workspace ID (`{workspaceId}:file:{relativeFilePath}`).
-    * `name` (string): Filename basename (including extension).
-    * `path` (string): Relative path from the workspace root.
-
-### Level 4: Object-Oriented Structures (AST Types)
-* **`Class`**
-  * **Description**: Struct, class, or object definition parsed from AST.
-  * **Properties collected**:
-    * `id` (string): Fully qualified symbol name scoping the type.
-    * `name` (string): Unqualified name of the class/struct.
-    * `symbol` (string): Fully qualified name/symbol scope.
-    * `file_path` (string): Workspace-relative path to the containing file.
-    * `path` (string): Workspace-relative path to the containing file.
-    * `start_line` / `end_line` (int): Code definition bounds.
-    * `start_col` / `end_col` (int): Character index column bounds.
-* **`Interface`**
-  * **Description**: Abstract interface contract declarations.
-  * **Properties collected**:
-    * `id` (string): Fully qualified interface symbol.
-    * `name` (string): Interface name.
-    * `symbol` (string): Fully qualified symbol scope.
-    * `file_path` (string): Relative path of the containing file.
-    * `path` (string): Workspace-relative path to the containing file.
-    * `start_line` / `end_line` (int): Code bounds.
-    * `start_col` / `end_col` (int): Column bounds.
-
-### Level 5: Code Executables & AST Symbols
-* **`Function`**
-  * **Description**: Methods, functions, constructors, or AST routines.
-  * **Properties collected**:
-    * `id` (string): Fully qualified method symbol.
-    * `name` (string): Unqualified function name.
-    * `symbol` (string): Fully qualified symbol path.
-    * `file_path` (string): Relative path of the containing file.
-    * `path` (string): Workspace-relative path to the containing file.
-    * `start_line` / `end_line` (int): Method bounds.
-    * `start_col` / `end_col` (int): Column bounds.
-* **`Variable`**
-  * **Description**: Public fields, class properties, or globally exported variables. All private fields, protected fields, method parameters, and local variables are strictly excluded from the graph to focus on public interfaces and minimize graph noise.
-  * **Properties collected**:
-    * `id` (string): Fully qualified property or field symbol.
-    * `name` (string): Variable name.
-    * `symbol` (string): Fully qualified symbol scope.
-    * `file_path` (string): Relative path of the containing file.
-    * `path` (string): Workspace-relative path to the containing file.
-    * `start_line` / `end_line` (int): Location bounds.
-    * `start_col` / `end_col` (int): Column bounds.
-
-### Level 6: Database & Data Schema Nodes
-* **`DB`**
-  * **Description**: Database server or schema instance.
-  * **Properties collected**:
-    * `id` (string): Unique identifier (e.g. connection-string derived or database name).
-    * `name` (string): Database name.
-    * `path` (string): Relative file path (for local SQLite/Access files) or connection host.
-* **`DataSet`**
-  * **Description**: Schema or dataset logical grouping inside the database.
-  * **Properties collected**:
-    * `id` (string): Unique schema identifier.
-    * `name` (string): Schema name (e.g. `dbo`, `public`).
-    * `path` (string): Schema path identifier.
-* **`Table`**
-  * **Description**: Database physical tables or views.
-  * **Properties collected**:
-    * `id` (string): Fully qualified table name (`db.schema.table`).
-    * `name` (string): Unqualified table name.
-    * `path` (string): Source file path defining the schema (e.g. `.dbml`, `.edmx`, `.sql` script).
-* **`Procedure`**
-  * **Description**: Database stored procedures, views, or functions.
-  * **Properties collected**:
-    * `id` (string): Fully qualified procedure symbol.
-    * `name` (string): Procedure name.
-    * `path` (string): File path to migration/definition script or C# DbContext mapping if tracked.
-* **`Query`**
-  * **Description**: Embedded raw SQL statement, ORM query block, or execution block.
-  * **Properties collected**:
-    * `id` (string): Unique query node ID.
-    * `name` (string): Generated query label (e.g., `"SELECT Query #1"`).
-    * `query_text` (string): Raw SQL/ORM query string (truncated if exceeding bounds).
-    * `path` (string): File path where the query is embedded.
-
-### Level 7: Message Broker Nodes
-* **`Queue`**
-  * **Description**: Message queue or publish-subscribe channel (e.g. RabbitMQ queue, Kafka topic, or internal in-memory queue like C# `InMemQueue`).
-  * **Properties collected**:
-    * `id` (string): Unique queue ID prefixed with workspace ID (`{workspaceId}:queue:{queueName}`).
-    * `name` (string): Queue or topic name.
-    * `type` (string): Broker type (`rabbitmq`, `kafka`, `in-memory`).
-    * `path` (string): Relative path from the workspace root where the queue is declared or referenced.
-* **`EntryPoint`**
-  * **Description**: HTTP routes, RPC stubs, CLI commands, or queue consumers exposed by projects.
-  * **Properties collected**:
-    * `id` (string): Unique entry point ID (`{workspaceId}:entrypoint:{projectName}:{protocol}:{route_or_topic}`).
-    * `name` (string): Name or identifier.
-    * `protocol` (string): Protocol type (`http`, `grpc`, `event`, `cli`).
-    * `route_or_topic` (string): Target URL path or topic name.
-    * `path` (string): Relative path of the containing file from the workspace root.
-* **`CloudService`**
-  * **Description**: External managed cloud services (e.g. AWS S3 bucket, GCP BigQuery dataset, Azure Table Storage).
-  * **Properties collected**:
-    * `id` (string): Unique service ID (`{workspaceId}:cloudservice:{type}:{resourceName}`).
-    * `name` (string): Resource or service instance name.
-    * `type` (string): Cloud service type (e.g., `aws_s3`, `gcp_bigquery`).
-    * `path` (string): Relative path from the workspace root where the cloud service is declared or used.
-* **`ExternalService`**
-  * **Description**: Remote microservices or third-party API hosts invoked by code.
-  * **Properties collected**:
-    * `id` (string): Unique service ID (`{workspaceId}:externalservice:{protocol}:{domain_or_service_name}`).
-    * `name` (string): Domain name or logical service name.
-    * `protocol` (string): Remote communication protocol (`http`, `grpc`).
-    * `domain_or_service` (string): Remote endpoint host name.
-    * `path` (string): Relative path of the containing file from the workspace root.
+### Relationships
+*   `Folder -[CONTAINS_FILE]-> File`
+*   `Folder -[CONTAINS_FOLDER]-> Folder`
 
 ---
 
-## 3. Node URN / ID Schemes
+## 2. ClassStructure (Syntactic Code Models)
 
-To guarantee uniqueness across multi-project workspaces and multiple database instances, CodeExplorer uses structured Uniform Resource Names (URNs) for node IDs, prefixed by an auto-incremented workspace identifier (`{workspaceId}`). The table below lists the ID schemes and their scope:
+The syntactic structure stores declarations found within the AST. By isolating this bucket, we can surgically drop and rebuild AST nodes for a single modified file without touching the rest of the database.
 
-| Node Label | ID / URN Scheme | Uniqueness Scope | Description / Example |
+### Nodes
+*   **`Project`**
+    *   *Description:* A compilation unit or package boundary (e.g. C# `.csproj`, Go module, TypeScript `package.json`).
+    *   *Properties:*
+        *   `id` (string): Unique project path/name.
+        *   `name` (string): Project name.
+        *   `language` (string): Core language type.
+        *   `path` (string): Absolute path to the project file/directory.
+*   **`Type`**
+    *   *Description:* Unified class, interface, struct, record, or enum declarations.
+    *   *Properties:*
+        *   `id` (string): Fully qualified type symbol.
+        *   `name` (string): Unqualified name of the type.
+        *   `kind` (string): Specifier (`class`, `interface`, `struct`, `record`, `enum`, `union`).
+        *   `file_path` (string): Absolute path to the declaring file (cached for instant lookup).
+        *   `start_line` / `end_line` (int): Source code bounds.
+*   **`Function`**
+    *   *Description:* Methods, constructors, or free-floating functions.
+    *   *Properties:*
+        *   `id` (string): Fully qualified method/function symbol.
+        *   `name` (string): Unqualified name of the function.
+        *   `signature` (string): Method parameter and return type signature.
+        *   `return_type` (string): Declared return type.
+        *   `file_path` (string): Absolute path to the declaring file (cached).
+        *   `start_line` / `end_line` (int): Source code bounds.
+*   **`Member`**
+    *   *Description:* Fields, properties, method parameters, or local variables.
+    *   *Properties:*
+        *   `id` (string): Fully qualified member symbol.
+        *   `name` (string): Member name.
+        *   `type_name` (string): Declared type name.
+        *   `kind` (string): Specifier (`field`, `property`, `parameter`, `variable`).
+        *   `start_line` / `end_line` (int): Source code bounds.
+
+### Relationships
+*   `Project -[DECLARES_TYPE]-> Type`
+*   `Type -[HAS_METHOD]-> Function`
+*   `Type -[HAS_MEMBER]-> Member`
+*   `Function -[HAS_VARIABLE]-> Member` (For local variables or parameters inside a function scope)
+*   `Type -[DECLARED_IN]-> File` (Link pointing back to FilesStructure)
+*   `Function -[DECLARED_IN]-> File` (Link pointing back to FilesStructure)
+
+---
+
+## 3. SemanticStructure (Runtime System Map)
+
+The semantic model represents the entry points and external targets of the system, allowing visual mapping of services and microservice architecture.
+
+### Nodes
+*   **`Endpoint`**
+    *   *Description:* An exposed API route.
+    *   *Properties:*
+        *   `id` (string): HTTP method + route template.
+        *   `http_method` (string): HTTP verb (`GET`, `POST`, `PUT`, `DELETE`).
+        *   `route_template` (string): API route path.
+*   **`Database`**
+    *   *Description:* A physical data store instance or schema.
+    *   *Properties:*
+        *   `id` (string): Unique database/schema name.
+        *   `name` (string): Database name.
+        *   `db_type` (string): Database system type (`sqlserver`, `postgres`, `sqlite`, `mongodb`).
+*   **`Topic`**
+    *   *Description:* Message broker pub/sub queues and exchanges.
+    *   *Properties:*
+        *   `id` (string): Topic/Queue name.
+        *   `name` (string): Topic name.
+        *   `broker_type` (string): Broker engine (`rabbitmq`, `kafka`, `sqs`, `in-memory`).
+*   **`EntryPoint`**
+    *   *Description:* General runtime entry triggers (e.g. gRPC stubs, CLI commands, background processes).
+    *   *Properties:*
+        *   `id` (string): Unique identifier.
+        *   `entry_type` (string): Specifier (`grpc`, `cli`, `cron`).
+
+---
+
+## 4. SystemBindings (Cross-Project Integration & References)
+
+System bindings represent cross-cutting connections that link the physical, syntactic, and semantic models together.
+
+### Intra-Project Relationships (Layer 3 Semantics)
+*   `Type -[INHERITS_FROM]-> Type` (Inheritance / Interface implementation)
+*   `Member -[OF_TYPE]-> Type` (Links a property/field to its concrete type node)
+*   `Function -[CALLS]-> Function` (Direct compiler-resolved function call)
+*   `Function -[USES_TYPE]-> Type` (Type references, instances, generics)
+
+### Inter-Project Relationships (Layer 4 System Integration)
+*   `Function -[EXPOSES_ENDPOINT]-> Endpoint` (API Ingress)
+*   `Function -[CALLS_ENDPOINT]-> Endpoint` (API Egress)
+*   `Function -[QUERIES_DB]-> Database` (Data Access Lineage)
+*   `Function -[PUBLISHES_TO]-> Topic` (Asynchronous Publishing)
+*   `Function -[SUBSCRIBES_TO]-> Topic` (Asynchronous Subscription)
+
+---
+
+## 5. Node URN / ID Schemes
+
+To guarantee uniqueness across multi-project workspaces and multiple database instances, CodeExplorer uses structured Uniform Resource Names (URNs) for node IDs, prefixed by an auto-incremented workspace identifier (`{workspaceId}`). 
+
+| Node Label | ID / URN Scheme | Uniqueness Scope | Example |
 | :--- | :--- | :--- | :--- |
-| **`Workspace`** | `{workspaceId}` | Global | `1` or `2` |
-| **`WorkspaceFolder`** | `{workspaceId}:workspacefolder:{relativeDir}` | Workspace | `1:workspacefolder:docs` |
-| **`Project`** | `{workspaceId}:project:{relativeProjectDir}:` | Workspace | `1:project:Core/CodeExplorer.Core:` |
-| **`ProjectFolder`** | `{workspaceId}:projectfolder:{relativeDir}` | Workspace | `1:projectfolder:Core/CodeExplorer.Core/Mcp` |
-| **`Package`** | `{workspaceId}:package:{packageName}` | Ecosystem | `1:package:neo4j.driver` or `1:package:react` (lowercase package name) |
-| **`File`** | `{workspaceId}:file:{relativeFilePath}` | Workspace | `1:file:Core/CodeExplorer.Core/Mcp/McpServer.cs` |
-| **`Class`** | `{workspaceId}:symbol:{relativeFilePath}:Class:{name}:{startLine}` | File | `1:symbol:Core/CodeExplorer.Core/Mcp/McpServer.cs:Class:McpServer:7` |
-| **`Interface`** | `{workspaceId}:symbol:{relativeFilePath}:Interface:{name}:{startLine}` | File | `1:symbol:Core/CodeExplorer.Core/Parser/IFileParser.cs:Interface:IFileParser:5` |
-| **`Function`** | `{workspaceId}:symbol:{relativeFilePath}:Function:{name}:{startLine}` | File | `1:symbol:Core/CodeExplorer.Core/Mcp/McpServer.cs:Function:StartAsync:9` |
-| **`Variable`** | `{workspaceId}:symbol:{relativeFilePath}:Variable:{name}:{startLine}` | File | `1:symbol:Core/CodeExplorer.Core/Parser/FileLevelParser.cs:Variable:_filePath:10` |
-| **`DB`** | `{workspaceId}:db:{databaseName}` | Global DB | `1:db:defaultdb` or `1:db:orders_db` (forced lowercase database name) |
-| **`DataSet`** | `{workspaceId}:db:{databaseName}:dataset:{schemaName}` | Database | `1:db:defaultdb:dataset:dbo` (forced lowercase schema name) |
-| **`Table`** | `{workspaceId}:db:{databaseName}:dataset:{schemaName}:table:{tableName}` | Schema | `1:db:defaultdb:dataset:dbo:table:orders` (forced lowercase table name) |
-| **`Procedure`** | `{workspaceId}:db:{databaseName}:dataset:{schemaName}:procedure:{procedureName}` | Schema | `1:db:defaultdb:dataset:dbo:procedure:get_orders` |
-| **`Query`** | `{containingParentId}:query:{queryCounter}` | Parent Scope | `1:db:defaultdb:dataset:dbo:procedure:get_orders:query:1` (for queries nested inside stored procedures) or `1:file:sql/query.sql:query:1` (for files) |
-| **`Queue`** | `{workspaceId}:queue:{queueName}` | Workspace | `1:queue:rabbitmq:FinalizeSlip` or `1:queue:in-memory:EventPending` |
-| **`EntryPoint`** | `{workspaceId}:entrypoint:{projectName}:{protocol}:{route_or_topic}` | Project | `1:entrypoint:BillingService:http:POST:/charge` |
-| **`CloudService`** | `{workspaceId}:cloudservice:{type}:{resourceName}` | Global | `1:cloudservice:aws_s3:slip-attachments` |
-| **`ExternalService`** | `{workspaceId}:externalservice:{protocol}:{domain_or_service_name}` | Global | `1:externalservice:http:api.stripe.com` |
-| **`GitSettings`** | `{workspaceId}:gitsettings` | Workspace | `1:gitsettings` |
-
----
-
-## 4. Relationships & Edges Definition
-
-CodeExplorer's graph relationships are detailed below, organized by their **Source Node** to show all outbound edges:
-
-| Source Node | Relationship Type | Target Node(s) | Description |
-| :--- | :--- | :--- | :--- |
-| **`Workspace`** | `CONTAINS` | `WorkspaceFolder`, `Project`, `File` | Logical nested directories, solution files, or projects in the root. |
-| **`WorkspaceFolder`** | `CONTAINS` | `WorkspaceFolder`, `Project`, `File` | Subdirectories and workspace files. |
-| **`Project`** | `CONTAINS` | `ProjectFolder`, `File` | Folders and source files inside project boundary. |
-| | `DEPENDS_ON` | `Project`, `Package` | Inter-project dependencies and package references. |
-| | `EXPOSES` | `EntryPoint` | HTTP endpoints, RPC service stubs, CLI verbs. |
-| | `USES_DB` | `DB` | Main database schema connections configured. |
-| **`ProjectFolder`** | `CONTAINS` | `ProjectFolder`, `File` | Nested directory scopes inside projects. |
-| **`Package`** | `IMPLEMENTED_BY` | `Project` | Links external package dependency to internal source project if available. |
-| **`File`** | `CONTAINS` | `Class`, `Interface`, `Function`, `Variable`, `Query` | AST structures, declarations, inline queries. |
-| **`Class`** | `CONTAINS` | `Function`, `Variable` | Class methods and public member fields/properties. |
-| | `IMPLEMENTS` | `Interface` | Concrete class implementing abstract interface contract. |
-| | `INHERITS_FROM` | `Class` | Base class inheritance link. |
-| | `USES_TYPE` | `Class`, `Interface` | Structural references (field declarations, instantiation). |
-| | `USES_DB` | `DB` | Database context or configuration reference (e.g., repository or DbContext). |
-| **`Interface`** | `CONTAINS` | `Function`, `Variable` | Interface method and property declarations. |
-| | `INHERITS_FROM` | `Interface` | Interface inheritance/extensions. |
-| | `USES_TYPE` | `Class`, `Interface` | Structural types referenced in contract parameters. |
-| **`Function`** | `CONTAINS` | `Function`, `Variable`, `Query` | Nested local routines, variables, or inline SQL queries. |
-| | `CALLS` | `Function`, `Procedure`, `ExternalService`, `CloudService` | Invocations (code-to-code, code-to-procedure mapped via attributes or ORMs, external API, or cloud services). |
-| | `DEPENDS_ON` | `CloudService` | Cloud SDK storage/compute service dependency. |
-| | `PUBLISHES_TO` | `CloudService`, `Queue` | Event or message publishing (Kafka, RabbitMQ, SQS, or internal queues). |
-| | `USES_TYPE` | `Class`, `Interface` | Type referencing in parameter arguments or return types. |
-| **`Variable`** | `CALLS` | `Function` | Invoking delegates or function callbacks. |
-| | `USES_TYPE` | `Class`, `Interface` | Field, property, or constant type mapping. |
-| **`EntryPoint`** | `TRIGGERS` | `Function` | Maps incoming API HTTP routes or message topics to handler code methods. |
-| **`Queue`** | `TRIGGERS` | `Function` | Queue consumer triggering code handler functions. |
-| **`DB`** | `CONTAINS` | `DataSet` | Databases scoping logical datasets/schemas. |
-| **`DataSet`** | `CONTAINS` | `Table`, `Procedure` | Schemas containing tables and stored procedures. |
-| **`Table`** | `TRANSFORMS_TO` | `Table` | High-level data lineage mapping source table to target table. |
-| **`Procedure`** | `CONTAINS` | `Query` | SQL statements contained inside a database stored procedure. |
-| **`Query`** | `DEPENDS_ON` | `Table` | Static SQL statements reading/writing to tables. |
-
----
-
-## 5. Proposed Extensions & Primitives
-
-To support deeper architectural mapping and code navigation, we propose the following expansion of nodes, relationships, and primitives.
-
-### A. Direct Project-to-Construct Relationships
-
-Currently, checking if a `Class`, `Interface`, or `Function` belongs to a `Project` requires variable-length path traversal:
-`MATCH (p:Project)-[:CONTAINS*1..]->(f:File)-[:CONTAINS*1..]->(c:Class)`
-
-We propose adding direct reference relationships to bypass file-level hierarchy for high-level queries:
-
-*   **`DECLARES`**: `(Project)-[:DECLARES]->(Class|Interface|Enum|Namespace)`
-    *   *Purpose*: Instantly retrieve all top-level logical declarations belonging to a project, bypassing file-system folders.
-*   **`EXPORTS`**: `(Project)-[:EXPORTS]->(Class|Interface|Function)`
-    *   *Purpose*: Maps public API/export boundaries of a project or library component.
-
-### B. Extended Code Primitives
-
-To capture logical scopes, decorator patterns, and advanced constructs, we propose expanding language primitives:
-
-1.  **`Namespace` / `Module`**
-    *   *Purpose*: Logical namespace bounds (distinct from directory nesting). E.g. `namespace CodeExplorer.Parser` or Go package scopes.
-    *   *URN Scheme*: `namespace:{workspacePath}:{name}`
-    *   *Relationships*: `(Namespace)-[:CONTAINS]->(Class|Interface|Function)`
-2.  **`Enum` & `EnumMember`**
-    *   *Purpose*: Custom enum types and their selectable choices.
-    *   *URN Scheme*:
-        *   Enum: `symbol:{workspacePath}:{relativeFilePath}:Enum:{name}:{startLine}`
-        *   EnumMember: `symbol:{workspacePath}:{relativeFilePath}:EnumMember:{enumName}.{memberName}:{startLine}`
-    *   *Relationships*: `(Enum)-[:CONTAINS]->(EnumMember)`
-3.  **`TypeAlias` / `Type`**
-    *   *Purpose*: Structural type aliases in TypeScript (`type ID = string;`) or Go type declarations.
-    *   *URN Scheme*: `symbol:{workspacePath}:{relativeFilePath}:TypeAlias:{name}:{startLine}`
-4.  **`Annotation` / `Decorator` / `Attribute`**
-    *   *Purpose*: Metadata decorations that drive frameworks (e.g. C# `[ApiController]`, TS/NestJS `@Injectable()`, Java `@RestController`). These are crucial for entry point routing, dependency injection, and data models.
-    *   *URN Scheme*: `symbol:{workspacePath}:{relativeFilePath}:Annotation:{name}:{startLine}`
-    *   *Relationships*: `(Class|Function|Variable)-[:DECORATED_WITH]->(Annotation)`
-5.  **`Import` / `Export`**
-    *   *Purpose*: File-level import statements to trace syntactic compilation dependencies.
-    *   *URN Scheme*: `import:{workspacePath}:{relativeFilePath}:{importedName}:{line}`
-    *   *Relationships*: `(File)-[:IMPORTS]->(Import)`
-
-### C. Extended Database & Schema Primitives
-
-To support enterprise databases, data warehousing, and ETL lineage:
-
-1.  **Schema Mappings via XML DBML / EDMX**
-    *   *Purpose*: Parses database table definitions statically from LINQ-to-SQL `.dbml` and Entity Framework `.edmx` files, avoiding raw SQL schema script parsing.
-    *   *Mapping*: Creates `Table` nodes based on `<Table>` elements in the XML files.
-
-2.  **Stored Procedure Attributes Mapping**
-    *   *Purpose*: Connects C# DbContext stub methods to physical SQL stored procedures using C# metadata attributes (e.g. `[Function(Name = "dbo.rep_RequestLogs")]`).
-    *   *Mapping*: Creates a `(Function)-[:CALLS]->(Procedure)` edge when the static analyzer matches a method decorated with `[Function]` (or similar ORM attributes) to the corresponding `Procedure` node.
-
----
-
-## 6. DB & Cloud Services Detection Strategy
-
-To map the connection between code functions and external resources (Databases and Cloud Services), we use static analysis heuristics based on package imports, client type instantiations, configuration usages, and string literal parsing.
-
-### A. Database (DB) Detection Heuristics
-
-We track data access lineages using four main signals:
-
-1.  **Static SQL Parsing (String Literal Scanning)**:
-    *   **Action**: Scan AST string literals inside functions for standard SQL keywords (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `FROM`, `JOIN`).
-    *   **Table Resolution**: Extract matching tokens following `FROM` or `JOIN` to map table dependencies:
-        *   `MATCH (q:Query)-[:DEPENDS_ON]->(t:Table)`
-    *   **Query Scope**: Connect the query node to its enclosing code block:
-        *   `(Function)-[:CONTAINS]->(Query)`
-2.  **ORM / Database Driver Client Tracing (Type Reference Matches)**:
-    *   **Action**: Trace calls on known database connection types (e.g. C# `DbContext`, `SqlCommand`, `DbConnection`; Go `gorm.DB`, `sql.DB`, `pgx.Conn`; Node/TS `pg.Client`, `TypeORMRepository`).
-    *   **Call Linking**: Whenever a function invokes methods (like `.Query()`, `.Execute()`, `.SaveChangesAsync()`) on these types, map a dependency:
-        *   `(Function)-[:DEPENDS_ON]->(Table)` (if table type can be resolved from ORM generic arguments like `DbSet<Order>`).
-3.  **Static Schema Extraction (DBML / EDMX)**:
-    *   **Action**: Parse DBML (`.dbml`) and Entity Framework (`.edmx`) XML files for `<Table>` and `<Association>` elements.
-    *   **Table Extraction**: Populate the database topology with exact tables.
-4.  **Connection Configuration Analysis**:
-    *   **Action**: Parse app configuration files (e.g. `appsettings.json`, `.env`, YAML charts) for database connection keys (`ConnectionStrings:DefaultConnection`, `DATABASE_URL`, `DB_HOST`).
-    *   **Instance Linking**: Match these configurations to the project to instantiate a `DB` node and associate it:
-        *   `(Project)-[:USES_DB]->(DB)`
-
-### B. Cloud Services & Messaging Detection Heuristics
-
-We represent external cloud services and messaging channels using `CloudService` and `Queue` nodes.
-
-1.  **SDK Client Package Imports (Dependency Mapping)**:
-    *   **Action**: Check project package configuration files (`.csproj`, `go.mod`, `package.json`) and import headers for known Cloud SDK libraries.
-    *   **Ecosystem Catalog**:
-        *   *AWS SDK*: `AWSSDK.S3`, `AWSSDK.SQS`, `@aws-sdk/client-s3`.
-        *   *GCP SDK*: `Google.Cloud.PubSub.V1`, `cloud.google.com/go/pubsub`.
-        *   *Azure SDK*: `Azure.Storage.Blobs`, `@azure/storage-blob`.
-        *   *Message Brokers*: `Confluent.Kafka`, `RabbitMQ.Client`, `github.com/segmentio/kafka-go`.
-2.  **SDK Instantiation & Method Calls (AST Usages)**:
-    *   **Action**: Match instantiations and call references of specific SDK Client classes in the AST (e.g., calling `.PutObjectAsync()` on `AmazonS3Client`, or `.PublishAsync()` on `PublisherClient`).
-    *   **Mapping**: Trace these calls back to the invoking function:
-        *   `(Function)-[:CALLS]->(CloudService)` (e.g. `cloudservice:aws_s3:bucket_name` or general `cloudservice:aws_s3:default`).
-3.  **Config-Driven Queue & Broker Resolution**:
-    *   **Action**: Trace calls to custom message queue wrappers (e.g. `VSBS.RabbitMQ.Publisher.Add` or `Consumer.Receive`) and configuration files containing host names and queue configurations (e.g., `RabbitMQ:HostName`).
-    *   **Mapping**: Instantiate a `Queue` node named after the queue/topic literal and build relationships:
-        *   `(Function)-[:PUBLISHES_TO]->(Queue)` (for publisher calls)
-        *   `(Queue)-[:TRIGGERS]->(Function)` (for consumer subscriptions)
-4.  **Environment Variable & Config Correlative Parsing**:
-    *   **Action**: Identify code references retrieving configuration parameters carrying cloud-specific keys (e.g. `S3_BUCKET_NAME`, `KAFKA_BROKERS`, `AZURE_STORAGE_CONNECTION_STRING`).
-    *   **Resource Mapping**: Resolve the configuration value to name the specific resource:
-        *   A function reading `config.Get("S3_BUCKET_NAME")` is linked directly: `(Function)-[:DEPENDS_ON]->(CloudService { type: "aws_s3", name: resolvedBucketName })`.
-
-
-
-## 7. Project Ingress & Egress (External Interfaces)
-
-To map how a project communicates with the outside world (other microservices, consumers, event publishers), CodeExplorer defines explicit nodes for Ingress (Entry Points) and Egress (External Services).
-
-### A. Ingress (Incoming Calls & Event Consumption)
-
-We represent external triggers using a dedicated node **`EntryPoint`** (URN Scheme: `entrypoint:{projectName}:{protocol}:{route_or_topic}`).
-
-#### Types of Entry Points:
-1.  **HTTP / REST APIs**:
-    *   *Source Code Target*: Controller methods decorated with routing attributes (C# `[HttpPost("charge")]`, NestJS `@Post('charge')`) or registered routing endpoints (Go `r.POST("/charge", Handler)`).
-    *   *URN Example*: `entrypoint:BillingService:http:POST:/charge`
-2.  **Message & Event Consumers (Asynchronous Ingress)**:
-    *   *Source Code Target*: Event handlers subscribing to a queue or message topic (e.g. methods decorated with `@QueuePattern('order-created')` or listening to Kafka topics).
-    *   *URN Example*: `entrypoint:BillingService:event:order-created`
-3.  **gRPC / RPC Handlers**:
-    *   *Source Code Target*: Methods implementing Protobuf-generated service interfaces.
-    *   *URN Example*: `entrypoint:BillingService:grpc:GetBalance`
-4.  **CLI Command Entrypoints**:
-    *   *Source Code Target*: Application startup scripts or console argument handlers (`Program.Main` or command-line verbs).
-    *   *URN Example*: `entrypoint:BillingService:cli:migrate-db`
-
-#### Ingress Relationships:
-*   **`EXPOSES`**: `(Project)-[:EXPOSES]->(EntryPoint)`
-*   **`TRIGGERS`**: `(EntryPoint)-[:TRIGGERS]->(Function)` (links the external boundary directly to the code method that executes the request).
-
----
-
-### B. Egress (Outgoing Calls to External Services)
-
-We represent other microservices or external APIs called by the project using a dedicated node **`ExternalService`** (URN Scheme: `externalservice:{protocol}:{domain_or_service_name}`).
-
-#### Detection Heuristics:
-1.  **HTTP / REST Client Invocation**:
-    *   *Action*: Scan for HTTP clients (`HttpClient` in C#, `axios` in JS/TS, `http.Client` in Go) invoking remote URLs or service discovery names.
-    *   *Host Extraction*: Parse URL endpoints or client configuration templates to extract the target service name or domain (e.g., `api.stripe.com` or `AuthService`).
-2.  **gRPC Client Stubs**:
-    *   *Action*: Scan for gRPC client class instantiations (e.g. `PaymentGatewayClient`).
-
-#### Egress Relationships:
-*   **`CALLS`**: `(Function)-[:CALLS]->(ExternalService)` (e.g. `(chargeFunction)-[:CALLS]->(externalservice:http:api.stripe.com)`).
-*   **`PUBLISHES_TO`**: `(Function)-[:PUBLISHES_TO]->(CloudService)` (e.g. publishing message to Kafka / AWS SNS topics).
-    *   *Relationship*: `(Function)-[:PUBLISHES_TO]->(CloudService { type: "kafka_topic", name: "invoice-billed" })`
+| **`Folder`** | `{workspaceId}:folder:{absoluteFolderPath}` | Workspace | `1:folder:/Work/Personal/code-explorer/Core` |
+| **`File`** | `{workspaceId}:file:{absoluteFilePath}` | Workspace | `1:file:/Work/Personal/code-explorer/Core/Registry.cs` |
+| **`Project`** | `{workspaceId}:project:{absoluteProjectPath}` | Workspace | `1:project:/Work/Personal/code-explorer/UI/UI.csproj` |
+| **`Type`** | `{workspaceId}:symbol:{file_path}:Type:{name}:{line}` | File | `1:symbol:/Core/Registry.cs:Type:OntologyRegistry:12` |
+| **`Function`** | `{workspaceId}:symbol:{file_path}:Function:{name}:{line}` | File | `1:symbol:/Core/Registry.cs:Function:Register:24` |
+| **`Member`** | `{workspaceId}:symbol:{file_path}:Member:{name}:{line}` | File | `1:symbol:/Core/Registry.cs:Member:KindMapping:15` |
+| **`Endpoint`** | `{workspaceId}:endpoint:{http_method}:{route}` | Workspace | `1:endpoint:POST:/api/v1/users` |
+| **`Database`** | `{workspaceId}:db:{db_type}:{name}` | Workspace | `1:db:sqlserver:orders_db` |
+| **`Topic`** | `{workspaceId}:topic:{broker_type}:{name}` | Workspace | `1:topic:kafka:order-created` |

@@ -65,45 +65,9 @@ This document captures the architectural review of **CodeExplorer**, highlights 
 
 ## 2. Decoupled 4-Bucket Ontology Model
 
-To support fast, independent updates and optimize query complexity, the graph schema is organized into four horizontal buckets linked by reference pointers:
+The system ontology has transitioned to four decoupled horizontal buckets (FilesStructure, ClassStructure, SemanticStructure, and SystemBindings) linked by reference pointers. This layout enables surgical incremental parsing and fast query paths.
 
-### A. FilesStructure (Physical Topology)
-*   **Purpose:** Maps the layout of files on disk.
-*   **Entities:**
-    *   `Folder` (path, name)
-    *   `File` (path, name, hash, language)
-*   **Relationships:** `Folder -[CONTAINS_FILE]-> File`
-
-### B. ClassStructure (Syntactic Code Models)
-*   **Purpose:** Stores the static syntax structures parsed from code files.
-*   **Entities:**
-    *   `Project` (name, language, path)
-    *   `Type` (name, kind [class/interface/struct/enum], start_line, end_line)
-    *   `Function` (name, signature, return_type, start_line, end_line)
-    *   `Member` (name, type_name, kind [field/property/parameter/variable])
-*   **Relationships:**
-    *   `Project -[DECLARES_TYPE]-> Type`
-    *   `Type -[HAS_METHOD]-> Function`
-    *   `Type -[HAS_MEMBER]-> Member`
-    *   `Function -[DECLARED_IN]-> File` (Links back to FilesStructure)
-
-### C. SemanticStructure (Runtime System Map)
-*   **Purpose:** Exposes public interfaces, endpoints, databases, and brokers.
-*   **Entities:**
-    *   `Endpoint` (http_method, route_template)
-    *   `Database` (name, db_type)
-    *   `Topic` (name, broker_type)
-    *   `EntryPoint` (entry_type)
-*   **Relationships:**
-    *   `Function -[EXPOSES_ENDPOINT]-> Endpoint`
-    *   `Function -[QUERIES_DB]-> Database`
-
-### D. SystemBindings (Cross-Project Integration)
-*   **Purpose:** Links callers to providers across networks or project boundaries.
-*   **Relationships:**
-    *   `Function -[CALLS_ENDPOINT]-> Endpoint`
-    *   `Function -[PUBLISHES_TO]-> Topic`
-    *   `Function -[SUBSCRIBES_TO]-> Topic`
+For the full schema, URN, and relationship details, refer to the [Ontology Specification](ontology.md).
 
 ## 3. Ingestion & Runtime Architecture Evolution
 
