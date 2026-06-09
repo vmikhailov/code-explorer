@@ -1,7 +1,8 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer3_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
@@ -39,6 +40,12 @@ public class WorkspaceParser
         var filesNodeId = $"{wsId}:files_structure";
         var workspaceFilesStructure = new FilesStructureNode(filesNodeId, "FilesStructure", hostPath);
         workspaceNode.Children.Add(workspaceFilesStructure);
+
+        // Create workspace-level ProjectsStructure to group logical projects
+        var projectsNodeId = $"{wsId}:projects_structure";
+        var workspaceProjectsStructure = new ProjectsStructureNode(projectsNodeId, "ProjectsStructure", hostPath);
+        workspaceNode.Children.Add(workspaceProjectsStructure);
+        _ctx.ProjectsStructure = workspaceProjectsStructure;
 
         // Parse and add Git settings if the workspace has a .git folder
         var gitSettingsNode = GitSettingsParser.Parse(wsId, _absoluteWorkspacePath);
@@ -109,22 +116,29 @@ public class WorkspaceParser
         }
 
         // 3. Scan folder for project signatures to detect projects dynamically
-        var projectNode = await ProjectProcessor.DetectAndParseAsync(_ctx, currentDir);
-
-        if (projectNode != null)
+        if (string.IsNullOrEmpty(relativeDir))
         {
-            parentNode.Children.Add(projectNode);
-            return;
+            // Root workspace directory
+            var files = Directory.GetFiles(currentDir);
+            var isProject = WorkspaceIndexer._projectParsers.Any(p => p.IsProjectDirectory(currentDir, files));
+            if (isProject)
+            {
+                var filesStructure = parentNode.Children.OfType<FilesStructureNode>().FirstOrDefault();
+                var projectNode = await ProjectProcessor.DetectAndParseAsync(_ctx, currentDir, filesStructure ?? parentNode);
+                if (projectNode != null)
+                {
+                    _ctx.ProjectsStructure?.Children.Add(projectNode);
+                }
+                return;
+            }
         }
-
-        // Register current directory in structural nodes
-        var currentParentNode = parentNode;
-
-        if (!string.IsNullOrEmpty(relativeDir))
+        else
         {
+            // Subdirectories
             var absoluteFolderPath = Path.GetFullPath(currentDir).Replace('\\', '/');
             var folderId = $"{_ctx.WorkspaceId}:folder:{absoluteFolderPath}";
             var folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
+
             if (parentNode is WorkspaceNode wsNode)
             {
                 var filesStructure = wsNode.Children.OfType<FilesStructureNode>().FirstOrDefault();
@@ -141,13 +155,26 @@ public class WorkspaceParser
             {
                 parentNode.Children.Add(folderNode);
             }
-            currentParentNode = folderNode;
+
+            var files = Directory.GetFiles(currentDir);
+            var isProject = WorkspaceIndexer._projectParsers.Any(p => p.IsProjectDirectory(currentDir, files));
+            if (isProject)
+            {
+                var projectNode = await ProjectProcessor.DetectAndParseAsync(_ctx, currentDir, folderNode);
+                if (projectNode != null)
+                {
+                    _ctx.ProjectsStructure?.Children.Add(projectNode);
+                }
+                return; // Delegate subdirectory recursion inside the project to ProjectProcessor
+            }
+
+            parentNode = folderNode; // For recursing normal subdirectories
         }
 
         // Recurse into subdirectories
         foreach (var subDir in Directory.GetDirectories(currentDir))
         {
-            await ScanDirectoryAsync(subDir, currentParentNode);
+            await ScanDirectoryAsync(subDir, parentNode);
         }
     }
 

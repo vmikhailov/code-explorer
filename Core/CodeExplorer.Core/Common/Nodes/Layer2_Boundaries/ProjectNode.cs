@@ -1,12 +1,14 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Project,
     idScheme: "{workspaceId}:project:{relativeProjectDir}:",
     purpose: "Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).",
-    layer: OntologyConstants.Layers.Physical
+    layer: OntologyConstants.Layers.ProjectBoundary
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]

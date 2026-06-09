@@ -14,6 +14,7 @@ public static class OntologyPruner
             if (child.Kind == OntologyConstants.NodeLabels.Folder ||
                 child.Kind == OntologyConstants.NodeLabels.Project ||
                 child.Kind == OntologyConstants.NodeLabels.FilesStructure ||
+                child.Kind == OntologyConstants.NodeLabels.ProjectsStructure ||
                 child.Kind == OntologyConstants.NodeLabels.SyntaxStructure ||
                 child.Kind == OntologyConstants.NodeLabels.SemanticStructure)
             {

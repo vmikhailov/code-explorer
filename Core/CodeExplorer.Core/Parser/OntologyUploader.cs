@@ -85,7 +85,7 @@ public static class OntologyUploader
             }
         }
 
-        // Special: If Project, link it to GitSettings via USES_GIT
+        // Special: If Project, link it to GitSettings via USES_GIT and Folder/Workspace via LOCATED_IN
         if (node.Kind == OntologyConstants.NodeLabels.Project)
         {
             var gitDir = Path.Combine(ctx.AbsoluteWorkspacePath, ".git");
@@ -96,6 +96,23 @@ public static class OntologyUploader
                 collectedRelationships.Add(usesGitRel);
                 ctx.AddRelsCount(1);
             }
+
+            // Emit LOCATED_IN relationship to Folder or Workspace
+            string targetId;
+            var projectPath = node.Path;
+            if (string.IsNullOrEmpty(projectPath) || projectPath == ".")
+            {
+                targetId = ctx.WorkspaceId;
+            }
+            else
+            {
+                var absoluteFolderPath = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, projectPath)).Replace('\\', '/');
+                targetId = $"{ctx.WorkspaceId}:folder:{absoluteFolderPath}";
+            }
+
+            var locatedInRel = Relationship.FromRelationship(new LocatedInRelationship(node.Id, targetId));
+            collectedRelationships.Add(locatedInRel);
+            ctx.AddRelsCount(1);
         }
 
         // 4. Collect unresolved references/dependencies

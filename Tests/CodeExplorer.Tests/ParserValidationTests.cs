@@ -3,8 +3,9 @@ using NUnit.Framework;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer2_Syntactic;
-using CodeExplorer.Core.Common.Nodes.Layer3_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.CSharp;
@@ -683,6 +684,16 @@ export class OrdersController {
             var scanParser = new WorkspaceParser(ctx);
             var workspaceNode = new WorkspaceNode("1", "TestWorkspace", tempWorkspace);
 
+            // Replicate initialization done in ParseAsync:
+            var filesNodeId = "1:files_structure";
+            var workspaceFilesStructure = new FilesStructureNode(filesNodeId, "FilesStructure", tempWorkspace);
+            workspaceNode.Children.Add(workspaceFilesStructure);
+
+            var projectsNodeId = "1:projects_structure";
+            var workspaceProjectsStructure = new ProjectsStructureNode(projectsNodeId, "ProjectsStructure", tempWorkspace);
+            workspaceNode.Children.Add(workspaceProjectsStructure);
+            ctx.ProjectsStructure = workspaceProjectsStructure;
+
             // Invoke ScanDirectoryAsync via reflection
             var rootScan = typeof(WorkspaceParser).GetMethod("ScanDirectoryAsync",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -697,25 +708,32 @@ export class OrdersController {
 
             ctx.ProjectsToEnrich.Clear();
 
-            // Before pruning, ProjectB and EmptyFolder are in the tree
-            Assert.That(workspaceNode.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.True);
+            var projectsStructure = workspaceNode.Children.OfType<ProjectsStructureNode>().FirstOrDefault();
+            Assert.That(projectsStructure, Is.Not.Null);
 
-            var projectA = workspaceNode.Children.FirstOrDefault(c => c is ProjectNode pn && pn.Name == "ProjectA");
+            var filesStructure = workspaceNode.Children.OfType<FilesStructureNode>().FirstOrDefault();
+            Assert.That(filesStructure, Is.Not.Null);
+
+            // Before pruning, ProjectB and EmptyFolder are in the tree
+            Assert.That(projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.True);
+
+            var projectA = projectsStructure.Children.FirstOrDefault(c => c is ProjectNode pn && pn.Name == "ProjectA") as ProjectNode;
             Assert.That(projectA, Is.Not.Null);
-            var filesNode = projectA.Children.OfType<FilesStructureNode>().FirstOrDefault();
-            Assert.That(filesNode, Is.Not.Null);
-            Assert.That(filesNode.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
+
+            var projectAFolder = filesStructure.Children.OfType<FolderNode>().FirstOrDefault(f => f.Name == "ProjectA");
+            Assert.That(projectAFolder, Is.Not.Null);
+            Assert.That(projectAFolder.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
 
             // 2. Perform pruning
             OntologyPruner.PruneEmptyFolders(workspaceNode);
 
             // After pruning:
             // ProjectB is removed because it is an empty project
-            Assert.That(workspaceNode.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.False);
+            Assert.That(projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.False);
 
             // EmptyFolder is removed
             var folderA =
-                filesNode.Children.FirstOrDefault(c => c is FolderNode pfn && pfn.Name == "EmptyFolder");
+                projectAFolder.Children.FirstOrDefault(c => c is FolderNode pfn && pfn.Name == "EmptyFolder");
             Assert.That(folderA, Is.Null);
 
             // Verify project framework detection
@@ -744,7 +762,7 @@ export class OrdersController {
             var directPackages = projectA.Children.OfType<PackageNode>().ToList();
             Assert.That(directPackages.Any(p => p.Name == "ProjectA"), Is.True);
 
-            var fileNode = filesNode.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
+            var fileNode = projectAFolder.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
             Assert.That(fileNode, Is.Not.Null);
 
             // Check Repository.cs extensions (file-level extensions are removed)

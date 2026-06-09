@@ -1,18 +1,17 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer2_Syntactic;
+namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
-    label: OntologyConstants.NodeLabels.Function,
-    idScheme: "{workspaceId}:symbol:{filePath}:Function:{name}:{line}",
-    purpose: "Represents a parsed method, function, subroutine, or procedure.",
+    label: OntologyConstants.NodeLabels.Member,
+    idScheme: "{workspaceId}:symbol:{filePath}:Member:{name}:{line}",
+    purpose: "Represents a declared field, property, parameter, or local variable.",
     layer: OntologyConstants.Layers.Syntactic
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
-[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Calls)]
-[OntologyEdge<TypeNode>(OntologyConstants.Relationships.UsesType)]
-public record FunctionNode(
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.OfType)]
+public record MemberNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,
     [property: OntologyProperty("A globally unique ID for this symbol scope.")] string Symbol,
@@ -22,9 +21,10 @@ public record FunctionNode(
     [property: OntologyProperty("The ending line number (1-indexed) of the declaration.")] int EndLine,
     [property: OntologyProperty("The starting column number of the declaration.")] int StartCol,
     [property: OntologyProperty("The ending column number of the declaration.")] int EndCol,
+    [property: JsonPropertyName("kind"), OntologyProperty("The specific member kind (field, property, parameter, variable).")] string MemberKind,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Function;
+    public override string Kind => OntologyConstants.NodeLabels.Member;
 }

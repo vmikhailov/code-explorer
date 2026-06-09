@@ -12,7 +12,8 @@ public static class OntologyConstants
         public const string Function = "Function";
         public const string Member = "Member";
         public const string Package = "Package";
-        public const string FilesStructure = "FilesStructure";
+                public const string FilesStructure = "FilesStructure";
+        public const string ProjectsStructure = "ProjectsStructure";
         public const string SyntaxStructure = "SyntaxStructure";
         public const string SemanticStructure = "SemanticStructure";
         public const string Database = "Database";
@@ -33,8 +34,9 @@ public static class OntologyConstants
     {
         public const string Workspace = "";
         public const string Physical = "Layer 1: Physical Topology";
-        public const string Syntactic = "Layer 2: Syntactic Structure";
-        public const string Semantic = "Layer 3: Semantic Structure";
+        public const string ProjectBoundary = "Layer 2: Project Boundary";
+        public const string Syntactic = "Layer 3: Syntactic Structure";
+        public const string Semantic = "Layer 4: Semantic Structure";
     }
 
     public static class Relationships

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Common.Nodes;
 
@@ -10,6 +11,7 @@ namespace CodeExplorer.Core.Common.Nodes;
     layer: OntologyConstants.Layers.Workspace
 )]
 [OntologyEdge<FilesStructureNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ProjectsStructureNode>(OntologyConstants.Relationships.Contains)]
 public record WorkspaceNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -13,6 +14,7 @@ public class ParsingContext
     public Channel<Func<Task>> SharedChannel { get; }
     public bool Clear { get; }
     public string WorkspaceId { get; set; } = string.Empty;
+    public ProjectsStructureNode? ProjectsStructure { get; set; }
 
     private readonly System.Diagnostics.Stopwatch _sessionStopwatch = System.Diagnostics.Stopwatch.StartNew();
 

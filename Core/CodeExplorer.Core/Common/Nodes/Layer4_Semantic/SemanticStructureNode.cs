@@ -1,7 +1,9 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer3_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+
+namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.SemanticStructure,

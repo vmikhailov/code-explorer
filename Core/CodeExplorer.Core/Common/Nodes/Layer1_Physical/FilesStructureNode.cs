@@ -10,7 +10,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<GitSettingsNode>(OntologyConstants.Relationships.Contains)]
 public record FilesStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

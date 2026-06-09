@@ -77,7 +77,7 @@ public sealed class OntologyExtractor
             purpose = Unquote(argList.Named("purpose") ?? argList[2].Expression);
 
             var layerExpr = argList.Named("layer") ?? (argList.Count >= 4 ? argList[3].Expression : null);
-            layer = layerExpr is not null ? ResolveConstant(layerExpr) : "Layer 3: Semantic Structure";
+            layer = layerExpr is not null ? ResolveConstant(layerExpr) : "Layer 4: Semantic Structure";
         }
         else
         {
@@ -85,7 +85,7 @@ public sealed class OntologyExtractor
             label = record.Identifier.Text.Replace("Node", ""); // best-effort from class name
             idScheme = "";
             purpose = Unquote(argList[0].Expression);
-            layer = "Layer 3: Semantic Structure";
+            layer = "Layer 4: Semantic Structure";
         }
 
         // Outbound edges: [OntologyEdge<TTo>(rel)] — generic attribute

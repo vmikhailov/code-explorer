@@ -1,6 +1,6 @@
-# CodeExplorer 4-Layers Decoupled Graph Ontology Specification
+# CodeExplorer 5-Layers Decoupled Graph Ontology Specification
 
-This document defines the official 4-Layer Graph Ontology architecture for CodeExplorer. The ontology is designed to decouple physical file layouts and project boundaries, syntactic code structures, runtime semantic interfaces, and cross-project integration links into separate queryable layers connected by uniform reference pointers.
+This document defines the official 5-Layer Graph Ontology architecture for CodeExplorer. The ontology is designed to decouple physical file layouts, project boundaries, syntactic code structures, runtime semantic interfaces, and cross-project integration links into separate queryable layers connected by uniform reference pointers.
 
 By separating these responsibilities, CodeExplorer can perform surgical graph updates (e.g., pruning and re-indexing a single file's syntax tree) without affecting physical directory tracking or cascading deletions across the runtime architecture map.
 
@@ -8,26 +8,29 @@ By separating these responsibilities, CodeExplorer can perform surgical graph up
 
 ## 🏛️ Architectural Overview
 
-The graph ontology is structured into four distinct, decoupled layers:
+The graph ontology is structured into five distinct, decoupled layers:
 
 ```mermaid
 graph TD
     Workspace[Workspace] -->|CONTAINS| FilesStructure[FilesStructure]
-    FilesStructure -->|CONTAINS| Folder[Folder]
-    FilesStructure -->|CONTAINS| File[File]
-    Folder -->|CONTAINS| Folder
-    Folder -->|CONTAINS| File
-
-    subgraph Layer1 [Layer 1: Physical Topology & Boundaries]
-        Project[Project] -->|LOCATED_IN| Folder
-        Project -->|LOCATED_IN| Workspace
-        Project -->|CONTAINS| FilesStructure
-        Project -->|CONTAINS| SyntaxStructure[SyntaxStructure]
-        Project -->|CONTAINS| SemanticStructure[SemanticStructure]
-        Project -->|DEPENDS_ON| Package[Package]
+    Workspace -->|CONTAINS| ProjectsStructure[ProjectsStructure]
+    
+    subgraph Layer1 [Layer 1: Physical Topology]
+        FilesStructure -->|CONTAINS| Folder[Folder]
+        FilesStructure -->|CONTAINS| File[File]
+        FilesStructure -->|CONTAINS| GitSettings[GitSettings]
+        Folder -->|CONTAINS| Folder
+        Folder -->|CONTAINS| File
     end
 
-    subgraph Layer2 [Layer 2: Syntactic AST]
+    subgraph Layer2 [Layer 2: Project Boundary]
+        ProjectsStructure -->|CONTAINS| Project[Project]
+        Project -->|DEPENDS_ON| Package[Package]
+        Project -->|CONTAINS| SyntaxStructure[SyntaxStructure]
+        Project -->|CONTAINS| SemanticStructure[SemanticStructure]
+    end
+
+    subgraph Layer3 [Layer 3: Syntactic AST]
         SyntaxStructure -->|CONTAINS| Type[Type]
         SyntaxStructure -->|CONTAINS| Function[Function]
         Type -->|HAS_METHOD| Function
@@ -35,7 +38,7 @@ graph TD
         Function -->|HAS_VARIABLE| Member
     end
 
-    subgraph Layer3 [Layer 3: Semantic Runtime]
+    subgraph Layer4 [Layer 4: Semantic Runtime]
         SemanticStructure -->|CONTAINS| Endpoint[Endpoint]
         SemanticStructure -->|CONTAINS| Database[Database]
         SemanticStructure -->|CONTAINS| Topic[Topic]
@@ -44,7 +47,11 @@ graph TD
         SemanticStructure -->|CONTAINS| ApiInUse[ApiInUse]
     end
 
-    subgraph Layer4 [Layer 4: Cross-Project / Late-Bound Dependencies]
+    subgraph Layer5 [Layer 5: Cross-Project / Late-Bound Dependencies]
+        %% Physical to Boundary
+        Project -.->|LOCATED_IN| Folder
+        Project -.->|LOCATED_IN| Workspace
+        
         %% Physical to Syntactic links
         Type -.->|DECLARED_IN| File
         Function -.->|DECLARED_IN| File
@@ -69,7 +76,7 @@ graph TD
 
 ## 🏛️ Root Boundary: Workspace
 
-At the absolute top of the hierarchy is the `Workspace`. This does not belong to any layer; it is the root/umbrella container that holds all physical folder structures, and acts as the boundaries scope.
+At the absolute top of the hierarchy is the `Workspace`. This does not belong to any layer; it is the root/umbrella container that holds both the physical filesystem tree (`FilesStructure`) and the logical project tree (`ProjectsStructure`).
 
 ### Nodes
 
@@ -82,14 +89,14 @@ At the absolute top of the hierarchy is the `Workspace`. This does not belong to
 
 ---
 
-## 📂 Layer 1: Physical Topology & Boundaries (Infrastructure & Layout)
+## 📂 Layer 1: Physical Topology (Infrastructure & Layout)
 
-Tracks the exact directory layout of the workspace on disk and logical compilation/module scopes (projects and packages).
+Tracks the exact directory layout of the workspace on disk. It contains no logical compilation module details.
 
 ### Nodes
 
 #### 1. **`FilesStructure`**
-*   **Description:** A structural grouping node representing the physical folder and file tree of a project or workspace.
+*   **Description:** A structural grouping node representing the entire workspace physical folder and file tree.
 *   **Properties:**
     *   `id` (string): Unique URN ending in `:files_structure`.
     *   `name` (string): `"FilesStructure"`.
@@ -117,7 +124,27 @@ Tracks the exact directory layout of the workspace on disk and logical compilati
     *   `branch` (string): Current active Git branch.
     *   `commit_hash` (string): Last commit hash.
 
-#### 5. **`Project`**
+### Relationships
+*   `FilesStructure -[CONTAINS]-> Folder`
+*   `FilesStructure -[CONTAINS]-> File`
+*   `Folder -[CONTAINS]-> Folder`
+*   `Folder -[CONTAINS]-> File`
+
+---
+
+## 📂 Layer 2: Project Boundary
+
+Tracks the logical compilation/module scopes (projects and packages).
+
+### Nodes
+
+#### 1. **`ProjectsStructure`**
+*   **Description:** A structural grouping node representing all projects registered in the workspace.
+*   **Properties:**
+    *   `id` (string): Unique URN ending in `:projects_structure`.
+    *   `name` (string): `"ProjectsStructure"`.
+
+#### 2. **`Project`**
 *   **Description:** A logical package boundary or compilation scope.
 *   **Properties:**
     *   `id` (string): Unique Project URN.
@@ -125,25 +152,21 @@ Tracks the exact directory layout of the workspace on disk and logical compilati
     *   `language` (string): Primary language scope (`csharp`, `go`, `python`, `typescript`).
     *   `path` (string): Absolute directory path containing the project config/manifest.
 
-#### 6. **`Package`**
+#### 3. **`Package`**
 *   **Description:** Third-party package dependencies (e.g., NuGet, NPM, Go modules) referenced by projects.
 *   **Properties:**
     *   `id` (string): Unique Package URN.
     *   `name` (string): Package name.
 
 ### Relationships
-*   `FilesStructure -[CONTAINS]-> Folder`
-*   `FilesStructure -[CONTAINS]-> File`
-*   `Folder -[CONTAINS]-> Folder`
-*   `Folder -[CONTAINS]-> File`
-*   `Project -[LOCATED_IN]-> Folder`
-*   `Project -[LOCATED_IN]-> Workspace`
-*   `Project -[CONTAINS]-> FilesStructure`
+*   `ProjectsStructure -[CONTAINS]-> Project`
+*   `Project -[CONTAINS]-> SyntaxStructure`
+*   `Project -[CONTAINS]-> SemanticStructure`
 *   `Project -[DEPENDS_ON]-> Package`
 
 ---
 
-## 📂 Layer 2: Syntactic AST (Syntax Outline)
+## 📂 Layer 3: Syntactic AST (Syntax Outline)
 
 This layer represents the declarations found inside AST parser visitors. Nodes in this layer represent source code definitions and syntax outlines, completely isolated from runtime infrastructure.
 
@@ -187,7 +210,6 @@ This layer represents the declarations found inside AST parser visitors. Nodes i
     *   `end_line` (int): 1-indexed ending line.
 
 ### Relationships
-*   `Project -[CONTAINS]-> SyntaxStructure`
 *   `SyntaxStructure -[CONTAINS]-> Type`
 *   `SyntaxStructure -[CONTAINS]-> Function`
 *   `Type -[HAS_METHOD]-> Function`
@@ -196,7 +218,7 @@ This layer represents the declarations found inside AST parser visitors. Nodes i
 
 ---
 
-## 📂 Layer 3: Semantic Runtime (Logical Architecture)
+## 📂 Layer 4: Semantic Runtime (Logical Architecture)
 
 The semantic model captures runtime entry points, external API boundaries, databases, and message queue topics. These nodes map the logical architecture of the microservices workspace.
 
@@ -248,7 +270,6 @@ The semantic model captures runtime entry points, external API boundaries, datab
     *   `name` (string): Library/API name.
 
 ### Relationships
-*   `Project -[CONTAINS]-> SemanticStructure`
 *   `SemanticStructure -[CONTAINS]-> Endpoint`
 *   `SemanticStructure -[CONTAINS]-> Database`
 *   `SemanticStructure -[CONTAINS]-> Topic`
@@ -258,12 +279,17 @@ The semantic model captures runtime entry points, external API boundaries, datab
 
 ---
 
-## 📂 Layer 4: Cross-Project / Late-Bound Dependencies (SystemBindings)
+## 📂 Layer 5: Cross-Project / Late-Bound Dependencies (SystemBindings)
 
-System bindings contain cross-cutting relationships that connect the separate buckets of Layers 1-3 into a unified semantic map. By separating these into a dedicated relational layer:
+System bindings contain cross-cutting relationships that connect the separate buckets of Layers 1-4 into a unified semantic map. By separating these into a dedicated relational layer:
 1. Syntactic nodes are linked back to physical file descriptors for IDE navigation.
 2. Abstract compiler symbols are bound to logical runtime models.
 3. Call graphs and data lineages can traverse cross-project boundaries seamlessly.
+4. Logical projects are anchored to their physical folder locations.
+
+### Links: Project Boundaries to Physical Topology
+*   `Project -[LOCATED_IN]-> Folder`
+*   `Project -[LOCATED_IN]-> Workspace`
 
 ### Links: Syntactic AST to Physical Topology
 *   `Type -[DECLARED_IN]-> File`
@@ -295,31 +321,32 @@ To maintain integrity across multiple workspaces, every node identifier must be 
 | Layer | Node Label | ID / URN Scheme | Example |
 | :--- | :--- | :--- | :--- |
 | **Umbrella** | **`Workspace`** | `{workspaceId}` (int) | `1` |
-| **Layer 1** | **`Project`** | `{workspaceId}:project:{relativeProjectDir}:` | `1:project:Core/:` |
-| **Layer 1** | **`FilesStructure`** | `{workspaceId}:project:{relativeProjectDir}:files_structure` | `1:project:Core/:files_structure` |
-| **Layer 2** | **`SyntaxStructure`** | `{workspaceId}:project:{relativeProjectDir}:syntax_structure` | `1:project:Core/:syntax_structure` |
-| **Layer 3** | **`SemanticStructure`** | `{workspaceId}:project:{relativeProjectDir}:semantic_structure` | `1:project:Core/:semantic_structure` |
+| **Layer 1** | **`FilesStructure`** | `{workspaceId}:files_structure` | `1:files_structure` |
+| **Layer 2** | **`ProjectsStructure`** | `{workspaceId}:projects_structure` | `1:projects_structure` |
+| **Layer 2** | **`Project`** | `{workspaceId}:project:{relativeProjectDir}:` | `1:project:Core/:` |
+| **Layer 3** | **`SyntaxStructure`** | `{workspaceId}:project:{relativeProjectDir}:syntax_structure` | `1:project:Core/:syntax_structure` |
+| **Layer 4** | **`SemanticStructure`** | `{workspaceId}:project:{relativeProjectDir}:semantic_structure` | `1:project:Core/:semantic_structure` |
 | **Layer 1** | **`Folder`** | `{workspaceId}:folder:{absoluteFolderPath}` | `1:folder:/Work/Personal/code-explorer/Core` |
 | **Layer 1** | **`File`** | `{workspaceId}:file:{relativeFilePath}` | `1:file:Core/OrdersService.cs` |
-| **Layer 2** | **`Type`** | `{workspaceId}:symbol:{relativeFilePath}:Type:{name}:{line}` | `1:symbol:Core/OrdersService.cs:Type:OrdersService:5` |
-| **Layer 2** | **`Function`** | `{workspaceId}:symbol:{relativeFilePath}:Function:{name}:{line}` | `1:symbol:Core/OrdersService.cs:Function:SubmitOrder:10` |
-| **Layer 2** | **`Member`** | `{workspaceId}:symbol:{relativeFilePath}:Member:{name}:{line}` | `1:symbol:Core/OrdersService.cs:Member:logger:7` |
-| **Layer 3** | **`Endpoint`** | `{workspaceId}:endpoint:{http_method}:{route}` | `1:endpoint:POST:/api/v1/orders` |
-| **Layer 3** | **`Database`** | `{workspaceId}:db:{db_type}:{name}` | `1:db:sqlserver:commerce_db` |
-| **Layer 3** | **`Topic`** | `{workspaceId}:topic:{broker_type}:{name}` | `1:topic:kafka:order-events` |
-| **Layer 3** | **`EntryPoint`**| `{workspaceId}:entrypoint:{entry_type}:{name}` | `1:entrypoint:cli:ingest` |
-| **Layer 3** | **`CloudService`** | `{workspaceId}:cloud:{serviceId}` | `1:cloud:aws-s3` |
-| **Layer 3** | **`ApiInUse`** | `{workspaceId}:api:{apiId}` | `1:api:stripe` |
-| **Layer 1** | **`Package`** | `{workspaceId}:package:{packageId}` | `1:package:nestjs-common` |
+| **Layer 3** | **`Type`** | `{workspaceId}:symbol:{relativeFilePath}:Type:{name}:{line}` | `1:symbol:Core/OrdersService.cs:Type:OrdersService:5` |
+| **Layer 3** | **`Function`** | `{workspaceId}:symbol:{relativeFilePath}:Function:{name}:{line}` | `1:symbol:Core/OrdersService.cs:Function:SubmitOrder:10` |
+| **Layer 3** | **`Member`** | `{workspaceId}:symbol:{relativeFilePath}:Member:{name}:{line}` | `1:symbol:Core/OrdersService.cs:Member:logger:7` |
+| **Layer 4** | **`Endpoint`** | `{workspaceId}:endpoint:{http_method}:{route}` | `1:endpoint:POST:/api/v1/orders` |
+| **Layer 4** | **`Database`** | `{workspaceId}:db:{db_type}:{name}` | `1:db:sqlserver:commerce_db` |
+| **Layer 4** | **`Topic`** | `{workspaceId}:topic:{broker_type}:{name}` | `1:topic:kafka:order-events` |
+| **Layer 4** | **`EntryPoint`**| `{workspaceId}:entrypoint:{entry_type}:{name}` | `1:entrypoint:cli:ingest` |
+| **Layer 4** | **`CloudService`** | `{workspaceId}:cloud:{serviceId}` | `1:cloud:aws-s3` |
+| **Layer 4** | **`ApiInUse`** | `{workspaceId}:api:{apiId}` | `1:api:stripe` |
+| **Layer 2** | **`Package`** | `{workspaceId}:package:{packageId}` | `1:package:nestjs-common` |
 
 ---
 
 ## 💡 Benefits for Surgical Pruning & Indexing
 
-The 4-Layer model simplifies incremental file parsing:
+The 5-Layer model simplifies incremental file parsing:
 1. **Zero Cascade Risk**: When `File` `1:file:Core/OrdersService.cs` is modified, CodeExplorer finds all nodes matching:
    ```cypher
    MATCH (n:Entity) WHERE n.id STARTS WITH '1:symbol:Core/OrdersService.cs:' DETACH DELETE n
    ```
    This immediately clears out all types, methods, and variables declared within that file, without breaking physical `Folder` structures, and without deleting logical `Endpoint` or `Database` nodes that other projects might refer to.
-2. **Post-Index Binding**: Re-indexing simply writes the new AST outline (Layer 2) for the file. The `PostIndexAnalyzer` runs to rebuild Layer 4 bindings (e.g. mapping the new `Function` URN to the logical `Endpoint` or `Database`), ensuring system integration references are kept current without index bloat.
+2. **Post-Index Binding**: Re-indexing simply writes the new AST outline (Layer 3) for the file. The `PostIndexAnalyzer` runs to rebuild Layer 5 bindings (e.g. mapping the new `Function` URN to the logical `Endpoint` or `Database`), ensuring system integration references are kept current without index bloat.

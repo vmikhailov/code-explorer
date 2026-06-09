@@ -1,8 +1,9 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer2_Syntactic;
-using CodeExplorer.Core.Common.Nodes.Layer3_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
@@ -16,9 +17,10 @@ public class ProjectProcessor
     private readonly IProjectParser _projectParser;
     private readonly string _projectNodeId;
     private readonly GitIgnoreMatcher _gitignore;
+    private readonly IOntologyNode _physicalRootNode;
     private readonly List<SyntaxTree> _projectSyntaxTrees = new();
 
-    public static async Task<ProjectNode?> DetectAndParseAsync(ParsingContext ctx, string projectDir)
+    public static async Task<ProjectNode?> DetectAndParseAsync(ParsingContext ctx, string projectDir, IOntologyNode physicalRootNode)
     {
         var files = Directory.GetFiles(projectDir);
 
@@ -27,11 +29,11 @@ public class ProjectProcessor
 
         if (matchedParser == null) return null;
 
-        var processor = new ProjectProcessor(ctx, projectDir, matchedParser);
+        var processor = new ProjectProcessor(ctx, projectDir, matchedParser, physicalRootNode);
         return await processor.ParseAsync();
     }
 
-    public ProjectProcessor(ParsingContext ctx, string projectDir, IProjectParser projectParser)
+    public ProjectProcessor(ParsingContext ctx, string projectDir, IProjectParser projectParser, IOntologyNode physicalRootNode)
     {
         _ctx = ctx;
         _projectDir = NormalizePath(projectDir);
@@ -42,6 +44,7 @@ public class ProjectProcessor
 
         _projectNodeId = $"{_ctx.WorkspaceId}:project:{_relativeProjectDir}:";
         _gitignore = new GitIgnoreMatcher(_projectDir);
+        _physicalRootNode = physicalRootNode;
     }
 
     public async Task<ProjectNode> ParseAsync()
@@ -52,11 +55,7 @@ public class ProjectProcessor
 
         var projectNode = new ProjectNode(_projectNodeId, folderName, _relativeProjectDir, _projectParser.ProjectType);
 
-        // 1. Initialize the three standardized intermediate nodes
-        var filesNodeId = $"{_projectNodeId}files_structure";
-        var filesStructureNode = new FilesStructureNode(filesNodeId, "FilesStructure", projectNode.Path);
-        projectNode.Children.Add(filesStructureNode);
-
+        // 1. Initialize the two standardized intermediate nodes for logical project
         var syntaxNodeId = $"{_projectNodeId}syntax_structure";
         var syntaxStructureNode = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", projectNode.Path);
         projectNode.Children.Add(syntaxStructureNode);
@@ -65,8 +64,8 @@ public class ProjectProcessor
         var semanticStructureNode = new SemanticStructureNode(semanticNodeId, "SemanticStructure", projectNode.Path);
         projectNode.Children.Add(semanticStructureNode);
 
-        // 2. Scan directory recursively and build the rich node tree under FilesStructureNode
-        await ScanDirectoryAsync(_projectDir, filesStructureNode, projectNode);
+        // 2. Scan directory recursively and build the files directly under the physical root node of the project
+        await ScanDirectoryAsync(_projectDir, _physicalRootNode, projectNode);
         await ParseDependenciesAsync(projectNode);
         await LinkProducedPackageAsync(projectNode);
 
@@ -187,11 +186,23 @@ public class ProjectProcessor
         // Recurse directories
         foreach (var subDir in Directory.GetDirectories(currentDir).Select(NormalizePath))
         {
-            var nestedProjectNode = await DetectAndParseAsync(_ctx, subDir);
+            var files = Directory.GetFiles(subDir);
+            var isProject = WorkspaceIndexer._projectParsers.Any(p => p.IsProjectDirectory(subDir, files));
 
-            if (nestedProjectNode != null)
+            if (isProject)
             {
-                projectNode.Children.Add(nestedProjectNode);
+                var subDirName = Path.GetFileName(subDir);
+                var absoluteSubDir = Path.GetFullPath(subDir).Replace('\\', '/');
+                var subFolderId = $"{_ctx.WorkspaceId}:folder:{absoluteSubDir}";
+                var subFolderNode = new FolderNode(subFolderId, subDirName, absoluteSubDir);
+
+                currentParentNode.Children.Add(subFolderNode);
+
+                var nestedProjectNode = await DetectAndParseAsync(_ctx, subDir, subFolderNode);
+                if (nestedProjectNode != null)
+                {
+                    _ctx.ProjectsStructure?.Children.Add(nestedProjectNode);
+                }
             }
             else
             {
