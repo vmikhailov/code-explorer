@@ -30,13 +30,13 @@ public class WorkspacesController : ControllerBase
                 return BadRequest(new { error = "Directory 'dir' is required." });
             }
 
-            var success = _taskManager.StartIndex(request.Dir, request.Dir, request.Clear, out var message);
-            if (!success)
+            var taskId = _taskManager.StartIndex(request.Dir, request.Dir, request.Clear, out var message);
+            if (taskId == null)
             {
-                return Conflict(new { error = message, status = _taskManager.GetStatus() });
+                return Conflict(new { error = message });
             }
 
-            return Accepted(new { message, status = _taskManager.GetStatus() });
+            return Accepted(new { taskId, message, status = _taskManager.GetStatus(taskId) });
         }
         catch (Exception ex)
         {
@@ -45,17 +45,17 @@ public class WorkspacesController : ControllerBase
     }
 
     [HttpPost("index/stop")]
-    public IActionResult StopIndex()
+    public IActionResult StopIndex([FromQuery] string? taskId)
     {
         try
         {
-            var success = _taskManager.StopIndex(out var message);
+            var success = _taskManager.StopIndex(taskId, out var message);
             if (!success)
             {
                 return BadRequest(new { error = message });
             }
 
-            return Ok(new { message, status = _taskManager.GetStatus() });
+            return Ok(new { message, status = _taskManager.GetStatus(taskId) });
         }
         catch (Exception ex)
         {
@@ -64,11 +64,29 @@ public class WorkspacesController : ControllerBase
     }
 
     [HttpGet("index/status")]
-    public IActionResult GetIndexStatus()
+    public IActionResult GetIndexStatus([FromQuery] string? taskId)
     {
         try
         {
-            return Ok(_taskManager.GetStatus());
+            var status = _taskManager.GetStatus(taskId);
+            if (status == null)
+            {
+                return NotFound(new { error = taskId == null ? "No active task found." : $"Task with ID '{taskId}' not found." });
+            }
+            return Ok(status);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("index/status/all")]
+    public IActionResult GetIndexStatusAll()
+    {
+        try
+        {
+            return Ok(_taskManager.GetAllStatuses());
         }
         catch (Exception ex)
         {

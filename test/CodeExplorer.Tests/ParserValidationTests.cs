@@ -1108,9 +1108,80 @@ async function testDb(client: any) {
         // Fallback namespace match
         Assert.That(registry.Match("System.Data.SqlClient"), Is.SameAs(parserSql));
         Assert.That(registry.Match("Google.Cloud.Translation"), Is.SameAs(parserGoogleCloud));
-
         // Unmatched
         Assert.That(registry.Match("stripe"), Is.Null);
     }
 
+    [Test]
+    public async Task Test_ConcurrentIndexingTasks()
+    {
+        var dbClient = new InMemoryMemgraphClient();
+        var indexer = new WorkspaceIndexer(dbClient);
+        var taskManager = new IndexingTaskManager(indexer);
+
+        // Register CSharp parser if not already registered
+        WorkspaceIndexer.Register(new CSharpParser());
+
+        var dir1 = Path.Combine(Path.GetTempPath(), "concurrent_test_1_" + Guid.NewGuid()).Replace('\\', '/');
+        var dir2 = Path.Combine(Path.GetTempPath(), "concurrent_test_2_" + Guid.NewGuid()).Replace('\\', '/');
+
+        Directory.CreateDirectory(dir1);
+        Directory.CreateDirectory(dir2);
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(dir1, "Project1.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            await File.WriteAllTextAsync(Path.Combine(dir2, "Project2.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+
+            // 1. Start task 1
+            var taskId1 = taskManager.StartIndex(dir1, dir1, clear: false, out var msg1);
+            Assert.That(taskId1, Is.Not.Null);
+            Assert.That(msg1, Contains.Substring("started"));
+
+            // 2. Start task 2 on same directory -> should fail with conflict
+            var taskIdConflict = taskManager.StartIndex(dir1, dir1, clear: false, out var msgConflict);
+            Assert.That(taskIdConflict, Is.Null);
+            Assert.That(msgConflict, Contains.Substring("already running"));
+
+            // 3. Start task 2 on different directory -> should succeed concurrently
+            var taskId2 = taskManager.StartIndex(dir2, dir2, clear: false, out var msg2);
+            Assert.That(taskId2, Is.Not.Null);
+            Assert.That(msg2, Contains.Substring("started"));
+
+            // 4. Check status of both tasks
+            var status1 = taskManager.GetStatus(taskId1);
+            var status2 = taskManager.GetStatus(taskId2);
+            Assert.That(status1, Is.Not.Null);
+            Assert.That(status2, Is.Not.Null);
+            Assert.That(status1.State, Is.EqualTo("Running").Or.EqualTo("Completed"));
+            Assert.That(status2.State, Is.EqualTo("Running").Or.EqualTo("Completed"));
+
+            // 5. Test stopping task 1 specifically
+            var stopSuccess = taskManager.StopIndex(taskId1, out var stopMsg);
+            Assert.That(stopSuccess, Is.True);
+            Assert.That(stopMsg, Contains.Substring("Stop request sent"));
+
+            // Wait for tasks to complete/cancel
+            for (int i = 0; i < 20; i++)
+            {
+                var s1 = taskManager.GetStatus(taskId1);
+                var s2 = taskManager.GetStatus(taskId2);
+                if (s1?.State != "Running" && s2?.State != "Running")
+                {
+                    break;
+                }
+                await Task.Delay(100);
+            }
+
+            var finalStatus1 = taskManager.GetStatus(taskId1);
+            var finalStatus2 = taskManager.GetStatus(taskId2);
+            Assert.That(finalStatus1?.State, Is.EqualTo("Cancelled").Or.EqualTo("Completed"));
+            Assert.That(finalStatus2?.State, Is.EqualTo("Completed"));
+        }
+        finally
+        {
+            if (Directory.Exists(dir1)) Directory.Delete(dir1, true);
+            if (Directory.Exists(dir2)) Directory.Delete(dir2, true);
+        }
+    }
 }

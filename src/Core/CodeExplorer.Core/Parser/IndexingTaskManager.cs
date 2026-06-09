@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,91 +31,141 @@ public class IndexingStatus
     public int RelationshipsPersisted { get; set; }
 }
 
+public class IndexingTaskContext
+{
+    public string TaskId { get; }
+    public CancellationTokenSource Cts { get; }
+    public IndexingStatus Status { get; }
+    public ParsingContext? ActiveContext { get; set; }
+    public Task? RunningTask { get; set; }
+
+    public IndexingTaskContext(string taskId, CancellationTokenSource cts, IndexingStatus status)
+    {
+        TaskId = taskId;
+        Cts = cts;
+        Status = status;
+    }
+}
+
 public class IndexingTaskManager
 {
     private readonly WorkspaceIndexer _indexer;
     private readonly object _lock = new();
-    private CancellationTokenSource? _cts;
-    private Task? _runningTask;
-    private readonly IndexingStatus _status = new();
-    private ParsingContext? _activeContext;
+    private readonly ConcurrentDictionary<string, IndexingTaskContext> _tasks = new(StringComparer.OrdinalIgnoreCase);
+    private string? _lastStartedTaskId;
 
     public IndexingTaskManager(WorkspaceIndexer indexer)
     {
         _indexer = indexer;
     }
 
-    public IndexingStatus GetStatus()
+    public IndexingStatus? GetStatus(string? taskId)
     {
         lock (_lock)
         {
-            var status = new IndexingStatus
+            var id = taskId ?? _lastStartedTaskId;
+            if (id == null || !_tasks.TryGetValue(id, out var taskContext))
             {
-                State = _status.State,
-                Directory = _status.Directory,
-                StartTime = _status.StartTime,
-                EndTime = _status.EndTime,
-                ErrorMessage = _status.ErrorMessage,
-                NodesByKind = new Dictionary<string, int>(_status.NodesByKind)
-            };
-
-            var context = _activeContext;
-            if (context != null)
-            {
-                status.NodesPersisted = context.GetTotalNodesPersisted();
-                status.RelationshipsPersisted = context.GetTotalRelsPersisted();
-                status.NodesCount = context.TotalNodesCount;
-                status.RelationshipsCount = context.TotalRelsCount;
-                lock (context.NodesByKind)
-                {
-                    status.NodesByKind = new Dictionary<string, int>(context.NodesByKind);
-                }
-            }
-            else
-            {
-                status.NodesPersisted = _status.NodesPersisted;
-                status.RelationshipsPersisted = _status.RelationshipsPersisted;
-                status.NodesCount = _status.NodesCount;
-                status.RelationshipsCount = _status.RelationshipsCount;
+                return null;
             }
 
-            if (status.StartTime.HasValue)
-            {
-                var end = status.EndTime ?? DateTime.UtcNow;
-                status.DurationSeconds = Math.Round((end - status.StartTime.Value).TotalSeconds, 2);
-            }
-
-            return status;
+            return GetTaskStatusSnapshot(taskContext);
         }
     }
 
-    public bool StartIndex(string hostWorkspacePath, string containerWorkspacePath, bool clear, out string message)
+    public List<IndexingStatus> GetAllStatuses()
     {
         lock (_lock)
         {
-            if (_status.State == IndexingState.Running.ToString())
+            return _tasks.Values
+                .OrderByDescending(t => t.Status.StartTime)
+                .Select(GetTaskStatusSnapshot)
+                .ToList();
+        }
+    }
+
+    private IndexingStatus GetTaskStatusSnapshot(IndexingTaskContext taskContext)
+    {
+        var status = taskContext.Status;
+        var activeContext = taskContext.ActiveContext;
+
+        var snapshot = new IndexingStatus
+        {
+            State = status.State,
+            Directory = status.Directory,
+            StartTime = status.StartTime,
+            EndTime = status.EndTime,
+            ErrorMessage = status.ErrorMessage,
+            NodesByKind = new Dictionary<string, int>(status.NodesByKind)
+        };
+
+        if (activeContext != null)
+        {
+            snapshot.NodesPersisted = activeContext.GetTotalNodesPersisted();
+            snapshot.RelationshipsPersisted = activeContext.GetTotalRelsPersisted();
+            snapshot.NodesCount = activeContext.TotalNodesCount;
+            snapshot.RelationshipsCount = activeContext.TotalRelsCount;
+            lock (activeContext.NodesByKind)
             {
-                message = "Indexing is already running.";
-                return false;
+                snapshot.NodesByKind = new Dictionary<string, int>(activeContext.NodesByKind);
+            }
+        }
+        else
+        {
+            snapshot.NodesPersisted = status.NodesPersisted;
+            snapshot.RelationshipsPersisted = status.RelationshipsPersisted;
+            snapshot.NodesCount = status.NodesCount;
+            snapshot.RelationshipsCount = status.RelationshipsCount;
+        }
+
+        if (snapshot.StartTime.HasValue)
+        {
+            var end = snapshot.EndTime ?? DateTime.UtcNow;
+            snapshot.DurationSeconds = Math.Round((end - snapshot.StartTime.Value).TotalSeconds, 2);
+        }
+
+        return snapshot;
+    }
+
+    public string? StartIndex(string hostWorkspacePath, string containerWorkspacePath, bool clear, out string message)
+    {
+        lock (_lock)
+        {
+            // Check if there is already a running task on the same directory
+            foreach (var existingTask in _tasks.Values)
+            {
+                if (existingTask.Status.State == IndexingState.Running.ToString() &&
+                    string.Equals(existingTask.Status.Directory, hostWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    message = $"Indexing is already running for directory: {hostWorkspacePath}";
+                    return null;
+                }
             }
 
-            _cts = new CancellationTokenSource();
-            var token = _cts.Token;
+            var taskId = Guid.NewGuid().ToString();
+            var cts = new CancellationTokenSource();
+            var token = cts.Token;
 
-            _status.State = IndexingState.Running.ToString();
-            _status.Directory = hostWorkspacePath;
-            _status.StartTime = DateTime.UtcNow;
-            _status.EndTime = null;
-            _status.DurationSeconds = null;
-            _status.ErrorMessage = null;
-            _status.NodesCount = 0;
-            _status.RelationshipsCount = 0;
-            _status.NodesPersisted = 0;
-            _status.RelationshipsPersisted = 0;
-            _status.NodesByKind.Clear();
-            _activeContext = null;
+            var status = new IndexingStatus
+            {
+                State = IndexingState.Running.ToString(),
+                Directory = hostWorkspacePath,
+                StartTime = DateTime.UtcNow,
+                EndTime = null,
+                DurationSeconds = null,
+                ErrorMessage = null,
+                NodesCount = 0,
+                RelationshipsCount = 0,
+                NodesPersisted = 0,
+                RelationshipsPersisted = 0,
+                NodesByKind = []
+            };
 
-            _runningTask = Task.Run(async () =>
+            var taskContext = new IndexingTaskContext(taskId, cts, status);
+            _tasks[taskId] = taskContext;
+            _lastStartedTaskId = taskId;
+
+            var runningTask = Task.Run(async () =>
             {
                 try
                 {
@@ -126,22 +178,22 @@ public class IndexingTaskManager
                         {
                             lock (_lock)
                             {
-                                _activeContext = ctx;
+                                taskContext.ActiveContext = ctx;
                             }
                         }
                     );
 
                     lock (_lock)
                     {
-                        _status.State = IndexingState.Completed.ToString();
-                        _status.EndTime = DateTime.UtcNow;
-                        _status.NodesCount = nodesCount;
-                        _status.RelationshipsCount = relsCount;
-                        _status.NodesByKind = new Dictionary<string, int>(nodesByKind);
-                        if (_activeContext != null)
+                        status.State = IndexingState.Completed.ToString();
+                        status.EndTime = DateTime.UtcNow;
+                        status.NodesCount = nodesCount;
+                        status.RelationshipsCount = relsCount;
+                        status.NodesByKind = new Dictionary<string, int>(nodesByKind);
+                        if (taskContext.ActiveContext != null)
                         {
-                            _status.NodesPersisted = _activeContext.GetTotalNodesPersisted();
-                            _status.RelationshipsPersisted = _activeContext.GetTotalRelsPersisted();
+                            status.NodesPersisted = taskContext.ActiveContext.GetTotalNodesPersisted();
+                            status.RelationshipsPersisted = taskContext.ActiveContext.GetTotalRelsPersisted();
                         }
                     }
                 }
@@ -149,15 +201,15 @@ public class IndexingTaskManager
                 {
                     lock (_lock)
                     {
-                        _status.State = IndexingState.Cancelled.ToString();
-                        _status.EndTime = DateTime.UtcNow;
-                        if (_activeContext != null)
+                        status.State = IndexingState.Cancelled.ToString();
+                        status.EndTime = DateTime.UtcNow;
+                        if (taskContext.ActiveContext != null)
                         {
-                            _status.NodesPersisted = _activeContext.GetTotalNodesPersisted();
-                            _status.RelationshipsPersisted = _activeContext.GetTotalRelsPersisted();
-                            _status.NodesCount = _activeContext.TotalNodesCount;
-                            _status.RelationshipsCount = _activeContext.TotalRelsCount;
-                            _status.NodesByKind = new Dictionary<string, int>(_activeContext.NodesByKind);
+                            status.NodesPersisted = taskContext.ActiveContext.GetTotalNodesPersisted();
+                            status.RelationshipsPersisted = taskContext.ActiveContext.GetTotalRelsPersisted();
+                            status.NodesCount = taskContext.ActiveContext.TotalNodesCount;
+                            status.RelationshipsCount = taskContext.ActiveContext.TotalRelsCount;
+                            status.NodesByKind = new Dictionary<string, int>(taskContext.ActiveContext.NodesByKind);
                         }
                     }
                 }
@@ -165,16 +217,16 @@ public class IndexingTaskManager
                 {
                     lock (_lock)
                     {
-                        _status.State = IndexingState.Failed.ToString();
-                        _status.EndTime = DateTime.UtcNow;
-                        _status.ErrorMessage = ex.ToString();
-                        if (_activeContext != null)
+                        status.State = IndexingState.Failed.ToString();
+                        status.EndTime = DateTime.UtcNow;
+                        status.ErrorMessage = ex.ToString();
+                        if (taskContext.ActiveContext != null)
                         {
-                            _status.NodesPersisted = _activeContext.GetTotalNodesPersisted();
-                            _status.RelationshipsPersisted = _activeContext.GetTotalRelsPersisted();
-                            _status.NodesCount = _activeContext.TotalNodesCount;
-                            _status.RelationshipsCount = _activeContext.TotalRelsCount;
-                            _status.NodesByKind = new Dictionary<string, int>(_activeContext.NodesByKind);
+                            status.NodesPersisted = taskContext.ActiveContext.GetTotalNodesPersisted();
+                            status.RelationshipsPersisted = taskContext.ActiveContext.GetTotalRelsPersisted();
+                            status.NodesCount = taskContext.ActiveContext.TotalNodesCount;
+                            status.RelationshipsCount = taskContext.ActiveContext.TotalRelsCount;
+                            status.NodesByKind = new Dictionary<string, int>(taskContext.ActiveContext.NodesByKind);
                         }
                     }
                 }
@@ -182,32 +234,37 @@ public class IndexingTaskManager
                 {
                     lock (_lock)
                     {
-                        _activeContext = null;
-                        if (_cts != null)
-                        {
-                            _cts.Dispose();
-                            _cts = null;
-                        }
+                        taskContext.ActiveContext = null;
+                        taskContext.Cts.Dispose();
                     }
                 }
             });
 
+            taskContext.RunningTask = runningTask;
+
             message = "Indexing started in the background.";
-            return true;
+            return taskId;
         }
     }
 
-    public bool StopIndex(out string message)
+    public bool StopIndex(string? taskId, out string message)
     {
         lock (_lock)
         {
-            if (_status.State != IndexingState.Running.ToString())
+            var id = taskId ?? _lastStartedTaskId;
+            if (id == null || !_tasks.TryGetValue(id, out var taskContext))
             {
-                message = "Indexing is not currently running.";
+                message = id == null ? "No task has been started yet." : $"Task with ID '{id}' not found.";
                 return false;
             }
 
-            _cts?.Cancel();
+            if (taskContext.Status.State != IndexingState.Running.ToString())
+            {
+                message = $"Task with ID '{id}' is not currently running (State: {taskContext.Status.State}).";
+                return false;
+            }
+
+            taskContext.Cts.Cancel();
             message = "Stop request sent.";
             return true;
         }
