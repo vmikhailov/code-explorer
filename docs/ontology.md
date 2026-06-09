@@ -14,6 +14,7 @@ graph TD
     Workspace["Workspace"]
 
     subgraph Layer1 ["Layer 1: Physical Topology"]
+        Counter["Counter"]
         File["File"]
         FilesStructure["FilesStructure"]
         Folder["Folder"]
@@ -137,6 +138,20 @@ graph TD
 ---
 
 ### 📂 Layer 1: Physical Topology
+
+#### `Counter`
+
+> Represents an internal database counter used for auto-incrementing identifiers.
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the counter. |
+| `Value` | `int` | The current counter value. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
 
 #### `File`
 
@@ -785,6 +800,7 @@ graph TD
 | Layer | Node Label | ID / URN Scheme |
 | :--- | :--- | :--- |
 | Root / Umbrella | `Workspace` | `{workspaceId}` |
+| Layer 1: Physical Topology | `Counter` | `workspace_id` |
 | Layer 1: Physical Topology | `File` | `{workspaceId}:file:{relativeFilePath}` |
 | Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:files_structure` |
 | Layer 1: Physical Topology | `Folder` | `{workspaceId}:folder:{relativeDirectoryPath}` |

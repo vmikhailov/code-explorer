@@ -148,7 +148,7 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
         var newIdVal = await writeSession.ExecuteWriteAsync(async tx =>
         {
             var cursor = await tx.RunAsync(
-                "MERGE (c:Counter {name: 'workspace_id'}) " +
+                $"MERGE (c:{OntologyConstants.NodeLabels.Counter} {{name: 'workspace_id'}}) " +
                 "ON CREATE SET c.value = 0 " +
                 "WITH c " +
                 "SET c.value = c.value + 1 " +

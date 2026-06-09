@@ -1291,12 +1291,12 @@ export class OrderService {
             Assert.That(results.NodesCount, Is.GreaterThan(0));
 
             // Verify using Memgraph queries
-            // ProjectA should CONTAINS ProjectB (nested project node)
+            // ProjectB should be nested under ProjectA via their Folder locations
             var projectAQuery = "MATCH (p:Project {name: 'ProjectA'}) RETURN p.id AS id";
             var projectBQuery = "MATCH (p:Project {name: 'ProjectB'}) RETURN p.id AS id";
 
             var containsQuery =
-                "MATCH (p1:Project {name: 'ProjectA'})-[:CONTAINS]->(p2:Project {name: 'ProjectB'}) RETURN p1.name AS p1Name, p2.name AS p2Name";
+                "MATCH (p1:Project {name: 'ProjectA'})-[:LOCATED_IN]->(f1:Folder)-[:CONTAINS]->(f2:Folder)<-[:LOCATED_IN]-(p2:Project {name: 'ProjectB'}) RETURN p1.name AS p1Name, p2.name AS p2Name";
 
             var resA = await client.ExecuteQueryAsync(projectAQuery);
             var resB = await client.ExecuteQueryAsync(projectBQuery);

@@ -28,6 +28,7 @@ public static class OntologyConstants
         public const string ExternalService = "ExternalService";
         public const string GitSettings = "GitSettings";
         public const string ApiInUse = "ApiInUse";
+        public const string Counter = "Counter";
     }
 
     public static class Layers
