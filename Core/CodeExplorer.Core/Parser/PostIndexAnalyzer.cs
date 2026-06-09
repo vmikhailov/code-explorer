@@ -30,7 +30,7 @@ public class PostIndexAnalyzer(MemgraphClient db)
         """, new { widPrefix });
 
     private Task WriteProjectApiAnnotationsAsync(string widPrefix) => db.ExecuteWriteAsync("""
-        MATCH (p:Project)-[:CONTAINS*1..2]->(ep:EntryPoint)-[:ATTRIBUTED_TO]->(es:ExternalService)
+        MATCH (p:Project)-[:CONTAINS|EXPOSES*1..2]->(ep:EntryPoint)-[:ATTRIBUTED_TO]->(es:ExternalService)
         WHERE p.id STARTS WITH $widPrefix
         WITH p, collect(DISTINCT es.domain_or_service) AS domains
         SET p.external_apis = domains

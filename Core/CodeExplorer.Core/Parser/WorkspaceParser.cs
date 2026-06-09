@@ -90,7 +90,9 @@ public class WorkspaceParser
             "obj",
             "packages",
             "dist",
-            "build"
+            "build",
+            "scratch",
+            "demo"
         };
 
         if (genericExclusions.Contains(dirNameLower))

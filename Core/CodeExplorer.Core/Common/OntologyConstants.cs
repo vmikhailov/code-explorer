@@ -53,5 +53,7 @@ public static class OntologyConstants
         public const string UsesCloud = "USES_CLOUD";
         public const string TransitivelyCalls = "TRANSITIVELY_CALLS";
         public const string AttributedTo = "ATTRIBUTED_TO";
+        public const string Defines = "DEFINES";
+        public const string Declares = "DECLARES";
     }
 }

@@ -137,6 +137,42 @@ public static class OntologyUploader
             return new CallsRelationship(parentId, child.Id); // Function -> CALLS -> ExternalService
         }
 
+        if (IsCodeEntityKind(child.Kind))
+        {
+            if (parentId.Contains(":file:"))
+            {
+                return new DefinesRelationship(parentId, child.Id);
+            }
+            if (IsCodeEntityId(parentId))
+            {
+                return new DeclaresRelationship(parentId, child.Id);
+            }
+        }
+
         return new ContainsRelationship(parentId, child.Id);
+    }
+
+    private static bool IsCodeEntityId(string id)
+    {
+        var lower = id.ToLowerInvariant();
+        return lower.Contains(":symbol:") ||
+               lower.Contains(":class:") ||
+               lower.Contains(":interface:") ||
+               lower.Contains(":function:") ||
+               lower.Contains(":variable:") ||
+               lower.Contains(":procedure:") ||
+               lower.Contains(":query:") ||
+               lower.Contains(":table:");
+    }
+
+    private static bool IsCodeEntityKind(string kind)
+    {
+        return kind == OntologyConstants.NodeLabels.Class ||
+               kind == OntologyConstants.NodeLabels.Interface ||
+               kind == OntologyConstants.NodeLabels.Function ||
+               kind == OntologyConstants.NodeLabels.Variable ||
+               kind == OntologyConstants.NodeLabels.Query ||
+               kind == OntologyConstants.NodeLabels.Procedure ||
+               kind == OntologyConstants.NodeLabels.Table;
     }
 }

@@ -272,4 +272,11 @@ public class McpIntegrationTests
     {
         await CallToolAndAssertSuccessAsync("get_project_dependencies", "{}", 6);
     }
+
+    [Test]
+    public async Task Test_GetNodeDefinition()
+    {
+        await CallToolAndAssertSuccessAsync("get_node_definition", "{\"kind\": \"Workspace\"}", 7);
+        await CallToolAndAssertSuccessAsync("get_node_definition", "{\"kind\": \"Class\"}", 8);
+    }
 }

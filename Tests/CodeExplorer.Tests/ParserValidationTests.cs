@@ -956,6 +956,28 @@ END;
                 ctx.GlobalProjectDependencies.Any(r =>
                     r.From == csFile.Id && r.To == csDbNode.Id && r.Kind == "USES_DB"), Is.True);
 
+            // Test C# Semantic Model with graph (Neo4j.Driver)
+            var csGraphProj = new ProjectNode("cs_graph_project", "cs_graph_project", "cs_graph_project", "csharp");
+            var csGraphFile = new FileNode("cs_graph_file", "MemgraphClient.cs", "MemgraphClient.cs", tempWorkspace + "/MemgraphClient.cs");
+            csGraphProj.Children.Add(csGraphFile);
+
+            var csGraphSyntaxTree = new SyntaxTree(csGraphFile.FullPath, csGraphFile.Path, null, null, null, csGraphFile, csParser,
+                [new RawImport("Neo4j.Driver", "MemgraphClient.cs") { Type = ImportType.External }], [],
+                []);
+            var csGraphModel = csParser.GetSyntaxEnricher(csGraphSyntaxTree);
+            await csGraphModel.EnrichAsync(csGraphProj, ctx);
+
+            var csGraphDbGroup = csGraphProj.Children.OfType<DataBasesNode>().FirstOrDefault();
+            Assert.That(csGraphDbGroup, Is.Not.Null);
+            var csGraphDbNode = csGraphDbGroup.Children.OfType<DbNode>().FirstOrDefault();
+            Assert.That(csGraphDbNode, Is.Not.Null);
+            Assert.That(csGraphDbNode.Name, Is.EqualTo("Neo4j"));
+            Assert.That(csGraphDbNode!.Extensions!["db_type"], Is.EqualTo("graph"));
+
+            Assert.That(
+                ctx.GlobalProjectDependencies.Any(r =>
+                    r.From == csGraphFile.Id && r.To == csGraphDbNode.Id && r.Kind == "USES_DB"), Is.True);
+
             // Test TypeScript Semantic Model with document (mongoose)
             var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
             var tsFile = new FileNode("ts_file", "index.ts", "index.ts", tempWorkspace + "/index.ts");
@@ -1154,6 +1176,7 @@ async function testDb(client: any) {
         {
             var projDir = Path.Combine(tempWorkspace, "ProjectA");
             Directory.CreateDirectory(projDir);
+            await File.WriteAllTextAsync(Path.Combine(projDir, "package.json"), "{}");
 
             var orderServiceFile = Path.Combine(projDir, "OrderService.ts");
 
@@ -1184,7 +1207,7 @@ export class OrderService {
 
             // Verify using Memgraph query that Function 'process' CALLS Function 'charge' in Class 'PaymentService'
             var callsQuery =
-                $"MATCH (c:Class {{name: 'PaymentService'}})-[:CONTAINS]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
+                $"MATCH (c:Class {{name: 'PaymentService'}})-[:DECLARES]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
             var queryResult = await client.ExecuteQueryAsync(callsQuery);
 
             Assert.That(queryResult, Contains.Substring("\"f1Name\": \"process\""));

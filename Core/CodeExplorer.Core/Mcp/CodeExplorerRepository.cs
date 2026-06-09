@@ -1,5 +1,7 @@
+using System.Reflection;
 using System.Text.Json;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Mcp;
@@ -38,7 +40,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         var normalizedAlt = normalized.Contains('/') ? normalized.Replace('/', '\\') : normalized.Replace('\\', '/');
 
         // 1. Try exact (case-insensitive) match via database query first
-        var query = "MATCH (w:Workspace) WHERE toLower(w.path) = toLower($path) OR toLower(w.path) = toLower($altPath) RETURN w.id AS id LIMIT 1";
+        var query = Queries.Get("get_workspace_id");
         var resultJson = await dbClient.ExecuteQueryAsync(query, new Dictionary<string, object?>
         {
             ["path"] = normalized,
@@ -63,7 +65,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         }
 
         // 2. Fetch all workspaces to perform suffix/crossover path matching in C#
-        var allQuery = "MATCH (w:Workspace) RETURN w.id AS id, w.path AS path";
+        var allQuery = Queries.Get("get_all_workspaces");
         var allResult = await dbClient.ExecuteQueryAsync(allQuery);
         using var allDoc = JsonDocument.Parse(allResult);
         if (allDoc.RootElement.ValueKind == JsonValueKind.Array)
@@ -128,22 +130,15 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         {
             var wsId = await GetWorkspaceIdAsync(workspacePath);
             parameters["projectName"] = projectName;
+            
+            var prefixFilter = "";
             if (wsId != null)
             {
                 parameters["wsIdPrefix"] = wsId + ":";
-                query = "MATCH (p:Project {name: $projectName}) " +
-                        "WHERE p.id STARTS WITH $wsIdPrefix " +
-                        "OPTIONAL MATCH (p)-[:CONTAINS]->(:DataBases)-[:USES_DB]->(db:DB) " +
-                        "OPTIONAL MATCH (p)-[:CONTAINS*1..3]->(pf:ProjectFolder) " +
-                        "RETURN p.name AS project, p.project_type AS type, db.name AS dbName, collect(DISTINCT pf.name) AS folders";
+                prefixFilter = "WHERE p.id STARTS WITH $wsIdPrefix ";
             }
-            else
-            {
-                query = "MATCH (p:Project {name: $projectName}) " +
-                        "OPTIONAL MATCH (p)-[:CONTAINS]->(:DataBases)-[:USES_DB]->(db:DB) " +
-                        "OPTIONAL MATCH (p)-[:CONTAINS*1..3]->(pf:ProjectFolder) " +
-                        "RETURN p.name AS project, p.project_type AS type, db.name AS dbName, collect(DISTINCT pf.name) AS folders";
-            }
+
+            query = Queries.Get("get_architecture_map_project").Replace("{prefixFilter}", prefixFilter);
         }
         else
         {
@@ -154,19 +149,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
                 parameters["workspacePath"] = normalized;
                 parameters["altWorkspacePath"] = normalizedAlt;
 
-                query = "MATCH (w:Workspace) WHERE toLower(w.path) = toLower($workspacePath) OR toLower(w.path) = toLower($altWorkspacePath) " +
-                        "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(wf:WorkspaceFolder) " +
-                        "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(p:Project) " +
-                        "OPTIONAL MATCH (p)-[:CONTAINS]->(:DataBases)-[:USES_DB]->(db:DB) " +
-                        "RETURN w.name AS workspace, w.path AS path, collect(DISTINCT wf.name) AS workspaceFolders, collect(DISTINCT p.name) AS projects, collect(DISTINCT db.name) AS dbNames";
+                query = Queries.Get("get_architecture_map_workspace");
             }
             else
             {
-                query = "MATCH (w:Workspace) " +
-                        "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(wf:WorkspaceFolder) " +
-                        "OPTIONAL MATCH (w)-[:CONTAINS*1..4]->(p:Project) " +
-                        "OPTIONAL MATCH (p)-[:CONTAINS]->(:DataBases)-[:USES_DB]->(db:DB) " +
-                        "RETURN w.name AS workspace, w.path AS path, collect(DISTINCT wf.name) AS workspaceFolders, collect(DISTINCT p.name) AS projects, collect(DISTINCT db.name) AS dbNames";
+                query = Queries.Get("get_architecture_map_all");
             }
         }
 
@@ -185,17 +172,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             if (!string.IsNullOrEmpty(projectFilter))
             {
                 parameters["projectFilter"] = projectFilter;
-                query = "MATCH (p:Project {name: $projectFilter}) " +
-                        "WHERE p.id STARTS WITH $wsIdPrefix " +
-                        "OPTIONAL MATCH (p)-[:DEPENDS_ON]->(out) " +
-                        "OPTIONAL MATCH (in)-[:DEPENDS_ON]->(p) " +
-                        "RETURN p.name AS project, collect(DISTINCT out.name) AS outgoingDependencies, collect(DISTINCT in.name) AS incomingDependencies";
+                query = Queries.Get("get_project_dependencies_filtered");
             }
             else
             {
-                query = "MATCH (p:Project)-[:DEPENDS_ON]->(dep) " +
-                        "WHERE p.id STARTS WITH $wsIdPrefix " +
-                        "RETURN p.name AS project, dep.name AS dependency, labels(dep)[0] AS dependencyType";
+                query = Queries.Get("get_project_dependencies_all");
             }
         }
         else
@@ -203,15 +184,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             if (!string.IsNullOrEmpty(projectFilter))
             {
                 parameters["projectFilter"] = projectFilter;
-                query = "MATCH (p:Project {name: $projectFilter}) " +
-                        "OPTIONAL MATCH (p)-[:DEPENDS_ON]->(out) " +
-                        "OPTIONAL MATCH (in)-[:DEPENDS_ON]->(p) " +
-                        "RETURN p.name AS project, collect(DISTINCT out.name) AS outgoingDependencies, collect(DISTINCT in.name) AS incomingDependencies";
+                query = Queries.Get("get_project_dependencies_filtered_no_ws");
             }
             else
             {
-                query = "MATCH (p:Project)-[:DEPENDS_ON]->(dep) " +
-                        "RETURN p.name AS project, dep.name AS dependency, labels(dep)[0] AS dependencyType";
+                query = Queries.Get("get_project_dependencies_all_no_ws");
             }
         }
 
@@ -229,19 +206,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         if (wsId != null)
         {
             parameters["wsIdPrefix"] = wsId + ":";
-            query = "MATCH (f:File) WHERE (f.path ENDS_WITH $filePath OR f.file_path = $filePath) AND f.id STARTS WITH $wsIdPrefix " +
-                    "OPTIONAL MATCH (f)-[:CONTAINS*1..]->(child) " +
-                    "WHERE child:Class OR child:Interface OR child:Function OR child:Variable OR child:Query " +
-                    "RETURN child.name AS name, labels(child)[0] AS type, child.start_line AS startLine, child.end_line AS endLine, child.symbol AS symbol " +
-                    "ORDER BY child.start_line";
+            query = Queries.Get("get_file_outline");
         }
         else
         {
-            query = "MATCH (f:File) WHERE (f.path ENDS_WITH $filePath OR f.file_path = $filePath) " +
-                    "OPTIONAL MATCH (f)-[:CONTAINS*1..]->(child) " +
-                    "WHERE child:Class OR child:Interface OR child:Function OR child:Variable OR child:Query " +
-                    "RETURN child.name AS name, labels(child)[0] AS type, child.start_line AS startLine, child.end_line AS endLine, child.symbol AS symbol " +
-                    "ORDER BY child.start_line";
+            query = Queries.Get("get_file_outline_no_ws");
         }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -263,43 +232,19 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
 
         if (symbolType == "Function")
         {
-            query = $"MATCH (n:Function) WHERE n.name CONTAINS $name{prefixClause} " +
-                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
-                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
-                    "RETURN 'Function' AS type, n.name AS name, n.symbol AS fullName, " +
-                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + f.path " +
-                    "     ELSE n.file_path " + "END AS filePath LIMIT 10";
+            query = Queries.Get("find_symbol_function").Replace("{prefixClause}", prefixClause);
         }
         else if (symbolType == "Class")
         {
-            query = $"MATCH (n:Class) WHERE n.name CONTAINS $name{prefixClause} " +
-                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
-                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
-                    "RETURN 'Class' AS type, n.name AS name, n.symbol AS fullName, " +
-                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + f.path " +
-                    "     ELSE n.file_path " + "END AS filePath LIMIT 10";
+            query = Queries.Get("find_symbol_class").Replace("{prefixClause}", prefixClause);
         }
         else if (symbolType == "Interface")
         {
-            query = $"MATCH (n:Interface) WHERE n.name CONTAINS $name{prefixClause} " +
-                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
-                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
-                    "RETURN 'Interface' AS type, n.name AS name, n.symbol AS fullName, " +
-                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + f.path " +
-                    "     ELSE n.file_path " + "END AS filePath LIMIT 10";
+            query = Queries.Get("find_symbol_interface").Replace("{prefixClause}", prefixClause);
         }
         else
         {
-            query = $"MATCH (n) WHERE (n:Function OR n:Class OR n:Interface) AND n.name CONTAINS $name{prefixClause} " +
-                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(n) " +
-                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
-                    "RETURN labels(n)[0] AS type, n.name AS name, n.symbol AS fullName, " +
-                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + f.path " +
-                    "     ELSE n.file_path " + "END AS filePath LIMIT 10";
+            query = Queries.Get("find_symbol_all").Replace("{prefixClause}", prefixClause);
         }
 
         return await ExecuteAndFormatQueryAsync(query, parameters);
@@ -319,14 +264,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         if (wsId != null)
         {
             parameters["wsIdPrefix"] = wsId + ":";
-            query = $"MATCH path = (src:Function {{symbol: $startFunction}})-[:CALLS*1..{depth}]->(tgt:Function {{symbol: $endFunction}}) " +
-                    "WHERE src.id STARTS WITH $wsIdPrefix AND tgt.id STARTS WITH $wsIdPrefix " +
-                    "RETURN nodes(path) AS chain";
+            query = Queries.Get("get_call_chain").Replace("{depth}", depth.ToString());
         }
         else
         {
-            query = $"MATCH path = (src:Function {{symbol: $startFunction}})-[:CALLS*1..{depth}]->(tgt:Function {{symbol: $endFunction}}) " +
-                    "RETURN nodes(path) AS chain";
+            query = Queries.Get("get_call_chain_no_ws").Replace("{depth}", depth.ToString());
         }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -344,14 +286,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         if (wsId != null)
         {
             parameters["wsIdPrefix"] = wsId + ":";
-            query = "MATCH (i:Interface {name: $interfaceName})<-[:IMPLEMENTS]-(impl:Class)-[:CONTAINS]->(f:Function {name: $methodName}) " +
-                    "WHERE i.id STARTS WITH $wsIdPrefix " +
-                    "RETURN impl.name AS className, f.name AS methodName, f.symbol AS methodSymbol, f.file_path AS filePath, f.start_line AS startLine";
+            query = Queries.Get("resolve_call_target");
         }
         else
         {
-            query = "MATCH (i:Interface {name: $interfaceName})<-[:IMPLEMENTS]-(impl:Class)-[:CONTAINS]->(f:Function {name: $methodName}) " +
-                    "RETURN impl.name AS className, f.name AS methodName, f.symbol AS methodSymbol, f.file_path AS filePath, f.start_line AS startLine";
+            query = Queries.Get("resolve_call_target_no_ws");
         }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -368,26 +307,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         if (wsId != null)
         {
             parameters["wsIdPrefix"] = wsId + ":";
-            query = "MATCH (target) WHERE (target:Class OR target:Interface OR target:Function) AND (target.symbol = $symbolName OR target.name = $symbolName) " +
-                    "AND target.id STARTS WITH $wsIdPrefix " +
-                    "MATCH (target)<-[:USES_TYPE|CALLS]-(dependent) " +
-                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(dependent) " +
-                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
-                    "RETURN labels(dependent)[0] AS dependentType, dependent.name AS dependentName, dependent.symbol AS dependentSymbol, " +
-                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + f.path " +
-                    "     ELSE null " + "END AS filePath";
+            query = Queries.Get("analyze_code_impact");
         }
         else
         {
-            query = "MATCH (target) WHERE (target:Class OR target:Interface OR target:Function) AND (target.symbol = $symbolName OR target.name = $symbolName) " +
-                    "MATCH (target)<-[:USES_TYPE|CALLS]-(dependent) " +
-                    "OPTIONAL MATCH (f:File)-[:CONTAINS*1..]->(dependent) " +
-                    "OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f) " +
-                    "RETURN labels(dependent)[0] AS dependentType, dependent.name AS dependentName, dependent.symbol AS dependentSymbol, " +
-                    "CASE WHEN f IS NOT NULL AND w IS NOT NULL " +
-                    "     THEN w.path + '/' + f.path " +
-                    "     ELSE null " + "END AS filePath";
+            query = Queries.Get("analyze_code_impact_no_ws");
         }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -404,23 +328,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         if (wsId != null)
         {
             parameters["wsIdPrefix"] = wsId + ":";
-            query = "MATCH (t:Table {name: $tableName}) WHERE t.id STARTS WITH $wsIdPrefix " +
-                    "OPTIONAL MATCH (q:Query)-[:DEPENDS_ON]->(t) " +
-                    "OPTIONAL MATCH (parent)-[:CONTAINS]->(q) " +
-                    "OPTIONAL MATCH (caller)-[:CALLS|DEPENDS_ON*0..]->(parent) " +
-                    "RETURN t.name AS tableName, q.name AS queryName, q.query_text AS queryText, q.path AS filePath, " +
-                    "collect(DISTINCT parent.name) AS parentName, labels(parent)[0] AS parentType, " +
-                    "collect(DISTINCT caller.name) AS callingSymbols";
+            query = Queries.Get("inspect_data_lineage");
         }
         else
         {
-            query = "MATCH (t:Table {name: $tableName}) " +
-                    "OPTIONAL MATCH (q:Query)-[:DEPENDS_ON]->(t) " +
-                    "OPTIONAL MATCH (parent)-[:CONTAINS]->(q) " +
-                    "OPTIONAL MATCH (caller)-[:CALLS|DEPENDS_ON*0..]->(parent) " +
-                    "RETURN t.name AS tableName, q.name AS queryName, q.query_text AS queryText, q.path AS filePath, " +
-                    "collect(DISTINCT parent.name) AS parentName, labels(parent)[0] AS parentType, " +
-                    "collect(DISTINCT caller.name) AS callingSymbols";
+            query = Queries.Get("inspect_data_lineage_no_ws");
         }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -437,22 +349,11 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         if (wsId != null)
         {
             parameters["wsIdPrefix"] = wsId + ":";
-            query = "MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File) " +
-                    "WHERE p.id STARTS WITH $wsIdPrefix " +
-                    "MATCH (f)-[:CONTAINS*1..]->(func:Function) " +
-                    "WHERE f.path CONTAINS 'Controller' OR f.path CONTAINS 'Endpoint' OR f.path CONTAINS 'Handler' OR f.path CONTAINS 'Resolver' " +
-                    "OR func.name STARTS WITH 'On' OR func.name STARTS WITH 'Handle' " +
-                    "OPTIONAL MATCH (class:Class)-[:CONTAINS]->(func) " +
-                    "RETURN func.name AS entryPoint, func.symbol AS symbol, class.name AS className, f.path AS filePath, func.start_line AS startLine";
+            query = Queries.Get("get_project_entry_points");
         }
         else
         {
-            query = "MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File) " +
-                    "MATCH (f)-[:CONTAINS*1..]->(func:Function) " +
-                    "WHERE f.path CONTAINS 'Controller' OR f.path CONTAINS 'Endpoint' OR f.path CONTAINS 'Handler' OR f.path CONTAINS 'Resolver' " +
-                    "OR func.name STARTS WITH 'On' OR func.name STARTS WITH 'Handle' " +
-                    "OPTIONAL MATCH (class:Class)-[:CONTAINS]->(func) " +
-                    "RETURN func.name AS entryPoint, func.symbol AS symbol, class.name AS className, f.path AS filePath, func.start_line AS startLine";
+            query = Queries.Get("get_project_entry_points_no_ws");
         }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
@@ -471,12 +372,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
 
         if (metricType == "dead_code" || metricType == "all")
         {
-            var deadCodeQuery = "MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File) " +
-                                prefixClause +
-                                "MATCH (f)-[:CONTAINS*1..]->(item) " + "WHERE (item:Function OR item:Class) " +
-                                "OPTIONAL MATCH (caller:Entity)-[:CALLS|USES_TYPE]->(item) " + "WITH f, item, caller " +
-                                "WHERE caller IS NULL " +
-                                "RETURN item.name AS name, labels(item)[0] AS type, f.path AS filePath, 'dead_code' AS anomalyType, item.symbol AS symbol LIMIT 50";
+            var deadCodeQuery = Queries.Get("find_refactor_dead_code").Replace("{prefixClause}", prefixClause);
 
             var res = await dbClient.ExecuteQueryAsync(deadCodeQuery, parameters);
             using var doc = JsonDocument.Parse(res);
@@ -489,12 +385,7 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
 
         if (metricType == "god_objects" || metricType == "all")
         {
-            var godObjectsQuery = "MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File) " +
-                                  prefixClause +
-                                  "MATCH (f)-[:CONTAINS*1..]->(c:Class) " + "MATCH (c)-[:CONTAINS]->(member) " +
-                                  "WITH c, f, count(member) AS memberCount " + "WHERE memberCount > 15 " +
-                                  "RETURN c.name AS name, 'Class' AS type, f.path AS filePath, 'god_object' AS anomalyType, memberCount AS metricValue, c.symbol AS symbol " +
-                                  "ORDER BY memberCount DESC LIMIT 20";
+            var godObjectsQuery = Queries.Get("find_refactor_god_objects").Replace("{prefixClause}", prefixClause);
 
             var res = await dbClient.ExecuteQueryAsync(godObjectsQuery, parameters);
             using var doc = JsonDocument.Parse(res);
@@ -551,19 +442,13 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
             parameters["workspacePath"] = absolutePath;
             parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
 
-            query = @"
-                MATCH (r:Root {path: $workspacePath})-[:CONTAINS*0..]->(n)
-                WHERE $type IS NULL OR $type = '' OR any(lbl IN labels(n) WHERE lbl = $type)
-                RETURN n LIMIT 1000";
+            query = Queries.Get("get_workspace_content");
         }
         else
         {
             parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
 
-            query = @"
-                MATCH (n)
-                WHERE $type IS NULL OR $type = '' OR any(lbl IN labels(n) WHERE lbl = $type)
-                RETURN n LIMIT 1000";
+            query = Queries.Get("get_workspace_content_no_ws");
         }
 
         return await dbClient.ExecuteQueryAsync(query, parameters);
@@ -585,17 +470,13 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         {
             var wsIdPrefix = wsId + ":";
             parameters["wsIdPrefix"] = wsIdPrefix;
-            query = "MATCH (n)-[r]->(m) WHERE toString(n.id) STARTS WITH $wsIdPrefix AND toString(m.id) STARTS WITH $wsIdPrefix " +
-                    "WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] AS toLabel RETURN fromLabel, relType, toLabel";
-            propQuery = "MATCH (n) WHERE toString(n.id) STARTS WITH $wsIdPrefix " +
-                        "WITH DISTINCT labels(n) AS labels, keys(n) AS keys UNWIND labels AS label UNWIND keys AS key RETURN DISTINCT label, key";
+            query = Queries.Get("get_taxonomy_nodes");
+            propQuery = Queries.Get("get_taxonomy_properties");
         }
         else
         {
-            query = "MATCH (n)-[r]->(m) " +
-                    "WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] AS toLabel RETURN fromLabel, relType, toLabel";
-            propQuery = "MATCH (n) " +
-                        "WITH DISTINCT labels(n) AS labels, keys(n) AS keys UNWIND labels AS label UNWIND keys AS key RETURN DISTINCT label, key";
+            query = Queries.Get("get_taxonomy_nodes_no_ws");
+            propQuery = Queries.Get("get_taxonomy_properties_no_ws");
         }
 
         var resultJson = await dbClient.ExecuteQueryAsync(query, parameters);
@@ -613,208 +494,156 @@ public class CodeExplorerRepository(MemgraphClient dbClient)
         return await FetchCodeSnippetsDirectlyAsync(nodesJson, workspacePath);
     }
 
-    public string GetNodeDefinition(string kind)
+    private static readonly Dictionary<string, (string CapitalizedKind, Type NodeType)> KindMapping = new(StringComparer.OrdinalIgnoreCase)
     {
-        var kindLower = kind.Trim().ToLowerInvariant();
+        ["Workspace"] = ("Workspace", typeof(WorkspaceNode)),
+        ["WorkspaceFolder"] = ("WorkspaceFolder", typeof(WorkspaceFolderNode)),
+        ["Project"] = ("Project", typeof(ProjectNode)),
+        ["ProjectFolder"] = ("ProjectFolder", typeof(ProjectFolderNode)),
+        ["Package"] = ("Package", typeof(PackageNode)),
+        ["Dependencies"] = ("Dependencies", typeof(DependenciesNode)),
+        ["Files"] = ("Files", typeof(FilesNode)),
+        ["DataBases"] = ("DataBases", typeof(DataBasesNode)),
+        ["ApisInUse"] = ("ApisInUse", typeof(ApisInUseNode)),
+        ["CloudServices"] = ("CloudServices", typeof(CloudServicesNode)),
+        ["DB"] = ("DB", typeof(DbNode)),
+        ["ApiInUse"] = ("ApiInUse", typeof(ApiInUseNode)),
+        ["CloudService"] = ("CloudService", typeof(CloudServiceNode)),
+        ["File"] = ("File", typeof(FileNode)),
+        ["Class"] = ("Class", typeof(ClassNode)),
+        ["Interface"] = ("Interface", typeof(InterfaceNode)),
+        ["Function"] = ("Function", typeof(FunctionNode)),
+        ["Variable"] = ("Variable", typeof(VariableNode)),
+        ["GitSettings"] = ("GitSettings", typeof(GitSettingsNode)),
+        ["EntryPoint"] = ("EntryPoint", typeof(EntryPointNode)),
+        ["EntryPoints"] = ("EntryPoints", typeof(EntryPointsNode))
+    };
 
-        return kindLower switch
-        {
-            "workspace" => "### Kind: Workspace\n" +
-                           "**Purpose**: Represents the absolute root of the workspace directory hierarchy.\n" +
-                           "**Key Properties**:\n" + "  - `name` (string): The workspace root folder name.\n" +
-                           "  - `path` (string): The absolute filesystem path of the workspace.\n" +
-                           "**Relationships**:\n" + "  - `(Workspace)-[:CONTAINS]->(WorkspaceFolder)`\n" +
-                           "  - `(Workspace)-[:CONTAINS]->(Project)`\n" +
-                           "  - `(Workspace)-[:CONTAINS]->(File)` (if a source file sits at the root directory)",
+    private static readonly Dictionary<string, string> PropertyDescriptions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["id"] = "A unique identifier for the node.",
+        ["name"] = "The name of the entity.",
+        ["path"] = "The path of the folder or file relative to its parent container.",
+        ["project_type"] = "The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript').",
+        ["version"] = "The package version.",
+        ["type"] = "The package type or entity type.",
+        ["symbol"] = "A globally unique ID for this symbol scope.",
+        ["start_line"] = "The starting line number (1-indexed) of the declaration.",
+        ["end_line"] = "The ending line number (1-indexed) of the declaration.",
+        ["start_col"] = "The starting column number of the declaration.",
+        ["end_col"] = "The ending column number of the declaration.",
+        ["file_path"] = "The relative path of the declaring file.",
+        ["branch"] = "The currently checked-out branch name.",
+        ["origin_url"] = "The remote origin repository URL.",
+        ["user_name"] = "The git user name.",
+        ["user_email"] = "The git user email address.",
+        ["protocol"] = "The communication protocol (e.g. 'http', 'ws', 'event').",
+        ["route_or_topic"] = "The routing path or message topic."
+    };
 
-            "workspacefolder" => "### Kind: WorkspaceFolder\n" +
-                                 "**Purpose**: Represents a subdirectory inside a Workspace, housing projects or other folders outside projects. Cannot contain files directly (files outside projects are ignored).\n" +
-                                 "**Key Properties**:\n" + "  - `name` (string): The folder name.\n" +
-                                 "  - `path` (string): The local folder name relative to its immediate parent container.\n" +
-                                 "**Relationships**:\n" +
-                                 "  - `(Workspace|WorkspaceFolder)-[:CONTAINS]->(WorkspaceFolder)`\n" +
-                                 "  - `(WorkspaceFolder)-[:CONTAINS]->(Project)`",
-
-            "project" => "### Kind: Project\n" +
-                          "**Purpose**: Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).\n" +
-                          "**Key Properties**:\n" + "  - `name` (string): The project name.\n" +
-                          "  - `path` (string): The local project folder name relative to its parent container (empty string at root).\n" +
-                          "  - `project_type` (string): The language/signature identifier (e.g., 'csharp', 'go', 'python', 'typescript').\n" +
-                          "**Relationships**:\n" + "  - `(Workspace|WorkspaceFolder)-[:CONTAINS]->(Project)`\n" +
-                          "  - `(Project)-[:CONTAINS]->(Files)`\n" + 
-                          "  - `(Project)-[:CONTAINS]->(DataBases)`\n" + 
-                          "  - `(Project)-[:CONTAINS]->(ApisInUse)`\n" + 
-                          "  - `(Project)-[:CONTAINS]->(CloudServices)`\n" + 
-                          "  - `(Project)-[:CONTAINS]->(Dependencies)`\n" + 
-                          "  - `(Project)-[:CONTAINS]->(EntryPoints)`\n" + 
-                          "  - `(Project)-[:DEPENDS_ON]->(Project)`\n" + "  - `(Project)-[:DEPENDS_ON]->(Package)`",
-
-            "projectfolder" => "### Kind: ProjectFolder\n" +
-                               "**Purpose**: Represents a subdirectory inside a Project, containing files and other project folders.\n" +
-                               "**Key Properties**:\n" + "  - `name` (string): The folder name.\n" +
-                               "  - `path` (string): The local folder name relative to its immediate parent container.\n" +
-                               "**Relationships**:\n" + "  - `(Files|ProjectFolder)-[:CONTAINS]->(ProjectFolder)`\n" +
-                               "  - `(ProjectFolder)-[:CONTAINS]->(File)`",
-
-            "package" => "### Kind: Package\n" +
-                          "**Purpose**: Represents an external dependency package or workspace package referenced or produced by projects.\n" +
-                          "**Key Properties**:\n" +
-                          "  - `name` (string): The package name (e.g. 'neo4j.driver', 'react', 'CodeExplorer.Core').\n" +
-                          "  - `version` (string): The package version.\n" +
-                          "  - `type` (string): The package type identifier ('nuget', 'npm', 'go').\n" +
-                          "**Relationships**:\n" + "  - `(Dependencies)-[:DEPENDS_ON]->(Package)` (for external dependencies)\n" +
-                          "  - `(Project)-[:DEPENDS_ON]->(Package)` (for produced packages)\n" +
-                          "  - `(Package)-[:IMPLEMENTED_BY]->(Project)`",
-
-            "dependencies" => "### Kind: Dependencies\n" +
-                              "**Purpose**: Represents an intermediate node grouping external packages / third-party dependencies of a project.\n" +
-                              "**Key Properties**:\n" +
-                              "  - `name` (string): Constant name 'Dependencies'.\n" +
-                              "  - `path` (string): The path of the parent project.\n" +
-                              "**Relationships**:\n" +
-                              "  - `(Project)-[:CONTAINS]->(Dependencies)`\n" +
-                              "  - `(Dependencies)-[:DEPENDS_ON]->(Package)`",
-
-            "files" => "### Kind: Files\n" +
-                       "**Purpose**: Represents an intermediate node grouping all source code files and folders of a project.\n" +
-                       "**Key Properties**:\n" +
-                       "  - `name` (string): Constant name 'Files'.\n" +
-                       "  - `path` (string): The path of the parent project.\n" +
-                       "**Relationships**:\n" +
-                       "  - `(Project)-[:CONTAINS]->(Files)`\n" +
-                       "  - `(Files)-[:CONTAINS]->(ProjectFolder)`\n" +
-                       "  - `(Files)-[:CONTAINS]->(File)`",
-
-            "databases" => "### Kind: DataBases\n" +
-                           "**Purpose**: Represents an intermediate node grouping all databases used by a project.\n" +
-                           "**Key Properties**:\n" +
-                           "  - `name` (string): Constant name 'DataBases'.\n" +
-                           "  - `path` (string): The path of the parent project.\n" +
-                           "**Relationships**:\n" +
-                           "  - `(Project)-[:CONTAINS]->(DataBases)`\n" +
-                           "  - `(DataBases)-[:USES_DB]->(DB)`",
-
-            "apisinuse" => "### Kind: ApisInUse\n" +
-                           "**Purpose**: Represents an intermediate node grouping all external APIs used by a project.\n" +
-                           "**Key Properties**:\n" +
-                           "  - `name` (string): Constant name 'ApisInUse'.\n" +
-                           "  - `path` (string): The path of the parent project.\n" +
-                           "**Relationships**:\n" +
-                           "  - `(Project)-[:CONTAINS]->(ApisInUse)`\n" +
-                           "  - `(ApisInUse)-[:USES_API]->(ApiInUse)`",
-
-            "cloudservices" => "### Kind: CloudServices\n" +
-                               "**Purpose**: Represents an intermediate node grouping all cloud services used by a project.\n" +
-                               "**Key Properties**:\n" +
-                               "  - `name` (string): Constant name 'CloudServices'.\n" +
-                               "  - `path` (string): The path of the parent project.\n" +
-                               "**Relationships**:\n" +
-                               "  - `(Project)-[:CONTAINS]->(CloudServices)`\n" +
-                               "  - `(CloudServices)-[:USES_CLOUD]->(CloudService)`",
-
-            "db" => "### Kind: DB\n" +
-                    "**Purpose**: Represents a database server or instance used by the project.\n" +
-                    "**Key Properties**:\n" +
-                    "  - `name` (string): The name of the database engine (e.g. 'PostgreSQL', 'MongoDB').\n" +
-                    "**Relationships**:\n" +
-                    "  - `(DataBases)-[:USES_DB]->(DB)`\n" +
-                    "  - `(File|Class|Function)-[:USES_DB]->(DB)`",
-
-            "apiinuse" => "### Kind: ApiInUse\n" +
-                          "**Purpose**: Represents an external API library or client service used by the project (e.g. NestJS, Axios, HttpClient).\n" +
-                          "**Key Properties**:\n" +
-                          "  - `name` (string): The name of the API library or service.\n" +
-                          "**Relationships**:\n" +
-                          "  - `(ApisInUse)-[:USES_API]->(ApiInUse)`\n" +
-                          "  - `(File|Class|Function)-[:USES_API]->(ApiInUse)`",
-
-            "cloudservice" => "### Kind: CloudService\n" +
-                              "**Purpose**: Represents a cloud provider service used by the project (e.g. AWS S3, Stripe, Firebase).\n" +
-                              "**Key Properties**:\n" +
-                              "  - `name` (string): The name of the cloud service.\n" +
-                              "**Relationships**:\n" +
-                              "  - `(CloudServices)-[:USES_CLOUD]->(CloudService)`\n" +
-                              "  - `(File|Class|Function)-[:USES_CLOUD]->(CloudService)`",
-
-            "file" => "### Kind: File\n" + "**Purpose**: Represents a source code file containing parsable content.\n" +
-                      "**Key Properties**:\n" + "  - `name` (string): The filename basename.\n" +
-                      "  - `path` (string): The filename relative to its immediate parent container folder.\n" +
-                      "**Relationships**:\n" + "  - `(Files|ProjectFolder)-[:CONTAINS]->(File)`\n" +
-                      "  - `(File)-[:CONTAINS]->(Class)`\n" + "  - `(File)-[:CONTAINS]->(Interface)`\n" +
-                      "  - `(File)-[:CONTAINS]->(Function)`",
-
-            "class" => "### Kind: Class\n" +
-                       "**Purpose**: Represents a parsed OOP class, struct, or concrete type definition.\n" +
-                       "**Key Properties**:\n" + "  - `name` (string): The name of the class.\n" +
-                       "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
-                       "  - `start_line` / `end_line` (integer): The bounds of the class definition.\n" +
-                       "  - `file_path` (string): The relative path of the declaring file.\n" + "**Relationships**:\n" +
-                       "  - `(File)-[:CONTAINS]->(Class)`\n" + "  - `(Class)-[:USES_TYPE]->(Class|Interface)`\n" +
-                       "  - `(Class)-[:IMPLEMENTS]->(Interface)`\n" + "  - `(Class)-[:INHERITS_FROM]->(Class)`",
-
-            "interface" => "### Kind: Interface\n" +
-                           "**Purpose**: Represents a parsed OOP interface contract (e.g. C# interface, Go interface, TypeScript interface).\n" +
-                           "**Key Properties**:\n" + "  - `name` (string): The name of the interface.\n" +
-                           "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
-                           "  - `start_line` / `end_line` (integer): The bounds of the interface definition.\n" +
-                           "  - `file_path` (string): The relative path of the declaring file.\n" +
-                           "**Relationships**:\n" + "  - `(File)-[:CONTAINS]->(Interface)`\n" +
-                           "  - `(Class)-[:IMPLEMENTS]->(Interface)`\n" +
-                           "  - `(Interface)-[:INHERITS_FROM]->(Interface)`",
-
-            "function" => "### Kind: Function\n" +
-                          "**Purpose**: Represents a parsed method, function, subroutine, or procedure.\n" +
-                          "**Key Properties**:\n" + "  - `name` (string): The name of the function.\n" +
-                          "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
-                          "  - `start_line` / `end_line` (integer): The bounds of the function definition.\n" +
-                          "  - `file_path` (string): The relative path of the declaring file.\n" +
-                          "**Relationships**:\n" + "  - `(File|Class|Interface)-[:CONTAINS]->(Function)`\n" +
-                          "  - `(Function)-[:CALLS]->(Function)`\n" +
-                          "  - `(Function)-[:USES_TYPE]->(Class|Interface)`",
-
-            "variable" => "### Kind: Variable\n" +
-                          "**Purpose**: Represents a declared field, variable, parameter, or property parsed from the AST.\n" +
-                          "**Key Properties**:\n" + "  - `name` (string): The name of the variable.\n" +
-                          "  - `symbol` (string): A globally unique ID for this symbol scope.\n" +
-                          "  - `start_line` / `end_line` (integer): The bounds of the variable declaration.\n" +
-                          "  - `file_path` (string): The relative path of the declaring file.\n" +
-                          "**Relationships**:\n" + "  - `(Class|Interface|Function)-[:CONTAINS]->(Variable)`",
-
-            "gitsettings" => "### Kind: GitSettings\n" +
-                             "**Purpose**: Represents the Git repository configuration settings for the workspace.\n" +
-                             "**Key Properties**:\n" +
-                             "  - `name` (string): Constant name 'Git Settings'.\n" +
-                             "  - `branch` (string): The currently checked-out branch name.\n" +
-                             "  - `origin_url` (string): The remote origin repository URL.\n" +
-                             "  - `user_name` (string): The git user name.\n" +
-                             "  - `user_email` (string): The git user email address.\n" +
-                             "**Relationships**:\n" +
-                             "  - `(Workspace)-[:CONTAINS]->(GitSettings)`",
-
-            "entrypoint" => "### Kind: EntryPoint\n" +
-                            "**Purpose**: Represents an exposed API route, message listener, or application entry point.\n" +
-                            "**Key Properties**:\n" +
-                            "  - `name` (string): The endpoint name/method/path (e.g. 'GET /api/orders').\n" +
-                            "  - `protocol` (string): The communication protocol ('http', 'ws', 'event').\n" +
-                            "  - `route_or_topic` (string): The routing path or message topic.\n" +
-                            "**Relationships**:\n" +
-                            "  - `(EntryPoints)-[:EXPOSES]->(EntryPoint)`\n" +
-                            "  - `(EntryPoint)-[:IMPLEMENTED_BY]->(Function)`",
-
-            "entrypoints" => "### Kind: EntryPoints\n" +
-                             "**Purpose**: Represents an intermediate node grouping all EntryPoint / API definition nodes of a project.\n" +
-                             "**Key Properties**:\n" +
-                             "  - `name` (string): Constant name 'EntryPoints'.\n" +
-                             "  - `path` (string): The path of the parent project.\n" +
-                             "**Relationships**:\n" +
-                             "  - `(Project)-[:CONTAINS]->(EntryPoints)`\n" +
-                             "  - `(EntryPoints)-[:EXPOSES]->(EntryPoint)`",
-
-             _ =>
-                $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'Files', 'DataBases', 'ApisInUse', 'CloudServices', 'File', 'Class', 'Function', 'Variable', 'Package', 'Dependencies', 'EntryPoints', 'EntryPoint', 'ApiInUse', 'CloudService', 'DB', 'GitSettings'."
-        };
+    private class TemplateInfo
+    {
+        public string Purpose { get; set; } = "";
+        public List<string> Relationships { get; set; } = [];
     }
 
+    private static readonly Dictionary<string, TemplateInfo> Templates = LoadTemplates();
+
+    private static Dictionary<string, TemplateInfo> LoadTemplates()
+    {
+        try
+        {
+            var json = Queries.GetOntologyTemplates();
+            return JsonSerializer.Deserialize<Dictionary<string, TemplateInfo>>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static string ToSnakeCase(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        if (input == "Id") return "id";
+        
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < input.Length; i++)
+        {
+            char c = input[i];
+            if (i > 0 && char.IsUpper(c))
+            {
+                sb.Append('_');
+            }
+            sb.Append(char.ToLowerInvariant(c));
+        }
+        return sb.ToString();
+    }
+
+    public string GetNodeDefinition(string kind)
+    {
+        if (string.IsNullOrEmpty(kind)) return "Invalid node kind.";
+        var kindLower = kind.Trim().ToLowerInvariant();
+
+        if (!KindMapping.TryGetValue(kindLower, out var map))
+        {
+            return $"Unknown node kind: '{kind}'. Active ontological kinds in CodeExplorer are: 'Workspace', 'WorkspaceFolder', 'ProjectFolder', 'Project', 'Files', 'DataBases', 'ApisInUse', 'CloudServices', 'File', 'Class', 'Function', 'Variable', 'Package', 'Dependencies', 'EntryPoints', 'EntryPoint', 'ApiInUse', 'CloudService', 'DB', 'GitSettings'.";
+        }
+
+        var (capitalizedKind, nodeType) = map;
+        
+        var propertiesMarkdownList = new List<string>();
+        var properties = nodeType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        foreach (var prop in properties)
+        {
+            if (prop.Name is "Children" or "References" or "Extensions" or "Kind")
+            {
+                continue;
+            }
+
+            var propType = prop.PropertyType;
+            var isNullable = propType.IsGenericType && propType.GetGenericTypeDefinition() == typeof(Nullable<>);
+            var underlyingType = isNullable ? Nullable.GetUnderlyingType(propType)! : propType;
+
+            var typeStr = underlyingType == typeof(string) ? "string" :
+                          underlyingType == typeof(int) || underlyingType == typeof(long) ? "integer" :
+                          underlyingType == typeof(bool) ? "boolean" :
+                          underlyingType.Name.ToLowerInvariant();
+
+            var snakeName = ToSnakeCase(prop.Name);
+            var description = PropertyDescriptions.TryGetValue(snakeName, out var desc) ? desc : "";
+            
+            var formattedDesc = string.IsNullOrEmpty(description) ? "" : $": {description}";
+            propertiesMarkdownList.Add($"  - `{snakeName}` ({typeStr}){formattedDesc}");
+        }
+
+        propertiesMarkdownList = propertiesMarkdownList
+            .OrderBy(p => p.Contains("`name`") ? 0 : p.Contains("`path`") ? 1 : 2)
+            .ThenBy(p => p)
+            .ToList();
+
+        var propertiesMarkdown = string.Join("\n", propertiesMarkdownList);
+
+        var purpose = "Node of kind " + capitalizedKind + ".";
+        var relationshipsMarkdown = "  - None defined.";
+
+        if (Templates.TryGetValue(capitalizedKind, out var template))
+        {
+            purpose = template.Purpose;
+            if (template.Relationships.Count > 0)
+            {
+                relationshipsMarkdown = string.Join("\n", template.Relationships.Select(r => $"  - {r}"));
+            }
+        }
+
+        return $"### Kind: {capitalizedKind}\n" +
+               $"**Purpose**: {purpose}\n" +
+               $"**Key Properties**:\n{propertiesMarkdown}\n" +
+               $"**Relationships**:\n{relationshipsMarkdown}";
+    }
     private async Task<string> FetchCodeSnippetsDirectlyAsync(string nodesJson, string? hostWorkspacePath)
     {
         List<McpRAGNode>? nodes = null;
