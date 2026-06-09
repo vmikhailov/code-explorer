@@ -694,6 +694,16 @@ export class OrdersController {
             workspaceNode.Children.Add(workspaceProjectsStructure);
             ctx.ProjectsStructure = workspaceProjectsStructure;
 
+            var syntaxNodeId = "1:syntax_structure";
+            var workspaceSyntaxStructure = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", tempWorkspace);
+            workspaceNode.Children.Add(workspaceSyntaxStructure);
+            ctx.SyntaxStructure = workspaceSyntaxStructure;
+
+            var semanticNodeId = "1:semantic_structure";
+            var workspaceSemanticStructure = new SemanticStructureNode(semanticNodeId, "SemanticStructure", tempWorkspace);
+            workspaceNode.Children.Add(workspaceSemanticStructure);
+            ctx.SemanticStructure = workspaceSemanticStructure;
+
             // Invoke ScanDirectoryAsync via reflection
             var rootScan = typeof(WorkspaceParser).GetMethod("ScanDirectoryAsync",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -742,7 +752,7 @@ export class OrdersController {
             Assert.That(projectA.Extensions["framework"], Is.EqualTo("ASP.NET Core"));
 
             // Verify SemanticStructure node grouping
-            var semanticNode = projectA.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            var semanticNode = workspaceNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
             Assert.That(semanticNode, Is.Not.Null);
 
             // Verify external packages are inside ProjectNode directly (Layer 1)
@@ -958,6 +968,7 @@ END;
             await using var client = new MemgraphClient("bolt://127.0.0.1:7687", "", "");
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.WorkspaceId = "1";
+            ctx.SemanticStructure = new SemanticStructureNode("1:semantic_structure", "SemanticStructure", tempWorkspace);
 
             // Test C# Semantic Analyzer with relational (EntityFramework)
             // Test C# Semantic Model with relational (EntityFramework)
@@ -972,9 +983,9 @@ END;
             var csModel = csParser.GetSyntaxEnricher(csSyntaxTree);
             await csModel.EnrichAsync(csProj, ctx);
 
-            var csDbGroup = csProj.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            var csDbGroup = ctx.SemanticStructure;
             Assert.That(csDbGroup, Is.Not.Null);
-            var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault();
+            var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Microsoft.EntityFrameworkCore");
             Assert.That(csDbNode, Is.Not.Null);
             Assert.That(csDbNode.Name, Is.EqualTo("Microsoft.EntityFrameworkCore"));
             Assert.That(csDbNode!.DbType, Is.EqualTo("relational"));
@@ -994,9 +1005,9 @@ END;
             var csGraphModel = csParser.GetSyntaxEnricher(csGraphSyntaxTree);
             await csGraphModel.EnrichAsync(csGraphProj, ctx);
 
-            var csGraphDbGroup = csGraphProj.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            var csGraphDbGroup = ctx.SemanticStructure;
             Assert.That(csGraphDbGroup, Is.Not.Null);
-            var csGraphDbNode = csGraphDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault();
+            var csGraphDbNode = csGraphDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Neo4j");
             Assert.That(csGraphDbNode, Is.Not.Null);
             Assert.That(csGraphDbNode.Name, Is.EqualTo("Neo4j"));
             Assert.That(csGraphDbNode!.DbType, Is.EqualTo("graph"));
@@ -1016,9 +1027,9 @@ END;
             var tsModel = tsParser.GetSyntaxEnricher(tsSyntaxTree);
             await tsModel.EnrichAsync(tsProj, ctx);
 
-            var tsDbGroup = tsProj.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            var tsDbGroup = ctx.SemanticStructure;
             Assert.That(tsDbGroup, Is.Not.Null);
-            var tsDbNode = tsDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault();
+            var tsDbNode = tsDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "MongoDB");
             Assert.That(tsDbNode, Is.Not.Null);
             Assert.That(tsDbNode.Name, Is.EqualTo("MongoDB"));
             Assert.That(tsDbNode!.DbType, Is.EqualTo("document"));
@@ -1038,9 +1049,9 @@ END;
             var pyModel = pyParser.GetSyntaxEnricher(pySyntaxTree);
             await pyModel.EnrichAsync(pyProj, ctx);
 
-            var pyDbGroup = pyProj.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            var pyDbGroup = ctx.SemanticStructure;
             Assert.That(pyDbGroup, Is.Not.Null);
-            var pyDbNode = pyDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault();
+            var pyDbNode = pyDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Redis");
             Assert.That(pyDbNode, Is.Not.Null);
             Assert.That(pyDbNode.Name, Is.EqualTo("Redis"));
             Assert.That(pyDbNode!.DbType, Is.EqualTo("keyvalue"));

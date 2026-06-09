@@ -55,15 +55,6 @@ public class ProjectProcessor
 
         var projectNode = new ProjectNode(_projectNodeId, folderName, _relativeProjectDir, _projectParser.ProjectType);
 
-        // 1. Initialize the two standardized intermediate nodes for logical project
-        var syntaxNodeId = $"{_projectNodeId}syntax_structure";
-        var syntaxStructureNode = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", projectNode.Path);
-        projectNode.Children.Add(syntaxStructureNode);
-
-        var semanticNodeId = $"{_projectNodeId}semantic_structure";
-        var semanticStructureNode = new SemanticStructureNode(semanticNodeId, "SemanticStructure", projectNode.Path);
-        projectNode.Children.Add(semanticStructureNode);
-
         // 2. Scan directory recursively and build the files directly under the physical root node of the project
         await ScanDirectoryAsync(_projectDir, _physicalRootNode, projectNode);
         await ParseDependenciesAsync(projectNode);
@@ -85,8 +76,8 @@ public class ProjectProcessor
 
         try
         {
-            var syntaxStructureNode = projectNode.Children.OfType<SyntaxStructureNode>().FirstOrDefault();
-            var semanticStructureNode = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            var syntaxStructureNode = _ctx.SyntaxStructure;
+            var semanticStructureNode = _ctx.SemanticStructure;
 
             // Perform semantic analysis & ontology enrichment
             foreach (var syntaxTree in _projectSyntaxTrees)
@@ -119,7 +110,13 @@ public class ProjectProcessor
             if (semanticStructureNode != null)
             {
                 var semanticNodes = new List<IOntologyNode>();
-                CollectSemanticNodes(projectNode, semanticNodes);
+                foreach (var syntaxTree in _projectSyntaxTrees)
+                {
+                    if (syntaxTree.FileNode != null)
+                    {
+                        CollectSemanticNodes(syntaxTree.FileNode, semanticNodes);
+                    }
+                }
                 foreach (var semNode in semanticNodes)
                 {
                     if (!semanticStructureNode.Children.Any(c => c.Id == semNode.Id))
@@ -130,7 +127,7 @@ public class ProjectProcessor
             }
 
             // Group EntryPoints under a single intermediate node to simplify browsing
-            GroupEntryPoints(projectNode);
+            GroupEntryPoints();
         }
         finally
         {
@@ -292,7 +289,6 @@ public class ProjectProcessor
     private async Task LinkProducedPackageAsync(ProjectNode projectNode)
     {
         var packageDetected = false;
-        var semanticStructureNode = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
 
         try
         {
@@ -364,16 +360,22 @@ public class ProjectProcessor
         return false;
     }
 
-    private void GroupEntryPoints(ProjectNode projectNode)
+    private void GroupEntryPoints()
     {
         var entryPoints = new List<EntryPointNode>();
         var parentMap = new Dictionary<string, string>();
 
-        FindAndCollectEntryPoints(projectNode, entryPoints, parentMap);
+        foreach (var syntaxTree in _projectSyntaxTrees)
+        {
+            if (syntaxTree.FileNode != null)
+            {
+                FindAndCollectEntryPoints(syntaxTree.FileNode, entryPoints, parentMap);
+            }
+        }
 
         if (entryPoints.Count > 0)
         {
-            var semanticStructureNode = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+            var semanticStructureNode = _ctx.SemanticStructure;
             if (semanticStructureNode != null)
             {
                 foreach (var ep in entryPoints)

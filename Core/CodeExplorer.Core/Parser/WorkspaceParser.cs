@@ -2,6 +2,7 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
@@ -46,6 +47,18 @@ public class WorkspaceParser
         var workspaceProjectsStructure = new ProjectsStructureNode(projectsNodeId, "ProjectsStructure", hostPath);
         workspaceNode.Children.Add(workspaceProjectsStructure);
         _ctx.ProjectsStructure = workspaceProjectsStructure;
+
+        // Create workspace-level SyntaxStructure
+        var syntaxNodeId = $"{wsId}:syntax_structure";
+        var workspaceSyntaxStructure = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", hostPath);
+        workspaceNode.Children.Add(workspaceSyntaxStructure);
+        _ctx.SyntaxStructure = workspaceSyntaxStructure;
+
+        // Create workspace-level SemanticStructure
+        var semanticNodeId = $"{wsId}:semantic_structure";
+        var workspaceSemanticStructure = new SemanticStructureNode(semanticNodeId, "SemanticStructure", hostPath);
+        workspaceNode.Children.Add(workspaceSemanticStructure);
+        _ctx.SemanticStructure = workspaceSemanticStructure;
 
         // Parse and add Git settings if the workspace has a .git folder
         var gitSettingsNode = GitSettingsParser.Parse(wsId, _absoluteWorkspacePath);

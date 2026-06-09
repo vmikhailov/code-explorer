@@ -46,7 +46,6 @@ public class SyntaxEnricher : ISyntaxEnricher
     {
         var packageNames = projectNode.Children
             .OfType<PackageNode>()
-            .Concat(projectNode.Children.OfType<SemanticStructureNode>().SelectMany(dn => dn.Children.OfType<PackageNode>()))
             .Select(p => p.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -111,8 +110,8 @@ public class SyntaxEnricher : ISyntaxEnricher
                         }
 
                         var dbId = $"{projectNode.Id}db:{parser.Id}";
-                        var semanticNodeForDb = GetOrCreateSemanticStructure(projectNode);
-                        if (semanticNodeForDb.Children.All(c => c.Id != dbId))
+                        var semanticNodeForDb = ctx.SemanticStructure;
+                        if (semanticNodeForDb != null && semanticNodeForDb.Children.All(c => c.Id != dbId))
                         {
                             var dbNode = new DatabaseNode(dbId, dbEngine, dbId, dbType);
                             semanticNodeForDb.Children.Add(dbNode);
@@ -124,8 +123,8 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                     case "api":
                         var apiId = $"{projectNode.Id}api:{parser.Id}";
-                        var semanticNodeForApi = GetOrCreateSemanticStructure(projectNode);
-                        if (!semanticNodeForApi.Children.Any(c => c.Id == apiId))
+                        var semanticNodeForApi = ctx.SemanticStructure;
+                        if (semanticNodeForApi != null && !semanticNodeForApi.Children.Any(c => c.Id == apiId))
                         {
                             var apiNode = new ApiInUseNode(apiId, parser.Name, apiId);
                             semanticNodeForApi.Children.Add(apiNode);
@@ -138,8 +137,8 @@ public class SyntaxEnricher : ISyntaxEnricher
                     case "cloud":
                         var cloudService = parser.Name;
                         var cloudId = $"{projectNode.Id}cloud:{parser.Id}";
-                        var semanticNodeForCloud = GetOrCreateSemanticStructure(projectNode);
-                        if (!semanticNodeForCloud.Children.Any(c => c.Id == cloudId))
+                        var semanticNodeForCloud = ctx.SemanticStructure;
+                        if (semanticNodeForCloud != null && !semanticNodeForCloud.Children.Any(c => c.Id == cloudId))
                         {
                             var cloudNode = new CloudServiceNode(cloudId, cloudService, "CloudService", cloudId);
                             semanticNodeForCloud.Children.Add(cloudNode);
@@ -217,17 +216,5 @@ public class SyntaxEnricher : ISyntaxEnricher
 
         parentNode.Children.Add(varNode);
         return true;
-    }
-
-    private static SemanticStructureNode GetOrCreateSemanticStructure(ProjectNode projectNode)
-    {
-        var node = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
-        if (node == null)
-        {
-            var id = $"{projectNode.Id}semantic_structure";
-            node = new SemanticStructureNode(id, "SemanticStructure", projectNode.Path);
-            projectNode.Children.Add(node);
-        }
-        return node;
     }
 }

@@ -83,10 +83,8 @@ graph TD
     SemanticStructure -->|CONTAINS| CloudService
     SemanticStructure -->|CONTAINS| ApiInUse
     SemanticStructure -->|CONTAINS| ExternalService
-    SemanticStructure -->|BELONGS_TO| Project
     SyntaxStructure -->|CONTAINS| Type
     SyntaxStructure -->|CONTAINS| Function
-    SyntaxStructure -->|BELONGS_TO| Project
     Table -->|QUERIED_BY| Function
     Table -->|QUERIED_BY| Query
     Topic -->|PUBLISHED_BY| Function
@@ -100,6 +98,8 @@ graph TD
     Type -->|HAS_MEMBER| Member
     Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| ProjectsStructure
+    Workspace -->|CONTAINS| SyntaxStructure
+    Workspace -->|CONTAINS| SemanticStructure
 ```
 
 ---
@@ -118,6 +118,8 @@ graph TD
 | :--- | :--- |
 | `CONTAINS` | `FilesStructure` |
 | `CONTAINS` | `ProjectsStructure` |
+| `CONTAINS` | `SyntaxStructure` |
+| `CONTAINS` | `SemanticStructure` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -161,7 +163,7 @@ graph TD
 
 #### `FilesStructure`
 
-> Represents an intermediate node grouping all source code files and folders of a project.
+> Represents an intermediate node grouping the physical folder and file tree of the entire workspace.
 
 **Outbound edges:**
 
@@ -285,8 +287,6 @@ graph TD
 | `Package` | `IMPLEMENTED_BY` |
 | `Project` | `DEPENDS_ON` |
 | `ProjectsStructure` | `CONTAINS` |
-| `SemanticStructure` | `BELONGS_TO` |
-| `SyntaxStructure` | `BELONGS_TO` |
 
 **Properties:**
 
@@ -403,7 +403,7 @@ graph TD
 
 #### `SyntaxStructure`
 
-> Represents an intermediate node grouping all AST/syntactic declarations of a project.
+> Represents an intermediate node grouping all AST/syntactic declarations of the entire workspace.
 
 **Outbound edges:**
 
@@ -411,7 +411,12 @@ graph TD
 | :--- | :--- |
 | `CONTAINS` | `Type` |
 | `CONTAINS` | `Function` |
-| `BELONGS_TO` | `Project` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Workspace` | `CONTAINS` |
 
 **Properties:**
 
@@ -658,7 +663,7 @@ graph TD
 
 #### `SemanticStructure`
 
-> Represents an intermediate node grouping all runtime entry points, databases, endpoints, cloud services, and APIs used by a project.
+> Represents an intermediate node grouping all runtime entry points, databases, endpoints, cloud services, and APIs used in the entire workspace.
 
 **Outbound edges:**
 
@@ -671,7 +676,12 @@ graph TD
 | `CONTAINS` | `CloudService` |
 | `CONTAINS` | `ApiInUse` |
 | `CONTAINS` | `ExternalService` |
-| `BELONGS_TO` | `Project` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Workspace` | `CONTAINS` |
 
 **Properties:**
 
@@ -776,7 +786,7 @@ graph TD
 | :--- | :--- | :--- |
 | Root / Umbrella | `Workspace` | `{workspaceId}` |
 | Layer 1: Physical Topology | `File` | `{workspaceId}:file:{relativeFilePath}` |
-| Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:project:{relativeProjectDir}:files_structure` |
+| Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:files_structure` |
 | Layer 1: Physical Topology | `Folder` | `{workspaceId}:folder:{relativeDirectoryPath}` |
 | Layer 1: Physical Topology | `GitSettings` | `{workspaceId}:gitsettings` |
 | Layer 2: Project Boundary | `Package` | `{workspaceId}:package:{packageName}` |
@@ -784,7 +794,7 @@ graph TD
 | Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:projects_structure` |
 | Layer 3: Syntactic Structure | `Function` | `{workspaceId}:symbol:{filePath}:Function:{name}:{line}` |
 | Layer 3: Syntactic Structure | `Member` | `{workspaceId}:symbol:{filePath}:Member:{name}:{line}` |
-| Layer 3: Syntactic Structure | `SyntaxStructure` | `{workspaceId}:project:{relativeProjectDir}:syntax_structure` |
+| Layer 3: Syntactic Structure | `SyntaxStructure` | `{workspaceId}:syntax_structure` |
 | Layer 3: Syntactic Structure | `Type` | `{workspaceId}:symbol:{filePath}:Type:{name}:{line}` |
 | Layer 4: Semantic Structure | `ApiInUse` | `{workspaceId}:project:{relativeProjectDir}:api:{apiName}` |
 | Layer 4: Semantic Structure | `CloudService` | `{workspaceId}:project:{relativeProjectDir}:cloudservice:{serviceName}` |
@@ -795,7 +805,7 @@ graph TD
 | Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:externalservice:{protocol}:{host}` |
 | Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:procedure:{procedureName}` |
 | Layer 4: Semantic Structure | `Query` | `{workspaceId}:query:{queryHash}` |
-| Layer 4: Semantic Structure | `SemanticStructure` | `{workspaceId}:project:{relativeProjectDir}:semantic_structure` |
+| Layer 4: Semantic Structure | `SemanticStructure` | `{workspaceId}:semantic_structure` |
 | Layer 4: Semantic Structure | `Table` | `{workspaceId}:table:{tableName}` |
 | Layer 4: Semantic Structure | `Topic` | `{workspaceId}:topic:{brokerType}:{topicName}` |
 

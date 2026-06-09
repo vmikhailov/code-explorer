@@ -1,18 +1,16 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.SyntaxStructure,
-    idScheme: "{workspaceId}:project:{relativeProjectDir}:syntax_structure",
-    purpose: "Represents an intermediate node grouping all AST/syntactic declarations of a project.",
+    idScheme: "{workspaceId}:syntax_structure",
+    purpose: "Represents an intermediate node grouping all AST/syntactic declarations of the entire workspace.",
     layer: OntologyConstants.Layers.Syntactic
 )]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.BelongsTo)]
 public record SyntaxStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

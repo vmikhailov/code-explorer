@@ -3,6 +3,8 @@ using CodeExplorer.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -15,6 +17,8 @@ public class ParsingContext
     public bool Clear { get; }
     public string WorkspaceId { get; set; } = string.Empty;
     public ProjectsStructureNode? ProjectsStructure { get; set; }
+    public SyntaxStructureNode? SyntaxStructure { get; set; }
+    public SemanticStructureNode? SemanticStructure { get; set; }
 
     private readonly System.Diagnostics.Stopwatch _sessionStopwatch = System.Diagnostics.Stopwatch.StartNew();
 

@@ -130,11 +130,6 @@ public static class OntologyUploader
 
     private static IOntologyRelationship GetRelationship(string parentId, IOntologyNode child)
     {
-        if (child.Kind == OntologyConstants.NodeLabels.SyntaxStructure || child.Kind == OntologyConstants.NodeLabels.SemanticStructure)
-        {
-            return new BelongsToRelationship(child.Id, parentId);
-        }
-
         if (parentId.Contains("files_structure") || parentId.Contains("syntax_structure") || parentId.Contains("semantic_structure"))
         {
             return new ContainsRelationship(parentId, child.Id);
