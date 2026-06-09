@@ -4,7 +4,7 @@ using CodeExplorer.Common;
 namespace CodeExplorer.Core.Common.Nodes;
 
 public abstract record CompositeNode(
-    [property: JsonIgnore] string Id,
+    [property: JsonIgnore, OntologyProperty("A unique identifier for the node.")] string Id,
     [property: JsonIgnore] Dictionary<string, string>? Extensions = null
 ) : IOntologyNode
 {

@@ -34,27 +34,4 @@ public static class Queries
         });
     }
 
-    public static string GetOntologyTemplates()
-    {
-        return Cache.GetOrAdd("__ontology_templates__", _ =>
-        {
-            var match = ResourceNames.FirstOrDefault(r => 
-                r.EndsWith(".ontology_templates.json", StringComparison.OrdinalIgnoreCase)
-            );
-
-            if (match == null)
-            {
-                throw new FileNotFoundException("Embedded ontology templates JSON resource not found.");
-            }
-
-            using var stream = Assembly.GetManifestResourceStream(match);
-            if (stream == null)
-            {
-                throw new FileNotFoundException($"Failed to load manifest resource stream for '{match}'.");
-            }
-
-            using var reader = new StreamReader(stream);
-            return reader.ReadToEnd().Trim();
-        });
-    }
 }
