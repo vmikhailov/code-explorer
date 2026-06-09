@@ -47,22 +47,24 @@ graph TD
         Topic["Topic"]
     end
 
+    Database -->|QUERIED_BY| Function
+    Database -->|QUERIED_BY| Query
     DataSet -->|CONTAINS| Table
     Endpoint -->|TRIGGERS| Function
+    Endpoint -->|EXPOSED_BY| Type
+    Endpoint -->|EXPOSED_BY| Function
     EntryPoint -->|TRIGGERS| Function
+    EntryPoint -->|EXPOSED_BY| Type
     ExternalService -->|CALLS_ENDPOINT| Endpoint
+    ExternalService -->|CALLED_BY| Function
     FilesStructure -->|CONTAINS| Folder
     FilesStructure -->|CONTAINS| File
+    FilesStructure -->|CONTAINS| GitSettings
     Folder -->|CONTAINS| Folder
     Folder -->|CONTAINS| File
     Function -->|DECLARED_IN| File
     Function -->|CALLS| Function
     Function -->|USES_TYPE| Type
-    Function -->|QUERIES_DB| Database
-    Function -->|PUBLISHES_TO| Topic
-    Function -->|SUBSCRIBES_TO| Topic
-    Function -->|CALLS| ExternalService
-    Function -->|EXPOSES_ENDPOINT| Endpoint
     Member -->|DECLARED_IN| File
     Member -->|OF_TYPE| Type
     Package -->|IMPLEMENTED_BY| Project
@@ -83,19 +85,21 @@ graph TD
     SemanticStructure -->|CONTAINS| Package
     SyntaxStructure -->|CONTAINS| Type
     SyntaxStructure -->|CONTAINS| Function
+    Table -->|QUERIED_BY| Function
+    Table -->|QUERIED_BY| Query
+    Topic -->|PUBLISHED_BY| Function
+    Topic -->|SUBSCRIBED_BY| Function
     Type -->|DECLARED_IN| File
     Type -->|USES_TYPE| Type
     Type -->|IMPLEMENTS| Type
     Type -->|INHERITS_FROM| Type
     Type -->|POTENTIAL_TYPE| Type
-    Type -->|EXPOSES_ENDPOINT| Endpoint
-    Type -->|EXPOSES| EntryPoint
     Type -->|HAS_METHOD| Function
     Type -->|HAS_MEMBER| Member
-    Workspace -->|CONTAINS| Folder
+    Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| Project
-    Workspace -->|CONTAINS| File
-    Workspace -->|CONTAINS| GitSettings
+    Workspace -->|CONTAINS| SyntaxStructure
+    Workspace -->|CONTAINS| SemanticStructure
 ```
 
 ---
@@ -112,10 +116,10 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `CONTAINS` | `Folder` |
+| `CONTAINS` | `FilesStructure` |
 | `CONTAINS` | `Project` |
-| `CONTAINS` | `File` |
-| `CONTAINS` | `GitSettings` |
+| `CONTAINS` | `SyntaxStructure` |
+| `CONTAINS` | `SemanticStructure` |
 
 **Properties:**
 
@@ -141,7 +145,6 @@ graph TD
 | `Function` | `DECLARED_IN` |
 | `Member` | `DECLARED_IN` |
 | `Type` | `DECLARED_IN` |
-| `Workspace` | `CONTAINS` |
 
 **Properties:**
 
@@ -162,12 +165,14 @@ graph TD
 | :--- | :--- |
 | `CONTAINS` | `Folder` |
 | `CONTAINS` | `File` |
+| `CONTAINS` | `GitSettings` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
 | `Project` | `CONTAINS` |
+| `Workspace` | `CONTAINS` |
 
 **Properties:**
 
@@ -195,7 +200,6 @@ graph TD
 | :--- | :--- |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
-| `Workspace` | `CONTAINS` |
 
 **Properties:**
 
@@ -213,7 +217,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `Workspace` | `CONTAINS` |
+| `FilesStructure` | `CONTAINS` |
 
 **Properties:**
 
@@ -303,20 +307,21 @@ graph TD
 | `DECLARED_IN` | `File` |
 | `CALLS` | `Function` |
 | `USES_TYPE` | `Type` |
-| `QUERIES_DB` | `Database` |
-| `PUBLISHES_TO` | `Topic` |
-| `SUBSCRIBES_TO` | `Topic` |
-| `CALLS` | `ExternalService` |
-| `EXPOSES_ENDPOINT` | `Endpoint` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `Database` | `QUERIED_BY` |
 | `Endpoint` | `TRIGGERS` |
+| `Endpoint` | `EXPOSED_BY` |
 | `EntryPoint` | `TRIGGERS` |
+| `ExternalService` | `CALLED_BY` |
 | `Function` | `CALLS` |
 | `SyntaxStructure` | `CONTAINS` |
+| `Table` | `QUERIED_BY` |
+| `Topic` | `PUBLISHED_BY` |
+| `Topic` | `SUBSCRIBED_BY` |
 | `Type` | `HAS_METHOD` |
 
 **Properties:**
@@ -383,6 +388,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `Project` | `CONTAINS` |
+| `Workspace` | `CONTAINS` |
 
 **Properties:**
 
@@ -406,8 +412,6 @@ graph TD
 | `IMPLEMENTS` | `Type` |
 | `INHERITS_FROM` | `Type` |
 | `POTENTIAL_TYPE` | `Type` |
-| `EXPOSES_ENDPOINT` | `Endpoint` |
-| `EXPOSES` | `EntryPoint` |
 | `HAS_METHOD` | `Function` |
 | `HAS_MEMBER` | `Member` |
 
@@ -415,6 +419,8 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `Endpoint` | `EXPOSED_BY` |
+| `EntryPoint` | `EXPOSED_BY` |
 | `Function` | `USES_TYPE` |
 | `Member` | `OF_TYPE` |
 | `SyntaxStructure` | `CONTAINS` |
@@ -484,11 +490,17 @@ graph TD
 
 > Represents a database instance, catalog, or physical schema.
 
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `QUERIED_BY` | `Function` |
+| `QUERIED_BY` | `Query` |
+
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
-| `Function` | `QUERIES_DB` |
 | `SemanticStructure` | `CONTAINS` |
 
 **Properties:**
@@ -522,15 +534,15 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `TRIGGERS` | `Function` |
+| `EXPOSED_BY` | `Type` |
+| `EXPOSED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
 | `ExternalService` | `CALLS_ENDPOINT` |
-| `Function` | `EXPOSES_ENDPOINT` |
 | `SemanticStructure` | `CONTAINS` |
-| `Type` | `EXPOSES_ENDPOINT` |
 
 **Properties:**
 
@@ -552,13 +564,13 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `TRIGGERS` | `Function` |
+| `EXPOSED_BY` | `Type` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
 | `SemanticStructure` | `CONTAINS` |
-| `Type` | `EXPOSES` |
 
 **Properties:**
 
@@ -579,12 +591,12 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `CALLS_ENDPOINT` | `Endpoint` |
+| `CALLED_BY` | `Function` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
-| `Function` | `CALLS` |
 | `SemanticStructure` | `CONTAINS` |
 
 ---
@@ -615,7 +627,9 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `Database` | `QUERIED_BY` |
 | `Procedure` | `CONTAINS` |
+| `Table` | `QUERIED_BY` |
 
 ---
 
@@ -641,6 +655,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `Project` | `CONTAINS` |
+| `Workspace` | `CONTAINS` |
 
 **Properties:**
 
@@ -655,6 +670,13 @@ graph TD
 
 > Represents a physical database table.
 
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `QUERIED_BY` | `Function` |
+| `QUERIED_BY` | `Query` |
+
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
@@ -668,12 +690,17 @@ graph TD
 
 > Represents a message queue, event exchange, or topic boundary.
 
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `PUBLISHED_BY` | `Function` |
+| `SUBSCRIBED_BY` | `Function` |
+
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
-| `Function` | `PUBLISHES_TO` |
-| `Function` | `SUBSCRIBES_TO` |
 | `SemanticStructure` | `CONTAINS` |
 
 **Properties:**
@@ -692,6 +719,7 @@ graph TD
 
 | Relationship Label | Description |
 | :--- | :--- |
+| `CALLED_BY` | Links an external service or database to the function that invokes or queries it. |
 | `CALLS` | Links a calling function to the function it directly invokes. |
 | `CALLS_ENDPOINT` | Links an external API call to the target HTTP endpoint it invokes. |
 | `CONTAINS` | Represents directory structure containment or syntactic scoping of elements. |
@@ -700,8 +728,7 @@ graph TD
 | `DECLARES_TYPE` | Indicates that a project declares a specific type. |
 | `DEFINES` | Indicates that an entity defines a particular property or configuration. |
 | `DEPENDS_ON` | Represents a dependency relationship between projects, packages, or other entities. |
-| `EXPOSES` | Indicates that a container exposes a certain service or entry point. |
-| `EXPOSES_ENDPOINT` | Links a type or function to the HTTP endpoint it exposes. |
+| `EXPOSED_BY` | Links an entrypoint or endpoint to the type or function that exposes it. |
 | `HAS_MEMBER` | Links a type declaration to its declared member variables or fields. |
 | `HAS_METHOD` | Links a type declaration to its declared methods or functions. |
 | `HAS_VARIABLE` | Links a function scope to its declared local variables or parameters. |
@@ -710,9 +737,9 @@ graph TD
 | `INHERITS_FROM` | Links a class/interface to its base class or inherited interface. |
 | `OF_TYPE` | Links a member variable or field to its declared type. |
 | `POTENTIAL_TYPE` | Links a variable or parameter to concrete classes that implement its declared interface type. |
-| `PUBLISHES_TO` | Links a function or component to the queue topic or exchange it publishes messages to. |
-| `QUERIES_DB` | Links a function to the database catalog or schema it queries. |
-| `SUBSCRIBES_TO` | Links a function listener or handler to the queue topic or exchange it subscribes to. |
+| `PUBLISHED_BY` | Links a topic to the function that publishes to it. |
+| `QUERIED_BY` | Links a database or table to the function or query that accesses it. |
+| `SUBSCRIBED_BY` | Links a topic to the function that subscribes to it. |
 | `TRANSFORMS_TO` | Links a data model or dataset representing a transformation step to its destination structure. |
 | `TRIGGERS` | Links an entry point or API endpoint to the handler function it triggers. |
 | `USES_API` | Links a project, file, or class to an external API library or client model. |

@@ -3,7 +3,6 @@ using JetBrains.Annotations;
 using Microsoft.AspNetCore.Http;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
-using static System.IO.Directory;
 
 namespace CodeExplorer.Core.Mcp;
 

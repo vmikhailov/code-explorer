@@ -36,7 +36,8 @@ public static class OntologyPruner
             node.Kind == OntologyConstants.NodeLabels.Endpoint ||
             node.Kind == OntologyConstants.NodeLabels.Type ||
             node.Kind == OntologyConstants.NodeLabels.Function ||
-            node.Kind == OntologyConstants.NodeLabels.Query)
+            node.Kind == OntologyConstants.NodeLabels.Query ||
+            node.Kind == OntologyConstants.NodeLabels.GitSettings)
         {
             return true;
         }

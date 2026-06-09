@@ -1,10 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
-using TreeSitter;
 
 namespace CodeExplorer.Parser.Python;
 

@@ -42,19 +42,19 @@ public class OntologyRegistryTests
         Assert.That(definition, Does.Contain("`path` (string)"));
         Assert.That(definition, Does.Contain("**Relationships**:"));
         Assert.That(definition, Does.Contain("Outbound:"));
-        Assert.That(definition, Does.Contain("- `-CONTAINS->` Folder"));
+        Assert.That(definition, Does.Contain("- `-CONTAINS->` FilesStructure"));
     }
 
     [Test]
     public void GetNodeDefinition_ReturnsValidInboundRelationships()
     {
-        // 'File' node has inbound relationships like 'Workspace -CONTAINS-> File' or 'Files -CONTAINS-> File'
+        // 'File' node has inbound relationships like 'Folder -CONTAINS-> File' or 'FilesStructure -CONTAINS-> File'
         var definition = OntologyRegistry.GetNodeDefinition("File");
 
         Assert.That(definition, Is.Not.Null);
         Assert.That(definition, Does.Contain("### Kind: File"));
         Assert.That(definition, Does.Contain("Inbound:"));
-        Assert.That(definition, Does.Contain("Workspace `-CONTAINS->` File"));
+        Assert.That(definition, Does.Contain("Folder `-CONTAINS->` File"));
         Assert.That(definition, Does.Contain("FilesStructure `-CONTAINS->` File"));
     }
 

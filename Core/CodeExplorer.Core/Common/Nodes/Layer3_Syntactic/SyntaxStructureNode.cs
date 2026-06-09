@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.SyntaxStructure,

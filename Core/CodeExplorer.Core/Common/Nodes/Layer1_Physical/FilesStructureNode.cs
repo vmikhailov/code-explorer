@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.FilesStructure,
@@ -10,6 +10,7 @@ namespace CodeExplorer.Core.Common.Nodes;
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<GitSettingsNode>(OntologyConstants.Relationships.Contains)]
 public record FilesStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

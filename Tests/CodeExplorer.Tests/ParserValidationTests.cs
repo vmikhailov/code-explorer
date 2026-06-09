@@ -1,8 +1,11 @@
 using System.Threading.Channels;
 using NUnit.Framework;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.CSharp;
@@ -602,7 +605,7 @@ export class OrdersController {
             Assert.That(endpointCountJson, Contains.Substring("\"count\": 2"));
 
             var implByJson = await client.ExecuteQueryAsync(
-                $"MATCH (f:Function {{name: 'charge'}})-[:EXPOSES_ENDPOINT]->(ep:Endpoint) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
+                $"MATCH (ep:Endpoint)-[:EXPOSED_BY]->(f:Function {{name: 'charge'}}) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
             Assert.That(implByJson, Contains.Substring(":endpoint:POST:charge"));
 
             var lateBoundJson = await client.ExecuteQueryAsync(

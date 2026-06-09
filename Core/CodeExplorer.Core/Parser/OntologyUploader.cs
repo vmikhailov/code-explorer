@@ -130,17 +130,17 @@ public static class OntologyUploader
         {
             if (parentId.Contains(":symbol:") || parentId.Contains(":function:") || parentId.Contains(":query:"))
             {
-                return new QueriesDbRelationship(parentId, child.Id);
+                return new QueriedByRelationship(child.Id, parentId);
             }
             return new UsesDbRelationship(parentId, child.Id);
         }
         if (child.Kind == OntologyConstants.NodeLabels.Topic)
         {
-            return new PublishesToRelationship(parentId, child.Id);
+            return new PublishedByRelationship(child.Id, parentId);
         }
         if (child.Kind == OntologyConstants.NodeLabels.Endpoint)
         {
-            return new ExposesEndpointRelationship(parentId, child.Id);
+            return new ExposedByRelationship(child.Id, parentId);
         }
         if (child.Kind == OntologyConstants.NodeLabels.ApiInUse)
         {
@@ -154,13 +154,13 @@ public static class OntologyUploader
         {
             if (parentId.Contains(":entrypoints"))
             {
-                return new ExposesRelationship(parentId, child.Id); // EntryPoints -> EXPOSES -> EntryPoint
+                return new ExposedByRelationship(child.Id, parentId); // EntryPoint -> EXPOSED_BY -> EntryPoints
             }
             return new ImplementedByRelationship(child.Id, parentId); // EntryPoint -> IMPLEMENTED_BY -> Function
         }
         if (child.Kind == OntologyConstants.NodeLabels.ExternalService)
         {
-            return new CallsRelationship(parentId, child.Id); // Function -> CALLS -> ExternalService
+            return new CalledByRelationship(child.Id, parentId); // ExternalService -> CALLED_BY -> Function
         }
 
         if (IsCodeEntityKind(child.Kind))

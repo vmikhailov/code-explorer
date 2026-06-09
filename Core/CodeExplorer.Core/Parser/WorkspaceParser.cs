@@ -1,5 +1,7 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
@@ -33,12 +35,17 @@ public class WorkspaceParser
         var hostPath = PathTools.NormalizeToHostPath(_ctx.HostWorkspacePath);
         var workspaceNode = new WorkspaceNode(wsId, folderName, hostPath);
 
+        // Create workspace-level FilesStructure to group physical workspace topology (like Git settings and top-level folders)
+        var filesNodeId = $"{wsId}:files_structure";
+        var workspaceFilesStructure = new FilesStructureNode(filesNodeId, "FilesStructure", hostPath);
+        workspaceNode.Children.Add(workspaceFilesStructure);
+
         // Parse and add Git settings if the workspace has a .git folder
         var gitSettingsNode = GitSettingsParser.Parse(wsId, _absoluteWorkspacePath);
 
         if (gitSettingsNode != null)
         {
-            workspaceNode.Children.Add(gitSettingsNode);
+            workspaceFilesStructure.Children.Add(gitSettingsNode);
         }
 
         // 2. Recursively scan, discovering projects inline!
@@ -118,7 +125,22 @@ public class WorkspaceParser
             var absoluteFolderPath = Path.GetFullPath(currentDir).Replace('\\', '/');
             var folderId = $"{_ctx.WorkspaceId}:folder:{absoluteFolderPath}";
             var folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
-            parentNode.Children.Add(folderNode);
+            if (parentNode is WorkspaceNode wsNode)
+            {
+                var filesStructure = wsNode.Children.OfType<FilesStructureNode>().FirstOrDefault();
+                if (filesStructure != null)
+                {
+                    filesStructure.Children.Add(folderNode);
+                }
+                else
+                {
+                    wsNode.Children.Add(folderNode);
+                }
+            }
+            else
+            {
+                parentNode.Children.Add(folderNode);
+            }
             currentParentNode = folderNode;
         }
 

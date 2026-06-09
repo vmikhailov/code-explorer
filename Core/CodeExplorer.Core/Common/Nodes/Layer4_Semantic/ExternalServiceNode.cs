@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.ExternalService,
@@ -8,6 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes;
     purpose: "Represents a physical/logical external host dependency."
 )]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.CallsEndpoint)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.CalledBy)]
 public record ExternalServiceNode(
     string Id,
     string Name,

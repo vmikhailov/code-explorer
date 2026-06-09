@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Member,

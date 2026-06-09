@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Function,
@@ -11,11 +12,6 @@ namespace CodeExplorer.Core.Common.Nodes;
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Calls)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.UsesType)]
-[OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.QueriesDb)]
-[OntologyEdge<TopicNode>(OntologyConstants.Relationships.PublishesTo)]
-[OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
-[OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.Calls)]
-[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.ExposesEndpoint)]
 public record FunctionNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

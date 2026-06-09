@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Core.Parser;

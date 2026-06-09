@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.EntryPoint,
@@ -8,6 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes;
     purpose: "Represents non-HTTP execution triggers (e.g. gRPC services, CLI command definitions, Cron schedules, queue subscribers)."
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Triggers)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.ExposedBy)]
 public record EntryPointNode(
     string Id,
     [property: OntologyProperty("The name of the entry point.")] string Name,

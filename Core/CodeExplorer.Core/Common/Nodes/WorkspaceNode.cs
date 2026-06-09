@@ -1,4 +1,8 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 namespace CodeExplorer.Core.Common.Nodes;
 
@@ -8,10 +12,10 @@ namespace CodeExplorer.Core.Common.Nodes;
     purpose: "Represents the absolute root of the workspace directory hierarchy.",
     layer: OntologyConstants.Layers.Workspace
 )]
-[OntologyEdge<FolderNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<FilesStructureNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<GitSettingsNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<SyntaxStructureNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<SemanticStructureNode>(OntologyConstants.Relationships.Contains)]
 public record WorkspaceNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

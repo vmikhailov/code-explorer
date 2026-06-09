@@ -72,6 +72,12 @@ public static class OntologyConstants
         public const string QueriesDb = "QUERIES_DB";
         public const string SubscribesTo = "SUBSCRIBES_TO";
         public const string OfType = "OF_TYPE";
+
+        public const string CalledBy = "CALLED_BY";
+        public const string QueriedBy = "QUERIED_BY";
+        public const string PublishedBy = "PUBLISHED_BY";
+        public const string SubscribedBy = "SUBSCRIBED_BY";
+        public const string ExposedBy = "EXPOSED_BY";
     }
 }
 

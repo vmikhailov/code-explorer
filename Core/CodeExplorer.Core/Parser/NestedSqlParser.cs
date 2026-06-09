@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
 namespace CodeExplorer.Core.Parser;

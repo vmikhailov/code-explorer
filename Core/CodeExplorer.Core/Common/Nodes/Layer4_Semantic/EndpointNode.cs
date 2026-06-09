@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Endpoint,
@@ -8,6 +9,8 @@ namespace CodeExplorer.Core.Common.Nodes;
     purpose: "Represents an exposed HTTP API endpoint route."
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Triggers)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.ExposedBy)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.ExposedBy)]
 public record EndpointNode(
     string Id,
     [property: OntologyProperty("The HTTP endpoint name (e.g. GET /api/orders).")] string Name,

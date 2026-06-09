@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using TreeSitter;

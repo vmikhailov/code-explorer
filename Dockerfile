@@ -12,6 +12,7 @@ COPY Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.cspro
 COPY Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj Parsers/CodeExplorer.Parser.SQL/
 COPY UI/CodeExplorer/CodeExplorer.csproj UI/CodeExplorer/
 COPY Tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj Tests/CodeExplorer.Tests/
+COPY Tools/CodeExplorer.OntologyGen/OntologyGen.csproj Tools/CodeExplorer.OntologyGen/
 
 # Restore dependencies
 RUN dotnet restore CodeExplorer.slnx

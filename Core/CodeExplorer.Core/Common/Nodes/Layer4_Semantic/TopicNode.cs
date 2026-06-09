@@ -1,12 +1,15 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Topic,
     idScheme: "{workspaceId}:topic:{brokerType}:{topicName}",
     purpose: "Represents a message queue, event exchange, or topic boundary."
 )]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.PublishedBy)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.SubscribedBy)]
 public record TopicNode(
     string Id,
     [property: OntologyProperty("The name of the topic or exchange.")] string Name,

@@ -1,12 +1,15 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Table,
     idScheme: "{workspaceId}:table:{tableName}",
     purpose: "Represents a physical database table."
 )]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.QueriedBy)]
+[OntologyEdge<QueryNode>(OntologyConstants.Relationships.QueriedBy)]
 public record TableNode(
     string Id,
     string Name,

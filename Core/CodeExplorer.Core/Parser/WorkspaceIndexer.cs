@@ -154,7 +154,7 @@ public class WorkspaceIndexer
                              out var targetEndpointId))
                     {
                         referenceRelationships.Add(
-                            Relationship.FromRelationship(new ExposesEndpointRelationship(refItem.ScopeSymbolId, targetEndpointId)));
+                            Relationship.FromRelationship(new ExposedByRelationship(targetEndpointId, refItem.ScopeSymbolId)));
                     }
                     else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.EntryPoint, refItem.TargetName),
                              out var targetEpId))
@@ -239,7 +239,7 @@ public class WorkspaceIndexer
                              out var targetProcId))
                 {
                     referenceRelationships.Add(
-                        Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetProcId)));
+                        Relationship.FromRelationship(new CalledByRelationship(targetProcId, refItem.ScopeSymbolId)));
                 }
             }
             else if (refItem.Kind == OntologyConstants.Relationships.DependsOn)
@@ -248,7 +248,7 @@ public class WorkspaceIndexer
                         out var targetTableId))
                 {
                     referenceRelationships.Add(
-                        Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId)));
+                        Relationship.FromRelationship(new QueriedByRelationship(targetTableId, refItem.ScopeSymbolId)));
                 }
             }
             else if (refItem.Kind == OntologyConstants.Relationships.UsesType)

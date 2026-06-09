@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Package,

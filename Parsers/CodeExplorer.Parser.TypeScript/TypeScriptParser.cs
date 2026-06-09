@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 

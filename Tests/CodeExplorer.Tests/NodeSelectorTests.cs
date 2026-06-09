@@ -2,8 +2,6 @@ using NUnit.Framework;
 using TreeSitter;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace CodeExplorer.Tests;
 

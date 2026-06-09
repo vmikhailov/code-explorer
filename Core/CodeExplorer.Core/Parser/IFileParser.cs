@@ -1,5 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common.Nodes;
 using TreeSitter;
 
 namespace CodeExplorer.Core.Parser;

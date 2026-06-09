@@ -1,7 +1,7 @@
 using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Parser;
 

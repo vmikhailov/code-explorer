@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
-namespace CodeExplorer.Core.Common.Nodes;
+namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Type,
@@ -13,8 +14,6 @@ namespace CodeExplorer.Core.Common.Nodes;
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Implements)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.InheritsFrom)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.PotentialType)]
-[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.ExposesEndpoint)]
-[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Exposes)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.HasMethod)]
 [OntologyEdge<MemberNode>(OntologyConstants.Relationships.HasMember)]
 public record TypeNode(
