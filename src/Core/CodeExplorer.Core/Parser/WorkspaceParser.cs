@@ -33,8 +33,9 @@ public class WorkspaceParser
         await _ctx.DbClient.SaveEmptyWorkspaceNodeAsync(wsId, _ctx.HostWorkspacePath);
         _ctx.CancellationToken.ThrowIfCancellationRequested();
 
-        var folderName = Path.GetFileName(_ctx.HostWorkspacePath);
-        if (string.IsNullOrEmpty(folderName)) folderName = _ctx.HostWorkspacePath;
+        var normalizedHostPath = _ctx.HostWorkspacePath.Replace('\\', '/').TrimEnd('/');
+        var folderName = Path.GetFileName(normalizedHostPath);
+        if (string.IsNullOrEmpty(folderName)) folderName = normalizedHostPath;
 
         var hostPath = PathTools.NormalizeToHostPath(_ctx.HostWorkspacePath);
         var workspaceNode = new WorkspaceNode(wsId, folderName, hostPath);
