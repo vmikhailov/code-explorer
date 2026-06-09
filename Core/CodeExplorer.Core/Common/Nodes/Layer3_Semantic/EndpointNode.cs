@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer2_Syntactic;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+namespace CodeExplorer.Core.Common.Nodes.Layer3_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Endpoint,

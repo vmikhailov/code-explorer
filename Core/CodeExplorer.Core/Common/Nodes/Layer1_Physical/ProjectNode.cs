@@ -1,19 +1,15 @@
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Project,
     idScheme: "{workspaceId}:project:{relativeProjectDir}:",
     purpose: "Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).",
-    layer: OntologyConstants.Layers.ProjectBoundary
+    layer: OntologyConstants.Layers.Physical
 )]
-[OntologyEdge<FilesStructureNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<SyntaxStructureNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<SemanticStructureNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
+[OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
 public record ProjectNode(

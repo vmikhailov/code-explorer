@@ -1,9 +1,8 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer2_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer3_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
@@ -261,17 +260,13 @@ public class ProjectProcessor
                 // B. Process external package dependencies
                 if (depInfo.ExternalPackages.Count > 0)
                 {
-                    var semanticStructureNode = projectNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
-                    if (semanticStructureNode != null)
+                    foreach (var extPack in depInfo.ExternalPackages)
                     {
-                        foreach (var extPack in depInfo.ExternalPackages)
-                        {
-                            var packageNodeId = $"{_ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
+                        var packageNodeId = $"{_ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
 
-                            var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
-                                projectNode.Path);
-                            semanticStructureNode.Children.Add(packageNode);
-                        }
+                        var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
+                            projectNode.Path);
+                        projectNode.Children.Add(packageNode);
                     }
                 }
             }
@@ -299,14 +294,7 @@ public class ProjectProcessor
                 var packageNode = new PackageNode(packageNodeId, producedPackage.Name, producedPackage.Version,
                     producedPackage.Type, projectNode.Path);
 
-                if (semanticStructureNode != null)
-                {
-                    semanticStructureNode.Children.Add(packageNode);
-                }
-                else
-                {
-                    projectNode.Children.Add(packageNode);
-                }
+                projectNode.Children.Add(packageNode);
 
                 var implRel =
                     Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, _projectNodeId));
@@ -331,14 +319,7 @@ public class ProjectProcessor
                 var packageNodeId = $"{_ctx.WorkspaceId}:package:{dirName.ToLowerInvariant()}";
                 var packageNode = new PackageNode(packageNodeId, dirName, "1.0.0", "unknown", projectNode.Path);
 
-                if (semanticStructureNode != null)
-                {
-                    semanticStructureNode.Children.Add(packageNode);
-                }
-                else
-                {
-                    projectNode.Children.Add(packageNode);
-                }
+                projectNode.Children.Add(packageNode);
 
                 var implRel =
                     Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, _projectNodeId));

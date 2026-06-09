@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+namespace CodeExplorer.Core.Common.Nodes.Layer3_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.SemanticStructure,
@@ -16,7 +16,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<PackageNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.BelongsTo)]
 public record SemanticStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

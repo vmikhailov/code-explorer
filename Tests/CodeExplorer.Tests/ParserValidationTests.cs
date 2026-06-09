@@ -3,9 +3,8 @@ using NUnit.Framework;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer2_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer3_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.CSharp;
@@ -728,22 +727,22 @@ export class OrdersController {
             var semanticNode = projectA.Children.OfType<SemanticStructureNode>().FirstOrDefault();
             Assert.That(semanticNode, Is.Not.Null);
 
-            // Verify external packages are inside SemanticStructureNode
-            var extPackages = semanticNode.Children.OfType<PackageNode>().Where(p => p.Name != "ProjectA").ToList();
+            // Verify external packages are inside ProjectNode directly (Layer 1)
+            var extPackages = projectA.Children.OfType<PackageNode>().Where(p => p.Name != "ProjectA").ToList();
             Assert.That(extPackages, Has.Count.EqualTo(3));
             Assert.That(extPackages.Any(p => p.Name == "Dapper"), Is.True);
             Assert.That(extPackages.Any(p => p.Name == "Stripe.net"), Is.True);
             Assert.That(extPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.True);
 
-            // Verify projectA does NOT directly contain those external packages as children
-            var directPackages = projectA.Children.OfType<PackageNode>().ToList();
-            Assert.That(directPackages.Any(p => p.Name == "Dapper"), Is.False);
-            Assert.That(directPackages.Any(p => p.Name == "Stripe.net"), Is.False);
-            Assert.That(directPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.False);
-
-            // Verify semanticNode contains the produced package
+            // Verify semanticNode does NOT contain those external packages as children
             var semPackages = semanticNode.Children.OfType<PackageNode>().ToList();
-            Assert.That(semPackages.Any(p => p.Name == "ProjectA"), Is.True);
+            Assert.That(semPackages.Any(p => p.Name == "Dapper"), Is.False);
+            Assert.That(semPackages.Any(p => p.Name == "Stripe.net"), Is.False);
+            Assert.That(semPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.False);
+
+            // Verify projectA contains the produced package directly as child (Layer 1)
+            var directPackages = projectA.Children.OfType<PackageNode>().ToList();
+            Assert.That(directPackages.Any(p => p.Name == "ProjectA"), Is.True);
 
             var fileNode = filesNode.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
             Assert.That(fileNode, Is.Not.Null);

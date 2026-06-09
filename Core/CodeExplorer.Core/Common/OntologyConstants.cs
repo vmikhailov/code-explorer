@@ -33,9 +33,8 @@ public static class OntologyConstants
     {
         public const string Workspace = "";
         public const string Physical = "Layer 1: Physical Topology";
-        public const string ProjectBoundary = "Layer 2: Project Boundary";
-        public const string Syntactic = "Layer 3: Syntactic Structure";
-        public const string Semantic = "Layer 4: Semantic Structure";
+        public const string Syntactic = "Layer 2: Syntactic Structure";
+        public const string Semantic = "Layer 3: Semantic Structure";
     }
 
     public static class Relationships
@@ -78,6 +77,8 @@ public static class OntologyConstants
         public const string PublishedBy = "PUBLISHED_BY";
         public const string SubscribedBy = "SUBSCRIBED_BY";
         public const string ExposedBy = "EXPOSED_BY";
+        public const string BelongsTo = "BELONGS_TO";
+        public const string LocatedIn = "LOCATED_IN";
     }
 }
 

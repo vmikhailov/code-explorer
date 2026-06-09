@@ -1,12 +1,12 @@
 using System.Text.Json.Serialization;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Package,
     idScheme: "{workspaceId}:package:{packageName}",
     purpose: "Represents an external dependency package or workspace package referenced or produced by projects.",
-    layer: OntologyConstants.Layers.ProjectBoundary
+    layer: OntologyConstants.Layers.Physical
 )]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
 public record PackageNode(

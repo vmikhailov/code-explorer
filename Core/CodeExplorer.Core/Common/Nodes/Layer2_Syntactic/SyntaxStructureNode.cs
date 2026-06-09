@@ -1,6 +1,8 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+namespace CodeExplorer.Core.Common.Nodes.Layer2_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.SyntaxStructure,
@@ -10,6 +12,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 )]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.BelongsTo)]
 public record SyntaxStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

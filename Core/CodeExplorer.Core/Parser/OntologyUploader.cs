@@ -113,6 +113,11 @@ public static class OntologyUploader
 
     private static IOntologyRelationship GetRelationship(string parentId, IOntologyNode child)
     {
+        if (child.Kind == OntologyConstants.NodeLabels.SyntaxStructure || child.Kind == OntologyConstants.NodeLabels.SemanticStructure)
+        {
+            return new BelongsToRelationship(child.Id, parentId);
+        }
+
         if (parentId.Contains("files_structure") || parentId.Contains("syntax_structure") || parentId.Contains("semantic_structure"))
         {
             return new ContainsRelationship(parentId, child.Id);
@@ -122,9 +127,13 @@ public static class OntologyUploader
         {
             return new DependsOnRelationship(parentId, child.Id);
         }
-        if (child.Kind == OntologyConstants.NodeLabels.Project && parentId.Contains(":package:"))
+        if (child.Kind == OntologyConstants.NodeLabels.Project)
         {
-            return new ImplementedByRelationship(parentId, child.Id);
+            if (parentId.Contains(":package:"))
+            {
+                return new ImplementedByRelationship(parentId, child.Id);
+            }
+            return new LocatedInRelationship(child.Id, parentId);
         }
         if (child.Kind == OntologyConstants.NodeLabels.Database)
         {
