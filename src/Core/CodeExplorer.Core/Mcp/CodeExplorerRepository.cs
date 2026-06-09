@@ -4,7 +4,7 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Mcp;
 
-public class CodeExplorerRepository(MemgraphClient dbClient)
+public class CodeExplorerRepository(IMemgraphClient dbClient)
 {
     private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null)
     {

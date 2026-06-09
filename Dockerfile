@@ -4,15 +4,15 @@ WORKDIR /src
 
 # Copy solution and project files first to leverage Docker cache
 COPY CodeExplorer.slnx Directory.Build.props ./
-COPY Core/CodeExplorer.Core/CodeExplorer.Core.csproj Core/CodeExplorer.Core/
-COPY Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj Parsers/CodeExplorer.Parser.CSharp/
-COPY Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj Parsers/CodeExplorer.Parser.Go/
-COPY Parsers/CodeExplorer.Parser.Python/CodeExplorer.Parser.Python.csproj Parsers/CodeExplorer.Parser.Python/
-COPY Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj Parsers/CodeExplorer.Parser.TypeScript/
-COPY Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj Parsers/CodeExplorer.Parser.SQL/
-COPY UI/CodeExplorer/CodeExplorer.csproj UI/CodeExplorer/
-COPY Tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj Tests/CodeExplorer.Tests/
-COPY Tools/CodeExplorer.OntologyGen/OntologyGen.csproj Tools/CodeExplorer.OntologyGen/
+COPY src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj src/Core/CodeExplorer.Core/
+COPY src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj src/Parsers/CodeExplorer.Parser.CSharp/
+COPY src/Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj src/Parsers/CodeExplorer.Parser.Go/
+COPY src/Parsers/CodeExplorer.Parser.Python/CodeExplorer.Parser.Python.csproj src/Parsers/CodeExplorer.Parser.Python/
+COPY src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj src/Parsers/CodeExplorer.Parser.TypeScript/
+COPY src/Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj src/Parsers/CodeExplorer.Parser.SQL/
+COPY src/UI/CodeExplorer/CodeExplorer.csproj src/UI/CodeExplorer/
+COPY tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj tests/CodeExplorer.Tests/
+COPY src/Tools/CodeExplorer.OntologyGen/OntologyGen.csproj src/Tools/CodeExplorer.OntologyGen/
 
 # Restore dependencies
 RUN dotnet restore CodeExplorer.slnx
@@ -21,7 +21,7 @@ RUN dotnet restore CodeExplorer.slnx
 COPY . .
 
 # Build and publish the application
-WORKDIR /src/UI/CodeExplorer
+WORKDIR /src/src/UI/CodeExplorer
 RUN dotnet publish CodeExplorer.csproj -c Release -o /app/publish
 
 # Clean up unused platform runtimes to significantly shrink the final image

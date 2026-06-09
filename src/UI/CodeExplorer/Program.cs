@@ -118,7 +118,7 @@ public class Program
             });
 
             // Register database client and other services
-            builder.Services.AddSingleton(client);
+            builder.Services.AddSingleton<IMemgraphClient>(client);
             builder.Services.AddSingleton<CodeExplorerRepository>();
             builder.Services.AddSingleton<WorkspaceIndexer>();
             builder.Services.AddSingleton<IndexingTaskManager>();
@@ -175,7 +175,7 @@ public class Program
             builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
             builder.Logging.AddFilter("System", LogLevel.Warning);
 
-            builder.Services.AddSingleton(client);
+            builder.Services.AddSingleton<IMemgraphClient>(client);
             builder.Services.AddSingleton<CodeExplorerRepository>();
             builder.Services.AddSingleton<WorkspaceIndexer>();
             builder.Services.AddSingleton<IndexingTaskManager>();

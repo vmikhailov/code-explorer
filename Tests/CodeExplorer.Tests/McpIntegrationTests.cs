@@ -9,6 +9,8 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[Category("Integration")]
+[Explicit("Runs integration tests against a real Memgraph database.")]
 public class McpIntegrationTests
 {
     private const int TestPort = 8185;
@@ -192,15 +194,29 @@ public class McpIntegrationTests
             }
         }
 
-        if (!string.IsNullOrEmpty(_tempWorkspace) && Directory.Exists(_tempWorkspace))
+        if (!string.IsNullOrEmpty(_tempWorkspace))
         {
             try
             {
-                Directory.Delete(_tempWorkspace, true);
+                var boltUrl = GetBoltUrl();
+                await using var client = new MemgraphClient(boltUrl, "", "");
+                await client.ClearWorkspaceAsync(_tempWorkspace);
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore
+                Console.WriteLine($"Error cleaning up Memgraph workspace in TearDown: {ex.Message}");
+            }
+
+            if (Directory.Exists(_tempWorkspace))
+            {
+                try
+                {
+                    Directory.Delete(_tempWorkspace, true);
+                }
+                catch
+                {
+                    // ignore
+                }
             }
         }
     }

@@ -5,23 +5,23 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/Core/">
-    <Project Path="Core/CodeExplorer.Core/CodeExplorer.Core.csproj" />
+    <Project Path="src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj" />
   </Folder>
   <Folder Name="/Parsers/">
-    <Project Path="Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj" />
-    <Project Path="Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj" />
-    <Project Path="Parsers/CodeExplorer.Parser.Python/CodeExplorer.Parser.Python.csproj" />
-    <Project Path="Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj" />
-    <Project Path="Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parser.Python/CodeExplorer.Parser.Python.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj" />
   </Folder>
   <Folder Name="/Tests/">
-    <Project Path="Tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj" />
+    <Project Path="tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj" />
   </Folder>
   <Folder Name="/Tools/" />
   <Folder Name="/Tools/CodeExplorer.OntologyGen/">
-    <Project Path="Tools/CodeExplorer.OntologyGen/OntologyGen.csproj" />
+    <Project Path="src/Tools/CodeExplorer.OntologyGen/OntologyGen.csproj" />
   </Folder>
   <Folder Name="/UI/">
-    <Project Path="UI/CodeExplorer/CodeExplorer.csproj" />
+    <Project Path="src/UI/CodeExplorer/CodeExplorer.csproj" />
   </Folder>
 </Solution>

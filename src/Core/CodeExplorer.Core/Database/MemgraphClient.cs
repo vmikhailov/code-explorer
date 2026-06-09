@@ -4,7 +4,7 @@ using Neo4j.Driver;
 
 namespace CodeExplorer.Core.Database;
 
-public class MemgraphClient(string boltUrl, string username, string password) : IAsyncDisposable
+public class MemgraphClient(string boltUrl, string username, string password) : IMemgraphClient
 {
     private readonly IDriver _driver = GraphDatabase.Driver(
         boltUrl,

@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <Target Name="GenerateOntologyDocs" AfterTargets="Build">
-    <Exec Command="dotnet run --project &quot;$(SolutionDir)Tools/CodeExplorer.OntologyGen/OntologyGen.csproj&quot; -- &quot;$(MSBuildThisFileDirectory)Common&quot; &quot;$(SolutionDir)docs/ontology.md&quot;" />
+    <Exec Command="dotnet run --project &quot;$(SolutionDir)src/Tools/CodeExplorer.OntologyGen/OntologyGen.csproj&quot; -- &quot;$(MSBuildThisFileDirectory)Common&quot; &quot;$(SolutionDir)docs/ontology.md&quot;" />
   </Target>
 
 </Project>
