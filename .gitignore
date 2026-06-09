@@ -27,3 +27,4 @@ db.log
 appsettings.Development.json
 appsettings.local.json
 .Build/
+scratch/
