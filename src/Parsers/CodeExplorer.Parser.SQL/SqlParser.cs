@@ -4,6 +4,7 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.SQL;
@@ -100,33 +101,40 @@ public class SqlParser : IProjectParser, IFileParser
     {
         // 2. Identify Database (DB)
         var dbMatch = Regex.Match(cleanSql, @"CREATE\s+DATABASE\s+([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
-        string dbNodeId;
-        string dbName;
+        DatabaseNode? dbNode = null;
+        string baseParentId = fileNodeId;
+
         if (dbMatch.Success)
         {
-            dbName = dbMatch.Groups[1].Value.Trim('[', ']', '"', '`');
-            dbNodeId = $"{workspaceId}:db:{dbName.ToLowerInvariant()}";
-        }
-        else
-        {
-            var dirName = Path.GetFileName(Path.GetDirectoryName(fileNode.FullPath));
-            if (string.IsNullOrEmpty(dirName)) dirName = "DefaultDB";
-            dbName = dirName;
-            dbNodeId = $"{workspaceId}:db:{dbName.ToLowerInvariant()}";
+            var dbName = dbMatch.Groups[1].Value.Trim('[', ']', '"', '`');
+            var dbNodeId = $"{workspaceId}:db:{dbName.ToLowerInvariant()}";
+            dbNode = new DatabaseNode(dbNodeId, dbName, relativePath, "relational");
+            fileNode.Children.Add(dbNode);
+            baseParentId = dbNodeId;
         }
 
-        var dbNode = new DatabaseNode(dbNodeId, dbName, relativePath, "relational");
-        fileNode.Children.Add(dbNode);
+        // Helper to add nodes either to dbNode (if exists) or fileNode (if dbNode is null)
+        void AddToParent(IOntologyNode child)
+        {
+            if (dbNode != null)
+            {
+                dbNode.Children.Add(child);
+            }
+            else
+            {
+                fileNode.Children.Add(child);
+            }
+        }
 
         // 3. Identify Schema (DataSet)
         var schemaMatches = Regex.Matches(cleanSql, @"CREATE\s+SCHEMA\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
         foreach (Match match in schemaMatches)
         {
             var schemaName = match.Groups[1].Value.Trim('[', ']', '"', '`');
-            var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
+            var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
             var schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
             datasets[schemaName] = schemaNode;
-            dbNode.Children.Add(schemaNode);
+            AddToParent(schemaNode);
         }
 
         // 4. Identify Tables
@@ -147,12 +155,12 @@ public class SqlParser : IProjectParser, IFileParser
                 tableName = rawTableName.Trim('[', ']', '"', '`');
             }
 
-            var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
+            var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
             if (!datasets.TryGetValue(schemaName, out var schemaNode))
             {
                 schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
                 datasets[schemaName] = schemaNode;
-                dbNode.Children.Add(schemaNode);
+                AddToParent(schemaNode);
             }
 
             var tableNodeId = $"{schemaNodeId}:table:{tableName.ToLowerInvariant()}";
@@ -182,12 +190,12 @@ public class SqlParser : IProjectParser, IFileParser
                 procName = rawProcName.Trim('[', ']', '"', '`');
             }
 
-            var schemaNodeId = $"{dbNodeId}:dataset:{schemaName.ToLowerInvariant()}";
+            var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
             if (!datasets.TryGetValue(schemaName, out var schemaNode))
             {
                 schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
                 datasets[schemaName] = schemaNode;
-                dbNode.Children.Add(schemaNode);
+                AddToParent(schemaNode);
             }
 
             var procNodeId = $"{schemaNodeId}:procedure:{procName.ToLowerInvariant()}";

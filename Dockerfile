@@ -22,7 +22,7 @@ COPY . .
 
 # Build and publish the application
 WORKDIR /src/src/UI/CodeExplorer
-RUN dotnet publish CodeExplorer.csproj -c Release -o /app/publish
+RUN dotnet publish CodeExplorer.csproj -c Release -o /app/publish -p:BuildingInsideDocker=true
 
 # Clean up unused platform runtimes to significantly shrink the final image
 RUN rm -rf /app/publish/runtimes/win* \

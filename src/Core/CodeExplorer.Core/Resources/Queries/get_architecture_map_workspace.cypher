@@ -2,13 +2,14 @@ MATCH (w:Workspace) WHERE w.id = $workspaceId OR toString(w.id) = toString($work
 OPTIONAL MATCH (w)-[:CONTAINS*1..]->(wf:WorkspaceFolder)
 WITH w, collect(DISTINCT wf.name) AS workspaceFolders
 OPTIONAL MATCH (w)-[:CONTAINS]->(:ProjectsStructure)<-[:LOCATED_IN]-(p:Project)
-WITH w, workspaceFolders, p
-OPTIONAL MATCH (p)-[:LOCATED_IN]->(f:Folder)-[:CONTAINS*0..]->(file:File)-[:USES_DB]->(db:Database)
-WITH w, workspaceFolders, p, collect(DISTINCT db.name) AS projectDbs
-OPTIONAL MATCH (p)-[:LOCATED_IN]->(f:Folder)-[:CONTAINS*0..]->(file:File)
+OPTIONAL MATCH (p)-[:LOCATED_IN]->(target) WHERE NOT target:ProjectsStructure
+WITH w, workspaceFolders, p, target
+OPTIONAL MATCH (target)-[:CONTAINS*0..]->(file:File)-[:USES_DB]->(db:Database)
+WITH w, workspaceFolders, p, target, collect(DISTINCT db.name) AS projectDbs
+OPTIONAL MATCH (target)-[:CONTAINS*0..]->(file:File)
 OPTIONAL MATCH (es:ExternalService) WHERE es.file_path = file.path
-WITH w, workspaceFolders, p, projectDbs, collect(DISTINCT es.name) AS projectEgress
-OPTIONAL MATCH (p)-[:LOCATED_IN]->(f:Folder)-[:CONTAINS*0..]->(file:File)
+WITH w, workspaceFolders, p, target, projectDbs, collect(DISTINCT es.name) AS projectEgress
+OPTIONAL MATCH (target)-[:CONTAINS*0..]->(file:File)
 OPTIONAL MATCH (ep) WHERE (ep:Endpoint OR ep:EntryPoint) AND ep.path = file.path
 WITH w, workspaceFolders, p, projectDbs, projectEgress, collect(DISTINCT ep.name) AS projectIngress
 OPTIONAL MATCH (p)-[:DEPENDS_ON]->(dep:Project)

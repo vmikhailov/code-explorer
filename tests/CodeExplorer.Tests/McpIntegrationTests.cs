@@ -473,6 +473,18 @@ public class McpIntegrationTests
     }
 
     [Test]
+    public async Task Test_RestArchitectureMap_ReturnsSuccess()
+    {
+        var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/architecture-map?workspacePath={Uri.EscapeDataString(_tempWorkspace!)}");
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.That(response.IsSuccessStatusCode, Is.True, $"Architecture map request failed with status {response.StatusCode} and body: {content}");
+        
+        using var doc = JsonDocument.Parse(content);
+        Assert.That(doc.RootElement.TryGetProperty("results", out _), Is.True);
+    }
+
+
+    [Test]
     public async Task Test_RestNodeDefinition_ReturnsBadRequestForEmpty()
     {
         var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces/node-definition?kind=");

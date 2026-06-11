@@ -142,6 +142,22 @@ public class WorkspacesController : ControllerBase
         }
     }
 
+    [HttpGet("architecture-map")]
+    public async Task<IActionResult> GetArchitectureMapAsync([FromQuery] string? projectName = null, [FromQuery] string? workspacePath = null)
+    {
+        try
+        {
+            var path = workspacePath ?? Directory.GetCurrentDirectory();
+            var resultJson = await _repository.GetArchitectureMapAsync(projectName, path);
+            return Content(resultJson, "application/json");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+
     [HttpGet("node-definition")]
     public IActionResult GetNodeDefinition([FromQuery] string kind)
     {

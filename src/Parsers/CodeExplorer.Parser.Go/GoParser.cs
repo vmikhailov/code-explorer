@@ -23,6 +23,15 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.LibPqLibraryParser(),
         new Libraries.MongoGoLibraryParser(),
 
+        // Additional Databases
+        new GenericLibraryParser("clickhouse", "ClickHouse", "db:analytics", ["github.com/ClickHouse/clickhouse-go", "github.com/ClickHouse/clickhouse-go/v2"]),
+        new GenericLibraryParser("postgres-pgx", "PostgreSQL", "db:relational", ["github.com/jackc/pgx", "github.com/jackc/pgx/v5"]),
+        new GenericLibraryParser("bigquery", "BigQuery", "db:analytics", ["cloud.google.com/go/bigquery"]),
+
+        // Additional Cloud & Message Services
+        new GenericLibraryParser("pubsub", "PubSub", "cloud", ["cloud.google.com/go/pubsub"]),
+        new GenericLibraryParser("rabbitmq", "RabbitMQ", "cloud", ["github.com/rabbitmq/amqp091-go"]),
+
         // Generic Cloud Services
         new GenericLibraryParser("stripe", "Stripe", "cloud", ["github.com/stripe/stripe-go"]),
         new GenericLibraryParser("aws", "AWS", "cloud", ["github.com/aws/aws-sdk-go"]),

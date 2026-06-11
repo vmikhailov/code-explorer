@@ -825,6 +825,7 @@ func Register(r *gin.Engine) {
             var sqlFile = Path.Combine(tempWorkspace, "sp.sql");
 
             var sqlCode = @"
+CREATE DATABASE my_db;
 CREATE OR REPLACE PROCEDURE `my_schema`.`my_proc`()
 BEGIN
     CREATE TABLE IF NOT EXISTS `my_schema`.`my_table` (id INT);
