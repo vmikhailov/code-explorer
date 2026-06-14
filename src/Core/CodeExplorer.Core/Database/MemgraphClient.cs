@@ -72,6 +72,33 @@ public class MemgraphClient(string boltUrl, string username, string password) : 
             await Console.Error.WriteLineAsync($"Warning creating path index for Workspace: {ex.Message}");
         }
 
+        try
+        {
+            await session.RunAsync($"CREATE INDEX ON :{OntologyConstants.NodeLabels.ExternalService}(file_path);");
+        }
+        catch (Exception ex)
+        {
+            await Console.Error.WriteLineAsync($"Warning creating file_path index for ExternalService: {ex.Message}");
+        }
+
+        try
+        {
+            await session.RunAsync($"CREATE INDEX ON :{OntologyConstants.NodeLabels.Endpoint}(path);");
+        }
+        catch (Exception ex)
+        {
+            await Console.Error.WriteLineAsync($"Warning creating path index for Endpoint: {ex.Message}");
+        }
+
+        try
+        {
+            await session.RunAsync($"CREATE INDEX ON :{OntologyConstants.NodeLabels.EntryPoint}(path);");
+        }
+        catch (Exception ex)
+        {
+            await Console.Error.WriteLineAsync($"Warning creating path index for EntryPoint: {ex.Message}");
+        }
+
         var kindsWithName = new[] 
         {
             OntologyConstants.NodeLabels.Project,
