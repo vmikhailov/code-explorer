@@ -247,6 +247,41 @@ public class Layer5AnalysisParser
                         Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetNodeId)));
                 }
             }
+            else if (refItem.Kind == OntologyConstants.Relationships.PublishesTo ||
+                     refItem.Kind == OntologyConstants.Relationships.SubscribesTo)
+            {
+                var topicName = refItem.TargetName;
+                var brokerType = "gcp";
+                if (topicName.StartsWith("rabbitmq:", StringComparison.OrdinalIgnoreCase))
+                {
+                    brokerType = "rabbitmq";
+                    topicName = topicName.Substring("rabbitmq:".Length);
+                }
+                else if (topicName.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase))
+                {
+                    brokerType = "gcp";
+                    topicName = topicName.Substring("gcp:".Length);
+                }
+
+                var topicId = $"{ctx.WorkspaceId}:topic:{brokerType}:{topicName}";
+
+                // Dynamically upload the Topic node
+                var topicNode = new TopicNode(topicId, topicName, "", brokerType);
+                await ctx.DbClient.UploadNodesAsync(new List<Node> { Node.FromNode(topicNode) });
+                ctx.AddNodesCount(1);
+                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
+
+                if (refItem.Kind == OntologyConstants.Relationships.PublishesTo)
+                {
+                    referenceRelationships.Add(
+                        Relationship.FromRelationship(new PublishedByRelationship(topicId, refItem.ScopeSymbolId)));
+                }
+                else
+                {
+                    referenceRelationships.Add(
+                        Relationship.FromRelationship(new SubscribedByRelationship(topicId, refItem.ScopeSymbolId)));
+                }
+            }
         }
 
         if (referenceRelationships.Count > 0)
@@ -327,6 +362,33 @@ public class Layer5AnalysisParser
         }
     }
 
+    private bool MatchPaths(string pathA, string pathB)
+    {
+        var partsA = pathA.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var partsB = pathB.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        if (partsA.Length != partsB.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < partsA.Length; i++)
+        {
+            var a = partsA[i];
+            var b = partsB[i];
+
+            if (a.StartsWith(':') || (a.StartsWith('{') && a.EndsWith('}'))) a = "*";
+            if (b.StartsWith(':') || (b.StartsWith('{') && b.EndsWith('}'))) b = "*";
+
+            if (a != "*" && b != "*" && !string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint)
     {
         var servicePathNorm = NormalizePath(extService.Path);
@@ -339,7 +401,9 @@ public class Layer5AnalysisParser
         }
 
         if (string.Equals(servicePathNorm, entryNorm, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(serviceDomainNorm, entryNorm, StringComparison.OrdinalIgnoreCase))
+            string.Equals(serviceDomainNorm, entryNorm, StringComparison.OrdinalIgnoreCase) ||
+            MatchPaths(servicePathNorm, entryNorm) ||
+            MatchPaths(serviceDomainNorm, entryNorm))
         {
             return true;
         }
@@ -358,7 +422,8 @@ public class Layer5AnalysisParser
             return false;
         }
 
-        if (string.Equals(servicePathNorm, routeNorm, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(servicePathNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
+            MatchPaths(servicePathNorm, routeNorm))
         {
             return true;
         }
@@ -372,7 +437,8 @@ public class Layer5AnalysisParser
             return true;
         }
 
-        if (string.Equals(serviceDomainNorm, routeNorm, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(serviceDomainNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
+            MatchPaths(serviceDomainNorm, routeNorm))
         {
             return true;
         }

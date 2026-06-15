@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using NUnit.Framework;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -1152,4 +1153,172 @@ async function testDb(client: any) {
             if (Directory.Exists(dir2)) Directory.Delete(dir2, true);
         }
     }
+
+    [Test]
+    public async Task Test_CrossServiceInteractionDetection()
+    {
+        var tsParser = new TypeScriptParser();
+        var csParser = new CSharpParser();
+        var workspacePath = Path.GetTempPath();
+
+        var tsFile = Path.Combine(workspacePath, "nestjs_test_controller.ts");
+        var tsCode = @"
+import { Controller, Get, Post } from '@nestjs/common';
+@Controller('orders')
+export class OrdersController {
+    @Post('charge')
+    async chargeOrder() {}
 }
+";
+        await File.WriteAllTextAsync(tsFile, tsCode);
+
+        var csFile = Path.Combine(workspacePath, "aspnet_test_controller.cs");
+        var csCode = @"
+using Microsoft.AspNetCore.Mvc;
+namespace Test;
+[Route(""api/[controller]"")]
+public class PaymentsController : ControllerBase {
+    [HttpPost(""charge-card"")]
+    public IActionResult Charge() => Ok();
+}
+";
+        await File.WriteAllTextAsync(csFile, csCode);
+
+        var axiosFile = Path.Combine(workspacePath, "axios_test.ts");
+        var axiosCode = @"
+import axios from 'axios';
+const apiHost = 'http://payment-service';
+async function makeCall() {
+    await axios.post(`${apiHost}/api/payments/charge-card`);
+}
+";
+        await File.WriteAllTextAsync(axiosFile, axiosCode);
+
+        var pubsubFile = Path.Combine(workspacePath, "pubsub_test.ts");
+        var pubsubCode = @"
+import { PubSub } from '@google-cloud/pubsub';
+const pubsub = new PubSub();
+async function run() {
+    await pubsub.topic('negative-profit-topic').publish(Buffer.from('data'));
+}
+";
+        await File.WriteAllTextAsync(pubsubFile, pubsubCode);
+
+        var rabbitFile = Path.Combine(workspacePath, "rabbitmq_test.ts");
+        var rabbitCode = @"
+import amqp from 'amqplib';
+async function run() {
+    const conn = await amqp.connect('amqp://localhost');
+    const ch = await conn.createChannel();
+    await ch.sendToQueue('calc-done-queue', Buffer.from('data'));
+}
+";
+        await File.WriteAllTextAsync(rabbitFile, rabbitCode);
+
+        var socketFile = Path.Combine(workspacePath, "socket_test.ts");
+        var socketCode = @"
+import { io } from 'socket.io-client';
+const socket = io('http://localhost:3000');
+socket.emit('ping-event', { data: 'hello' });
+";
+        await File.WriteAllTextAsync(socketFile, socketCode);
+
+        try
+        {
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryMemgraphClient();
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+
+            using var syntaxTreeTs = await tsParser.ParseAsync(tsFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTreeTs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Console.WriteLine("NESTJS CHILDREN:");
+            PrintNodes(syntaxTreeTs.FileNode.Children, "  ");
+            var tsEp = FindEndpointNode(syntaxTreeTs.FileNode.Children, "POST:/orders/charge");
+            Assert.That(tsEp, Is.Not.Null, "Should aggregate Controller route prefix for NestJS");
+
+            using var syntaxTreeCs = await csParser.ParseAsync(csFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTreeCs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Console.WriteLine("C# CHILDREN:");
+            PrintNodes(syntaxTreeCs.FileNode.Children, "  ");
+            var csEp = FindEndpointNode(syntaxTreeCs.FileNode.Children, "POST:/api/Payments/charge-card");
+            Assert.That(csEp, Is.Not.Null, "Should aggregate Controller route prefix and resolve [controller] for C#");
+
+            using var syntaxTreeAxios = await tsParser.ParseAsync(axiosFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTreeAxios, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Console.WriteLine("AXIOS CHILDREN:");
+            PrintNodes(syntaxTreeAxios.FileNode.Children, "  ");
+            var axiosEs = FindExternalServiceNode(syntaxTreeAxios.FileNode.Children, "*");
+            Assert.That(axiosEs, Is.Not.Null, "Should resolve variable initializer in Axios call");
+            Assert.That(axiosEs.Path, Is.EqualTo("/api/payments/charge-card"), "Should resolve variable initializer path");
+
+            using var syntaxTreePubsub = await tsParser.ParseAsync(pubsubFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTreePubsub, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Console.WriteLine("PUBSUB CHILDREN:");
+            PrintNodes(syntaxTreePubsub.FileNode.Children, "  ");
+            var pubsubRefs = FindReferences(syntaxTreePubsub.FileNode);
+            Console.WriteLine("PUBSUB REFERENCES:");
+            foreach (var r in pubsubRefs)
+            {
+                Console.WriteLine($"  * TargetName: {r.TargetName}, Kind: {r.Kind}");
+            }
+            var pubsubPub = pubsubRefs.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
+            Assert.That(pubsubPub, Is.Not.Null);
+            Assert.That(pubsubPub.TargetName, Is.EqualTo("gcp:negative-profit-topic"));
+
+            using var syntaxTreeRabbit = await tsParser.ParseAsync(rabbitFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTreeRabbit, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var rabbitRefs = FindReferences(syntaxTreeRabbit.FileNode);
+            var rabbitPub = rabbitRefs.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
+            Assert.That(rabbitPub, Is.Not.Null);
+            Assert.That(rabbitPub.TargetName, Is.EqualTo("rabbitmq:calc-done-queue"));
+
+            using var syntaxTreeSocket = await tsParser.ParseAsync(socketFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTreeSocket, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var socketEs = FindExternalServiceNode(syntaxTreeSocket.FileNode.Children, "ws:ping-event");
+            Assert.That(socketEs, Is.Not.Null, "Should map socket.emit to ExternalService");
+        }
+        finally
+        {
+            if (File.Exists(tsFile)) File.Delete(tsFile);
+            if (File.Exists(csFile)) File.Delete(csFile);
+            if (File.Exists(axiosFile)) File.Delete(axiosFile);
+            if (File.Exists(pubsubFile)) File.Delete(pubsubFile);
+            if (File.Exists(rabbitFile)) File.Delete(rabbitFile);
+            if (File.Exists(socketFile)) File.Delete(socketFile);
+        }
+    }
+
+    private EndpointNode? FindEndpointNode(IEnumerable<IOntologyNode> nodes, string identifier)
+    {
+        foreach (var node in nodes)
+        {
+            if (node is EndpointNode ep && ep.Name == identifier) return ep;
+            var found = FindEndpointNode(node.Children, identifier);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private ExternalServiceNode? FindExternalServiceNode(IEnumerable<IOntologyNode> nodes, string name)
+    {
+        foreach (var node in nodes)
+        {
+            if (node is ExternalServiceNode es && (es.Name == name || es.Id.Contains(name))) return es;
+            var found = FindExternalServiceNode(node.Children, name);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private List<Reference> FindReferences(IOntologyNode node)
+    {
+        var result = new List<Reference>();
+        result.AddRange(node.References);
+        foreach (var child in node.Children)
+        {
+            result.AddRange(FindReferences(child));
+        }
+        return result;
+    }
+}
+

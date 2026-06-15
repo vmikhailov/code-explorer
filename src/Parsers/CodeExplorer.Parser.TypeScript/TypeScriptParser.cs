@@ -31,6 +31,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.Sqlite3LibraryParser(),
         new Libraries.TypeOrmLibraryParser(),
         new Libraries.GcpLibraryParser(),
+        new Libraries.RabbitMqLibraryParser(),
 
         // Generic Cloud Services
         new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe"]),
@@ -40,6 +41,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.NestJsLibraryParser(),
         new Libraries.ExpressLibraryParser(),
         new Libraries.FetchLibraryParser(),
+        new Libraries.SocketIoLibraryParser(),
 
         // Generic Frameworks
         new GenericLibraryParser("nextjs", "Next.js", "framework", ["next"]),

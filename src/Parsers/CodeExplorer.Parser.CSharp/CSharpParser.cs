@@ -30,15 +30,13 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.OracleDataAccessLibraryParser(),
         new Libraries.StackExchangeRedisLibraryParser(),
         new Libraries.Neo4jDriverLibraryParser(),
+        new Libraries.AspNetCoreLibraryParser(),
 
         // Generic Cloud Services
         new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe", "Stripe"]),
         new GenericLibraryParser("aws", "AWS", "cloud", ["Amazon.S3", "AWSSDK"]),
         new GenericLibraryParser("gcp", "GCP", "cloud", ["Google.Cloud."]),
         new GenericLibraryParser("azure", "Azure", "cloud", ["Azure."]),
-
-        // Generic Frameworks
-        new GenericLibraryParser("aspnetcore", "ASP.NET Core", "framework", ["Microsoft.AspNetCore.App", "Microsoft.AspNetCore"]),
 
         // Generic API Clients
         new GenericLibraryParser("restsharp", "RestSharp", "api", ["RestSharp"]),

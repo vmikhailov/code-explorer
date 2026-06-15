@@ -54,6 +54,87 @@ public class AspNetCoreLibraryParser : ILibraryParser
                 if (strNode != null) routeVal = strNode.Text.Trim('"');
             }
         }
-        return $"{(name == "Route" ? "GET" : name.Replace("Http", "").ToUpperInvariant())}:{routeVal}";
+
+        var method = (name == "Route" ? "GET" : name.Replace("Http", "").ToUpperInvariant());
+
+        var classPrefix = GetControllerRoutePrefix(node);
+        if (!string.IsNullOrEmpty(classPrefix))
+        {
+            routeVal = CombineRoutes(classPrefix, routeVal);
+        }
+
+        return $"{method}:{routeVal}";
+    }
+
+    private static string CombineRoutes(string prefix, string route)
+    {
+        prefix = (prefix ?? "").Trim('/');
+        route = (route ?? "").Trim('/');
+        if (string.IsNullOrEmpty(prefix)) return "/" + route;
+        if (string.IsNullOrEmpty(route)) return "/" + prefix;
+        return $"/{prefix}/{route}";
+    }
+
+    private static string? GetControllerRoutePrefix(Node attributeNode)
+    {
+        var attrList = attributeNode.Parent;
+        if (attrList == null || attrList.Type != "attribute_list") return null;
+
+        var methodDecl = attrList.Parent;
+        if (methodDecl == null || methodDecl.Type != "method_declaration") return null;
+
+        var classDecl = methodDecl.Parent;
+        while (classDecl != null && classDecl.Id != IntPtr.Zero)
+        {
+            if (classDecl.Type is "class_declaration" or "struct_declaration" or "record_declaration")
+            {
+                break;
+            }
+            classDecl = classDecl.Parent;
+        }
+        if (classDecl == null) return null;
+
+        foreach (var child in classDecl.Children)
+        {
+            if (child.Type == "attribute_list")
+            {
+                foreach (var attr in child.Children)
+                {
+                    if (attr.Type == "attribute")
+                    {
+                        var nameNode = attr.Children.FirstOrDefault(c => c.Type == "identifier");
+                        if (nameNode != null && nameNode.Text == "Route")
+                        {
+                            var argList = attr.Children.FirstOrDefault(c => c.Type == "attribute_argument_list");
+                            if (argList != null)
+                            {
+                                var arg = argList.Children.FirstOrDefault(c => c.Type == "attribute_argument");
+                                if (arg != null)
+                                {
+                                    var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
+                                    if (strNode != null)
+                                    {
+                                        var prefix = strNode.Text.Trim('"');
+                                        var classNameNode = classDecl.GetChildForField("name");
+                                        if (classNameNode.IsValid() && prefix.Contains("[controller]"))
+                                        {
+                                            var className = classNameNode!.Text;
+                                            if (className.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                className = className.Substring(0, className.Length - "Controller".Length);
+                                            }
+                                            prefix = prefix.Replace("[controller]", className, StringComparison.OrdinalIgnoreCase);
+                                        }
+                                        return prefix;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }

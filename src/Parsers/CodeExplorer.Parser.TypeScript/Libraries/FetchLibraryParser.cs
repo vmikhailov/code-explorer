@@ -46,11 +46,14 @@ public class FetchLibraryParser : ILibraryParser
         if (_fetchCallSelector.Matches(node))
         {
             var firstArg = _callFirstStringArgSelector.Select(node);
-            if (firstArg.IsValid() && (firstArg!.Type == "string" || firstArg.Type == "template_string"))
+            if (firstArg.IsValid())
             {
-                var url = firstArg.Text.Trim('\'', '"', '`');
-                if (Uri.TryCreate(url, UriKind.Absolute, out var uri)) return uri.Host;
-                return url;
+                var resolved = AstHelper.ResolveStringOrTemplate(firstArg);
+                if (resolved != null)
+                {
+                    if (Uri.TryCreate(resolved, UriKind.Absolute, out var uri)) return uri.Host;
+                    return resolved;
+                }
             }
             return "http:unknown-service";
         }

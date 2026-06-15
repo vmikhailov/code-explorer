@@ -57,35 +57,107 @@ public class NestJsLibraryParser : ILibraryParser
             }
 
             if (name == "SubscribeMessage") return $"ws:{routeVal}";
+
+            if (name != "Controller")
+            {
+                var classPrefix = GetControllerPrefixForNode(node);
+                if (!string.IsNullOrEmpty(classPrefix))
+                {
+                    routeVal = CombineRoutes(classPrefix, routeVal);
+                }
+            }
+
             return $"{(name == "Controller" ? "GET" : name.ToUpperInvariant())}:{routeVal}";
         }
         return null;
     }
 
+    private static string CombineRoutes(string prefix, string route)
+    {
+        prefix = (prefix ?? "").Trim('/');
+        route = (route ?? "").Trim('/');
+        if (string.IsNullOrEmpty(prefix)) return "/" + route;
+        if (string.IsNullOrEmpty(route)) return "/" + prefix;
+        return $"/{prefix}/{route}";
+    }
+
+    private static string? GetControllerPrefixForNode(Node node)
+    {
+        var classBody = node.Parent;
+        if (classBody == null || classBody.Type != "class_body") return null;
+
+        var classDecl = classBody.Parent;
+        if (classDecl == null || (classDecl.Type != "class_declaration" && classDecl.Type != "class_expression")) return null;
+
+        var candidates = new List<Node>();
+        candidates.AddRange(classDecl.Children);
+
+        var parent = classDecl.Parent;
+        if (parent != null && parent.Type == "export_statement")
+        {
+            candidates.AddRange(parent.Children);
+        }
+
+        foreach (var c in candidates)
+        {
+            if (c.Type == "decorator")
+            {
+                var func = _decoratorCallFunctionSelector.Select(c);
+                if (func.IsValid() && func!.Text == "Controller")
+                {
+                    var firstArg = _decoratorCallFirstStringArgSelector.Select(c);
+                    if (firstArg.IsValid() && (firstArg!.Type == "string" || firstArg.Type == "template_string"))
+                    {
+                        return firstArg.Text.Trim('\'', '"', '`');
+                    }
+                    return "/";
+                }
+            }
+        }
+
+        return null;
+    }
+
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
-        // When visiting a method_definition, check if the previous sibling is a NestJS decorator
-        // and emit IMPLEMENTS to link the function to its EntryPoint
         if (node.Type == "method_definition")
         {
-            var prev = GetPreviousNamedSibling(node);
-            if (prev != null && _decoratorEntryPointSelector.Matches(prev))
+            var decorators = GetPrecedingDecorators(node);
+            foreach (var dec in decorators)
             {
-                var route = ExtractIdentifier(prev, ctx);
-                if (!string.IsNullOrEmpty(route))
+                if (_decoratorEntryPointSelector.Matches(dec))
                 {
-                    references.Add(new Reference(scopeSymbolId, route.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    var route = ExtractIdentifier(dec, ctx);
+                    if (!string.IsNullOrEmpty(route))
+                    {
+                        references.Add(new Reference(scopeSymbolId, route.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    }
                 }
             }
         }
     }
 
-    private static Node? GetPreviousNamedSibling(Node node)
+    private static List<Node> GetPrecedingDecorators(Node node)
     {
+        var result = new List<Node>();
         var parent = node.Parent;
-        if (parent == null || parent.Id == IntPtr.Zero) return null;
+        if (parent == null || parent.Id == IntPtr.Zero) return result;
         var children = parent.Children;
         var idx = children.ToList().FindIndex(c => c.Id == node.Id);
-        return idx > 0 ? children[idx - 1] : null;
+        if (idx <= 0) return result;
+
+        for (var i = idx - 1; i >= 0; i--)
+        {
+            var sibling = children[i];
+            if (sibling.Type == "decorator")
+            {
+                result.Add(sibling);
+            }
+            else
+            {
+                break;
+            }
+        }
+        return result;
     }
 }

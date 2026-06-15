@@ -48,14 +48,17 @@ public class AxiosLibraryParser : ILibraryParser
         if (_axiosCallSelector.Matches(node))
         {
             var firstArg = _callFirstStringArgSelector.Select(node);
-            if (firstArg.IsValid() && (firstArg!.Type == "string" || firstArg.Type == "template_string"))
+            if (firstArg.IsValid())
             {
-                var url = firstArg.Text.Trim('\'', '"', '`');
-                if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                var resolved = AstHelper.ResolveStringOrTemplate(firstArg);
+                if (resolved != null)
                 {
-                    return uri.Host;
+                    if (Uri.TryCreate(resolved, UriKind.Absolute, out var uri))
+                    {
+                        return uri.Host;
+                    }
+                    return resolved;
                 }
-                return url;
             }
             return "axios-call";
         }
