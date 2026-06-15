@@ -104,7 +104,7 @@ namespace CodeExplorer.Tests
             var triggerCount = 0;
 
             detector.Register(
-                new System.Predicate<int>[] { x => x % 2 == 0, x => x % 2 != 0 },
+                new Predicate<int>[] { x => x % 2 == 0, x => x % 2 != 0 },
                 () => triggerCount++,
                 SequenceMatchStrategy.Suffix
             );

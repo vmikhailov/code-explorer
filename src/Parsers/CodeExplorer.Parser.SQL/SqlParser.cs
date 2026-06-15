@@ -6,6 +6,8 @@ using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser;
 
+[assembly: ParserAssembly]
+
 namespace CodeExplorer.Parser.SQL;
 
 public class SqlParser : IProjectParser, IFileParser

@@ -2,11 +2,12 @@ using System.Collections.Concurrent;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
+[assembly: ParserAssembly]
+
 namespace CodeExplorer.Parser.CSharp;
 
 public class CSharpParser : IProjectParser, IFileParser
 {
-
     public string LanguageName => "c-sharp";
 
     public string ProjectType => "csharp";
@@ -71,7 +72,7 @@ public class CSharpParser : IProjectParser, IFileParser
     }
 
     public BaseParserVisitor CreateVisitor(
-        TreeSitter.Node rootNode,
+        Node rootNode,
         List<ILibraryParser> activeLibraryParsers,
         string relativePath,
         string absoluteWorkspacePath,

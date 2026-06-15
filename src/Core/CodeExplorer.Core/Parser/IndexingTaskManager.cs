@@ -16,115 +16,63 @@ public enum IndexingState
     Cancelled
 }
 
-public class IndexingStatus
+public record IndexingStatus
 {
-    public string State { get; set; } = IndexingState.Idle.ToString();
-    public string? Directory { get; set; }
-    public DateTime? StartTime { get; set; }
-    public DateTime? EndTime { get; set; }
-    public double? DurationSeconds { get; set; }
-    public int NodesCount { get; set; }
-    public int RelationshipsCount { get; set; }
-    public Dictionary<string, int> NodesByKind { get; set; } = [];
-    public string? ErrorMessage { get; set; }
-    public int NodesPersisted { get; set; }
-    public int RelationshipsPersisted { get; set; }
+    public string State { get; init; } = nameof(IndexingState.Idle);
+    public string? Directory { get; init; }
+    public DateTime? StartTime { get; init; }
+    public DateTime? EndTime { get; init; }
+    public double? DurationSeconds { get; init; }
+    public int NodesCount { get; init; }
+    public int RelationshipsCount { get; init; }
+    public Dictionary<string, int> NodesByKind { get; init; } = [];
+    public string? ErrorMessage { get; init; }
+    public int NodesPersisted { get; init; }
+    public int RelationshipsPersisted { get; init; }
 }
 
-public class IndexingTaskContext
+public class IndexingTaskContext(CancellationTokenSource cts, IndexingStatus status)
 {
-    public string TaskId { get; }
-    public CancellationTokenSource Cts { get; }
-    public IndexingStatus Status { get; }
-    public ParsingContext? ActiveContext { get; set; }
+    public CancellationTokenSource Cts { get; } = cts;
+    public IndexingStatus Status { get; set; } = status;
     public Task? RunningTask { get; set; }
-
-    public IndexingTaskContext(string taskId, CancellationTokenSource cts, IndexingStatus status)
-    {
-        TaskId = taskId;
-        Cts = cts;
-        Status = status;
-    }
 }
 
-public class IndexingTaskManager
+public class IndexingTaskManager(WorkspaceIndexer indexer)
 {
-    private readonly WorkspaceIndexer _indexer;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly ConcurrentDictionary<string, IndexingTaskContext> _tasks = new(StringComparer.OrdinalIgnoreCase);
     private string? _lastStartedTaskId;
 
-    public IndexingTaskManager(WorkspaceIndexer indexer)
-    {
-        _indexer = indexer;
-    }
-
     public IndexingStatus? GetStatus(string? taskId)
     {
-        lock (_lock)
-        {
-            var id = taskId ?? _lastStartedTaskId;
-            if (id == null || !_tasks.TryGetValue(id, out var taskContext))
-            {
-                return null;
-            }
+        var id = taskId ?? _lastStartedTaskId;
 
-            return GetTaskStatusSnapshot(taskContext);
+        if (id == null || !_tasks.TryGetValue(id, out var taskContext))
+        {
+            return null;
         }
+
+        return GetTaskStatusSnapshot(taskContext);
     }
 
     public List<IndexingStatus> GetAllStatuses()
     {
-        lock (_lock)
-        {
-            return _tasks.Values
-                .OrderByDescending(t => t.Status.StartTime)
-                .Select(GetTaskStatusSnapshot)
-                .ToList();
-        }
+        return _tasks.Values.OrderByDescending(t => t.Status.StartTime).Select(GetTaskStatusSnapshot).ToList();
     }
 
     private IndexingStatus GetTaskStatusSnapshot(IndexingTaskContext taskContext)
     {
         var status = taskContext.Status;
-        var activeContext = taskContext.ActiveContext;
 
-        var snapshot = new IndexingStatus
+        if (status.StartTime.HasValue)
         {
-            State = status.State,
-            Directory = status.Directory,
-            StartTime = status.StartTime,
-            EndTime = status.EndTime,
-            ErrorMessage = status.ErrorMessage,
-            NodesByKind = new Dictionary<string, int>(status.NodesByKind)
-        };
-
-        if (activeContext != null)
-        {
-            snapshot.NodesPersisted = activeContext.GetTotalNodesPersisted();
-            snapshot.RelationshipsPersisted = activeContext.GetTotalRelsPersisted();
-            snapshot.NodesCount = activeContext.TotalNodesCount;
-            snapshot.RelationshipsCount = activeContext.TotalRelsCount;
-            lock (activeContext.NodesByKind)
-            {
-                snapshot.NodesByKind = new Dictionary<string, int>(activeContext.NodesByKind);
-            }
-        }
-        else
-        {
-            snapshot.NodesPersisted = status.NodesPersisted;
-            snapshot.RelationshipsPersisted = status.RelationshipsPersisted;
-            snapshot.NodesCount = status.NodesCount;
-            snapshot.RelationshipsCount = status.RelationshipsCount;
+            var end = status.EndTime ?? DateTime.UtcNow;
+            var duration = Math.Round((end - status.StartTime.Value).TotalSeconds, 2);
+            return status with { DurationSeconds = duration };
         }
 
-        if (snapshot.StartTime.HasValue)
-        {
-            var end = snapshot.EndTime ?? DateTime.UtcNow;
-            snapshot.DurationSeconds = Math.Round((end - snapshot.StartTime.Value).TotalSeconds, 2);
-        }
-
-        return snapshot;
+        return status;
     }
 
     public string? StartIndex(string hostWorkspacePath, string containerWorkspacePath, bool clear, out string message)
@@ -134,7 +82,7 @@ public class IndexingTaskManager
             // Check if there is already a running task on the same directory
             foreach (var existingTask in _tasks.Values)
             {
-                if (existingTask.Status.State == IndexingState.Running.ToString() &&
+                if (existingTask.Status.State == nameof(IndexingState.Running) &&
                     string.Equals(existingTask.Status.Directory, hostWorkspacePath, StringComparison.OrdinalIgnoreCase))
                 {
                     message = $"Indexing is already running for directory: {hostWorkspacePath}";
@@ -148,7 +96,7 @@ public class IndexingTaskManager
 
             var status = new IndexingStatus
             {
-                State = IndexingState.Running.ToString(),
+                State = nameof(IndexingState.Running),
                 Directory = hostWorkspacePath,
                 StartTime = DateTime.UtcNow,
                 EndTime = null,
@@ -161,84 +109,74 @@ public class IndexingTaskManager
                 NodesByKind = []
             };
 
-            var taskContext = new IndexingTaskContext(taskId, cts, status);
+            var taskContext = new IndexingTaskContext(cts, status);
             _tasks[taskId] = taskContext;
             _lastStartedTaskId = taskId;
+
+            var progressReporter = new Progress<IndexingProgress>(p =>
+            {
+                taskContext.Status = taskContext.Status with
+                {
+                    NodesPersisted = p.NodesPersisted,
+                    RelationshipsPersisted = p.RelationshipsPersisted,
+                    NodesCount = p.NodesCount,
+                    RelationshipsCount = p.RelationshipsCount,
+                    NodesByKind = p.NodesByKind as Dictionary<string, int> ?? new Dictionary<string, int>(p.NodesByKind)
+                };
+            });
+
+            async Task<IndexingStatus> RunIndexAsync()
+            {
+                try
+                {
+                    var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(
+                        hostWorkspacePath,
+                        containerWorkspacePath,
+                        clear,
+                        token,
+                        progressReporter);
+
+                    return taskContext.Status with
+                    {
+                        State = nameof(IndexingState.Completed),
+                        EndTime = DateTime.UtcNow,
+                        ErrorMessage = null,
+                        NodesCount = nodesCount,
+                        RelationshipsCount = relsCount,
+                        NodesByKind = nodesByKind
+                    };
+                }
+                catch (OperationCanceledException)
+                {
+                    return taskContext.Status with
+                    {
+                        State = nameof(IndexingState.Cancelled),
+                        EndTime = DateTime.UtcNow
+                    };
+                }
+                catch (Exception ex)
+                {
+                    return taskContext.Status with
+                    {
+                        State = nameof(IndexingState.Failed),
+                        EndTime = DateTime.UtcNow,
+                        ErrorMessage = ex.ToString()
+                    };
+                }
+            }
 
             var runningTask = Task.Run(async () =>
             {
                 try
                 {
-                    var (nodesCount, relsCount, nodesByKind) = await _indexer.IndexAsync(
-                        hostWorkspacePath,
-                        containerWorkspacePath,
-                        clear,
-                        token,
-                        ctx =>
-                        {
-                            lock (_lock)
-                            {
-                                taskContext.ActiveContext = ctx;
-                            }
-                        }
-                    );
-
-                    lock (_lock)
-                    {
-                        status.State = IndexingState.Completed.ToString();
-                        status.EndTime = DateTime.UtcNow;
-                        status.NodesCount = nodesCount;
-                        status.RelationshipsCount = relsCount;
-                        status.NodesByKind = new Dictionary<string, int>(nodesByKind);
-                        if (taskContext.ActiveContext != null)
-                        {
-                            status.NodesPersisted = taskContext.ActiveContext.GetTotalNodesPersisted();
-                            status.RelationshipsPersisted = taskContext.ActiveContext.GetTotalRelsPersisted();
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    lock (_lock)
-                    {
-                        status.State = IndexingState.Cancelled.ToString();
-                        status.EndTime = DateTime.UtcNow;
-                        if (taskContext.ActiveContext != null)
-                        {
-                            status.NodesPersisted = taskContext.ActiveContext.GetTotalNodesPersisted();
-                            status.RelationshipsPersisted = taskContext.ActiveContext.GetTotalRelsPersisted();
-                            status.NodesCount = taskContext.ActiveContext.TotalNodesCount;
-                            status.RelationshipsCount = taskContext.ActiveContext.TotalRelsCount;
-                            status.NodesByKind = new Dictionary<string, int>(taskContext.ActiveContext.NodesByKind);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    lock (_lock)
-                    {
-                        status.State = IndexingState.Failed.ToString();
-                        status.EndTime = DateTime.UtcNow;
-                        status.ErrorMessage = ex.ToString();
-                        if (taskContext.ActiveContext != null)
-                        {
-                            status.NodesPersisted = taskContext.ActiveContext.GetTotalNodesPersisted();
-                            status.RelationshipsPersisted = taskContext.ActiveContext.GetTotalRelsPersisted();
-                            status.NodesCount = taskContext.ActiveContext.TotalNodesCount;
-                            status.RelationshipsCount = taskContext.ActiveContext.TotalRelsCount;
-                            status.NodesByKind = new Dictionary<string, int>(taskContext.ActiveContext.NodesByKind);
-                        }
-                    }
+                    var finalStatus = await RunIndexAsync();
+                    taskContext.Status = finalStatus;
                 }
                 finally
                 {
-                    lock (_lock)
-                    {
-                        taskContext.ActiveContext = null;
-                        taskContext.Cts.Dispose();
-                    }
+                    taskContext.Cts.Dispose();
                 }
-            });
+            }, token);
 
             taskContext.RunningTask = runningTask;
 
@@ -252,13 +190,14 @@ public class IndexingTaskManager
         lock (_lock)
         {
             var id = taskId ?? _lastStartedTaskId;
+
             if (id == null || !_tasks.TryGetValue(id, out var taskContext))
             {
                 message = id == null ? "No task has been started yet." : $"Task with ID '{id}' not found.";
                 return false;
             }
 
-            if (taskContext.Status.State != IndexingState.Running.ToString())
+            if (taskContext.Status.State != nameof(IndexingState.Running))
             {
                 message = $"Task with ID '{id}' is not currently running (State: {taskContext.Status.State}).";
                 return false;

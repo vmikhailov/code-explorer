@@ -30,9 +30,13 @@ public class Program
         WorkspaceIndexer.Register(new JavaScriptParser());
         WorkspaceIndexer.Register(new SqlParser());
 
-        return await CommandLineParser.Default.ParseArguments<IngestOptions, QueryOptions, McpOptions>(args).MapResult(
-            (IngestOptions opts) => HandleIngestAsync(opts), (QueryOptions opts) => HandleQueryAsync(opts),
-            (McpOptions opts) => HandleMcpAsync(opts), errs => Task.FromResult(1));
+        return await CommandLineParser.Default
+            .ParseArguments<IngestOptions, QueryOptions, McpOptions>(args)
+            .MapResult(
+                (IngestOptions opts) => HandleIngestAsync(opts),
+                (QueryOptions opts) => HandleQueryAsync(opts),
+                (McpOptions opts) => HandleMcpAsync(opts), 
+                _ => Task.FromResult(1));
     }
 
     private static async Task<int> HandleIngestAsync(IngestOptions opts)
@@ -156,6 +160,7 @@ public class Program
                     context.Response.Redirect("/swagger");
                     return;
                 }
+
                 await next();
             });
 

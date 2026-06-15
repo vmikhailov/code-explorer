@@ -8,6 +8,7 @@ using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Python;
@@ -45,7 +46,7 @@ public class ParserValidationTests
 
             using var syntaxTree =
                 await parser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             Assert.That(fileNode, Is.Not.Null);
 
@@ -78,7 +79,7 @@ async function clearDataAllLeads(bundle_ids: string) {
 
             using var syntaxTree =
                 await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             Assert.That(fileNode, Is.Not.Null);
 
@@ -127,7 +128,7 @@ async function clearDataAllLeads(bundle_ids: string) {
 
             using var syntaxTree =
                 await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -166,7 +167,7 @@ async function clearDataAllLeads(bundle_ids: string) {
 
             using var syntaxTree =
                 await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -207,7 +208,7 @@ async function clearDataAllLeads(bundle_ids: string) {
 
             using var syntaxTree =
                 await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             var queryNodes = FindQueryNodes(fileNode.Children);
             Assert.That(queryNodes, Is.Not.Empty);
@@ -277,7 +278,7 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
 
             using var syntaxTree =
                 await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
 
             var queryNodes = FindQueryNodes(fileNode.Children);
@@ -431,7 +432,7 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
 
             using var syntaxTree =
                 await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
 
             var endpoints = FindEndpointNodes(fileNode.Children);
@@ -495,7 +496,7 @@ export class OrdersController {
 
             using var syntaxTree =
                 await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
 
             var endpoints = FindEndpointNodes(fileNode.Children);
@@ -586,46 +587,14 @@ export class OrdersController {
 
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.WorkspaceId = "1";
-
             // Register CSharp parser
             WorkspaceIndexer.Register(new CSharpParser());
+            var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
+            var l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
+            var l4Result = await new Layer4SemanticParser().ParseAsync(l3Result, ctx);
 
-            var scanParser = new WorkspaceParser(ctx);
-            var workspaceNode = new WorkspaceNode("1", "TestWorkspace", tempWorkspace);
-
-            // Replicate initialization done in ParseAsync:
-            var filesNodeId = "1:files_structure";
-            var workspaceFilesStructure = new FilesStructureNode(filesNodeId, "FilesStructure", tempWorkspace);
-            workspaceNode.Children.Add(workspaceFilesStructure);
-
-            var projectsNodeId = "1:projects_structure";
-            var workspaceProjectsStructure = new ProjectsStructureNode(projectsNodeId, "ProjectsStructure", tempWorkspace);
-            workspaceNode.Children.Add(workspaceProjectsStructure);
-            ctx.ProjectsStructure = workspaceProjectsStructure;
-
-            var syntaxNodeId = "1:syntax_structure";
-            var workspaceSyntaxStructure = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", tempWorkspace);
-            workspaceNode.Children.Add(workspaceSyntaxStructure);
-            ctx.SyntaxStructure = workspaceSyntaxStructure;
-
-            var semanticNodeId = "1:semantic_structure";
-            var workspaceSemanticStructure = new SemanticStructureNode(semanticNodeId, "SemanticStructure", tempWorkspace);
-            workspaceNode.Children.Add(workspaceSemanticStructure);
-            ctx.SemanticStructure = workspaceSemanticStructure;
-
-            // Invoke ScanDirectoryAsync via reflection
-            var rootScan = typeof(WorkspaceParser).GetMethod("ScanDirectoryAsync",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            Assert.That(rootScan, Is.Not.Null);
-            await (Task)rootScan.Invoke(scanParser, [tempWorkspace, workspaceNode])!;
-
-            // Run the enrichment pass since we split it
-            foreach (var (projProcessor, projNode) in ctx.ProjectsToEnrich)
-            {
-                await projProcessor.EnrichAsync(projNode);
-            }
-
-            ctx.ProjectsToEnrich.Clear();
+            var workspaceNode = l1Result.Workspace;
 
             var projectsStructure = workspaceNode.Children.OfType<ProjectsStructureNode>().FirstOrDefault();
             Assert.That(projectsStructure, Is.Not.Null);
@@ -762,7 +731,7 @@ def process_payment():
 
             using var pySyntax =
                 await pythonParser.ParseAsync(pyFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(pySyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(pySyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var pyNode = pySyntax.FileNode;
             Assert.That(pyNode, Is.Not.Null);
 
@@ -803,7 +772,7 @@ func Register(r *gin.Engine) {
 
             using var goSyntax =
                 await goParser.ParseAsync(goFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(goSyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(goSyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var goNode = goSyntax.FileNode;
             Assert.That(goNode, Is.Not.Null);
 
@@ -1017,7 +986,7 @@ public class Service
 
             using var csSyntaxTree = await SyntaxTree.ParseAsync(csFilePath, "Service.cs", "1", csFileParser,
                 ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(csSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(csSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var csFileNode = csSyntaxTree.FileNode;
 
             // Verify Dapper query extraction
@@ -1052,7 +1021,7 @@ async function testDb(client: any) {
 
             using var tsSyntaxTree = await SyntaxTree.ParseAsync(tsFilePath, "app.ts", "1", tsFileParser,
                 ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ProjectProcessor.ProcessVisitor(tsSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(tsSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var tsFileNode = tsSyntaxTree.FileNode;
 
             var tsQueries = FindQueryNodes([tsFileNode]);
@@ -1119,10 +1088,8 @@ async function testDb(client: any) {
         var dbClient = new InMemoryMemgraphClient();
         var indexer = new WorkspaceIndexer(dbClient);
         var taskManager = new IndexingTaskManager(indexer);
-
         // Register CSharp parser if not already registered
         WorkspaceIndexer.Register(new CSharpParser());
-
         var dir1 = Path.Combine(Path.GetTempPath(), "concurrent_test_1_" + Guid.NewGuid()).Replace('\\', '/');
         var dir2 = Path.Combine(Path.GetTempPath(), "concurrent_test_2_" + Guid.NewGuid()).Replace('\\', '/');
 

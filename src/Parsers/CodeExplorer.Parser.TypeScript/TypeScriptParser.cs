@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
+[assembly: ParserAssembly]
+
 namespace CodeExplorer.Parser.TypeScript;
 
 public class TypeScriptParser : IProjectParser, IFileParser

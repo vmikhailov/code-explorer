@@ -12,8 +12,11 @@ WITH p, target, folders, files, filePaths, collect(DISTINCT db.name) AS projectD
 OPTIONAL MATCH (es:ExternalService) WHERE es.file_path IN filePaths
 WITH p, target, folders, files, filePaths, projectDbs, collect(DISTINCT es.name) AS projectEgress
 
-OPTIONAL MATCH (ep) WHERE (ep:Endpoint OR ep:EntryPoint) AND ep.path IN filePaths
-WITH p, folders, projectDbs, projectEgress, collect(DISTINCT ep.name) AS projectIngress
+OPTIONAL MATCH (ep1:Endpoint) WHERE ep1.path IN filePaths
+WITH p, folders, projectDbs, projectEgress, collect(DISTINCT ep1.name) AS eps1
+OPTIONAL MATCH (ep2:EntryPoint) WHERE ep2.path IN filePaths
+WITH p, folders, projectDbs, projectEgress, eps1, collect(DISTINCT ep2.name) AS eps2
+WITH p, folders, projectDbs, projectEgress, (eps1 + eps2) AS projectIngress
 
 OPTIONAL MATCH (p)-[:DEPENDS_ON]->(dep:Project)
 RETURN p.name AS project, p.project_type AS language, folders,

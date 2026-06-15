@@ -2,6 +2,8 @@ using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using CodeExplorer.Core.Parser;
 
+[assembly: ParserAssembly]
+
 namespace CodeExplorer.Parser.Python;
 
 public class PythonParser : IProjectParser, IFileParser

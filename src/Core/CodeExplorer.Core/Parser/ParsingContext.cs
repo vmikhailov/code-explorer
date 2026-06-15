@@ -22,6 +22,8 @@ public class ParsingContext
     public SemanticStructureNode? SemanticStructure { get; set; }
 
     private readonly System.Diagnostics.Stopwatch _sessionStopwatch = System.Diagnostics.Stopwatch.StartNew();
+    private readonly IProgress<IndexingProgress>? _progress;
+    private readonly object _progressLock = new();
 
     public void Log(string message)
     {
@@ -36,7 +38,6 @@ public class ParsingContext
     public List<RawImport> RawImports { get; } = [];
     public List<RawVariable> RawVariables { get; } = [];
     public List<RawTypeBinding> RawTypeBindings { get; } = [];
-    public List<(ProjectProcessor Processor, ProjectNode Node)> ProjectsToEnrich { get; } = [];
     public Dictionary<string, int> NodesByKind { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     private int _totalNodesCount;
@@ -56,8 +57,11 @@ public class ParsingContext
 
     public void IncrementNodeKind(string kind)
     {
-        var count = NodesByKind.GetValueOrDefault(kind, 0);
-        NodesByKind[kind] = count + 1;
+        lock (NodesByKind)
+        {
+            var count = NodesByKind.GetValueOrDefault(kind, 0);
+            NodesByKind[kind] = count + 1;
+        }
     }
 
     public void AddNodesCount(int count)
@@ -94,12 +98,14 @@ public class ParsingContext
     {
         _nodesPersisted += count;
         ReportProgressIfNeeded();
+        TriggerProgressReport();
     }
 
     public void RecordRelationshipsPersisted(int count)
     {
         _relsPersisted += count;
         ReportProgressIfNeeded();
+        TriggerProgressReport();
     }
 
     private void ReportProgressIfNeeded()
@@ -114,6 +120,27 @@ public class ParsingContext
 
     public int GetTotalNodesPersisted() => _nodesPersisted;
     public int GetTotalRelsPersisted() => _relsPersisted;
+
+    public void TriggerProgressReport()
+    {
+        if (_progress == null) return;
+        lock (_progressLock)
+        {
+            Dictionary<string, int> nodesByKindCopy;
+            lock (NodesByKind)
+            {
+                nodesByKindCopy = new Dictionary<string, int>(NodesByKind);
+            }
+            var snapshot = new IndexingProgress(
+                _nodesPersisted,
+                _relsPersisted,
+                _totalNodesCount,
+                _totalRelsCount,
+                nodesByKindCopy
+            );
+            _progress.Report(snapshot);
+        }
+    }
 
     public async Task EnqueueUploadNodesAsync(List<Node> nodes)
     {
@@ -147,7 +174,8 @@ public class ParsingContext
         Dictionary<(string Kind, string Name), string>? globalSymbols = null,
         List<Reference>? globalReferences = null,
         List<Relationship>? globalProjectDependencies = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<IndexingProgress>? progress = null)
     {
         AbsoluteWorkspacePath = absoluteWorkspacePath.Replace('\\', '/');
         HostWorkspacePath = hostWorkspacePath;
@@ -158,5 +186,6 @@ public class ParsingContext
         GlobalSymbols = globalSymbols ?? new Dictionary<(string Kind, string Name), string>();
         GlobalReferences = globalReferences ?? [];
         GlobalProjectDependencies = globalProjectDependencies ?? [];
+        _progress = progress;
     }
 }

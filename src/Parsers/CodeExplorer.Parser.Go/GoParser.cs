@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using CodeExplorer.Core.Parser;
 
+[assembly: ParserAssembly]
+
 namespace CodeExplorer.Parser.Go;
 
 public class GoParser : IProjectParser, IFileParser

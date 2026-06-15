@@ -66,9 +66,7 @@ public class IndexerIntegrationTests
 
             // Register parsers if they aren't already registered
             WorkspaceIndexer.Register(new CSharpParser());
-            WorkspaceIndexer.Register(new TypeScriptParser());
-
-            // Run scanner
+            WorkspaceIndexer.Register(new TypeScriptParser());            // Run scanner
             var parser = new WorkspaceIndexer(client);
             var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
@@ -148,10 +146,8 @@ export class OrderService {
             // Setup parsing
             var boltUrl = McpIntegrationTests.GetBoltUrl();
             await using var client = new MemgraphClient(boltUrl, "", "");
-
             // Register parsers if they aren't already registered
             WorkspaceIndexer.Register(new TypeScriptParser());
-
             // Run scanner
             var parser = new WorkspaceIndexer(client);
             var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
@@ -204,10 +200,8 @@ export class OrderService {
             // Setup parsing
             var boltUrl = McpIntegrationTests.GetBoltUrl();
             await using var client = new MemgraphClient(boltUrl, "", "");
-
             // Register parsers if they aren't already registered
             WorkspaceIndexer.Register(new TypeScriptParser());
-
             // Run scanner
             var parser = new WorkspaceIndexer(client);
             var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
