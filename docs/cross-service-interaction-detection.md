@@ -8,8 +8,8 @@ This proposal outlines the design and implementation roadmap for enabling **Code
 
 Modern microservice architectures rely heavily on decoupled communication. In the current implementation of CodeExplorer, cross-service interactions are frequently missed or incorrectly mapped due to four major limitations:
 
-1.  **Dynamic HTTP Resolution Blind Spots**: The `AxiosLibraryParser` and `FetchLibraryParser` only extract static URL strings. Dynamic templates (e.g., `` `${BUNDLES_ROUTES_HOST}/api/rules/check` `` or `` `${this.host}${endpoint}` ``) fail parsing via `Uri.TryCreate`, resulting in unresolved targets.
-2.  **Disconnected NestJS Route Templates**: `@Controller("prefix")` class decorators and `@Post("subroute")` method decorators are parsed independently, yielding disconnected entry points (e.g. `GET:prefix` and `POST:subroute` instead of `POST:/prefix/subroute`).
+1.  **Dynamic HTTP Resolution Blind Spots**: The `AxiosLibraryParser` and `FetchLibraryParser` only extract static URL strings. Dynamic templates (e.g., `` `${HOST_VAR}/api/v1/resource` `` or `` `${this.host}${endpoint}` ``) fail parsing via `Uri.TryCreate`, resulting in unresolved targets.
+2.  **Disconnected NestJS Route Templates**: `@Controller("prefix")` class decorators and `@Post("subroute")` method decorators are parsed independently, yielding disconnected entry points (e.g., `GET:prefix` and `POST:subroute` instead of `POST:/prefix/subroute`).
 3.  **No Message-Broker / Pub-Sub Support**: `GcpLibraryParser` is an empty stub throwing `NotImplementedException`, meaning all Google Cloud Pub/Sub `publish` and `subscribe` patterns are completely invisible to the dependency graph.
 4.  **No Socket-Based (WebSocket) Event Trace**: Real-time event emitters and listeners (e.g., `socket.on` and `socket.emit`) are not recognized, hiding WebSocket flows.
 
@@ -44,7 +44,7 @@ Modern microservice architectures rely heavily on decoupled communication. In th
 Instead of forcing strict absolute URL checks in `AxiosLibraryParser`/`FetchLibraryParser`, we will capture the unresolved template strings and leverage suffix pattern matching during late binding:
 
 1.  **Parser Update**:
-    *   If the URL argument is a `template_string` or a variable reference, capture the literal text (e.g. `"${BUNDLES_ROUTES_HOST}/api/rules/check"`).
+    *   If the URL argument is a `template_string` or a variable reference, capture the literal text (e.g., `"${HOST_VAR}/api/v1/resource"`).
     *   Normalize out variable indicators (e.g. replacing `${...}` with wildcard operators like `*`).
 2.  **Late Binding Suffix Matcher**:
     *   In `Layer5AnalysisParser.cs`, update `IsMatch(ExternalServiceNode ext, EndpointNode endpoint)` to perform a suffix-aware check:
@@ -54,7 +54,7 @@ Instead of forcing strict absolute URL checks in `AxiosLibraryParser`/`FetchLibr
         var servicePath = NormalizePath(extService.Path);
         var routeTemplate = NormalizePath(endpoint.RouteTemplate);
         
-        // Match if one path ends with the other (e.g. "*/api/rules/check" matches "/api/rules/check")
+        // Match if one path ends with the other (e.g. "*/api/v1/resource" matches "/api/v1/resource")
         if (servicePath.EndsWith(routeTemplate, StringComparison.OrdinalIgnoreCase) ||
             routeTemplate.EndsWith(servicePath, StringComparison.OrdinalIgnoreCase))
         {
@@ -69,8 +69,8 @@ To generate accurate endpoints, `NestJsLibraryParser` must aggregate class-level
 
 1.  **Stateful Traversal**:
     *   Modify `TypeScriptFileVisitor` to maintain the context of the active `class_declaration`.
-    *   When entering a class, check if it has a `@Controller` decorator, and store its route argument (e.g., `/cpm`).
-    *   When entering a method decorated with `@Get`/`@Post`, prepend the class controller prefix to the method route (e.g., `/cpm` + `/update-min-cpm` = `POST:/cpm/update-min-cpm`).
+    *   When entering a class, check if it has a `@Controller` decorator, and store its route argument (e.g., `/api/v1`).
+    *   When entering a method decorated with `@Get`/`@Post`, prepend the class controller prefix to the method route (e.g., `/api/v1` + `/users` = `POST:/api/v1/users`).
 2.  **AST Query Pattern**:
     *   Match class decorators and pass the values down to child method decorators.
 
@@ -117,7 +117,7 @@ Map real-time event systems:
 *   **Goal**: Track async message flows across services.
 *   **Tasks**:
     *   Replace `GcpLibraryParser` stubs with logic detecting Google Cloud PubSub `Topic` and `Subscription` clients.
-    *   Register `NEGATIVE_PROFIT_TOPIC` and `CALC_DONE_EVENT` as Ontological Topic Nodes.
+    *   Register Pub/Sub topics/event types as Ontological Topic Nodes.
     *   Connect publishers to subscribers using Late Binding.
 
 ### Phase 4 — WebSocket / Socket.io Integrations
