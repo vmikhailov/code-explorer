@@ -1,6 +1,6 @@
 # CodeExplorer 🔍
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![License: BUSL 1.1](https://img.shields.io/badge/License-BUSL_1.1-orange.svg)](LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](#docker-deployment)
 
@@ -211,4 +211,4 @@ Once the MCP server is running (e.g. on port `8085`), it registers the following
 
 ## 📄 License
 
-This project is licensed under the GNU Affero General Public License v3 (AGPL-3.0) - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Business Source License 1.1 (BUSL-1.1), transitioning to the Apache License, Version 2.0 on June 15, 2029 - see the [LICENSE](LICENSE) file for details.
