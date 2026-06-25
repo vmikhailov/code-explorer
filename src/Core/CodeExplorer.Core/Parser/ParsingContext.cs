@@ -12,7 +12,7 @@ public class ParsingContext
 {
     public string AbsoluteWorkspacePath { get; }
     public string HostWorkspacePath { get; }
-    public IMemgraphClient DbClient { get; }
+    public IDatabaseClient DbClient { get; }
     public Channel<Func<Task>> SharedChannel { get; }
     public bool Clear { get; }
     public CancellationToken CancellationToken { get; }
@@ -141,7 +141,7 @@ public class ParsingContext
     public ParsingContext(
         string absoluteWorkspacePath, 
         string hostWorkspacePath,
-        IMemgraphClient dbClient, 
+        IDatabaseClient dbClient, 
         Channel<Func<Task>> sharedChannel,
         bool clear = false,
         Dictionary<(string Kind, string Name), string>? globalSymbols = null,

@@ -11,6 +11,7 @@ using CodeExplorer.Parser.TypeScript;
 using CommandLine;
 using CommandLineParser = CommandLine.Parser;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -40,28 +41,33 @@ public class Program
         try
         {
             Console.WriteLine($"Scanning and parsing directory: {opts.Dir}...");
-            await using var client = new MemgraphClient(opts.BoltUrl, opts.Username, opts.Password);
+            IDatabaseClient client = opts.Sqlite 
+                ? new SqliteGraphClient(opts.SqliteDbPath)
+                : new MemgraphClient(opts.BoltUrl, opts.Username, opts.Password);
 
-            if (opts.ClearAll)
+            await using (client)
             {
-                Console.WriteLine("Performing a global database clear...");
-                await client.ClearDatabaseAsync();
+                if (opts.ClearAll)
+                {
+                    Console.WriteLine("Performing a global database clear...");
+                    await client.ClearDatabaseAsync();
+                }
+
+                var indexer = new WorkspaceIndexer(client);
+
+                var (nodesCount, relsCount, nodesByKind) =
+                    await indexer.IndexAsync(opts.Dir, opts.Dir, opts.Clear && !opts.ClearAll);
+
+                Console.WriteLine($"Parsed and uploaded {nodesCount} nodes and {relsCount} relationships successfully!");
+                Console.WriteLine("Nodes breakdown by kind:");
+
+                foreach (var kvp in nodesByKind)
+                {
+                    Console.WriteLine($"  - {kvp.Key}: {kvp.Value}");
+                }
+
+                return 0;
             }
-
-            var indexer = new WorkspaceIndexer(client);
-
-            var (nodesCount, relsCount, nodesByKind) =
-                await indexer.IndexAsync(opts.Dir, opts.Dir, opts.Clear && !opts.ClearAll);
-
-            Console.WriteLine($"Parsed and uploaded {nodesCount} nodes and {relsCount} relationships successfully!");
-            Console.WriteLine("Nodes breakdown by kind:");
-
-            foreach (var kvp in nodesByKind)
-            {
-                Console.WriteLine($"  - {kvp.Key}: {kvp.Value}");
-            }
-
-            return 0;
         }
         catch (Exception ex)
         {
@@ -72,124 +78,155 @@ public class Program
 
     private static async Task<int> HandleQueryAsync(QueryOptions opts)
     {
-        await using var client = new MemgraphClient(opts.BoltUrl, opts.Username, opts.Password);
-
-        try
+        IDatabaseClient client = new MemgraphClient(opts.BoltUrl, opts.Username, opts.Password);
+        await using (client)
         {
-            var result = await client.ExecuteQueryAsync(opts.Query);
-            Console.WriteLine(result);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            await Console.Error.WriteLineAsync($"Query Error: {ex.Message}");
-            return 1;
+            try
+            {
+                var result = await client.ExecuteQueryAsync(opts.Query);
+                Console.WriteLine(result);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                await Console.Error.WriteLineAsync($"Query Error: {ex.Message}");
+                return 1;
+            }
         }
     }
 
     private static async Task<int> HandleMcpAsync(McpOptions opts)
     {
-        await using var client = new MemgraphClient(opts.BoltUrl, opts.Username, opts.Password);
+        IDatabaseClient client = opts.Sqlite 
+            ? new SqliteGraphClient(opts.SqliteDbPath)
+            : new MemgraphClient(opts.BoltUrl, opts.Username, opts.Password);
 
-        if (opts.Port > 0)
+        await using (client)
         {
-            var builder = WebApplication.CreateBuilder();
-            builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
-            builder.Logging.AddFilter("System", LogLevel.Warning);
-
-            builder.Services.AddCors(options =>
-                options.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
-
-            // Explicitly register controllers assembly to ensure discovery of REST controllers
-            builder.Services.AddControllers().AddApplicationPart(typeof(WorkspacesController).Assembly);
-
-            builder.Services.AddEndpointsApiExplorer();
-
-            builder.Services.AddSwaggerGen(c =>
+            if (opts.Port > 0)
             {
-                c.SwaggerDoc("v1",
-                    new Microsoft.OpenApi.Models.OpenApiInfo
-                    {
-                        Title = "CodeExplorer API (MCP & REST Management)",
-                        Version = "v1",
-                        Description =
-                            "Unified server hosting both the Model Context Protocol (MCP) SSE transport and REST management controllers."
-                    });
-            });
+                var builder = WebApplication.CreateBuilder();
+                builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+                builder.Logging.AddFilter("System", LogLevel.Warning);
 
-            // Register database client and other services
-            builder.Services.AddSingleton<IMemgraphClient>(client);
-            builder.Services.AddSingleton<CodeExplorerRepository>();
-            builder.Services.AddSingleton<WorkspaceIndexer>();
-            builder.Services.AddSingleton<IndexingTaskManager>();
-            builder.Services.AddSingleton<WorkspaceRegistry>();
-            builder.Services.AddHttpContextAccessor();
+                builder.Services.AddCors(options =>
+                    options.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
-            // Register official MCP server
+                // Explicitly register controllers assembly to ensure discovery of REST controllers
+                builder.Services.AddControllers().AddApplicationPart(typeof(WorkspacesController).Assembly);
+
+                builder.Services.AddEndpointsApiExplorer();
+
+                builder.Services.AddSwaggerGen(c =>
+                {
+                    c.SwaggerDoc("v1",
+                        new Microsoft.OpenApi.Models.OpenApiInfo
+                        {
+                            Title = "CodeExplorer API (MCP & REST Management)",
+                            Version = "v1",
+                            Description =
+                                "Unified server hosting both the Model Context Protocol (MCP) SSE transport and REST management controllers."
+                        });
+                });
+
+                // Register database client and other services
+                builder.Services.AddSingleton<IDatabaseClient>(client);
+                if (opts.Sqlite)
+                {
+                    builder.Services.AddSingleton<ICodeExplorerRepository, InMemoryCodeExplorerRepository>();
+                }
+                else
+                {
+                    builder.Services.AddSingleton<ICodeExplorerRepository, MemgraphCodeExplorerRepository>();
+                }
+                builder.Services.AddSingleton<WorkspaceIndexer>();
+                builder.Services.AddSingleton<IndexingTaskManager>();
+                builder.Services.AddSingleton<WorkspaceRegistry>();
+                builder.Services.AddHttpContextAccessor();
+
+                // Register official MCP server
 #pragma warning disable MCP9004
 #pragma warning disable MCPEXP002
-            builder.Services.AddMcpServer().WithHttpTransport(o =>
-            {
-                o.Stateless = false;
-                o.EnableLegacySse = true;
-            }).WithTools<McpGraphHandler>();
+                builder.Services.AddMcpServer().WithHttpTransport().WithTools<McpGraphHandler>();
 #pragma warning restore MCPEXP002
 #pragma warning restore MCP9004
 
-            var app = builder.Build();
-            App = app;
-            app.UseCors();
-            app.UseSwagger();
+                var app = builder.Build();
+                App = app;
+                app.UseCors();
+                app.UseSwagger();
 
-            app.UseSwaggerUI(c =>
-            {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "CodeExplorer API v1");
-                c.RoutePrefix = "swagger";
-            });
-
-            app.MapControllers();
-
-            app.Use(async (context, next) =>
-            {
-                if (context.Request.Path == "/")
+                app.UseSwaggerUI(c =>
                 {
-                    context.Response.Redirect("/swagger");
-                    return;
+                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "CodeExplorer API v1");
+                    c.RoutePrefix = "swagger";
+                });
+
+                app.MapControllers();
+
+                app.Use(async (context, next) =>
+                {
+                    if (context.Request.Path == "/")
+                    {
+                        context.Response.Redirect("/swagger");
+                        return;
+                    }
+                    await next();
+                });
+
+                // Map MCP endpoints (exposing GET /sse and POST /messages by default)
+                app.MapMcp("/mcp");
+
+                app.Urls.Add($"http://0.0.0.0:{opts.Port}");
+
+                Console.WriteLine(
+                    $"Starting Unified CodeExplorer Web Service (MCP + REST Management) on http://localhost:{opts.Port}...");
+                Console.WriteLine($"Swagger UI available at http://localhost:{opts.Port}/swagger");
+
+                app.Lifetime.ApplicationStarted.Register(() =>
+                {
+                    var endpoints = app.Services.GetRequiredService<EndpointDataSource>().Endpoints;
+                    Console.WriteLine($"Server Endpoints ({endpoints.Count}):");
+                    foreach (var endpoint in endpoints)
+                    {
+                        if (endpoint is RouteEndpoint re)
+                        {
+                            Console.WriteLine($"- Route: {re.RoutePattern.RawText} ({endpoint.DisplayName})");
+                        }
+                    }
+                });
+
+                await app.RunAsync();
+            }
+            else
+            {
+                var builder = Host.CreateApplicationBuilder();
+                builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+                builder.Logging.AddFilter("System", LogLevel.Warning);
+
+                builder.Services.AddSingleton<IDatabaseClient>(client);
+                if (opts.Sqlite)
+                {
+                    builder.Services.AddSingleton<ICodeExplorerRepository, InMemoryCodeExplorerRepository>();
                 }
-                await next();
-            });
+                else
+                {
+                    builder.Services.AddSingleton<ICodeExplorerRepository, MemgraphCodeExplorerRepository>();
+                }
+                builder.Services.AddSingleton<WorkspaceIndexer>();
+                builder.Services.AddSingleton<IndexingTaskManager>();
+                builder.Services.AddSingleton<WorkspaceRegistry>();
+                builder.Services.AddHttpContextAccessor();
 
-            // Map MCP endpoints (exposing GET /sse and POST /messages by default)
-            app.MapMcp("/mcp");
+                // Register official MCP server with Stdio transport
+                builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<McpGraphHandler>();
 
-            app.Urls.Add($"http://0.0.0.0:{opts.Port}");
+                var host = builder.Build();
 
-            await Console.Error.WriteLineAsync(
-                $"Starting Unified CodeExplorer Web Service (MCP + REST Management) on http://localhost:{opts.Port}...");
-            await Console.Error.WriteLineAsync($"Swagger UI available at http://localhost:{opts.Port}/swagger");
-            await app.RunAsync();
+                await host.RunAsync();
+            }
+
+            return 0;
         }
-        else
-        {
-            var builder = Host.CreateApplicationBuilder();
-            builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
-            builder.Logging.AddFilter("System", LogLevel.Warning);
-
-            builder.Services.AddSingleton<IMemgraphClient>(client);
-            builder.Services.AddSingleton<CodeExplorerRepository>();
-            builder.Services.AddSingleton<WorkspaceIndexer>();
-            builder.Services.AddSingleton<IndexingTaskManager>();
-            builder.Services.AddSingleton<WorkspaceRegistry>();
-            builder.Services.AddHttpContextAccessor();
-
-            // Register official MCP server with Stdio transport
-            builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<McpGraphHandler>();
-
-            var host = builder.Build();
-
-            await host.RunAsync();
-        }
-
-        return 0;
     }
 }

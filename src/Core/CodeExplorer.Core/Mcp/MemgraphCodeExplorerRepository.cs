@@ -1,10 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Mcp;
 
-public class CodeExplorerRepository(IMemgraphClient dbClient)
+public class MemgraphCodeExplorerRepository(IDatabaseClient dbClient) : ICodeExplorerRepository
 {
     private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null)
     {
@@ -412,7 +417,6 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
         if (wsId != null)
         {
             var wsIdPrefix = wsId + ":";
-            // Check if the query references either parameter
             if (!query.Contains("$workspaceId") && !query.Contains("$workspaceIdPrefix"))
             {
                 throw new InvalidOperationException(
@@ -494,6 +498,7 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
     {
         return OntologyRegistry.GetNodeDefinition(kind);
     }
+
     private async Task<string> FetchCodeSnippetsDirectlyAsync(string nodesJson, string? hostWorkspacePath)
     {
         List<McpRAGNode>? nodes = null;

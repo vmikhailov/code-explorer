@@ -4,8 +4,10 @@ using Neo4j.Driver;
 
 namespace CodeExplorer.Core.Database;
 
-public class MemgraphClient(string boltUrl, string username, string password) : IMemgraphClient
+public class MemgraphClient(string boltUrl, string username, string password) : IDatabaseClient
 {
+    public bool IsCypherSupported => true;
+
     private readonly IDriver _driver = GraphDatabase.Driver(
         boltUrl,
         string.IsNullOrEmpty(username) ? AuthTokens.None : AuthTokens.Basic(username, password)

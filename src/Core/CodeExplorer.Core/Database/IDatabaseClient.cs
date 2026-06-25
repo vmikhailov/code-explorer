@@ -5,8 +5,9 @@ using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Database;
 
-public interface IMemgraphClient : IAsyncDisposable
+public interface IDatabaseClient : IAsyncDisposable
 {
+    bool IsCypherSupported { get; }
     Task CreateIndicesAsync();
     Task ClearDatabaseAsync();
     Task ClearWorkspaceAsync(string workspacePath);

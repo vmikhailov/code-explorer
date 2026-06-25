@@ -10,10 +10,10 @@ namespace CodeExplorer.Core.Web.Controllers;
 [Route("api/workspaces")]
 public class WorkspacesController : ControllerBase
 {
-    private readonly CodeExplorerRepository _repository;
+    private readonly ICodeExplorerRepository _repository;
     private readonly IndexingTaskManager _taskManager;
 
-    public WorkspacesController(CodeExplorerRepository repository, IndexingTaskManager taskManager)
+    public WorkspacesController(ICodeExplorerRepository repository, IndexingTaskManager taskManager)
     {
         _repository = repository;
         _taskManager = taskManager;

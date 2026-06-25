@@ -83,7 +83,7 @@ public class ProjectProcessor
             if (syntaxStructureNode != null)
             {
                 var projectSyntaxId = $"{_ctx.WorkspaceId}:project:{_relativeProjectDir}:project_syntax";
-                projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", _relativeProjectDir);
+                projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, projectNode.Name, _relativeProjectDir);
                 syntaxStructureNode.Children.Add(projectSyntaxNode);
 
                 var belongsToRel = Relationship.FromRelationship(new BelongsToRelationship(projectSyntaxNode.Id, projectNode.Id));
@@ -123,7 +123,7 @@ public class ProjectProcessor
             if (semanticStructureNode != null)
             {
                 var projectSemanticId = $"{_ctx.WorkspaceId}:project:{_relativeProjectDir}:project_semantic";
-                projectSemanticNode = new ProjectSemanticNode(projectSemanticId, "ProjectSemantic", _relativeProjectDir);
+                projectSemanticNode = new ProjectSemanticNode(projectSemanticId, projectNode.Name, _relativeProjectDir);
                 semanticStructureNode.Children.Add(projectSemanticNode);
 
                 var belongsToRel = Relationship.FromRelationship(new BelongsToRelationship(projectSemanticNode.Id, projectNode.Id));

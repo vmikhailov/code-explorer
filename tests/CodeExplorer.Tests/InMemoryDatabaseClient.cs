@@ -6,8 +6,9 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Tests;
 
-public class InMemoryMemgraphClient : IMemgraphClient
+public class InMemoryDatabaseClient : IDatabaseClient
 {
+    public bool IsCypherSupported => false;
     public List<Node> UploadedNodes { get; } = [];
     public List<Relationship> UploadedRelationships { get; } = [];
     public int WorkspaceCounter { get; set; } = 1;

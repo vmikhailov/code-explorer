@@ -25,7 +25,7 @@ public class ParserValidationTests
         var workspacePath = "/Users/slava/Projects/ATS/src/services";
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryDatabaseClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         var filesToTest = new[]
@@ -73,7 +73,7 @@ async function clearDataAllLeads(bundle_ids: string) {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
@@ -122,7 +122,7 @@ async function clearDataAllLeads(bundle_ids: string) {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
@@ -161,7 +161,7 @@ async function clearDataAllLeads(bundle_ids: string) {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
@@ -202,7 +202,7 @@ async function clearDataAllLeads(bundle_ids: string) {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
@@ -272,7 +272,7 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
@@ -426,7 +426,7 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
@@ -490,7 +490,7 @@ export class OrdersController {
             Console.WriteLine("--- TS AST END ---");
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
@@ -582,7 +582,7 @@ export class OrdersController {
 
             // Setup parsing context
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
 
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.WorkspaceId = "1";
@@ -745,7 +745,7 @@ export class OrdersController {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.WorkspaceId = "1";
 
@@ -874,7 +874,7 @@ END;
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.WorkspaceId = "1";
             ctx.SemanticStructure = new SemanticStructureNode("1:semantic_structure", "SemanticStructure", tempWorkspace);
@@ -987,7 +987,7 @@ END;
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryDatabaseClient();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.WorkspaceId = "1";
 
@@ -1115,7 +1115,7 @@ async function testDb(client: any) {
     [Test]
     public async Task Test_ConcurrentIndexingTasks()
     {
-        var dbClient = new InMemoryMemgraphClient();
+        var dbClient = new InMemoryDatabaseClient();
         var indexer = new WorkspaceIndexer(dbClient);
         var taskManager = new IndexingTaskManager(indexer);
 

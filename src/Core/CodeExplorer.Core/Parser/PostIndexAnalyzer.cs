@@ -2,10 +2,15 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser;
 
-public class PostIndexAnalyzer(IMemgraphClient db)
+public class PostIndexAnalyzer(IDatabaseClient db)
 {
     public async Task RunAsync(string workspaceId)
     {
+        if (!db.IsCypherSupported)
+        {
+            return; // Skip Cypher-based post-indexing optimizations on SQLite/In-memory backend
+        }
+
         var widPrefix = workspaceId + ":";
 
         await WriteTransitivelyCallsAsync(widPrefix);

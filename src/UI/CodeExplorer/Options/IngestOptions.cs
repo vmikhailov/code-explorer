@@ -22,4 +22,10 @@ class IngestOptions
 
     [Option("clear-all", HelpText = "Whether to perform a global database clear of all workspaces before ingestion.")]
     public bool ClearAll { get; set; }
+
+    [Option("sqlite", HelpText = "Whether to use local SQLite database instead of Memgraph.")]
+    public bool Sqlite { get; set; }
+
+    [Option("sqlite-db-path", Default = ".codeexplorer/graph.db", HelpText = "The file path for the local SQLite database.")]
+    public string SqliteDbPath { get; set; } = ".codeexplorer/graph.db";
 }
