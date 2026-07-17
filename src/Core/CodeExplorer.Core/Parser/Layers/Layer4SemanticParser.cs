@@ -22,10 +22,14 @@ public class Layer4SemanticParser
 
         var semanticNodes = new List<IOntologyNode>();
         var semanticRelationships = new List<Relationship>();
+        var nProject = 0;
 
         foreach (var project in l3Result.Prev.Projects)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
+
+            nProject++;
+            ctx.Log($"[Layer4SemanticParser] Enriching project {nProject} of {l3Result.Prev.Projects.Count} at:'{project.Path}' with semantic information...");
 
             var projectSemanticId = $"{ctx.WorkspaceId}:project:{project.Path}:project_semantic";
             var projectSemanticNode = new ProjectSemanticNode(projectSemanticId, "ProjectSemantic", project.Path);

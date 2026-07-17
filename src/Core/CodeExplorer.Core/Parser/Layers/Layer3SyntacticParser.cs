@@ -27,10 +27,14 @@ public class Layer3SyntacticParser
         var rawTypeBindings = new List<RawTypeBinding>();
         var globalReferences = new List<Reference>();
         var globalSymbols = new Dictionary<(string Kind, string Name), string>();
+        var nProject = 0;
 
         foreach (var project in l2Result.Projects)
         {
+            nProject++;
             ctx.CancellationToken.ThrowIfCancellationRequested();
+
+            ctx.Log($"[Layer3SyntacticParser] Parsing project {nProject} of {l2Result.Projects.Count} at:'{project.Path}'...");
 
             var projectSyntaxId = $"{ctx.WorkspaceId}:project:{project.Path}:project_syntax";
             var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", project.Path);
@@ -241,7 +245,7 @@ public class Layer3SyntacticParser
         }
         else if (kind == OntologyConstants.NodeLabels.Query)
         {
-            typedNode = NestedSqlParser.ParseNestedSql(syntactic.Text ?? node.Text, symbolId, relativePath) ?? 
+            typedNode = NestedSqlParser.ParseNestedSql(syntactic.Text ?? node.Text, symbolId, relativePath) ??
                         new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(syntactic.Text ?? node.Text), relativePath);
         }
         else if (kind == OntologyConstants.NodeLabels.EntryPoint)
