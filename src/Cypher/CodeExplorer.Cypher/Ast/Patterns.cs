@@ -21,5 +21,7 @@ public record PathElement(RelationshipPattern Relationship, NodePattern Target);
 public record PathPattern(
     NodePattern Head,
     List<PathElement> Chain,
-    string? PathVariable = null
+    string? PathVariable = null,
+    bool IsShortestPath = false,
+    bool IsAllShortestPaths = false
 );

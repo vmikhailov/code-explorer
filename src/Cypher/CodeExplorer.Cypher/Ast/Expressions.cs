@@ -45,3 +45,7 @@ public record PatternExpression(PathPattern Path) : Expression;
 public record PatternComprehensionExpression(PathPattern Path, Expression? Filter, Expression Projection) : Expression;
 
 public record ReduceExpression(string Accumulator, Expression Initial, string Variable, Expression List, Expression Expression) : Expression;
+
+public record MapProjectionElement(string PropertyName, Expression? ValueExpression, bool IsAllProperties = false);
+
+public record MapProjectionExpression(Expression BaseExpression, List<MapProjectionElement> Elements) : Expression;

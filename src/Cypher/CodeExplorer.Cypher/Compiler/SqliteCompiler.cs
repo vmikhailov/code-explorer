@@ -210,11 +210,11 @@ public class SqliteCompiler : ICypherVisitor<string>
         if (query.Limit != null || query.Skip != null)
         {
             sb.AppendLine();
-            var limitVal = query.Limit?.Count ?? -1;
+            var limitVal = query.Limit != null ? VisitExpression(query.Limit.Expression) : "-1";
             sb.Append($"LIMIT {limitVal}");
             if (query.Skip != null)
             {
-                sb.Append($" OFFSET {query.Skip.Count}");
+                sb.Append($" OFFSET {VisitExpression(query.Skip.Expression)}");
             }
         }
 
@@ -335,13 +335,14 @@ public class SqliteCompiler : ICypherVisitor<string>
             bool prevDeclared = _declaredNodes.Contains(prevVar);
             bool targetDeclared = _declaredNodes.Contains(targetVar);
 
-            if (rel.Range.HasValue)
+            if (rel.Range.HasValue || path.IsShortestPath || path.IsAllShortestPaths)
             {
                 // Variable-length path CTE
                 ProcessVariableLengthRel(
                     rel, relVar, prevNode, prevVar, targetNode, targetVar,
                     prevDeclared, targetDeclared, isOptional, joinKeyword,
-                    fromAndJoins, mainWhereConditions, optionalWhereExtra);
+                    fromAndJoins, mainWhereConditions, optionalWhereExtra,
+                    path.IsShortestPath);
             }
             else
             {
@@ -505,7 +506,8 @@ public class SqliteCompiler : ICypherVisitor<string>
         string joinKeyword,
         StringBuilder fromAndJoins,
         List<string> mainWhereConditions,
-        List<string> optionalWhereExtra)
+        List<string> optionalWhereExtra,
+        bool isShortestPath = false)
     {
         var cteName = $"cte_rel_{_cteIndex++}";
         var minDepth = rel.Range?.Min ?? 1;
@@ -554,6 +556,10 @@ public class SqliteCompiler : ICypherVisitor<string>
         if (maxDepth.HasValue)
         {
             relOnConditions.Add($"{relVar}.depth <= {maxDepth.Value}");
+        }
+        if (isShortestPath)
+        {
+            relOnConditions.Add($"{relVar}.depth = (SELECT min(depth) FROM {cteName} WHERE start_id = {prevVar}.id AND end_id = {targetVar}.id)");
         }
 
         if (prevDeclared && !targetDeclared)
@@ -734,6 +740,7 @@ public class SqliteCompiler : ICypherVisitor<string>
             PatternExpression pat => VisitPatternExpression(pat),
             PatternComprehensionExpression patComp => VisitPatternComprehension(patComp),
             ReduceExpression red => VisitReduce(red),
+            MapProjectionExpression mapProj => VisitMapProjection(mapProj),
             _ => throw new NotSupportedException($"Expression type {expression.GetType().Name} is not supported.")
         };
     }
@@ -769,6 +776,19 @@ public class SqliteCompiler : ICypherVisitor<string>
 
     private string VisitPropertyAccess(PropertyAccessExpression prop)
     {
+        if (_unwindVariables.Contains(prop.Variable))
+        {
+            if (prop.PropertyName.Equals("id", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"COALESCE(json_extract({prop.Variable}.value, '$.id'), {prop.Variable}.value)";
+            }
+            if (prop.PropertyName.Equals("kind", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"COALESCE(json_extract({prop.Variable}.value, '$.kind'), {prop.Variable}.value)";
+            }
+            return $"COALESCE(json_extract({prop.Variable}.value, '$.properties.' || '{prop.PropertyName}'), json_extract({prop.Variable}.value, '$.{prop.PropertyName}'))";
+        }
+
         if (prop.PropertyName.Equals("id", StringComparison.OrdinalIgnoreCase))
         {
             return $"{prop.Variable}.id";
@@ -850,6 +870,11 @@ public class SqliteCompiler : ICypherVisitor<string>
             return $"-({VisitExpression(unary.Operand)})";
         }
 
+        if (unary.Operator == UnaryOperator.Plus)
+        {
+            return $"+({VisitExpression(unary.Operand)})";
+        }
+
         if (unary.Operator == UnaryOperator.IsNull)
         {
             if (unary.Operand is IdentifierExpression id && _declaredNodes.Contains(id.Name))
@@ -902,7 +927,75 @@ public class SqliteCompiler : ICypherVisitor<string>
                 var offsetStr = offset > 0 ? $" OFFSET {offset}" : "";
                 return $"(SELECT value FROM json_each({targetList}) ORDER BY key DESC LIMIT 1{offsetStr})";
             }
-            return $"json_extract({targetList}, '$[' || {VisitExpression(func.Arguments[1])} || ']')";
+            if (func.Arguments[1] is StringLiteralExpression strKey)
+            {
+                return $"json_extract({targetList}, '$.{strKey.Value}')";
+            }
+            return $"json_extract({targetList}, CASE WHEN typeof({VisitExpression(func.Arguments[1])}) = 'integer' THEN '$[' || {VisitExpression(func.Arguments[1])} || ']' ELSE '$.' || {VisitExpression(func.Arguments[1])} END)";
+        }
+
+        if ((fn == "id" || fn == "elementid") && func.Arguments.Count == 1)
+        {
+            if (func.Arguments[0] is IdentifierExpression id && _declaredNodes.Contains(id.Name))
+            {
+                return $"{id.Name}.id";
+            }
+            if (func.Arguments[0] is IdentifierExpression rel && _declaredRels.Contains(rel.Name))
+            {
+                return $"{rel.Name}.rowid";
+            }
+            return $"{VisitExpression(func.Arguments[0])}.id";
+        }
+
+        if (fn == "size" && func.Arguments.Count == 1)
+        {
+            var argSql = VisitExpression(func.Arguments[0]);
+            return $"CASE WHEN json_valid({argSql}) THEN json_array_length({argSql}) ELSE length({argSql}) END";
+        }
+
+        if (fn == "tointeger" && func.Arguments.Count == 1)
+        {
+            return $"CAST({VisitExpression(func.Arguments[0])} AS INTEGER)";
+        }
+
+        if (fn == "tofloat" && func.Arguments.Count == 1)
+        {
+            return $"CAST({VisitExpression(func.Arguments[0])} AS REAL)";
+        }
+
+        if (fn == "toboolean" && func.Arguments.Count == 1)
+        {
+            var argSql = VisitExpression(func.Arguments[0]);
+            return $"CASE WHEN {argSql} IN ('true', '1', 1) THEN 1 WHEN {argSql} IN ('false', '0', 0) THEN 0 ELSE NULL END";
+        }
+
+        if (fn == "left" && func.Arguments.Count == 2)
+        {
+            return $"substr({VisitExpression(func.Arguments[0])}, 1, {VisitExpression(func.Arguments[1])})";
+        }
+
+        if (fn == "right" && func.Arguments.Count == 2)
+        {
+            return $"substr({VisitExpression(func.Arguments[0])}, -({VisitExpression(func.Arguments[1])}))";
+        }
+
+        if (fn == "ltrim" && func.Arguments.Count == 1)
+        {
+            return $"ltrim({VisitExpression(func.Arguments[0])})";
+        }
+
+        if (fn == "rtrim" && func.Arguments.Count == 1)
+        {
+            return $"rtrim({VisitExpression(func.Arguments[0])})";
+        }
+
+        if (fn == "exists" && func.Arguments.Count == 1)
+        {
+            if (func.Arguments[0] is PatternExpression pat)
+            {
+                return VisitPatternExpression(pat);
+            }
+            return $"({VisitExpression(func.Arguments[0])} IS NOT NULL)";
         }
 
         if (fn == "labels" && func.Arguments.Count == 1)
@@ -1037,8 +1130,21 @@ public class SqliteCompiler : ICypherVisitor<string>
     private string VisitListComprehension(ListComprehensionExpression comp)
     {
         var listSql = VisitExpression(comp.List);
-        var projSql = comp.Projection != null ? VisitExpression(comp.Projection) : $"{comp.Variable}.value";
-        var filterSql = comp.Filter != null ? $" WHERE {VisitExpression(comp.Filter)}" : "";
+        bool wasAdded = _unwindVariables.Add(comp.Variable);
+        string projSql;
+        string filterSql;
+        try
+        {
+            projSql = comp.Projection != null ? VisitExpression(comp.Projection) : $"{comp.Variable}.value";
+            filterSql = comp.Filter != null ? $" WHERE {VisitExpression(comp.Filter)}" : "";
+        }
+        finally
+        {
+            if (wasAdded)
+            {
+                _unwindVariables.Remove(comp.Variable);
+            }
+        }
 
         return $"(SELECT json_group_array({projSql}) FROM json_each({listSql}) AS {comp.Variable}{filterSql})";
     }
@@ -1065,13 +1171,26 @@ public class SqliteCompiler : ICypherVisitor<string>
         }
 
         var listSql = VisitExpression(pred.List);
-        var whereSql = VisitExpression(pred.Predicate);
+        bool wasAdded = _unwindVariables.Add(pred.Variable);
+        string whereSql;
+        try
+        {
+            whereSql = VisitExpression(pred.Predicate);
+        }
+        finally
+        {
+            if (wasAdded)
+            {
+                _unwindVariables.Remove(pred.Variable);
+            }
+        }
 
         return pred.Quantifier switch
         {
             "any" => $"(EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))",
             "none" => $"(NOT EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))",
             "all" => $"(NOT EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE NOT ({whereSql})))",
+            "single" => $"((SELECT COUNT(1) FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}) = 1)",
             _ => $"(EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))"
         };
     }
@@ -1340,7 +1459,37 @@ public class SqliteCompiler : ICypherVisitor<string>
                 foreach (var w in c.WhenBranches) { CollectIdentifiers(w.When, set); CollectIdentifiers(w.Then, set); }
                 if (c.ElseExpression != null) CollectIdentifiers(c.ElseExpression, set);
                 break;
+            case MapProjectionExpression mp:
+                CollectIdentifiers(mp.BaseExpression, set);
+                foreach (var el in mp.Elements)
+                {
+                    if (el.ValueExpression != null) CollectIdentifiers(el.ValueExpression, set);
+                }
+                break;
         }
+    }
+
+    private string VisitMapProjection(MapProjectionExpression mapProj)
+    {
+        var baseVar = mapProj.BaseExpression is IdentifierExpression id ? id.Name : VisitExpression(mapProj.BaseExpression);
+        var parts = new List<string>();
+        foreach (var elem in mapProj.Elements)
+        {
+            if (elem.IsAllProperties)
+            {
+                continue;
+            }
+            if (elem.ValueExpression != null)
+            {
+                parts.Add($"'{elem.PropertyName}', {VisitExpression(elem.ValueExpression)}");
+            }
+            else
+            {
+                // Property from base: .prop
+                parts.Add($"'{elem.PropertyName}', json_extract({baseVar}.properties, '$.{elem.PropertyName}')");
+            }
+        }
+        return $"json_object({string.Join(", ", parts)})";
     }
 
     #region ICypherVisitor boilerplates

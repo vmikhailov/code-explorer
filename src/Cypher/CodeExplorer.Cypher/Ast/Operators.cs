@@ -29,5 +29,6 @@ public enum UnaryOperator
     Not,        // NOT
     IsNull,     // IS NULL
     IsNotNull,  // IS NOT NULL
-    Minus       // -
+    Minus,      // -
+    Plus        // +
 }

@@ -16,9 +16,17 @@ public record OrderByItem(Expression Expression, bool IsDescending);
 
 public record OrderByClause(List<OrderByItem> Items);
 
-public record SkipClause(int Count);
+public record SkipClause(Expression Expression, int? StaticCount = null)
+{
+    public SkipClause(int count) : this(new NumberLiteralExpression(count, true), count) { }
+    public int Count => StaticCount ?? (Expression is NumberLiteralExpression num ? (int)num.Value : 0);
+}
 
-public record LimitClause(int Count);
+public record LimitClause(Expression Expression, int? StaticCount = null)
+{
+    public LimitClause(int count) : this(new NumberLiteralExpression(count, true), count) { }
+    public int Count => StaticCount ?? (Expression is NumberLiteralExpression num ? (int)num.Value : 0);
+}
 
 public record CallClause(CypherQuery Subquery);
 

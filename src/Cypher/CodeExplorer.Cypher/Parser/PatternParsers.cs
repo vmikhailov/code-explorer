@@ -120,18 +120,40 @@ public static class PatternParsers
         .Or(SimpleIncomingRel.Try())
         .Or(SimpleUndirectedRel);
 
-    // Full Path Pattern: [pathVar =] (a)-[r]->(b)...
-    public static TokenListParser<CypherToken, PathPattern> Path { get; } =
-        from pathVar in (
-            from id in ExpressionParsers.PropertyNameText
-            from eq in Token.EqualTo(CypherToken.Equal)
-            select id
-        ).OptionalOrDefault()
+    private static TokenListParser<CypherToken, (NodePattern Head, List<PathElement> Chain, bool IsAll)> ShortestPathBody { get; } =
+        from shortest in Token.EqualTo(CypherToken.Identifier).Where(t =>
+            t.ToStringValue().Equals("shortestPath", StringComparison.OrdinalIgnoreCase) ||
+            t.ToStringValue().Equals("allShortestPaths", StringComparison.OrdinalIgnoreCase))
+        from open in Token.EqualTo(CypherToken.LParen)
         from head in Node
         from chain in (
             from rel in Relationship
             from target in Node
             select new PathElement(rel, target)
         ).Many()
-        select new PathPattern(head, chain.ToList(), pathVar);
+        from close in Token.EqualTo(CypherToken.RParen)
+        select (head, chain.ToList(), shortest.ToStringValue().Equals("allShortestPaths", StringComparison.OrdinalIgnoreCase));
+
+    // Full Path Pattern: [pathVar =] (a)-[r]->(b)...
+    public static TokenListParser<CypherToken, PathPattern> Path { get; } =
+        (from pathVar in (
+            from id in ExpressionParsers.PropertyNameText
+            from eq in Token.EqualTo(CypherToken.Equal)
+            select id
+         ).OptionalOrDefault()
+         from sp in ShortestPathBody
+         select new PathPattern(sp.Head, sp.Chain, pathVar, !sp.IsAll, sp.IsAll)).Try()
+        .Or(
+         from pathVar in (
+            from id in ExpressionParsers.PropertyNameText
+            from eq in Token.EqualTo(CypherToken.Equal)
+            select id
+         ).OptionalOrDefault()
+         from head in Node
+         from chain in (
+            from rel in Relationship
+            from target in Node
+            select new PathElement(rel, target)
+         ).Many()
+         select new PathPattern(head, chain.ToList(), pathVar));
 }

@@ -79,15 +79,15 @@ public static class ClauseParsers
         ).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
         select new OrderByClause(items.ToList());
 
-    // SKIP number
+    // SKIP expr
     public static TokenListParser<CypherToken, SkipClause> Skip { get; } =
         from skip in Token.EqualTo(CypherToken.Skip)
-        from num in Token.EqualTo(CypherToken.Number)
-        select new SkipClause(int.Parse(num.ToStringValue()));
+        from expr in ExpressionParsers.ExpressionParser
+        select new SkipClause(expr, expr is NumberLiteralExpression num && num.IsInteger ? (int)num.Value : null);
 
-    // LIMIT number
+    // LIMIT expr
     public static TokenListParser<CypherToken, LimitClause> Limit { get; } =
         from limit in Token.EqualTo(CypherToken.Limit)
-        from num in Token.EqualTo(CypherToken.Number)
-        select new LimitClause(int.Parse(num.ToStringValue()));
+        from expr in ExpressionParsers.ExpressionParser
+        select new LimitClause(expr, expr is NumberLiteralExpression num && num.IsInteger ? (int)num.Value : null);
 }

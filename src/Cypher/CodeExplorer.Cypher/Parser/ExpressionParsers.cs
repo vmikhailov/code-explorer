@@ -246,13 +246,27 @@ public static class ExpressionParsers
         .Or(Parameter)
         .Or(FunctionCallOrIdentifier);
 
-    // Postfix operations: property access (.prop), index/slice access ([0], [1..3]), or label predicate (:Label)
+    private static TokenListParser<CypherToken, MapProjectionElement> MapProjectionElementParser { get; } =
+        (from dot in Token.EqualTo(CypherToken.Dot)
+         from star in Token.EqualTo(CypherToken.Asterisk)
+         select new MapProjectionElement("", null, true)).Try()
+        .Or(
+         from dot in Token.EqualTo(CypherToken.Dot)
+         from prop in PropertyNameText
+         select new MapProjectionElement(prop, null, false)).Try()
+        .Or(
+         from prop in PropertyNameText
+         from colon in Token.EqualTo(CypherToken.Colon)
+         from expr in Parse.Ref(() => ExpressionParser!)
+         select new MapProjectionElement(prop, expr, false));
+
+    // Postfix operations: property access (.prop), index/slice access ([0], [1..3]), label predicate (:Label), or map projection ({...})
     public static TokenListParser<CypherToken, Expression> PostfixExpression { get; } =
         from baseExpr in Atom
         from suffixes in (
             (from dot in Token.EqualTo(CypherToken.Dot)
              from prop in PropertyNameText
-             select (Kind: "prop", Property: prop, IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null))
+             select (Kind: "prop", Property: prop, IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)null))
             .Or(
              from lbracket in Token.EqualTo(CypherToken.LBracket)
              from slice in (
@@ -265,14 +279,23 @@ public static class ExpressionParsers
                  select (IsSlice: false, From: (Expression?)null, To: (Expression?)null, Single: (Expression?)idx)
              )
              from rbracket in Token.EqualTo(CypherToken.RBracket)
-             select (Kind: slice.IsSlice ? "slice" : "index", Property: "", IndexExpr: slice.Single, SliceFrom: slice.From, SliceTo: slice.To))
+             select (Kind: slice.IsSlice ? "slice" : "index", Property: "", IndexExpr: slice.Single, SliceFrom: slice.From, SliceTo: slice.To, ProjElements: (List<MapProjectionElement>?)null))
             .Or(
              from colon in Token.EqualTo(CypherToken.Colon)
              from label in PropertyNameText
-             select (Kind: "label", Property: label, IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null))
+             select (Kind: "label", Property: label, IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)null))
+            .Or(
+             (from open in Token.EqualTo(CypherToken.LBrace)
+              from elements in MapProjectionElementParser.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
+              from close in Token.EqualTo(CypherToken.RBrace)
+              select (Kind: "projection", Property: "", IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)elements.ToList())).Try())
         ).Many()
         select suffixes.Aggregate(baseExpr, (current, suffix) =>
         {
+            if (suffix.Kind == "projection")
+            {
+                return new MapProjectionExpression(current, suffix.ProjElements!);
+            }
             if (suffix.Kind == "label")
             {
                 return new HasLabelExpression(current, suffix.Property);
@@ -296,7 +319,7 @@ public static class ExpressionParsers
             return new PropertyAccessExpression(current.ToString()!, suffix.Property);
         });
 
-    // Unary prefix: NOT, -
+    // Unary prefix: NOT, -, +
     public static TokenListParser<CypherToken, Expression> UnaryExpression { get; } =
         (from not in Token.EqualTo(CypherToken.Not)
          from expr in Parse.Ref(() => UnaryExpression!)
@@ -304,6 +327,9 @@ public static class ExpressionParsers
         .Or(from dash in Token.EqualTo(CypherToken.Dash)
             from expr in Parse.Ref(() => UnaryExpression!)
             select (Expression)new UnaryExpression(UnaryOperator.Minus, expr))
+        .Or(from plus in Token.EqualTo(CypherToken.Plus)
+            from expr in Parse.Ref(() => UnaryExpression!)
+            select (Expression)new UnaryExpression(UnaryOperator.Plus, expr))
         .Or(PostfixExpression);
 
     // Power (^)
