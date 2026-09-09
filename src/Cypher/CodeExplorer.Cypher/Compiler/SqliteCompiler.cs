@@ -12,6 +12,8 @@ public class SqliteCompiler : ICypherVisitor<string>
     private readonly HashSet<string> _declaredNodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _declaredRels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _pathVariables = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _unwindVariables = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _withAliases = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _ctes = new();
 
     private int _paramIndex;
@@ -49,6 +51,52 @@ public class SqliteCompiler : ICypherVisitor<string>
         foreach (var match in query.Matches)
         {
             ProcessMatchClause(match, fromAndJoins, whereConditions);
+        }
+
+        // Process UNWIND clauses if any
+        if (query.UnwindClauses != null)
+        {
+            foreach (var unwind in query.UnwindClauses)
+            {
+                _unwindVariables.Add(unwind.Alias);
+                fromAndJoins.AppendLine();
+                fromAndJoins.Append($"JOIN json_each({VisitExpression(unwind.Expression)}) {unwind.Alias}");
+            }
+        }
+
+        // Process WITH clauses if any
+        var groupByColumns = new List<string>();
+        var havingConditions = new List<string>();
+
+        if (query.WithClauses != null)
+        {
+            foreach (var with in query.WithClauses)
+            {
+                foreach (var item in with.Items)
+                {
+                    if (item.Alias != null)
+                    {
+                        _withAliases[item.Alias] = VisitExpression(item.Expression);
+                    }
+                    if (item.Expression is IdentifierExpression id && _declaredNodes.Contains(id.Name))
+                    {
+                        groupByColumns.Add($"{id.Name}.id");
+                    }
+                }
+
+                if (with.Where != null)
+                {
+                    var whereSql = VisitExpression(with.Where.Predicate);
+                    if (with.Items.Any(i => HasAggregation(i.Expression)))
+                    {
+                        havingConditions.Add(whereSql);
+                    }
+                    else
+                    {
+                        whereConditions.Add(whereSql);
+                    }
+                }
+            }
         }
 
         // Process top-level WHERE clause if present
@@ -90,6 +138,18 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             sb.AppendLine();
             sb.Append("WHERE ").Append(string.Join(" AND ", whereConditions));
+        }
+
+        if (groupByColumns.Count > 0)
+        {
+            sb.AppendLine();
+            sb.Append("GROUP BY ").Append(string.Join(", ", groupByColumns.Distinct()));
+        }
+
+        if (havingConditions.Count > 0)
+        {
+            sb.AppendLine();
+            sb.Append("HAVING ").Append(string.Join(" AND ", havingConditions));
         }
 
         // ORDER BY
@@ -585,12 +645,21 @@ public class SqliteCompiler : ICypherVisitor<string>
             ListExpression list => VisitList(list),
             CaseExpression caseExpr => VisitCase(caseExpr),
             HasLabelExpression hasLabel => VisitHasLabel(hasLabel),
+            MapLiteralExpression map => VisitMapLiteral(map),
+            ListComprehensionExpression comp => VisitListComprehension(comp),
+            ListPredicateExpression pred => VisitListPredicate(pred),
             _ => throw new NotSupportedException($"Expression type {expression.GetType().Name} is not supported.")
         };
     }
 
     private string VisitIdentifier(IdentifierExpression id)
     {
+        // If it refers to an unwind variable
+        if (_unwindVariables.Contains(id.Name))
+        {
+            return $"{id.Name}.value";
+        }
+
         // If it refers to a path variable
         if (_pathVariables.TryGetValue(id.Name, out var relVar))
         {
@@ -779,6 +848,14 @@ public class SqliteCompiler : ICypherVisitor<string>
             }
         }
 
+        if (fn == "keys" && func.Arguments.Count == 1)
+        {
+            if (func.Arguments[0] is IdentifierExpression nodeVar)
+            {
+                return $"(SELECT json_group_array(key) FROM json_each({nodeVar.Name}.properties))";
+            }
+        }
+
         var args = string.Join(", ", func.Arguments.Select(VisitExpression));
         return $"{func.FunctionName}({distinctStr}{args})";
     }
@@ -787,6 +864,74 @@ public class SqliteCompiler : ICypherVisitor<string>
     {
         var items = string.Join(", ", list.Items.Select(VisitExpression));
         return $"({items})";
+    }
+
+    private string VisitMapLiteral(MapLiteralExpression map)
+    {
+        var parts = new List<string>();
+        foreach (var (k, v) in map.Properties)
+        {
+            parts.Add($"'{k}', {VisitExpression(v)}");
+        }
+        return $"json_object({string.Join(", ", parts)})";
+    }
+
+    private string VisitListComprehension(ListComprehensionExpression comp)
+    {
+        var listSql = VisitExpression(comp.List);
+        var projSql = comp.Projection != null ? VisitExpression(comp.Projection) : $"{comp.Variable}.value";
+        var filterSql = comp.Filter != null ? $" WHERE {VisitExpression(comp.Filter)}" : "";
+
+        return $"(SELECT json_group_array({projSql}) FROM json_each({listSql}) AS {comp.Variable}{filterSql})";
+    }
+
+    private string VisitListPredicate(ListPredicateExpression pred)
+    {
+        // Special case: any(lbl IN labels(n) WHERE lbl = $type)
+        if (pred.List is FunctionCallExpression func &&
+            func.FunctionName.Equals("labels", StringComparison.OrdinalIgnoreCase) &&
+            func.Arguments.Count > 0 &&
+            func.Arguments[0] is IdentifierExpression nodeVar)
+        {
+            if (pred.Predicate is BinaryExpression bin && bin.Operator == BinaryOperator.Equal)
+            {
+                if (bin.Left is IdentifierExpression idL && idL.Name == pred.Variable)
+                {
+                    return $"({nodeVar.Name}.kind = {VisitExpression(bin.Right)})";
+                }
+                if (bin.Right is IdentifierExpression idR && idR.Name == pred.Variable)
+                {
+                    return $"({nodeVar.Name}.kind = {VisitExpression(bin.Left)})";
+                }
+            }
+        }
+
+        var listSql = VisitExpression(pred.List);
+        var whereSql = VisitExpression(pred.Predicate);
+
+        return pred.Quantifier switch
+        {
+            "any" => $"(EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))",
+            "none" => $"(NOT EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))",
+            "all" => $"(NOT EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE NOT ({whereSql})))",
+            _ => $"(EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))"
+        };
+    }
+
+    private static bool HasAggregation(Expression expr)
+    {
+        return expr switch
+        {
+            FunctionCallExpression f when f.FunctionName.Equals("count", StringComparison.OrdinalIgnoreCase) ||
+                                          f.FunctionName.Equals("collect", StringComparison.OrdinalIgnoreCase) ||
+                                          f.FunctionName.Equals("sum", StringComparison.OrdinalIgnoreCase) ||
+                                          f.FunctionName.Equals("avg", StringComparison.OrdinalIgnoreCase) ||
+                                          f.FunctionName.Equals("min", StringComparison.OrdinalIgnoreCase) ||
+                                          f.FunctionName.Equals("max", StringComparison.OrdinalIgnoreCase) => true,
+            BinaryExpression b => HasAggregation(b.Left) || HasAggregation(b.Right),
+            UnaryExpression u => HasAggregation(u.Operand),
+            _ => false
+        };
     }
 
     private string VisitCase(CaseExpression caseExpr)
@@ -827,6 +972,8 @@ public class SqliteCompiler : ICypherVisitor<string>
 
     public string VisitMatchClause(MatchClause matchClause) => "";
     public string VisitWhereClause(WhereClause whereClause) => VisitExpression(whereClause.Predicate);
+    public string VisitWithClause(WithClause withClause) => "";
+    public string VisitUnwindClause(UnwindClause unwindClause) => "";
     public string VisitReturnClause(ReturnClause returnClause) => "";
     public string VisitProjectionItem(ProjectionItem projectionItem) => "";
     public string VisitOrderByClause(OrderByClause orderByClause) => "";

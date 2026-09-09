@@ -24,35 +24,46 @@ public class ParserValidationTests
     public async Task Test_TypeScriptParser_WithExamples()
     {
         var parser = new TypeScriptParser();
-        var workspacePath = "/Users/slava/Projects/ATS/src/services";
+        var baseDir = TestContext.CurrentContext.TestDirectory;
+        var testDataDir = Path.Combine(baseDir, "TestData", "TypeScript");
 
+        if (!Directory.Exists(testDataDir))
+        {
+            var curr = new DirectoryInfo(baseDir);
+            while (curr != null && !File.Exists(Path.Combine(curr.FullName, "CodeExplorer.slnx")))
+            {
+                curr = curr.Parent;
+            }
+            if (curr != null)
+            {
+                testDataDir = Path.Combine(curr.FullName, "tests", "CodeExplorer.Tests", "TestData", "TypeScript");
+            }
+        }
+
+        Assert.That(Directory.Exists(testDataDir), Is.True, $"TestData directory not found: {testDataDir}");
+
+        var workspacePath = testDataDir;
         var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var client = new InMemoryMemgraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         var filesToTest = new[]
         {
-            "/Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/cron/cron.service.ts",
-            "/Users/slava/Projects/ATS/src/services/bq-routes-calculation/src/services/calibrate-min-roi.service.ts",
-            "/Users/slava/Projects/ATS/src/services/calc-epm/src/interfaces/configs/config.models.ts"
+            Path.Combine(testDataDir, "cron.service.ts"),
+            Path.Combine(testDataDir, "calibrate-min-roi.service.ts"),
+            Path.Combine(testDataDir, "config.models.ts")
         };
 
         foreach (var file in filesToTest)
         {
-            if (!File.Exists(file))
-            {
-                Assert.Warn($"Example file not found: {file}");
-                continue;
-            }
+            Assert.That(File.Exists(file), Is.True, $"Example file not found: {file}");
 
             using var syntaxTree =
                 await parser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             Assert.That(fileNode, Is.Not.Null);
-
-            Console.WriteLine($"\n================== PARSED FILE: {fileNode.Name} ==================");
-            PrintNodes(fileNode.Children, "  ");
+            Assert.That(fileNode.Children, Is.Not.Empty);
         }
     }
 
@@ -299,40 +310,6 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
         }
     }
 
-    private void PrintNodes(IEnumerable<IOntologyNode> nodes, string indent)
-    {
-        foreach (var node in nodes)
-        {
-            var name = GetNodeName(node);
-            Console.WriteLine($"{indent}- Node ID: {node.Id}, Kind: {node.Kind}, Name: {name}");
-
-            if (node.References.Any())
-            {
-                Console.WriteLine($"{indent}  References:");
-
-                foreach (var r in node.References)
-                {
-                    Console.WriteLine(
-                        $"{indent}    * ScopeSymbolId: {r.ScopeSymbolId}, TargetName: {r.TargetName}, Kind: {r.Kind}");
-                }
-            }
-
-            PrintNodes(node.Children, indent + "  ");
-        }
-    }
-
-    private string GetNodeName(IOntologyNode node)
-    {
-        return node switch
-        {
-            FileNode f => f.Name,
-            TypeNode t => t.Name,
-            FunctionNode fn => fn.Name,
-            MemberNode m => m.Name,
-            QueryNode q => q.Name,
-            _ => node.GetType().GetProperty("Name")?.GetValue(node) as string ?? "Unknown"
-        };
-    }
 
     private List<QueryNode> FindQueryNodes(IEnumerable<IOntologyNode> nodes)
     {
@@ -482,14 +459,7 @@ export class OrdersController {
 
         try
         {
-            // Debug: print the Tree-sitter AST nodes
-            var sourceText = await File.ReadAllTextAsync(tempFile);
-            using var language = new TreeSitter.Language("typescript");
-            using var tsParser = new TreeSitter.Parser(language);
-            using var tree = tsParser.Parse(sourceText);
-            Console.WriteLine("--- TS AST START ---");
-            PrintTsAst(tree!.RootNode, "");
-            Console.WriteLine("--- TS AST END ---");
+
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryMemgraphClient();
@@ -523,15 +493,7 @@ export class OrdersController {
         }
     }
 
-    private void PrintTsAst(TreeSitter.Node node, string indent)
-    {
-        Console.WriteLine($"{indent}Type: {node.Type}, Text: {node.Text.Replace("\n", " ")}");
 
-        foreach (var child in node.Children)
-        {
-            PrintTsAst(child, indent + "  ");
-        }
-    }
 
 
 
@@ -762,14 +724,7 @@ func Register(r *gin.Engine) {
 ";
             await File.WriteAllTextAsync(goFile, goCode);
 
-            // Debug: print the Go AST
-            var goSourceText = await File.ReadAllTextAsync(goFile);
-            using var goLang = new TreeSitter.Language("go");
-            using var goTsParser = new TreeSitter.Parser(goLang);
-            using var goTree = goTsParser.Parse(goSourceText);
-            Console.WriteLine("--- GO AST START ---");
-            PrintTsAst(goTree!.RootNode, "");
-            Console.WriteLine("--- GO AST END ---");
+
 
             using var goSyntax =
                 await goParser.ParseAsync(goFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1231,36 +1186,23 @@ socket.emit('ping-event', { data: 'hello' });
 
             using var syntaxTreeTs = await tsParser.ParseAsync(tsFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTreeTs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Console.WriteLine("NESTJS CHILDREN:");
-            PrintNodes(syntaxTreeTs.FileNode.Children, "  ");
             var tsEp = FindEndpointNode(syntaxTreeTs.FileNode.Children, "POST:/orders/charge");
             Assert.That(tsEp, Is.Not.Null, "Should aggregate Controller route prefix for NestJS");
 
             using var syntaxTreeCs = await csParser.ParseAsync(csFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTreeCs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Console.WriteLine("C# CHILDREN:");
-            PrintNodes(syntaxTreeCs.FileNode.Children, "  ");
             var csEp = FindEndpointNode(syntaxTreeCs.FileNode.Children, "POST:/api/Payments/charge-card");
             Assert.That(csEp, Is.Not.Null, "Should aggregate Controller route prefix and resolve [controller] for C#");
 
             using var syntaxTreeAxios = await tsParser.ParseAsync(axiosFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTreeAxios, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Console.WriteLine("AXIOS CHILDREN:");
-            PrintNodes(syntaxTreeAxios.FileNode.Children, "  ");
             var axiosEs = FindExternalServiceNode(syntaxTreeAxios.FileNode.Children, "*");
             Assert.That(axiosEs, Is.Not.Null, "Should resolve variable initializer in Axios call");
             Assert.That(axiosEs.Path, Is.EqualTo("/api/payments/charge-card"), "Should resolve variable initializer path");
 
             using var syntaxTreePubsub = await tsParser.ParseAsync(pubsubFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTreePubsub, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Console.WriteLine("PUBSUB CHILDREN:");
-            PrintNodes(syntaxTreePubsub.FileNode.Children, "  ");
             var pubsubRefs = FindReferences(syntaxTreePubsub.FileNode);
-            Console.WriteLine("PUBSUB REFERENCES:");
-            foreach (var r in pubsubRefs)
-            {
-                Console.WriteLine($"  * TargetName: {r.TargetName}, Kind: {r.Kind}");
-            }
             var pubsubPub = pubsubRefs.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
             Assert.That(pubsubPub, Is.Not.Null);
             Assert.That(pubsubPub.TargetName, Is.EqualTo("gcp:negative-profit-topic"));

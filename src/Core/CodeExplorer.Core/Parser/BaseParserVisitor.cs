@@ -30,7 +30,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 }
                 else
                 {
-                    Console.WriteLine($"Library '{match.Name}' detected but parser is not implemented yet.");
+                    // Library detected but parser is not implemented yet.
                 }
 
                 // Library detected but parser is not implemented yet.

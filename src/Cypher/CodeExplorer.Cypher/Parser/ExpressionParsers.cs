@@ -35,6 +35,7 @@ public static class ExpressionParsers
         .Or(Token.EqualTo(CypherToken.Not))
         .Or(Token.EqualTo(CypherToken.And))
         .Or(Token.EqualTo(CypherToken.Or))
+        .Or(Token.EqualTo(CypherToken.Unwind))
         .Select(t =>
         {
             var str = t.ToStringValue();
@@ -114,11 +115,55 @@ public static class ExpressionParsers
         from endTok in Token.EqualTo(CypherToken.End)
         select (Expression)new CaseExpression(testExpr, branches.ToList(), elseExpr);
 
-    public static TokenListParser<CypherToken, Expression> ListLiteral { get; } =
-        from open in Token.EqualTo(CypherToken.LBracket)
-        from items in Parse.Ref(() => ExpressionParser!).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
-        from close in Token.EqualTo(CypherToken.RBracket)
-        select (Expression)new ListExpression(items.ToList());
+    public static TokenListParser<CypherToken, Expression> ListComprehensionOrListLiteral { get; } =
+        (from open in Token.EqualTo(CypherToken.LBracket)
+         from varName in PropertyNameText
+         from inTok in Token.EqualTo(CypherToken.In)
+         from listExpr in Parse.Ref(() => ExpressionParser!)
+         from whereExpr in (
+             from whereTok in Token.EqualTo(CypherToken.Where)
+             from p in Parse.Ref(() => ExpressionParser!)
+             select p
+         ).OptionalOrDefault()
+         from pipe in (
+             from p in Token.EqualTo(CypherToken.Pipe)
+             from proj in Parse.Ref(() => ExpressionParser!)
+             select proj
+         ).OptionalOrDefault()
+         from close in Token.EqualTo(CypherToken.RBracket)
+         select (Expression)new ListComprehensionExpression(varName, listExpr, whereExpr, pipe))
+        .Try()
+        .Or(
+         from open in Token.EqualTo(CypherToken.LBracket)
+         from items in Parse.Ref(() => ExpressionParser!).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
+         from close in Token.EqualTo(CypherToken.RBracket)
+         select (Expression)new ListExpression(items.ToList()));
+
+    public static TokenListParser<CypherToken, Expression> MapLiteral { get; } =
+        from open in Token.EqualTo(CypherToken.LBrace)
+        from pairs in (
+            from key in PropertyNameText
+            from colon in Token.EqualTo(CypherToken.Colon)
+            from val in Parse.Ref(() => ExpressionParser!)
+            select (Key: key, Value: val)
+        ).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
+        from close in Token.EqualTo(CypherToken.RBrace)
+        select (Expression)new MapLiteralExpression(pairs.ToDictionary(p => p.Key, p => p.Value));
+
+    public static TokenListParser<CypherToken, Expression> QuantifierPredicate { get; } =
+        from quant in PropertyNameText
+        where quant.Equals("any", StringComparison.OrdinalIgnoreCase) ||
+              quant.Equals("all", StringComparison.OrdinalIgnoreCase) ||
+              quant.Equals("single", StringComparison.OrdinalIgnoreCase) ||
+              quant.Equals("none", StringComparison.OrdinalIgnoreCase)
+        from open in Token.EqualTo(CypherToken.LParen)
+        from varName in PropertyNameText
+        from inTok in Token.EqualTo(CypherToken.In)
+        from listExpr in Parse.Ref(() => ExpressionParser!)
+        from whereTok in Token.EqualTo(CypherToken.Where)
+        from pred in Parse.Ref(() => ExpressionParser!)
+        from close in Token.EqualTo(CypherToken.RParen)
+        select (Expression)new ListPredicateExpression(quant.ToLowerInvariant(), varName, listExpr, pred);
 
     public static TokenListParser<CypherToken, Expression> ParenthesizedExpression { get; } =
         from open in Token.EqualTo(CypherToken.LParen)
@@ -143,7 +188,10 @@ public static class ExpressionParsers
     public static TokenListParser<CypherToken, Expression> Atom { get; } =
         ParenthesizedExpression
         .Or(CaseExpression)
-        .Or(ListLiteral)
+        .Or(QuantifierPredicate)
+        .Or(QuantifierPredicate.Try())
+        .Or(ListComprehensionOrListLiteral)
+        .Or(MapLiteral)
         .Or(StringLiteral)
         .Or(NumberLiteral)
         .Or(BooleanLiteral)

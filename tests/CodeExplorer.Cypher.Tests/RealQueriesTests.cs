@@ -26,36 +26,42 @@ public class RealQueriesTests
         Assert.That(Directory.Exists(_queriesDir), Is.True, $"Queries directory not found: {_queriesDir}");
     }
 
-    [TestCase("find_symbol_all.cypher")]
-    [TestCase("find_symbol_class.cypher")]
-    [TestCase("find_symbol_function.cypher")]
-    [TestCase("find_symbol_interface.cypher")]
-    [TestCase("get_file_outline.cypher")]
-    [TestCase("get_file_outline_no_ws.cypher")]
-    [TestCase("get_project_dependencies_all.cypher")]
-    [TestCase("get_project_dependencies_all_no_ws.cypher")]
-    [TestCase("get_all_workspaces.cypher")]
-    [TestCase("get_workspace_id.cypher")]
-    [TestCase("get_call_chain.cypher")]
-    [TestCase("get_call_chain_no_ws.cypher")]
-    [TestCase("resolve_call_target.cypher")]
-    [TestCase("resolve_call_target_no_ws.cypher")]
-    [TestCase("get_project_entry_points.cypher")]
-    [TestCase("get_project_entry_points_no_ws.cypher")]
-    [TestCase("get_project_dependencies_filtered.cypher")]
-    [TestCase("get_project_dependencies_filtered_no_ws.cypher")]
-    [TestCase("inspect_data_lineage.cypher")]
-    [TestCase("inspect_data_lineage_no_ws.cypher")]
-    [TestCase("analyze_code_impact.cypher")]
-    [TestCase("analyze_code_impact_no_ws.cypher")]
+    public static IEnumerable<string> GetAllCypherQueryFiles()
+    {
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var dir = new DirectoryInfo(baseDir);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "CodeExplorer.slnx")))
+        {
+            dir = dir.Parent;
+        }
+
+        if (dir == null) yield break;
+        var queriesDir = Path.Combine(dir.FullName, "src", "Core", "CodeExplorer.Core", "Resources", "Queries");
+        if (!Directory.Exists(queriesDir)) yield break;
+
+        foreach (var file in Directory.GetFiles(queriesDir, "*.cypher"))
+        {
+            yield return Path.GetFileName(file);
+        }
+    }
+
+    [Test]
+    public void Test_AllCypherFilesDiscovered()
+    {
+        var files = GetAllCypherQueryFiles().ToList();
+        Assert.That(files.Count, Is.GreaterThanOrEqualTo(33), "Expected at least 33 cypher files in Resources/Queries");
+    }
+
+    [TestCaseSource(nameof(GetAllCypherQueryFiles))]
     public void Test_CanParseAndCompile_RealQuery(string fileName)
     {
         var filePath = Path.Combine(_queriesDir, fileName);
         var rawText = File.ReadAllText(filePath);
 
         // Preprocess template placeholders as CodeExplorer does at runtime
+        var prefixClause = fileName.StartsWith("find_refactor_") ? " WHERE p.id STARTS WITH $wsIdPrefix" : " AND n.id STARTS WITH $wsIdPrefix";
         var preparedQuery = rawText
-            .Replace("{prefixClause}", " AND n.id STARTS WITH $wsIdPrefix")
+            .Replace("{prefixClause}", prefixClause)
             .Replace("{prefixFilter}", "WHERE p.id STARTS WITH $wsIdPrefix")
             .Replace("{depth}", "5");
 
