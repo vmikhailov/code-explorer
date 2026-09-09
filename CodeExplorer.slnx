@@ -14,8 +14,12 @@
     <Project Path="src/Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj" />
   </Folder>
+  <Folder Name="/Cypher/">
+    <Project Path="src/Cypher/CodeExplorer.Cypher/CodeExplorer.Cypher.csproj" />
+  </Folder>
   <Folder Name="/Tests/">
     <Project Path="tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj" />
+    <Project Path="tests/CodeExplorer.Cypher.Tests/CodeExplorer.Cypher.Tests.csproj" />
   </Folder>
   <Folder Name="/Tools/" />
   <Folder Name="/Tools/CodeExplorer.OntologyGen/">
