@@ -1,0 +1,8 @@
+using Microsoft.AspNetCore.Mvc;
+namespace Test;
+[Route("api/[controller]")]
+public class PaymentsController : ControllerBase {
+    [HttpPost("charge-card")]
+    public IActionResult Charge() => Ok();
+}
+

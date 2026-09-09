@@ -6,12 +6,13 @@ namespace CodeExplorer.Cypher.Parser;
 
 public static class CypherQueryParser
 {
-    public static TokenListParser<CypherToken, (List<MatchClause> Matches, List<WithClause> Withs, List<UnwindClause> Unwinds)> QueryBody { get; } =
+    public static TokenListParser<CypherToken, (List<MatchClause> Matches, List<WithClause> Withs, List<UnwindClause> Unwinds, List<CallClause> Calls)> QueryBody { get; } =
         input =>
         {
             var matches = new List<MatchClause>();
             var withs = new List<WithClause>();
             var unwinds = new List<UnwindClause>();
+            var calls = new List<CallClause>();
             var remainder = input;
 
             while (!remainder.IsAtEnd)
@@ -40,21 +41,28 @@ public static class CypherQueryParser
                     unwinds.Add(uRes.Value);
                     remainder = uRes.Remainder;
                 }
+                else if (next.Value.Kind == CypherToken.Call)
+                {
+                    var cRes = ClauseParsers.Call(remainder);
+                    if (!cRes.HasValue) break;
+                    calls.Add(cRes.Value);
+                    remainder = cRes.Remainder;
+                }
                 else
                 {
                     break;
                 }
             }
 
-            if (matches.Count == 0 && withs.Count == 0 && unwinds.Count == 0)
+            if (matches.Count == 0 && withs.Count == 0 && unwinds.Count == 0 && calls.Count == 0)
             {
-                return TokenListParserResult.Empty<CypherToken, (List<MatchClause>, List<WithClause>, List<UnwindClause>)>(input);
+                return TokenListParserResult.Empty<CypherToken, (List<MatchClause>, List<WithClause>, List<UnwindClause>, List<CallClause>)>(input);
             }
 
-            return TokenListParserResult.Value((matches, withs, unwinds), input, remainder);
+            return TokenListParserResult.Value((matches, withs, unwinds, calls), input, remainder);
         };
 
-    public static TokenListParser<CypherToken, CypherQuery> Query { get; } =
+    public static TokenListParser<CypherToken, CypherQuery> SingleQuery { get; } =
         from body in QueryBody
         from topWhere in ClauseParsers.Where.OptionalOrDefault()
         from ret in ClauseParsers.Return
@@ -69,8 +77,19 @@ public static class CypherQueryParser
             skip,
             limit,
             body.Withs,
-            body.Unwinds
+            body.Unwinds,
+            body.Calls
         );
+
+    public static TokenListParser<CypherToken, CypherQuery> Query { get; } =
+        from first in SingleQuery
+        from unions in (
+            from unionTok in Superpower.Parsers.Token.EqualTo(CypherToken.Union)
+            from allTok in Superpower.Parsers.Token.EqualTo(CypherToken.Identifier).Where(t => t.ToStringValue().Equals("all", StringComparison.OrdinalIgnoreCase)).Optional()
+            from nextQuery in SingleQuery
+            select new UnionClause(allTok.HasValue, nextQuery)
+        ).Many()
+        select unions.Length > 0 ? first with { Unions = unions.ToList() } : first;
 
     public static CypherQuery Parse(string cypherText)
     {

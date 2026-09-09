@@ -2,43 +2,25 @@ using NUnit.Framework;
 using TreeSitter;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Tests.Shared;
 
 namespace CodeExplorer.Tests;
 
 [TestFixture]
 public class NodeSelectorTests
 {
-    private TypeScriptParser _parser;
-    private string _tempDir;
-
-    [SetUp]
-    public void SetUp()
-    {
-        _parser = new TypeScriptParser();
-        _tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_tempDir);
-    }
-
-    [TearDown]
-    public void TearDown()
-    {
-        if (Directory.Exists(_tempDir))
-        {
-            Directory.Delete(_tempDir, true);
-        }
-    }
+    private readonly TypeScriptParser _parser = new();
 
     [Test]
     public async Task Test_NodeSelector_HasType_And_FirstChild_And_GetChildForField()
+    [ParserFileSource("SingleFiles/TypeScript", "node_selector_decorator.ts.test")]
+    public async Task Test_NodeSelector_HasType_And_FirstChild_And_GetChildForField(string filePath)
     {
-        var tempFile = Path.Combine(_tempDir, "decorator_test.ts");
-        var code = @"
-@Controller('leads')
-class MyController {}
-";
-        await File.WriteAllTextAsync(tempFile, code);
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/node_selector_decorator.ts.test");
 
-        using var syntaxTree = await SyntaxTree.ParseAsync(tempFile, "decorator_test.ts", "parent-id", _parser, "ws-id", _tempDir);
+        using var syntaxTree = await SyntaxTree.ParseAsync(tempFile.FilePath, "decorator_test.ts", "parent-id", _parser, "ws-id", tempFile.DirectoryPath);
+        var workspacePath = Path.GetDirectoryName(filePath)!;
+        using var syntaxTree = await SyntaxTree.ParseAsync(filePath, "decorator_test.ts", "parent-id", _parser, "ws-id", workspacePath);
         var root = syntaxTree.Tree?.RootNode;
 
         var decoratorNode = FindNode(root, "decorator");
@@ -65,17 +47,14 @@ class MyController {}
 
     [Test]
     public async Task Test_NodeSelector_Or_And_HasChild_And_FunctionNode()
+    [ParserFileSource("SingleFiles/TypeScript", "node_selector_express_axios.ts.test")]
+    public async Task Test_NodeSelector_Or_And_HasChild_And_FunctionNode(string filePath)
     {
-        var tempFile = Path.Combine(_tempDir, "express_and_axios_test.ts");
-        var code = @"
-app.get('/leads', (req, res) => {
-    fetch('/target');
-    axios.post('/another');
-});
-";
-        await File.WriteAllTextAsync(tempFile, code);
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/node_selector_express_axios.ts.test");
 
-        using var syntaxTree = await SyntaxTree.ParseAsync(tempFile, "express_and_axios_test.ts", "parent-id", _parser, "ws-id", _tempDir);
+        using var syntaxTree = await SyntaxTree.ParseAsync(tempFile.FilePath, "express_and_axios_test.ts", "parent-id", _parser, "ws-id", tempFile.DirectoryPath);
+        var workspacePath = Path.GetDirectoryName(filePath)!;
+        using var syntaxTree = await SyntaxTree.ParseAsync(filePath, "express_and_axios_test.ts", "parent-id", _parser, "ws-id", workspacePath);
         var root = syntaxTree.Tree?.RootNode;
 
         // Express route selector test
@@ -116,14 +95,14 @@ app.get('/leads', (req, res) => {
 
     [Test]
     public async Task Test_NodeSelector_Select()
+    [ParserFileSource("SingleFiles/TypeScript", "node_selector_select.ts.test")]
+    public async Task Test_NodeSelector_Select(string filePath)
     {
-        var tempFile = Path.Combine(_tempDir, "select_test.ts");
-        var code = @"
-app.get('/leads');
-";
-        await File.WriteAllTextAsync(tempFile, code);
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/node_selector_select.ts.test");
 
-        using var syntaxTree = await SyntaxTree.ParseAsync(tempFile, "select_test.ts", "parent-id", _parser, "ws-id", _tempDir);
+        using var syntaxTree = await SyntaxTree.ParseAsync(tempFile.FilePath, "select_test.ts", "parent-id", _parser, "ws-id", tempFile.DirectoryPath);
+        var workspacePath = Path.GetDirectoryName(filePath)!;
+        using var syntaxTree = await SyntaxTree.ParseAsync(filePath, "select_test.ts", "parent-id", _parser, "ws-id", workspacePath);
         var root = syntaxTree.Tree?.RootNode;
 
         var callNode = FindNode(root, "call_expression");

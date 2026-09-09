@@ -1,0 +1,10 @@
+async function getStages(tableName: string, bundle_id: number, site_id: string) {
+    const query = `
+        SELECT *
+        FROM \`${tableName}\`
+        WHERE bundle_id = ${bundle_id} AND site_id = '${site_id}'
+        ORDER BY stage DESC
+    `;
+    await BQ.executeQuery(query);
+}
+

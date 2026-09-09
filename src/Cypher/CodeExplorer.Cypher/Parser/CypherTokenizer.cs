@@ -20,6 +20,7 @@ public static class CypherTokenizer
             .Match(Span.EqualTo(">="), CypherToken.GreaterOrEqual)
             .Match(Span.EqualTo("<>"), CypherToken.NotEqual)
             .Match(Span.EqualTo("!="), CypherToken.NotEqual)
+            .Match(Span.EqualTo("=~"), CypherToken.RegexMatch)
             .Match(Span.EqualTo(".."), CypherToken.DotDot)
 
             // Single-char symbols
@@ -39,6 +40,9 @@ public static class CypherTokenizer
             .Match(Character.EqualTo('<'), CypherToken.LessThan)
             .Match(Character.EqualTo('>'), CypherToken.GreaterThan)
             .Match(Character.EqualTo('+'), CypherToken.Plus)
+            .Match(Character.EqualTo('/'), CypherToken.Slash)
+            .Match(Character.EqualTo('%'), CypherToken.Percent)
+            .Match(Character.EqualTo('^'), CypherToken.Caret)
 
             // Cypher parameter ($param) must be matched before single Dollar
             .Match(Span.Regex(@"\$[a-zA-Z_][a-zA-Z0-9_]*"), CypherToken.Parameter)
@@ -75,6 +79,10 @@ public static class CypherTokenizer
             .Match(Span.Regex("(?i)\\bEND\\b"), CypherToken.End)
             .Match(Span.Regex("(?i)\\bWITH\\b"), CypherToken.With)
             .Match(Span.Regex("(?i)\\bUNWIND\\b"), CypherToken.Unwind)
+            .Match(Span.Regex("(?i)\\bXOR\\b"), CypherToken.Xor)
+            .Match(Span.Regex("(?i)\\bUNION\\b"), CypherToken.Union)
+            .Match(Span.Regex("(?i)\\bCALL\\b"), CypherToken.Call)
+            .Match(Span.Regex("(?i)\\bYIELD\\b"), CypherToken.Yield)
 
             // Backtick-quoted identifiers (e.g. `some-prop`)
             .Match(Span.Regex(@"`[^`]+`"), CypherToken.Identifier)
@@ -86,8 +94,9 @@ public static class CypherTokenizer
             .Match(Span.Regex(@"'([^'\\]|\\.)*'"), CypherToken.StringLiteral)
             .Match(Span.Regex(@"""([^""\\]|\\.)*"""), CypherToken.StringLiteral)
 
-            // Numbers: integer or decimal
-            .Match(Span.Regex(@"[0-9]+(\.[0-9]+)?"), CypherToken.Number)
+            // Numbers: hexadecimal, exponential, decimal, or integer
+            .Match(Span.Regex(@"0x[0-9a-fA-F]+"), CypherToken.Number)
+            .Match(Span.Regex(@"[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?"), CypherToken.Number)
 
             .Build();
 }

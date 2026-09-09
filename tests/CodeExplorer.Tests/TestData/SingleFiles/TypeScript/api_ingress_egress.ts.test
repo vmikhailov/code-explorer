@@ -1,0 +1,16 @@
+import { Controller, Post, Get } from '@nestjs/common';
+import axios from 'axios';
+
+@Controller('orders')
+export class OrdersController {
+    @Post('charge')
+    async chargeOrder() {
+        await axios.post('http://api.stripe.com/v1/charges', {});
+    }
+
+    @SubscribeMessage('ping')
+    onPing() {
+        return 'pong';
+    }
+}
+

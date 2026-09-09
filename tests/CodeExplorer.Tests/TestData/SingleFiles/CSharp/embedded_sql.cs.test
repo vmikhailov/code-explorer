@@ -1,0 +1,6 @@
+class Test {
+    void Clean() {
+        string query = "SELECT id, name FROM users WHERE active = 1";
+    }
+}
+

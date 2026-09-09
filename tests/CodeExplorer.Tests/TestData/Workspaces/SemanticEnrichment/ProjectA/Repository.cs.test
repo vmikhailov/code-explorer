@@ -1,0 +1,13 @@
+using System;
+using Dapper;
+using Stripe;
+
+class Repository {
+    private const string CONNECTION_STRING_URL = "Server=myServerAddress;Database=myDataBase;User Id=myUsername;Password=myPassword;";
+    public static readonly int MAX_RETRIES = 5;
+    void RunQuery() {
+        var sql = "SELECT * FROM Users";
+        int timeoutSeconds = 30;
+    }
+}
+

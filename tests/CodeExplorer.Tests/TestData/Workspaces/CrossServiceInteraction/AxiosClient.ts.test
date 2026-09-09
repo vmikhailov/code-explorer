@@ -1,0 +1,6 @@
+import axios from 'axios';
+const apiHost = 'http://payment-service';
+async function makeCall() {
+    await axios.post(`${apiHost}/api/payments/charge-card`);
+}
+

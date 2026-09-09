@@ -1,0 +1,6 @@
+import { PubSub } from '@google-cloud/pubsub';
+const pubsub = new PubSub();
+async function run() {
+    await pubsub.topic('negative-profit-topic').publish(Buffer.from('data'));
+}
+

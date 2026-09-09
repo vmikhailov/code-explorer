@@ -19,3 +19,7 @@ public record OrderByClause(List<OrderByItem> Items);
 public record SkipClause(int Count);
 
 public record LimitClause(int Count);
+
+public record CallClause(CypherQuery Subquery);
+
+public record UnionClause(bool IsAll, CypherQuery Query);

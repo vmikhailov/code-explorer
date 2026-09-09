@@ -1,0 +1,16 @@
+using Dapper;
+using Flurl.Http;
+
+public class Service
+{
+    public void RunDapper(System.Data.IDbConnection conn)
+    {
+        conn.Query("SELECT name FROM users WHERE id = @id");
+    }
+
+    public async System.Threading.Tasks.Task RunFlurl()
+    {
+        await "http://api.github.com/v3".AppendPathSegment("users").GetJsonAsync();
+    }
+}
+

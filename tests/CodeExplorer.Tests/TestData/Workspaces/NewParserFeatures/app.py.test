@@ -1,0 +1,4 @@
+@app.route('/charge', methods=['POST'])
+def process_payment():
+    requests.post('https://api.stripe.com/v3/charges')
+

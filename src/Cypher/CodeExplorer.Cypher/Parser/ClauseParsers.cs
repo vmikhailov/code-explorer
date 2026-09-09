@@ -20,15 +20,19 @@ public static class ClauseParsers
         from whereClause in Where.OptionalOrDefault()
         select new MatchClause(opt.HasValue, [.. paths], whereClause);
 
-    // Projection item: expr [AS alias]
+    // Projection item: expr [AS alias] or *
     public static TokenListParser<CypherToken, ProjectionItem> ProjectionItem { get; } =
-        from expr in ExpressionParsers.ExpressionParser
-        from alias in (
-            from asTok in Token.EqualTo(CypherToken.As)
-            from name in ExpressionParsers.PropertyNameText
-            select name
-        ).OptionalOrDefault()
-        select new ProjectionItem(expr, alias);
+        (from star in Token.EqualTo(CypherToken.Asterisk)
+         select new ProjectionItem(new WildcardExpression(), null))
+        .Or(
+            from expr in ExpressionParsers.ExpressionParser
+            from alias in (
+                from asTok in Token.EqualTo(CypherToken.As)
+                from name in ExpressionParsers.PropertyNameText
+                select name
+            ).OptionalOrDefault()
+            select new ProjectionItem(expr, alias)
+        );
 
     // WITH [DISTINCT] item, item... [WHERE ...]
     public static TokenListParser<CypherToken, WithClause> With { get; } =
@@ -45,6 +49,14 @@ public static class ClauseParsers
         from asTok in Token.EqualTo(CypherToken.As)
         from alias in ExpressionParsers.PropertyNameText
         select new UnwindClause(expr, alias);
+
+    // CALL { query }
+    public static TokenListParser<CypherToken, CallClause> Call { get; } =
+        from callTok in Token.EqualTo(CypherToken.Call)
+        from open in Token.EqualTo(CypherToken.LBrace)
+        from subquery in Parse.Ref(() => CypherQueryParser.Query!)
+        from close in Token.EqualTo(CypherToken.RBrace)
+        select new CallClause(subquery);
 
     // RETURN [DISTINCT] item, item...
     public static TokenListParser<CypherToken, ReturnClause> Return { get; } =

@@ -1,0 +1,6 @@
+CREATE PROCEDURE GetOrders
+AS
+BEGIN
+    SELECT OrderId, CustomerId, Amount FROM Orders;
+END;
+

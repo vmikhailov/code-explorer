@@ -1,0 +1,5 @@
+async function clearDataAllLeads(bundle_ids: string) {
+    const query = `DELETE FROM tracking.data_all_leads WHERE bundle_id in (${bundle_ids})`;
+    await BQ.executeQuery(query);
+}
+

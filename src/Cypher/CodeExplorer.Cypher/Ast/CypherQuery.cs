@@ -8,5 +8,7 @@ public record CypherQuery(
     SkipClause? Skip = null,
     LimitClause? Limit = null,
     List<WithClause>? WithClauses = null,
-    List<UnwindClause>? UnwindClauses = null
+    List<UnwindClause>? UnwindClauses = null,
+    List<CallClause>? Calls = null,
+    List<UnionClause>? Unions = null
 );

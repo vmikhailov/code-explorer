@@ -14,6 +14,8 @@ public interface ICypherVisitor<TResult>
     TResult VisitLimitClause(LimitClause limitClause);
     TResult VisitWithClause(WithClause withClause);
     TResult VisitUnwindClause(UnwindClause unwindClause);
+    TResult VisitCallClause(CallClause callClause);
+    TResult VisitUnionClause(UnionClause unionClause);
 
     TResult VisitPathPattern(PathPattern pathPattern);
     TResult VisitNodePattern(NodePattern nodePattern);

@@ -14,6 +14,7 @@ using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Python;
 using CodeExplorer.Parser.TypeScript;
+using CodeExplorer.Tests.Shared;
 
 namespace CodeExplorer.Tests;
 
@@ -24,42 +25,23 @@ public class ParserValidationTests
     public async Task Test_TypeScriptParser_WithExamples()
     {
         var parser = new TypeScriptParser();
-        var baseDir = TestContext.CurrentContext.TestDirectory;
-        var testDataDir = Path.Combine(baseDir, "TestData", "TypeScript");
-
-        if (!Directory.Exists(testDataDir))
-        {
-            var curr = new DirectoryInfo(baseDir);
-            while (curr != null && !File.Exists(Path.Combine(curr.FullName, "CodeExplorer.slnx")))
-            {
-                curr = curr.Parent;
-            }
-            if (curr != null)
-            {
-                testDataDir = Path.Combine(curr.FullName, "tests", "CodeExplorer.Tests", "TestData", "TypeScript");
-            }
-        }
-
-        Assert.That(Directory.Exists(testDataDir), Is.True, $"TestData directory not found: {testDataDir}");
-
-        var workspacePath = testDataDir;
-        var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-
         var filesToTest = new[]
         {
-            Path.Combine(testDataDir, "cron.service.ts"),
-            Path.Combine(testDataDir, "calibrate-min-roi.service.ts"),
-            Path.Combine(testDataDir, "config.models.ts")
+            "SingleFiles/TypeScript/cron.service.ts.test",
+            "SingleFiles/TypeScript/calibrate-min-roi.service.ts.test",
+            "SingleFiles/TypeScript/config.models.ts.test"
         };
 
-        foreach (var file in filesToTest)
+        foreach (var relativeFile in filesToTest)
         {
-            Assert.That(File.Exists(file), Is.True, $"Example file not found: {file}");
+            using var tempFile = ParserTestData.GetPreparedFile(relativeFile);
+            var workspacePath = tempFile.DirectoryPath;
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryMemgraphClient();
+            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
-                await parser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+                await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
             Assert.That(fileNode, Is.Not.Null);
@@ -71,171 +53,111 @@ public class ParserValidationTests
     public async Task Test_TypeScriptParser_EmbeddedSql()
     {
         var parser = new TypeScriptParser();
-        var workspacePath = Path.GetTempPath();
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/embedded_sql.ts.test");
+        var workspacePath = tempFile.DirectoryPath;
 
-        var tempFile = Path.Combine(workspacePath, "embedded_sql_test.ts");
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-        var code = @"
-async function clearDataAllLeads(bundle_ids: string) {
-    const query = `DELETE FROM tracking.data_all_leads WHERE bundle_id in (${bundle_ids})`;
-    await BQ.executeQuery(query);
-}
-";
-        await File.WriteAllTextAsync(tempFile, code);
+        using var syntaxTree =
+            await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var fileNode = syntaxTree.FileNode;
+        Assert.That(fileNode, Is.Not.Null);
 
-        try
-        {
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var queryNodes = FindQueryNodes(fileNode.Children);
+        Assert.That(queryNodes, Is.Not.Empty, "Should have detected the embedded SQL query");
 
-            using var syntaxTree =
-                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+        var sqlQuery = queryNodes[0];
+        Assert.That(sqlQuery.Name, Is.EqualTo("DELETE Query"));
 
-            var queryNodes = FindQueryNodes(fileNode.Children);
-            Assert.That(queryNodes, Is.Not.Empty, "Should have detected the embedded SQL query");
+        Assert.That(sqlQuery.QueryText,
+            Contains.Substring("DELETE FROM tracking.data_all_leads WHERE bundle_id in"));
 
-            var sqlQuery = queryNodes[0];
-            Assert.That(sqlQuery.Name, Is.EqualTo("DELETE Query"));
+        var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
+        Assert.That(dependsOn, Contains.Item("tracking"));
+        Assert.That(dependsOn, Contains.Item("data_all_leads"));
 
-            Assert.That(sqlQuery.QueryText,
-                Contains.Substring("DELETE FROM tracking.data_all_leads WHERE bundle_id in"));
-
-            var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
-            Assert.That(dependsOn, Contains.Item("tracking"));
-            Assert.That(dependsOn, Contains.Item("data_all_leads"));
-
-            AssertSqlHierarchy(sqlQuery, "default", "tracking", "data_all_leads");
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
+        AssertSqlHierarchy(sqlQuery, "default", "tracking", "data_all_leads");
     }
 
     [Test]
     public async Task Test_CSharpParser_EmbeddedSql()
     {
         var parser = new CSharpParser();
-        var workspacePath = Path.GetTempPath();
-        var tempFile = Path.Combine(workspacePath, "embedded_sql_test.cs");
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/CSharp/embedded_sql.cs.test");
+        var workspacePath = tempFile.DirectoryPath;
 
-        var code = """
-                   class Test {
-                       void Clean() {
-                           string query = "SELECT id, name FROM users WHERE active = 1";
-                       }
-                   }
-                   """;
-        await File.WriteAllTextAsync(tempFile, code);
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-        try
-        {
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        using var syntaxTree =
+            await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var fileNode = syntaxTree.FileNode;
+        var queryNodes = FindQueryNodes(fileNode.Children);
+        Assert.That(queryNodes, Is.Not.Empty);
+        var sqlQuery = queryNodes[0];
+        Assert.That(sqlQuery.Name, Is.EqualTo("SELECT Query"));
+        Assert.That(sqlQuery.QueryText, Contains.Substring("SELECT id, name FROM users"));
+        var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
+        Assert.That(dependsOn, Contains.Item("users"));
 
-            using var syntaxTree =
-                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var fileNode = syntaxTree.FileNode;
-            var queryNodes = FindQueryNodes(fileNode.Children);
-            Assert.That(queryNodes, Is.Not.Empty);
-            var sqlQuery = queryNodes[0];
-            Assert.That(sqlQuery.Name, Is.EqualTo("SELECT Query"));
-            Assert.That(sqlQuery.QueryText, Contains.Substring("SELECT id, name FROM users"));
-            var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
-            Assert.That(dependsOn, Contains.Item("users"));
-
-            AssertSqlHierarchy(sqlQuery, "default", "dbo", "users");
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
+        AssertSqlHierarchy(sqlQuery, "default", "dbo", "users");
     }
 
     [Test]
     public async Task Test_PythonParser_EmbeddedSql()
     {
         var parser = new PythonParser();
-        var workspacePath = Path.GetTempPath();
-        var tempFile = Path.Combine(workspacePath, "embedded_sql_test.py");
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/Python/embedded_sql.py.test");
+        var workspacePath = tempFile.DirectoryPath;
 
-        var code = """
-                   def clean_db():
-                       query = 'INSERT INTO logs (message, created_at) VALUES ("test", 123)'
-                   """;
-        await File.WriteAllTextAsync(tempFile, code);
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-        try
-        {
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        using var syntaxTree =
+            await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var fileNode = syntaxTree.FileNode;
+        var queryNodes = FindQueryNodes(fileNode.Children);
+        Assert.That(queryNodes, Is.Not.Empty);
+        var sqlQuery = queryNodes[0];
+        Assert.That(sqlQuery.Name, Is.EqualTo("INSERT Query"));
+        Assert.That(sqlQuery.QueryText, Contains.Substring("INSERT INTO logs"));
+        var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
+        Assert.That(dependsOn, Contains.Item("logs"));
 
-            using var syntaxTree =
-                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var fileNode = syntaxTree.FileNode;
-            var queryNodes = FindQueryNodes(fileNode.Children);
-            Assert.That(queryNodes, Is.Not.Empty);
-            var sqlQuery = queryNodes[0];
-            Assert.That(sqlQuery.Name, Is.EqualTo("INSERT Query"));
-            Assert.That(sqlQuery.QueryText, Contains.Substring("INSERT INTO logs"));
-            var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
-            Assert.That(dependsOn, Contains.Item("logs"));
-
-            AssertSqlHierarchy(sqlQuery, "default", "dbo", "logs");
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
+        AssertSqlHierarchy(sqlQuery, "default", "dbo", "logs");
     }
 
     [Test]
     public async Task Test_GoParser_EmbeddedSql()
     {
         var parser = new GoParser();
-        var workspacePath = Path.GetTempPath();
-        var tempFile = Path.Combine(workspacePath, "embedded_sql_test.go");
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/Go/embedded_sql.go.test");
+        var workspacePath = tempFile.DirectoryPath;
 
-        var code = """
-                   package main
-                   func clean() {
-                       query := `UPDATE transactions SET status = 'failed' WHERE id = 1`
-                   }
-                   """;
-        await File.WriteAllTextAsync(tempFile, code);
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-        try
-        {
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        using var syntaxTree =
+            await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var fileNode = syntaxTree.FileNode;
+        var queryNodes = FindQueryNodes(fileNode.Children);
+        Assert.That(queryNodes, Is.Not.Empty);
+        var sqlQuery = queryNodes[0];
+        Assert.That(sqlQuery.Name, Is.EqualTo("UPDATE Query"));
+        Assert.That(sqlQuery.QueryText, Contains.Substring("UPDATE transactions SET status"));
+        var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
+        Assert.That(dependsOn, Contains.Item("transactions"));
 
-            using var syntaxTree =
-                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var fileNode = syntaxTree.FileNode;
-            var queryNodes = FindQueryNodes(fileNode.Children);
-            Assert.That(queryNodes, Is.Not.Empty);
-            var sqlQuery = queryNodes[0];
-            Assert.That(sqlQuery.Name, Is.EqualTo("UPDATE Query"));
-            Assert.That(sqlQuery.QueryText, Contains.Substring("UPDATE transactions SET status"));
-            var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
-            Assert.That(dependsOn, Contains.Item("transactions"));
-
-            AssertSqlHierarchy(sqlQuery, "default", "dbo", "transactions");
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
+        AssertSqlHierarchy(sqlQuery, "default", "dbo", "transactions");
     }
 
     private void AssertSqlHierarchy(QueryNode queryNode, string expectedDb, string expectedSchema, string expectedTable)
@@ -266,50 +188,29 @@ async function clearDataAllLeads(bundle_ids: string) {
     public async Task Test_TypeScriptParser_EmbeddedSql_ComplexTemplate()
     {
         var parser = new TypeScriptParser();
-        var workspacePath = Path.GetTempPath();
-        var tempFile = Path.Combine(workspacePath, "complex_template_test.ts");
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/complex_template.ts.test");
+        var workspacePath = tempFile.DirectoryPath;
 
-        var code = @"
-async function getStages(tableName: string, bundle_id: number, site_id: string) {
-    const query = `
-        SELECT *
-        FROM \`${tableName}\`
-        WHERE bundle_id = ${bundle_id} AND site_id = '${site_id}'
-        ORDER BY stage DESC
-    `;
-    await BQ.executeQuery(query);
-}
-";
-        await File.WriteAllTextAsync(tempFile, code);
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-        try
-        {
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        using var syntaxTree =
+            await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var fileNode = syntaxTree.FileNode;
 
-            using var syntaxTree =
-                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var fileNode = syntaxTree.FileNode;
+        var queryNodes = FindQueryNodes(fileNode.Children);
+        Assert.That(queryNodes, Is.Not.Empty);
+        var sqlQuery = queryNodes[0];
+        Assert.That(sqlQuery.Name, Is.EqualTo("SELECT Query"));
 
-            var queryNodes = FindQueryNodes(fileNode.Children);
-            Assert.That(queryNodes, Is.Not.Empty);
-            var sqlQuery = queryNodes[0];
-            Assert.That(sqlQuery.Name, Is.EqualTo("SELECT Query"));
+        // Since tableName is a variable, it should be skipped and no database node hierarchy should be created for it.
+        var hasDbNode = sqlQuery.Children.OfType<DatabaseNode>().Any();
 
-            // Since tableName is a variable, it should be skipped and no database node hierarchy should be created for it.
-            var hasDbNode = sqlQuery.Children.OfType<DatabaseNode>().Any();
-
-            Assert.That(hasDbNode, Is.False,
-                "Should have skipped tableName because it is a template variable placeholder.");
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
+        Assert.That(hasDbNode, Is.False,
+            "Should have skipped tableName because it is a template variable placeholder.");
     }
-
 
     private List<QueryNode> FindQueryNodes(IEnumerable<IOntologyNode> nodes)
     {
@@ -380,415 +281,276 @@ async function getStages(tableName: string, bundle_id: number, site_id: string) 
     public async Task Test_CSharpParser_ApiIngressEgress()
     {
         var parser = new CSharpParser();
-        var workspacePath = Path.GetTempPath();
-        var tempFile = Path.Combine(workspacePath, "csharp_api_test.cs");
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/CSharp/api_ingress_egress.cs.test");
+        var workspacePath = tempFile.DirectoryPath;
 
-        var code = """
-                   using System.Net.Http;
-                   using Microsoft.AspNetCore.Mvc;
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-                   [ApiController]
-                   [Route("api/[controller]")]
-                   public class OrdersController : ControllerBase
-                   {
-                       [HttpPost("charge")]
-                       public async Task<IActionResult> ChargeOrder()
-                       {
-                           var client = new HttpClient();
-                           await client.PostAsync("http://api.stripe.com/v1/charges", null);
-                           return Ok();
-                       }
-                   }
-                   """;
-        await File.WriteAllTextAsync(tempFile, code);
+        using var syntaxTree =
+            await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var fileNode = syntaxTree.FileNode;
 
-        try
-        {
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var endpoints = FindEndpointNodes(fileNode.Children);
+        Assert.That(endpoints, Is.Not.Empty);
+        var ep = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("charge"));
+        Assert.That(ep, Is.Not.Null);
+        Assert.That(ep.HttpMethod, Is.EqualTo("POST"));
 
-            using var syntaxTree =
-                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var fileNode = syntaxTree.FileNode;
-
-            var endpoints = FindEndpointNodes(fileNode.Children);
-            Assert.That(endpoints, Is.Not.Empty);
-            var ep = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("charge"));
-            Assert.That(ep, Is.Not.Null);
-            Assert.That(ep.HttpMethod, Is.EqualTo("POST"));
-
-            var externalServices = FindExternalServiceNodes(fileNode.Children);
-            Assert.That(externalServices, Is.Not.Empty);
-            var es = externalServices.FirstOrDefault(e => e.DomainOrService == "api.stripe.com");
-            Assert.That(es, Is.Not.Null);
-            Assert.That(es.Protocol, Is.EqualTo("http"));
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
+        var externalServices = FindExternalServiceNodes(fileNode.Children);
+        Assert.That(externalServices, Is.Not.Empty);
+        var es = externalServices.FirstOrDefault(e => e.DomainOrService == "api.stripe.com");
+        Assert.That(es, Is.Not.Null);
+        Assert.That(es.Protocol, Is.EqualTo("http"));
     }
 
     [Test]
     public async Task Test_TypeScriptParser_ApiIngressEgress()
     {
         var parser = new TypeScriptParser();
-        var workspacePath = Path.GetTempPath();
-        var tempFile = Path.Combine(workspacePath, "typescript_api_test.ts");
+        using var tempFile = ParserTestData.GetPreparedFile("SingleFiles/TypeScript/api_ingress_egress.ts.test");
+        var workspacePath = tempFile.DirectoryPath;
 
-        var code = @"
-import { Controller, Post, Get } from '@nestjs/common';
-import axios from 'axios';
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-@Controller('orders')
-export class OrdersController {
-    @Post('charge')
-    async chargeOrder() {
-        await axios.post('http://api.stripe.com/v1/charges', {});
+        using var syntaxTree =
+            await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var fileNode = syntaxTree.FileNode;
+
+        var endpoints = FindEndpointNodes(fileNode.Children);
+        Assert.That(endpoints, Is.Not.Empty);
+        var ep = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("charge"));
+        Assert.That(ep, Is.Not.Null);
+        Assert.That(ep.HttpMethod, Is.EqualTo("POST"));
+
+        var entryPoints = FindEntryPointNodes(fileNode.Children);
+        var wsEp = entryPoints.FirstOrDefault(e => e.EntryType == "queue-listener");
+        Assert.That(wsEp, Is.Not.Null);
+        Assert.That(wsEp.Name, Is.EqualTo("ping"));
+
+        var externalServices = FindExternalServiceNodes(fileNode.Children);
+        Assert.That(externalServices, Is.Not.Empty);
+        var es = externalServices.FirstOrDefault(e => e.DomainOrService == "api.stripe.com");
+        Assert.That(es, Is.Not.Null);
+        Assert.That(es.Protocol, Is.EqualTo("http"));
     }
-
-    @SubscribeMessage('ping')
-    onPing() {
-        return 'pong';
-    }
-}
-";
-        await File.WriteAllTextAsync(tempFile, code);
-
-        try
-        {
-
-
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
-
-            using var syntaxTree =
-                await parser.ParseAsync(tempFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var fileNode = syntaxTree.FileNode;
-
-            var endpoints = FindEndpointNodes(fileNode.Children);
-            Assert.That(endpoints, Is.Not.Empty);
-            var ep = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("charge"));
-            Assert.That(ep, Is.Not.Null);
-            Assert.That(ep.HttpMethod, Is.EqualTo("POST"));
-
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
-            var wsEp = entryPoints.FirstOrDefault(e => e.EntryType == "queue-listener");
-            Assert.That(wsEp, Is.Not.Null);
-            Assert.That(wsEp.Name, Is.EqualTo("ping"));
-
-            var externalServices = FindExternalServiceNodes(fileNode.Children);
-            Assert.That(externalServices, Is.Not.Empty);
-            var es = externalServices.FirstOrDefault(e => e.DomainOrService == "api.stripe.com");
-            Assert.That(es, Is.Not.Null);
-            Assert.That(es.Protocol, Is.EqualTo("http"));
-        }
-        finally
-        {
-            if (File.Exists(tempFile)) File.Delete(tempFile);
-        }
-    }
-
-
 
 
 
     [Test]
     public async Task Test_SemanticAnalysisAndOntologyEnrichment()
     {
-        var tempWorkspace = Path.Combine(Path.GetTempPath(), "semantic_test_workspace_" + Guid.NewGuid())
-            .Replace('\\', '/');
-        Directory.CreateDirectory(tempWorkspace);
+        using var ws = ParserTestData.PrepareTempWorkspace("Workspaces/SemanticEnrichment");
+        var tempWorkspace = ws.WorkspacePath;
 
-        try
+        // Empty folder in Project A to verify pruning
+        var emptySubDir = Path.Combine(tempWorkspace, "ProjectA", "EmptyFolder").Replace('\\', '/');
+        Directory.CreateDirectory(emptySubDir);
+
+        // Setup parsing context
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+
+        var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+        ctx.WorkspaceId = "1";
+        // Register CSharp parser
+        WorkspaceIndexer.Register(new CSharpParser());
+        var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
+        var l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
+        var l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
+        var l4Result = await new Layer4SemanticParser().ParseAsync(l3Result, ctx);
+
+        var workspaceNode = l1Result.Workspace;
+
+        var projectsStructure = workspaceNode.Children.OfType<ProjectsStructureNode>().FirstOrDefault();
+        Assert.That(projectsStructure, Is.Not.Null);
+
+        var filesStructure = workspaceNode.Children.OfType<FilesStructureNode>().FirstOrDefault();
+        Assert.That(filesStructure, Is.Not.Null);
+
+        // Before pruning, ProjectB and EmptyFolder are in the tree
+        Assert.That(projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.True);
+
+        var projectA = projectsStructure.Children.FirstOrDefault(c => c is ProjectNode pn && pn.Name == "ProjectA") as ProjectNode;
+        Assert.That(projectA, Is.Not.Null);
+
+        var projectAFolder = filesStructure.Children.OfType<FolderNode>().FirstOrDefault(f => f.Name == "ProjectA");
+        Assert.That(projectAFolder, Is.Not.Null);
+        Assert.That(projectAFolder.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
+
+        // 2. Perform pruning
+        OntologyPruner.PruneEmptyFolders(workspaceNode);
+
+        // After pruning:
+        // ProjectB is removed because it is an empty project
+        Assert.That(projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.False);
+
+        // EmptyFolder is removed
+        var folderA =
+            projectAFolder.Children.FirstOrDefault(c => c is FolderNode pfn && pfn.Name == "EmptyFolder");
+        Assert.That(folderA, Is.Null);
+
+        // Verify project framework detection
+        Assert.That(projectA.Extensions, Is.Not.Null);
+        Assert.That(projectA.Extensions.ContainsKey("framework"), Is.True);
+        Assert.That(projectA.Extensions["framework"], Is.EqualTo("ASP.NET Core"));
+
+        // Verify SemanticStructure node grouping
+        var semanticNode = workspaceNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
+        Assert.That(semanticNode, Is.Not.Null);
+
+        // Verify external packages are inside ProjectNode directly (Layer 1)
+        var extPackages = projectA.Children.OfType<PackageNode>().Where(p => p.Name != "ProjectA").ToList();
+        Assert.That(extPackages, Has.Count.EqualTo(3));
+        Assert.That(extPackages.Any(p => p.Name == "Dapper"), Is.True);
+        Assert.That(extPackages.Any(p => p.Name == "Stripe.net"), Is.True);
+        Assert.That(extPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.True);
+
+        // Verify semanticNode does NOT contain those external packages as children
+        var semPackages = semanticNode.Children.OfType<PackageNode>().ToList();
+        Assert.That(semPackages.Any(p => p.Name == "Dapper"), Is.False);
+        Assert.That(semPackages.Any(p => p.Name == "Stripe.net"), Is.False);
+        Assert.That(semPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.False);
+
+        // Verify projectA contains the produced package directly as child (Layer 1)
+        var directPackages = projectA.Children.OfType<PackageNode>().ToList();
+        Assert.That(directPackages.Any(p => p.Name == "ProjectA"), Is.True);
+
+        var fileNode = projectAFolder.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
+        Assert.That(fileNode, Is.Not.Null);
+
+        // Check Repository.cs extensions (file-level extensions are removed)
+        if (fileNode.Extensions != null)
         {
-            // Project A: C# project using database package (Dapper) and containing configuration + constants + empty subfolder
-            var projADir = Path.Combine(tempWorkspace, "ProjectA").Replace('\\', '/');
-            Directory.CreateDirectory(projADir);
-
-            await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"),
-                "<Project Sdk=\"Microsoft.NET.Sdk\">\n" + "  <ItemGroup>\n" +
-                "    <PackageReference Include=\"Dapper\" Version=\"1.0.0\" />\n" +
-                "    <PackageReference Include=\"Stripe.net\" Version=\"1.0.0\" />\n" +
-                "    <PackageReference Include=\"Microsoft.AspNetCore.App\" Version=\"1.0.0\" />\n" +
-                "  </ItemGroup>\n" + "</Project>");
-
-            // Empty folder in Project A to verify pruning
-            var emptySubDir = Path.Combine(projADir, "EmptyFolder").Replace('\\', '/');
-            Directory.CreateDirectory(emptySubDir);
-
-            var projAFile = Path.Combine(projADir, "Repository.cs").Replace('\\', '/');
-
-            var projACode = @"
-            using System;
-            using Dapper;
-            using Stripe;
-            class Repository {
-                private const string CONNECTION_STRING_URL = ""Server=myServerAddress;Database=myDataBase;User Id=myUsername;Password=myPassword;"";
-                public static readonly int MAX_RETRIES = 5;
-                void RunQuery() {
-                    var sql = ""SELECT * FROM Users"";
-                    int timeoutSeconds = 30;
-                }
-            }";
-            await File.WriteAllTextAsync(projAFile, projACode);
-
-            // Project B: Empty project (should be pruned from graph completely)
-            var projBDir = Path.Combine(tempWorkspace, "ProjectB").Replace('\\', '/');
-            Directory.CreateDirectory(projBDir);
-
-            await File.WriteAllTextAsync(Path.Combine(projBDir, "ProjectB.csproj"),
-                "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
-
-            // Setup parsing context
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-            ctx.WorkspaceId = "1";
-            // Register CSharp parser
-            WorkspaceIndexer.Register(new CSharpParser());
-            var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
-            var l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
-            var l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
-            var l4Result = await new Layer4SemanticParser().ParseAsync(l3Result, ctx);
-
-            var workspaceNode = l1Result.Workspace;
-
-            var projectsStructure = workspaceNode.Children.OfType<ProjectsStructureNode>().FirstOrDefault();
-            Assert.That(projectsStructure, Is.Not.Null);
-
-            var filesStructure = workspaceNode.Children.OfType<FilesStructureNode>().FirstOrDefault();
-            Assert.That(filesStructure, Is.Not.Null);
-
-            // Before pruning, ProjectB and EmptyFolder are in the tree
-            Assert.That(projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.True);
-
-            var projectA = projectsStructure.Children.FirstOrDefault(c => c is ProjectNode pn && pn.Name == "ProjectA") as ProjectNode;
-            Assert.That(projectA, Is.Not.Null);
-
-            var projectAFolder = filesStructure.Children.OfType<FolderNode>().FirstOrDefault(f => f.Name == "ProjectA");
-            Assert.That(projectAFolder, Is.Not.Null);
-            Assert.That(projectAFolder.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder"), Is.True);
-
-            // 2. Perform pruning
-            OntologyPruner.PruneEmptyFolders(workspaceNode);
-
-            // After pruning:
-            // ProjectB is removed because it is an empty project
-            Assert.That(projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.False);
-
-            // EmptyFolder is removed
-            var folderA =
-                projectAFolder.Children.FirstOrDefault(c => c is FolderNode pfn && pfn.Name == "EmptyFolder");
-            Assert.That(folderA, Is.Null);
-
-            // Verify project framework detection
-            Assert.That(projectA.Extensions, Is.Not.Null);
-            Assert.That(projectA.Extensions.ContainsKey("framework"), Is.True);
-            Assert.That(projectA.Extensions["framework"], Is.EqualTo("ASP.NET Core"));
-
-            // Verify SemanticStructure node grouping
-            var semanticNode = workspaceNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
-            Assert.That(semanticNode, Is.Not.Null);
-
-            // Verify external packages are inside ProjectNode directly (Layer 1)
-            var extPackages = projectA.Children.OfType<PackageNode>().Where(p => p.Name != "ProjectA").ToList();
-            Assert.That(extPackages, Has.Count.EqualTo(3));
-            Assert.That(extPackages.Any(p => p.Name == "Dapper"), Is.True);
-            Assert.That(extPackages.Any(p => p.Name == "Stripe.net"), Is.True);
-            Assert.That(extPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.True);
-
-            // Verify semanticNode does NOT contain those external packages as children
-            var semPackages = semanticNode.Children.OfType<PackageNode>().ToList();
-            Assert.That(semPackages.Any(p => p.Name == "Dapper"), Is.False);
-            Assert.That(semPackages.Any(p => p.Name == "Stripe.net"), Is.False);
-            Assert.That(semPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.False);
-
-            // Verify projectA contains the produced package directly as child (Layer 1)
-            var directPackages = projectA.Children.OfType<PackageNode>().ToList();
-            Assert.That(directPackages.Any(p => p.Name == "ProjectA"), Is.True);
-
-            var fileNode = projectAFolder.Children.OfType<FileNode>().FirstOrDefault(f => f.Name == "Repository.cs");
-            Assert.That(fileNode, Is.Not.Null);
-
-            // Check Repository.cs extensions (file-level extensions are removed)
-            if (fileNode.Extensions != null)
-            {
-                Assert.That(fileNode.Extensions.ContainsKey("db_type"), Is.False);
-                Assert.That(fileNode.Extensions.ContainsKey("cloud_service"), Is.False);
-            }
-
-            // Check if DatabaseNode child was added at the project level (under SemanticStructureNode)
-            var dbNode = semanticNode.Children.OfType<DatabaseNode>().FirstOrDefault();
-            Assert.That(dbNode, Is.Not.Null);
-            Assert.That(dbNode.Name, Is.EqualTo("Dapper"));
-            Assert.That(dbNode.DbType, Is.EqualTo("relational"));
-
-            // Check if CloudServiceNode child was added at the project level (under SemanticStructureNode)
-            var cloudNode = semanticNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
-            Assert.That(cloudNode, Is.Not.Null);
-            Assert.That(cloudNode.Name, Is.EqualTo("Stripe"));
-
-            // Check that file-to-library relationships are created in the context
-            var usesDb =
-                ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_DB");
-            Assert.That(usesDb, Is.Not.Null);
-            Assert.That(usesDb.To, Is.EqualTo(dbNode.Id));
-
-            var usesCloud =
-                ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_CLOUD");
-            Assert.That(usesCloud, Is.Not.Null);
-            Assert.That(usesCloud.To, Is.EqualTo(cloudNode.Id));
-
-            // Check member nodes under TypeNode (Repository)
-            var classNode = fileNode.Children.OfType<TypeNode>().FirstOrDefault();
-            Assert.That(classNode, Is.Not.Null);
-
-            var variables = classNode.Children.OfType<MemberNode>().ToList();
-            Assert.That(variables.Any(v => v.Name == "CONNECTION_STRING_URL"), Is.True);
-            Assert.That(variables.Any(v => v.Name == "MAX_RETRIES"), Is.True);
-            Assert.That(variables.Any(v => v.Name == "timeoutSeconds"), Is.False); // local non-config is ignored
-
-            var connStrVar = variables.First(v => v.Name == "CONNECTION_STRING_URL");
-            Assert.That(connStrVar.Extensions, Is.Not.Null);
-            Assert.That(connStrVar.Extensions["variable_type"], Contains.Substring("config"));
-            Assert.That(connStrVar.Extensions["variable_type"], Contains.Substring("constant"));
+            Assert.That(fileNode.Extensions.ContainsKey("db_type"), Is.False);
+            Assert.That(fileNode.Extensions.ContainsKey("cloud_service"), Is.False);
         }
-        finally
-        {
-            if (Directory.Exists(tempWorkspace))
-            {
-                Directory.Delete(tempWorkspace, true);
-            }
-        }
+
+        // Check if DatabaseNode child was added at the project level (under SemanticStructureNode)
+        var dbNode = semanticNode.Children.OfType<DatabaseNode>().FirstOrDefault();
+        Assert.That(dbNode, Is.Not.Null);
+        Assert.That(dbNode.Name, Is.EqualTo("Dapper"));
+        Assert.That(dbNode.DbType, Is.EqualTo("relational"));
+
+        // Check if CloudServiceNode child was added at the project level (under SemanticStructureNode)
+        var cloudNode = semanticNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
+        Assert.That(cloudNode, Is.Not.Null);
+        Assert.That(cloudNode.Name, Is.EqualTo("Stripe"));
+
+        // Check that file-to-library relationships are created in the context
+        var usesDb =
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_DB");
+        Assert.That(usesDb, Is.Not.Null);
+        Assert.That(usesDb.To, Is.EqualTo(dbNode.Id));
+
+        var usesCloud =
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_CLOUD");
+        Assert.That(usesCloud, Is.Not.Null);
+        Assert.That(usesCloud.To, Is.EqualTo(cloudNode.Id));
+
+        // Check member nodes under TypeNode (Repository)
+        var classNode = fileNode.Children.OfType<TypeNode>().FirstOrDefault();
+        Assert.That(classNode, Is.Not.Null);
+
+        var variables = classNode.Children.OfType<MemberNode>().ToList();
+        Assert.That(variables.Any(v => v.Name == "CONNECTION_STRING_URL"), Is.True);
+        Assert.That(variables.Any(v => v.Name == "MAX_RETRIES"), Is.True);
+        Assert.That(variables.Any(v => v.Name == "timeoutSeconds"), Is.False); // local non-config is ignored
+
+        var connStrVar = variables.First(v => v.Name == "CONNECTION_STRING_URL");
+        Assert.That(connStrVar.Extensions, Is.Not.Null);
+        Assert.That(connStrVar.Extensions["variable_type"], Contains.Substring("config"));
+        Assert.That(connStrVar.Extensions["variable_type"], Contains.Substring("constant"));
     }
 
     [Test]
     public async Task Test_NewParserFeatures()
     {
-        var tempWorkspace = Path.Combine(Path.GetTempPath(), "new_features_test_workspace_" + Guid.NewGuid());
-        Directory.CreateDirectory(tempWorkspace);
+        using var ws = ParserTestData.PrepareTempWorkspace("Workspaces/NewParserFeatures");
+        var tempWorkspace = ws.WorkspacePath;
 
-        try
-        {
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-            ctx.WorkspaceId = "1";
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+        ctx.WorkspaceId = "1";
 
-            // 1. Python Parser - Flask & HTTP calls
-            var pythonParser = new PythonParser();
-            var pyFile = Path.Combine(tempWorkspace, "app.py");
+        // 1. Python Parser - Flask & HTTP calls
+        var pythonParser = new PythonParser();
+        var pyFile = ws.GetFilePath("app.py");
 
-            var pyCode = @"
-@app.route('/charge', methods=['POST'])
-def process_payment():
-    requests.post('https://api.stripe.com/v3/charges')
-";
-            await File.WriteAllTextAsync(pyFile, pyCode);
+        using var pySyntax =
+            await pythonParser.ParseAsync(pyFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(pySyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var pyNode = pySyntax.FileNode;
+        Assert.That(pyNode, Is.Not.Null);
 
-            using var pySyntax =
-                await pythonParser.ParseAsync(pyFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(pySyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var pyNode = pySyntax.FileNode;
-            Assert.That(pyNode, Is.Not.Null);
+        var pyEndpoints = FindEndpointNodes(pyNode.Children);
+        Assert.That(pyEndpoints, Has.Count.EqualTo(1));
+        Assert.That(pyEndpoints[0].RouteTemplate, Is.EqualTo("/charge"));
+        Assert.That(pyEndpoints[0].HttpMethod, Is.EqualTo("POST"));
 
-            var pyEndpoints = FindEndpointNodes(pyNode.Children);
-            Assert.That(pyEndpoints, Has.Count.EqualTo(1));
-            Assert.That(pyEndpoints[0].RouteTemplate, Is.EqualTo("/charge"));
-            Assert.That(pyEndpoints[0].HttpMethod, Is.EqualTo("POST"));
+        var pyExtServices = FindExternalServiceNodes(pyNode.Children);
+        Assert.That(pyExtServices, Has.Count.EqualTo(1));
+        Assert.That(pyExtServices[0].Name, Is.EqualTo("api.stripe.com"));
 
-            var pyExtServices = FindExternalServiceNodes(pyNode.Children);
-            Assert.That(pyExtServices, Has.Count.EqualTo(1));
-            Assert.That(pyExtServices[0].Name, Is.EqualTo("api.stripe.com"));
+        // Verify reference from process_payment function to Endpoint POST:/charge is collected
+        var pyRefs = FindReferences(pyNode.Children);
+        Assert.That(pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == "IMPLEMENTS"), Is.True);
 
-            // Verify reference from process_payment function to Endpoint POST:/charge is collected
-            var pyRefs = FindReferences(pyNode.Children);
-            Assert.That(pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == "IMPLEMENTS"), Is.True);
+        // 2. Go Parser - Gin & HTTP Get calls
+        var goParser = new GoParser();
+        var goFile = ws.GetFilePath("main.go");
 
-            // 2. Go Parser - Gin & HTTP Get calls
-            var goParser = new GoParser();
-            var goFile = Path.Combine(tempWorkspace, "main.go");
+        using var goSyntax =
+            await goParser.ParseAsync(goFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(goSyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var goNode = goSyntax.FileNode;
+        Assert.That(goNode, Is.Not.Null);
 
-            var goCode = @"
-package main
-import ""net/http""
-func Register(r *gin.Engine) {
-    r.GET(""/api/v1/users"", GetUsers)
-}
-";
-            await File.WriteAllTextAsync(goFile, goCode);
+        var goEndpoints = FindEndpointNodes(goNode.Children);
+        Assert.That(goEndpoints, Has.Count.EqualTo(1));
+        Assert.That(goEndpoints[0].RouteTemplate, Is.EqualTo("/api/v1/users"));
+        Assert.That(goEndpoints[0].HttpMethod, Is.EqualTo("GET"));
 
+        // Verify Go references
+        var goRefs = FindReferences(goNode.Children);
 
+        Assert.That(
+            goRefs.Any(r =>
+                r.TargetName == "GET /api/v1/users" && r.Kind == "IMPLEMENTS" && r.ScopeSymbolId == "GetUsers"),
+            Is.True);
 
-            using var goSyntax =
-                await goParser.ParseAsync(goFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(goSyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var goNode = goSyntax.FileNode;
-            Assert.That(goNode, Is.Not.Null);
+        // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
+        var sqlParser = new Parser.SQL.SqlParser();
+        var sqlFile = ws.GetFilePath("sp.sql");
 
-            var goEndpoints = FindEndpointNodes(goNode.Children);
-            Assert.That(goEndpoints, Has.Count.EqualTo(1));
-            Assert.That(goEndpoints[0].RouteTemplate, Is.EqualTo("/api/v1/users"));
-            Assert.That(goEndpoints[0].HttpMethod, Is.EqualTo("GET"));
+        using var sqlSyntax =
+            await sqlParser.ParseAsync(sqlFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var sqlNode = sqlSyntax.FileNode;
+        Assert.That(sqlNode, Is.Not.Null);
 
-            // Verify Go references
-            var goRefs = FindReferences(goNode.Children);
+        // Schema and DB hierarchy check
+        var dbNode = sqlNode.Children.OfType<DatabaseNode>().FirstOrDefault();
+        Assert.That(dbNode, Is.Not.Null);
+        Assert.That(dbNode.DbType, Is.EqualTo("relational"));
 
-            Assert.That(
-                goRefs.Any(r =>
-                    r.TargetName == "GET /api/v1/users" && r.Kind == "IMPLEMENTS" && r.ScopeSymbolId == "GetUsers"),
-                Is.True);
+        var schemaNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault(s => s.Name == "my_schema");
+        Assert.That(schemaNode, Is.Not.Null);
 
-            // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
-            var sqlParser = new Parser.SQL.SqlParser();
-            var sqlFile = Path.Combine(tempWorkspace, "sp.sql");
+        var procNode = schemaNode.Children.OfType<ProcedureNode>().FirstOrDefault(p => p.Name == "my_proc");
+        Assert.That(procNode, Is.Not.Null);
 
-            var sqlCode = @"
-CREATE DATABASE my_db;
-CREATE OR REPLACE PROCEDURE `my_schema`.`my_proc`()
-BEGIN
-    CREATE TABLE IF NOT EXISTS `my_schema`.`my_table` (id INT);
-    EXEC `my_schema`.`another_proc`;
-END;
-";
-            await File.WriteAllTextAsync(sqlFile, sqlCode);
+        var tableNode = schemaNode.Children.OfType<TableNode>().FirstOrDefault(t => t.Name == "my_table");
+        Assert.That(tableNode, Is.Not.Null);
 
-            using var sqlSyntax =
-                await sqlParser.ParseAsync(sqlFile, "parent", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var sqlNode = sqlSyntax.FileNode;
-            Assert.That(sqlNode, Is.Not.Null);
-
-            // Schema and DB hierarchy check
-            var dbNode = sqlNode.Children.OfType<DatabaseNode>().FirstOrDefault();
-            Assert.That(dbNode, Is.Not.Null);
-            Assert.That(dbNode.DbType, Is.EqualTo("relational"));
-
-            var schemaNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault(s => s.Name == "my_schema");
-            Assert.That(schemaNode, Is.Not.Null);
-
-            var procNode = schemaNode.Children.OfType<ProcedureNode>().FirstOrDefault(p => p.Name == "my_proc");
-            Assert.That(procNode, Is.Not.Null);
-
-            var tableNode = schemaNode.Children.OfType<TableNode>().FirstOrDefault(t => t.Name == "my_table");
-            Assert.That(tableNode, Is.Not.Null);
-
-            var queryNode = procNode.Children.OfType<QueryNode>().FirstOrDefault();
-            Assert.That(queryNode, Is.Not.Null);
-            Assert.That(queryNode.References.Any(r => r.TargetName == "another_proc" && r.Kind == "CALLS"), Is.True);
-        }
-        finally
-        {
-            if (Directory.Exists(tempWorkspace))
-            {
-                Directory.Delete(tempWorkspace, true);
-            }
-        }
+        var queryNode = procNode.Children.OfType<QueryNode>().FirstOrDefault();
+        Assert.That(queryNode, Is.Not.Null);
+        Assert.That(queryNode.References.Any(r => r.TargetName == "another_proc" && r.Kind == "CALLS"), Is.True);
     }
 
     [Test]
@@ -907,100 +669,57 @@ END;
     [Test]
     public async Task Test_LibraryParsers_CSharpAndTS()
     {
-        var tempWorkspace = Path.Combine(Path.GetTempPath(), "lib_parsers_test_workspace_" + Guid.NewGuid());
-        Directory.CreateDirectory(tempWorkspace);
+        using var ws = ParserTestData.PrepareTempWorkspace("Workspaces/LibraryParsers");
+        var tempWorkspace = ws.WorkspacePath;
 
-        try
-        {
-            var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-            ctx.WorkspaceId = "1";
+        var channel = Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+        ctx.WorkspaceId = "1";
 
-            // 1. C# file parsing test (Dapper and Flurl)
-            var csFilePath = Path.Combine(tempWorkspace, "Service.cs");
+        // 1. C# file parsing test (Dapper and Flurl)
+        var csFilePath = ws.GetFilePath("Service.cs");
+        var csFileParser = new CSharpParser();
 
-            var csContent = @"
-using Dapper;
-using Flurl.Http;
+        using var csSyntaxTree = await SyntaxTree.ParseAsync(csFilePath, "Service.cs", "1", csFileParser,
+            ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(csSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var csFileNode = csSyntaxTree.FileNode;
 
-public class Service
-{
-    public void RunDapper(System.Data.IDbConnection conn)
-    {
-        conn.Query(""SELECT name FROM users WHERE id = @id"");
-    }
+        // Verify Dapper query extraction
+        var csQueries = FindQueryNodes([csFileNode]);
+        var dapperNode = csQueries.FirstOrDefault(q => q.Name.Contains("SELECT"));
+        Assert.That(dapperNode, Is.Not.Null);
+        Assert.That(dapperNode.Name, Is.EqualTo("SELECT Query: SELECT name FROM users WHERE id = @id"));
 
-    public async System.Threading.Tasks.Task RunFlurl()
-    {
-        await ""http://api.github.com/v3"".AppendPathSegment(""users"").GetJsonAsync();
-    }
-}";
-            await File.WriteAllTextAsync(csFilePath, csContent);
+        // Verify Flurl external service extraction
+        var csExtServices = FindExternalServiceNodes([csFileNode]);
+        var flurlNode = csExtServices.FirstOrDefault();
+        Assert.That(flurlNode, Is.Not.Null);
+        Assert.That(flurlNode.Name, Is.EqualTo("api.github.com"));
 
-            var csFileParser = new CSharpParser();
+        // 2. TS file parsing test (Mongoose and Redis)
+        var tsFilePath = ws.GetFilePath("app.ts");
+        var tsFileParser = new TypeScriptParser();
 
-            using var csSyntaxTree = await SyntaxTree.ParseAsync(csFilePath, "Service.cs", "1", csFileParser,
-                ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(csSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var csFileNode = csSyntaxTree.FileNode;
+        using var tsSyntaxTree = await SyntaxTree.ParseAsync(tsFilePath, "app.ts", "1", tsFileParser,
+            ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(tsSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var tsFileNode = tsSyntaxTree.FileNode;
 
-            // Verify Dapper query extraction
-            var csQueries = FindQueryNodes([csFileNode]);
-            var dapperNode = csQueries.FirstOrDefault(q => q.Name.Contains("SELECT"));
-            Assert.That(dapperNode, Is.Not.Null);
-            Assert.That(dapperNode.Name, Is.EqualTo("SELECT Query: SELECT name FROM users WHERE id = @id"));
+        var tsQueries = FindQueryNodes([tsFileNode]);
 
-            // Verify Flurl external service extraction
-            var csExtServices = FindExternalServiceNodes([csFileNode]);
-            var flurlNode = csExtServices.FirstOrDefault();
-            Assert.That(flurlNode, Is.Not.Null);
-            Assert.That(flurlNode.Name, Is.EqualTo("api.github.com"));
+        // Verify Mongoose model & query extraction
+        var modelNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose Model"));
+        Assert.That(modelNode, Is.Not.Null);
+        Assert.That(modelNode.Name, Is.EqualTo("Mongoose Model: Product"));
 
-            // 2. TS file parsing test (Mongoose and Redis)
-            var tsFilePath = Path.Combine(tempWorkspace, "app.ts");
+        var findNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose: Product.find"));
+        Assert.That(findNode, Is.Not.Null);
 
-            var tsContent = @"
-import mongoose from 'mongoose';
-import redis from 'redis';
-
-const schema = new mongoose.Schema({});
-const Product = mongoose.model('Product', schema);
-
-async function testDb(client: any) {
-    await Product.find();
-    await client.set('foo', 'bar');
-}";
-            await File.WriteAllTextAsync(tsFilePath, tsContent);
-
-            var tsFileParser = new TypeScriptParser();
-
-            using var tsSyntaxTree = await SyntaxTree.ParseAsync(tsFilePath, "app.ts", "1", tsFileParser,
-                ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(tsSyntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var tsFileNode = tsSyntaxTree.FileNode;
-
-            var tsQueries = FindQueryNodes([tsFileNode]);
-
-            // Verify Mongoose model & query extraction
-            var modelNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose Model"));
-            Assert.That(modelNode, Is.Not.Null);
-            Assert.That(modelNode.Name, Is.EqualTo("Mongoose Model: Product"));
-
-            var findNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose: Product.find"));
-            Assert.That(findNode, Is.Not.Null);
-
-            // Verify Redis query extraction
-            var redisNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Redis: client.set"));
-            Assert.That(redisNode, Is.Not.Null);
-        }
-        finally
-        {
-            if (Directory.Exists(tempWorkspace))
-            {
-                Directory.Delete(tempWorkspace, true);
-            }
-        }
+        // Verify Redis query extraction
+        var redisNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Redis: client.set"));
+        Assert.That(redisNode, Is.Not.Null);
     }
 
     [Test]
@@ -1046,67 +765,55 @@ async function testDb(client: any) {
         var taskManager = new IndexingTaskManager(indexer);
         // Register CSharp parser if not already registered
         WorkspaceIndexer.Register(new CSharpParser());
-        var dir1 = Path.Combine(Path.GetTempPath(), "concurrent_test_1_" + Guid.NewGuid()).Replace('\\', '/');
-        var dir2 = Path.Combine(Path.GetTempPath(), "concurrent_test_2_" + Guid.NewGuid()).Replace('\\', '/');
 
-        Directory.CreateDirectory(dir1);
-        Directory.CreateDirectory(dir2);
+        using var ws = ParserTestData.PrepareTempWorkspace("Workspaces/ConcurrentIndexing");
+        var dir1 = Path.Combine(ws.WorkspacePath, "Project1").Replace('\\', '/');
+        var dir2 = Path.Combine(ws.WorkspacePath, "Project2").Replace('\\', '/');
 
-        try
+        // 1. Start task 1
+        var taskId1 = taskManager.StartIndex(dir1, dir1, clear: false, out var msg1);
+        Assert.That(taskId1, Is.Not.Null);
+        Assert.That(msg1, Contains.Substring("started"));
+
+        // 2. Start task 2 on same directory -> should fail with conflict
+        var taskIdConflict = taskManager.StartIndex(dir1, dir1, clear: false, out var msgConflict);
+        Assert.That(taskIdConflict, Is.Null);
+        Assert.That(msgConflict, Contains.Substring("already running"));
+
+        // 3. Start task 2 on different directory -> should succeed concurrently
+        var taskId2 = taskManager.StartIndex(dir2, dir2, clear: false, out var msg2);
+        Assert.That(taskId2, Is.Not.Null);
+        Assert.That(msg2, Contains.Substring("started"));
+
+        // 4. Check status of both tasks
+        var status1 = taskManager.GetStatus(taskId1);
+        var status2 = taskManager.GetStatus(taskId2);
+        Assert.That(status1, Is.Not.Null);
+        Assert.That(status2, Is.Not.Null);
+        Assert.That(status1.State, Is.EqualTo("Running").Or.EqualTo("Completed"));
+        Assert.That(status2.State, Is.EqualTo("Running").Or.EqualTo("Completed"));
+
+        // 5. Test stopping task 1 specifically
+        var stopSuccess = taskManager.StopIndex(taskId1, out var stopMsg);
+        Assert.That(stopSuccess, Is.True);
+        Assert.That(stopMsg, Contains.Substring("Stop request sent"));
+
+        // Wait for tasks to complete/cancel
+        for (int i = 0; i < 50; i++)
         {
-            await File.WriteAllTextAsync(Path.Combine(dir1, "Project1.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
-            await File.WriteAllTextAsync(Path.Combine(dir2, "Project2.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
-
-            // 1. Start task 1
-            var taskId1 = taskManager.StartIndex(dir1, dir1, clear: false, out var msg1);
-            Assert.That(taskId1, Is.Not.Null);
-            Assert.That(msg1, Contains.Substring("started"));
-
-            // 2. Start task 2 on same directory -> should fail with conflict
-            var taskIdConflict = taskManager.StartIndex(dir1, dir1, clear: false, out var msgConflict);
-            Assert.That(taskIdConflict, Is.Null);
-            Assert.That(msgConflict, Contains.Substring("already running"));
-
-            // 3. Start task 2 on different directory -> should succeed concurrently
-            var taskId2 = taskManager.StartIndex(dir2, dir2, clear: false, out var msg2);
-            Assert.That(taskId2, Is.Not.Null);
-            Assert.That(msg2, Contains.Substring("started"));
-
-            // 4. Check status of both tasks
-            var status1 = taskManager.GetStatus(taskId1);
-            var status2 = taskManager.GetStatus(taskId2);
-            Assert.That(status1, Is.Not.Null);
-            Assert.That(status2, Is.Not.Null);
-            Assert.That(status1.State, Is.EqualTo("Running").Or.EqualTo("Completed"));
-            Assert.That(status2.State, Is.EqualTo("Running").Or.EqualTo("Completed"));
-
-            // 5. Test stopping task 1 specifically
-            var stopSuccess = taskManager.StopIndex(taskId1, out var stopMsg);
-            Assert.That(stopSuccess, Is.True);
-            Assert.That(stopMsg, Contains.Substring("Stop request sent"));
-
-            // Wait for tasks to complete/cancel
-            for (int i = 0; i < 20; i++)
+            var s1 = taskManager.GetStatus(taskId1);
+            var s2 = taskManager.GetStatus(taskId2);
+            if (s1?.State != "Running" && s2?.State != "Running")
             {
-                var s1 = taskManager.GetStatus(taskId1);
-                var s2 = taskManager.GetStatus(taskId2);
-                if (s1?.State != "Running" && s2?.State != "Running")
-                {
-                    break;
-                }
-                await Task.Delay(100);
+                break;
             }
+            await Task.Delay(100);
+        }
 
-            var finalStatus1 = taskManager.GetStatus(taskId1);
-            var finalStatus2 = taskManager.GetStatus(taskId2);
-            Assert.That(finalStatus1?.State, Is.EqualTo("Cancelled").Or.EqualTo("Completed"));
-            Assert.That(finalStatus2?.State, Is.EqualTo("Completed"));
-        }
-        finally
-        {
-            if (Directory.Exists(dir1)) Directory.Delete(dir1, true);
-            if (Directory.Exists(dir2)) Directory.Delete(dir2, true);
-        }
+        var finalStatus1 = taskManager.GetStatus(taskId1);
+        var finalStatus2 = taskManager.GetStatus(taskId2);
+        Assert.That(finalStatus1?.State, Is.EqualTo("Cancelled").Or.EqualTo("Completed"));
+        Assert.That(finalStatus2?.State, Is.EqualTo("Completed"));
     }
 
     [Test]
@@ -1114,120 +821,55 @@ async function testDb(client: any) {
     {
         var tsParser = new TypeScriptParser();
         var csParser = new CSharpParser();
-        var workspacePath = Path.GetTempPath();
 
-        var tsFile = Path.Combine(workspacePath, "nestjs_test_controller.ts");
-        var tsCode = @"
-import { Controller, Get, Post } from '@nestjs/common';
-@Controller('orders')
-export class OrdersController {
-    @Post('charge')
-    async chargeOrder() {}
-}
-";
-        await File.WriteAllTextAsync(tsFile, tsCode);
+        using var ws = ParserTestData.PrepareTempWorkspace("Workspaces/CrossServiceInteraction");
+        var workspacePath = ws.DirectoryPath;
 
-        var csFile = Path.Combine(workspacePath, "aspnet_test_controller.cs");
-        var csCode = @"
-using Microsoft.AspNetCore.Mvc;
-namespace Test;
-[Route(""api/[controller]"")]
-public class PaymentsController : ControllerBase {
-    [HttpPost(""charge-card"")]
-    public IActionResult Charge() => Ok();
-}
-";
-        await File.WriteAllTextAsync(csFile, csCode);
+        var tsFile = ws.GetFilePath("OrdersController.ts");
+        var csFile = ws.GetFilePath("PaymentsController.cs");
+        var axiosFile = ws.GetFilePath("AxiosClient.ts");
+        var pubsubFile = ws.GetFilePath("PubsubPublisher.ts");
+        var rabbitFile = ws.GetFilePath("RabbitConsumer.ts");
+        var socketFile = ws.GetFilePath("SocketClient.ts");
 
-        var axiosFile = Path.Combine(workspacePath, "axios_test.ts");
-        var axiosCode = @"
-import axios from 'axios';
-const apiHost = 'http://payment-service';
-async function makeCall() {
-    await axios.post(`${apiHost}/api/payments/charge-card`);
-}
-";
-        await File.WriteAllTextAsync(axiosFile, axiosCode);
+        var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+        await using var client = new InMemoryMemgraphClient();
+        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
-        var pubsubFile = Path.Combine(workspacePath, "pubsub_test.ts");
-        var pubsubCode = @"
-import { PubSub } from '@google-cloud/pubsub';
-const pubsub = new PubSub();
-async function run() {
-    await pubsub.topic('negative-profit-topic').publish(Buffer.from('data'));
-}
-";
-        await File.WriteAllTextAsync(pubsubFile, pubsubCode);
+        using var syntaxTreeTs = await tsParser.ParseAsync(tsFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTreeTs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var tsEp = FindEndpointNode(syntaxTreeTs.FileNode.Children, "POST:/orders/charge");
+        Assert.That(tsEp, Is.Not.Null, "Should aggregate Controller route prefix for NestJS");
 
-        var rabbitFile = Path.Combine(workspacePath, "rabbitmq_test.ts");
-        var rabbitCode = @"
-import amqp from 'amqplib';
-async function run() {
-    const conn = await amqp.connect('amqp://localhost');
-    const ch = await conn.createChannel();
-    await ch.sendToQueue('calc-done-queue', Buffer.from('data'));
-}
-";
-        await File.WriteAllTextAsync(rabbitFile, rabbitCode);
+        using var syntaxTreeCs = await csParser.ParseAsync(csFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTreeCs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var csEp = FindEndpointNode(syntaxTreeCs.FileNode.Children, "POST:/api/Payments/charge-card");
+        Assert.That(csEp, Is.Not.Null, "Should aggregate Controller route prefix and resolve [controller] for C#");
 
-        var socketFile = Path.Combine(workspacePath, "socket_test.ts");
-        var socketCode = @"
-import { io } from 'socket.io-client';
-const socket = io('http://localhost:3000');
-socket.emit('ping-event', { data: 'hello' });
-";
-        await File.WriteAllTextAsync(socketFile, socketCode);
+        using var syntaxTreeAxios = await tsParser.ParseAsync(axiosFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTreeAxios, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var axiosEs = FindExternalServiceNode(syntaxTreeAxios.FileNode.Children, "*");
+        Assert.That(axiosEs, Is.Not.Null, "Should resolve variable initializer in Axios call");
+        Assert.That(axiosEs.Path, Is.EqualTo("/api/payments/charge-card"), "Should resolve variable initializer path");
 
-        try
-        {
-            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        using var syntaxTreePubsub = await tsParser.ParseAsync(pubsubFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTreePubsub, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var pubsubRefs = FindReferences(syntaxTreePubsub.FileNode);
+        var pubsubPub = pubsubRefs.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
+        Assert.That(pubsubPub, Is.Not.Null);
+        Assert.That(pubsubPub.TargetName, Is.EqualTo("gcp:negative-profit-topic"));
 
-            using var syntaxTreeTs = await tsParser.ParseAsync(tsFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTreeTs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var tsEp = FindEndpointNode(syntaxTreeTs.FileNode.Children, "POST:/orders/charge");
-            Assert.That(tsEp, Is.Not.Null, "Should aggregate Controller route prefix for NestJS");
+        using var syntaxTreeRabbit = await tsParser.ParseAsync(rabbitFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTreeRabbit, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var rabbitRefs = FindReferences(syntaxTreeRabbit.FileNode);
+        var rabbitPub = rabbitRefs.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
+        Assert.That(rabbitPub, Is.Not.Null);
+        Assert.That(rabbitPub.TargetName, Is.EqualTo("rabbitmq:calc-done-queue"));
 
-            using var syntaxTreeCs = await csParser.ParseAsync(csFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTreeCs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var csEp = FindEndpointNode(syntaxTreeCs.FileNode.Children, "POST:/api/Payments/charge-card");
-            Assert.That(csEp, Is.Not.Null, "Should aggregate Controller route prefix and resolve [controller] for C#");
-
-            using var syntaxTreeAxios = await tsParser.ParseAsync(axiosFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTreeAxios, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var axiosEs = FindExternalServiceNode(syntaxTreeAxios.FileNode.Children, "*");
-            Assert.That(axiosEs, Is.Not.Null, "Should resolve variable initializer in Axios call");
-            Assert.That(axiosEs.Path, Is.EqualTo("/api/payments/charge-card"), "Should resolve variable initializer path");
-
-            using var syntaxTreePubsub = await tsParser.ParseAsync(pubsubFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTreePubsub, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var pubsubRefs = FindReferences(syntaxTreePubsub.FileNode);
-            var pubsubPub = pubsubRefs.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
-            Assert.That(pubsubPub, Is.Not.Null);
-            Assert.That(pubsubPub.TargetName, Is.EqualTo("gcp:negative-profit-topic"));
-
-            using var syntaxTreeRabbit = await tsParser.ParseAsync(rabbitFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTreeRabbit, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var rabbitRefs = FindReferences(syntaxTreeRabbit.FileNode);
-            var rabbitPub = rabbitRefs.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
-            Assert.That(rabbitPub, Is.Not.Null);
-            Assert.That(rabbitPub.TargetName, Is.EqualTo("rabbitmq:calc-done-queue"));
-
-            using var syntaxTreeSocket = await tsParser.ParseAsync(socketFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTreeSocket, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            var socketEs = FindExternalServiceNode(syntaxTreeSocket.FileNode.Children, "ws:ping-event");
-            Assert.That(socketEs, Is.Not.Null, "Should map socket.emit to ExternalService");
-        }
-        finally
-        {
-            if (File.Exists(tsFile)) File.Delete(tsFile);
-            if (File.Exists(csFile)) File.Delete(csFile);
-            if (File.Exists(axiosFile)) File.Delete(axiosFile);
-            if (File.Exists(pubsubFile)) File.Delete(pubsubFile);
-            if (File.Exists(rabbitFile)) File.Delete(rabbitFile);
-            if (File.Exists(socketFile)) File.Delete(socketFile);
-        }
+        using var syntaxTreeSocket = await tsParser.ParseAsync(socketFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        Layer3SyntacticParser.ProcessVisitor(syntaxTreeSocket, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+        var socketEs = FindExternalServiceNode(syntaxTreeSocket.FileNode.Children, "ws:ping-event");
+        Assert.That(socketEs, Is.Not.Null, "Should map socket.emit to ExternalService");
     }
 
     private EndpointNode? FindEndpointNode(IEnumerable<IOntologyNode> nodes, string identifier)

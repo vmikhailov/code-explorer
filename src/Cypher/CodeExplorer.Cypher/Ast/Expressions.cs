@@ -35,3 +35,13 @@ public record ListPredicateExpression(string Quantifier, string Variable, Expres
 public record ListComprehensionExpression(string Variable, Expression List, Expression? Filter, Expression? Projection) : Expression;
 
 public record MapLiteralExpression(Dictionary<string, Expression> Properties) : Expression;
+
+public record WildcardExpression() : Expression;
+
+public record ListSliceExpression(Expression List, Expression? From, Expression? To) : Expression;
+
+public record PatternExpression(PathPattern Path) : Expression;
+
+public record PatternComprehensionExpression(PathPattern Path, Expression? Filter, Expression Projection) : Expression;
+
+public record ReduceExpression(string Accumulator, Expression Initial, string Variable, Expression List, Expression Expression) : Expression;

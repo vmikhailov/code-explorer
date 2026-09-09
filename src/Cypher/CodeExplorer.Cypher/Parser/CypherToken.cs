@@ -35,6 +35,10 @@ public enum CypherToken
     End,
     With,
     Unwind,
+    Xor,
+    Union,
+    Call,
+    Yield,
 
     // Punctuation & Delimiters
     LParen,        // (
@@ -51,6 +55,10 @@ public enum CypherToken
     Pipe,          // |
     Dollar,        // $
     Plus,          // +
+    Slash,         // /
+    Percent,       // %
+    Caret,         // ^
+    RegexMatch,    // =~
 
     // Graph Arrows
     ArrowRight,    // ->

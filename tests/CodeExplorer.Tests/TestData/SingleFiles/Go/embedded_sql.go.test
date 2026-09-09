@@ -1,0 +1,5 @@
+package main
+func clean() {
+    query := `UPDATE transactions SET status = 'failed' WHERE id = 1`
+}
+

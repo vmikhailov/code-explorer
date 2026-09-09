@@ -1,0 +1,16 @@
+using System.Net.Http;
+using Microsoft.AspNetCore.Mvc;
+
+[ApiController]
+[Route("api/[controller]")]
+public class OrdersController : ControllerBase
+{
+    [HttpPost("charge")]
+    public async Task<IActionResult> ChargeOrder()
+    {
+        var client = new HttpClient();
+        await client.PostAsync("http://api.stripe.com/v1/charges", null);
+        return Ok();
+    }
+}
+

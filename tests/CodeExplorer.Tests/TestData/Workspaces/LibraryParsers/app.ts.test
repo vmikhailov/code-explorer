@@ -1,0 +1,11 @@
+import mongoose from 'mongoose';
+import redis from 'redis';
+
+const schema = new mongoose.Schema({});
+const Product = mongoose.model('Product', schema);
+
+async function testDb(client: any) {
+    await Product.find();
+    await client.set('foo', 'bar');
+}
+

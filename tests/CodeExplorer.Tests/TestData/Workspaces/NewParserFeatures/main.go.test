@@ -1,0 +1,6 @@
+package main
+import "net/http"
+func Register(r *gin.Engine) {
+    r.GET("/api/v1/users", GetUsers)
+}
+

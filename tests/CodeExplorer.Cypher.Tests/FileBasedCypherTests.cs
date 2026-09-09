@@ -18,6 +18,7 @@ public class FileBasedCypherTests
     {
         _conn = new SqliteConnection("Data Source=:memory:");
         _conn.Open();
+        SqliteCypherFunctions.Register(_conn);
 
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"

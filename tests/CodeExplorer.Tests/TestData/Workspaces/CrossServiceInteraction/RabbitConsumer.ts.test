@@ -1,0 +1,7 @@
+import amqp from 'amqplib';
+async function run() {
+    const conn = await amqp.connect('amqp://localhost');
+    const ch = await conn.createChannel();
+    await ch.sendToQueue('calc-done-queue', Buffer.from('data'));
+}
+
