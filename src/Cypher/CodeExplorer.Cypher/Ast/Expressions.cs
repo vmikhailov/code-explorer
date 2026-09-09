@@ -29,3 +29,9 @@ public record CaseWhenItem(Expression When, Expression Then);
 public record CaseExpression(Expression? TestExpression, List<CaseWhenItem> WhenBranches, Expression? ElseExpression) : Expression;
 
 public record HasLabelExpression(Expression Expression, string Label) : Expression;
+
+public record ListPredicateExpression(string Quantifier, string Variable, Expression List, Expression Predicate) : Expression;
+
+public record ListComprehensionExpression(string Variable, Expression List, Expression? Filter, Expression? Projection) : Expression;
+
+public record MapLiteralExpression(Dictionary<string, Expression> Properties) : Expression;

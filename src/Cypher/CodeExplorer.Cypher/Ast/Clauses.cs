@@ -4,6 +4,10 @@ public record MatchClause(bool IsOptional, List<PathPattern> Paths, WhereClause?
 
 public record WhereClause(Expression Predicate);
 
+public record WithClause(bool IsDistinct, List<ProjectionItem> Items, WhereClause? Where = null);
+
+public record UnwindClause(Expression Expression, string Alias);
+
 public record ProjectionItem(Expression Expression, string? Alias);
 
 public record ReturnClause(bool IsDistinct, List<ProjectionItem> Items);

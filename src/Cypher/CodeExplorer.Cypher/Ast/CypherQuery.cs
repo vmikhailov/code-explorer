@@ -6,5 +6,7 @@ public record CypherQuery(
     ReturnClause Return,
     OrderByClause? OrderBy = null,
     SkipClause? Skip = null,
-    LimitClause? Limit = null
+    LimitClause? Limit = null,
+    List<WithClause>? WithClauses = null,
+    List<UnwindClause>? UnwindClauses = null
 );

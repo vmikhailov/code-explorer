@@ -25,16 +25,19 @@ public class ParsingContext
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();
 
+    public static bool EnableConsoleLogging { get; set; } = false;
+
     public void Log(string message)
     {
+        if (!EnableConsoleLogging) return;
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
         Console.Error.WriteLine($"[{timestamp}] [+{_sessionStopwatch.ElapsedMilliseconds}ms] {message}");
     }
-    
+
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
     public List<Reference> GlobalReferences { get; }
     public List<Relationship> GlobalProjectDependencies { get; }
-    
+
     public List<RawImport> RawImports { get; } = [];
     public List<RawVariable> RawVariables { get; } = [];
     public List<RawTypeBinding> RawTypeBindings { get; } = [];
@@ -166,9 +169,9 @@ public class ParsingContext
     }
 
     public ParsingContext(
-        string absoluteWorkspacePath, 
+        string absoluteWorkspacePath,
         string hostWorkspacePath,
-        IMemgraphClient dbClient, 
+        IMemgraphClient dbClient,
         Channel<Func<Task>> sharedChannel,
         bool clear = false,
         Dictionary<(string Kind, string Name), string>? globalSymbols = null,

@@ -32,6 +32,9 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 {
                     Console.WriteLine($"Library '{match.Name}' detected but parser is not implemented yet.");
                 }
+
+                // Library detected but parser is not implemented yet.
+
             }
         }
     }
@@ -110,14 +113,14 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     protected virtual void Dispatch(Node node, int depth)
     {
         // Union of all string/literal node types
-        if (node.Type is "string" 
-                or "template_string" 
-                or "string_literal" 
+        if (node.Type is "string"
+                or "template_string"
+                or "string_literal"
                 or "interpreted_string_literal"
-                or "raw_string_literal" 
-            || (node.Type.Contains("string") 
-                && node.Type != "interpolated_string_expression" 
-                && node.Type != "interpolated_verbatim_string_expression" 
+                or "raw_string_literal"
+            || (node.Type.Contains("string")
+                && node.Type != "interpolated_string_expression"
+                && node.Type != "interpolated_verbatim_string_expression"
                 && node.Type != "interpolated_raw_string_expression"))
         {
             VisitStringLiteral(node, depth);

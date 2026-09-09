@@ -34,6 +34,7 @@ public enum CypherToken
     Else,
     End,
     With,
+    Unwind,
 
     // Punctuation & Delimiters
     LParen,        // (

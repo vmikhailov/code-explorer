@@ -74,6 +74,7 @@ public static class CypherTokenizer
             .Match(Span.Regex("(?i)\\bELSE\\b"), CypherToken.Else)
             .Match(Span.Regex("(?i)\\bEND\\b"), CypherToken.End)
             .Match(Span.Regex("(?i)\\bWITH\\b"), CypherToken.With)
+            .Match(Span.Regex("(?i)\\bUNWIND\\b"), CypherToken.Unwind)
 
             // Backtick-quoted identifiers (e.g. `some-prop`)
             .Match(Span.Regex(@"`[^`]+`"), CypherToken.Identifier)

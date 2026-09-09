@@ -35,12 +35,13 @@ public class Program
             .MapResult(
                 (IngestOptions opts) => HandleIngestAsync(opts),
                 (QueryOptions opts) => HandleQueryAsync(opts),
-                (McpOptions opts) => HandleMcpAsync(opts), 
+                (McpOptions opts) => HandleMcpAsync(opts),
                 _ => Task.FromResult(1));
     }
 
     private static async Task<int> HandleIngestAsync(IngestOptions opts)
     {
+        CodeExplorer.Core.Parser.ParsingContext.EnableConsoleLogging = true;
         try
         {
             Console.WriteLine($"Scanning and parsing directory: {opts.Dir}...");
