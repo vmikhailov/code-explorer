@@ -66,8 +66,5 @@ public class RealQueriesTests
         // 2. Compile
         var compiled = SqliteCompiler.Compile(ast);
         Assert.That(compiled.Sql, Is.Not.Null.And.Not.Empty);
-
-        TestContext.WriteLine($"=== {fileName} ===");
-        TestContext.WriteLine(compiled.Sql);
     }
 }

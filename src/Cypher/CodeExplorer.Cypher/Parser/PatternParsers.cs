@@ -1,6 +1,5 @@
 using CodeExplorer.Cypher.Ast;
 using Superpower;
-using Superpower.Model;
 using Superpower.Parsers;
 
 namespace CodeExplorer.Cypher.Parser;
@@ -114,11 +113,6 @@ public static class PatternParsers
         select new RelationshipPattern(null, new List<string>(), null, Direction.Undirected, null);
 
     public static TokenListParser<CypherToken, RelationshipPattern> Relationship { get; } =
-        OutgoingBracketedRel
-        .Or(IncomingBracketedRel)
-        .Or(UndirectedBracketedRel)
-        .Or(SimpleOutgoingRel)
-        .Or(SimpleIncomingRel)
         OutgoingBracketedRel.Try()
         .Or(IncomingBracketedRel.Try())
         .Or(UndirectedBracketedRel.Try())

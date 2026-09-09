@@ -54,8 +54,6 @@ public class FileBasedCypherTests
         Assert.That(File.Exists(filePath), Is.True, $"File does not exist: {filePath}");
 
         var queryText = File.ReadAllText(filePath);
-        TestContext.WriteLine($"=== Query File: {Path.GetFileName(filePath)} ===");
-        TestContext.WriteLine(queryText);
 
         // 1. Parse into AST
         var ast = CypherQueryParser.Parse(queryText);
@@ -66,8 +64,6 @@ public class FileBasedCypherTests
         // 2. Compile to SQLite SQL
         var compiled = SqliteCompiler.Compile(ast);
         Assert.That(compiled.Sql, Is.Not.Null.And.Not.Empty, "Compiled SQL must not be empty");
-        TestContext.WriteLine("=== Compiled SQL ===");
-        TestContext.WriteLine(compiled.Sql);
 
         // 3. Verify SQLite validity via EXPLAIN QUERY PLAN
         using var cmd = _conn.CreateCommand();

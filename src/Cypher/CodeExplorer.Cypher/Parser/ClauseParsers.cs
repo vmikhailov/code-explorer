@@ -1,6 +1,5 @@
 using CodeExplorer.Cypher.Ast;
 using Superpower;
-using Superpower.Model;
 using Superpower.Parsers;
 
 namespace CodeExplorer.Cypher.Parser;
@@ -19,7 +18,7 @@ public static class ClauseParsers
         from match in Token.EqualTo(CypherToken.Match)
         from paths in PatternParsers.Path.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
         from whereClause in Where.OptionalOrDefault()
-        select new MatchClause(opt.HasValue, paths.ToList(), whereClause);
+        select new MatchClause(opt.HasValue, [.. paths], whereClause);
 
     // Projection item: expr [AS alias]
     public static TokenListParser<CypherToken, ProjectionItem> ProjectionItem { get; } =
@@ -36,7 +35,7 @@ public static class ClauseParsers
         from returnTok in Token.EqualTo(CypherToken.Return)
         from distinct in Token.EqualTo(CypherToken.Distinct).Optional()
         from items in ProjectionItem.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
-        select new ReturnClause(distinct.HasValue, items.ToList());
+        select new ReturnClause(distinct.HasValue, [.. items]);
 
     // ORDER BY item [ASC|DESC], ...
     public static TokenListParser<CypherToken, OrderByClause> OrderBy { get; } =
