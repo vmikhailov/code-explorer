@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Cypher.Tests.Shared;
@@ -66,7 +67,7 @@ public class FileBasedCypherTests
         var compiled = SqliteCompiler.Compile(ast);
         Assert.That(compiled.Sql, Is.Not.Null.And.Not.Empty, "Compiled SQL must not be empty");
 
-        // 3. Verify SQLite validity via EXPLAIN QUERY PLAN
+        // 3. Verify SQLite validity via EXPLAIN QUERY PLAN and direct execution
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = $"EXPLAIN QUERY PLAN {compiled.Sql}";
         foreach (var (k, v) in compiled.Parameters)
@@ -76,13 +77,17 @@ public class FileBasedCypherTests
         }
 
         // Add dummy values for any query-level parameters like $symbolParam
-        var matches = System.Text.RegularExpressions.Regex.Matches(compiled.Sql, @"@[a-zA-Z0-9_]+");
-        foreach (System.Text.RegularExpressions.Match match in matches)
+        var matches = Regex.Matches(compiled.Sql, @"@[a-zA-Z0-9_]+");
+        foreach (Match match in matches)
         {
             var pName = match.Value;
             if (!cmd.Parameters.Contains(pName))
             {
-                cmd.Parameters.AddWithValue(pName, "dummy_val");
+                object val = pName.Contains("skip", StringComparison.OrdinalIgnoreCase) ||
+                             pName.Contains("limit", StringComparison.OrdinalIgnoreCase)
+                    ? 10
+                    : "dummy_val";
+                cmd.Parameters.AddWithValue(pName, val);
             }
         }
 
@@ -90,6 +95,25 @@ public class FileBasedCypherTests
         {
             using var reader = cmd.ExecuteReader();
         }, "SQLite failed to explain/validate compiled SQL");
+
+        // 4. Actually execute query against SQLite
+        using var execCmd = _conn.CreateCommand();
+        execCmd.CommandText = compiled.Sql;
+        foreach (SqliteParameter p in cmd.Parameters)
+        {
+            execCmd.Parameters.AddWithValue(p.ParameterName, p.Value);
+        }
+
+        Assert.DoesNotThrow(() =>
+        {
+            using var execReader = execCmd.ExecuteReader();
+            while (execReader.Read())
+            {
+                for (int i = 0; i < execReader.FieldCount; i++)
+                {
+                    var value = execReader.GetValue(i);
+                }
+            }
+        }, "SQLite failed to execute compiled SQL");
     }
 }
-

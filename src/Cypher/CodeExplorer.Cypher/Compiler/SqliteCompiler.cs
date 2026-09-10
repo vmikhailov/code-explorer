@@ -14,7 +14,20 @@ public class SqliteCompiler : ICypherVisitor<string>
     private readonly Dictionary<string, string> _pathVariables = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _unwindVariables = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _withAliases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _withCollectNodes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Expression> _withListAliases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (Expression InnerExpr, bool IsDistinct)> _withCollectExpressions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _aggregatedAliases = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _nodePropertySource = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _nodeIdSource = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _ctes = new();
+
+    private static readonly HashSet<string> ReservedSqlKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "in", "order", "group", "by", "where", "from", "select", "join", "table", "index", "as", "on", "case", "when", "then", "else", "end", "with", "limit", "offset", "union", "all", "distinct", "values", "into", "set", "update", "delete", "insert", "drop", "create", "alter", "not", "and", "or", "is", "null", "like", "glob", "between", "exists", "key", "check", "column", "primary"
+    };
+
+    private static string EscapeVar(string name) => ReservedSqlKeywords.Contains(name) ? $"\"{name}\"" : name;
 
     private int _paramIndex;
     private int _varIndex;
@@ -47,30 +60,44 @@ public class SqliteCompiler : ICypherVisitor<string>
         var fromAndJoins = new StringBuilder();
         var whereConditions = new List<string>();
 
+        // Pre-scan WITH clauses for collect nodes and list comprehensions
+        if (query.WithClauses != null)
+        {
+            foreach (var with in query.WithClauses)
+            {
+                foreach (var item in with.Items)
+                {
+                    if (item.Alias != null)
+                    {
+                        if (item.Expression is FunctionCallExpression f &&
+                            f.FunctionName.Equals("collect", StringComparison.OrdinalIgnoreCase) &&
+                            f.Arguments.Count == 1)
+                        {
+                            if (f.Arguments[0] is IdentifierExpression collId)
+                            {
+                                _withCollectNodes[item.Alias] = collId.Name;
+                            }
+                            _withCollectExpressions[item.Alias] = (f.Arguments[0], f.IsDistinct);
+                        }
+                        else if (item.Expression is ListComprehensionExpression lcomp &&
+                                 lcomp.List is IdentifierExpression listId &&
+                                 _withCollectNodes.TryGetValue(listId.Name, out var origNode))
+                        {
+                            if (lcomp.Projection is PropertyAccessExpression propAcc &&
+                                propAcc.Variable.Equals(lcomp.Variable, StringComparison.OrdinalIgnoreCase))
+                            {
+                                _withListAliases[item.Alias] = new PropertyAccessExpression(origNode, propAcc.PropertyName);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Process all MATCH / OPTIONAL MATCH clauses
         foreach (var match in query.Matches)
         {
             ProcessMatchClause(match, fromAndJoins, whereConditions);
-        }
-
-        // Process UNWIND clauses if any
-        if (query.UnwindClauses != null)
-        {
-            foreach (var unwind in query.UnwindClauses)
-            {
-                _unwindVariables.Add(unwind.Alias);
-                fromAndJoins.AppendLine();
-                fromAndJoins.Append($"JOIN json_each({VisitExpression(unwind.Expression)}) {unwind.Alias}");
-            }
-        }
-
-        // Process CALL subqueries if any
-        if (query.Calls != null)
-        {
-            foreach (var call in query.Calls)
-            {
-                ProcessCallClause(call);
-            }
         }
 
         // Process WITH clauses if any
@@ -79,8 +106,105 @@ public class SqliteCompiler : ICypherVisitor<string>
 
         if (query.WithClauses != null)
         {
-            foreach (var with in query.WithClauses)
+            for (int withIndex = 0; withIndex < query.WithClauses.Count; withIndex++)
             {
+                var with = query.WithClauses[withIndex];
+
+                // Check if this WITH clause represents a new aggregation stage
+                var isStageSplit = with.Items.Any(item =>
+                    HasAggregation(item.Expression) &&
+                    GetReferencedIdentifiers(item.Expression).Any(id => _aggregatedAliases.Contains(id)));
+
+                if (isStageSplit)
+                {
+                    var stage1Name = $"_stage_{_ctes.Count + 1}";
+
+                    // Find all identifiers referenced in the remaining WITH clauses and RETURN
+                    var remainingReferenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    for (int i = withIndex; i < query.WithClauses.Count; i++)
+                    {
+                        foreach (var it in query.WithClauses[i].Items)
+                        {
+                            foreach (var refId in GetReferencedIdentifiers(it.Expression))
+                            {
+                                remainingReferenced.Add(refId);
+                            }
+                        }
+                    }
+                    foreach (var it in query.Return.Items)
+                    {
+                        foreach (var refId in GetReferencedIdentifiers(it.Expression))
+                        {
+                            remainingReferenced.Add(refId);
+                        }
+                    }
+
+                    var stage1SelectColumns = new List<string>();
+
+                    // Include nodes needed in later stages
+                    foreach (var node in _declaredNodes)
+                    {
+                        if (remainingReferenced.Contains(node))
+                        {
+                            var esc = EscapeVar(node);
+                            stage1SelectColumns.Add($"{esc}.id AS {node}_id");
+                            stage1SelectColumns.Add($"{esc}.properties AS {node}_properties");
+                            _nodePropertySource[node] = $"{stage1Name}.{node}_properties";
+                            _nodeIdSource[node] = $"{stage1Name}.{node}_id";
+                        }
+                    }
+
+                    // Include aliases created in stage 1 that are needed in later stages
+                    foreach (var (alias, exprSql) in _withAliases)
+                    {
+                        if (remainingReferenced.Contains(alias))
+                        {
+                            stage1SelectColumns.Add($"{exprSql} AS {QuoteIdentifier(alias)}");
+                        }
+                    }
+
+                    // For the grouping keys of Stage 1: use node identifiers of previous WITH clause if available
+                    var stage1GroupingKeys = new List<string>();
+                    if (withIndex > 0)
+                    {
+                        var prevWith = query.WithClauses[withIndex - 1];
+                        foreach (var prevItem in prevWith.Items)
+                        {
+                            if (prevItem.Expression is IdentifierExpression id && _declaredNodes.Contains(id.Name))
+                            {
+                                stage1GroupingKeys.Add($"{EscapeVar(id.Name)}.id");
+                            }
+                        }
+                    }
+                    if (stage1GroupingKeys.Count == 0)
+                    {
+                        stage1GroupingKeys.AddRange(groupByColumns);
+                    }
+
+                    var stage1Where = whereConditions.Count > 0 ? $"\nWHERE {string.Join(" AND ", whereConditions)}" : "";
+                    var stage1GroupBy = stage1GroupingKeys.Count > 0 ? $"\nGROUP BY {string.Join(", ", stage1GroupingKeys.Distinct())}" : "";
+                    var stage1Having = havingConditions.Count > 0 ? $"\nHAVING {string.Join(" AND ", havingConditions)}" : "";
+
+                    var stage1Cte = $"{stage1Name} AS (\nSELECT {string.Join(", ", stage1SelectColumns)}\n{fromAndJoins}{stage1Where}{stage1GroupBy}{stage1Having}\n)";
+                    _ctes.Add(stage1Cte);
+
+                    // Update _withAliases for later stages to point to the stage1 columns
+                    foreach (var (alias, _) in _withAliases.ToList())
+                    {
+                        if (remainingReferenced.Contains(alias))
+                        {
+                            _withAliases[alias] = $"{stage1Name}.{QuoteIdentifier(alias)}";
+                        }
+                    }
+
+                    // Reset for next stage
+                    fromAndJoins.Clear();
+                    fromAndJoins.Append($"FROM {stage1Name}");
+                    whereConditions.Clear();
+                    groupByColumns.Clear();
+                    havingConditions.Clear();
+                }
+
                 foreach (var item in with.Items)
                 {
                     if (item.Expression is WildcardExpression)
@@ -100,7 +224,14 @@ public class SqliteCompiler : ICypherVisitor<string>
                         {
                             if (!aggregatedVars.Contains(declaredNode))
                             {
-                                groupByColumns.Add($"{declaredNode}.id");
+                                if (_nodeIdSource.TryGetValue(declaredNode, out var idSrc))
+                                {
+                                    groupByColumns.Add(idSrc);
+                                }
+                                else
+                                {
+                                    groupByColumns.Add($"{EscapeVar(declaredNode)}.id");
+                                }
                             }
                         }
                         continue;
@@ -109,10 +240,28 @@ public class SqliteCompiler : ICypherVisitor<string>
                     if (item.Alias != null)
                     {
                         _withAliases[item.Alias] = VisitExpression(item.Expression);
+                        if (item.Expression is FunctionCallExpression f &&
+                            f.FunctionName.Equals("collect", StringComparison.OrdinalIgnoreCase) &&
+                            f.Arguments.Count == 1)
+                        {
+                            _withCollectExpressions[item.Alias] = (f.Arguments[0], f.IsDistinct);
+                        }
+                        if (HasAggregation(item.Expression) ||
+                            GetReferencedIdentifiers(item.Expression).Any(id => _aggregatedAliases.Contains(id)))
+                        {
+                            _aggregatedAliases.Add(item.Alias);
+                        }
                     }
                     if (item.Expression is IdentifierExpression id && _declaredNodes.Contains(id.Name))
                     {
-                        groupByColumns.Add($"{id.Name}.id");
+                        if (_nodeIdSource.TryGetValue(id.Name, out var idSrc))
+                        {
+                            groupByColumns.Add(idSrc);
+                        }
+                        else
+                        {
+                            groupByColumns.Add($"{EscapeVar(id.Name)}.id");
+                        }
                     }
                 }
 
@@ -128,6 +277,26 @@ public class SqliteCompiler : ICypherVisitor<string>
                         whereConditions.Add(whereSql);
                     }
                 }
+            }
+        }
+
+        // Process UNWIND clauses if any (after WITH aliases are populated)
+        if (query.UnwindClauses != null)
+        {
+            foreach (var unwind in query.UnwindClauses)
+            {
+                _unwindVariables.Add(unwind.Alias);
+                fromAndJoins.AppendLine();
+                fromAndJoins.Append($"JOIN json_each({VisitExpression(unwind.Expression)}) {EscapeVar(unwind.Alias)}");
+            }
+        }
+
+        // Process CALL subqueries if any
+        if (query.Calls != null)
+        {
+            foreach (var call in query.Calls)
+            {
+                ProcessCallClause(call);
             }
         }
 
@@ -280,12 +449,12 @@ public class SqliteCompiler : ICypherVisitor<string>
             {
                 if (fromAndJoins.Length == 0 && !isOptional)
                 {
-                    fromAndJoins.Append($"FROM nodes {headVar}");
+                    fromAndJoins.Append($"FROM nodes {EscapeVar(headVar)}");
                 }
                 else
                 {
                     fromAndJoins.AppendLine();
-                    fromAndJoins.Append($"{joinKeyword} nodes {headVar} ON 1=1");
+                    fromAndJoins.Append($"{joinKeyword} nodes {EscapeVar(headVar)} ON 1=1");
                 }
                 _declaredNodes.Add(headVar);
 
@@ -307,12 +476,12 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (fromAndJoins.Length == 0 && !isOptional)
             {
-                fromAndJoins.Append($"FROM nodes {headVar}");
+                fromAndJoins.Append($"FROM nodes {EscapeVar(headVar)}");
             }
             else
             {
                 fromAndJoins.AppendLine();
-                fromAndJoins.Append($"{joinKeyword} nodes {headVar} ON 1=1");
+                fromAndJoins.Append($"{joinKeyword} nodes {EscapeVar(headVar)} ON 1=1");
             }
             _declaredNodes.Add(headVar);
             ApplyNodeConditions(path.Head, headVar, isOptional, fromAndJoins, mainWhereConditions);
@@ -376,6 +545,10 @@ public class SqliteCompiler : ICypherVisitor<string>
         var relOnConditions = new List<string>();
         var nodeOnConditions = new List<string>();
 
+        var pVar = EscapeVar(prevVar);
+        var tVar = EscapeVar(targetVar);
+        var rVar = EscapeVar(relVar);
+
         // Direction mapping
         if (prevDeclared && !targetDeclared)
         {
@@ -383,16 +556,16 @@ public class SqliteCompiler : ICypherVisitor<string>
             switch (rel.Direction)
             {
                 case Direction.Outgoing:
-                    relOnConditions.Add($"{relVar}.from_id = {prevVar}.id");
-                    nodeOnConditions.Add($"{targetVar}.id = {relVar}.to_id");
+                    relOnConditions.Add($"{rVar}.from_id = {pVar}.id");
+                    nodeOnConditions.Add($"{tVar}.id = {rVar}.to_id");
                     break;
                 case Direction.Incoming:
-                    relOnConditions.Add($"{relVar}.to_id = {prevVar}.id");
-                    nodeOnConditions.Add($"{targetVar}.id = {relVar}.from_id");
+                    relOnConditions.Add($"{rVar}.to_id = {pVar}.id");
+                    nodeOnConditions.Add($"{tVar}.id = {rVar}.from_id");
                     break;
                 case Direction.Undirected:
-                    relOnConditions.Add($"({relVar}.from_id = {prevVar}.id OR {relVar}.to_id = {prevVar}.id)");
-                    nodeOnConditions.Add($"{targetVar}.id = CASE WHEN {relVar}.from_id = {prevVar}.id THEN {relVar}.to_id ELSE {relVar}.from_id END");
+                    relOnConditions.Add($"({rVar}.from_id = {pVar}.id OR {rVar}.to_id = {pVar}.id)");
+                    nodeOnConditions.Add($"{tVar}.id = CASE WHEN {rVar}.from_id = {pVar}.id THEN {rVar}.to_id ELSE {rVar}.from_id END");
                     break;
             }
 
@@ -407,17 +580,17 @@ public class SqliteCompiler : ICypherVisitor<string>
 
             if (fromAndJoins.Length == 0 && !isOptional)
             {
-                fromAndJoins.Append($"FROM edges {relVar}");
+                fromAndJoins.Append($"FROM edges {rVar}");
                 fromAndJoins.AppendLine();
-                fromAndJoins.Append($"JOIN nodes {targetVar} ON {string.Join(" AND ", nodeOnConditions)}");
+                fromAndJoins.Append($"JOIN nodes {tVar} ON {string.Join(" AND ", nodeOnConditions)}");
                 mainWhereConditions.AddRange(relOnConditions);
             }
             else
             {
                 fromAndJoins.AppendLine();
-                fromAndJoins.Append($"{joinKeyword} edges {relVar} ON {string.Join(" AND ", relOnConditions)}");
+                fromAndJoins.Append($"{joinKeyword} edges {rVar} ON {string.Join(" AND ", relOnConditions)}");
                 fromAndJoins.AppendLine();
-                fromAndJoins.Append($"{joinKeyword} nodes {targetVar} ON {string.Join(" AND ", nodeOnConditions)}");
+                fromAndJoins.Append($"{joinKeyword} nodes {tVar} ON {string.Join(" AND ", nodeOnConditions)}");
             }
 
             _declaredRels.Add(relVar);
@@ -429,16 +602,16 @@ public class SqliteCompiler : ICypherVisitor<string>
             switch (rel.Direction)
             {
                 case Direction.Outgoing:
-                    relOnConditions.Add($"{relVar}.to_id = {targetVar}.id");
-                    nodeOnConditions.Add($"{prevVar}.id = {relVar}.from_id");
+                    relOnConditions.Add($"{rVar}.to_id = {tVar}.id");
+                    nodeOnConditions.Add($"{pVar}.id = {rVar}.from_id");
                     break;
                 case Direction.Incoming:
-                    relOnConditions.Add($"{relVar}.from_id = {targetVar}.id");
-                    nodeOnConditions.Add($"{prevVar}.id = {relVar}.to_id");
+                    relOnConditions.Add($"{rVar}.from_id = {tVar}.id");
+                    nodeOnConditions.Add($"{pVar}.id = {rVar}.to_id");
                     break;
                 case Direction.Undirected:
-                    relOnConditions.Add($"({relVar}.from_id = {targetVar}.id OR {relVar}.to_id = {targetVar}.id)");
-                    nodeOnConditions.Add($"{prevVar}.id = CASE WHEN {relVar}.from_id = {targetVar}.id THEN {relVar}.to_id ELSE {relVar}.from_id END");
+                    relOnConditions.Add($"({rVar}.from_id = {tVar}.id OR {rVar}.to_id = {tVar}.id)");
+                    nodeOnConditions.Add($"{pVar}.id = CASE WHEN {rVar}.from_id = {tVar}.id THEN {rVar}.to_id ELSE {rVar}.from_id END");
                     break;
             }
 
@@ -453,17 +626,17 @@ public class SqliteCompiler : ICypherVisitor<string>
 
             if (fromAndJoins.Length == 0 && !isOptional)
             {
-                fromAndJoins.Append($"FROM edges {relVar}");
+                fromAndJoins.Append($"FROM edges {rVar}");
                 fromAndJoins.AppendLine();
-                fromAndJoins.Append($"JOIN nodes {prevVar} ON {string.Join(" AND ", nodeOnConditions)}");
+                fromAndJoins.Append($"JOIN nodes {pVar} ON {string.Join(" AND ", nodeOnConditions)}");
                 mainWhereConditions.AddRange(relOnConditions);
             }
             else
             {
                 fromAndJoins.AppendLine();
-                fromAndJoins.Append($"{joinKeyword} edges {relVar} ON {string.Join(" AND ", relOnConditions)}");
+                fromAndJoins.Append($"{joinKeyword} edges {rVar} ON {string.Join(" AND ", relOnConditions)}");
                 fromAndJoins.AppendLine();
-                fromAndJoins.Append($"{joinKeyword} nodes {prevVar} ON {string.Join(" AND ", nodeOnConditions)}");
+                fromAndJoins.Append($"{joinKeyword} nodes {pVar} ON {string.Join(" AND ", nodeOnConditions)}");
             }
 
             _declaredRels.Add(relVar);
@@ -475,20 +648,20 @@ public class SqliteCompiler : ICypherVisitor<string>
             switch (rel.Direction)
             {
                 case Direction.Outgoing:
-                    relOnConditions.Add($"{relVar}.from_id = {prevVar}.id AND {relVar}.to_id = {targetVar}.id");
+                    relOnConditions.Add($"{rVar}.from_id = {pVar}.id AND {rVar}.to_id = {tVar}.id");
                     break;
                 case Direction.Incoming:
-                    relOnConditions.Add($"{relVar}.to_id = {prevVar}.id AND {relVar}.from_id = {targetVar}.id");
+                    relOnConditions.Add($"{rVar}.to_id = {pVar}.id AND {rVar}.from_id = {tVar}.id");
                     break;
                 case Direction.Undirected:
-                    relOnConditions.Add($"(({relVar}.from_id = {prevVar}.id AND {relVar}.to_id = {targetVar}.id) OR ({relVar}.to_id = {prevVar}.id AND {relVar}.from_id = {targetVar}.id))");
+                    relOnConditions.Add($"(({rVar}.from_id = {pVar}.id AND {rVar}.to_id = {tVar}.id) OR ({rVar}.to_id = {pVar}.id AND {rVar}.from_id = {tVar}.id))");
                     break;
             }
 
             AddRelKindConditions(rel, relVar, relOnConditions);
 
             fromAndJoins.AppendLine();
-            fromAndJoins.Append($"{joinKeyword} edges {relVar} ON {string.Join(" AND ", relOnConditions)}");
+            fromAndJoins.Append($"{joinKeyword} edges {rVar} ON {string.Join(" AND ", relOnConditions)}");
             _declaredRels.Add(relVar);
         }
     }
@@ -552,27 +725,31 @@ public class SqliteCompiler : ICypherVisitor<string>
         var relOnConditions = new List<string>();
         var nodeOnConditions = new List<string>();
 
-        relOnConditions.Add($"{relVar}.depth >= {minDepth}");
+        var pVar = EscapeVar(prevVar);
+        var tVar = EscapeVar(targetVar);
+        var rVar = EscapeVar(relVar);
+
+        relOnConditions.Add($"{rVar}.depth >= {minDepth}");
         if (maxDepth.HasValue)
         {
-            relOnConditions.Add($"{relVar}.depth <= {maxDepth.Value}");
+            relOnConditions.Add($"{rVar}.depth <= {maxDepth.Value}");
         }
         if (isShortestPath)
         {
-            relOnConditions.Add($"{relVar}.depth = (SELECT min(depth) FROM {cteName} WHERE start_id = {prevVar}.id AND end_id = {targetVar}.id)");
+            relOnConditions.Add($"{rVar}.depth = (SELECT min(depth) FROM {cteName} WHERE start_id = {pVar}.id AND end_id = {tVar}.id)");
         }
 
         if (prevDeclared && !targetDeclared)
         {
             if (rel.Direction == Direction.Incoming)
             {
-                relOnConditions.Add($"{relVar}.end_id = {prevVar}.id");
-                nodeOnConditions.Add($"{targetVar}.id = {relVar}.start_id");
+                relOnConditions.Add($"{rVar}.end_id = {pVar}.id");
+                nodeOnConditions.Add($"{tVar}.id = {rVar}.start_id");
             }
             else
             {
-                relOnConditions.Add($"{relVar}.start_id = {prevVar}.id");
-                nodeOnConditions.Add($"{targetVar}.id = {relVar}.end_id");
+                relOnConditions.Add($"{rVar}.start_id = {pVar}.id");
+                nodeOnConditions.Add($"{tVar}.id = {rVar}.end_id");
             }
 
             AddNodeFiltersToConditions(targetNode, targetVar, nodeOnConditions);
@@ -584,9 +761,9 @@ public class SqliteCompiler : ICypherVisitor<string>
             }
 
             fromAndJoins.AppendLine();
-            fromAndJoins.Append($"{joinKeyword} {cteName} {relVar} ON {string.Join(" AND ", relOnConditions)}");
+            fromAndJoins.Append($"{joinKeyword} {cteName} {rVar} ON {string.Join(" AND ", relOnConditions)}");
             fromAndJoins.AppendLine();
-            fromAndJoins.Append($"{joinKeyword} nodes {targetVar} ON {string.Join(" AND ", nodeOnConditions)}");
+            fromAndJoins.Append($"{joinKeyword} nodes {tVar} ON {string.Join(" AND ", nodeOnConditions)}");
 
             _declaredRels.Add(relVar);
             _declaredNodes.Add(targetVar);
@@ -595,13 +772,13 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (rel.Direction == Direction.Incoming)
             {
-                relOnConditions.Add($"{relVar}.start_id = {targetVar}.id");
-                nodeOnConditions.Add($"{prevVar}.id = {relVar}.end_id");
+                relOnConditions.Add($"{rVar}.start_id = {tVar}.id");
+                nodeOnConditions.Add($"{pVar}.id = {rVar}.end_id");
             }
             else
             {
-                relOnConditions.Add($"{relVar}.end_id = {targetVar}.id");
-                nodeOnConditions.Add($"{prevVar}.id = {relVar}.start_id");
+                relOnConditions.Add($"{rVar}.end_id = {tVar}.id");
+                nodeOnConditions.Add($"{pVar}.id = {rVar}.start_id");
             }
 
             AddNodeFiltersToConditions(prevNode, prevVar, nodeOnConditions);
@@ -613,9 +790,9 @@ public class SqliteCompiler : ICypherVisitor<string>
             }
 
             fromAndJoins.AppendLine();
-            fromAndJoins.Append($"{joinKeyword} {cteName} {relVar} ON {string.Join(" AND ", relOnConditions)}");
+            fromAndJoins.Append($"{joinKeyword} {cteName} {rVar} ON {string.Join(" AND ", relOnConditions)}");
             fromAndJoins.AppendLine();
-            fromAndJoins.Append($"{joinKeyword} nodes {prevVar} ON {string.Join(" AND ", nodeOnConditions)}");
+            fromAndJoins.Append($"{joinKeyword} nodes {pVar} ON {string.Join(" AND ", nodeOnConditions)}");
 
             _declaredRels.Add(relVar);
             _declaredNodes.Add(prevVar);
@@ -624,50 +801,52 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (rel.Direction == Direction.Incoming)
             {
-                relOnConditions.Add($"{relVar}.end_id = {prevVar}.id AND {relVar}.start_id = {targetVar}.id");
+                relOnConditions.Add($"{rVar}.end_id = {pVar}.id AND {rVar}.start_id = {tVar}.id");
             }
             else
             {
-                relOnConditions.Add($"{relVar}.start_id = {prevVar}.id AND {relVar}.end_id = {targetVar}.id");
+                relOnConditions.Add($"{rVar}.start_id = {pVar}.id AND {rVar}.end_id = {tVar}.id");
             }
 
             fromAndJoins.AppendLine();
-            fromAndJoins.Append($"{joinKeyword} {cteName} {relVar} ON {string.Join(" AND ", relOnConditions)}");
+            fromAndJoins.Append($"{joinKeyword} {cteName} {rVar} ON {string.Join(" AND ", relOnConditions)}");
             _declaredRels.Add(relVar);
         }
     }
 
     private void AddRelKindConditions(RelationshipPattern rel, string relVar, List<string> conditions)
     {
+        var rVar = EscapeVar(relVar);
         if (rel.Types.Count == 1)
         {
-            conditions.Add($"{relVar}.kind = '{rel.Types[0]}'");
+            conditions.Add($"{rVar}.kind = '{rel.Types[0]}'");
         }
         else if (rel.Types.Count > 1)
         {
             var kinds = string.Join(", ", rel.Types.Select(t => $"'{t}'"));
-            conditions.Add($"{relVar}.kind IN ({kinds})");
+            conditions.Add($"{rVar}.kind IN ({kinds})");
         }
 
         if (rel.Properties != null)
         {
             foreach (var (k, v) in rel.Properties)
             {
-                conditions.Add($"json_extract({relVar}.properties, '$.{k}') = {VisitExpression(v)}");
+                conditions.Add($"json_extract({rVar}.properties, '$.{k}') = {VisitExpression(v)}");
             }
         }
     }
 
     private void AddNodeFiltersToConditions(NodePattern node, string nodeVar, List<string> conditions)
     {
+        var nVar = EscapeVar(nodeVar);
         if (node.Labels.Count == 1)
         {
-            conditions.Add($"{nodeVar}.kind = '{node.Labels[0]}'");
+            conditions.Add($"{nVar}.kind = '{node.Labels[0]}'");
         }
         else if (node.Labels.Count > 1)
         {
             var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
-            conditions.Add($"{nodeVar}.kind IN ({kinds})");
+            conditions.Add($"{nVar}.kind IN ({kinds})");
         }
 
         if (node.Properties != null)
@@ -676,15 +855,15 @@ public class SqliteCompiler : ICypherVisitor<string>
             {
                 if (k.Equals("id", StringComparison.OrdinalIgnoreCase))
                 {
-                    conditions.Add($"{nodeVar}.id = {VisitExpression(v)}");
+                    conditions.Add($"{nVar}.id = {VisitExpression(v)}");
                 }
                 else if (k.Equals("kind", StringComparison.OrdinalIgnoreCase))
                 {
-                    conditions.Add($"COALESCE(json_extract({nodeVar}.properties, '$.kind'), {nodeVar}.kind) = {VisitExpression(v)}");
+                    conditions.Add($"COALESCE(json_extract({nVar}.properties, '$.kind'), {nVar}.kind) = {VisitExpression(v)}");
                 }
                 else
                 {
-                    conditions.Add($"json_extract({nodeVar}.properties, '$.{k}') = {VisitExpression(v)}");
+                    conditions.Add($"json_extract({nVar}.properties, '$.{k}') = {VisitExpression(v)}");
                 }
             }
         }
@@ -753,52 +932,74 @@ public class SqliteCompiler : ICypherVisitor<string>
             return aliasSql;
         }
 
+        var escaped = EscapeVar(id.Name);
+
         // If it refers to an unwind variable
         if (_unwindVariables.Contains(id.Name))
         {
-            return $"{id.Name}.value";
+            return $"{escaped}.value";
         }
 
         // If it refers to a path variable
         if (_pathVariables.TryGetValue(id.Name, out var relVar))
         {
-            return $"{relVar}.path_nodes";
+            return $"{EscapeVar(relVar)}.path_nodes";
+        }
+
+        if (_nodePropertySource.TryGetValue(id.Name, out var propSource))
+        {
+            var idSource = _nodeIdSource.TryGetValue(id.Name, out var idSrc) ? idSrc : "NULL";
+            return $"json_object('id', {idSource}, 'properties', json({propSource}))";
         }
 
         // If it refers to a declared node variable
         if (_declaredNodes.Contains(id.Name))
         {
-            return $"json_object('id', {id.Name}.id, 'kind', {id.Name}.kind, 'properties', json({id.Name}.properties))";
+            return $"json_object('id', {escaped}.id, 'kind', {escaped}.kind, 'properties', json({escaped}.properties))";
         }
 
-        return id.Name;
+        return escaped;
     }
 
     private string VisitPropertyAccess(PropertyAccessExpression prop)
     {
+        var v = EscapeVar(prop.Variable);
         if (_unwindVariables.Contains(prop.Variable))
         {
             if (prop.PropertyName.Equals("id", StringComparison.OrdinalIgnoreCase))
             {
-                return $"COALESCE(json_extract({prop.Variable}.value, '$.id'), {prop.Variable}.value)";
+                return $"COALESCE(json_extract({v}.value, '$.id'), {v}.value)";
             }
             if (prop.PropertyName.Equals("kind", StringComparison.OrdinalIgnoreCase))
             {
-                return $"COALESCE(json_extract({prop.Variable}.value, '$.kind'), {prop.Variable}.value)";
+                return $"COALESCE(json_extract({v}.value, '$.kind'), {v}.value)";
             }
-            return $"COALESCE(json_extract({prop.Variable}.value, '$.properties.' || '{prop.PropertyName}'), json_extract({prop.Variable}.value, '$.{prop.PropertyName}'))";
+            return $"COALESCE(json_extract({v}.value, '$.properties.' || '{prop.PropertyName}'), json_extract({v}.value, '$.{prop.PropertyName}'))";
+        }
+
+        if (_nodePropertySource.TryGetValue(prop.Variable, out var propSrc))
+        {
+            if (prop.PropertyName.Equals("id", StringComparison.OrdinalIgnoreCase) && _nodeIdSource.TryGetValue(prop.Variable, out var idSrc))
+            {
+                return idSrc;
+            }
+            if (prop.PropertyName.Equals("kind", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"COALESCE(json_extract({propSrc}, '$.kind'), {propSrc})";
+            }
+            return $"json_extract({propSrc}, '$.{prop.PropertyName}')";
         }
 
         if (prop.PropertyName.Equals("id", StringComparison.OrdinalIgnoreCase))
         {
-            return $"{prop.Variable}.id";
+            return $"{v}.id";
         }
         if (prop.PropertyName.Equals("kind", StringComparison.OrdinalIgnoreCase))
         {
-            return $"COALESCE(json_extract({prop.Variable}.properties, '$.kind'), {prop.Variable}.kind)";
+            return $"COALESCE(json_extract({v}.properties, '$.kind'), {v}.kind)";
         }
 
-        return $"json_extract({prop.Variable}.properties, '$.{prop.PropertyName}')";
+        return $"json_extract({v}.properties, '$.{prop.PropertyName}')";
     }
 
     private string VisitStringLiteral(StringLiteralExpression str)
@@ -839,7 +1040,11 @@ public class SqliteCompiler : ICypherVisitor<string>
                 ? "(0 = 1)"
                 : binary.Right is ListExpression listExpr
                     ? $"({left} IN ({string.Join(", ", listExpr.Items.Select(VisitExpression))}))"
-                    : $"(EXISTS (SELECT 1 FROM json_each({right}) WHERE json_each.value = {left}))",
+                    : binary.Right is IdentifierExpression rightId && _withCollectNodes.TryGetValue(rightId.Name, out var collNode) && binary.Left is IdentifierExpression leftId && leftId.Name.Equals(collNode, StringComparison.OrdinalIgnoreCase)
+                        ? $"({EscapeVar(collNode)}.id IS NOT NULL)"
+                        : binary.Right is IdentifierExpression rId && _withListAliases.TryGetValue(rId.Name, out var targetExpr)
+                            ? $"({left} = {VisitExpression(targetExpr)})"
+                            : $"(EXISTS (SELECT 1 FROM json_each({right}) WHERE json_each.value = {left}))",
             BinaryOperator.Add => VisitAddOperator(binary.Left, binary.Right, left, right),
             BinaryOperator.Subtract => $"({left} - {right})",
             BinaryOperator.Multiply => $"({left} * {right})",
@@ -938,11 +1143,11 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (func.Arguments[0] is IdentifierExpression id && _declaredNodes.Contains(id.Name))
             {
-                return $"{id.Name}.id";
+                return $"{EscapeVar(id.Name)}.id";
             }
             if (func.Arguments[0] is IdentifierExpression rel && _declaredRels.Contains(rel.Name))
             {
-                return $"{rel.Name}.rowid";
+                return $"{EscapeVar(rel.Name)}.rowid";
             }
             return $"{VisitExpression(func.Arguments[0])}.id";
         }
@@ -1002,7 +1207,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (func.Arguments[0] is IdentifierExpression nodeVar)
             {
-                return $"json_array({nodeVar.Name}.kind)";
+                return $"json_array({EscapeVar(nodeVar.Name)}.kind)";
             }
         }
 
@@ -1014,7 +1219,7 @@ public class SqliteCompiler : ICypherVisitor<string>
             }
             if (func.Arguments[0] is IdentifierExpression id && _declaredNodes.Contains(id.Name))
             {
-                return $"COUNT({distinctStr}{id.Name}.id)";
+                return $"COUNT({distinctStr}{EscapeVar(id.Name)}.id)";
             }
             return $"COUNT({distinctStr}{VisitExpression(func.Arguments[0])})";
         }
@@ -1060,7 +1265,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (func.Arguments[0] is IdentifierExpression relVar)
             {
-                return $"{relVar.Name}.kind";
+                return $"{EscapeVar(relVar.Name)}.kind";
             }
         }
 
@@ -1068,7 +1273,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (func.Arguments[0] is IdentifierExpression pathVar && _pathVariables.TryGetValue(pathVar.Name, out var relVar))
             {
-                return $"json({relVar}.path_nodes)";
+                return $"json({EscapeVar(relVar)}.path_nodes)";
             }
         }
 
@@ -1076,11 +1281,12 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (func.Arguments[0] is IdentifierExpression pathVar && _pathVariables.TryGetValue(pathVar.Name, out var relVar))
             {
+                var rVar = EscapeVar(relVar);
                 if (_declaredRels.Contains(relVar))
                 {
-                    return $"json_array(json_object('type', {relVar}.kind, 'from', {relVar}.from_id, 'to', {relVar}.to_id, 'properties', json({relVar}.properties)))";
+                    return $"json_array(json_object('type', {rVar}.kind, 'from', {rVar}.from_id, 'to', {rVar}.to_id, 'properties', json({rVar}.properties)))";
                 }
-                return $"json({relVar}.path_nodes)";
+                return $"json({rVar}.path_nodes)";
             }
             return $"json({VisitExpression(func.Arguments[0])})";
         }
@@ -1089,7 +1295,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (func.Arguments[0] is IdentifierExpression nodeVar)
             {
-                return $"json({nodeVar.Name}.properties)";
+                return $"json({EscapeVar(nodeVar.Name)}.properties)";
             }
             return $"json({VisitExpression(func.Arguments[0])})";
         }
@@ -1098,7 +1304,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         {
             if (func.Arguments[0] is IdentifierExpression nodeVar)
             {
-                return $"(SELECT json_group_array(key) FROM json_each({nodeVar.Name}.properties))";
+                return $"(SELECT json_group_array(key) FROM json_each({EscapeVar(nodeVar.Name)}.properties))";
             }
         }
 
@@ -1129,6 +1335,27 @@ public class SqliteCompiler : ICypherVisitor<string>
 
     private string VisitListComprehension(ListComprehensionExpression comp)
     {
+        if (comp.List is IdentifierExpression listId &&
+            _withCollectExpressions.TryGetValue(listId.Name, out var collectInfo))
+        {
+            var distinctStr = collectInfo.IsDistinct ? "DISTINCT " : "";
+            var innerExpr = collectInfo.InnerExpr;
+
+            string? compFilterSql = null;
+            if (comp.Filter != null)
+            {
+                var substitutedFilter = SubstituteComprehensionVariable(comp.Filter, comp.Variable, innerExpr);
+                compFilterSql = $" FILTER (WHERE {VisitExpression(substitutedFilter)})";
+            }
+
+            var projExpr = comp.Projection != null
+                ? SubstituteComprehensionVariable(comp.Projection, comp.Variable, innerExpr)
+                : innerExpr;
+
+            var compProjSql = VisitExpression(projExpr);
+            return $"json_group_array({distinctStr}{compProjSql}){compFilterSql ?? ""}";
+        }
+
         var listSql = VisitExpression(comp.List);
         bool wasAdded = _unwindVariables.Add(comp.Variable);
         string projSql;
@@ -1147,6 +1374,46 @@ public class SqliteCompiler : ICypherVisitor<string>
         }
 
         return $"(SELECT json_group_array({projSql}) FROM json_each({listSql}) AS {comp.Variable}{filterSql})";
+    }
+
+    private static Expression SubstituteComprehensionVariable(Expression expr, string varName, Expression innerExpr)
+    {
+        switch (expr)
+        {
+            case PropertyAccessExpression prop when prop.Variable.Equals(varName, StringComparison.OrdinalIgnoreCase):
+                if (innerExpr is MapLiteralExpression map && map.Properties.TryGetValue(prop.PropertyName, out var val))
+                {
+                    return val;
+                }
+                if (innerExpr is IdentifierExpression innerId)
+                {
+                    return new PropertyAccessExpression(innerId.Name, prop.PropertyName);
+                }
+                return prop;
+
+            case IdentifierExpression id when id.Name.Equals(varName, StringComparison.OrdinalIgnoreCase):
+                return innerExpr;
+
+            case BinaryExpression bin:
+                return new BinaryExpression(
+                    SubstituteComprehensionVariable(bin.Left, varName, innerExpr),
+                    bin.Operator,
+                    SubstituteComprehensionVariable(bin.Right, varName, innerExpr));
+
+            case UnaryExpression u:
+                return new UnaryExpression(
+                    u.Operator,
+                    SubstituteComprehensionVariable(u.Operand, varName, innerExpr));
+
+            case FunctionCallExpression fn:
+                return new FunctionCallExpression(
+                    fn.FunctionName,
+                    fn.IsDistinct,
+                    fn.Arguments.Select(a => SubstituteComprehensionVariable(a, varName, innerExpr)).ToList());
+
+            default:
+                return expr;
+        }
     }
 
     private string VisitListPredicate(ListPredicateExpression pred)
@@ -1238,7 +1505,7 @@ public class SqliteCompiler : ICypherVisitor<string>
     {
         if (hasLabel.Expression is IdentifierExpression id)
         {
-            return $"({id.Name}.kind = '{hasLabel.Label}')";
+            return $"({EscapeVar(id.Name)}.kind = '{hasLabel.Label}')";
         }
         return $"({VisitExpression(hasLabel.Expression)} = '{hasLabel.Label}')";
     }
@@ -1458,6 +1725,14 @@ public class SqliteCompiler : ICypherVisitor<string>
                 if (c.TestExpression != null) CollectIdentifiers(c.TestExpression, set);
                 foreach (var w in c.WhenBranches) { CollectIdentifiers(w.When, set); CollectIdentifiers(w.Then, set); }
                 if (c.ElseExpression != null) CollectIdentifiers(c.ElseExpression, set);
+                break;
+            case MapLiteralExpression ml:
+                foreach (var (_, v) in ml.Properties) CollectIdentifiers(v, set);
+                break;
+            case ListComprehensionExpression lc:
+                CollectIdentifiers(lc.List, set);
+                if (lc.Filter != null) CollectIdentifiers(lc.Filter, set);
+                if (lc.Projection != null) CollectIdentifiers(lc.Projection, set);
                 break;
             case MapProjectionExpression mp:
                 CollectIdentifiers(mp.BaseExpression, set);
