@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
 using CodeExplorer.Cypher.Ast;
@@ -6,19 +7,22 @@ namespace CodeExplorer.Cypher.Compiler;
 
 public class SqliteCompiler : ICypherVisitor<string>
 {
+    private readonly record struct PathHop(string RelVar, bool IsVarLen);
+    private readonly record struct CollectExpressionInfo(Expression InnerExpr, bool IsDistinct);
+
     private readonly CypherQuery _query;
-    private readonly Dictionary<string, object?>? _initialParameters;
+    private readonly IReadOnlyDictionary<string, object?>? _initialParameters;
     private readonly Dictionary<string, object?> _parameters = new();
     private readonly HashSet<string> _declaredNodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _declaredRels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _pathVariables = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, List<(string RelVar, bool IsVarLen)>> _pathHops = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<PathHop>> _pathHops = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _unwindVariables = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _withAliases = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _withCollectNodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Expression> _withListAliases = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, (Expression InnerExpr, bool IsDistinct)> _withCollectExpressions =
+    private readonly Dictionary<string, CollectExpressionInfo> _withCollectExpressions =
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly HashSet<string> _aggregatedAliases = new(StringComparer.OrdinalIgnoreCase);
@@ -26,27 +30,27 @@ public class SqliteCompiler : ICypherVisitor<string>
     private readonly Dictionary<string, string> _nodeIdSource = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _ctes = [];
 
-    private static readonly HashSet<string> _reservedSqlKeywords = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly FrozenSet<string> ReservedSqlKeywords = new[]
     {
         "in", "order", "group", "by", "where", "from", "select", "join", "table", "index", "as", "on", "case", "when",
         "then", "else", "end", "with", "limit", "offset", "union", "all", "distinct", "values", "into", "set", "update",
         "delete", "insert", "drop", "create", "alter", "not", "and", "or", "is", "null", "like", "glob", "between",
         "exists", "key", "check", "column", "primary"
-    };
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    private static string EscapeVar(string name) => _reservedSqlKeywords.Contains(name) ? $"\"{name}\"" : name;
+    private static string EscapeVar(string name) => ReservedSqlKeywords.Contains(name) ? $"\"{name}\"" : name;
 
     private int _paramIndex;
     private int _varIndex;
     private int _cteIndex;
 
-    private SqliteCompiler(CypherQuery query, Dictionary<string, object?>? parameters = null)
+    private SqliteCompiler(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null)
     {
         _query = query;
         _initialParameters = parameters;
     }
 
-    public static SqliteCompiledQuery Compile(CypherQuery query, Dictionary<string, object?>? parameters = null)
+    public static SqliteCompiledQuery Compile(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null)
     {
         return new SqliteCompiler(query, parameters).Compile();
     }
@@ -63,9 +67,9 @@ public class SqliteCompiler : ICypherVisitor<string>
         PreScanWithClauses(query.WithClauses);
 
         var fromAndJoins = new StringBuilder();
-        var whereConditions = new List<string>();
-        var groupByColumns = new List<string>();
-        var havingConditions = new List<string>();
+        List<string> whereConditions = [];
+        List<string> groupByColumns = [];
+        List<string> havingConditions = [];
 
         foreach (var match in query.Matches)
         {
@@ -146,7 +150,7 @@ public class SqliteCompiler : ICypherVisitor<string>
                     _withCollectNodes[alias] = collId.Name;
                 }
 
-                _withCollectExpressions[alias] = (f.Arguments[0], f.IsDistinct);
+                _withCollectExpressions[alias] = new CollectExpressionInfo(f.Arguments[0], f.IsDistinct);
                 break;
             }
             case ListComprehensionExpression { List: IdentifierExpression listId } lcomp when
@@ -257,7 +261,7 @@ public class SqliteCompiler : ICypherVisitor<string>
 
     private List<string> BuildStage1SelectColumns(string stage1Name, HashSet<string> remainingReferenced)
     {
-        var stage1SelectColumns = new List<string>();
+        List<string> stage1SelectColumns = [];
         foreach (var node in _declaredNodes)
         {
             if (remainingReferenced.Contains(node))
@@ -283,7 +287,7 @@ public class SqliteCompiler : ICypherVisitor<string>
 
     private List<string> DetermineStage1GroupingKeys(CypherQuery query, int withIndex, List<string> currentGroupByColumns)
     {
-        var stage1GroupingKeys = new List<string>();
+        List<string> stage1GroupingKeys = [];
         if (withIndex > 0)
         {
             var prevWith = query.WithClauses![withIndex - 1];
@@ -356,7 +360,7 @@ public class SqliteCompiler : ICypherVisitor<string>
             f.FunctionName.Equals("collect", StringComparison.OrdinalIgnoreCase) &&
             f.Arguments.Count == 1)
         {
-            _withCollectExpressions[alias] = (f.Arguments[0], f.IsDistinct);
+            _withCollectExpressions[alias] = new CollectExpressionInfo(f.Arguments[0], f.IsDistinct);
         }
 
         if (HasAggregation(expression) ||
@@ -403,7 +407,7 @@ public class SqliteCompiler : ICypherVisitor<string>
 
     private List<string> BuildSelectColumns(ReturnClause returnClause)
     {
-        var selectColumns = new List<string>();
+        List<string> selectColumns = [];
         foreach (var item in returnClause.Items)
         {
             if (item.Expression is WildcardExpression)
@@ -522,16 +526,12 @@ public class SqliteCompiler : ICypherVisitor<string>
     {
         var isOptional = match.IsOptional;
         var joinKeyword = isOptional ? "LEFT JOIN" : "JOIN";
-        var optionalWhereExtra = new List<string>();
+        List<string> optionalWhereExtra = [];
 
-        switch (isOptional)
+        if (match.Where != null)
         {
-            case true when match.Where != null:
-                optionalWhereExtra.Add(VisitExpression(match.Where.Predicate));
-                break;
-            case false when match.Where != null:
-                mainWhereConditions.Add(VisitExpression(match.Where.Predicate));
-                break;
+            var targetConditions = isOptional ? optionalWhereExtra : mainWhereConditions;
+            targetConditions.Add(VisitExpression(match.Where.Predicate));
         }
 
         foreach (var path in match.Paths)
@@ -634,7 +634,7 @@ public class SqliteCompiler : ICypherVisitor<string>
                 hopsList = [];
                 _pathHops[path.PathVariable] = hopsList;
             }
-            hopsList.Add((relVar, isVarLen));
+            hopsList.Add(new PathHop(relVar, isVarLen));
         }
         ProcessPathHop(
             rel, relVar, prevNode, prevVar, targetNode, targetVar,
@@ -695,8 +695,8 @@ public class SqliteCompiler : ICypherVisitor<string>
         List<string> mainWhereConditions,
         List<string> optionalWhereExtra)
     {
-        var relOnConditions = new List<string>();
-        var nodeOnConditions = new List<string>();
+        List<string> relOnConditions = [];
+        List<string> nodeOnConditions = [];
         var pVar = EscapeVar(prevVar);
         var tVar = EscapeVar(targetVar);
         var rVar = EscapeVar(relVar);
@@ -894,7 +894,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth);
 
         var relOnConditions = BuildVarLenRelConditions(cteName, relVar, prevVar, targetVar, minDepth, maxDepth, isShortestPath);
-        var nodeOnConditions = new List<string>();
+        List<string> nodeOnConditions = [];
 
         DispatchVarLenHop(
             rel, cteName, relVar, prevNode, prevVar, targetNode, targetVar,
@@ -1192,7 +1192,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         StringBuilder fromAndJoins,
         List<string> mainWhereConditions)
     {
-        var conditions = new List<string>();
+        List<string> conditions = [];
         AddNodeFiltersToConditions(node, nodeVar, conditions);
 
         if (conditions.Count > 0)
@@ -1684,7 +1684,7 @@ public class SqliteCompiler : ICypherVisitor<string>
             return "json_object()";
         }
 
-        var parts = new List<string>();
+        List<string> parts = [];
         foreach (var (k, v) in map.Properties)
         {
             parts.Add($"'{k}', {VisitExpression(v)}");
@@ -1723,7 +1723,7 @@ public class SqliteCompiler : ICypherVisitor<string>
 
     private string VisitCollectedListComprehension(
         ListComprehensionExpression comp,
-        (Expression InnerExpr, bool IsDistinct) collectInfo)
+        CollectExpressionInfo collectInfo)
     {
         var distinctStr = collectInfo.IsDistinct ? "DISTINCT " : "";
         var innerExpr = collectInfo.InnerExpr;
@@ -1845,21 +1845,18 @@ public class SqliteCompiler : ICypherVisitor<string>
         return null;
     }
 
-    private static bool HasAggregation(Expression expr)
+    private static readonly FrozenSet<string> AggregateFunctionNames = new[]
     {
-        return expr switch
-        {
-            FunctionCallExpression f when f.FunctionName.Equals("count", StringComparison.OrdinalIgnoreCase) ||
-                                          f.FunctionName.Equals("collect", StringComparison.OrdinalIgnoreCase) ||
-                                          f.FunctionName.Equals("sum", StringComparison.OrdinalIgnoreCase) ||
-                                          f.FunctionName.Equals("avg", StringComparison.OrdinalIgnoreCase) ||
-                                          f.FunctionName.Equals("min", StringComparison.OrdinalIgnoreCase) ||
-                                          f.FunctionName.Equals("max", StringComparison.OrdinalIgnoreCase) => true,
-            BinaryExpression b => HasAggregation(b.Left) || HasAggregation(b.Right),
-            UnaryExpression u => HasAggregation(u.Operand),
-            _ => false
-        };
-    }
+        "count", "collect", "sum", "avg", "min", "max"
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    private static bool HasAggregation(Expression expr) => expr switch
+    {
+        FunctionCallExpression f => AggregateFunctionNames.Contains(f.FunctionName),
+        BinaryExpression b => HasAggregation(b.Left) || HasAggregation(b.Right),
+        UnaryExpression u => HasAggregation(u.Operand),
+        _ => false
+    };
 
     private string VisitCase(CaseExpression caseExpr)
     {
@@ -1894,12 +1891,13 @@ public class SqliteCompiler : ICypherVisitor<string>
         return $"({VisitExpression(hasLabel.Expression)} = '{hasLabel.Label}')";
     }
 
-    private static string QuoteIdentifier(string id) => "\"" + id.Replace("\"", "\"\"") + "\"";
+    private static string QuoteIdentifier(string id) =>
+        id.Contains('"') ? $"\"{id.Replace("\"", "\"\"")}\"" : $"\"{id}\"";
 
     private string VisitListSlice(ListSliceExpression slice)
     {
         var listSql = VisitExpression(slice.List);
-        var whereConditions = new List<string>();
+        List<string> whereConditions = [];
         if (slice.From != null)
         {
             whereConditions.Add($"key >= {VisitExpression(slice.From)}");
@@ -1916,7 +1914,7 @@ public class SqliteCompiler : ICypherVisitor<string>
 
     private (StringBuilder FromJoins, List<string> Conditions) BuildSubqueryPath(PathPattern path, string prefix)
     {
-        var conditions = new List<string>();
+        List<string> conditions = [];
         var fromJoins = new StringBuilder();
 
         var headVar = path.Head.Variable;
@@ -1997,7 +1995,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         foreach (var node in _declaredNodes) subCompiler._declaredNodes.Add(node);
         foreach (var rel in _declaredRels) subCompiler._declaredRels.Add(rel);
         foreach (var (k, v) in _pathVariables) subCompiler._pathVariables[k] = v;
-        foreach (var (k, v) in _pathHops) subCompiler._pathHops[k] = new List<(string, bool)>(v);
+        foreach (var (k, v) in _pathHops) subCompiler._pathHops[k] = [..v];
         foreach (var (k, v) in _withAliases) subCompiler._withAliases[k] = v;
 
         var subCompiled = subCompiler.Compile();
@@ -2093,7 +2091,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         var baseVar = mapProj.BaseExpression is IdentifierExpression id
             ? id.Name
             : VisitExpression(mapProj.BaseExpression);
-        var parts = new List<string>();
+        List<string> parts = [];
         foreach (var elem in mapProj.Elements)
         {
             if (elem.IsAllProperties)
