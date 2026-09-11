@@ -37,7 +37,7 @@ public class ParserValidationTests
             using var tempFile = ParserTestData.GetPreparedFile(relativeFile);
             var workspacePath = tempFile.DirectoryPath;
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryGraphClient();
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
             using var syntaxTree =
@@ -57,7 +57,7 @@ public class ParserValidationTests
         var workspacePath = tempFile.DirectoryPath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree =
@@ -90,7 +90,7 @@ public class ParserValidationTests
         var workspacePath = tempFile.DirectoryPath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree =
@@ -116,7 +116,7 @@ public class ParserValidationTests
         var workspacePath = tempFile.DirectoryPath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree =
@@ -142,7 +142,7 @@ public class ParserValidationTests
         var workspacePath = tempFile.DirectoryPath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree =
@@ -192,7 +192,7 @@ public class ParserValidationTests
         var workspacePath = tempFile.DirectoryPath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree =
@@ -285,7 +285,7 @@ public class ParserValidationTests
         var workspacePath = tempFile.DirectoryPath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree =
@@ -314,7 +314,7 @@ public class ParserValidationTests
         var workspacePath = tempFile.DirectoryPath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree =
@@ -354,7 +354,7 @@ public class ParserValidationTests
 
         // Setup parsing context
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
 
         var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
         ctx.WorkspaceId = "1";
@@ -475,7 +475,7 @@ public class ParserValidationTests
         var tempWorkspace = ws.WorkspacePath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
         ctx.WorkspaceId = "1";
 
@@ -562,7 +562,7 @@ public class ParserValidationTests
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryMemgraphClient();
+            await using var client = new InMemoryGraphClient();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.WorkspaceId = "1";
             ctx.SemanticStructure = new SemanticStructureNode("1:semantic_structure", "SemanticStructure", tempWorkspace);
@@ -673,7 +673,7 @@ public class ParserValidationTests
         var tempWorkspace = ws.WorkspacePath;
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
         ctx.WorkspaceId = "1";
 
@@ -760,7 +760,7 @@ public class ParserValidationTests
     [Test]
     public async Task Test_ConcurrentIndexingTasks()
     {
-        var dbClient = new InMemoryMemgraphClient();
+        var dbClient = new InMemoryGraphClient();
         var indexer = new WorkspaceIndexer(dbClient);
         var taskManager = new IndexingTaskManager(indexer);
         // Register CSharp parser if not already registered
@@ -833,7 +833,7 @@ public class ParserValidationTests
         var socketFile = ws.GetFilePath("SocketClient.ts");
 
         var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryMemgraphClient();
+        await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTreeTs = await tsParser.ParseAsync(tsFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

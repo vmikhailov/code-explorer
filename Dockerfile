@@ -4,6 +4,7 @@ WORKDIR /src
 
 # Copy solution and project files first to leverage Docker cache
 COPY CodeExplorer.slnx Directory.Build.props ./
+COPY src/Cypher/CodeExplorer.Cypher/CodeExplorer.Cypher.csproj src/Cypher/CodeExplorer.Cypher/
 COPY src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj src/Core/CodeExplorer.Core/
 COPY src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj src/Parsers/CodeExplorer.Parser.CSharp/
 COPY src/Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj src/Parsers/CodeExplorer.Parser.Go/
@@ -12,6 +13,7 @@ COPY src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.c
 COPY src/Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj src/Parsers/CodeExplorer.Parser.SQL/
 COPY src/UI/CodeExplorer/CodeExplorer.csproj src/UI/CodeExplorer/
 COPY tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj tests/CodeExplorer.Tests/
+COPY tests/CodeExplorer.Cypher.Tests/CodeExplorer.Cypher.Tests.csproj tests/CodeExplorer.Cypher.Tests/
 COPY src/Tools/CodeExplorer.OntologyGen/OntologyGen.csproj src/Tools/CodeExplorer.OntologyGen/
 
 # Restore dependencies

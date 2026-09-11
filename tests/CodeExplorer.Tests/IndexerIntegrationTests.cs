@@ -13,7 +13,6 @@ namespace CodeExplorer.Tests;
 
 [TestFixture]
 [Category("Integration")]
-[Explicit("Runs integration tests against a real Memgraph database.")]
 public class IndexerIntegrationTests
 {
     [Test]
@@ -61,8 +60,8 @@ public class IndexerIntegrationTests
             await File.WriteAllTextAsync(projBFile, projBCode);
 
             // Setup parsing
-            var boltUrl = McpIntegrationTests.GetBoltUrl();
-            await using var client = new MemgraphClient(boltUrl, "", "");
+            var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
 
             // Register parsers if they aren't already registered
             WorkspaceIndexer.Register(new CSharpParser());
@@ -76,39 +75,20 @@ public class IndexerIntegrationTests
             // Verify Endpoint and CALLS_ENDPOINT in the database
             var wsId = await client.GetOrCreateWorkspaceIdAsync(tempWorkspace);
 
-            var debugNodes = await client.ExecuteQueryAsync(
-                $"MATCH (n) WHERE toString(n.id) STARTS WITH '{wsId}:' OR toString(n.id) = '{wsId}' RETURN labels(n)[0] AS label, n.id AS id, n.name AS name");
-            Console.WriteLine($"[DEBUG NODES] {debugNodes}");
-
-            var debugRels = await client.ExecuteQueryAsync(
-                $"MATCH (n)-[r]->(m) WHERE toString(n.id) STARTS WITH '{wsId}:' OR toString(n.id) = '{wsId}' RETURN labels(n)[0] AS from_label, n.name AS from_name, type(r) AS rel_type, labels(m)[0] AS to_label, m.name AS to_name");
-            Console.WriteLine($"[DEBUG RELS] {debugRels}");
-
             var endpointCountJson = await client.ExecuteQueryAsync(
                 $"MATCH (ep:Endpoint) WHERE toString(ep.id) STARTS WITH '{wsId}:' RETURN count(ep) AS count");
             Assert.That(endpointCountJson, Contains.Substring("\"count\": 2"));
 
             var implByJson = await client.ExecuteQueryAsync(
                 $"MATCH (ep:Endpoint)-[:EXPOSED_BY]->(f:Function {{name: 'charge'}}) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
-            Assert.That(implByJson, Contains.Substring(":endpoint:POST:charge"));
+            Assert.That(implByJson, Contains.Substring(":endpoint:POST:/orders/charge"));
 
             var lateBoundJson = await client.ExecuteQueryAsync(
                 $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
-            Assert.That(lateBoundJson, Contains.Substring(":endpoint:POST:charge"));
-
-            Console.WriteLine(
-                $"[IntegrationTest] Parsed {results.NodesCount} nodes and {results.RelationshipsCount} relationships successfully.");
+            Assert.That(lateBoundJson, Contains.Substring(":endpoint:POST:/orders/charge"));
         }
         finally
         {
-            try
-            {
-                var boltUrl = McpIntegrationTests.GetBoltUrl();
-                await using var cleanupClient = new MemgraphClient(boltUrl, "", "");
-                await cleanupClient.ClearWorkspaceAsync(tempWorkspace);
-            }
-            catch {}
-
             if (Directory.Exists(tempWorkspace))
             {
                 Directory.Delete(tempWorkspace, true);
@@ -144,8 +124,8 @@ export class OrderService {
             await File.WriteAllTextAsync(orderServiceFile, orderServiceCode);
 
             // Setup parsing
-            var boltUrl = McpIntegrationTests.GetBoltUrl();
-            await using var client = new MemgraphClient(boltUrl, "", "");
+            var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
             // Register parsers if they aren't already registered
             WorkspaceIndexer.Register(new TypeScriptParser());
             // Run scanner
@@ -154,7 +134,7 @@ export class OrderService {
 
             Assert.That(results.NodesCount, Is.GreaterThan(0));
 
-            // Verify using Memgraph query that Function 'process' CALLS Function 'charge' in Type 'PaymentService'
+            // Verify using database query that Function 'process' CALLS Function 'charge' in Type 'PaymentService'
             var callsQuery =
                 $"MATCH (c:Type {{name: 'PaymentService'}})-[:HAS_METHOD]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
             var queryResult = await client.ExecuteQueryAsync(callsQuery);
@@ -164,14 +144,6 @@ export class OrderService {
         }
         finally
         {
-            try
-            {
-                var boltUrl = McpIntegrationTests.GetBoltUrl();
-                await using var cleanupClient = new MemgraphClient(boltUrl, "", "");
-                await cleanupClient.ClearWorkspaceAsync(tempWorkspace);
-            }
-            catch {}
-
             if (Directory.Exists(tempWorkspace))
             {
                 Directory.Delete(tempWorkspace, true);
@@ -198,8 +170,8 @@ export class OrderService {
             await File.WriteAllTextAsync(Path.Combine(projBDir, "serviceB.ts"), "export class ServiceB {}");
 
             // Setup parsing
-            var boltUrl = McpIntegrationTests.GetBoltUrl();
-            await using var client = new MemgraphClient(boltUrl, "", "");
+            var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
             // Register parsers if they aren't already registered
             WorkspaceIndexer.Register(new TypeScriptParser());
             // Run scanner
@@ -208,7 +180,7 @@ export class OrderService {
 
             Assert.That(results.NodesCount, Is.GreaterThan(0));
 
-            // Verify using Memgraph queries
+            // Verify using database queries
             // ProjectB should be nested under ProjectA via their Folder locations
             var projectAQuery = "MATCH (p:Project {name: 'ProjectA'}) RETURN p.id AS id";
             var projectBQuery = "MATCH (p:Project {name: 'ProjectB'}) RETURN p.id AS id";
@@ -227,14 +199,6 @@ export class OrderService {
         }
         finally
         {
-            try
-            {
-                var boltUrl = McpIntegrationTests.GetBoltUrl();
-                await using var cleanupClient = new MemgraphClient(boltUrl, "", "");
-                await cleanupClient.ClearWorkspaceAsync(tempWorkspace);
-            }
-            catch {}
-
             if (Directory.Exists(tempWorkspace))
             {
                 Directory.Delete(tempWorkspace, true);

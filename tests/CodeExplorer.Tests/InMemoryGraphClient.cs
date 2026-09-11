@@ -6,7 +6,7 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Tests;
 
-public class InMemoryMemgraphClient : IMemgraphClient
+public class InMemoryGraphClient : IGraphClient
 {
     public List<Node> UploadedNodes { get; } = [];
     public List<Relationship> UploadedRelationships { get; } = [];

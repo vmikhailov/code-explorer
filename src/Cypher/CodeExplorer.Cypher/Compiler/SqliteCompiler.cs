@@ -12,6 +12,7 @@ public class SqliteCompiler : ICypherVisitor<string>
     private readonly HashSet<string> _declaredNodes = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _declaredRels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _pathVariables = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<(string RelVar, bool IsVarLen)>> _pathHops = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _unwindVariables = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _withAliases = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _withCollectNodes = new(StringComparer.OrdinalIgnoreCase);
@@ -80,9 +81,34 @@ public class SqliteCompiler : ICypherVisitor<string>
             whereConditions.Add(VisitExpression(query.Where.Predicate));
         }
 
+        PopulateReturnGroupBy(query.Return, groupByColumns);
+
         var selectColumns = BuildSelectColumns(query.Return);
         var sql = AssembleQuerySql(query, selectColumns, fromAndJoins, whereConditions, groupByColumns, havingConditions);
         return AppendUnions(sql, query.Unions);
+    }
+
+    private void PopulateReturnGroupBy(ReturnClause returnClause, List<string> groupByColumns)
+    {
+        if (groupByColumns.Count > 0 || !returnClause.Items.Any(i => HasAggregation(i.Expression))) return;
+
+        foreach (var item in returnClause.Items)
+        {
+            if (HasAggregation(item.Expression) || item.Expression is WildcardExpression) continue;
+
+            if (item.Expression is IdentifierExpression id && _declaredNodes.Contains(id.Name))
+            {
+                groupByColumns.Add(_nodeIdSource.TryGetValue(id.Name, out var idSrc) ? idSrc : $"{EscapeVar(id.Name)}.id");
+            }
+            else if (!string.IsNullOrEmpty(item.Alias))
+            {
+                groupByColumns.Add(QuoteIdentifier(item.Alias));
+            }
+            else
+            {
+                groupByColumns.Add(VisitExpression(item.Expression));
+            }
+        }
     }
 
     private void CopyInitialParameters()
@@ -598,12 +624,18 @@ public class SqliteCompiler : ICypherVisitor<string>
         var targetVar = targetNode.Variable ?? $"_n{_varIndex++}";
         var relVar = rel.Variable ?? $"_r{_varIndex++}";
 
+        var isVarLen = rel.Range.HasValue || path.IsShortestPath || path.IsAllShortestPaths;
+
         if (path.PathVariable != null)
         {
             _pathVariables[path.PathVariable] = relVar;
+            if (!_pathHops.TryGetValue(path.PathVariable, out var hopsList))
+            {
+                hopsList = [];
+                _pathHops[path.PathVariable] = hopsList;
+            }
+            hopsList.Add((relVar, isVarLen));
         }
-
-        var isVarLen = rel.Range.HasValue || path.IsShortestPath || path.IsAllShortestPaths;
         ProcessPathHop(
             rel, relVar, prevNode, prevVar, targetNode, targetVar,
             isOptional, isVarLen, path.IsShortestPath, joinKeyword,
@@ -1420,12 +1452,39 @@ public class SqliteCompiler : ICypherVisitor<string>
         var distinctStr = func.IsDistinct ? "DISTINCT " : "";
 
         return TryVisitItemAt(fn, func)
+            ?? TryVisitPathLengthFunction(fn, func)
             ?? TryVisitIdOrElementId(fn, func)
             ?? TryVisitScalarFunction(fn, func)
             ?? TryVisitStringFunction(fn, func)
             ?? TryVisitAggregateFunction(fn, func, distinctStr)
             ?? TryVisitGraphIntrospection(fn, func)
             ?? $"{func.FunctionName}({distinctStr}{string.Join(", ", func.Arguments.Select(VisitExpression))})";
+    }
+
+    private string? TryVisitPathLengthFunction(string fn, FunctionCallExpression func)
+    {
+        if ((fn != "length" && fn != "size") || func.Arguments.Count != 1) return null;
+        if (func.Arguments[0] is IdentifierExpression pathId && (_pathHops.ContainsKey(pathId.Name) || _pathVariables.ContainsKey(pathId.Name)))
+        {
+            return GetPathLengthSql(pathId.Name);
+        }
+        return null;
+    }
+
+    private string GetPathLengthSql(string pathVarName)
+    {
+        if (_pathHops.TryGetValue(pathVarName, out var hops) && hops.Count > 0)
+        {
+            var hopExprs = hops.Select(h => h.IsVarLen ? $"{EscapeVar(h.RelVar)}.depth" : "1");
+            return string.Join(" + ", hopExprs);
+        }
+
+        if (_pathVariables.TryGetValue(pathVarName, out var relVar))
+        {
+            return _declaredRels.Contains(relVar) ? "1" : $"{EscapeVar(relVar)}.depth";
+        }
+
+        return "0";
     }
 
     private string? TryVisitItemAt(string fn, FunctionCallExpression func)
@@ -1938,6 +1997,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         foreach (var node in _declaredNodes) subCompiler._declaredNodes.Add(node);
         foreach (var rel in _declaredRels) subCompiler._declaredRels.Add(rel);
         foreach (var (k, v) in _pathVariables) subCompiler._pathVariables[k] = v;
+        foreach (var (k, v) in _pathHops) subCompiler._pathHops[k] = new List<(string, bool)>(v);
         foreach (var (k, v) in _withAliases) subCompiler._withAliases[k] = v;
 
         var subCompiled = subCompiler.Compile();

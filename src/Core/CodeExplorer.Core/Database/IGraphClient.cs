@@ -5,7 +5,7 @@ using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Database;
 
-public interface IMemgraphClient : IAsyncDisposable
+public interface IGraphClient : IAsyncDisposable
 {
     Task CreateIndicesAsync();
     Task ClearDatabaseAsync();

@@ -10,82 +10,15 @@ namespace CodeExplorer.Tests;
 
 [TestFixture]
 [Category("Integration")]
-[Explicit("Runs integration tests against a real Memgraph database.")]
 public class McpIntegrationTests
 {
     private const int TestPort = 8185;
     private static Task? _serverTask;
     private static HttpClient? _httpClient;
     private static string? _tempWorkspace;
-    private static string? _resolvedBoltUrl;
     private static string? _sessionId;
     private static Stream? _sseStream;
     private static StreamReader? _sseReader;
-
-    public static string GetBoltUrl()
-    {
-        if (_resolvedBoltUrl != null) return _resolvedBoltUrl;
-
-        var envUrl = Environment.GetEnvironmentVariable("BOLT_URL");
-        if (!string.IsNullOrEmpty(envUrl))
-        {
-            _resolvedBoltUrl = envUrl;
-            return envUrl;
-        }
-
-        // Check if localhost:7687 is listening
-        try
-        {
-            using var tcp = new System.Net.Sockets.TcpClient();
-            var result = tcp.BeginConnect("127.0.0.1", 7687, null, null);
-            var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(500));
-            if (success)
-            {
-                tcp.EndConnect(result);
-                _resolvedBoltUrl = "bolt://127.0.0.1:7687";
-                return _resolvedBoltUrl;
-            }
-        }
-        catch {}
-
-        // If not, try to find WSL IP and check if 7687 is listening there
-        try
-        {
-            var proc = new System.Diagnostics.Process
-            {
-                StartInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "wsl",
-                    Arguments = "-d docker-desktop -e sh -c \"ip address || ifconfig || cat /proc/net/fib_trie\"",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-            proc.Start();
-            var output = proc.StandardOutput.ReadToEnd();
-            proc.WaitForExit();
-
-            var match = System.Text.RegularExpressions.Regex.Match(output, @"inet\s+(172\.\d+\.\d+\.\d+)");
-            if (match.Success)
-            {
-                var wslIp = match.Groups[1].Value;
-                using var tcp = new System.Net.Sockets.TcpClient();
-                var result = tcp.BeginConnect(wslIp, 7687, null, null);
-                var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromMilliseconds(500));
-                if (success)
-                {
-                    tcp.EndConnect(result);
-                    _resolvedBoltUrl = $"bolt://{wslIp}:7687";
-                    return _resolvedBoltUrl;
-                }
-            }
-        }
-        catch {}
-
-        _resolvedBoltUrl = "bolt://127.0.0.1:7687";
-        return _resolvedBoltUrl;
-    }
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
@@ -104,14 +37,14 @@ public class McpIntegrationTests
         }";
         await File.WriteAllTextAsync(Path.Combine(projDir, "server.ts"), fileCode);
 
-        var boltUrl = GetBoltUrl();
-        await using var client = new MemgraphClient(boltUrl, "", "");
+        var dbPath = Path.Combine(_tempWorkspace, "test_graph.db");
+        await using var client = new SqliteGraphClient(dbPath);
         WorkspaceIndexer.Register(new TypeScriptParser());
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
         // Start the server in a background thread
-        _serverTask = Task.Run(() => Program.Main(["mcp", "--port", TestPort.ToString(), "--bolt-url", boltUrl]));
+        _serverTask = Task.Run(() => Program.Main(["mcp", "--port", TestPort.ToString(), "--db-path", dbPath]));
 
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
@@ -189,7 +122,6 @@ public class McpIntegrationTests
         Assert.That(responsePost.IsSuccessStatusCode, Is.True, $"Initialize POST returned {responsePost.StatusCode}");
 
         var initResponseStr = await ReadNextSseResponseAsync();
-        Console.WriteLine($"[SSE DEBUG] Response body: {initResponseStr}");
         using var doc = JsonDocument.Parse(initResponseStr);
         Assert.That(doc.RootElement.GetProperty("id").GetInt32(), Is.EqualTo(100));
         Console.WriteLine("Initialization handshake completed successfully!");
@@ -231,16 +163,6 @@ public class McpIntegrationTests
 
         if (!string.IsNullOrEmpty(_tempWorkspace))
         {
-            try
-            {
-                var boltUrl = GetBoltUrl();
-                await using var client = new MemgraphClient(boltUrl, "", "");
-                await client.ClearWorkspaceAsync(_tempWorkspace);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error cleaning up Memgraph workspace in TearDown: {ex.Message}");
-            }
 
             if (Directory.Exists(_tempWorkspace))
             {

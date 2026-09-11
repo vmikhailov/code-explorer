@@ -4,7 +4,7 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Mcp;
 
-public class CodeExplorerRepository(IMemgraphClient dbClient)
+public class CodeExplorerRepository(IGraphClient dbClient)
 {
     private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null)
     {
@@ -31,13 +31,28 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
         return clean.Trim('/').ToLowerInvariant();
     }
 
-    private async Task<string?> GetWorkspaceIdAsync(string? workspacePath)
+    private static string? ExtractId(JsonElement row)
     {
-        if (string.IsNullOrEmpty(workspacePath)) return null;
+        if (row.TryGetProperty("id", out var idProp))
+        {
+            if (idProp.ValueKind == JsonValueKind.String)
+            {
+                var idVal = idProp.GetString();
+                if (!string.IsNullOrEmpty(idVal)) return idVal;
+            }
+            else if (idProp.ValueKind == JsonValueKind.Number)
+            {
+                return idProp.GetInt64().ToString();
+            }
+        }
+        return null;
+    }
+
+    private async Task<string?> TryGetExactWorkspaceIdAsync(string workspacePath)
+    {
         var normalized = PathTools.NormalizeToHostPath(workspacePath);
         var normalizedAlt = normalized.Contains('/') ? normalized.Replace('/', '\\') : normalized.Replace('\\', '/');
 
-        // 1. Try exact (case-insensitive) match via database query first
         var query = Queries.Get("get_workspace_id");
         var resultJson = await dbClient.ExecuteQueryAsync(query, new Dictionary<string, object?>
         {
@@ -47,113 +62,69 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
         using var doc = JsonDocument.Parse(resultJson);
         if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
         {
-            var row = doc.RootElement[0];
-            if (row.TryGetProperty("id", out var idProp))
-            {
-                if (idProp.ValueKind == JsonValueKind.String)
-                {
-                    var idVal = idProp.GetString();
-                    if (!string.IsNullOrEmpty(idVal)) return idVal;
-                }
-                else if (idProp.ValueKind == JsonValueKind.Number)
-                {
-                    return idProp.GetInt64().ToString();
-                }
-            }
+            return ExtractId(doc.RootElement[0]);
         }
+        return null;
+    }
 
-        // 2. Fetch all workspaces to perform suffix/crossover path matching in C#
+    private async Task<string?> TryMatchWorkspaceFallbackAsync(string workspacePath)
+    {
         var allQuery = Queries.Get("get_all_workspaces");
         var allResult = await dbClient.ExecuteQueryAsync(allQuery);
         using var allDoc = JsonDocument.Parse(allResult);
-        if (allDoc.RootElement.ValueKind == JsonValueKind.Array)
+        if (allDoc.RootElement.ValueKind != JsonValueKind.Array) return null;
+
+        if (allDoc.RootElement.GetArrayLength() == 1)
         {
-            var arrayLength = allDoc.RootElement.GetArrayLength();
-            
-            // Fallback 2a: If there's exactly one workspace in the database, use it
-            if (arrayLength == 1)
-            {
-                var singleRow = allDoc.RootElement[0];
-                if (singleRow.TryGetProperty("id", out var fallbackIdProp))
-                {
-                    if (fallbackIdProp.ValueKind == JsonValueKind.String)
-                    {
-                        var fallbackId = fallbackIdProp.GetString();
-                        if (!string.IsNullOrEmpty(fallbackId)) return fallbackId;
-                    }
-                    else if (fallbackIdProp.ValueKind == JsonValueKind.Number)
-                    {
-                        return fallbackIdProp.GetInt64().ToString();
-                    }
-                }
-            }
+            return ExtractId(allDoc.RootElement[0]);
+        }
 
-            // Fallback 2b: Try suffix cleaning match
-            var inputCleaned = CleanPathForComparison(workspacePath);
-            foreach (var row in allDoc.RootElement.EnumerateArray())
+        var inputCleaned = CleanPathForComparison(workspacePath);
+        foreach (var row in allDoc.RootElement.EnumerateArray())
+        {
+            if (row.TryGetProperty("path", out var pathProp) &&
+                pathProp.ValueKind == JsonValueKind.String &&
+                CleanPathForComparison(pathProp.GetString()!) == inputCleaned)
             {
-                string? dbPath = null;
-                if (row.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
-                {
-                    dbPath = pathProp.GetString();
-                }
-
-                if (dbPath != null && CleanPathForComparison(dbPath) == inputCleaned)
-                {
-                    if (row.TryGetProperty("id", out var idProp))
-                    {
-                        if (idProp.ValueKind == JsonValueKind.String)
-                        {
-                            var idVal = idProp.GetString();
-                            if (!string.IsNullOrEmpty(idVal)) return idVal;
-                        }
-                        else if (idProp.ValueKind == JsonValueKind.Number)
-                        {
-                            return idProp.GetInt64().ToString();
-                        }
-                    }
-                }
+                var id = ExtractId(row);
+                if (id != null) return id;
             }
         }
+        return null;
+    }
+
+    private async Task<string?> GetWorkspaceIdAsync(string? workspacePath)
+    {
+        if (string.IsNullOrEmpty(workspacePath)) return null;
+
+        var exactId = await TryGetExactWorkspaceIdAsync(workspacePath);
+        if (exactId != null) return exactId;
+
+        var fallbackId = await TryMatchWorkspaceFallbackAsync(workspacePath);
+        if (fallbackId != null) return fallbackId;
 
         throw new InvalidOperationException($"Workspace at path '{workspacePath}' is not indexed yet. Please run ingest/index first.");
     }
 
     public async Task<string> GetArchitectureMapAsync(string? projectName, string? workspacePath)
     {
-        string query;
-        var parameters = new Dictionary<string, object>();
-
         if (!string.IsNullOrEmpty(projectName))
         {
             var wsId = await GetWorkspaceIdAsync(workspacePath);
-            parameters["projectName"] = projectName;
-            
-            var prefixFilter = "";
-            if (wsId != null)
-            {
-                parameters["wsIdPrefix"] = wsId + ":";
-                prefixFilter = "WHERE p.id STARTS WITH $wsIdPrefix ";
-            }
-
-            query = Queries.Get("get_architecture_map_project").Replace("{prefixFilter}", prefixFilter);
+            var prefixFilter = wsId != null ? "WHERE p.id STARTS WITH $wsIdPrefix " : "";
+            var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
+            if (wsId != null) parameters["wsIdPrefix"] = wsId + ":";
+            var query = Queries.Get("get_architecture_map_project").Replace("{prefixFilter}", prefixFilter);
+            return await ExecuteAndFormatQueryAsync(query, parameters);
         }
-        else
+
+        if (!string.IsNullOrEmpty(workspacePath))
         {
-            if (!string.IsNullOrEmpty(workspacePath))
-            {
-                var wsId = await GetWorkspaceIdAsync(workspacePath);
-                parameters["workspaceId"] = wsId!;
-
-                query = Queries.Get("get_architecture_map_workspace");
-            }
-            else
-            {
-                query = Queries.Get("get_architecture_map_all");
-            }
+            var wsId = await GetWorkspaceIdAsync(workspacePath);
+            return await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object> { ["workspaceId"] = wsId! });
         }
 
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_all"), new Dictionary<string, object>());
     }
 
     public async Task<string> GetProjectDependenciesAsync(string? projectFilter, string? workspacePath)
@@ -354,43 +325,30 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
+    private async Task AppendMetricResultsAsync(List<object> results, string queryKey, string prefixClause, Dictionary<string, object> parameters)
+    {
+        var query = Queries.Get(queryKey).Replace("{prefixClause}", prefixClause);
+        var res = await dbClient.ExecuteQueryAsync(query, parameters);
+        using var doc = JsonDocument.Parse(res);
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            results.Add(item.Clone());
+        }
+    }
+
     public async Task<string> FindRefactoringOpportunitiesAsync(string projectName, string metricType, string? workspacePath)
     {
         var wsId = await GetWorkspaceIdAsync(workspacePath);
         var results = new List<object>();
-
         var prefixClause = wsId != null ? " WHERE p.id STARTS WITH $wsIdPrefix " : "";
         var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
-        if (wsId != null)
-        {
-            parameters["wsIdPrefix"] = wsId + ":";
-        }
+        if (wsId != null) parameters["wsIdPrefix"] = wsId + ":";
 
-        if (metricType == "dead_code" || metricType == "all")
-        {
-            var deadCodeQuery = Queries.Get("find_refactor_dead_code").Replace("{prefixClause}", prefixClause);
+        if (metricType is "dead_code" or "all")
+            await AppendMetricResultsAsync(results, "find_refactor_dead_code", prefixClause, parameters);
 
-            var res = await dbClient.ExecuteQueryAsync(deadCodeQuery, parameters);
-            using var doc = JsonDocument.Parse(res);
-
-            foreach (var item in doc.RootElement.EnumerateArray())
-            {
-                results.Add(item.Clone());
-            }
-        }
-
-        if (metricType == "god_objects" || metricType == "all")
-        {
-            var godObjectsQuery = Queries.Get("find_refactor_god_objects").Replace("{prefixClause}", prefixClause);
-
-            var res = await dbClient.ExecuteQueryAsync(godObjectsQuery, parameters);
-            using var doc = JsonDocument.Parse(res);
-
-            foreach (var item in doc.RootElement.EnumerateArray())
-            {
-                results.Add(item.Clone());
-            }
-        }
+        if (metricType is "god_objects" or "all")
+            await AppendMetricResultsAsync(results, "find_refactor_god_objects", prefixClause, parameters);
 
         return JsonSerializer.Serialize(new { results }, new JsonSerializerOptions { WriteIndented = true });
     }
@@ -494,135 +452,122 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
     {
         return OntologyRegistry.GetNodeDefinition(kind);
     }
-    private async Task<string> FetchCodeSnippetsDirectlyAsync(string nodesJson, string? hostWorkspacePath)
+    private static List<McpRAGNode>? ParseRagNodes(string nodesJson)
     {
-        List<McpRAGNode>? nodes = null;
-
         try
         {
-            nodes = JsonSerializer.Deserialize<List<McpRAGNode>>(nodesJson);
+            return JsonSerializer.Deserialize<List<McpRAGNode>>(nodesJson);
         }
         catch
         {
             try
             {
                 var single = JsonSerializer.Deserialize<McpRAGNode>(nodesJson);
-                if (single != null) nodes = [single];
+                if (single != null) return [single];
             }
             catch
             {
-                try
-                {
-                    var nestedNodes = JsonSerializer.Deserialize<List<NestedMcpRAGNode>>(nodesJson);
-
-                    if (nestedNodes != null)
-                    {
-                        nodes = nestedNodes.Where(n => n.props != null).Select(n => n.props!).ToList();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    return $"Error parsing nodes JSON: {ex.Message}";
-                }
+                var nestedNodes = JsonSerializer.Deserialize<List<NestedMcpRAGNode>>(nodesJson);
+                return nestedNodes?.Where(n => n.props != null).Select(n => n.props!).ToList();
             }
         }
+        return null;
+    }
 
-        if (nodes == null || nodes.Count == 0)
-        {
-            return "No valid code contexts retrieved.";
-        }
-
+    private static string? ResolveWorkspaceRoot(string? hostWorkspacePath)
+    {
         var workspaceRoot = Environment.GetEnvironmentVariable("WORKSPACE_ROOT");
+        if (!string.IsNullOrEmpty(workspaceRoot)) return workspaceRoot;
 
-        if (string.IsNullOrEmpty(workspaceRoot))
+        workspaceRoot = PathTools.TranslateHostPathToContainerPath(hostWorkspacePath);
+        if (!string.IsNullOrEmpty(workspaceRoot)) return workspaceRoot;
+
+        var current = Directory.GetCurrentDirectory();
+        while (!string.IsNullOrEmpty(current))
         {
-            workspaceRoot = PathTools.TranslateHostPathToContainerPath(hostWorkspacePath);
-
-            if (string.IsNullOrEmpty(workspaceRoot))
+            if (File.Exists(Path.Combine(current, "CodeExplorer.slnx")) || File.Exists(Path.Combine(current, "CodeExplorer.sln")))
             {
-                var current = Directory.GetCurrentDirectory();
-
-                while (!string.IsNullOrEmpty(current))
-                {
-                    if (File.Exists(Path.Combine(current, "CodeExplorer.slnx")) || File.Exists(Path.Combine(current, "CodeExplorer.sln")))
-                    {
-                        workspaceRoot = current;
-                        break;
-                    }
-
-                    current = Path.GetDirectoryName(current);
-                }
+                return current;
             }
+            current = Path.GetDirectoryName(current);
+        }
+        return null;
+    }
+
+    private static string FormatCodeSnippet(string[] lines, McpRAGNode node)
+    {
+        var sIdx = Math.Min(Math.Max(0, node.start_line!.Value), lines.Length);
+        var eIdx = Math.Max(sIdx, Math.Min(lines.Length, node.end_line!.Value + 1));
+        var snippet = string.Join("\n", lines.Skip(sIdx).Take(eIdx - sIdx));
+
+        var ext = Path.GetExtension(node.file_path!).ToLower().TrimStart('.');
+        var lang = ext switch
+        {
+            "ts" or "tsx" => "typescript",
+            "js" or "jsx" => "javascript",
+            "cs" => "csharp",
+            _ => ext
+        };
+
+        return $"### File: `{node.file_path}` (Lines {sIdx + 1}-{eIdx})\n```{lang}\n{snippet}\n```";
+    }
+
+    private static async Task<string> ExtractFileSnippetAsync(McpRAGNode node, string? workspaceRoot, string? hostWorkspacePath)
+    {
+        var relativePath = PathTools.GetRelativePath(node.file_path!, hostWorkspacePath);
+        var joinedPath = Path.Combine(workspaceRoot ?? "", relativePath);
+        var absPath = Path.GetFullPath(joinedPath);
+        var absRoot = Path.GetFullPath(workspaceRoot ?? "");
+
+        if (!absPath.StartsWith(absRoot))
+            return $"### Access Denied: `{node.file_path}` is outside the workspace root.";
+
+        if (!File.Exists(absPath))
+            return $"### File Not Found: `{node.file_path}`";
+
+        try
+        {
+            var lines = await File.ReadAllLinesAsync(absPath);
+            return FormatCodeSnippet(lines, node);
+        }
+        catch (Exception ex)
+        {
+            return $"### Error reading `{node.file_path}`: {ex.Message}";
+        }
+    }
+
+    private async Task<string> FetchCodeSnippetsDirectlyAsync(string nodesJson, string? hostWorkspacePath)
+    {
+        List<McpRAGNode>? nodes;
+        try
+        {
+            nodes = ParseRagNodes(nodesJson);
+        }
+        catch (Exception ex)
+        {
+            return $"Error parsing nodes JSON: {ex.Message}";
         }
 
+        if (nodes == null || nodes.Count == 0) return "No valid code contexts retrieved.";
+
+        var workspaceRoot = ResolveWorkspaceRoot(hostWorkspacePath);
         var output = new List<string>();
 
         foreach (var node in nodes)
         {
             if (string.IsNullOrEmpty(node.file_path) || node.start_line == null || node.end_line == null)
-            {
                 continue;
-            }
 
-            var relativePath = PathTools.GetRelativePath(node.file_path, hostWorkspacePath);
-
-            var joinedPath = Path.Combine(workspaceRoot!, relativePath);
-            var absPath = Path.GetFullPath(joinedPath);
-            var absRoot = Path.GetFullPath(workspaceRoot!);
-
-            if (!absPath.StartsWith(absRoot))
-            {
-                output.Add($"### Access Denied: `{node.file_path}` is outside the workspace root.");
-                continue;
-            }
-
-            if (!File.Exists(absPath))
-            {
-                output.Add($"### File Not Found: `{node.file_path}`");
-                continue;
-            }
-
-            try
-            {
-                var lines = await File.ReadAllLinesAsync(absPath);
-                var sIdx = Math.Max(0, node.start_line.Value);
-                if (sIdx > lines.Length) sIdx = lines.Length;
-
-                var eIdx = Math.Min(lines.Length, node.end_line.Value + 1);
-                if (eIdx < sIdx) eIdx = sIdx;
-
-                var snippet = string.Join("\n", lines.Skip(sIdx).Take(eIdx - sIdx));
-
-                var ext = Path.GetExtension(node.file_path).ToLower();
-                var lang = ext.TrimStart('.');
-
-                lang = lang switch
-                {
-                    "ts" or "tsx" => "typescript",
-                    "js" or "jsx" => "javascript",
-                    "cs" => "csharp",
-                    _ => lang
-                };
-
-                output.Add($"### File: `{node.file_path}` (Lines {sIdx + 1}-{eIdx})\n```{lang}\n{snippet}\n```");
-            }
-            catch (Exception ex)
-            {
-                output.Add($"### Error reading `{node.file_path}`: {ex.Message}");
-            }
+            output.Add(await ExtractFileSnippetAsync(node, workspaceRoot, hostWorkspacePath));
         }
 
         return output.Count == 0 ? "No valid code contexts retrieved." : string.Join("\n\n", output);
     }
 
-    public static object BuildTaxonomy(
-        List<Dictionary<string, string>> triplets,
+    private static void PopulateTaxonomyProperties(
+        Dictionary<string, (List<string> properties, HashSet<(string relationship, string target)> outgoing, HashSet<(string relationship, string source)> incoming)> nodes,
         List<Dictionary<string, string>> properties)
     {
-        var nodes =
-            new Dictionary<string, (List<string> properties, HashSet<(string relationship, string target)> outgoing,
-                HashSet<(string relationship, string source)> incoming)>(StringComparer.OrdinalIgnoreCase);
-
         foreach (var prop in properties)
         {
             if (prop.TryGetValue("label", out var label) && prop.TryGetValue("key", out var key))
@@ -631,7 +576,12 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
                 nodes[label].properties.Add(key);
             }
         }
+    }
 
+    private static void PopulateTaxonomyTriplets(
+        Dictionary<string, (List<string> properties, HashSet<(string relationship, string target)> outgoing, HashSet<(string relationship, string source)> incoming)> nodes,
+        List<Dictionary<string, string>> triplets)
+    {
         foreach (var triplet in triplets)
         {
             if (triplet.TryGetValue("fromLabel", out var from) && triplet.TryGetValue("relType", out var rel) &&
@@ -644,23 +594,24 @@ public class CodeExplorerRepository(IMemgraphClient dbClient)
                 nodes[to].incoming.Add((rel, from));
             }
         }
+    }
 
-        var result = new List<object>();
+    public static object BuildTaxonomy(
+        List<Dictionary<string, string>> triplets,
+        List<Dictionary<string, string>> properties)
+    {
+        var nodes = new Dictionary<string, (List<string> properties, HashSet<(string relationship, string target)> outgoing,
+            HashSet<(string relationship, string source)> incoming)>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var kvp in nodes.OrderBy(k => k.Key))
+        PopulateTaxonomyProperties(nodes, properties);
+        PopulateTaxonomyTriplets(nodes, triplets);
+
+        return nodes.OrderBy(k => k.Key).Select(kvp => new
         {
-            result.Add(new
-            {
-                label = kvp.Key,
-                properties = kvp.Value.properties.OrderBy(p => p).ToList(),
-                outgoing =
-                    kvp.Value.outgoing.OrderBy(x => x.relationship).Select(x => new { x.relationship, x.target })
-                        .ToList(),
-                incoming = kvp.Value.incoming.OrderBy(x => x.relationship)
-                    .Select(x => new { x.relationship, x.source }).ToList()
-            });
-        }
-
-        return result;
+            label = kvp.Key,
+            properties = kvp.Value.properties.OrderBy(p => p).ToList(),
+            outgoing = kvp.Value.outgoing.OrderBy(x => x.relationship).Select(x => new { x.relationship, x.target }).ToList(),
+            incoming = kvp.Value.incoming.OrderBy(x => x.relationship).Select(x => new { x.relationship, x.source }).ToList()
+        }).ToList();
     }
 }

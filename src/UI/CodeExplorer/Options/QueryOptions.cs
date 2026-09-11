@@ -2,18 +2,21 @@ using CommandLine;
 
 namespace CodeExplorer.Options;
 
-[Verb("query", HelpText = "Runs a safe read-only Cypher query against Memgraph.")]
+[Verb("query", HelpText = "Runs a safe read-only Cypher query against the SQLite graph database.")]
 class QueryOptions
 {
     [Option('q', "query", Required = true, HelpText = "The Cypher query string to execute.")]
     public string Query { get; set; } = "";
 
-    [Option("bolt-url", Default = "bolt://localhost:7687", HelpText = "The Bolt connection URL to Memgraph.")]
+    [Option("db-path", Default = ".codeexplorer/graph.db", HelpText = "The SQLite database path (or ':memory:').")]
+    public string DbPath { get; set; } = ".codeexplorer/graph.db";
+
+    [Option("bolt-url", Hidden = true, HelpText = "Legacy option, ignored.")]
     public string BoltUrl { get; set; } = "";
 
-    [Option("username", Default = "", HelpText = "The database username.")]
+    [Option("username", Hidden = true, HelpText = "Legacy option, ignored.")]
     public string Username { get; set; } = "";
 
-    [Option("password", Default = "", HelpText = "The database password.")]
+    [Option("password", Hidden = true, HelpText = "Legacy option, ignored.")]
     public string Password { get; set; } = "";
 }

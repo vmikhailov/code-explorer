@@ -4,7 +4,7 @@
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](#docker-deployment)
 
-**CodeExplorer** is an ontology-driven, multi-language codebase parser, indexer, and query service. It processes source repositories into a rich, queryable knowledge graph stored in **Memgraph** (or Neo4j), enabling advanced static analysis, architecture visualization, dependency mapping, and LLM-assisted code understanding.
+**CodeExplorer** is an ontology-driven, multi-language codebase parser, indexer, and query service. It processes source repositories into a rich, queryable knowledge graph stored in an **embedded SQLite Graph Database** (with full Cypher query support), enabling advanced static analysis, architecture visualization, dependency mapping, and LLM-assisted code understanding.
 
 It also serves as a **Model Context Protocol (MCP)** server, allowing AI agents (such as Gemini, Claude, or ChatGPT) to recursively explore, query, and refactor the repository graph using Cypher.
 
@@ -20,10 +20,10 @@ They serve fundamentally different purposes:
 
 While classic LSPs are optimized for local, real-time editing experiences, CodeExplorer is architected for AI-native code reasoning and cross-project indexing:
 
-| Dimension | Classic LSP (e.g., `gopls`, `Pyright`) | CodeExplorer (Memgraph + MCP) |
+| Dimension | Classic LSP (e.g., `gopls`, `Pyright`) | CodeExplorer (Embedded SQLite + MCP) |
 | :--- | :--- | :--- |
 | **Primary Consumer** | Humans (real-time IDE autocompletion/linting). | **AI Agents / LLMs** (autonomous workspace exploration). |
-| **Storage Strategy** | Stateful, in-memory AST caches per editor session. | **Persistent Graph Database** (Memgraph/Neo4j). |
+| **Storage Strategy** | Stateful, in-memory AST caches per editor session. | **Embedded Graph Database** (SQLite, zero external dependencies). |
 | **Polyglot Scope** | Single-language boundary per server instance. | **Unified Cross-Language Graph** (bridges C#, Go, Python, TS, and SQL). |
 | **Querying** | Fixed RPC methods (`goto definition`, `find references`). | **Arbitrary Cypher Queries** (unlimited multi-hop semantic traversal). |
 | **Update Loop** | Instantaneous, keystroke-by-keystroke. | Batch ingestion pipeline (triggered via CLI or Webhooks). |
@@ -75,7 +75,7 @@ graph TD
     A[Source File] -->|Parse AST| B[Tree-sitter Root Node]
     B -->|Pass 1: AST Visitors| C[In-Memory SyntacticSymbol Tree]
     C -->|Pass 2: Map to Ontology| D[FileNode, ClassNode, FunctionNode...]
-    D -->|Post-Index Analyzer| E[Memgraph Database]
+    D -->|Post-Index Analyzer| E[Embedded SQLite Graph]
     E -->|Late Binding Resolution| F[Semantic Graph with CALLS & IMPLEMENTS]
 ```
 
@@ -95,25 +95,16 @@ Once the syntactic structure is captured:
 ## 🛠️ Tech Stack & Requirements
 
 *   **Runtime**: [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
-*   **Database**: [Memgraph](https://memgraph.com/) (running locally via Docker)
+*   **Database**: **Embedded SQLite** (zero external services or Docker required)
 *   **AST Parser**: Tree-Sitter & Microsoft T-SQL ScriptDom
-*   **Deployment**: Docker & Docker Compose
+*   **Deployment**: Standalone executable or Docker container
 
 ---
 
 ## 🏁 Getting Started
 
-### 1. Run the Database (Memgraph)
-CodeExplorer uses Memgraph as its graph database. Run it via Docker:
-
-```bash
-docker run -it -p 7687:7687 -p 7444:7444 memgraph/memgraph-platform
-```
-
-You can view the visual graph interface by navigating to `http://localhost:7444` in your browser.
-
-### 2. Build the Project
-You can build the project and run all tests using the provided build script:
+### 1. Build the Project
+No external database or Docker container is required. You can build and run immediately:
 
 ```bash
 # Make the build script executable and run it
@@ -121,12 +112,12 @@ chmod +x build.sh
 ./build.sh
 ```
 
-### 3. Build & Run via Docker
-To compile the application and build a Docker runtime container:
+### 2. Optional: Run via Docker
+If you prefer containerized deployment:
 
 ```bash
-# Build the Docker image
-docker build -t codeexplorer:latest .
+# Build and run standalone container
+docker compose up -d
 ```
 
 ---
@@ -136,27 +127,28 @@ docker build -t codeexplorer:latest .
 The entry point of the application is the `UI/CodeExplorer` console project. It supports three modes: **ingestion**, **querying**, and **MCP server**.
 
 ### A. Ingest/Index a Workspace
-Scan a target codebase directory and index it into Memgraph:
+Scan a target codebase directory and index it into the embedded SQLite graph:
 
 ```bash
-dotnet run --project UI/CodeExplorer/CodeExplorer.csproj -- ingest --dir "/path/to/your/codebase" --clear
+dotnet run --project src/UI/CodeExplorer/CodeExplorer.csproj -- ingest --dir "/path/to/your/codebase" --clear
 ```
 *   `--dir`: The absolute directory path of the codebase to index.
-*   `--clear`: Clears the previous data for this workspace before scanning.
-*   `--clear-all`: (Optional) Wipes the entire Memgraph database before scanning.
+*   `--db-path`: (Optional) Database file path (defaults to `.codeexplorer/graph.db`).
+*   `--clear`: Clears previous data for this workspace before scanning.
+*   `--clear-all`: (Optional) Wipes the entire graph database before scanning.
 
 ### B. Execute a Cypher Query
 Run custom Cypher queries directly against the graph from the command line:
 
 ```bash
-dotnet run --project UI/CodeExplorer/CodeExplorer.csproj -- query --query "MATCH (n:Project) RETURN n.name"
+dotnet run --project src/UI/CodeExplorer/CodeExplorer.csproj -- query --query "MATCH (n:Project) RETURN n.name"
 ```
 
 ### C. Start the MCP Server
 Launch the Model Context Protocol (MCP) server over SSE (Server-Sent Events) to expose codebase intelligence to AI tools:
 
 ```bash
-dotnet run --project UI/CodeExplorer/CodeExplorer.csproj -- mcp --port 8085
+dotnet run --project src/UI/CodeExplorer/CodeExplorer.csproj -- mcp --port 8085
 ```
 
 ---

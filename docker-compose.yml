@@ -1,23 +1,4 @@
 services:
-  memgraph:
-    image: ${MEMGRAPH_IMAGE:-memgraph/memgraph-mage:latest}
-    ports:
-      - "7687:7687"
-      - "9091:9091"
-      - "7444:7444"
-    restart: always
-
-  lab:
-    image: memgraph/lab:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - QUICK_CONNECT_MG_HOST=memgraph
-      - QUICK_CONNECT_MG_PORT=7687
-    depends_on:
-      - memgraph
-    restart: always
-
   codeexplorer:
     build:
       context: .
@@ -29,7 +10,6 @@ services:
       - WORKSPACE_ROOT=${WORKSPACE_ROOT:-}
     volumes:
       - ${HOST_ROOT:-/}:/host
-    command: ["mcp", "--port", "8085", "--bolt-url", "bolt://memgraph:7687"]
-    depends_on:
-      - memgraph
+      - ./data:/data
+    command: ["mcp", "--port", "8085", "--db-path", "/data/graph.db"]
     restart: always

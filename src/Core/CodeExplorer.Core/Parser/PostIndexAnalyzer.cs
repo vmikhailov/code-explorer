@@ -2,7 +2,7 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser;
 
-public class PostIndexAnalyzer(IMemgraphClient db)
+public class PostIndexAnalyzer(IGraphClient db)
 {
     public async Task RunAsync(string workspaceId)
     {

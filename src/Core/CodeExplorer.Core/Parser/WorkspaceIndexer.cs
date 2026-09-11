@@ -29,9 +29,9 @@ public class WorkspaceIndexer
         }
     }
 
-    private readonly IMemgraphClient _dbClient;
+    private readonly IGraphClient _dbClient;
 
-    public WorkspaceIndexer(IMemgraphClient dbClient)
+    public WorkspaceIndexer(IGraphClient dbClient)
     {
         _dbClient = dbClient;
     }
