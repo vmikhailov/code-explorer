@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Data.Common;
 using System.Text.Json;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;

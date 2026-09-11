@@ -1,19 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Core.Database;
 
-public class SqliteGraphClient : IGraphClient
+public class SqliteGraphClient : IGraphClient, IDisposable
 {
     private readonly SqliteConnection _conn;
     private readonly SemaphoreSlim _lock = new(1, 1);
@@ -49,7 +42,7 @@ public class SqliteGraphClient : IGraphClient
             Directory.CreateDirectory(dir);
         }
 
-        return $"Data Source={fullPath};Cache=Shared";
+        return $"Data Source={fullPath};Pooling=False";
     }
 
     private void InitializePragmas()
@@ -531,7 +524,20 @@ public class SqliteGraphClient : IGraphClient
     {
         if (_isDisposed) return;
         _isDisposed = true;
+        await _conn.CloseAsync();
         await _conn.DisposeAsync();
+        SqliteConnection.ClearPool(_conn);
+        _lock.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed) return;
+        _isDisposed = true;
+        _conn.Close();
+        _conn.Dispose();
+        SqliteConnection.ClearPool(_conn);
         _lock.Dispose();
         GC.SuppressFinalize(this);
     }

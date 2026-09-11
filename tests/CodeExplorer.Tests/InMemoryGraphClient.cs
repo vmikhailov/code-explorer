@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Tests;

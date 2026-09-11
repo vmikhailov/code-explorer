@@ -1,4 +1,3 @@
-using System.Linq;
 using CodeExplorer.Cypher.Parser;
 using NUnit.Framework;
 

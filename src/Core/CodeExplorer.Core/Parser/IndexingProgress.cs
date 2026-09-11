@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace CodeExplorer.Core.Parser;
 
 public record IndexingProgress(

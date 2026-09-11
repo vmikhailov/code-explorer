@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 

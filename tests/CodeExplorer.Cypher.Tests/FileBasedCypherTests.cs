@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using System.Text.RegularExpressions;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
