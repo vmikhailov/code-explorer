@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Core.Parser;
@@ -8,17 +7,9 @@ namespace CodeExplorer.Core.Web.Controllers;
 
 [ApiController]
 [Route("api/workspaces")]
-public class WorkspacesController : ControllerBase
+public class WorkspacesController(CodeExplorerRepository repository, IndexingTaskManager taskManager)
+    : ControllerBase
 {
-    private readonly CodeExplorerRepository _repository;
-    private readonly IndexingTaskManager _taskManager;
-
-    public WorkspacesController(CodeExplorerRepository repository, IndexingTaskManager taskManager)
-    {
-        _repository = repository;
-        _taskManager = taskManager;
-    }
-
     [HttpPost("index")]
     [HttpPost("index/start")]
     public IActionResult StartIndexAsync([FromBody] WorkspaceIndexRequest request)
@@ -30,13 +21,13 @@ public class WorkspacesController : ControllerBase
                 return BadRequest(new { error = "Directory 'dir' is required." });
             }
 
-            var taskId = _taskManager.StartIndex(request.Dir, request.Dir, request.Clear, out var message);
+            var taskId = taskManager.StartIndex(request.Dir, request.Clear, out var message);
             if (taskId == null)
             {
                 return Conflict(new { error = message });
             }
 
-            return Accepted(new { taskId, message, status = _taskManager.GetStatus(taskId) });
+            return Accepted(new { taskId, message, status = taskManager.GetStatus(taskId) });
         }
         catch (Exception ex)
         {
@@ -49,13 +40,13 @@ public class WorkspacesController : ControllerBase
     {
         try
         {
-            var success = _taskManager.StopIndex(taskId, out var message);
+            var success = taskManager.StopIndex(taskId, out var message);
             if (!success)
             {
                 return BadRequest(new { error = message });
             }
 
-            return Ok(new { message, status = _taskManager.GetStatus(taskId) });
+            return Ok(new { message, status = taskManager.GetStatus(taskId) });
         }
         catch (Exception ex)
         {
@@ -68,7 +59,7 @@ public class WorkspacesController : ControllerBase
     {
         try
         {
-            var status = _taskManager.GetStatus(taskId);
+            var status = taskManager.GetStatus(taskId);
             if (status == null)
             {
                 return NotFound(new { error = taskId == null ? "No active task found." : $"Task with ID '{taskId}' not found." });
@@ -86,7 +77,7 @@ public class WorkspacesController : ControllerBase
     {
         try
         {
-            return Ok(_taskManager.GetAllStatuses());
+            return Ok(taskManager.GetAllStatuses());
         }
         catch (Exception ex)
         {
@@ -99,7 +90,7 @@ public class WorkspacesController : ControllerBase
     {
         try
         {
-            var resultJson = await _repository.GetWorkspaceContentAsync(workspacePath, type);
+            var resultJson = await repository.GetWorkspaceContentAsync(workspacePath, type);
             return Content(resultJson, "application/json");
         }
         catch (Exception ex)
@@ -118,7 +109,7 @@ public class WorkspacesController : ControllerBase
                 return BadRequest(new { error = "Query is required." });
             }
 
-            var resultJson = await _repository.ExecuteRawQueryAsync(request.Query, request.Parameters);
+            var resultJson = await repository.ExecuteRawQueryAsync(request.Query, request.Parameters);
             return Content(resultJson, "application/json");
         }
         catch (Exception ex)
@@ -133,7 +124,7 @@ public class WorkspacesController : ControllerBase
         try
         {
             var path = workspacePath ?? Directory.GetCurrentDirectory();
-            var resultJson = await _repository.GetTaxonomyAsync(path);
+            var resultJson = await repository.GetTaxonomyAsync(path);
             return Content(resultJson, "application/json");
         }
         catch (Exception ex)
@@ -148,7 +139,7 @@ public class WorkspacesController : ControllerBase
         try
         {
             var path = workspacePath ?? Directory.GetCurrentDirectory();
-            var resultJson = await _repository.GetArchitectureMapAsync(projectName, path);
+            var resultJson = await repository.GetArchitectureMapAsync(projectName, path);
             return Content(resultJson, "application/json");
         }
         catch (Exception ex)
@@ -189,27 +180,22 @@ public class WorkspacesController : ControllerBase
                 return BadRequest(new { error = "Directory parameter 'dir' is required." });
             }
 
-            var resolvedPath = PathTools.TranslateHostPathToContainerPath(dir);
-            if (!Directory.Exists(resolvedPath))
+            if (!Directory.Exists(dir))
             {
                 return NotFound(new { 
                     error = $"Directory does not exist.",
-                    inputDir = dir,
-                    resolvedDir = resolvedPath,
-                    inContainer = PathTools.InContainer,
-                    hostExists = Directory.Exists("/host")
+                    inputDir = dir
                 });
             }
 
-            var files = Directory.EnumerateFiles(resolvedPath, "*", SearchOption.AllDirectories)
+            var files = Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)
                 .Take(100)
-                .Select(f => Path.GetRelativePath(resolvedPath, f).Replace('\\', '/'))
+                .Select(f => Path.GetRelativePath(dir, f).Replace('\\', '/'))
                 .ToList();
 
             return Ok(new
             {
                 inputDir = dir,
-                resolvedDir = resolvedPath,
                 filesCount = files.Count,
                 files
             });

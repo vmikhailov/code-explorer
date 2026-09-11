@@ -221,7 +221,7 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Advanced escape-hatch tool. Allows the agent to write and execute custom Cypher read-queries (MATCH only) directly against Memgraph when predefined tools are insufficient for complex analytical insights. Mutating queries (CREATE, DELETE, SET) are strictly blocked.")]
+    [Description("Advanced escape-hatch tool. Allows the agent to write and execute custom Cypher read-queries (MATCH only) directly against the graph database when predefined tools are insufficient for complex analytical insights. Mutating queries (CREATE, DELETE, SET) are strictly blocked.")]
     public async Task<CallToolResult> ExecuteCustomReadCypherAsync(
         [Description("A valid read-only Cypher query targeted at the CodeExplorer taxonomy schema.")] string query)
     {

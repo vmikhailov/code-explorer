@@ -33,13 +33,12 @@ public class WorkspaceIndexer
     }
 
     public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
-        string hostWorkspacePath,
-        string containerWorkspacePath,
+        string workspacePath,
         bool clear,
         CancellationToken cancellationToken = default,
         IProgress<IndexingProgress>? progress = null)
     {
-        var ctx = CreateContext(hostWorkspacePath, containerWorkspacePath, clear, cancellationToken, progress);
+        var ctx = CreateContext(workspacePath, clear, cancellationToken, progress);
 
         await RunParsingPipelineAsync(ctx);
 
@@ -49,27 +48,31 @@ public class WorkspaceIndexer
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
     }
 
-    private ParsingContext CreateContext(
+    public Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
         string hostWorkspacePath,
         string containerWorkspacePath,
+        bool clear,
+        CancellationToken cancellationToken = default,
+        IProgress<IndexingProgress>? progress = null) =>
+        IndexAsync(string.IsNullOrEmpty(containerWorkspacePath) ? hostWorkspacePath : containerWorkspacePath, clear, cancellationToken, progress);
+
+    private ParsingContext CreateContext(
+        string workspacePath,
         bool clear,
         CancellationToken cancellationToken,
         IProgress<IndexingProgress>? progress)
     {
-        var resolvedPath = PathTools.TranslateHostPathToContainerPath(containerWorkspacePath);
-
-        if (!Directory.Exists(resolvedPath))
+        if (!Directory.Exists(workspacePath))
         {
-            throw new DirectoryNotFoundException(
-                $"Directory '{containerWorkspacePath}' (resolved as '{resolvedPath}') does not exist.");
+            throw new DirectoryNotFoundException($"Directory '{workspacePath}' does not exist.");
         }
 
-        var absoluteWorkspacePath = Path.GetFullPath(resolvedPath).Replace('\\', '/');
+        var absoluteWorkspacePath = Path.GetFullPath(workspacePath).Replace('\\', '/');
 
         var sharedChannel = Channel.CreateUnbounded<Func<Task>>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
-        return new ParsingContext(absoluteWorkspacePath, hostWorkspacePath, _dbClient, sharedChannel, clear,
+        return new ParsingContext(absoluteWorkspacePath, absoluteWorkspacePath, _dbClient, sharedChannel, clear,
             cancellationToken: cancellationToken, progress: progress);
     }
 

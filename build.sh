@@ -11,7 +11,4 @@ dotnet build -c Release
 echo -e "${GREEN}=== 2. Running tests ===${NC}"
 dotnet test -c Release --no-build
 
-echo -e "${GREEN}=== 3. Building Docker image 'codeexplorer:latest' ===${NC}"
-docker build -t codeexplorer:latest .
-
-echo -e "${GREEN}=== Build and Docker image packaging completed successfully! ===${NC}"
+echo -e "${GREEN}=== Build and test run completed successfully! ===${NC}"

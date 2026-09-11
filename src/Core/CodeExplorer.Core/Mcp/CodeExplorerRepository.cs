@@ -391,8 +391,7 @@ public class CodeExplorerRepository(IGraphClient dbClient)
 
         if (!string.IsNullOrEmpty(workspacePath))
         {
-            var resolvedPath = PathTools.TranslateHostPathToContainerPath(workspacePath);
-            var absolutePath = Path.GetFullPath(resolvedPath!).Replace('\\', '/');
+            var absolutePath = Path.GetFullPath(workspacePath).Replace('\\', '/');
             parameters["workspacePath"] = absolutePath;
             parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
 
@@ -479,8 +478,7 @@ public class CodeExplorerRepository(IGraphClient dbClient)
         var workspaceRoot = Environment.GetEnvironmentVariable("WORKSPACE_ROOT");
         if (!string.IsNullOrEmpty(workspaceRoot)) return workspaceRoot;
 
-        workspaceRoot = PathTools.TranslateHostPathToContainerPath(hostWorkspacePath);
-        if (!string.IsNullOrEmpty(workspaceRoot)) return workspaceRoot;
+        if (!string.IsNullOrEmpty(hostWorkspacePath)) return hostWorkspacePath;
 
         var current = Directory.GetCurrentDirectory();
         while (!string.IsNullOrEmpty(current))

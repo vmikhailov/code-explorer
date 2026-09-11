@@ -2,7 +2,6 @@
 
 [![License: BUSL 1.1](https://img.shields.io/badge/License-BUSL_1.1-orange.svg)](LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](#docker-deployment)
 
 **CodeExplorer** is an ontology-driven, multi-language codebase parser, indexer, and query service. It processes source repositories into a rich, queryable knowledge graph stored in an **embedded SQLite Graph Database** (with full Cypher query support), enabling advanced static analysis, architecture visualization, dependency mapping, and LLM-assisted code understanding.
 
@@ -95,29 +94,21 @@ Once the syntactic structure is captured:
 ## 🛠️ Tech Stack & Requirements
 
 *   **Runtime**: [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
-*   **Database**: **Embedded SQLite** (zero external services or Docker required)
+*   **Database**: **Embedded SQLite** (zero external services or containers required)
 *   **AST Parser**: Tree-Sitter & Microsoft T-SQL ScriptDom
-*   **Deployment**: Standalone executable or Docker container
+*   **Deployment**: Standalone executable / .NET tool
 
 ---
 
 ## 🏁 Getting Started
 
-### 1. Build the Project
-No external database or Docker container is required. You can build and run immediately:
+### Build the Project
+No external database or containers are required. You can build and run immediately:
 
 ```bash
 # Make the build script executable and run it
 chmod +x build.sh
 ./build.sh
-```
-
-### 2. Optional: Run via Docker
-If you prefer containerized deployment:
-
-```bash
-# Build and run standalone container
-docker compose up -d
 ```
 
 ---

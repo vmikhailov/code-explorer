@@ -78,30 +78,33 @@ public class IndexingTaskManager(WorkspaceIndexer indexer)
         return status;
     }
 
-    public string? StartIndex(string hostWorkspacePath, string containerWorkspacePath, bool clear, out string message)
+    public string? StartIndex(string workspacePath, bool clear, out string message)
     {
         lock (_lock)
         {
-            if (IsAlreadyRunning(hostWorkspacePath))
+            if (IsAlreadyRunning(workspacePath))
             {
-                message = $"Indexing is already running for directory: {hostWorkspacePath}";
+                message = $"Indexing is already running for directory: {workspacePath}";
                 return null;
             }
 
             var taskId = Guid.NewGuid().ToString();
             var cts = new CancellationTokenSource();
-            var status = CreateInitialStatus(hostWorkspacePath);
+            var status = CreateInitialStatus(workspacePath);
             var taskContext = new IndexingTaskContext(cts, status);
 
             _tasks[taskId] = taskContext;
             _lastStartedTaskId = taskId;
 
-            LaunchIndexingTask(taskContext, hostWorkspacePath, containerWorkspacePath, clear, cts.Token);
+            LaunchIndexingTask(taskContext, workspacePath, clear, cts.Token);
 
             message = "Indexing started in the background.";
             return taskId;
         }
     }
+
+    public string? StartIndex(string hostWorkspacePath, string containerWorkspacePath, bool clear, out string message) =>
+        StartIndex(string.IsNullOrEmpty(containerWorkspacePath) ? hostWorkspacePath : containerWorkspacePath, clear, out message);
 
     private bool IsAlreadyRunning(string hostWorkspacePath)
     {
@@ -120,8 +123,7 @@ public class IndexingTaskManager(WorkspaceIndexer indexer)
 
     private void LaunchIndexingTask(
         IndexingTaskContext taskContext,
-        string hostPath,
-        string containerPath,
+        string workspacePath,
         bool clear,
         CancellationToken token)
     {
@@ -130,7 +132,7 @@ public class IndexingTaskManager(WorkspaceIndexer indexer)
         {
             try
             {
-                taskContext.Status = await ExecuteIndexingAsync(taskContext, hostPath, containerPath, clear, token, progressReporter);
+                taskContext.Status = await ExecuteIndexingAsync(taskContext, workspacePath, clear, token, progressReporter);
             }
             finally
             {
@@ -156,15 +158,14 @@ public class IndexingTaskManager(WorkspaceIndexer indexer)
 
     private async Task<IndexingStatus> ExecuteIndexingAsync(
         IndexingTaskContext taskContext,
-        string hostPath,
-        string containerPath,
+        string workspacePath,
         bool clear,
         CancellationToken token,
         IProgress<IndexingProgress> progress)
     {
         try
         {
-            var (nodes, rels, kinds) = await indexer.IndexAsync(hostPath, containerPath, clear, token, progress);
+            var (nodes, rels, kinds) = await indexer.IndexAsync(workspacePath, clear, token, progress);
             return taskContext.Status with
             {
                 State = nameof(IndexingState.Completed),

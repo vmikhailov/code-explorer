@@ -30,7 +30,7 @@ public class SqliteCompiler : ICypherVisitor<string>
     private readonly Dictionary<string, string> _nodeIdSource = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _ctes = [];
 
-    private static readonly FrozenSet<string> ReservedSqlKeywords = new[]
+    private static readonly FrozenSet<string> _reservedSqlKeywords = new[]
     {
         "in", "order", "group", "by", "where", "from", "select", "join", "table", "index", "as", "on", "case", "when",
         "then", "else", "end", "with", "limit", "offset", "union", "all", "distinct", "values", "into", "set", "update",
@@ -38,7 +38,7 @@ public class SqliteCompiler : ICypherVisitor<string>
         "exists", "key", "check", "column", "primary"
     }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
-    private static string EscapeVar(string name) => ReservedSqlKeywords.Contains(name) ? $"\"{name}\"" : name;
+    private static string EscapeVar(string name) => _reservedSqlKeywords.Contains(name) ? $"\"{name}\"" : name;
 
     private int _paramIndex;
     private int _varIndex;
