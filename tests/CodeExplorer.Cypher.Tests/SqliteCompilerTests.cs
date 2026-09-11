@@ -219,4 +219,65 @@ public class SqliteCompilerTests
         Assert.That(rows[0]["className"], Is.EqualTo("OrderService"));
         Assert.That(Convert.ToInt64(rows[0]["methodCount"]), Is.EqualTo(3));
     }
+
+    [Test]
+    public void Test_OptionalMatch_SingleNode_WithWherePredicate_PreservesConditionInOnClause()
+    {
+        // Insert endpoints: one matches Order.cs, one is unrelated
+        InsertNode("ep:1", "Endpoint", new() { ["name"] = "OrderEndpoint", ["path"] = "src/Order.cs" });
+        InsertNode("ep:2", "Endpoint", new() { ["name"] = "OtherEndpoint", ["path"] = "src/Other.cs" });
+
+        var cypher = @"
+            MATCH (f:File)
+            OPTIONAL MATCH (ep:Endpoint) WHERE ep.path = f.path
+            RETURN f.name AS fileName, ep.name AS endpointName
+            ORDER BY fileName ASC
+        ";
+
+        var ast = CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+
+        // Verify the condition was placed into the LEFT JOIN ON clause, not dropped
+        Assert.That(compiled.Sql, Does.Contain("LEFT JOIN nodes ep ON 1=1 AND ep.kind = 'Endpoint' AND (json_extract(ep.properties, '$.path') = json_extract(f.properties, '$.path'))"));
+
+        var rows = ExecuteCypher(cypher);
+
+        // We expect exactly 2 rows (one for each file), NOT 4 (no Cartesian product!)
+        Assert.That(rows, Has.Count.EqualTo(2));
+
+        var customerRow = rows.Find(r => (string)r["fileName"]! == "Customer.cs");
+        Assert.That(customerRow!["endpointName"], Is.Null);
+
+        var orderRow = rows.Find(r => (string)r["fileName"]! == "Order.cs");
+        Assert.That(orderRow!["endpointName"], Is.EqualTo("OrderEndpoint"));
+    }
+
+    [Test]
+    public void Test_OptionalMatch_SingleNode_WithInListComprehension_DoesNotCartesianJoin()
+    {
+        // Insert external services: one matching Order.cs, one matching an unrelated path
+        InsertNode("es:1", "ExternalService", new() { ["name"] = "PaymentApi", ["file_path"] = "src/Order.cs" });
+        InsertNode("es:2", "ExternalService", new() { ["name"] = "BillingApi", ["file_path"] = "src/External.cs" });
+
+        var cypher = @"
+            MATCH (w:Workspace)-[:CONTAINS]->(f:File)
+            WITH w, collect(DISTINCT f) AS files
+            WITH w, files, [x IN files | x.path] AS filePaths
+            OPTIONAL MATCH (es:ExternalService) WHERE es.file_path IN filePaths
+            RETURN w.name AS wsName, collect(DISTINCT es.name) AS egress
+        ";
+
+        var ast = CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+
+        // Verify the list comprehension was collapsed to an equality join in the ON clause
+        Assert.That(compiled.Sql, Does.Contain("LEFT JOIN nodes es ON 1=1 AND es.kind = 'ExternalService' AND (json_extract(es.properties, '$.file_path') = json_extract(f.properties, '$.path'))"));
+
+        var rows = ExecuteCypher(cypher);
+
+        Assert.That(rows, Has.Count.EqualTo(1));
+        var egressJson = (string)rows[0]["egress"]!;
+        Assert.That(egressJson, Does.Contain("PaymentApi"));
+        Assert.That(egressJson, Does.Not.Contain("BillingApi"));
+    }
 }
