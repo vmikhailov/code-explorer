@@ -78,6 +78,10 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 properties JSON NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_nodes_kind ON nodes(kind);
+            CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path'));
+            CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path'));
+            CREATE INDEX IF NOT EXISTS idx_nodes_kind_name ON nodes(kind, json_extract(properties, '$.name'));
+            CREATE INDEX IF NOT EXISTS idx_nodes_kind_lower_path ON nodes(kind, lower(json_extract(properties, '$.path')));
 
             CREATE TABLE IF NOT EXISTS edges (
                 from_id TEXT NOT NULL,
@@ -90,6 +94,9 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             CREATE INDEX IF NOT EXISTS idx_edges_kind ON edges(kind);
             CREATE INDEX IF NOT EXISTS idx_edges_from_kind ON edges(from_id, kind);
             CREATE INDEX IF NOT EXISTS idx_edges_to_kind ON edges(to_id, kind);
+            CREATE INDEX IF NOT EXISTS idx_edges_from_kind_to ON edges(from_id, kind, to_id);
+            CREATE INDEX IF NOT EXISTS idx_edges_to_kind_from ON edges(to_id, kind, from_id);
+            CREATE INDEX IF NOT EXISTS idx_edges_kind_from_to ON edges(kind, from_id, to_id);
 
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY,

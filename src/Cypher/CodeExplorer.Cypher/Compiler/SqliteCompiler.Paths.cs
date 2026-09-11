@@ -39,7 +39,7 @@ public partial class SqliteCompiler
         {
             if (!_declaredNodes.Contains(headVar))
             {
-                BindHeadNode(path.Head, headVar, isOptional, joinKeyword, fromAndJoins, mainWhereConditions);
+                BindHeadNode(path.Head, headVar, isOptional, joinKeyword, fromAndJoins, mainWhereConditions, optionalWhereExtra);
             }
             return;
         }
@@ -48,7 +48,7 @@ public partial class SqliteCompiler
                           path.Chain.Any(c => c.Target.Variable != null && _declaredNodes.Contains(c.Target.Variable));
         if (!anyDeclared)
         {
-            BindHeadNode(path.Head, headVar, isOptional, joinKeyword, fromAndJoins, mainWhereConditions);
+            BindHeadNode(path.Head, headVar, isOptional, joinKeyword, fromAndJoins, mainWhereConditions, optionalWhereExtra);
         }
 
         ProcessPathChain(path, headVar, isOptional, joinKeyword, fromAndJoins, mainWhereConditions, optionalWhereExtra);
@@ -60,7 +60,8 @@ public partial class SqliteCompiler
         bool isOptional,
         string joinKeyword,
         StringBuilder fromAndJoins,
-        List<string> mainWhereConditions)
+        List<string> mainWhereConditions,
+        List<string> optionalWhereExtra)
     {
         if (fromAndJoins.Length == 0 && !isOptional)
         {
@@ -73,7 +74,7 @@ public partial class SqliteCompiler
         }
 
         _declaredNodes.Add(headVar);
-        ApplyNodeConditions(headNode, headVar, isOptional, fromAndJoins, mainWhereConditions);
+        ApplyNodeConditions(headNode, headVar, isOptional, fromAndJoins, mainWhereConditions, optionalWhereExtra);
     }
 
     private void ProcessPathChain(
@@ -676,10 +677,12 @@ public partial class SqliteCompiler
         string nodeVar,
         bool isOptional,
         StringBuilder fromAndJoins,
-        List<string> mainWhereConditions)
+        List<string> mainWhereConditions,
+        List<string> optionalWhereExtra)
     {
         List<string> conditions = [];
         AddNodeFiltersToConditions(node, nodeVar, conditions);
+        ApplyOptionalWhereExtra(isOptional, optionalWhereExtra, conditions);
 
         if (conditions.Count > 0)
         {
