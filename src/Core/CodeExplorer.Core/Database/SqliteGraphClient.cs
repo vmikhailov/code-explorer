@@ -316,7 +316,6 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         var paramDict = ExtractParameters(parameters);
         var ast = CypherQueryParser.Parse(query);
         var compiled = SqliteCompiler.Compile(ast, paramDict);
-        var compileMs = sw.Elapsed.TotalMilliseconds;
 
         await _lock.WaitAsync();
         try
@@ -333,10 +332,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             sw.Stop();
 
             _logger.LogInformation(
-                "[DB:Query] Cypher query completed in {TotalElapsedMs:F1}ms (compile: {CompileMs:F1}ms, execute: {ExecMs:F1}ms, rows: {RowCount}): {QueryPreview}",
+                "[DB:Query] Completed in {ElapsedMs:F1}ms (rows: {RowCount}): {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds,
-                compileMs,
-                sw.Elapsed.TotalMilliseconds - compileMs,
                 rows.Count,
                 GetQueryPreview(query));
 
