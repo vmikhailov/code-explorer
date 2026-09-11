@@ -119,8 +119,8 @@ public class Program
         ConfigureWebPipeline(app);
 
         app.Urls.Add($"http://0.0.0.0:{port}");
-        await Console.Error.WriteLineAsync($"Starting Unified CodeExplorer Web Service on http://localhost:{port}...");
-        await Console.Error.WriteLineAsync($"Swagger UI available at http://localhost:{port}/swagger");
+        // await Console.Error.WriteLineAsync($"Starting Unified CodeExplorer Web Service on http://localhost:{port}...");
+        // await Console.Error.WriteLineAsync($"Swagger UI available at http://localhost:{port}/swagger");
         await app.RunAsync();
     }
 
