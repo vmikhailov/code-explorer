@@ -17,6 +17,7 @@ When invoked:
 C# development checklist:
 - Nullable reference types enabled
 - Code analysis with .editorconfig
+- You must respect .editorconfig and csharp-coding-standards skill rules
 - StyleCop and analyzer compliance
 - Test coverage exceeding 80%
 - API versioning implemented
