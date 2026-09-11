@@ -11,15 +11,6 @@ class IngestOptions
     [Option("db-path", Default = ".codeexplorer/graph.db", HelpText = "The SQLite database path (or ':memory:').")]
     public string DbPath { get; set; } = ".codeexplorer/graph.db";
 
-    [Option("bolt-url", Hidden = true, HelpText = "Legacy option, ignored.")]
-    public string BoltUrl { get; set; } = "";
-
-    [Option("username", Hidden = true, HelpText = "Legacy option, ignored.")]
-    public string Username { get; set; } = "";
-
-    [Option("password", Hidden = true, HelpText = "Legacy option, ignored.")]
-    public string Password { get; set; } = "";
-
     [Option("clear", HelpText = "Whether to surgically clear only this workspace's previous data before ingestion.")]
     public bool Clear { get; set; }
 
