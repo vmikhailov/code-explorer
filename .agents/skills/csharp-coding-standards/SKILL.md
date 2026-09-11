@@ -1,7 +1,6 @@
 ---
-name: modern-csharp-coding-standards
-description: Write modern, high-performance C# code using records, pattern matching, value objects, async/await, Span<T>/Memory<T>, and best-practice API design patterns. Emphasizes functional-style programming with C# 12+ features.
-invocable: false
+name: csharp-coding-standards
+description: Use this skill when writing, reviewing, or refactoring modern C# and .NET code, designing APIs, optimizing performance with Span<T>/Memory<T>, implementing domain models with records and value objects, or working with async patterns and pattern matching.
 ---
 
 # Modern C# Coding Standards
@@ -18,10 +17,10 @@ Use this skill when:
 
 ## Reference Files
 
-- [value-objects-and-patterns.md](value-objects-and-patterns.md): Full value object examples and pattern matching code
-- [performance-and-api-design.md](performance-and-api-design.md): Span<T>/Memory<T> examples and API design principles
-- [composition-and-error-handling.md](composition-and-error-handling.md): Composition over inheritance, Result type, testing patterns
-- [anti-patterns-and-reflection.md](anti-patterns-and-reflection.md): Reflection avoidance and common anti-patterns
+- [value-objects-and-patterns.md](./references/value-objects-and-patterns.md): Full value object examples and pattern matching code
+- [performance-and-api-design.md](./references/performance-and-api-design.md): Span<T>/Memory<T> examples and API design principles
+- [composition-and-error-handling.md](./references/composition-and-error-handling.md): Composition over inheritance, Result type, testing patterns
+- [anti-patterns-and-reflection.md](./references/anti-patterns-and-reflection.md): Reflection avoidance and common anti-patterns
 
 ## Core Principles
 
@@ -97,7 +96,7 @@ public readonly record struct CustomerId(Guid Value)
 }
 ```
 
-See [value-objects-and-patterns.md](value-objects-and-patterns.md) for complete examples including multi-value objects, factory patterns, and the no-implicit-conversion rule.
+See [value-objects-and-patterns.md](./references/value-objects-and-patterns.md) for complete examples including multi-value objects, factory patterns, and the no-implicit-conversion rule.
 
 ### Pattern Matching (C# 8-12)
 
@@ -113,7 +112,7 @@ public decimal CalculateDiscount(Order order) => order switch
 };
 ```
 
-See [value-objects-and-patterns.md](value-objects-and-patterns.md) for full pattern matching examples.
+See [value-objects-and-patterns.md](./references/value-objects-and-patterns.md) for full pattern matching examples.
 
 ---
 
@@ -158,7 +157,7 @@ public void ProcessOrder(Order? order)
 
 **Avoid abstract base classes.** Use interfaces + composition. Use static helpers for shared logic. Use records with factory methods for variants.
 
-See [composition-and-error-handling.md](composition-and-error-handling.md) for full examples.
+See [composition-and-error-handling.md](./references/composition-and-error-handling.md) for full examples.
 
 ---
 
@@ -205,7 +204,7 @@ public async IAsyncEnumerable<Order> StreamOrdersAsync(
 
 Use `Span<T>` for synchronous zero-allocation operations, `Memory<T>` for async, and `ArrayPool<T>` for large temporary buffers.
 
-See [performance-and-api-design.md](performance-and-api-design.md) for complete Span/Memory examples and the API design section.
+See [performance-and-api-design.md](./references/performance-and-api-design.md) for complete Span/Memory examples and the API design section.
 
 ---
 
@@ -213,7 +212,7 @@ See [performance-and-api-design.md](performance-and-api-design.md) for complete 
 
 For expected errors, use `Result<T, TError>` instead of exceptions. Use exceptions only for unexpected/system errors.
 
-See [composition-and-error-handling.md](composition-and-error-handling.md) for the full Result type implementation and usage examples.
+See [composition-and-error-handling.md](./references/composition-and-error-handling.md) for the full Result type implementation and usage examples.
 
 ---
 
@@ -221,7 +220,7 @@ See [composition-and-error-handling.md](composition-and-error-handling.md) for t
 
 **Banned:** AutoMapper, Mapster, ExpressMapper. Use explicit mapping extension methods instead. Use `UnsafeAccessorAttribute` (.NET 8+) when you genuinely need private member access.
 
-See [anti-patterns-and-reflection.md](anti-patterns-and-reflection.md) for full guidance.
+See [anti-patterns-and-reflection.md](./references/anti-patterns-and-reflection.md) for full guidance.
 
 ---
 
@@ -307,7 +306,7 @@ public readonly record struct OrderError(string Code, string Message);
 - Don't throw exceptions for expected business errors
 - Don't allocate large arrays repeatedly (use `ArrayPool`)
 
-See [anti-patterns-and-reflection.md](anti-patterns-and-reflection.md) for detailed anti-pattern examples.
+See [anti-patterns-and-reflection.md](./references/anti-patterns-and-reflection.md) for detailed anti-pattern examples.
 
 ---
 
