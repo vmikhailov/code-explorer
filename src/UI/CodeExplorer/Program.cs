@@ -41,7 +41,7 @@ public class Program
 
     private static async Task<int> HandleIngestAsync(IngestOptions opts)
     {
-        CodeExplorer.Core.Parser.ParsingContext.EnableConsoleLogging = true;
+        ParsingContext.EnableConsoleLogging = true;
         try
         {
             Console.WriteLine($"Scanning and parsing directory: {opts.Dir}...");

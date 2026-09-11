@@ -831,7 +831,7 @@ public class ParserValidationTests
         var rabbitFile = ws.GetFilePath("RabbitConsumer.ts");
         var socketFile = ws.GetFilePath("SocketClient.ts");
 
-        var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+        var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var client = new InMemoryGraphClient();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
