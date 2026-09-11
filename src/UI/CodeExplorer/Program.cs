@@ -41,36 +41,49 @@ public class Program
 
     private static async Task<int> HandleIngestAsync(IngestOptions opts)
     {
-        ParsingContext.EnableConsoleLogging = true;
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder
+                .SetMinimumLevel(LogLevel.Information)
+                .AddSimpleConsole(options =>
+                {
+                    options.SingleLine = true;
+                    options.TimestampFormat = "[HH:mm:ss] ";
+                });
+        });
+
+        var logger = loggerFactory.CreateLogger<Program>();
+        var indexerLogger = loggerFactory.CreateLogger<WorkspaceIndexer>();
+
         try
         {
-            Console.WriteLine($"Scanning and parsing directory: {opts.Dir}...");
+            logger.LogInformation("Scanning and parsing directory: {Directory}...", opts.Dir);
             await using var client = new SqliteGraphClient(opts.DbPath);
 
             if (opts.ClearAll)
             {
-                Console.WriteLine("Performing a global database clear...");
+                logger.LogInformation("Performing a global database clear...");
                 await client.ClearDatabaseAsync();
             }
 
-            var indexer = new WorkspaceIndexer(client);
+            var indexer = new WorkspaceIndexer(client, indexerLogger);
 
             var (nodesCount, relsCount, nodesByKind) =
                 await indexer.IndexAsync(opts.Dir, opts.Dir, opts.Clear && !opts.ClearAll);
 
-            Console.WriteLine($"Parsed and uploaded {nodesCount} nodes and {relsCount} relationships successfully!");
-            Console.WriteLine("Nodes breakdown by kind:");
+            logger.LogInformation("Parsed and uploaded {NodesCount} nodes and {RelationshipsCount} relationships successfully!", nodesCount, relsCount);
+            logger.LogInformation("Nodes breakdown by kind:");
 
-            foreach (var kvp in nodesByKind)
+            foreach (var (kind, count) in nodesByKind)
             {
-                Console.WriteLine($"  - {kvp.Key}: {kvp.Value}");
+                logger.LogInformation("  - {Kind}: {Count}", kind, count);
             }
 
             return 0;
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync($"Ingestion Error: {ex.Message}");
+            logger.LogError(ex, "Ingestion Error: {Message}", ex.Message);
             return 1;
         }
     }
@@ -119,8 +132,8 @@ public class Program
         ConfigureWebPipeline(app);
 
         app.Urls.Add($"http://0.0.0.0:{port}");
-        // await Console.Error.WriteLineAsync($"Starting Unified CodeExplorer Web Service on http://localhost:{port}...");
-        // await Console.Error.WriteLineAsync($"Swagger UI available at http://localhost:{port}/swagger");
+        app.Logger.LogInformation("Starting Unified CodeExplorer Web Service on http://localhost:{Port}...", port);
+        app.Logger.LogInformation("Swagger UI available at http://localhost:{Port}/swagger", port);
         await app.RunAsync();
     }
 
@@ -170,6 +183,10 @@ public class Program
         var builder = Host.CreateApplicationBuilder();
         builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
         builder.Logging.AddFilter("System", LogLevel.Warning);
+        builder.Logging.AddConsole(options =>
+        {
+            options.LogToStandardErrorThreshold = LogLevel.Trace;
+        });
 
         RegisterCommonServices(builder.Services, client);
         builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<McpGraphHandler>();

@@ -4,6 +4,8 @@ using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -20,17 +22,36 @@ public class ParsingContext
     public SyntaxStructureNode? SyntaxStructure { get; set; }
     public SemanticStructureNode? SemanticStructure { get; set; }
 
-    private readonly System.Diagnostics.Stopwatch _sessionStopwatch = System.Diagnostics.Stopwatch.StartNew();
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();
+    private readonly ILogger _logger;
 
-    public static bool EnableConsoleLogging { get; set; } = false;
+    public ILogger Logger => _logger;
 
     public void Log(string message)
     {
-        if (!EnableConsoleLogging) return;
-        var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-        Console.Error.WriteLine($"[{timestamp}] [+{_sessionStopwatch.ElapsedMilliseconds}ms] {message}");
+        _logger.LogInformation("{Message}", message);
+    }
+
+    public void LogDebug(string message)
+    {
+        _logger.LogDebug("{Message}", message);
+    }
+
+    public void LogWarning(string message, Exception? ex = null)
+    {
+        if (ex != null)
+            _logger.LogWarning(ex, "{Message}", message);
+        else
+            _logger.LogWarning("{Message}", message);
+    }
+
+    public void LogError(string message, Exception? ex = null)
+    {
+        if (ex != null)
+            _logger.LogError(ex, "{Message}", message);
+        else
+            _logger.LogError("{Message}", message);
     }
 
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
@@ -177,7 +198,8 @@ public class ParsingContext
         List<Reference>? globalReferences = null,
         List<Relationship>? globalProjectDependencies = null,
         CancellationToken cancellationToken = default,
-        IProgress<IndexingProgress>? progress = null)
+        IProgress<IndexingProgress>? progress = null,
+        ILogger? logger = null)
     {
         AbsoluteWorkspacePath = absoluteWorkspacePath.Replace('\\', '/');
         HostWorkspacePath = hostWorkspacePath;
@@ -189,5 +211,6 @@ public class ParsingContext
         GlobalReferences = globalReferences ?? [];
         GlobalProjectDependencies = globalProjectDependencies ?? [];
         _progress = progress;
+        _logger = logger ?? NullLogger.Instance;
     }
 }

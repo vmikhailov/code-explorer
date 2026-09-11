@@ -2,6 +2,8 @@ using System.Threading.Channels;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -26,10 +28,12 @@ public class WorkspaceIndexer
     }
 
     private readonly IGraphClient _dbClient;
+    private readonly ILogger<WorkspaceIndexer> _logger;
 
-    public WorkspaceIndexer(IGraphClient dbClient)
+    public WorkspaceIndexer(IGraphClient dbClient, ILogger<WorkspaceIndexer>? logger = null)
     {
         _dbClient = dbClient;
+        _logger = logger ?? NullLogger<WorkspaceIndexer>.Instance;
     }
 
     public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
@@ -73,7 +77,7 @@ public class WorkspaceIndexer
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
         return new ParsingContext(absoluteWorkspacePath, absoluteWorkspacePath, _dbClient, sharedChannel, clear,
-            cancellationToken: cancellationToken, progress: progress);
+            cancellationToken: cancellationToken, progress: progress, logger: _logger);
     }
 
     private async Task RunParsingPipelineAsync(ParsingContext ctx)

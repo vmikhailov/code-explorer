@@ -102,8 +102,7 @@ public class Layer2ProjectParser
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync(
-                $"[Layer2ProjectParser] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}");
+            ctx.LogWarning($"[Layer2ProjectParser] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
         }
     }
 
@@ -139,8 +138,7 @@ public class Layer2ProjectParser
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync(
-                $"[Layer2ProjectParser] Error getting produced package from {projectParser.ProjectType} parser in '{projectDir}': {ex.Message}");
+            ctx.LogWarning($"[Layer2ProjectParser] Error getting produced package from {projectParser.ProjectType} parser in '{projectDir}': {ex.Message}", ex);
         }
 
         if (!packageDetected)

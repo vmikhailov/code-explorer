@@ -22,7 +22,7 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _ctx.Log($"[PersistenceConsumer] Error writing to database: {ex.Message}");
+                _ctx.LogError($"[PersistenceConsumer] Error writing to database: {ex.Message}", ex);
             }
         }
     }
@@ -37,7 +37,7 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _ctx.Log($"[WorkspaceIndexer] Consumer task finished with error: {ex.Message}");
+            _ctx.LogError($"[WorkspaceIndexer] Consumer task finished with error: {ex.Message}", ex);
         }
     }
 }

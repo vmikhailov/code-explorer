@@ -99,7 +99,7 @@ public class Layer3SyntacticParser
                 }
                 catch (Exception ex)
                 {
-                    ctx.Log($"[Layer3SyntacticParser] Error parsing file '{file.Path}': {ex.Message}");
+                    ctx.LogWarning($"[Layer3SyntacticParser] Error parsing file '{file.Path}': {ex.Message}", ex);
                 }
             }
         }
