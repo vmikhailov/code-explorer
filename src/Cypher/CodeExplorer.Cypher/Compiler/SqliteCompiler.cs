@@ -2092,22 +2092,14 @@ public class SqliteCompiler : ICypherVisitor<string>
             ? id.Name
             : VisitExpression(mapProj.BaseExpression);
         List<string> parts = [];
+        
         foreach (var elem in mapProj.Elements)
         {
-            if (elem.IsAllProperties)
-            {
-                continue;
-            }
+            if (elem.IsAllProperties) continue;
 
-            if (elem.ValueExpression != null)
-            {
-                parts.Add($"'{elem.PropertyName}', {VisitExpression(elem.ValueExpression)}");
-            }
-            else
-            {
-                // Property from base: .prop
-                parts.Add($"'{elem.PropertyName}', json_extract({baseVar}.properties, '$.{elem.PropertyName}')");
-            }
+            parts.Add(elem.ValueExpression != null
+                ? $"'{elem.PropertyName}', {VisitExpression(elem.ValueExpression)}"
+                : $"'{elem.PropertyName}', json_extract({baseVar}.properties, '$.{elem.PropertyName}')");
         }
 
         return $"json_object({string.Join(", ", parts)})";
