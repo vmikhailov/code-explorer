@@ -1,6 +1,10 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -9,8 +13,10 @@ namespace CodeExplorer.Core.Mcp;
 [McpServerToolType]
 public class McpGraphHandler(
     CodeExplorerRepository repository,
-    IHttpContextAccessor httpContextAccessor)
+    IHttpContextAccessor httpContextAccessor,
+    ILogger<McpGraphHandler>? logger = null)
 {
+    private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
     private string? GetCurrentWorkspacePath()
     {
         var httpContext = httpContextAccessor.HttpContext;
@@ -48,28 +54,47 @@ public class McpGraphHandler(
 
     private static CallToolResult WrapError(Exception ex) => WrapError(ex.Message);
 
-    private static async Task<CallToolResult> ExecuteAsync(Func<Task<string>> action)
+    private static string NormalizeToolName(string name)
     {
+        if (name.EndsWith("Async", StringComparison.Ordinal))
+            name = name[..^5];
+        return name;
+    }
+
+    private async Task<CallToolResult> ExecuteAsync(Func<Task<string>> action, [CallerMemberName] string toolName = "")
+    {
+        var sw = Stopwatch.StartNew();
+        var normalizedName = NormalizeToolName(toolName);
         try
         {
             var result = await action();
+            sw.Stop();
+            _logger.LogInformation("[MCP] Tool {ToolName} completed in {ElapsedMs:F1}ms", normalizedName, sw.Elapsed.TotalMilliseconds);
             return WrapResult(result);
         }
         catch (Exception ex)
         {
+            sw.Stop();
+            _logger.LogError(ex, "[MCP] Tool {ToolName} failed after {ElapsedMs:F1}ms: {Message}", normalizedName, sw.Elapsed.TotalMilliseconds, ex.Message);
             return WrapError(ex);
         }
     }
 
-    private static CallToolResult Execute(Func<string> action)
+    private CallToolResult Execute(Func<string> action, [CallerMemberName] string toolName = "")
     {
+        var sw = Stopwatch.StartNew();
+        var normalizedName = NormalizeToolName(toolName);
         try
         {
             var result = action();
+            sw.Stop();
+            _logger.LogInformation("[MCP] Tool {ToolName} completed in {ElapsedMs:F1}ms", normalizedName, sw.Elapsed.TotalMilliseconds);
             return WrapResult(result);
         }
         catch (Exception ex)
         {
+            sw.Stop();
+            _logger.LogError(ex, "[MCP] Tool {ToolName} failed after {ElapsedMs:F1}ms: {Message}", normalizedName, sw.Elapsed.TotalMilliseconds, ex.Message);
             return WrapError(ex);
         }
     }

@@ -1,8 +1,12 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeExplorer.Core.Database;
 
@@ -10,10 +14,18 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 {
     private readonly SqliteConnection _conn;
     private readonly SemaphoreSlim _lock = new(1, 1);
+    private ILogger _logger;
     private bool _isDisposed;
 
-    public SqliteGraphClient(string connectionStringOrPath)
+    public ILogger Logger
     {
+        get => _logger;
+        set => _logger = value ?? NullLogger.Instance;
+    }
+
+    public SqliteGraphClient(string connectionStringOrPath, ILogger<SqliteGraphClient>? logger = null)
+    {
+        _logger = (ILogger?)logger ?? NullLogger.Instance;
         var cs = ResolveConnectionString(connectionStringOrPath);
         _conn = new SqliteConnection(cs);
         _conn.Open();
@@ -225,6 +237,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
     {
         if (nodes.Count == 0) return;
 
+        var sw = Stopwatch.StartNew();
         await _lock.WaitAsync();
         try
         {
@@ -250,6 +263,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             }
 
             await tx.CommitAsync();
+            sw.Stop();
+            _logger.LogDebug("[DB:Nodes] Uploaded {Count} nodes in {ElapsedMs:F1}ms", nodes.Count, sw.Elapsed.TotalMilliseconds);
         }
         finally
         {
@@ -261,6 +276,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
     {
         if (rels.Count == 0) return;
 
+        var sw = Stopwatch.StartNew();
         await _lock.WaitAsync();
         try
         {
@@ -284,6 +300,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             }
 
             await tx.CommitAsync();
+            sw.Stop();
+            _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count, sw.Elapsed.TotalMilliseconds);
         }
         finally
         {
@@ -293,10 +311,12 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     public async Task<string> ExecuteQueryAsync(string query, object? parameters = null)
     {
+        var sw = Stopwatch.StartNew();
         ValidateQuerySecurity(query);
         var paramDict = ExtractParameters(parameters);
         var ast = CypherQueryParser.Parse(query);
         var compiled = SqliteCompiler.Compile(ast, paramDict);
+        var compileMs = sw.Elapsed.TotalMilliseconds;
 
         await _lock.WaitAsync();
         try
@@ -310,12 +330,28 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
             await using var reader = await cmd.ExecuteReaderAsync();
             var rows = await ReadRowsAsync(reader);
+            sw.Stop();
+
+            _logger.LogInformation(
+                "[DB:Query] Cypher query completed in {TotalElapsedMs:F1}ms (compile: {CompileMs:F1}ms, execute: {ExecMs:F1}ms, rows: {RowCount}): {QueryPreview}",
+                sw.Elapsed.TotalMilliseconds,
+                compileMs,
+                sw.Elapsed.TotalMilliseconds - compileMs,
+                rows.Count,
+                GetQueryPreview(query));
+
             return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
         }
         finally
         {
             _lock.Release();
         }
+    }
+
+    private static string GetQueryPreview(string query)
+    {
+        var singleLine = Regex.Replace(query.Trim(), @"\s+", " ");
+        return singleLine.Length > 80 ? singleLine[..77] + "..." : singleLine;
     }
 
     private static async Task<List<Dictionary<string, object?>>> ReadRowsAsync(SqliteDataReader reader)
@@ -335,9 +371,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     public async Task ExecuteWriteAsync(string query, object? parameters = null)
     {
+        var sw = Stopwatch.StartNew();
         var paramDict = ExtractParameters(parameters);
         if (await TryExecutePostIndexWriteAsync(query, paramDict))
         {
+            sw.Stop();
+            _logger.LogInformation("[DB:Write] PostIndex write completed in {ElapsedMs:F1}ms: {QueryPreview}",
+                sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
             return;
         }
 
@@ -351,6 +391,10 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 cmd.Parameters.AddWithValue("@" + k, v ?? DBNull.Value);
             }
             await cmd.ExecuteNonQueryAsync();
+            sw.Stop();
+
+            _logger.LogInformation("[DB:Write] Write completed in {ElapsedMs:F1}ms: {QueryPreview}",
+                sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
         }
         finally
         {

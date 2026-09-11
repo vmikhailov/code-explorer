@@ -29,3 +29,4 @@ appsettings.Development.json
 appsettings.local.json
 .Build/
 scratch/
+.codeexplorer/

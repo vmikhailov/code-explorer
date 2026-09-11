@@ -54,11 +54,12 @@ public class Program
 
         var logger = loggerFactory.CreateLogger<Program>();
         var indexerLogger = loggerFactory.CreateLogger<WorkspaceIndexer>();
+        var clientLogger = loggerFactory.CreateLogger<SqliteGraphClient>();
 
         try
         {
             logger.LogInformation("Scanning and parsing directory: {Directory}...", opts.Dir);
-            await using var client = new SqliteGraphClient(opts.DbPath);
+            await using var client = new SqliteGraphClient(opts.DbPath, clientLogger);
 
             if (opts.ClearAll)
             {
@@ -124,11 +125,17 @@ public class Program
         var builder = WebApplication.CreateBuilder();
         builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
         builder.Logging.AddFilter("System", LogLevel.Warning);
+        builder.Logging.AddSimpleConsole(options =>
+        {
+            options.SingleLine = true;
+            options.TimestampFormat = "[HH:mm:ss] ";
+        });
 
         ConfigureWebServices(builder.Services, client);
 
         var app = builder.Build();
         App = app;
+        client.Logger = app.Services.GetRequiredService<ILogger<SqliteGraphClient>>();
         ConfigureWebPipeline(app);
 
         app.Urls.Add($"http://0.0.0.0:{port}");
@@ -162,6 +169,28 @@ public class Program
 
     private static void ConfigureWebPipeline(WebApplication app)
     {
+        app.Use(async (context, next) =>
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var path = context.Request.Path.Value ?? "";
+            var method = context.Request.Method;
+
+            try
+            {
+                await next();
+            }
+            finally
+            {
+                sw.Stop();
+                var contentType = context.Response.ContentType ?? string.Empty;
+                if (!contentType.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase))
+                {
+                    app.Logger.LogInformation("[API] {Method} {Path} completed with {StatusCode} in {ElapsedMs:F1}ms",
+                        method, path, context.Response.StatusCode, sw.Elapsed.TotalMilliseconds);
+                }
+            }
+        });
+
         app.UseCors();
         app.UseSwagger();
         app.UseSwaggerUI(c =>
@@ -187,11 +216,17 @@ public class Program
         {
             options.LogToStandardErrorThreshold = LogLevel.Trace;
         });
+        builder.Logging.AddSimpleConsole(options =>
+        {
+            options.SingleLine = true;
+            options.TimestampFormat = "[HH:mm:ss] ";
+        });
 
         RegisterCommonServices(builder.Services, client);
         builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<McpGraphHandler>();
 
         var host = builder.Build();
+        client.Logger = host.Services.GetRequiredService<ILogger<SqliteGraphClient>>();
         await host.RunAsync();
     }
 
