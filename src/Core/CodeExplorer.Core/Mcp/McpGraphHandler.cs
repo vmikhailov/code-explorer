@@ -94,6 +94,14 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
+    [Description("Lists all indexed workspaces available in the graph database, returning their IDs, names, and root directory paths.")]
+    public async Task<CallToolResult> GetAllWorkspacesAsync()
+    {
+        return await ExecuteAsync(() => repository.GetAllWorkspacesAsync());
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
     [Description("Returns the high-level infrastructure map of the workspace, including workspace folders, projects, their internal folders, and associated databases. Use this at the start of a task to understand the component boundaries.")]
     public async Task<CallToolResult> GetArchitectureMapAsync(
         [Description("Optional filter for a specific project name (e.g., 'AuthService'). If omitted, returns the top-level workspace structure.")] string? projectName = null)

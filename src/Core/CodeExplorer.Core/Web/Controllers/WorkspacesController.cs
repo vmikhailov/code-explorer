@@ -85,6 +85,21 @@ public class WorkspacesController(CodeExplorerRepository repository, IndexingTas
         }
     }
 
+    [HttpGet]
+    [HttpGet("all")]
+    public async Task<IActionResult> GetAllWorkspacesAsync()
+    {
+        try
+        {
+            var resultJson = await repository.GetAllWorkspacesAsync();
+            return Content(resultJson, "application/json");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
     [HttpGet("content")]
     public async Task<IActionResult> GetContentAsync([FromQuery] string? workspacePath, [FromQuery] string? type)
     {

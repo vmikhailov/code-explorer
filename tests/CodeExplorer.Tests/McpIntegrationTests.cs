@@ -268,6 +268,12 @@ public class McpIntegrationTests
     }
 
     [Test]
+    public async Task Test_GetAllWorkspaces()
+    {
+        await CallToolAndAssertSuccessAsync("get_all_workspaces", "{}", 99);
+    }
+
+    [Test]
     public async Task Test_GetArchitectureMap()
     {
         await CallToolAndAssertSuccessAsync("get_architecture_map", "{}", 2);
@@ -403,6 +409,19 @@ public class McpIntegrationTests
         
         using var doc = JsonDocument.Parse(content);
         Assert.That(doc.RootElement.TryGetProperty("results", out _), Is.True);
+    }
+
+    [Test]
+    public async Task Test_RestGetAllWorkspaces_ReturnsSuccess()
+    {
+        var response = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/workspaces");
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.That(response.IsSuccessStatusCode, Is.True, $"Get workspaces failed with status {response.StatusCode} and body: {content}");
+
+        using var doc = JsonDocument.Parse(content);
+        Assert.That(doc.RootElement.TryGetProperty("results", out var resultsElement), Is.True);
+        Assert.That(resultsElement.ValueKind, Is.EqualTo(JsonValueKind.Array));
+        Assert.That(resultsElement.GetArrayLength(), Is.GreaterThanOrEqualTo(1));
     }
 
 
