@@ -101,7 +101,7 @@ public class McpIntegrationTests
         _sessionId = queryParams["sessionId"];
         Assert.That(_sessionId, Is.Not.Null.And.Not.Empty);
 
-        Console.WriteLine($"Established SSE session: {_sessionId}");
+        // Console.WriteLine($"Established SSE session: {_sessionId}");
 
         // Perform the handshake (initialize request)
         var initJson = @"{
@@ -124,7 +124,7 @@ public class McpIntegrationTests
         var initResponseStr = await ReadNextSseResponseAsync();
         using var doc = JsonDocument.Parse(initResponseStr);
         Assert.That(doc.RootElement.GetProperty("id").GetInt32(), Is.EqualTo(100));
-        Console.WriteLine("Initialization handshake completed successfully!");
+        // Console.WriteLine("Initialization handshake completed successfully!");
 
         // Send initialized notification (notification has no response)
         var initializedJson = @"{
@@ -155,9 +155,9 @@ public class McpIntegrationTests
                 await _serverTask;
                 _serverTask.Dispose();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"Server task finished with exception: {ex.Message}");
+                // Console.WriteLine($"Server task finished with exception: {ex.Message}");
             }
         }
 
@@ -258,7 +258,7 @@ public class McpIntegrationTests
             }
         }
 
-        Console.WriteLine($"Tool {toolName} executed successfully.");
+        // Console.WriteLine($"Tool {toolName} executed successfully.");
     }
 
     [Test]

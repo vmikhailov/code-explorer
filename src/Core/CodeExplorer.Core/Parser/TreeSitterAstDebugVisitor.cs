@@ -12,6 +12,6 @@ public class TreeSitterAstDebugVisitor : TreeSitterAstVisitor
         {
             textSnippet = textSnippet.Substring(0, 57) + "...";
         }
-        Console.WriteLine($"{indent}Type: {node.Type}, Text: [{textSnippet}]");
+        // Console.WriteLine($"{indent}Type: {node.Type}, Text: [{textSnippet}]");
     }
 }
