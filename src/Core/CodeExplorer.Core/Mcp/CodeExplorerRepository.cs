@@ -106,6 +106,34 @@ public class CodeExplorerRepository(IGraphClient dbClient)
         throw new InvalidOperationException($"Workspace at path '{workspacePath}' is not indexed yet. Please run ingest/index first.");
     }
 
+    public async Task ClearAllAsync()
+    {
+        await dbClient.ClearDatabaseAsync();
+    }
+
+    public async Task<bool> ClearWorkspaceAsync(string workspaceIdOrPath)
+    {
+        return await dbClient.ClearWorkspaceAsync(workspaceIdOrPath);
+    }
+
+    public async Task<(List<string> Cleared, List<string> NotFound)> ClearWorkspacesAsync(IEnumerable<string> workspaces)
+    {
+        var cleared = new List<string>();
+        var notFound = new List<string>();
+        foreach (var ws in workspaces)
+        {
+            if (await dbClient.ClearWorkspaceAsync(ws))
+            {
+                cleared.Add(ws);
+            }
+            else
+            {
+                notFound.Add(ws);
+            }
+        }
+        return (cleared, notFound);
+    }
+
     public async Task<string> GetAllWorkspacesAsync()
     {
         var query = Queries.Get("get_all_workspaces");

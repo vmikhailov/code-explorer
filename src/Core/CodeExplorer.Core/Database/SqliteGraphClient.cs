@@ -128,17 +128,23 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
-    public async Task ClearWorkspaceAsync(string workspacePath)
+    public async Task<bool> ClearWorkspaceAsync(string workspaceIdOrPath)
     {
-        var normalized = workspacePath.Replace('\\', '/');
+        if (string.IsNullOrWhiteSpace(workspaceIdOrPath)) return false;
+
+        var raw = workspaceIdOrPath.Trim();
+        var normalized = raw.Replace('\\', '/').TrimEnd('/');
+
         await _lock.WaitAsync();
         try
         {
-            var wsId = await FindWorkspaceIdByPathAsync(normalized);
+            var wsId = await FindWorkspaceIdByIdOrPathAsync(raw, normalized);
             if (wsId != null)
             {
                 await DeleteWorkspaceHierarchyAsync(wsId);
+                return true;
             }
+            return false;
         }
         finally
         {
@@ -146,21 +152,28 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
-    private async Task<string?> FindWorkspaceIdByPathAsync(string normalizedPath)
+    private async Task<string?> FindWorkspaceIdByIdOrPathAsync(string raw, string normalized)
     {
         await using var cmd = _conn.CreateCommand();
         cmd.CommandText = """
             SELECT id FROM nodes
             WHERE kind = 'Workspace'
-              AND replace(lower(json_extract(properties, '$.path')), '\', '/') = replace(lower(@path), '\', '/')
+              AND (
+                  id = @raw
+                  OR id = @normalized
+                  OR rtrim(replace(lower(json_extract(properties, '$.path')), '\', '/'), '/') = lower(@normalized)
+                  OR lower(json_extract(properties, '$.name')) = lower(@raw)
+              )
             LIMIT 1;
             """;
-        cmd.Parameters.AddWithValue("@path", normalizedPath);
+        cmd.Parameters.AddWithValue("@raw", raw);
+        cmd.Parameters.AddWithValue("@normalized", normalized);
         return (string?)await cmd.ExecuteScalarAsync();
     }
 
     private async Task DeleteWorkspaceHierarchyAsync(string wsId)
     {
+        var wsPrefix = wsId + ":%";
         await using var cmd = _conn.CreateCommand();
         cmd.CommandText = """
             WITH RECURSIVE ws_nodes(id) AS (
@@ -168,16 +181,19 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 UNION
                 SELECT e.to_id FROM edges e JOIN ws_nodes w ON e.from_id = w.id WHERE e.kind = 'CONTAINS'
             )
-            DELETE FROM edges WHERE from_id IN (SELECT id FROM ws_nodes) OR to_id IN (SELECT id FROM ws_nodes);
+            DELETE FROM edges WHERE from_id IN (SELECT id FROM ws_nodes) OR to_id IN (SELECT id FROM ws_nodes)
+                OR from_id = @wsId OR from_id LIKE @wsPrefix OR to_id = @wsId OR to_id LIKE @wsPrefix;
 
             WITH RECURSIVE ws_nodes(id) AS (
                 SELECT @wsId
                 UNION
                 SELECT e.to_id FROM edges e JOIN ws_nodes w ON e.from_id = w.id WHERE e.kind = 'CONTAINS'
             )
-            DELETE FROM nodes WHERE id IN (SELECT id FROM ws_nodes);
+            DELETE FROM nodes WHERE id IN (SELECT id FROM ws_nodes)
+                OR id = @wsId OR id LIKE @wsPrefix;
             """;
         cmd.Parameters.AddWithValue("@wsId", wsId);
+        cmd.Parameters.AddWithValue("@wsPrefix", wsPrefix);
         await cmd.ExecuteNonQueryAsync();
     }
 

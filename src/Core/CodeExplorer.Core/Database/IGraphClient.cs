@@ -4,7 +4,7 @@ public interface IGraphClient : IAsyncDisposable
 {
     Task CreateIndicesAsync();
     Task ClearDatabaseAsync();
-    Task ClearWorkspaceAsync(string workspacePath);
+    Task<bool> ClearWorkspaceAsync(string workspacePath);
     Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath);
     Task SaveEmptyWorkspaceNodeAsync(string id, string path);
     Task UploadNodesAsync(List<Node> nodes);

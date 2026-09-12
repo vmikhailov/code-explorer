@@ -364,26 +364,32 @@ public class Layer5AnalysisParser
         var partsA = pathA.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var partsB = pathB.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        if (partsA.Length != partsB.Length)
+        if (partsA.Length != partsB.Length || partsA.Length == 0)
         {
             return false;
         }
+
+        var hasExactMatch = false;
 
         for (int i = 0; i < partsA.Length; i++)
         {
             var a = partsA[i];
             var b = partsB[i];
 
-            if (a.StartsWith(':') || (a.StartsWith('{') && a.EndsWith('}'))) a = "*";
-            if (b.StartsWith(':') || (b.StartsWith('{') && b.EndsWith('}'))) b = "*";
+            var isParamA = a == "*" || a.StartsWith(':') || (a.StartsWith('{') && a.EndsWith('}'));
+            var isParamB = b == "*" || b.StartsWith(':') || (b.StartsWith('{') && b.EndsWith('}'));
 
-            if (a != "*" && b != "*" && !string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
+            if (!isParamA && !isParamB)
             {
-                return false;
+                if (!string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                hasExactMatch = true;
             }
         }
 
-        return true;
+        return hasExactMatch || (partsA.Length == 1 && string.Equals(partsA[0], partsB[0], StringComparison.OrdinalIgnoreCase));
     }
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint)
@@ -397,12 +403,28 @@ public class Layer5AnalysisParser
             return false;
         }
 
+        if (serviceDomainNorm is "*" or "unknown-service" && (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
+        {
+            return false;
+        }
+
         if (string.Equals(servicePathNorm, entryNorm, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(serviceDomainNorm, entryNorm, StringComparison.OrdinalIgnoreCase) ||
-            MatchPaths(servicePathNorm, entryNorm) ||
-            MatchPaths(serviceDomainNorm, entryNorm))
+            MatchPaths(servicePathNorm, entryNorm))
         {
             return true;
+        }
+
+        if (!string.IsNullOrEmpty(serviceDomainNorm) && serviceDomainNorm != "*" && serviceDomainNorm != "unknown-service")
+        {
+            if (string.Equals(serviceDomainNorm, entryNorm, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (serviceDomainNorm.StartsWith('/') && MatchPaths(serviceDomainNorm, entryNorm))
+            {
+                return true;
+            }
         }
 
         return false;
@@ -419,25 +441,34 @@ public class Layer5AnalysisParser
             return false;
         }
 
+        if (serviceDomainNorm is "*" or "unknown-service" && (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
+        {
+            return false;
+        }
+
         if (string.Equals(servicePathNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
             MatchPaths(servicePathNorm, routeNorm))
         {
             return true;
         }
 
-        if (!string.IsNullOrEmpty(servicePathNorm) &&
-            (servicePathNorm.EndsWith("/" + routeNorm, StringComparison.OrdinalIgnoreCase) ||
-             servicePathNorm.EndsWith(routeNorm, StringComparison.OrdinalIgnoreCase) ||
-             routeNorm.EndsWith("/" + servicePathNorm, StringComparison.OrdinalIgnoreCase) ||
-             routeNorm.EndsWith(servicePathNorm, StringComparison.OrdinalIgnoreCase)))
+        var cleanPathA = "/" + servicePathNorm.Trim('/') + "/";
+        var cleanPathB = "/" + routeNorm.Trim('/') + "/";
+
+        if (cleanPathA != "//" && cleanPathB != "//" &&
+            (cleanPathA.EndsWith(cleanPathB, StringComparison.OrdinalIgnoreCase) ||
+             cleanPathB.EndsWith(cleanPathA, StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
 
-        if (string.Equals(serviceDomainNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
-            MatchPaths(serviceDomainNorm, routeNorm))
+        if (!string.IsNullOrEmpty(serviceDomainNorm) && serviceDomainNorm != "*" && serviceDomainNorm != "unknown-service" && serviceDomainNorm.StartsWith('/'))
         {
-            return true;
+            if (string.Equals(serviceDomainNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
+                MatchPaths(serviceDomainNorm, routeNorm))
+            {
+                return true;
+            }
         }
 
         return false;

@@ -349,8 +349,21 @@ public class Layer3SyntacticParser
         string relativePath,
         string workspaceId)
     {
+        var cleanName = name;
+        if (string.IsNullOrWhiteSpace(cleanName) ||
+            cleanName.Length > 256 ||
+            cleanName.Contains('\n') ||
+            cleanName.Contains('\r') ||
+            cleanName.Contains('{') ||
+            cleanName.Contains('}') ||
+            cleanName.Contains("=>") ||
+            cleanName.Contains(';'))
+        {
+            cleanName = "unknown-service";
+        }
+
         var protocol = "http";
-        var domainOrService = name;
+        var domainOrService = cleanName;
 
         if (domainOrService.Contains("://"))
         {
@@ -363,11 +376,25 @@ public class Layer3SyntacticParser
             protocol = "ws";
             domainOrService = domainOrService.Substring(3);
         }
+        else if (domainOrService.StartsWith("http:", StringComparison.OrdinalIgnoreCase))
+        {
+            protocol = "http";
+            domainOrService = domainOrService.Substring(5);
+        }
+        else if (domainOrService.StartsWith("https:", StringComparison.OrdinalIgnoreCase))
+        {
+            protocol = "https";
+            domainOrService = domainOrService.Substring(6);
+        }
         else if (domainOrService.Contains(':'))
         {
             var idx = domainOrService.IndexOf(':');
-            protocol = domainOrService.Substring(0, idx);
-            domainOrService = domainOrService.Substring(idx + 1);
+            var candidateProto = domainOrService.Substring(0, idx).ToLowerInvariant();
+            if (candidateProto is "http" or "https" or "ws" or "wss" or "grpc")
+            {
+                protocol = candidateProto;
+                domainOrService = domainOrService.Substring(idx + 1);
+            }
         }
 
         var path = "/";

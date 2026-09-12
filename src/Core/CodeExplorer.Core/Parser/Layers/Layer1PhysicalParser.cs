@@ -142,6 +142,11 @@ public class Layer1PhysicalParser
         if (fileName.EndsWith(".test.ts") || fileName.EndsWith(".spec.ts") || fileName.EndsWith(".test.js") ||
             fileName.EndsWith(".spec.js")) return true;
 
+        // Skip minified, bundle, and vendor files
+        if (fileName.EndsWith(".min.js") || fileName.EndsWith(".min.mjs") || fileName.EndsWith(".min.cjs") ||
+            fileName.EndsWith(".min.css") || fileName.EndsWith(".bundle.js") || fileName.EndsWith(".bundle.min.js")) return true;
+        if (fileName.Contains(".min.")) return true;
+
         return false;
     }
 }

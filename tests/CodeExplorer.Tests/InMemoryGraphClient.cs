@@ -20,9 +20,9 @@ public class InMemoryGraphClient : IGraphClient
         return Task.CompletedTask;
     }
 
-    public Task ClearWorkspaceAsync(string workspacePath)
+    public Task<bool> ClearWorkspaceAsync(string workspacePath)
     {
-        return Task.CompletedTask;
+        return Task.FromResult(true);
     }
 
     public Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath)

@@ -9,9 +9,10 @@ public static class AstHelper
     {
         if (argNode == null || argNode.Id == IntPtr.Zero) return null;
 
-        if (argNode.Type == "string" || argNode.Type == "template_string" || argNode.Type == "string_literal" || argNode.Type == "interpreted_string_literal")
+        if (IsStringLiteralNode(argNode))
         {
             var text = argNode.Text.Trim('\'', '"', '`');
+            if (text.Contains('\n') || text.Length > 500) return null;
             return Regex.Replace(text, @"\$\{[^}]+\}", "*");
         }
 
@@ -26,6 +27,11 @@ public static class AstHelper
         }
 
         return null;
+    }
+
+    private static bool IsStringLiteralNode(Node node)
+    {
+        return node.Type is "string" or "template_string" or "string_literal" or "interpreted_string_literal";
     }
 
     private static string? FindVariableInitializerInAst(Node node, string varName)
@@ -45,9 +51,13 @@ public static class AstHelper
                             if (nameNode != null && nameNode.Text == varName)
                             {
                                 var valNode = decl.GetChildForField("value");
-                                if (valNode != null && valNode.Id != IntPtr.Zero)
+                                if (valNode != null && valNode.Id != IntPtr.Zero && IsStringLiteralNode(valNode))
                                 {
-                                    return valNode.Text.Trim('\'', '"', '`');
+                                    var text = valNode.Text.Trim('\'', '"', '`');
+                                    if (!text.Contains('\n') && text.Length <= 500)
+                                    {
+                                        return text;
+                                    }
                                 }
                             }
                         }

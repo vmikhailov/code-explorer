@@ -219,10 +219,132 @@ public class WorkspacesController(CodeExplorerRepository repository, IndexingTas
             return StatusCode(500, new { error = ex.Message });
         }
     }
+
+    [HttpDelete("all")]
+    [HttpDelete("database")]
+    [HttpPost("clear-all")]
+    public async Task<IActionResult> ClearAllAsync()
+    {
+        try
+        {
+            await repository.ClearAllAsync();
+            return Ok(new { message = "Database cleared successfully." });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpDelete("workspace/{idOrPath}")]
+    [HttpDelete("{idOrPath}")]
+    public async Task<IActionResult> DeleteWorkspaceAsync([FromRoute] string idOrPath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(idOrPath))
+            {
+                return BadRequest(new { error = "Workspace ID, name, or path is required." });
+            }
+
+            var success = await repository.ClearWorkspaceAsync(idOrPath);
+            if (!success)
+            {
+                return NotFound(new { error = $"Workspace '{idOrPath}' not found." });
+            }
+
+            return Ok(new { message = $"Workspace '{idOrPath}' cleared successfully.", workspace = idOrPath });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpDelete]
+    public async Task<IActionResult> DeleteWorkspaceByQueryAsync(
+        [FromQuery] string? idOrPath,
+        [FromQuery] string? workspaceId,
+        [FromQuery] string? workspacePath,
+        [FromQuery] bool? all)
+    {
+        try
+        {
+            if (all == true)
+            {
+                await repository.ClearAllAsync();
+                return Ok(new { message = "Database cleared successfully." });
+            }
+
+            var target = idOrPath ?? workspaceId ?? workspacePath;
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                return BadRequest(new { error = "Please provide 'idOrPath', 'workspaceId', 'workspacePath', or '?all=true'." });
+            }
+
+            var success = await repository.ClearWorkspaceAsync(target);
+            if (!success)
+            {
+                return NotFound(new { error = $"Workspace '{target}' not found." });
+            }
+
+            return Ok(new { message = $"Workspace '{target}' cleared successfully.", workspace = target });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("clear")]
+    public async Task<IActionResult> ClearAsync([FromBody] ClearWorkspacesRequest? request, [FromQuery] bool? all)
+    {
+        try
+        {
+            if (all == true || request?.All == true)
+            {
+                await repository.ClearAllAsync();
+                return Ok(new { message = "Database cleared successfully." });
+            }
+
+            var targets = new List<string>();
+            if (!string.IsNullOrWhiteSpace(request?.WorkspaceId)) targets.Add(request.WorkspaceId);
+            if (!string.IsNullOrWhiteSpace(request?.WorkspacePath)) targets.Add(request.WorkspacePath);
+            if (request?.Workspaces != null) targets.AddRange(request.Workspaces.Where(w => !string.IsNullOrWhiteSpace(w)));
+
+            targets = targets.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            if (targets.Count == 0)
+            {
+                return BadRequest(new { error = "Specify 'all: true', 'workspaceId', 'workspacePath', or 'workspaces' list in the request." });
+            }
+
+            var (cleared, notFound) = await repository.ClearWorkspacesAsync(targets);
+
+            return Ok(new
+            {
+                message = $"Processed {targets.Count} workspace(s): {cleared.Count} cleared, {notFound.Count} not found.",
+                cleared,
+                notFound
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
 }
 
 public class CustomQueryRequest
 {
     public string Query { get; set; } = string.Empty;
     public Dictionary<string, object?>? Parameters { get; set; }
+}
+
+public class ClearWorkspacesRequest
+{
+    public bool All { get; set; }
+    public string? WorkspaceId { get; set; }
+    public string? WorkspacePath { get; set; }
+    public List<string>? Workspaces { get; set; }
 }
