@@ -408,83 +408,430 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     private async Task<bool> TryExecutePostIndexWriteAsync(string query, Dictionary<string, object?> paramDict)
     {
+        if (query.Contains("external_apis"))
+        {
+            return await ExecuteProjectApiAnnotationsWriteAsync(query, paramDict);
+        }
+
         if (query.Contains("TRANSITIVELY_CALLS"))
         {
-            return await ExecuteTransitivelyCallsWriteAsync(paramDict);
+            return await ExecuteTransitivelyCallsWriteAsync(query, paramDict);
         }
 
         if (query.Contains("ATTRIBUTED_TO"))
         {
-            return await ExecuteAttributedToWriteAsync(paramDict);
-        }
-
-        if (query.Contains("SET p.external_apis"))
-        {
-            return await ExecuteProjectApiAnnotationsWriteAsync(paramDict);
+            return await ExecuteAttributedToWriteAsync(query, paramDict);
         }
 
         return false;
     }
 
-    private async Task<bool> ExecuteTransitivelyCallsWriteAsync(Dictionary<string, object?> paramDict)
+    private static string ResolveWidPrefix(string query, Dictionary<string, object?> paramDict)
     {
-        var readCypher = """
-            MATCH path = (caller:Function)-[:CALLS*1..15]->(sink)
-            WHERE caller.id STARTS WITH $widPrefix AND (sink:ExternalService OR sink:DB OR sink:Query)
-            RETURN caller.id AS from_id, sink.id AS to_id, min(length(path)) AS hops
-            """;
-        var jsonResult = await ExecuteQueryAsync(readCypher, paramDict);
-        using var doc = JsonDocument.Parse(jsonResult);
-        var rels = new List<Relationship>();
-
-        foreach (var item in doc.RootElement.EnumerateArray())
+        if (paramDict.TryGetValue("widPrefix", out var wpObj) && wpObj != null)
         {
-            var from = item.TryGetProperty("from_id", out var fp) && fp.ValueKind == JsonValueKind.String ? fp.GetString() : null;
-            var to = item.TryGetProperty("to_id", out var tp) && tp.ValueKind == JsonValueKind.String ? tp.GetString() : null;
-            if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) continue;
-
-            var hops = item.TryGetProperty("hops", out var hp) && hp.ValueKind == JsonValueKind.Number ? hp.GetInt32() : 1;
-            rels.Add(new Relationship(from, to, "TRANSITIVELY_CALLS", new() { ["hops"] = hops }));
+            return wpObj.ToString() ?? "";
         }
 
-        await UploadRelationshipsAsync(rels);
-        return true;
-    }
-
-    private async Task<bool> ExecuteAttributedToWriteAsync(Dictionary<string, object?> paramDict)
-    {
-        var readCypher = """
-            MATCH path = (ep:EntryPoint)<-[:IMPLEMENTS]-(fn:Function)-[:CALLS*0..15]->(sink)
-            WHERE ep.id STARTS WITH $widPrefix AND (sink:ExternalService OR sink:DB OR sink:Query)
-            RETURN ep.id AS from_id, sink.id AS to_id, min(length(path)) AS hops, labels(sink)[0] AS sinkKind
-            """;
-        var jsonResult = await ExecuteQueryAsync(readCypher, paramDict);
-        using var doc = JsonDocument.Parse(jsonResult);
-        var rels = new List<Relationship>();
-
-        foreach (var item in doc.RootElement.EnumerateArray())
+        var match = Regex.Match(query, @"STARTS WITH\s*['""]([^'""]*)['""]", RegexOptions.IgnoreCase);
+        if (match.Success)
         {
-            var from = item.TryGetProperty("from_id", out var fp) && fp.ValueKind == JsonValueKind.String ? fp.GetString() : null;
-            var to = item.TryGetProperty("to_id", out var tp) && tp.ValueKind == JsonValueKind.String ? tp.GetString() : null;
-            if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) continue;
-
-            var hops = item.TryGetProperty("hops", out var hp) && hp.ValueKind == JsonValueKind.Number ? hp.GetInt32() : 1;
-            var sinkKind = item.TryGetProperty("sinkKind", out var sk) && sk.ValueKind == JsonValueKind.String ? sk.GetString() ?? "" : "";
-            rels.Add(new Relationship(from, to, "ATTRIBUTED_TO", new() { ["hops"] = hops, ["sink_kind"] = sinkKind }));
+            return match.Groups[1].Value;
         }
 
-        await UploadRelationshipsAsync(rels);
-        return true;
+        return "";
     }
 
-    private async Task<bool> ExecuteProjectApiAnnotationsWriteAsync(Dictionary<string, object?> paramDict)
+    private async Task<bool> ExecuteTransitivelyCallsWriteAsync(string query, Dictionary<string, object?> paramDict)
     {
+        var widPrefix = ResolveWidPrefix(query, paramDict);
+
+        await _lock.WaitAsync();
+        try
+        {
+            var sw = Stopwatch.StartNew();
+
+            // 1. Load CALLS edges
+            var adj = new Dictionary<string, List<string>>();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT from_id, to_id FROM edges WHERE kind = 'CALLS';";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var from = reader.GetString(0);
+                    var to = reader.GetString(1);
+                    if (!adj.TryGetValue(from, out var list))
+                    {
+                        list = new List<string>();
+                        adj[from] = list;
+                    }
+                    list.Add(to);
+                }
+            }
+
+            // 2. Load sink nodes
+            var sinks = new HashSet<string>();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query');";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    sinks.Add(reader.GetString(0));
+                }
+            }
+
+            // 3. Load caller functions for workspace
+            var callers = new List<string>();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('Function', 'Method') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
+                cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    callers.Add(reader.GetString(0));
+                }
+            }
+
+            // 4. BFS for each caller to find shortest path (1..15) to sinks
+            var rels = new List<(string From, string To, int Hops)>();
+            var queue = new Queue<(string NodeId, int Depth)>();
+            var visited = new HashSet<string>();
+            var callerSinks = new Dictionary<string, int>();
+
+            foreach (var callerId in callers)
+            {
+                if (!adj.ContainsKey(callerId)) continue;
+
+                queue.Clear();
+                visited.Clear();
+                callerSinks.Clear();
+
+                visited.Add(callerId);
+                queue.Enqueue((callerId, 0));
+
+                while (queue.Count > 0)
+                {
+                    var (curr, depth) = queue.Dequeue();
+                    if (depth > 0 && sinks.Contains(curr))
+                    {
+                        callerSinks.TryAdd(curr, depth);
+                    }
+
+                    if (depth >= 15) continue;
+
+                    if (adj.TryGetValue(curr, out var nextList))
+                    {
+                        foreach (var next in nextList)
+                        {
+                            if (visited.Add(next))
+                            {
+                                queue.Enqueue((next, depth + 1));
+                            }
+                        }
+                    }
+                }
+
+                foreach (var (sinkId, hops) in callerSinks)
+                {
+                    rels.Add((callerId, sinkId, hops));
+                }
+            }
+
+            // 5. Delete and insert in transaction
+            await using (var tx = (SqliteTransaction)await _conn.BeginTransactionAsync())
+            {
+                await using (var delCmd = _conn.CreateCommand())
+                {
+                    delCmd.Transaction = tx;
+                    delCmd.CommandText = "DELETE FROM edges WHERE kind = 'TRANSITIVELY_CALLS' AND (length(@widPrefix) = 0 OR from_id LIKE @widPrefix || '%');";
+                    delCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                    await delCmd.ExecuteNonQueryAsync();
+                }
+
+                if (rels.Count > 0)
+                {
+                    await using var insCmd = _conn.CreateCommand();
+                    insCmd.Transaction = tx;
+                    insCmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', @props);";
+                    var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
+                    var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
+                    var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
+
+                    foreach (var rel in rels)
+                    {
+                        pFrom.Value = rel.From;
+                        pTo.Value = rel.To;
+                        pProps.Value = $"{{\"hops\":{rel.Hops}}}";
+                        await insCmd.ExecuteNonQueryAsync();
+                    }
+                }
+
+                await tx.CommitAsync();
+            }
+
+            sw.Stop();
+            _logger.LogInformation("[DB:PostIndex] Computed and wrote {Count} TRANSITIVELY_CALLS relationships for prefix '{Prefix}' in {ElapsedMs:F1}ms", rels.Count, widPrefix, sw.Elapsed.TotalMilliseconds);
+            return true;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task<bool> ExecuteAttributedToWriteAsync(string query, Dictionary<string, object?> paramDict)
+    {
+        var widPrefix = ResolveWidPrefix(query, paramDict);
+
+        await _lock.WaitAsync();
+        try
+        {
+            var sw = Stopwatch.StartNew();
+
+            // 1. Load sink nodes with kinds
+            var sinks = new Dictionary<string, string>();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT id, kind FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query');";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    sinks[reader.GetString(0)] = reader.GetString(1);
+                }
+            }
+
+            // 2. Load TRANSITIVELY_CALLS
+            var callerToSinks = new Dictionary<string, Dictionary<string, int>>();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT from_id, to_id, json_extract(properties, '$.hops') FROM edges WHERE kind = 'TRANSITIVELY_CALLS';";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var from = reader.GetString(0);
+                    var to = reader.GetString(1);
+                    var hopsVal = reader.IsDBNull(2) ? 1 : Convert.ToInt32(reader.GetValue(2));
+
+                    if (!callerToSinks.TryGetValue(from, out var sMap))
+                    {
+                        sMap = new Dictionary<string, int>();
+                        callerToSinks[from] = sMap;
+                    }
+                    if (!sMap.TryGetValue(to, out var currHops) || hopsVal < currHops)
+                    {
+                        sMap[to] = hopsVal;
+                    }
+                }
+            }
+
+            // 3. Fallback: if callerToSinks is empty, compute BFS from CALLS edges
+            if (callerToSinks.Count == 0 && sinks.Count > 0)
+            {
+                var adj = new Dictionary<string, List<string>>();
+                await using (var cmd = _conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT from_id, to_id FROM edges WHERE kind = 'CALLS';";
+                    await using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        var from = reader.GetString(0);
+                        var to = reader.GetString(1);
+                        if (!adj.TryGetValue(from, out var list))
+                        {
+                            list = new List<string>();
+                            adj[from] = list;
+                        }
+                        list.Add(to);
+                    }
+                }
+
+                var callers = new List<string>();
+                await using (var cmd = _conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('Function', 'Method') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
+                    cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                    await using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
+                    {
+                        callers.Add(reader.GetString(0));
+                    }
+                }
+
+                var queue = new Queue<(string NodeId, int Depth)>();
+                var visited = new HashSet<string>();
+
+                foreach (var callerId in callers)
+                {
+                    if (!adj.ContainsKey(callerId)) continue;
+                    queue.Clear();
+                    visited.Clear();
+                    var cSinks = new Dictionary<string, int>();
+
+                    visited.Add(callerId);
+                    queue.Enqueue((callerId, 0));
+
+                    while (queue.Count > 0)
+                    {
+                        var (curr, depth) = queue.Dequeue();
+                        if (depth > 0 && sinks.ContainsKey(curr))
+                        {
+                            cSinks.TryAdd(curr, depth);
+                        }
+
+                        if (depth >= 15) continue;
+
+                        if (adj.TryGetValue(curr, out var nextList))
+                        {
+                            foreach (var next in nextList)
+                            {
+                                if (visited.Add(next))
+                                {
+                                    queue.Enqueue((next, depth + 1));
+                                }
+                            }
+                        }
+                    }
+
+                    if (cSinks.Count > 0)
+                    {
+                        callerToSinks[callerId] = cSinks;
+                    }
+                }
+            }
+
+            // 4. Load IMPLEMENTS edges
+            // Cypher: (ep:EntryPoint)<-[:IMPLEMENTS]-(fn:Function)
+            var implements = new Dictionary<string, List<string>>(); // epId -> list of fnIds
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT from_id, to_id FROM edges WHERE kind = 'IMPLEMENTS';";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var fnId = reader.GetString(0);
+                    var epId = reader.GetString(1);
+
+                    if (!implements.TryGetValue(epId, out var list))
+                    {
+                        list = new List<string>();
+                        implements[epId] = list;
+                    }
+                    list.Add(fnId);
+                }
+            }
+
+            // 5. Load EntryPoints for workspace
+            var entryPoints = new List<string>();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('EntryPoint', 'Endpoint') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
+                cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    entryPoints.Add(reader.GetString(0));
+                }
+            }
+
+            // 6. Compute ATTRIBUTED_TO: ep <-[:IMPLEMENTS]- fn -[:CALLS*0..15]-> sink
+            var attrRels = new List<(string EpId, string SinkId, int Hops, string SinkKind)>();
+            foreach (var epId in entryPoints)
+            {
+                if (!implements.TryGetValue(epId, out var fnIds)) continue;
+
+                var epSinks = new Dictionary<string, int>();
+                foreach (var fnId in fnIds)
+                {
+                    // 0 hops: fn is itself a sink (length of path = 1)
+                    if (sinks.ContainsKey(fnId))
+                    {
+                        if (!epSinks.TryGetValue(fnId, out var h) || 1 < h)
+                        {
+                            epSinks[fnId] = 1;
+                        }
+                    }
+
+                    // 1..15 hops: fn calls sink (length of path = 1 + hops)
+                    if (callerToSinks.TryGetValue(fnId, out var sMap))
+                    {
+                        foreach (var (sinkId, hops) in sMap)
+                        {
+                            var totalHops = 1 + hops;
+                            if (!epSinks.TryGetValue(sinkId, out var h) || totalHops < h)
+                            {
+                                epSinks[sinkId] = totalHops;
+                            }
+                        }
+                    }
+                }
+
+                foreach (var (sinkId, hops) in epSinks)
+                {
+                    var sinkKind = sinks.TryGetValue(sinkId, out var sk) ? sk : "";
+                    attrRels.Add((epId, sinkId, hops, sinkKind));
+                }
+            }
+
+            // 7. Delete and insert in transaction
+            await using (var tx = (SqliteTransaction)await _conn.BeginTransactionAsync())
+            {
+                await using (var delCmd = _conn.CreateCommand())
+                {
+                    delCmd.Transaction = tx;
+                    delCmd.CommandText = "DELETE FROM edges WHERE kind = 'ATTRIBUTED_TO' AND (length(@widPrefix) = 0 OR from_id LIKE @widPrefix || '%');";
+                    delCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                    await delCmd.ExecuteNonQueryAsync();
+                }
+
+                if (attrRels.Count > 0)
+                {
+                    await using var insCmd = _conn.CreateCommand();
+                    insCmd.Transaction = tx;
+                    insCmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', @props);";
+                    var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
+                    var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
+                    var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
+
+                    foreach (var rel in attrRels)
+                    {
+                        pFrom.Value = rel.EpId;
+                        pTo.Value = rel.SinkId;
+                        var props = new Dictionary<string, object>
+                        {
+                            ["hops"] = rel.Hops,
+                            ["sink_kind"] = rel.SinkKind
+                        };
+                        pProps.Value = JsonSerializer.Serialize(props);
+                        await insCmd.ExecuteNonQueryAsync();
+                    }
+                }
+
+                await tx.CommitAsync();
+            }
+
+            sw.Stop();
+            _logger.LogInformation("[DB:PostIndex] Computed and wrote {Count} ATTRIBUTED_TO relationships for prefix '{Prefix}' in {ElapsedMs:F1}ms", attrRels.Count, widPrefix, sw.Elapsed.TotalMilliseconds);
+            return true;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task<bool> ExecuteProjectApiAnnotationsWriteAsync(string query, Dictionary<string, object?> paramDict)
+    {
+        var widPrefix = ResolveWidPrefix(query, paramDict);
         var readCypher = """
             MATCH (p:Project)-[:CONTAINS|EXPOSES*1..2]->(ep:EntryPoint)-[:ATTRIBUTED_TO]->(es:ExternalService)
             WHERE p.id STARTS WITH $widPrefix
             RETURN p.id AS project_id, collect(DISTINCT es.domain_or_service) AS domains
             """;
-        var jsonResult = await ExecuteQueryAsync(readCypher, paramDict);
+        var queryParams = new Dictionary<string, object?> { ["widPrefix"] = widPrefix };
+        var jsonResult = await ExecuteQueryAsync(readCypher, queryParams);
         using var doc = JsonDocument.Parse(jsonResult);
 
         await _lock.WaitAsync();

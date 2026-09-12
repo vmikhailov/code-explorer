@@ -280,4 +280,17 @@ public class SqliteCompilerTests
         Assert.That(egressJson, Does.Contain("PaymentApi"));
         Assert.That(egressJson, Does.Not.Contain("BillingApi"));
     }
+
+    [Test]
+    public void Test_AttributedTo_Compilation()
+    {
+        var cypher = """
+            MATCH path = (ep:EntryPoint)<-[:IMPLEMENTS]-(fn:Function)-[:CALLS*0..15]->(sink)
+            WHERE ep.id STARTS WITH '1:' AND (sink:ExternalService OR sink:DB OR sink:Query)
+            RETURN ep.id AS from_id, sink.id AS to_id, min(length(path)) AS hops, labels(sink)[0] AS sinkKind
+            """;
+        var ast = CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+        Assert.That(compiled.Sql, Is.Not.Empty);
+    }
 }
