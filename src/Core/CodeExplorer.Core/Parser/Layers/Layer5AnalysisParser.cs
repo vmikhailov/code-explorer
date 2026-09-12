@@ -46,16 +46,16 @@ public class Layer5AnalysisParser
         await UploadProjectDependenciesAsync(ctx);
 
         // 3. Resolve and upload global cross-references (like function CALLS)
-        await ResolveAndUploadGlobalReferencesAsync(ctx);
+        var referenceRelationships = await ResolveAndUploadGlobalReferencesAsync(ctx);
 
         // 4. Perform Late Binding
         var workspaceNode = l4Result.Prev.Prev.Prev.Workspace;
         var lateBoundRels = await PerformLateBindingAsync(workspaceNode, ctx);
 
         // 5. Run PostIndexAnalyzer
-        ctx.Log("[Layer5AnalysisParser] Running post-indexing analysis via PostIndexAnalyzer...");
+        ctx.Log("[Layer5AnalysisParser] Running in-memory post-indexing analysis via PostIndexAnalyzer...");
         var postAnalyzer = new PostIndexAnalyzer(ctx.DbClient);
-        await postAnalyzer.RunAsync(ctx.WorkspaceId);
+        await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
 
         ctx.Log("[Layer5AnalysisParser] Late binding and post-indexing analysis pass complete.");
         return new Layer5Result(l4Result, lateBoundRels);
@@ -72,7 +72,7 @@ public class Layer5AnalysisParser
         }
     }
 
-    private async Task ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
+    private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
     {
         var totalReferences = ctx.GlobalReferences.Count;
         ctx.Log($"[Layer5AnalysisParser] Resolving {totalReferences} global cross-references...");
@@ -285,6 +285,8 @@ public class Layer5AnalysisParser
             await ctx.DbClient.UploadRelationshipsAsync(referenceRelationships);
             ctx.TotalRelsCount += referenceRelationships.Count;
         }
+
+        return referenceRelationships;
     }
 
     private async Task<List<Relationship>> PerformLateBindingAsync(IOntologyNode rootNode, ParsingContext ctx)

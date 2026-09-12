@@ -7,6 +7,7 @@ using CodeExplorer.Cypher.Parser;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Core.Database;
 
@@ -408,19 +409,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     private async Task<bool> TryExecutePostIndexWriteAsync(string query, Dictionary<string, object?> paramDict)
     {
-        if (query.Contains("external_apis"))
+        if (query.Contains("external_apis") || query.Contains("TRANSITIVELY_CALLS") || query.Contains("ATTRIBUTED_TO"))
         {
-            return await ExecuteProjectApiAnnotationsWriteAsync(query, paramDict);
-        }
-
-        if (query.Contains("TRANSITIVELY_CALLS"))
-        {
-            return await ExecuteTransitivelyCallsWriteAsync(query, paramDict);
-        }
-
-        if (query.Contains("ATTRIBUTED_TO"))
-        {
-            return await ExecuteAttributedToWriteAsync(query, paramDict);
+            var widPrefix = ResolveWidPrefix(query, paramDict);
+            var graphData = await LoadPostIndexGraphDataAsync(widPrefix);
+            var result = PostIndexAnalyzer.Analyze(graphData, widPrefix);
+            await SavePostIndexResultsAsync(widPrefix, result);
+            return true;
         }
 
         return false;
@@ -442,17 +437,30 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         return "";
     }
 
-    private async Task<bool> ExecuteTransitivelyCallsWriteAsync(string query, Dictionary<string, object?> paramDict)
+    public async Task<PostIndexGraphData> LoadPostIndexGraphDataAsync(string widPrefix)
     {
-        var widPrefix = ResolveWidPrefix(query, paramDict);
-
         await _lock.WaitAsync();
         try
         {
-            var sw = Stopwatch.StartNew();
+            // 1. Sinks (ExternalService, DB, Database, Query, CloudService)
+            var sinks = new Dictionary<string, string>();
+            var sinkDomains = new Dictionary<string, string?>();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT id, kind, json_extract(properties, '$.domain_or_service') FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query', 'CloudService');";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var id = reader.GetString(0);
+                    var kind = reader.GetString(1);
+                    var domain = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    sinks[id] = kind;
+                    sinkDomains[id] = domain;
+                }
+            }
 
-            // 1. Load CALLS edges
-            var adj = new Dictionary<string, List<string>>();
+            // 2. CALLS edges
+            var callsAdjacency = new Dictionary<string, List<string>>();
             await using (var cmd = _conn.CreateCommand())
             {
                 cmd.CommandText = "SELECT from_id, to_id FROM edges WHERE kind = 'CALLS';";
@@ -461,28 +469,55 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 {
                     var from = reader.GetString(0);
                     var to = reader.GetString(1);
-                    if (!adj.TryGetValue(from, out var list))
+                    if (!callsAdjacency.TryGetValue(from, out var list))
                     {
                         list = new List<string>();
-                        adj[from] = list;
+                        callsAdjacency[from] = list;
                     }
                     list.Add(to);
                 }
             }
 
-            // 2. Load sink nodes
-            var sinks = new HashSet<string>();
+            // 3. IMPLEMENTS and IMPLEMENTED_BY edges
+            var implements = new Dictionary<string, List<string>>(); // epId -> list of fnIds
             await using (var cmd = _conn.CreateCommand())
             {
-                cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query');";
+                cmd.CommandText = "SELECT from_id, to_id, kind FROM edges WHERE kind IN ('IMPLEMENTS', 'IMPLEMENTED_BY');";
                 await using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    sinks.Add(reader.GetString(0));
+                    var from = reader.GetString(0);
+                    var to = reader.GetString(1);
+                    var kind = reader.GetString(2);
+                    var epId = kind == "IMPLEMENTS" ? to : from;
+                    var fnId = kind == "IMPLEMENTS" ? from : to;
+
+                    if (!implements.TryGetValue(epId, out var list))
+                    {
+                        list = new List<string>();
+                        implements[epId] = list;
+                    }
+                    if (!list.Contains(fnId))
+                    {
+                        list.Add(fnId);
+                    }
                 }
             }
 
-            // 3. Load caller functions for workspace
+            // 4. EntryPoints
+            var entryPointIds = new List<string>();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('EntryPoint', 'Endpoint') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
+                cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    entryPointIds.Add(reader.GetString(0));
+                }
+            }
+
+            // 5. Callers (Function / Method)
             var callers = new List<string>();
             await using (var cmd = _conn.CreateCommand())
             {
@@ -495,326 +530,50 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 }
             }
 
-            // 4. BFS for each caller to find shortest path (1..15) to sinks
-            var rels = new List<(string From, string To, int Hops)>();
-            var queue = new Queue<(string NodeId, int Depth)>();
-            var visited = new HashSet<string>();
-            var callerSinks = new Dictionary<string, int>();
-
-            foreach (var callerId in callers)
-            {
-                if (!adj.ContainsKey(callerId)) continue;
-
-                queue.Clear();
-                visited.Clear();
-                callerSinks.Clear();
-
-                visited.Add(callerId);
-                queue.Enqueue((callerId, 0));
-
-                while (queue.Count > 0)
-                {
-                    var (curr, depth) = queue.Dequeue();
-                    if (depth > 0 && sinks.Contains(curr))
-                    {
-                        callerSinks.TryAdd(curr, depth);
-                    }
-
-                    if (depth >= 15) continue;
-
-                    if (adj.TryGetValue(curr, out var nextList))
-                    {
-                        foreach (var next in nextList)
-                        {
-                            if (visited.Add(next))
-                            {
-                                queue.Enqueue((next, depth + 1));
-                            }
-                        }
-                    }
-                }
-
-                foreach (var (sinkId, hops) in callerSinks)
-                {
-                    rels.Add((callerId, sinkId, hops));
-                }
-            }
-
-            // 5. Delete and insert in transaction
-            await using (var tx = (SqliteTransaction)await _conn.BeginTransactionAsync())
-            {
-                await using (var delCmd = _conn.CreateCommand())
-                {
-                    delCmd.Transaction = tx;
-                    delCmd.CommandText = "DELETE FROM edges WHERE kind = 'TRANSITIVELY_CALLS' AND (length(@widPrefix) = 0 OR from_id LIKE @widPrefix || '%');";
-                    delCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
-                    await delCmd.ExecuteNonQueryAsync();
-                }
-
-                if (rels.Count > 0)
-                {
-                    await using var insCmd = _conn.CreateCommand();
-                    insCmd.Transaction = tx;
-                    insCmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', @props);";
-                    var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
-                    var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
-                    var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
-
-                    foreach (var rel in rels)
-                    {
-                        pFrom.Value = rel.From;
-                        pTo.Value = rel.To;
-                        pProps.Value = $"{{\"hops\":{rel.Hops}}}";
-                        await insCmd.ExecuteNonQueryAsync();
-                    }
-                }
-
-                await tx.CommitAsync();
-            }
-
-            sw.Stop();
-            _logger.LogInformation("[DB:PostIndex] Computed and wrote {Count} TRANSITIVELY_CALLS relationships for prefix '{Prefix}' in {ElapsedMs:F1}ms", rels.Count, widPrefix, sw.Elapsed.TotalMilliseconds);
-            return true;
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-
-    private async Task<bool> ExecuteAttributedToWriteAsync(string query, Dictionary<string, object?> paramDict)
-    {
-        var widPrefix = ResolveWidPrefix(query, paramDict);
-
-        await _lock.WaitAsync();
-        try
-        {
-            var sw = Stopwatch.StartNew();
-
-            // 1. Load sink nodes with kinds
-            var sinks = new Dictionary<string, string>();
+            // 6. Project to EntryPoints
+            var projectToEntryPoints = new Dictionary<string, List<string>>();
+            var epSet = new HashSet<string>(entryPointIds);
             await using (var cmd = _conn.CreateCommand())
             {
-                cmd.CommandText = "SELECT id, kind FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query');";
-                await using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    sinks[reader.GetString(0)] = reader.GetString(1);
-                }
-            }
-
-            // 2. Load TRANSITIVELY_CALLS
-            var callerToSinks = new Dictionary<string, Dictionary<string, int>>();
-            await using (var cmd = _conn.CreateCommand())
-            {
-                cmd.CommandText = "SELECT from_id, to_id, json_extract(properties, '$.hops') FROM edges WHERE kind = 'TRANSITIVELY_CALLS';";
-                await using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    var from = reader.GetString(0);
-                    var to = reader.GetString(1);
-                    var hopsVal = reader.IsDBNull(2) ? 1 : Convert.ToInt32(reader.GetValue(2));
-
-                    if (!callerToSinks.TryGetValue(from, out var sMap))
-                    {
-                        sMap = new Dictionary<string, int>();
-                        callerToSinks[from] = sMap;
-                    }
-                    if (!sMap.TryGetValue(to, out var currHops) || hopsVal < currHops)
-                    {
-                        sMap[to] = hopsVal;
-                    }
-                }
-            }
-
-            // 3. Fallback: if callerToSinks is empty, compute BFS from CALLS edges
-            if (callerToSinks.Count == 0 && sinks.Count > 0)
-            {
-                var adj = new Dictionary<string, List<string>>();
-                await using (var cmd = _conn.CreateCommand())
-                {
-                    cmd.CommandText = "SELECT from_id, to_id FROM edges WHERE kind = 'CALLS';";
-                    await using var reader = await cmd.ExecuteReaderAsync();
-                    while (await reader.ReadAsync())
-                    {
-                        var from = reader.GetString(0);
-                        var to = reader.GetString(1);
-                        if (!adj.TryGetValue(from, out var list))
-                        {
-                            list = new List<string>();
-                            adj[from] = list;
-                        }
-                        list.Add(to);
-                    }
-                }
-
-                var callers = new List<string>();
-                await using (var cmd = _conn.CreateCommand())
-                {
-                    cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('Function', 'Method') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
-                    cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
-                    await using var reader = await cmd.ExecuteReaderAsync();
-                    while (await reader.ReadAsync())
-                    {
-                        callers.Add(reader.GetString(0));
-                    }
-                }
-
-                var queue = new Queue<(string NodeId, int Depth)>();
-                var visited = new HashSet<string>();
-
-                foreach (var callerId in callers)
-                {
-                    if (!adj.ContainsKey(callerId)) continue;
-                    queue.Clear();
-                    visited.Clear();
-                    var cSinks = new Dictionary<string, int>();
-
-                    visited.Add(callerId);
-                    queue.Enqueue((callerId, 0));
-
-                    while (queue.Count > 0)
-                    {
-                        var (curr, depth) = queue.Dequeue();
-                        if (depth > 0 && sinks.ContainsKey(curr))
-                        {
-                            cSinks.TryAdd(curr, depth);
-                        }
-
-                        if (depth >= 15) continue;
-
-                        if (adj.TryGetValue(curr, out var nextList))
-                        {
-                            foreach (var next in nextList)
-                            {
-                                if (visited.Add(next))
-                                {
-                                    queue.Enqueue((next, depth + 1));
-                                }
-                            }
-                        }
-                    }
-
-                    if (cSinks.Count > 0)
-                    {
-                        callerToSinks[callerId] = cSinks;
-                    }
-                }
-            }
-
-            // 4. Load IMPLEMENTS edges
-            // Cypher: (ep:EntryPoint)<-[:IMPLEMENTS]-(fn:Function)
-            var implements = new Dictionary<string, List<string>>(); // epId -> list of fnIds
-            await using (var cmd = _conn.CreateCommand())
-            {
-                cmd.CommandText = "SELECT from_id, to_id FROM edges WHERE kind = 'IMPLEMENTS';";
-                await using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    var fnId = reader.GetString(0);
-                    var epId = reader.GetString(1);
-
-                    if (!implements.TryGetValue(epId, out var list))
-                    {
-                        list = new List<string>();
-                        implements[epId] = list;
-                    }
-                    list.Add(fnId);
-                }
-            }
-
-            // 5. Load EntryPoints for workspace
-            var entryPoints = new List<string>();
-            await using (var cmd = _conn.CreateCommand())
-            {
-                cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('EntryPoint', 'Endpoint') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
+                cmd.CommandText = """
+                    SELECT p.id, e.to_id
+                    FROM nodes p
+                    JOIN edges e ON e.from_id = p.id AND e.kind IN ('CONTAINS', 'EXPOSES')
+                    WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%')
+                    UNION
+                    SELECT p.id, e2.to_id
+                    FROM nodes p
+                    JOIN edges e1 ON e1.from_id = p.id AND e1.kind IN ('CONTAINS', 'EXPOSES')
+                    JOIN edges e2 ON e2.from_id = e1.to_id AND e2.kind IN ('CONTAINS', 'EXPOSES')
+                    WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%')
+                    UNION
+                    SELECT p.id, e.to_id
+                    FROM nodes p
+                    JOIN edges b ON b.to_id = p.id AND b.kind = 'BELONGS_TO'
+                    JOIN edges e ON e.from_id = b.from_id AND e.kind IN ('CONTAINS', 'EXPOSES')
+                    WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%');
+                    """;
                 cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
                 await using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    entryPoints.Add(reader.GetString(0));
+                    var projId = reader.GetString(0);
+                    var toId = reader.GetString(1);
+                    if (!epSet.Contains(toId)) continue;
+
+                    if (!projectToEntryPoints.TryGetValue(projId, out var epList))
+                    {
+                        epList = new List<string>();
+                        projectToEntryPoints[projId] = epList;
+                    }
+                    if (!epList.Contains(toId))
+                    {
+                        epList.Add(toId);
+                    }
                 }
             }
 
-            // 6. Compute ATTRIBUTED_TO: ep <-[:IMPLEMENTS]- fn -[:CALLS*0..15]-> sink
-            var attrRels = new List<(string EpId, string SinkId, int Hops, string SinkKind)>();
-            foreach (var epId in entryPoints)
-            {
-                if (!implements.TryGetValue(epId, out var fnIds)) continue;
-
-                var epSinks = new Dictionary<string, int>();
-                foreach (var fnId in fnIds)
-                {
-                    // 0 hops: fn is itself a sink (length of path = 1)
-                    if (sinks.ContainsKey(fnId))
-                    {
-                        if (!epSinks.TryGetValue(fnId, out var h) || 1 < h)
-                        {
-                            epSinks[fnId] = 1;
-                        }
-                    }
-
-                    // 1..15 hops: fn calls sink (length of path = 1 + hops)
-                    if (callerToSinks.TryGetValue(fnId, out var sMap))
-                    {
-                        foreach (var (sinkId, hops) in sMap)
-                        {
-                            var totalHops = 1 + hops;
-                            if (!epSinks.TryGetValue(sinkId, out var h) || totalHops < h)
-                            {
-                                epSinks[sinkId] = totalHops;
-                            }
-                        }
-                    }
-                }
-
-                foreach (var (sinkId, hops) in epSinks)
-                {
-                    var sinkKind = sinks.TryGetValue(sinkId, out var sk) ? sk : "";
-                    attrRels.Add((epId, sinkId, hops, sinkKind));
-                }
-            }
-
-            // 7. Delete and insert in transaction
-            await using (var tx = (SqliteTransaction)await _conn.BeginTransactionAsync())
-            {
-                await using (var delCmd = _conn.CreateCommand())
-                {
-                    delCmd.Transaction = tx;
-                    delCmd.CommandText = "DELETE FROM edges WHERE kind = 'ATTRIBUTED_TO' AND (length(@widPrefix) = 0 OR from_id LIKE @widPrefix || '%');";
-                    delCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
-                    await delCmd.ExecuteNonQueryAsync();
-                }
-
-                if (attrRels.Count > 0)
-                {
-                    await using var insCmd = _conn.CreateCommand();
-                    insCmd.Transaction = tx;
-                    insCmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', @props);";
-                    var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
-                    var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
-                    var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
-
-                    foreach (var rel in attrRels)
-                    {
-                        pFrom.Value = rel.EpId;
-                        pTo.Value = rel.SinkId;
-                        var props = new Dictionary<string, object>
-                        {
-                            ["hops"] = rel.Hops,
-                            ["sink_kind"] = rel.SinkKind
-                        };
-                        pProps.Value = JsonSerializer.Serialize(props);
-                        await insCmd.ExecuteNonQueryAsync();
-                    }
-                }
-
-                await tx.CommitAsync();
-            }
-
-            sw.Stop();
-            _logger.LogInformation("[DB:PostIndex] Computed and wrote {Count} ATTRIBUTED_TO relationships for prefix '{Prefix}' in {ElapsedMs:F1}ms", attrRels.Count, widPrefix, sw.Elapsed.TotalMilliseconds);
-            return true;
+            return new PostIndexGraphData(callsAdjacency, sinks, sinkDomains, callers, implements, entryPointIds, projectToEntryPoints);
         }
         finally
         {
@@ -822,51 +581,126 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
-    private async Task<bool> ExecuteProjectApiAnnotationsWriteAsync(string query, Dictionary<string, object?> paramDict)
+    public async Task SavePostIndexResultsAsync(string widPrefix, PostIndexAnalysisResult result)
     {
-        var widPrefix = ResolveWidPrefix(query, paramDict);
-        var readCypher = """
-            MATCH (p:Project)-[:CONTAINS|EXPOSES*1..2]->(ep:EntryPoint)-[:ATTRIBUTED_TO]->(es:ExternalService)
-            WHERE p.id STARTS WITH $widPrefix
-            RETURN p.id AS project_id, collect(DISTINCT es.domain_or_service) AS domains
-            """;
-        var queryParams = new Dictionary<string, object?> { ["widPrefix"] = widPrefix };
-        var jsonResult = await ExecuteQueryAsync(readCypher, queryParams);
-        using var doc = JsonDocument.Parse(jsonResult);
-
+        var sw = Stopwatch.StartNew();
         await _lock.WaitAsync();
         try
         {
-            await UpdateProjectApiAnnotationsInTxAsync(doc.RootElement);
+            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
+
+            // 1. Delete old TRANSITIVELY_CALLS and ATTRIBUTED_TO for workspace
+            await using (var delCmd = _conn.CreateCommand())
+            {
+                delCmd.Transaction = tx;
+                delCmd.CommandText = "DELETE FROM edges WHERE kind = 'TRANSITIVELY_CALLS' AND (length(@widPrefix) = 0 OR from_id LIKE @widPrefix || '%');";
+                delCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                await delCmd.ExecuteNonQueryAsync();
+
+                delCmd.CommandText = "DELETE FROM edges WHERE kind = 'ATTRIBUTED_TO' AND (length(@widPrefix) = 0 OR from_id LIKE @widPrefix || '%');";
+                await delCmd.ExecuteNonQueryAsync();
+            }
+
+            // 2. Insert TRANSITIVELY_CALLS
+            if (result.TransitivelyCalls.Count > 0)
+            {
+                await using var insCmd = _conn.CreateCommand();
+                insCmd.Transaction = tx;
+                insCmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', @props);";
+                var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
+                var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
+                var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
+
+                foreach (var rel in result.TransitivelyCalls)
+                {
+                    pFrom.Value = rel.From;
+                    pTo.Value = rel.To;
+                    pProps.Value = $"{{\"hops\":{rel.Hops}}}";
+                    await insCmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // 3. Insert ATTRIBUTED_TO
+            if (result.AttributedTo.Count > 0)
+            {
+                await using var insCmd = _conn.CreateCommand();
+                insCmd.Transaction = tx;
+                insCmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', @props);";
+                var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
+                var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
+                var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
+
+                foreach (var rel in result.AttributedTo)
+                {
+                    pFrom.Value = rel.EpId;
+                    pTo.Value = rel.SinkId;
+                    var props = new Dictionary<string, object>
+                    {
+                        ["hops"] = rel.Hops,
+                        ["sink_kind"] = rel.SinkKind
+                    };
+                    pProps.Value = JsonSerializer.Serialize(props);
+                    await insCmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            // 4. Update Project external_apis
+            if (result.ProjectExternalApis.Count > 0)
+            {
+                await using var updCmd = _conn.CreateCommand();
+                updCmd.Transaction = tx;
+                updCmd.CommandText = "UPDATE nodes SET properties = json_set(properties, '$.external_apis', json(@domains)) WHERE id = @id;";
+                var pDomains = updCmd.Parameters.Add("@domains", SqliteType.Text);
+                var pId = updCmd.Parameters.Add("@id", SqliteType.Text);
+
+                foreach (var (projId, domains) in result.ProjectExternalApis)
+                {
+                    pId.Value = projId;
+                    pDomains.Value = JsonSerializer.Serialize(domains);
+                    await updCmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            await tx.CommitAsync();
+            sw.Stop();
+            _logger.LogInformation(
+                "[DB:PostIndex] Saved {TcCount} TRANSITIVELY_CALLS, {AttrCount} ATTRIBUTED_TO, and {ApiCount} project external_apis for prefix '{Prefix}' in {ElapsedMs:F1}ms",
+                result.TransitivelyCalls.Count, result.AttributedTo.Count, result.ProjectExternalApis.Count, widPrefix, sw.Elapsed.TotalMilliseconds);
         }
         finally
         {
             _lock.Release();
         }
-
-        return true;
     }
 
-    private async Task UpdateProjectApiAnnotationsInTxAsync(JsonElement root)
+    public async Task UpdateProjectExternalApisAsync(Dictionary<string, List<string>> projectExternalApis)
     {
-        await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
-        await using var cmd = _conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = "UPDATE nodes SET properties = json_set(properties, '$.external_apis', json(@domains)) WHERE id = @id;";
-        var pDomains = cmd.Parameters.Add("@domains", SqliteType.Text);
-        var pId = cmd.Parameters.Add("@id", SqliteType.Text);
-
-        foreach (var item in root.EnumerateArray())
+        if (projectExternalApis.Count == 0) return;
+        await _lock.WaitAsync();
+        try
         {
-            var id = item.TryGetProperty("project_id", out var idProp) ? idProp.GetString() : null;
-            if (string.IsNullOrEmpty(id)) continue;
-            pId.Value = id;
-            pDomains.Value = item.TryGetProperty("domains", out var dProp) ? dProp.GetRawText() : "[]";
-            await cmd.ExecuteNonQueryAsync();
-        }
+            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
+            await using var updCmd = _conn.CreateCommand();
+            updCmd.Transaction = tx;
+            updCmd.CommandText = "UPDATE nodes SET properties = json_set(properties, '$.external_apis', json(@domains)) WHERE id = @id;";
+            var pDomains = updCmd.Parameters.Add("@domains", SqliteType.Text);
+            var pId = updCmd.Parameters.Add("@id", SqliteType.Text);
 
-        await tx.CommitAsync();
+            foreach (var (projId, domains) in projectExternalApis)
+            {
+                pId.Value = projId;
+                pDomains.Value = JsonSerializer.Serialize(domains);
+                await updCmd.ExecuteNonQueryAsync();
+            }
+
+            await tx.CommitAsync();
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
+
 
     private static object? FormatSqliteValue(object val)
     {

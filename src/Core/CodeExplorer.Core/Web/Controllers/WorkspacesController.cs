@@ -153,8 +153,7 @@ public class WorkspacesController(CodeExplorerRepository repository, IndexingTas
     {
         try
         {
-            var path = workspacePath ?? Directory.GetCurrentDirectory();
-            var resultJson = await repository.GetArchitectureMapAsync(projectName, path);
+            var resultJson = await repository.GetArchitectureMapAsync(projectName, workspacePath);
             return Content(resultJson, "application/json");
         }
         catch (Exception ex)

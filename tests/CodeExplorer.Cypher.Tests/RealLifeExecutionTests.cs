@@ -563,4 +563,47 @@ public class RealLifeExecutionTests
         Assert.That(godClass!["anomalyType"], Is.EqualTo("god_object"));
         Assert.That(Convert.ToInt64(godClass["metricValue"]), Is.GreaterThan(15));
     }
+
+    [Test]
+    public void Test_MapLiteral_WithCollectedList_SerializesAsJsonArrayNotEscapedString()
+    {
+        var cypher = """
+            MATCH (n:Type)
+            WITH collect(n.name) AS typeNames
+            RETURN { types: typeNames } AS result
+            """;
+        var ast = CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = compiled.Sql;
+        using var reader = cmd.ExecuteReader();
+        Assert.That(reader.Read(), Is.True);
+        var rawJson = reader.GetString(0);
+        using var doc = JsonDocument.Parse(rawJson);
+        var typesProp = doc.RootElement.GetProperty("types");
+        Assert.That(typesProp.ValueKind, Is.EqualTo(JsonValueKind.Array));
+        Assert.That(typesProp.GetArrayLength(), Is.GreaterThan(0));
+    }
+
+    [Test]
+    public void Test_GetArchitectureMap_DatabasesIsJsonArray()
+    {
+        InsertNode("ws:1:ps", "ProjectsStructure", new() { ["name"] = "Projects" });
+        InsertEdge("ws:1", "ws:1:ps", "CONTAINS");
+        InsertEdge("ws:1:proj:orders", "ws:1:ps", "LOCATED_IN");
+        InsertNode("ws:1:proj:orders:db:sql", "Database", new() { ["name"] = "OrdersDb" });
+
+        var rows = ExecuteQuery("get_architecture_map_workspace.cypher", new()
+        {
+            ["workspaceId"] = "ws:1"
+        });
+
+        Assert.That(rows, Has.Count.EqualTo(1));
+        var projectsRaw = rows[0]["projects"]?.ToString() ?? "";
+        using var doc = JsonDocument.Parse(projectsRaw);
+        var proj = doc.RootElement[0];
+        var dbs = proj.GetProperty("databases");
+        Assert.That(dbs.ValueKind, Is.EqualTo(JsonValueKind.Array));
+        Assert.That(dbs.GetArrayLength(), Is.GreaterThanOrEqualTo(1));
+    }
 }

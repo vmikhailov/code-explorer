@@ -166,5 +166,50 @@ public class PostIndexAnalyzerTests
 
         Assert.That(sw.ElapsedMilliseconds, Is.LessThan(5000), $"PostIndexAnalyzer took {sw.ElapsedMilliseconds}ms, expected under 5000ms");
     }
+
+    [Test]
+    public void PostIndexAnalyzer_Analyze_PureInMemory_ComputesExpectedGraph()
+    {
+        var calls = new Dictionary<string, List<string>>
+        {
+            ["1:fn:order_controller"] = ["1:fn:order_service"],
+            ["1:fn:order_service"] = ["1:sink:stripe", "1:fn:repo"],
+            ["1:fn:repo"] = ["1:sink:postgres", "1:sink:select_query"]
+        };
+
+        var sinks = new Dictionary<string, string>
+        {
+            ["1:sink:stripe"] = "ExternalService",
+            ["1:sink:postgres"] = "DB",
+            ["1:sink:select_query"] = "Query"
+        };
+
+        var sinkDomains = new Dictionary<string, string?>
+        {
+            ["1:sink:stripe"] = "api.stripe.com"
+        };
+
+        var callers = new List<string> { "1:fn:order_controller", "1:fn:order_service", "1:fn:repo" };
+        var implements = new Dictionary<string, List<string>>
+        {
+            ["1:ep:create_order"] = ["1:fn:order_controller"]
+        };
+        var entryPoints = new List<string> { "1:ep:create_order" };
+        var projectToEps = new Dictionary<string, List<string>>
+        {
+            ["1:project:main"] = ["1:ep:create_order"]
+        };
+
+        var data = new PostIndexGraphData(calls, sinks, sinkDomains, callers, implements, entryPoints, projectToEps);
+        var result = PostIndexAnalyzer.Analyze(data, "1:");
+
+        Assert.That(result.TransitivelyCalls, Has.Count.EqualTo(8));
+        Assert.That(result.AttributedTo, Has.Count.EqualTo(3));
+        Assert.That(result.ProjectExternalApis["1:project:main"], Does.Contain("api.stripe.com"));
+
+        var attrStripe = result.AttributedTo.First(a => a.EpId == "1:ep:create_order" && a.SinkId == "1:sink:stripe");
+        Assert.That(attrStripe.Hops, Is.EqualTo(3));
+        Assert.That(attrStripe.SinkKind, Is.EqualTo("ExternalService"));
+    }
 }
 

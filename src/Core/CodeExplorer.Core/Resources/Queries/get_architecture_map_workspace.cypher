@@ -1,33 +1,17 @@
-MATCH (w:Workspace) WHERE w.id = $workspaceId
-OPTIONAL MATCH (w)-[:CONTAINS]->(:ProjectsStructure)<-[:LOCATED_IN]-(p:Project)
-OPTIONAL MATCH (p)-[:LOCATED_IN]->(target) WHERE NOT target:ProjectsStructure
-WITH w, p, target
-OPTIONAL MATCH (target)-[:CONTAINS*0..]->(file:File)
-WITH w, p, target, collect(DISTINCT file) AS files
-WITH w, p, target, files, [f IN files | f.path] AS filePaths
-
-OPTIONAL MATCH (db:Database)<-[:USES_DB]-(file:File) WHERE file IN files
-WITH w, p, target, files, filePaths, collect(DISTINCT db.name) AS projectDbs
-
-OPTIONAL MATCH (es:ExternalService) WHERE es.file_path IN filePaths
-WITH w, p, target, files, filePaths, projectDbs, collect(DISTINCT es.name) AS projectEgress
-
-OPTIONAL MATCH (ep1:Endpoint) WHERE ep1.path IN filePaths
-WITH w, p, projectDbs, projectEgress, collect(DISTINCT ep1.name) AS eps1
-OPTIONAL MATCH (ep2:EntryPoint) WHERE ep2.path IN filePaths
-WITH w, p, projectDbs, projectEgress, eps1, collect(DISTINCT ep2.name) AS eps2
-WITH w, p, projectDbs, projectEgress, (eps1 + eps2) AS projectIngress
-
-OPTIONAL MATCH (p)-[:DEPENDS_ON]->(dep:Project)
-WITH w, p, projectDbs, projectEgress, projectIngress, collect(DISTINCT dep.name) AS projectDeps
+MATCH (w:Workspace) WHERE w.id = $workspaceId OR toString(w.id) = toString($workspaceId)
+MATCH (w)-[:CONTAINS]->(ps:ProjectsStructure)
+OPTIONAL MATCH (ps)<-[:LOCATED_IN]-(p:Project)
+OPTIONAL MATCH (db:Database) WHERE db.id STARTS WITH p.id
+WITH w, p, collect(DISTINCT db.name) AS projectDbs
 WITH w,
      collect(DISTINCT {
          name: p.name,
          language: p.project_type,
-         dependencies: projectDeps,
+         dependencies: [(p)-[:DEPENDS_ON]->(dep:Project) | dep.name],
          databases: projectDbs,
-         ingress: projectIngress,
-         egress: projectEgress
+         ingress: [(p)<-[:BELONGS_TO]-(psem:ProjectSemantic)-[:CONTAINS]->(ep) WHERE ep:Endpoint OR ep:EntryPoint | ep.name],
+         egress: [(p)<-[:BELONGS_TO]-(psem:ProjectSemantic)-[:CONTAINS]->(es:ExternalService) | es.name]
      }) AS projectsRaw
 WITH w, [x IN projectsRaw WHERE x.name IS NOT NULL] AS projects
 RETURN w.name AS workspace, w.path AS path, projects
+

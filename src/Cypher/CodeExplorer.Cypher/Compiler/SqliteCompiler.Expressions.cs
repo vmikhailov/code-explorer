@@ -418,7 +418,8 @@ public partial class SqliteCompiler
 
         if (fn == "collect" && func.Arguments.Count == 1)
         {
-            return $"json_group_array({distinctStr}{VisitExpression(func.Arguments[0])})";
+            var inner = VisitExpression(func.Arguments[0]);
+            return $"json_group_array({distinctStr}{inner}) FILTER (WHERE {inner} IS NOT NULL)";
         }
 
         return null;
@@ -484,7 +485,12 @@ public partial class SqliteCompiler
         List<string> parts = [];
         foreach (var (k, v) in map.Properties)
         {
-            parts.Add($"'{k}', {VisitExpression(v)}");
+            var exprSql = VisitExpression(v);
+            if (v is IdentifierExpression id && _withCollectExpressions.ContainsKey(id.Name))
+            {
+                exprSql = $"json(coalesce({exprSql}, '[]'))";
+            }
+            parts.Add($"'{k}', {exprSql}");
         }
 
         return $"json_object({string.Join(", ", parts)})";
@@ -735,19 +741,22 @@ public partial class SqliteCompiler
 
             fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar} JOIN nodes {targetVar}" : $" JOIN edges {relVar} JOIN nodes {targetVar}");
 
+            var prevIdSrc = _nodeIdSource.TryGetValue(prevVar, out var pSrc) ? pSrc : $"{prevVar}.id";
+            var targetIdSrc = _nodeIdSource.TryGetValue(targetVar, out var tSrc) ? tSrc : $"{targetVar}.id";
+
             switch (rel.Direction)
             {
                 case Direction.Outgoing:
-                    conditions.Add($"{relVar}.from_id = {prevVar}.id");
-                    conditions.Add($"{targetVar}.id = {relVar}.to_id");
+                    conditions.Add($"{relVar}.from_id = {prevIdSrc}");
+                    conditions.Add($"{targetIdSrc} = {relVar}.to_id");
                     break;
                 case Direction.Incoming:
-                    conditions.Add($"{relVar}.to_id = {prevVar}.id");
-                    conditions.Add($"{targetVar}.id = {relVar}.from_id");
+                    conditions.Add($"{relVar}.to_id = {prevIdSrc}");
+                    conditions.Add($"{targetIdSrc} = {relVar}.from_id");
                     break;
                 case Direction.Undirected:
-                    conditions.Add($"({relVar}.from_id = {prevVar}.id OR {relVar}.to_id = {prevVar}.id)");
-                    conditions.Add($"{targetVar}.id = CASE WHEN {relVar}.from_id = {prevVar}.id THEN {relVar}.to_id ELSE {relVar}.from_id END");
+                    conditions.Add($"({relVar}.from_id = {prevIdSrc} OR {relVar}.to_id = {prevIdSrc})");
+                    conditions.Add($"{targetIdSrc} = CASE WHEN {relVar}.from_id = {prevIdSrc} THEN {relVar}.to_id ELSE {relVar}.from_id END");
                     break;
             }
 
@@ -854,6 +863,14 @@ public partial class SqliteCompiler
                 }
 
                 break;
+            case PatternComprehensionExpression pc:
+                if (pc.Path.Head.Variable != null) set.Add(pc.Path.Head.Variable);
+                if (pc.Filter != null) CollectIdentifiers(pc.Filter, set);
+                CollectIdentifiers(pc.Projection, set);
+                break;
+            case PatternExpression pe:
+                if (pe.Path.Head.Variable != null) set.Add(pe.Path.Head.Variable);
+                break;
         }
     }
 
@@ -868,9 +885,19 @@ public partial class SqliteCompiler
         {
             if (elem.IsAllProperties) continue;
 
-            parts.Add(elem.ValueExpression != null
-                ? $"'{elem.PropertyName}', {VisitExpression(elem.ValueExpression)}"
-                : $"'{elem.PropertyName}', json_extract({baseVar}.properties, '$.{elem.PropertyName}')");
+            if (elem.ValueExpression != null)
+            {
+                var exprSql = VisitExpression(elem.ValueExpression);
+                if (elem.ValueExpression is IdentifierExpression valId && _withCollectExpressions.ContainsKey(valId.Name))
+                {
+                    exprSql = $"json(coalesce({exprSql}, '[]'))";
+                }
+                parts.Add($"'{elem.PropertyName}', {exprSql}");
+            }
+            else
+            {
+                parts.Add($"'{elem.PropertyName}', json_extract({baseVar}.properties, '$.{elem.PropertyName}')");
+            }
         }
 
         return $"json_object({string.Join(", ", parts)})";
