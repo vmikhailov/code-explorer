@@ -98,6 +98,10 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             CREATE INDEX IF NOT EXISTS idx_edges_from_kind_to ON edges(from_id, kind, to_id);
             CREATE INDEX IF NOT EXISTS idx_edges_to_kind_from ON edges(to_id, kind, from_id);
             CREATE INDEX IF NOT EXISTS idx_edges_kind_from_to ON edges(kind, from_id, to_id);
+            DELETE FROM edges WHERE rowid NOT IN (
+                SELECT min(rowid) FROM edges GROUP BY from_id, to_id, kind
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique ON edges(from_id, to_id, kind);
 
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY,
@@ -158,12 +162,132 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 await DeleteWorkspaceHierarchyAsync(wsId);
                 return true;
             }
-            return false;
+
+            string absPath = normalized;
+            string? relPath = null;
+
+            await using (var rootCmd = _conn.CreateCommand())
+            {
+                rootCmd.CommandText = "SELECT json_extract(properties, '$.path') FROM nodes WHERE kind = 'Workspace' LIMIT 1;";
+                var rootVal = (string?)await rootCmd.ExecuteScalarAsync();
+                if (!string.IsNullOrEmpty(rootVal))
+                {
+                    var normRoot = rootVal.Replace('\\', '/').TrimEnd('/');
+                    if (!Path.IsPathRooted(normalized))
+                    {
+                        absPath = Path.GetFullPath(Path.Combine(normRoot, normalized)).Replace('\\', '/').TrimEnd('/');
+                    }
+                    else
+                    {
+                        absPath = Path.GetFullPath(normalized).Replace('\\', '/').TrimEnd('/');
+                    }
+
+                    if (absPath.StartsWith(normRoot, StringComparison.OrdinalIgnoreCase))
+                    {
+                        relPath = Path.GetRelativePath(normRoot, absPath).Replace('\\', '/');
+                        if (relPath == ".") relPath = "";
+                    }
+                }
+                else if (!Path.IsPathRooted(normalized))
+                {
+                    absPath = Path.GetFullPath(normalized).Replace('\\', '/').TrimEnd('/');
+                }
+            }
+
+            return await DeleteSubpathHierarchyAsync(absPath, relPath);
         }
         finally
         {
             _lock.Release();
         }
+    }
+
+    private async Task<bool> DeleteSubpathHierarchyAsync(string absPath, string? relPath)
+    {
+        await using var cmd = _conn.CreateCommand();
+        var normLower = absPath.ToLowerInvariant();
+        var normSlashLower = (absPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
+
+        cmd.Parameters.AddWithValue("@normPath", normLower);
+        cmd.Parameters.AddWithValue("@normPathSlash", normSlashLower);
+
+        var relLower = (relPath ?? "").ToLowerInvariant();
+        var relSlashLower = string.IsNullOrEmpty(relPath) ? "" : (relPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
+        cmd.Parameters.AddWithValue("@relPath", relLower);
+        cmd.Parameters.AddWithValue("@relPathSlash", relSlashLower);
+        cmd.Parameters.AddWithValue("@hasRel", !string.IsNullOrEmpty(relPath) ? 1 : 0);
+
+        cmd.CommandText = """
+            CREATE TEMP TABLE IF NOT EXISTS temp_ws_del(id TEXT PRIMARY KEY);
+            DELETE FROM temp_ws_del;
+
+            -- 1. Match Folder nodes by path
+            INSERT OR IGNORE INTO temp_ws_del(id)
+            SELECT id FROM nodes
+            WHERE kind = 'Folder'
+              AND (
+                  lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
+                  OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @normPathSlash
+              );
+
+            -- 2. Match File nodes by full_path or relative path
+            INSERT OR IGNORE INTO temp_ws_del(id)
+            SELECT id FROM nodes
+            WHERE kind = 'File'
+              AND (
+                  lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath
+                  OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) LIKE @normPathSlash
+                  OR (@hasRel = 1 AND (
+                      lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
+                      OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @relPathSlash
+                  ))
+              );
+
+            -- 3. Match Project nodes located in one of our deleted folders
+            INSERT OR IGNORE INTO temp_ws_del(id)
+            SELECT from_id FROM edges
+            WHERE kind = 'LOCATED_IN' AND to_id IN (SELECT id FROM temp_ws_del);
+
+            -- 4. Match ProjectSyntax and ProjectSemantic via BELONGS_TO
+            INSERT OR IGNORE INTO temp_ws_del(id)
+            SELECT from_id FROM edges
+            WHERE kind = 'BELONGS_TO' AND to_id IN (SELECT id FROM temp_ws_del);
+            """;
+        await cmd.ExecuteNonQueryAsync();
+
+        cmd.CommandText = "SELECT COUNT(*) FROM temp_ws_del;";
+        var count = Convert.ToInt64(await cmd.ExecuteScalarAsync());
+        if (count == 0)
+        {
+            cmd.CommandText = "DROP TABLE IF EXISTS temp_ws_del;";
+            await cmd.ExecuteNonQueryAsync();
+            return false;
+        }
+
+        // 5. Include all levels of child nodes attached via CONTAINS
+        while (true)
+        {
+            cmd.CommandText = """
+                INSERT OR IGNORE INTO temp_ws_del(id)
+                SELECT to_id FROM edges
+                WHERE kind = 'CONTAINS'
+                  AND from_id IN (SELECT id FROM temp_ws_del)
+                  AND to_id NOT IN (SELECT id FROM temp_ws_del);
+                """;
+            var added = await cmd.ExecuteNonQueryAsync();
+            if (added == 0) break;
+        }
+
+        cmd.CommandText = """
+            -- 6. Fast indexed deletions across edges and nodes
+            DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_ws_del);
+            DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_ws_del);
+            DELETE FROM nodes WHERE id IN (SELECT id FROM temp_ws_del);
+
+            DROP TABLE IF EXISTS temp_ws_del;
+            """;
+        await cmd.ExecuteNonQueryAsync();
+        return true;
     }
 
     private async Task<string?> FindWorkspaceIdByIdOrPathAsync(string raw, string normalized)
@@ -322,7 +446,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
             await using var cmd = _conn.CreateCommand();
             cmd.Transaction = tx;
-            cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, @props);";
+            cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, @props) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
 
             var pFrom = cmd.Parameters.Add("@from", SqliteType.Text);
             var pTo = cmd.Parameters.Add("@to", SqliteType.Text);

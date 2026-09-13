@@ -61,7 +61,32 @@ public class Layer1PhysicalParser
         var folders = new List<FolderNode>();
         var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath);
 
-        await ScanDirectoryAsync(ctx.AbsoluteWorkspacePath, filesStructureNode, files, folders, gitignore, ctx);
+        if (!ctx.IsSubtreeScan)
+        {
+            await ScanDirectoryAsync(ctx.AbsoluteWorkspacePath, filesStructureNode, files, folders, gitignore, ctx);
+        }
+        else
+        {
+            var relativeSubtree = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, ctx.ScanPath).Replace('\\', '/');
+            var segments = relativeSubtree.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            IOntologyNode currentParent = filesStructureNode;
+            var currentPath = ctx.AbsoluteWorkspacePath;
+
+            // Build intermediate folders up to the parent of ctx.ScanPath
+            for (int i = 0; i < segments.Length - 1; i++)
+            {
+                currentPath = Path.Combine(currentPath, segments[i]).Replace('\\', '/');
+                var folderId = $"{wsId}:folder:{currentPath}";
+                var intermediateFolder = new FolderNode(folderId, segments[i], currentPath);
+
+                currentParent.Children.Add(intermediateFolder);
+                folders.Add(intermediateFolder);
+                currentParent = intermediateFolder;
+            }
+
+            await ScanDirectoryAsync(ctx.ScanPath, currentParent, files, folders, gitignore, ctx);
+        }
 
         ctx.Log($"[Layer1PhysicalParser] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");
         return new Layer1Result(workspaceNode, filesStructureNode, files, folders);

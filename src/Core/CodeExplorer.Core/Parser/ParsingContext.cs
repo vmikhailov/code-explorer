@@ -13,6 +13,8 @@ public class ParsingContext
 {
     public string AbsoluteWorkspacePath { get; }
     public string HostWorkspacePath { get; }
+    public string ScanPath { get; }
+    public bool IsSubtreeScan => !string.Equals(ScanPath, AbsoluteWorkspacePath, StringComparison.OrdinalIgnoreCase);
     public IGraphClient DbClient { get; }
     public Channel<Func<Task>> SharedChannel { get; }
     public bool Clear { get; }
@@ -194,6 +196,7 @@ public class ParsingContext
         IGraphClient dbClient,
         Channel<Func<Task>> sharedChannel,
         bool clear = false,
+        string? scanPath = null,
         Dictionary<(string Kind, string Name), string>? globalSymbols = null,
         List<Reference>? globalReferences = null,
         List<Relationship>? globalProjectDependencies = null,
@@ -203,6 +206,7 @@ public class ParsingContext
     {
         AbsoluteWorkspacePath = absoluteWorkspacePath.Replace('\\', '/');
         HostWorkspacePath = hostWorkspacePath;
+        ScanPath = string.IsNullOrWhiteSpace(scanPath) ? AbsoluteWorkspacePath : scanPath.Replace('\\', '/');
         DbClient = dbClient;
         SharedChannel = sharedChannel;
         Clear = clear;

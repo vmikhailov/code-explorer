@@ -36,13 +36,44 @@ public class WorkspaceIndexer
         _logger = logger ?? NullLogger<WorkspaceIndexer>.Instance;
     }
 
-    public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
+    public Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
         string workspacePath,
+        bool clear,
+        CancellationToken cancellationToken = default,
+        IProgress<IndexingProgress>? progress = null) =>
+        IndexAsync(workspacePath, workspaceRoot: null, clear, cancellationToken, progress);
+
+    public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
+        string targetPath,
+        string? workspaceRoot,
         bool clear,
         CancellationToken cancellationToken = default,
         IProgress<IndexingProgress>? progress = null)
     {
-        var ctx = CreateContext(workspacePath, clear, cancellationToken, progress);
+        string root;
+        string? scanPath = null;
+
+        if (string.IsNullOrWhiteSpace(workspaceRoot))
+        {
+            root = targetPath;
+        }
+        else
+        {
+            var fullTarget = Path.GetFullPath(targetPath).Replace('\\', '/');
+            var fullRoot = Path.GetFullPath(workspaceRoot).Replace('\\', '/');
+
+            if (string.Equals(fullTarget, fullRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                root = fullRoot;
+            }
+            else
+            {
+                root = fullRoot;
+                scanPath = fullTarget;
+            }
+        }
+
+        var ctx = CreateContext(root, scanPath, clear, cancellationToken, progress);
 
         await RunParsingPipelineAsync(ctx);
 
@@ -52,16 +83,9 @@ public class WorkspaceIndexer
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
     }
 
-    public Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
-        string hostWorkspacePath,
-        string containerWorkspacePath,
-        bool clear,
-        CancellationToken cancellationToken = default,
-        IProgress<IndexingProgress>? progress = null) =>
-        IndexAsync(string.IsNullOrEmpty(containerWorkspacePath) ? hostWorkspacePath : containerWorkspacePath, clear, cancellationToken, progress);
-
     private ParsingContext CreateContext(
         string workspacePath,
+        string? scanPath,
         bool clear,
         CancellationToken cancellationToken,
         IProgress<IndexingProgress>? progress)
@@ -71,13 +95,37 @@ public class WorkspaceIndexer
             throw new DirectoryNotFoundException($"Directory '{workspacePath}' does not exist.");
         }
 
+        if (!string.IsNullOrWhiteSpace(scanPath) && !Directory.Exists(scanPath))
+        {
+            throw new DirectoryNotFoundException($"Scan path '{scanPath}' does not exist.");
+        }
+
         var absoluteWorkspacePath = Path.GetFullPath(workspacePath).Replace('\\', '/');
+        string? normalizedScanPath = null;
+
+        if (!string.IsNullOrWhiteSpace(scanPath))
+        {
+            normalizedScanPath = Path.GetFullPath(scanPath).Replace('\\', '/');
+            var rel = Path.GetRelativePath(absoluteWorkspacePath, normalizedScanPath).Replace('\\', '/');
+            if (rel.StartsWith("..") || Path.IsPathRooted(rel))
+            {
+                throw new ArgumentException($"Target scan path '{scanPath}' must be inside workspace root '{workspacePath}'.");
+            }
+        }
 
         var sharedChannel = Channel.CreateUnbounded<Func<Task>>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
-        return new ParsingContext(absoluteWorkspacePath, absoluteWorkspacePath, _dbClient, sharedChannel, clear,
-            cancellationToken: cancellationToken, progress: progress, logger: _logger);
+        return new ParsingContext(
+            absoluteWorkspacePath,
+            absoluteWorkspacePath,
+            _dbClient,
+            sharedChannel,
+            clear,
+            scanPath: normalizedScanPath,
+            cancellationToken: cancellationToken,
+            progress: progress,
+            logger: _logger);
     }
 
     private async Task RunParsingPipelineAsync(ParsingContext ctx)
@@ -104,8 +152,9 @@ public class WorkspaceIndexer
     {
         if (ctx.Clear)
         {
-            ctx.Log($"[WorkspaceIndexer] Clearing previous root workspace data for '{ctx.HostWorkspacePath}'...");
-            await _dbClient.ClearWorkspaceAsync(ctx.HostWorkspacePath);
+            var clearTarget = ctx.IsSubtreeScan ? ctx.ScanPath : ctx.HostWorkspacePath;
+            ctx.Log($"[WorkspaceIndexer] Clearing previous data for '{clearTarget}'...");
+            await _dbClient.ClearWorkspaceAsync(clearTarget);
         }
 
         await _dbClient.CreateIndicesAsync();

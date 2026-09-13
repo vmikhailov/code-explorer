@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
@@ -22,8 +23,20 @@ public class Layer2ProjectParser
         var packages = new List<PackageNode>();
         var dependencies = new List<Relationship>();
 
-        var dirsToCheck = new List<string> { ctx.AbsoluteWorkspacePath };
-        dirsToCheck.AddRange(l1Result.Folders.Select(f => f.Path));
+        var dirsToCheck = new List<string>();
+        if (ctx.IsSubtreeScan)
+        {
+            dirsToCheck.Add(ctx.ScanPath);
+            dirsToCheck.AddRange(l1Result.Folders
+                .Where(f => f.Path.StartsWith(ctx.ScanPath.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
+                .Select(f => f.Path));
+        }
+        else
+        {
+            dirsToCheck.Add(ctx.AbsoluteWorkspacePath);
+            dirsToCheck.AddRange(l1Result.Folders.Select(f => f.Path));
+        }
+        dirsToCheck = dirsToCheck.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         foreach (var dir in dirsToCheck)
         {
@@ -49,6 +62,59 @@ public class Layer2ProjectParser
                 // Parse project dependencies and packages
                 await ParseDependenciesAsync(projectNode, projectNodeId, projectParser, dir, dependencies, packages, ctx);
                 await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
+            }
+        }
+
+        // If subtree scan and some files are not covered by discovered projects,
+        // look upwards for enclosing project(s)
+        if (ctx.IsSubtreeScan)
+        {
+            var uncoveredFiles = l1Result.Files
+                .Where(f => !projects.Any(p => IsEnclosedInProject(f, p, projects)))
+                .ToList();
+
+            if (uncoveredFiles.Count > 0)
+            {
+                var currentDir = new DirectoryInfo(ctx.ScanPath);
+                while (currentDir != null && currentDir.FullName.Length >= ctx.AbsoluteWorkspacePath.Length)
+                {
+                    var dir = currentDir.FullName.Replace('\\', '/');
+                    var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
+                    if (relativeProjectDir == ".") relativeProjectDir = "";
+
+                    var projectNodeId = $"{ctx.WorkspaceId}:project:{relativeProjectDir}:";
+
+                    if (!projects.Any(p => p.Id == projectNodeId))
+                    {
+                        var filesInDir = Directory.GetFiles(dir);
+                        var projectParser = WorkspaceIndexer._projectParsers.FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
+                        if (projectParser != null)
+                        {
+                            var folderName = Path.GetFileName(dir);
+                            if (string.IsNullOrEmpty(folderName)) folderName = dir;
+
+                            var projectNode = new ProjectNode(projectNodeId, folderName, relativeProjectDir, projectParser.ProjectType);
+
+                            projectsStructureNode.Children.Add(projectNode);
+                            projects.Add(projectNode);
+
+                            await ParseDependenciesAsync(projectNode, projectNodeId, projectParser, dir, dependencies, packages, ctx);
+                            await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
+
+                            if (uncoveredFiles.All(f => projects.Any(p => IsEnclosedInProject(f, p, projects))))
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (string.Equals(dir, ctx.AbsoluteWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        break;
+                    }
+
+                    currentDir = currentDir.Parent;
+                }
             }
         }
 
@@ -158,5 +224,37 @@ public class Layer2ProjectParser
                 ctx.AddRelsCount(1);
             }
         }
+    }
+
+    public static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects)
+    {
+        ProjectNode? bestMatch = null;
+        int bestMatchLength = -1;
+
+        foreach (var p in projects)
+        {
+            var pPath = p.Path;
+            if (pPath == "")
+            {
+                if (bestMatchLength < 0)
+                {
+                    bestMatch = p;
+                    bestMatchLength = 0;
+                }
+                continue;
+            }
+
+            var pPrefix = pPath + "/";
+            if (file.Path.StartsWith(pPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                if (pPrefix.Length > bestMatchLength)
+                {
+                    bestMatch = p;
+                    bestMatchLength = pPrefix.Length;
+                }
+            }
+        }
+
+        return bestMatch?.Id == project.Id;
     }
 }

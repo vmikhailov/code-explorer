@@ -200,4 +200,169 @@ export class OrderService {
             }
         }
     }
+
+    [Test]
+    public async Task Test_SubtreeScan_OnlyScansTargetFolderAndPreservesWorkspaceRelativePaths()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_subscan_test_" + Guid.NewGuid())
+            .Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var subADir = Path.Combine(tempWorkspace, "SubA").Replace('\\', '/');
+            var subBDir = Path.Combine(tempWorkspace, "SubB").Replace('\\', '/');
+            Directory.CreateDirectory(subADir);
+            Directory.CreateDirectory(subBDir);
+
+            await File.WriteAllTextAsync(Path.Combine(subADir, "SubA.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            await File.WriteAllTextAsync(Path.Combine(subADir, "A.cs"), "public class ServiceA { public void Run() {} }");
+
+            await File.WriteAllTextAsync(Path.Combine(subBDir, "SubB.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            await File.WriteAllTextAsync(Path.Combine(subBDir, "B.cs"), "public class ServiceB { public void Execute() {} }");
+
+            var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+
+            WorkspaceIndexer.Register(new CSharpParser());
+            var indexer = new WorkspaceIndexer(client);
+
+            // Index ONLY SubA
+            var results = await indexer.IndexAsync(targetPath: subADir, workspaceRoot: tempWorkspace, clear: false);
+
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
+
+            // Verify A.cs exists and has path SubA/A.cs
+            var fileAQuery = "MATCH (f:File) WHERE f.name = 'A.cs' RETURN f.id AS id, f.path AS path";
+            var fileAResult = await client.ExecuteQueryAsync(fileAQuery);
+            Assert.That(fileAResult, Contains.Substring("SubA/A.cs"));
+
+            // Verify B.cs was NOT scanned
+            var fileBQuery = "MATCH (f:File) WHERE f.name = 'B.cs' RETURN count(f) AS count";
+            var fileBResult = await client.ExecuteQueryAsync(fileBQuery);
+            Assert.That(fileBResult, Contains.Substring("\"count\": 0"));
+
+            // Verify SubA is linked to FilesStructure
+            var folderLinkQuery = "MATCH (fs:FilesStructure)-[:CONTAINS]->(f:Folder) RETURN f.name AS name";
+            var folderLinkResult = await client.ExecuteQueryAsync(folderLinkQuery);
+            Assert.That(folderLinkResult, Contains.Substring("\"name\": \"SubA\""));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Test_SubtreeScan_InsideProject_AssociatesFilesWithEnclosingProject()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_proj_subscan_test_" + Guid.NewGuid())
+            .Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var projDir = Path.Combine(tempWorkspace, "src", "MyService").Replace('\\', '/');
+            var handlersDir = Path.Combine(projDir, "Handlers").Replace('\\', '/');
+            var modelsDir = Path.Combine(projDir, "Models").Replace('\\', '/');
+            Directory.CreateDirectory(handlersDir);
+            Directory.CreateDirectory(modelsDir);
+
+            await File.WriteAllTextAsync(Path.Combine(projDir, "MyService.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            await File.WriteAllTextAsync(Path.Combine(handlersDir, "OrderHandler.cs"), "public class OrderHandler { public void Handle() {} }");
+            await File.WriteAllTextAsync(Path.Combine(modelsDir, "OrderModel.cs"), "public class OrderModel { public string Id { get; set; } }");
+
+            var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+
+            WorkspaceIndexer.Register(new CSharpParser());
+            var indexer = new WorkspaceIndexer(client);
+
+            // Index ONLY Handlers subfolder
+            var results = await indexer.IndexAsync(targetPath: handlersDir, workspaceRoot: tempWorkspace, clear: false);
+
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
+
+            // Verify enclosing project MyService was detected
+            var projQuery = "MATCH (p:Project) RETURN p.name AS name, p.path AS path";
+            var projResult = await client.ExecuteQueryAsync(projQuery);
+            Assert.That(projResult, Contains.Substring("\"name\": \"MyService\""));
+
+            // Verify OrderHandler was parsed into the syntax structure
+            var handlerQuery = "MATCH (f:File {name: 'OrderHandler.cs'}) RETURN f.id AS id";
+            var handlerResult = await client.ExecuteQueryAsync(handlerQuery);
+            Assert.That(handlerResult, Contains.Substring("OrderHandler.cs"));
+
+            // Verify OrderModel was NOT parsed
+            var modelQuery = "MATCH (f:File {name: 'OrderModel.cs'}) RETURN count(f) AS count";
+            var modelResult = await client.ExecuteQueryAsync(modelQuery);
+            Assert.That(modelResult, Contains.Substring("\"count\": 0"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Test_SubtreeClear_ClearsOnlySpecifiedSubfolder()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "codeexplorer_subclear_test_" + Guid.NewGuid())
+            .Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var subADir = Path.Combine(tempWorkspace, "SubA").Replace('\\', '/');
+            var subBDir = Path.Combine(tempWorkspace, "SubB").Replace('\\', '/');
+            Directory.CreateDirectory(subADir);
+            Directory.CreateDirectory(subBDir);
+
+            await File.WriteAllTextAsync(Path.Combine(subADir, "SubA.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            await File.WriteAllTextAsync(Path.Combine(subADir, "A.cs"), "public class ServiceA { public void Run() {} }");
+
+            await File.WriteAllTextAsync(Path.Combine(subBDir, "SubB.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+            await File.WriteAllTextAsync(Path.Combine(subBDir, "B.cs"), "public class ServiceB { public void Execute() {} }");
+
+            var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+
+            WorkspaceIndexer.Register(new CSharpParser());
+            var indexer = new WorkspaceIndexer(client);
+
+            // Index full workspace first
+            await indexer.IndexAsync(tempWorkspace, clear: true);
+
+            // Verify both A and B are present
+            var allFilesQuery = "MATCH (f:File) RETURN count(f) AS count";
+            var allFilesRes = await client.ExecuteQueryAsync(allFilesQuery);
+            Assert.That(allFilesRes, Contains.Substring("\"count\": 2"));
+
+            // Clear ONLY SubA
+            var cleared = await client.ClearWorkspaceAsync(subADir);
+            Assert.That(cleared, Is.True);
+
+            // Verify A.cs is gone, but B.cs remains
+            var fileAQuery = "MATCH (f:File {name: 'A.cs'}) RETURN count(f) AS count";
+            var fileARes = await client.ExecuteQueryAsync(fileAQuery);
+            Assert.That(fileARes, Contains.Substring("\"count\": 0"));
+
+            var fileBQuery = "MATCH (f:File {name: 'B.cs'}) RETURN count(f) AS count";
+            var fileBRes = await client.ExecuteQueryAsync(fileBQuery);
+            Assert.That(fileBRes, Contains.Substring("\"count\": 1"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                Directory.Delete(tempWorkspace, true);
+            }
+        }
+    }
 }

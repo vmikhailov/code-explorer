@@ -85,37 +85,8 @@ public class Layer4SemanticParser
         return new Layer4Result(l3Result, semanticStructureNode, semanticNodes, semanticRelationships);
     }
 
-    private static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects)
-    {
-        ProjectNode? bestMatch = null;
-        int bestMatchLength = -1;
-
-        foreach (var p in projects)
-        {
-            var pPath = p.Path;
-            if (pPath == "")
-            {
-                if (bestMatchLength < 0)
-                {
-                    bestMatch = p;
-                    bestMatchLength = 0;
-                }
-                continue;
-            }
-
-            var pPrefix = pPath + "/";
-            if (file.Path.StartsWith(pPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                if (pPrefix.Length > bestMatchLength)
-                {
-                    bestMatch = p;
-                    bestMatchLength = pPrefix.Length;
-                }
-            }
-        }
-
-        return bestMatch?.Id == project.Id;
-    }
+    private static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects) =>
+        Layer2ProjectParser.IsEnclosedInProject(file, project, projects);
 
     private static void CollectSemanticNodes(IOntologyNode node, List<IOntologyNode> semanticNodes)
     {
