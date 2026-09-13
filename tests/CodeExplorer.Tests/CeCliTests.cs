@@ -105,4 +105,113 @@ public class CeCliTests
         Assert.That(output, Does.Contain("AVAILABLE COMMANDS"));
         Assert.That(output, Does.Contain("EXAMPLES"));
     }
+
+    [Test]
+    public async Task CeQueries_ListsBuiltInQueriesAndCategories()
+    {
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        var exit = await Program.Main(["queries", "-d", _tempDir]);
+        Console.SetOut(originalOut);
+
+        Assert.That(exit, Is.EqualTo(0));
+        var output = sw.ToString();
+        Assert.That(output, Does.Contain("CodeExplorer Queries"));
+        Assert.That(output, Does.Contain("[Architecture]"));
+        Assert.That(output, Does.Contain("[Refactoring]"));
+        Assert.That(output, Does.Contain("[Symbols]"));
+        Assert.That(output, Does.Contain("[Taxonomy]"));
+        Assert.That(output, Does.Contain("get_architecture_map_workspace"));
+        Assert.That(output, Does.Contain("find_refactor_dead_code"));
+    }
+
+    [Test]
+    public async Task CeQuery_List_JsonFormat_ReturnsStructuredJson()
+    {
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        var exit = await Program.Main(["query", "-l", "--format", "json", "-d", _tempDir]);
+        Console.SetOut(originalOut);
+
+        Assert.That(exit, Is.EqualTo(0));
+        var output = sw.ToString();
+        Assert.That(output, Does.Contain("\"built_in\""));
+        Assert.That(output, Does.Contain("\"get_architecture_map_workspace\""));
+    }
+
+    [Test]
+    public async Task CeQuery_Show_PrintsCypherSource()
+    {
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        var exit = await Program.Main(["query", "--show", "get_architecture_map_workspace"]);
+        Console.SetOut(originalOut);
+
+        Assert.That(exit, Is.EqualTo(0));
+        var output = sw.ToString();
+        Assert.That(output, Does.Contain("// Built-in Query: get_architecture_map_workspace"));
+        Assert.That(output, Does.Contain("MATCH (w:Workspace)"));
+    }
+
+    [Test]
+    public async Task CeQuery_CustomQuery_ListedAndExecuted()
+    {
+        // 1. Initialize workspace
+        var initExit = await Program.Main(["init", "CustomQueryTest", "-d", _tempDir]);
+        Assert.That(initExit, Is.EqualTo(0));
+
+        var ws = WorkspaceLocator.Find(_tempDir)!;
+
+        // 2. Add custom query file
+        var customCypher = "MATCH (w:Workspace) RETURN w.name AS ws_name";
+        var customFile = Path.Combine(ws.QueriesDirectory, "get_my_ws.cypher");
+        await File.WriteAllTextAsync(customFile, customCypher);
+
+        var customMeta = """
+        {
+          "name": "get_my_ws",
+          "description": "Returns current workspace name"
+        }
+        """;
+        await File.WriteAllTextAsync(Path.Combine(ws.QueriesDirectory, "get_my_ws.json"), customMeta);
+
+        // 3. ce queries lists custom query
+        var originalOut = Console.Out;
+        using var listSw = new StringWriter();
+        Console.SetOut(listSw);
+        var listExit = await Program.Main(["queries", "-d", _tempDir]);
+        Console.SetOut(originalOut);
+
+        Assert.That(listExit, Is.EqualTo(0));
+        var listOutput = listSw.ToString();
+        Assert.That(listOutput, Does.Contain("get_my_ws"));
+        Assert.That(listOutput, Does.Contain("Returns current workspace name"));
+
+        // 4. ce query --show get_my_ws
+        using var showSw = new StringWriter();
+        Console.SetOut(showSw);
+        var showExit = await Program.Main(["query", "--show", "get_my_ws", "-d", _tempDir]);
+        Console.SetOut(originalOut);
+
+        Assert.That(showExit, Is.EqualTo(0));
+        var showOutput = showSw.ToString();
+        Assert.That(showOutput, Does.Contain("// Custom Query: get_my_ws"));
+        Assert.That(showOutput, Does.Contain(customCypher));
+
+        // 5. ce query -n get_my_ws --format json
+        using var runSw = new StringWriter();
+        Console.SetOut(runSw);
+        var runExit = await Program.Main(["query", "-n", "get_my_ws", "-d", _tempDir, "--format", "json"]);
+        Console.SetOut(originalOut);
+
+        Assert.That(runExit, Is.EqualTo(0));
+        var runJson = runSw.ToString();
+        Assert.That(runJson, Does.Contain("CustomQueryTest"));
+    }
 }

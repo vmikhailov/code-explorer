@@ -3,6 +3,7 @@ using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
+using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
 using CodeExplorer.Parser.CSharp;
@@ -47,6 +48,7 @@ public class Program
                 StatusOptions,
                 InfoOptions,
                 ClearOptions,
+                QueriesOptions,
                 QueryOptions,
                 McpOptions,
                 IngestOptions>(args)
@@ -57,6 +59,7 @@ public class Program
                 (StatusOptions opts) => HandleStatusAsync(opts),
                 (InfoOptions opts) => HandleStatusAsync(opts),
                 (ClearOptions opts) => HandleClearAsync(opts),
+                (QueriesOptions opts) => HandleQueryAsync(opts),
                 (QueryOptions opts) => HandleQueryAsync(opts),
                 (McpOptions opts) => HandleMcpAsync(opts),
                 (IngestOptions opts) => HandleIngestAsync(opts),
@@ -205,9 +208,10 @@ public class Program
                     nodeCount = cnt;
             }
 
-            // Custom queries
+            // Queries info
             var queryManager = new ProjectQueryManager();
             var savedQueries = queryManager.ListQueries(ws.RootDirectory);
+            var builtInCount = Queries.GetBuiltInQueries().Count;
 
             if (opts.Json)
             {
@@ -220,6 +224,7 @@ public class Program
                     database_size_mb = Math.Round(sizeMb, 2),
                     total_nodes = nodeCount,
                     projects = projects.Select(p => new { name = p.Name, language = p.Language }),
+                    built_in_queries_count = builtInCount,
                     custom_queries = savedQueries.Select(q => new { name = q.Name, description = q.Description })
                 };
                 Console.WriteLine(JsonSerializer.Serialize(statusObj, new JsonSerializerOptions { WriteIndented = true }));
@@ -246,17 +251,12 @@ public class Program
                 }
             }
 
-            Console.WriteLine($"\nCustom Queries ({savedQueries.Count}):");
-            if (savedQueries.Count == 0)
+            Console.WriteLine($"\nQueries:");
+            Console.WriteLine($"  Built-in:  {builtInCount} queries available (run 'ce queries' to list)");
+            Console.WriteLine($"  Custom:    {savedQueries.Count} saved in .codeexplorer/queries/");
+            foreach (var q in savedQueries)
             {
-                Console.WriteLine("  (None saved yet in .codeexplorer/queries/)");
-            }
-            else
-            {
-                foreach (var q in savedQueries)
-                {
-                    Console.WriteLine($"  - {q.Name,-25} : {q.Description}");
-                }
+                Console.WriteLine($"    - {q.Name,-25} : {q.Description}");
             }
 
             return 0;
@@ -321,20 +321,52 @@ public class Program
     {
         try
         {
-            string dbPath;
-            if (!string.IsNullOrWhiteSpace(opts.DbPath))
+            if (opts.List || (string.IsNullOrWhiteSpace(opts.Query) &&
+                             string.IsNullOrWhiteSpace(opts.FilePath) &&
+                             string.IsNullOrWhiteSpace(opts.QueryName) &&
+                             string.IsNullOrWhiteSpace(opts.ShowQueryName)))
             {
-                dbPath = Path.GetFullPath(opts.DbPath);
-            }
-            else
-            {
-                var ws = WorkspaceLocator.FindOrThrow(opts.Dir);
-                dbPath = ws.DbPath;
+                return PrintAllQueries(opts);
             }
 
-            string cypherQuery;
-            if (!string.IsNullOrWhiteSpace(opts.FilePath))
+            if (!string.IsNullOrWhiteSpace(opts.ShowQueryName))
             {
+                return ShowQuerySource(opts);
+            }
+
+            var ws = WorkspaceLocator.Find(opts.Dir);
+
+            string cypherQuery;
+            if (!string.IsNullOrWhiteSpace(opts.QueryName))
+            {
+                var qName = opts.QueryName.Trim();
+                var custom = ws != null ? new ProjectQueryManager().GetQuery(ws.RootDirectory, qName) : null;
+                if (custom != null)
+                {
+                    cypherQuery = custom.Cypher;
+                }
+                else if (Queries.Exists(qName))
+                {
+                    cypherQuery = Queries.Get(qName);
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Error.WriteLine($"Error: Query '{qName}' not found in custom or built-in queries.");
+                    Console.ResetColor();
+                    Console.WriteLine("Run 'ce queries' to view all available queries.");
+                    return 1;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(opts.FilePath))
+            {
+                if (!File.Exists(opts.FilePath))
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Error.WriteLine($"Error: Query file not found: '{opts.FilePath}'.");
+                    Console.ResetColor();
+                    return 1;
+                }
                 cypherQuery = await File.ReadAllTextAsync(opts.FilePath);
             }
             else if (!string.IsNullOrWhiteSpace(opts.Query))
@@ -343,12 +375,92 @@ public class Program
             }
             else
             {
-                Console.Error.WriteLine("Error: Please provide a Cypher query or --file <path.cypher>.");
+                return PrintAllQueries(opts);
+            }
+
+            string dbPath;
+            if (!string.IsNullOrWhiteSpace(opts.DbPath))
+            {
+                dbPath = Path.GetFullPath(opts.DbPath);
+            }
+            else
+            {
+                var currentWs = ws ?? WorkspaceLocator.FindOrThrow(opts.Dir);
+                dbPath = currentWs.DbPath;
+            }
+
+            if (!File.Exists(dbPath))
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Error.WriteLine($"Error: Graph database not found at '{dbPath}'. Run 'ce scan' first to index.");
+                Console.ResetColor();
                 return 1;
             }
 
             await using var client = new SqliteGraphClient(dbPath);
-            var resultJson = await client.ExecuteQueryAsync(cypherQuery);
+
+            var parameters = new Dictionary<string, object?>();
+            // Auto-populate workspace parameters if query references them
+            if (cypherQuery.Contains("$workspaceId", StringComparison.OrdinalIgnoreCase) ||
+                cypherQuery.Contains("$wsId", StringComparison.OrdinalIgnoreCase) ||
+                cypherQuery.Contains("$wsIdPrefix", StringComparison.OrdinalIgnoreCase) ||
+                cypherQuery.Contains("$workspacePath", StringComparison.OrdinalIgnoreCase) ||
+                cypherQuery.Contains("{prefixFilter}", StringComparison.OrdinalIgnoreCase) ||
+                cypherQuery.Contains("{prefixClause}", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var wsRow = await client.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.id AS id, w.name AS name, w.path AS path LIMIT 1");
+                    using var doc = JsonDocument.Parse(wsRow);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+                    {
+                        var row0 = doc.RootElement[0];
+                        var wsId = row0.TryGetProperty("id", out var pId) ? pId.GetString() : null;
+                        var wsPath = row0.TryGetProperty("path", out var pPath) ? pPath.GetString() : null;
+                        if (!string.IsNullOrEmpty(wsId))
+                        {
+                            parameters["workspaceId"] = wsId;
+                            parameters["wsId"] = wsId;
+                            parameters["wsIdPrefix"] = $"{wsId}:";
+                            parameters["workspaceIdPrefix"] = $"{wsId}:";
+                        }
+                        if (!string.IsNullOrEmpty(wsPath))
+                        {
+                            parameters["workspacePath"] = wsPath;
+                            parameters["path"] = wsPath;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fallback
+                }
+
+                if (!parameters.ContainsKey("workspaceId"))
+                {
+                    parameters["workspaceId"] = "workspace";
+                    parameters["wsId"] = "workspace";
+                    parameters["wsIdPrefix"] = "workspace:";
+                    parameters["workspaceIdPrefix"] = "workspace:";
+                }
+            }
+
+            if (cypherQuery.Contains("{prefixFilter}"))
+            {
+                var prefixFilter = parameters.ContainsKey("wsIdPrefix") ? "WHERE p.id STARTS WITH $wsIdPrefix " : "";
+                cypherQuery = cypherQuery.Replace("{prefixFilter}", prefixFilter);
+            }
+            if (cypherQuery.Contains("{prefixClause}"))
+            {
+                var prefixClause = parameters.ContainsKey("wsIdPrefix") ? " AND n.id STARTS WITH $wsIdPrefix" : "";
+                cypherQuery = cypherQuery.Replace("{prefixClause}", prefixClause);
+            }
+            if (cypherQuery.Contains("{depth}"))
+            {
+                cypherQuery = cypherQuery.Replace("{depth}", "5");
+            }
+
+            var resultJson = await client.ExecuteQueryAsync(cypherQuery, parameters);
 
             if (string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase))
             {
@@ -357,10 +469,10 @@ public class Program
             }
 
             // Print formatted table
-            using var doc = JsonDocument.Parse(resultJson);
-            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            using var queryDoc = JsonDocument.Parse(resultJson);
+            if (queryDoc.RootElement.ValueKind == JsonValueKind.Array)
             {
-                var rows = doc.RootElement.EnumerateArray().ToList();
+                var rows = queryDoc.RootElement.EnumerateArray().ToList();
                 if (rows.Count == 0)
                 {
                     Console.WriteLine("(0 rows returned)");
@@ -411,6 +523,146 @@ public class Program
             Console.ResetColor();
             return 1;
         }
+    }
+
+    private static int PrintAllQueries(QueryOptions opts)
+    {
+        var ws = WorkspaceLocator.Find(opts.Dir);
+        var builtInQueries = Queries.GetBuiltInQueries();
+        var customQueries = ws != null
+            ? new ProjectQueryManager().ListQueries(ws.RootDirectory)
+            : Array.Empty<ProjectQueryItem>();
+
+        if (string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            var jsonObject = new
+            {
+                workspace = ws?.RootDirectory,
+                built_in = builtInQueries.Select(q => new
+                {
+                    name = q.Name,
+                    category = q.Category,
+                    description = q.Description
+                }),
+                custom = customQueries.Select(q => new
+                {
+                    name = q.Name,
+                    description = q.Description,
+                    parameters = q.Parameters,
+                    path = q.CypherPath
+                })
+            };
+            Console.WriteLine(JsonSerializer.Serialize(jsonObject, new JsonSerializerOptions { WriteIndented = true }));
+            return 0;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("============================================================");
+        Console.WriteLine(" CodeExplorer Queries");
+        Console.WriteLine("============================================================");
+        Console.ResetColor();
+
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("\nBuilt-in Queries:");
+        Console.ResetColor();
+
+        var byCategory = builtInQueries.GroupBy(q => q.Category).OrderBy(g => g.Key);
+        foreach (var group in byCategory)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"\n  [{group.Key}]");
+            Console.ResetColor();
+
+            foreach (var q in group)
+            {
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write($"    {q.Name,-36}");
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine(q.Description);
+                Console.ResetColor();
+            }
+        }
+
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine($"\nCustom Workspace Queries ({customQueries.Count}):");
+        Console.ResetColor();
+
+        if (ws == null)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine("  (No .codeexplorer workspace detected in current directory)");
+            Console.ResetColor();
+        }
+        else if (customQueries.Count == 0)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"  (None saved yet in {ws.QueriesDirectory})");
+            Console.ResetColor();
+        }
+        else
+        {
+            foreach (var q in customQueries)
+            {
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write($"    {q.Name,-36}");
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine(q.Description);
+                Console.ResetColor();
+            }
+        }
+
+        Console.WriteLine();
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("Usage:");
+        Console.ResetColor();
+        Console.WriteLine("  ce query -n <name>             Execute query by name");
+        Console.WriteLine("  ce query --show <name>         View Cypher source code of query");
+        Console.WriteLine("  ce query \"<cypher>\"            Execute custom ad-hoc Cypher query");
+        Console.WriteLine("  ce query -f <path.cypher>      Execute query from a file\n");
+
+        return 0;
+    }
+
+    private static int ShowQuerySource(QueryOptions opts)
+    {
+        var queryName = opts.ShowQueryName!.Trim();
+        var ws = WorkspaceLocator.Find(opts.Dir);
+
+        ProjectQueryItem? custom = null;
+        if (ws != null)
+        {
+            custom = new ProjectQueryManager().GetQuery(ws.RootDirectory, queryName);
+        }
+
+        if (custom != null)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"// Custom Query: {custom.Name} ({custom.CypherPath})");
+            if (!string.IsNullOrWhiteSpace(custom.Description))
+            {
+                Console.WriteLine($"// Description: {custom.Description}");
+            }
+            Console.ResetColor();
+            Console.WriteLine(custom.Cypher);
+            return 0;
+        }
+
+        if (Queries.Exists(queryName))
+        {
+            var cypher = Queries.Get(queryName);
+            var builtIn = Queries.GetBuiltInQueries().FirstOrDefault(q => q.Name.Equals(queryName, StringComparison.OrdinalIgnoreCase));
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"// Built-in Query: {queryName}{(builtIn != null ? $" [{builtIn.Category}] - {builtIn.Description}" : "")}");
+            Console.ResetColor();
+            Console.WriteLine(cypher);
+            return 0;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.Error.WriteLine($"Error: Query '{queryName}' not found in built-in or custom queries.");
+        Console.ResetColor();
+        Console.WriteLine("Run 'ce queries' to list all available queries.");
+        return 1;
     }
 
     private static async Task<int> HandleMcpAsync(McpOptions opts)
@@ -629,8 +881,9 @@ public class Program
         Console.WriteLine("  1. ce init [name]       Initialize a .codeexplorer workspace in current directory");
         Console.WriteLine("  2. ce scan [path]       Index code topology, AST, dependencies and semantic graph");
         Console.WriteLine("  3. ce status            View workspace health, indexed projects, and statistics");
-        Console.WriteLine("  4. ce mcp               Start MCP server (stdio) for Cursor, Claude Desktop, etc.");
-        Console.WriteLine("  5. ce query \"<cypher>\"  Execute Cypher query directly against the code graph\n");
+        Console.WriteLine("  4. ce queries           List all available built-in and custom Cypher queries");
+        Console.WriteLine("  5. ce query \"<cypher>\"  Execute Cypher query directly against the code graph");
+        Console.WriteLine("  6. ce mcp               Start MCP server (stdio) for Cursor, Claude Desktop, etc.\n");
 
         Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine("AVAILABLE COMMANDS:");
@@ -639,6 +892,7 @@ public class Program
         Console.WriteLine("  scan (alias: index)     Scan and index a directory into the nearest workspace");
         Console.WriteLine("  status (alias: info)    Show workspace summary, projects, node kinds, and statistics");
         Console.WriteLine("  clear                   Clear indexed data from the workspace database");
+        Console.WriteLine("  queries                 List all available built-in and workspace custom queries");
         Console.WriteLine("  query                   Run a read-only Cypher query against the knowledge graph");
         Console.WriteLine("  mcp                     Run Model Context Protocol server (stdio default, or --port)");
         Console.WriteLine();
@@ -649,10 +903,12 @@ public class Program
         Console.WriteLine("  ce init MyProject");
         Console.WriteLine("  ce scan ./src");
         Console.WriteLine("  ce status");
-        Console.WriteLine("  ce mcp");
-        Console.WriteLine("  ce mcp --port 8085");
+        Console.WriteLine("  ce queries");
+        Console.WriteLine("  ce query -n get_architecture_map_workspace");
+        Console.WriteLine("  ce query --show get_architecture_map_workspace");
         Console.WriteLine("  ce query \"MATCH (p:Project) RETURN p.name, p.project_type\"");
         Console.WriteLine("  ce query --file my_query.cypher");
+        Console.WriteLine("  ce mcp");
         Console.WriteLine("  ce clear ./src/old-module\n");
 
         Console.WriteLine("For options and arguments on any specific command, run:");

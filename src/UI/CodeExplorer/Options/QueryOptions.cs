@@ -18,6 +18,15 @@ public class QueryOptions
     [Option('f', "file", Required = false, HelpText = "Path to a .cypher file to execute.")]
     public string? FilePath { get; set; }
 
+    [Option('n', "name", Required = false, HelpText = "Name of a built-in or custom query to execute.")]
+    public string? QueryName { get; set; }
+
+    [Option('l', "list", Required = false, HelpText = "List all available built-in and workspace custom queries.")]
+    public bool List { get; set; }
+
+    [Option("show", Required = false, HelpText = "Display the Cypher source code of a built-in or custom query by name.")]
+    public string? ShowQueryName { get; set; }
+
     [Option("db-path", Required = false, HelpText = "Explicit SQLite database path (defaults to nearest .codeexplorer/graph.db).")]
     public string? DbPath { get; set; }
 
@@ -27,3 +36,13 @@ public class QueryOptions
     [Option("format", Default = "table", HelpText = "Output format: 'table' or 'json'.")]
     public string Format { get; set; } = "table";
 }
+
+[Verb("queries", HelpText = "Lists all available built-in and workspace custom queries.")]
+public class QueriesOptions : QueryOptions
+{
+    public QueriesOptions()
+    {
+        List = true;
+    }
+}
+
