@@ -233,6 +233,7 @@ public class Program
     private static void RegisterCommonServices(IServiceCollection services, SqliteGraphClient client)
     {
         services.AddSingleton<IGraphClient>(client);
+        services.AddSingleton<ProjectQueryManager>();
         services.AddSingleton<CodeExplorerRepository>();
         services.AddSingleton<WorkspaceIndexer>();
         services.AddSingleton<IndexingTaskManager>();

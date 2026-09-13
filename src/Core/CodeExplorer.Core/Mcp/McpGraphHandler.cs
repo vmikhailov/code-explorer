@@ -298,4 +298,51 @@ public class McpGraphHandler(
         }
         return Execute(() => repository.GetNodeDefinition(kind));
     }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Lists all saved project-specific Cypher queries and their parameter schemas from '.codeexplorer/queries/'. Use this at the start of a task to discover existing custom architectural queries and audit rules for this workspace.")]
+    public async Task<CallToolResult> ListProjectQueriesAsync(
+        [Description("Optional workspace root path. If omitted, uses current workspace context.")] string? workspacePath = null)
+    {
+        return await ExecuteAsync(() => repository.ListProjectQueriesAsync(workspacePath ?? GetCurrentWorkspacePath()));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Saves a reusable, project-specific Cypher query with metadata into '.codeexplorer/queries/{name}.cypher' and '{name}.json'. Automatically compiles and validates Cypher syntax and read-only safety before saving. Use this when you identify a unique architectural pattern or recurring check for this codebase.")]
+    public async Task<CallToolResult> SaveProjectQueryAsync(
+        [Description("Unique identifier for the query (alphanumeric, underscores, hyphens, e.g. 'find_kafka_consumers').")] string name,
+        [Description("Detailed description of what the query does and when the agent should use it.")] string description,
+        [Description("The Cypher query text (may use parameters like $param, $workspaceId, etc.).")] string cypher,
+        [Description("Optional JSON array defining parameters: [{\"name\":\"topicFilter\",\"type\":\"string\",\"required\":false,\"description\":\"...\"}]")] string? parametersJson = null,
+        [Description("Optional description of returned fields (e.g. 'consumerClass, methodName, topicName').")] string? returns = null,
+        [Description("Optional comma-separated tags (e.g. 'kafka,messaging,ingress').")] string? tags = null,
+        [Description("Optional workspace root path.")] string? workspacePath = null)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return WrapError("Missing 'name' argument.");
+        if (string.IsNullOrWhiteSpace(description))
+            return WrapError("Missing 'description' argument.");
+        if (string.IsNullOrWhiteSpace(cypher))
+            return WrapError("Missing 'cypher' argument.");
+
+        return await ExecuteAsync(() => repository.SaveProjectQueryAsync(
+            name, description, cypher, parametersJson, returns, tags, workspacePath ?? GetCurrentWorkspacePath()));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Executes a previously saved project-specific Cypher query from '.codeexplorer/queries/' by name with optional parameters. Fast, optimized, and tailored to this repository.")]
+    public async Task<CallToolResult> ExecuteProjectQueryAsync(
+        [Description("The name of the saved query to execute (e.g. 'find_kafka_consumers').")] string name,
+        [Description("Optional JSON object containing parameter key-value pairs (e.g. '{\"topicFilter\":\"orders\"}').")] string? parametersJson = null,
+        [Description("Optional workspace root path.")] string? workspacePath = null)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return WrapError("Missing 'name' argument.");
+
+        return await ExecuteAsync(() => repository.ExecuteProjectQueryAsync(
+            name, parametersJson, workspacePath ?? GetCurrentWorkspacePath()));
+    }
 }

@@ -168,6 +168,33 @@ public class PostIndexAnalyzerTests
     }
 
     [Test]
+    public async Task Benchmark_ArchitectureMap_OnRealDb()
+    {
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var dir = new DirectoryInfo(baseDir);
+        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "CodeExplorer.slnx")))
+        {
+            dir = dir.Parent;
+        }
+        var dbPath = Path.Combine(dir!.FullName, ".codeexplorer", "graph.db");
+        if (!File.Exists(dbPath)) return;
+
+        using var client = new SqliteGraphClient(dbPath);
+        
+        // Find workspace
+        var wsRes = await client.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.id AS id, w.name AS name, w.path AS path");
+        TestContext.WriteLine("Workspaces: " + wsRes);
+
+        var queriesDir = Path.Combine(dir.FullName, "src", "Core", "CodeExplorer.Core", "Resources", "Queries");
+        var cypher = File.ReadAllText(Path.Combine(queriesDir, "get_architecture_map_workspace.cypher"));
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var res = await client.ExecuteQueryAsync(cypher, new { workspaceId = "2" });
+        sw.Stop();
+        TestContext.WriteLine($"Architecture map on ws 2 took {sw.ElapsedMilliseconds}ms. Result length: {res.Length}");
+    }
+
+    [Test]
     public void PostIndexAnalyzer_Analyze_PureInMemory_ComputesExpectedGraph()
     {
         var calls = new Dictionary<string, List<string>>

@@ -1,11 +1,14 @@
 using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Mcp.Models;
 
 namespace CodeExplorer.Core.Mcp;
 
-public class CodeExplorerRepository(IGraphClient dbClient)
+public class CodeExplorerRepository(IGraphClient dbClient, ProjectQueryManager? queryManager = null)
 {
+    private readonly ProjectQueryManager _queryManager = queryManager ?? new();
+
     private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null)
     {
         var resultJson = await dbClient.ExecuteQueryAsync(query, parameters);
@@ -142,6 +145,7 @@ public class CodeExplorerRepository(IGraphClient dbClient)
 
     public async Task<string> GetArchitectureMapAsync(string? projectName, string? workspacePath)
     {
+        string resultJson;
         if (!string.IsNullOrEmpty(projectName))
         {
             var wsId = await GetWorkspaceIdAsync(workspacePath);
@@ -149,16 +153,45 @@ public class CodeExplorerRepository(IGraphClient dbClient)
             var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
             if (wsId != null) parameters["wsIdPrefix"] = wsId + ":";
             var query = Queries.Get("get_architecture_map_project").Replace("{prefixFilter}", prefixFilter);
-            return await ExecuteAndFormatQueryAsync(query, parameters);
+            resultJson = await ExecuteAndFormatQueryAsync(query, parameters);
         }
-
-        if (!string.IsNullOrEmpty(workspacePath))
+        else if (!string.IsNullOrEmpty(workspacePath))
         {
             var wsId = await GetWorkspaceIdAsync(workspacePath);
-            return await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object> { ["workspaceId"] = wsId! });
+            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object> { ["workspaceId"] = wsId! });
+        }
+        else
+        {
+            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_all"), new Dictionary<string, object>());
         }
 
-        return await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_all"), new Dictionary<string, object>());
+        try
+        {
+            var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
+            var savedQueries = _queryManager.ListQueries(effectiveWsPath);
+            if (savedQueries.Count > 0)
+            {
+                using var doc = JsonDocument.Parse(resultJson);
+                return JsonSerializer.Serialize(new
+                {
+                    results = doc.RootElement.GetProperty("results"),
+                    saved_project_queries = savedQueries.Select(q => new
+                    {
+                        name = q.Name,
+                        description = q.Description,
+                        parameters = q.Parameters,
+                        returns = q.Returns,
+                        tags = q.Tags
+                    })
+                }, new JsonSerializerOptions { WriteIndented = true });
+            }
+        }
+        catch
+        {
+            // Do not fail architecture map if project query listing fails
+        }
+
+        return resultJson;
     }
 
     public async Task<string> GetProjectDependenciesAsync(string? projectFilter, string? workspacePath)
@@ -645,5 +678,172 @@ public class CodeExplorerRepository(IGraphClient dbClient)
             outgoing = kvp.Value.outgoing.OrderBy(x => x.relationship).Select(x => new { x.relationship, x.target }).ToList(),
             incoming = kvp.Value.incoming.OrderBy(x => x.relationship).Select(x => new { x.relationship, x.source }).ToList()
         }).ToList();
+    }
+
+    public async Task<string> ResolveWorkspacePathAsync(string? workspacePath)
+    {
+        if (!string.IsNullOrWhiteSpace(workspacePath))
+        {
+            return Path.GetFullPath(workspacePath);
+        }
+
+        try
+        {
+            var allQuery = Queries.Get("get_all_workspaces");
+            var allResult = await dbClient.ExecuteQueryAsync(allQuery);
+            using var allDoc = JsonDocument.Parse(allResult);
+            if (allDoc.RootElement.ValueKind == JsonValueKind.Array && allDoc.RootElement.GetArrayLength() == 1)
+            {
+                var row = allDoc.RootElement[0];
+                if (row.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
+                {
+                    var p = pathProp.GetString();
+                    if (!string.IsNullOrEmpty(p)) return Path.GetFullPath(p);
+                }
+            }
+        }
+        catch
+        {
+            // Fallback
+        }
+
+        return Directory.GetCurrentDirectory();
+    }
+
+    public async Task<string> ListProjectQueriesAsync(string? workspacePath)
+    {
+        var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
+        var queries = _queryManager.ListQueries(effectiveWsPath);
+        return JsonSerializer.Serialize(new
+        {
+            workspace_path = effectiveWsPath,
+            queries_count = queries.Count,
+            queries = queries.Select(q => new
+            {
+                name = q.Name,
+                description = q.Description,
+                parameters = q.Parameters,
+                returns = q.Returns,
+                tags = q.Tags
+            })
+        }, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    public async Task<string> SaveProjectQueryAsync(
+        string name,
+        string description,
+        string cypher,
+        string? parametersJson,
+        string? returns,
+        string? tags,
+        string? workspacePath)
+    {
+        var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
+
+        var paramList = new List<ProjectQueryParameter>();
+        if (!string.IsNullOrWhiteSpace(parametersJson))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<List<ProjectQueryParameter>>(parametersJson);
+                if (parsed != null) paramList = parsed;
+            }
+            catch (Exception ex)
+            {
+                throw new ArgumentException($"Failed to parse parametersJson: {ex.Message}", nameof(parametersJson), ex);
+            }
+        }
+
+        var tagList = string.IsNullOrWhiteSpace(tags)
+            ? []
+            : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+        var metadata = new ProjectQueryMetadata
+        {
+            Name = name,
+            Description = description,
+            Parameters = paramList,
+            Returns = returns,
+            Tags = tagList
+        };
+
+        var saved = _queryManager.SaveQuery(effectiveWsPath, name, cypher, metadata);
+        return JsonSerializer.Serialize(new
+        {
+            success = true,
+            message = $"Project query '{saved.Name}' successfully validated and saved to .codeexplorer/queries/",
+            query = new
+            {
+                name = saved.Name,
+                description = saved.Description,
+                parameters = saved.Parameters,
+                returns = saved.Returns,
+                tags = saved.Tags,
+                cypher_file = saved.CypherPath,
+                metadata_file = saved.MetadataPath
+            }
+        }, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    public async Task<string> ExecuteProjectQueryAsync(string name, string? parametersJson, string? workspacePath)
+    {
+        var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
+        var queryItem = _queryManager.GetQuery(effectiveWsPath, name);
+        if (queryItem == null)
+        {
+            throw new FileNotFoundException(
+                $"Project query '{name}' not found in '{_queryManager.GetQueriesDirectory(effectiveWsPath)}'. " +
+                "Use 'list_project_queries' to see available queries or 'save_project_query' to register a new one.");
+        }
+
+        var paramDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(parametersJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(parametersJson);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        paramDict[prop.Name] = prop.Value.ValueKind switch
+                        {
+                            JsonValueKind.String => prop.Value.GetString(),
+                            JsonValueKind.Number => prop.Value.TryGetInt64(out var l) ? l : prop.Value.GetDouble(),
+                            JsonValueKind.True => true,
+                            JsonValueKind.False => false,
+                            JsonValueKind.Null => null,
+                            _ => prop.Value.GetRawText()
+                        };
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new ArgumentException($"Failed to parse parametersJson: {ex.Message}", nameof(parametersJson), ex);
+            }
+        }
+
+        foreach (var p in queryItem.Parameters)
+        {
+            if (p.Required && (!paramDict.ContainsKey(p.Name) || paramDict[p.Name] == null))
+            {
+                throw new ArgumentException($"Required parameter '{p.Name}' is missing for query '{name}'.");
+            }
+        }
+
+        if (queryItem.Cypher.Contains("$workspaceId") && !paramDict.ContainsKey("workspaceId"))
+        {
+            var wsId = await GetWorkspaceIdAsync(effectiveWsPath);
+            if (wsId != null) paramDict["workspaceId"] = wsId;
+        }
+
+        if (queryItem.Cypher.Contains("$workspaceIdPrefix") && !paramDict.ContainsKey("workspaceIdPrefix"))
+        {
+            var wsId = await GetWorkspaceIdAsync(effectiveWsPath);
+            if (wsId != null) paramDict["workspaceIdPrefix"] = wsId + ":";
+        }
+
+        return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict);
     }
 }

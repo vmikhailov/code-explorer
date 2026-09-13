@@ -739,7 +739,7 @@ public partial class SqliteCompiler
             var relVar = $"{prefix}_r{_varIndex++}";
             var targetVar = targetNode.Variable ?? $"{prefix}_t{_varIndex++}";
 
-            fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar} JOIN nodes {targetVar}" : $" JOIN edges {relVar} JOIN nodes {targetVar}");
+            fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar} CROSS JOIN nodes {targetVar}" : $" CROSS JOIN edges {relVar} CROSS JOIN nodes {targetVar}");
 
             var prevIdSrc = _nodeIdSource.TryGetValue(prevVar, out var pSrc) ? pSrc : $"{prevVar}.id";
             var targetIdSrc = _nodeIdSource.TryGetValue(targetVar, out var tSrc) ? tSrc : $"{targetVar}.id";
