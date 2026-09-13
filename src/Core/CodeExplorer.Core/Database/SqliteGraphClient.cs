@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -223,14 +223,19 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             CREATE TEMP TABLE IF NOT EXISTS temp_ws_del(id TEXT PRIMARY KEY);
             DELETE FROM temp_ws_del;
 
-            -- 1. Match Folder nodes by path
+            -- 1. Match nodes directly by ID prefix
             INSERT OR IGNORE INTO temp_ws_del(id)
             SELECT id FROM nodes
-            WHERE kind = 'Folder'
-              AND (
-                  lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
-                  OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @normPathSlash
-              );
+            WHERE lower(replace(id, '\', '/')) LIKE 'workspace:folder:' || @normPath || '/%'
+               OR lower(replace(id, '\', '/')) = 'workspace:folder:' || @normPath
+               OR (@hasRel = 1 AND (
+                   lower(replace(id, '\', '/')) LIKE 'workspace:file:' || @relPath || '/%'
+                   OR lower(replace(id, '\', '/')) = 'workspace:file:' || @relPath
+                   OR lower(replace(id, '\', '/')) LIKE 'workspace:project:' || @relPath || ':%'
+                   OR lower(replace(id, '\', '/')) = 'workspace:project:' || @relPath || ':'
+                   OR lower(replace(id, '\', '/')) LIKE 'workspace:symbol:' || @relPath || '/%'
+                   OR lower(replace(id, '\', '/')) = 'workspace:symbol:' || @relPath
+               ));
 
             -- 2. Match File nodes by full_path or relative path
             INSERT OR IGNORE INTO temp_ws_del(id)
@@ -245,7 +250,18 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                   ))
               );
 
-            -- 3. Match Project nodes located in one of our deleted folders
+            -- 3. Match Project nodes located in one of our deleted folders or by name/path
+            INSERT OR IGNORE INTO temp_ws_del(id)
+            SELECT id FROM nodes
+            WHERE kind = 'Project'
+              AND (
+                  lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
+                  OR (@hasRel = 1 AND (
+                      lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
+                      OR lower(json_extract(properties, '$.name')) = @relPath
+                  ))
+              );
+
             INSERT OR IGNORE INTO temp_ws_del(id)
             SELECT from_id FROM edges
             WHERE kind = 'LOCATED_IN' AND to_id IN (SELECT id FROM temp_ws_del);
@@ -455,15 +471,17 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             var pKind = cmd.Parameters.Add("@kind", SqliteType.Text);
             var pProps = cmd.Parameters.Add("@props", SqliteType.Text);
 
+            const string emptyPropsJson = "{}";
             foreach (var rel in rels)
             {
                 pFrom.Value = rel.From;
                 pTo.Value = rel.To;
                 pKind.Value = rel.Kind;
-                pProps.Value = JsonSerializer.Serialize(rel.Properties);
-                await cmd.ExecuteNonQueryAsync();
+                pProps.Value = rel.Properties == null || rel.Properties.Count == 0
+                    ? emptyPropsJson
+                    : JsonSerializer.Serialize(rel.Properties);
+                cmd.ExecuteNonQuery();
             }
-
             await tx.CommitAsync();
             sw.Stop();
             _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count, sw.Elapsed.TotalMilliseconds);

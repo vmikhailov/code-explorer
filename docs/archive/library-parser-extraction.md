@@ -1,4 +1,11 @@
-# Library Parser Extraction — Step-by-Step Instructions
+# [ARCHIVED] Library Parser Extraction — Step-by-Step Instructions
+
+> [!NOTE]
+> **Status: Completed & Archived**.
+> All five library parsers detailed in this document (`NestJsLibraryParser`, `ExpressLibraryParser`, `FetchLibraryParser`, `AspNetCoreLibraryParser`, and `HttpClientLibraryParser`) have been fully extracted, implemented, and tested in `src/Parsers/`.
+> This document is retained solely for historical reference.
+
+---
 
 Extract five inline detection methods from `TypeScriptParser` and `CSharpParser` into proper `ILibraryParser` implementations. Each step is independent and self-contained. Build and verify after each one.
 

@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -39,7 +39,7 @@ public class CSharpParser : IProjectParser, IFileParser
         new GenericLibraryParser("azure", "Azure", "cloud", ["Azure."]),
 
         // Generic API Clients
-        new GenericLibraryParser("restsharp", "RestSharp", "api", ["RestSharp"]),
+        new Libraries.RestSharpLibraryParser(),
         new GenericLibraryParser("refit", "Refit", "api", ["Refit"]),
         new GenericLibraryParser("webapiclient", "WebApiClient", "api", ["WebApiClient"]),
         new GenericLibraryParser("apizr", "Apizr", "api", ["Apizr"]),

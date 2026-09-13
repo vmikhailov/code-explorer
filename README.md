@@ -56,10 +56,12 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
     *   **Go** (`.go`)
     *   **Python** (`.py`)
     *   **SQL & Embedded SQL** (`.sql` scripts, and inline SQL queries in C#, JS, TS, Python, Go)
-*   **Rich Structural Ontology**: Maps codebases across three hierarchical layers (see [Ontology Specification](docs/ontology.md)):
-    *   *Physical Layer*: Workspace, projects (`.csproj`, `go.mod`, `package.json`), folders, files, and git topology.
-    *   *Syntactic Layer*: Classes, interfaces, methods, functions, structs, fields, and calls.
-    *   *Semantic Layer*: Ingress (API endpoints, controllers, event handlers), Egress (HTTP clients, RPC callers), databases, tables, and message queues.
+*   **Rich Structural Ontology**: Maps codebases across a 5-layer decoupled graph architecture (see [Ontology Model](docs/architecture/ontology-model.md) and [Live Schema Reference](docs/ontology.md)):
+    *   *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `go.mod`, `package.json`), folders, files, and git topology.
+    *   *Project Layer (Layer 2)*: Logical compilation units, project boundaries, and package dependencies.
+    *   *Syntactic Layer (Layer 3)*: Classes, interfaces, methods, functions, structs, fields, and calls.
+    *   *Semantic Layer (Layer 4)*: Ingress (API endpoints, controllers, event handlers), Egress (HTTP clients, RPC callers), databases, tables, and message queues.
+    *   *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, and service-to-service links.
 *   **Built-in & Custom Query Catalog**:
     *   **21 Built-in Queries**: Architecture maps, entry points, dependencies, refactoring (dead code, god objects), symbol lookup, and graph taxonomy.
     *   **Extensible Domain Queries**: Save custom queries in `.codeexplorer/queries/*.cypher` with companion `.json` metadata sidecars, automatically available to CLI and AI agents.

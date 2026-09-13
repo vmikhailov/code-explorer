@@ -845,5 +845,183 @@ public class ParserValidationTests
         }
         return result;
     }
+
+    [Test]
+    public async Task Test_CSharpParser_ClassLevelRouteAndSignalR()
+    {
+        var parser = new CSharpParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_csharp_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "ControllerTest.cs");
+
+        var code = @"
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
+
+namespace Test;
+
+[Route(""[controller]"")]
+public class HealtCheckController : ControllerBase {
+    [HttpGet]
+    public IActionResult Index() => Ok();
 }
 
+public static class RouteConfig {
+    public static void Map(IEndpointRouteBuilder endpoints) {
+        endpoints.MapHub<MyHub>(""/hub"");
+    }
+}
+
+public class MyHub {}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            var entryPoints = FindEntryPointNodes(fileNode.Children);
+
+            // Verify [controller] was resolved to HealtCheck and method is GET
+            var getEndpoint = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
+            Assert.That(getEndpoint, Is.Not.Null);
+            Assert.That(getEndpoint!.RouteTemplate, Is.EqualTo("/HealtCheck"));
+
+            // Verify SignalR MapHub was captured as EntryPoint with /hub (MyHub)
+            var hubEntryPoint = entryPoints.FirstOrDefault(ep => ep.Name.Contains("/hub"));
+            Assert.That(hubEntryPoint, Is.Not.Null);
+            Assert.That(hubEntryPoint!.Name, Does.Contain("MyHub"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_CSharpParser_HttpClientCancellationAndUriResolution()
+    {
+        var parser = new CSharpParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_csharp_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "HttpClientTest.cs");
+
+        var code = @"
+using System;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Test;
+
+public class MyService {
+    private HttpClient _httpClient = new HttpClient();
+
+    public async Task DoWork(CancellationToken cMoveCancellationToken) {
+        var dicomClient = new DicomClient();
+        await dicomClient.SendAsync(cMoveCancellationToken);
+
+        var uri = new Uri(""https://rest.spryngsms.com/v1/messages"");
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri);
+        await _httpClient.SendAsync(request);
+    }
+}
+
+public class DicomClient {
+    public Task SendAsync(CancellationToken token) => Task.CompletedTask;
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var extServices = FindExternalServiceNodes(fileNode.Children);
+
+            // Verify dicomClient and CancellationToken were rejected
+            Assert.That(extServices.Any(es => es.Name.Contains("cMoveCancellationToken")), Is.False, "CancellationToken should never be captured as ExternalService");
+            Assert.That(extServices.Any(es => es.Name == "unknown-service"), Is.False, "Unknown service should not be emitted for non-HTTP calls");
+
+            // Verify Spryng URI was successfully extracted from HttpRequestMessage -> Uri declaration
+            var spryng = extServices.FirstOrDefault(es => es.Name == "rest.spryngsms.com");
+            Assert.That(spryng, Is.Not.Null, "Should resolve variable URI from HttpRequestMessage");
+            Assert.That(spryng!.Path, Is.EqualTo("/v1/messages"));
+            Assert.That(spryng.Protocol, Is.EqualTo("https"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_CSharpParser_RestSharp()
+    {
+        var parser = new CSharpParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_csharp_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "RestSharpTest.cs");
+
+        var code = @"
+using System;
+using RestSharp;
+
+namespace Test;
+
+public class RestService {
+    private RestClient _client = new RestClient(""https://api.icometrix.com"");
+
+    public void Call() {
+        var request = new RestRequest(""/authentication-service/api/v1/sessions"", Method.Post);
+    }
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var extServices = FindExternalServiceNodes(fileNode.Children);
+
+            var clientEs = extServices.FirstOrDefault(es => es.Name == "api.icometrix.com");
+            Assert.That(clientEs, Is.Not.Null, "Should capture RestClient base URI");
+            Assert.That(clientEs!.Protocol, Is.EqualTo("https"));
+
+            var reqEs = extServices.FirstOrDefault(es => es.Name == "authentication-service");
+            Assert.That(reqEs, Is.Not.Null, "Should capture RestRequest service name");
+            Assert.That(reqEs!.Path, Is.EqualTo("/authentication-service/api/v1/sessions"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+}

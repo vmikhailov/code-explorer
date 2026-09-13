@@ -1,4 +1,4 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -370,10 +370,17 @@ public class Layer3SyntacticParser
 
         var path = "/";
         var slashIdx = domainOrService.IndexOf('/');
-        if (slashIdx >= 0)
+        if (slashIdx > 0)
         {
             path = domainOrService.Substring(slashIdx);
             domainOrService = domainOrService.Substring(0, slashIdx);
+        }
+        else if (slashIdx == 0)
+        {
+            path = domainOrService;
+            var trimmed = domainOrService.TrimStart('/');
+            var nextSlash = trimmed.IndexOf('/');
+            domainOrService = nextSlash > 0 ? trimmed.Substring(0, nextSlash) : trimmed;
         }
 
         var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";

@@ -1,4 +1,4 @@
-using CodeExplorer.Core.Common;
+﻿using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
@@ -72,12 +72,70 @@ public class Layer5AnalysisParser
         }
     }
 
+    private readonly struct IndexedBinding
+    {
+        public readonly string TypeName;
+        public readonly string? ScopeMarker;
+
+        public IndexedBinding(string typeName, string? scopeId)
+        {
+            TypeName = typeName;
+            ScopeMarker = string.IsNullOrEmpty(scopeId) ? null : $":{scopeId}:";
+        }
+    }
+
+    private static string? ExtractFilePathFromSymbolId(string scopeSymbolId)
+    {
+        const string marker = ":symbol:";
+        var markerIdx = scopeSymbolId.IndexOf(marker, StringComparison.Ordinal);
+        if (markerIdx < 0) return null;
+
+        var start = markerIdx + marker.Length;
+        var end = scopeSymbolId.IndexOf(':', start);
+        if (end <= start) return null;
+
+        return scopeSymbolId.Substring(start, end - start);
+    }
+
     private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
     {
         var totalReferences = ctx.GlobalReferences.Count;
         ctx.Log($"[Layer5AnalysisParser] Resolving {totalReferences} global cross-references...");
-        var referenceRelationships = new List<Relationship>();
+        var referenceRelationships = new List<Relationship>(totalReferences > 0 ? Math.Min(totalReferences, 2000000) : 0);
         var inheritanceRels = new HashSet<(string From, string To)>();
+
+        // Pre-split GlobalSymbols into single-string dictionaries for O(1) single-hash lookups
+        var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var procedureSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var tableSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var endpointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var entryPointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var (key, id) in ctx.GlobalSymbols)
+        {
+            switch (key.Kind)
+            {
+                case OntologyConstants.NodeLabels.Type:
+                    typeSymbols[key.Name] = id;
+                    break;
+                case OntologyConstants.NodeLabels.Function:
+                    functionSymbols[key.Name] = id;
+                    break;
+                case OntologyConstants.NodeLabels.Procedure:
+                    procedureSymbols[key.Name] = id;
+                    break;
+                case OntologyConstants.NodeLabels.Table:
+                    tableSymbols[key.Name] = id;
+                    break;
+                case OntologyConstants.NodeLabels.Endpoint:
+                    endpointSymbols[key.Name] = id;
+                    break;
+                case OntologyConstants.NodeLabels.EntryPoint:
+                    entryPointSymbols[key.Name] = id;
+                    break;
+            }
+        }
 
         // Pass 1: Resolve all inheritance (Implements / InheritsFrom) relationships first and cache them in a HashSet.
         foreach (var refItem in ctx.GlobalReferences)
@@ -87,8 +145,7 @@ public class Layer5AnalysisParser
             if (refItem.Kind == OntologyConstants.Relationships.Implements ||
                 refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
             {
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Type, refItem.TargetName),
-                        out var targetNodeId))
+                if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId))
                 {
                     if (refItem.Kind == OntologyConstants.Relationships.Implements)
                     {
@@ -105,15 +162,13 @@ public class Layer5AnalysisParser
                 }
                 else if (refItem.Kind == OntologyConstants.Relationships.Implements)
                 {
-                    if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Endpoint, refItem.TargetName),
-                            out var targetEndpointId))
+                    if (endpointSymbols.TryGetValue(refItem.TargetName, out var targetEndpointId))
                     {
                         referenceRelationships.Add(
                             Relationship.FromRelationship(new ExposedByRelationship(targetEndpointId,
                                 refItem.ScopeSymbolId)));
                     }
-                    else if (ctx.GlobalSymbols.TryGetValue(
-                                 (OntologyConstants.NodeLabels.EntryPoint, refItem.TargetName), out var targetEpId))
+                    else if (entryPointSymbols.TryGetValue(refItem.TargetName, out var targetEpId))
                     {
                         referenceRelationships.Add(
                             Relationship.FromRelationship(new ImplementedByRelationship(targetEpId,
@@ -124,8 +179,23 @@ public class Layer5AnalysisParser
             }
         }
 
-        // Pass 2: Resolve all other relationships using the cached inheritance relationships.
+        // Index RawTypeBindings by (FilePath, VariableName) for O(1) fast member-call lookup
+        var bindingsLookup = new Dictionary<(string FilePath, string VarName), List<IndexedBinding>>(ctx.RawTypeBindings.Count);
+        foreach (var b in ctx.RawTypeBindings)
+        {
+            var key = (b.FilePath, b.VariableName);
+            if (!bindingsLookup.TryGetValue(key, out var list))
+            {
+                list = new List<IndexedBinding>(1);
+                bindingsLookup[key] = list;
+            }
+            list.Add(new IndexedBinding(b.TypeName, b.ScopeId));
+        }
+
+        // Pass 2: Resolve all other relationships using the cached inheritance relationships and bindings index.
         var resolvedCount = 0;
+        var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);
+        var newTopicNodes = new List<TopicNode>();
 
         foreach (var refItem in ctx.GlobalReferences)
         {
@@ -135,6 +205,12 @@ public class Layer5AnalysisParser
             if (resolvedCount % 100000 == 0)
             {
                 ctx.Log($"[Layer5AnalysisParser] Resolving global cross-references: {resolvedCount}/{totalReferences}...");
+            }
+
+            if (refItem.Kind == OntologyConstants.Relationships.Implements ||
+                refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
+            {
+                continue;
             }
 
             if (refItem.Kind == OntologyConstants.Relationships.Calls)
@@ -147,33 +223,33 @@ public class Layer5AnalysisParser
                     var varName = targetName.Substring(0, dotIdx);
                     var methodName = targetName.Substring(dotIdx + 1);
 
-                    string? filePath = null;
-                    var scopeParts = refItem.ScopeSymbolId.Split(':');
-
-                    if (scopeParts.Length > 2 && scopeParts[1] == "symbol")
-                    {
-                        filePath = scopeParts[2];
-                    }
+                    var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
 
                     if (filePath != null)
                     {
-                        RawTypeBinding? binding = null;
+                        string? targetTypeName = null;
 
-                        // Priority 1: Match by scope name
-                        binding = ctx.RawTypeBindings.FirstOrDefault(b =>
-                            b.FilePath == filePath && b.VariableName == varName &&
-                            refItem.ScopeSymbolId.Contains($":{b.ScopeId}:"));
-
-                        // Priority 2: Fallback to any binding in the same file
-                        if (binding == null)
+                        if (bindingsLookup.TryGetValue((filePath, varName), out var candidates))
                         {
-                            binding = ctx.RawTypeBindings.FirstOrDefault(b =>
-                                b.FilePath == filePath && b.VariableName == varName);
+                            // Priority 1: Match by scope name
+                            for (int i = 0; i < candidates.Count; i++)
+                            {
+                                var candidate = candidates[i];
+                                if (candidate.ScopeMarker != null &&
+                                    refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal))
+                                {
+                                    targetTypeName = candidate.TypeName;
+                                    break;
+                                }
+                            }
+
+                            // Priority 2: Fallback to any binding in the same file
+                            targetTypeName ??= candidates[0].TypeName;
                         }
 
-                        if (binding != null)
+                        if (targetTypeName != null)
                         {
-                            targetName = $"{binding.TypeName}.{methodName}";
+                            targetName = $"{targetTypeName}.{methodName}";
                         }
                         else
                         {
@@ -186,14 +262,12 @@ public class Layer5AnalysisParser
                     }
                 }
 
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Function, targetName),
-                        out var targetNodeId))
+                if (functionSymbols.TryGetValue(targetName, out var targetNodeId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
                 }
-                else if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Procedure, targetName),
-                             out var targetProcId))
+                else if (procedureSymbols.TryGetValue(targetName, out var targetProcId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new CalledByRelationship(targetProcId, refItem.ScopeSymbolId)));
@@ -201,8 +275,7 @@ public class Layer5AnalysisParser
             }
             else if (refItem.Kind == OntologyConstants.Relationships.DependsOn)
             {
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Table, refItem.TargetName),
-                        out var targetTableId))
+                if (tableSymbols.TryGetValue(refItem.TargetName, out var targetTableId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new QueriedByRelationship(targetTableId, refItem.ScopeSymbolId)));
@@ -210,8 +283,7 @@ public class Layer5AnalysisParser
             }
             else if (refItem.Kind == OntologyConstants.Relationships.UsesType)
             {
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Type, refItem.TargetName),
-                        out var targetNodeId))
+                if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId, targetNodeId)));
@@ -219,8 +291,7 @@ public class Layer5AnalysisParser
             }
             else if (refItem.Kind == OntologyConstants.Relationships.PotentialType)
             {
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Type, refItem.TargetName),
-                        out var targetNodeId))
+                if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId))
                 {
                     if (refItem.ScopeSymbolId != targetNodeId)
                     {
@@ -235,8 +306,7 @@ public class Layer5AnalysisParser
             }
             else if (refItem.Kind == OntologyConstants.Relationships.Triggers)
             {
-                if (ctx.GlobalSymbols.TryGetValue((OntologyConstants.NodeLabels.Function, refItem.TargetName),
-                        out var targetNodeId))
+                if (functionSymbols.TryGetValue(refItem.TargetName, out var targetNodeId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetNodeId)));
@@ -260,11 +330,13 @@ public class Layer5AnalysisParser
 
                 var topicId = $"{ctx.WorkspaceId}:topic:{brokerType}:{topicName}";
 
-                // Dynamically upload the Topic node
-                var topicNode = new TopicNode(topicId, topicName, "", brokerType);
-                await ctx.DbClient.UploadNodesAsync(new List<Node> { Node.FromNode(topicNode) });
-                ctx.AddNodesCount(1);
-                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
+                if (!createdTopicIds.Contains(topicId))
+                {
+                    createdTopicIds.Add(topicId);
+                    var topicNode = new TopicNode(topicId, topicName, "", brokerType);
+                    newTopicNodes.Add(topicNode);
+                    ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
+                }
 
                 if (refItem.Kind == OntologyConstants.Relationships.PublishesTo)
                 {
@@ -279,6 +351,13 @@ public class Layer5AnalysisParser
             }
         }
 
+        if (newTopicNodes.Count > 0)
+        {
+            var nodes = newTopicNodes.Select(Node.FromNode).ToList();
+            await ctx.DbClient.UploadNodesAsync(nodes);
+            ctx.AddNodesCount(nodes.Count);
+        }
+
         if (referenceRelationships.Count > 0)
         {
             ctx.Log($"[Layer5AnalysisParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
@@ -288,7 +367,6 @@ public class Layer5AnalysisParser
 
         return referenceRelationships;
     }
-
     private async Task<List<Relationship>> PerformLateBindingAsync(IOntologyNode rootNode, ParsingContext ctx)
     {
         var entryPoints = new List<EntryPointNode>();

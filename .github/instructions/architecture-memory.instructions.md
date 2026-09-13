@@ -8,12 +8,13 @@ applyTo:
 
 Core architectural patterns, constraints, and pipeline designs for CodeExplorer.
 
-## Two-Layer Semantic Ingestion Pipeline
+## Five-Stage Ingestion Pipeline & Embedded SQLite Graph
 
-- **Use a Two-Layer Graph Architecture** instead of local LLMs or in-memory C# data-flow for cross-file semantic extraction.
-- **Layer 1 (Structural Graph Ingestion)**: Parses code ASTs, maps structures, and uploads nodes/edges into Memgraph. Resolves global cross-references (e.g., `CALLS`, `INHERITS_FROM`).
-- **Layer 2 (Semantic Graph Enrichment)**: Executes pure Cypher queries against Memgraph *only after Layer 1 is fully complete* across all projects. Derives deep meaning like `TRANSITIVELY_CALLS` and `ATTRIBUTED_TO`.
-- **Rationale**: Relying on local LLMs per-method introduces severe performance bottlenecks and latency. Graph traversal via Cypher is deterministic, scales effortlessly to large codebases, and ensures perfect language agnosticism.
+- **Use a Decoupled 5-Stage Graph Pipeline** (`WorkspaceIndexer` $\rightarrow$ `Layer1PhysicalParser` through `Layer5AnalysisParser`) instead of local LLMs or in-memory C# data-flow for cross-file semantic extraction.
+- **Embedded SQLite Graph Database**: All entities and relationships are persisted to `<workspaceRoot>/.codeexplorer/graph.db` using WAL mode, with high-throughput async persistence via `DatabasePersistenceWriter` and `System.Threading.Channels`.
+- **Layer 1–4 (Forward Ingestion)**: Discovers physical layout, project boundaries, AST outlines (`SyntacticSymbol`), and semantic interfaces (`Endpoint`, `ExternalService`, `Database`, `Topic`).
+- **Layer 5 (Late-Bound Analysis)**: Executes pure, deterministic, depth-bounded Cypher queries against the embedded SQLite graph *only after Layers 1–4 are complete*. Resolves cross-project `CALLS`, `IMPLEMENTS`, and `CALLS_ENDPOINT` links.
+- **Rationale**: Relying on LLMs per-method introduces severe performance bottlenecks and latency. Graph traversal via compiled Cypher-to-SQL is deterministic, sub-second fast on 200k+ nodes, and guarantees language agnosticism.
 
 ## AST Visitor Pattern & Ontology Isolation
 
