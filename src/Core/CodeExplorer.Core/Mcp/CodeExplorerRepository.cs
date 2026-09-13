@@ -13,9 +13,9 @@ public class CodeExplorerRepository(
     private readonly ProjectQueryManager _queryManager = queryManager ?? new();
     public string? DefaultWorkspacePath { get; } = defaultWorkspacePath;
 
-    private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null)
+    private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {
-        var resultJson = await dbClient.ExecuteQueryAsync(query, parameters);
+        var resultJson = await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
         using var doc = JsonDocument.Parse(resultJson);
 
         return JsonSerializer.Serialize(new { results = doc.RootElement },
@@ -52,17 +52,159 @@ public class CodeExplorerRepository(
         return (cleared, notFound);
     }
 
-    public async Task<string> GetArchitectureMapAsync(string? projectName = null, string? workspacePath = null)
+    public async Task<string> GetArchitectureOverviewAsync(string? workspacePath = null, CancellationToken cancellationToken = default)
+    {
+        var overviewQuery = Queries.Get("get_architecture_overview");
+        var rawJson = await dbClient.ExecuteQueryAsync(overviewQuery, null, cancellationToken);
+
+        long totalNodes = 0;
+        long totalFiles = 0;
+        long totalRels = 0;
+
+        try
+        {
+            var nodesCountJson = await dbClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt;", null, cancellationToken);
+            using var doc = JsonDocument.Parse(nodesCountJson);
+            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
+                totalNodes = pCnt.GetInt64();
+        }
+        catch { }
+
+        try
+        {
+            var filesCountJson = await dbClient.ExecuteQueryAsync("MATCH (f:File) RETURN count(f) AS cnt;", null, cancellationToken);
+            using var doc = JsonDocument.Parse(filesCountJson);
+            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
+                totalFiles = pCnt.GetInt64();
+        }
+        catch { }
+
+        try
+        {
+            var relsCountJson = await dbClient.ExecuteQueryAsync("MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project) RETURN count(*) AS cnt;", null, cancellationToken);
+            using var doc = JsonDocument.Parse(relsCountJson);
+            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
+                totalRels = pCnt.GetInt64();
+        }
+        catch { }
+
+        using var overviewDoc = JsonDocument.Parse(rawJson);
+        if (overviewDoc.RootElement.ValueKind != JsonValueKind.Array || overviewDoc.RootElement.GetArrayLength() == 0)
+        {
+            return rawJson;
+        }
+
+        var row = overviewDoc.RootElement[0];
+        var wsName = row.TryGetProperty("workspace", out var wProp) ? wProp.GetString() : "workspace";
+        var wsPath = row.TryGetProperty("path", out var pathProp) ? pathProp.GetString() : "";
+
+        var rawProjects = new List<Dictionary<string, string>>();
+        if (row.TryGetProperty("projects", out var projProp) && projProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var p in projProp.EnumerateArray())
+            {
+                var pName = p.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                var pLang = p.TryGetProperty("language", out var l) ? l.GetString() ?? "" : "";
+                var pPath = p.TryGetProperty("path", out var pt) ? pt.GetString() ?? "" : "";
+                if (!string.IsNullOrEmpty(pName))
+                {
+                    rawProjects.Add(new Dictionary<string, string>
+                    {
+                        ["name"] = pName,
+                        ["language"] = pLang,
+                        ["path"] = pPath,
+                        ["layer"] = ClassifyProjectLayer(pName, pPath)
+                    });
+                }
+            }
+        }
+
+        var layerOrder = new[] { "Core / Domain", "Services / Backend", "UI / Presentation", "Infrastructure / Data", "Other", "Tests" };
+        var groupedLayers = layerOrder
+            .Select(layer =>
+            {
+                var items = rawProjects.Where(p => p["layer"] == layer).Select(p => new { name = p["name"], language = p["language"], path = p["path"] }).ToList();
+                return new
+                {
+                    layer,
+                    count = items.Count,
+                    projects = items
+                };
+            })
+            .Where(g => g.count > 0)
+            .ToList();
+
+        var databases = new List<string>();
+        if (row.TryGetProperty("databases", out var dbProp) && dbProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var db in dbProp.EnumerateArray())
+            {
+                var dbStr = db.GetString();
+                if (!string.IsNullOrEmpty(dbStr)) databases.Add(dbStr);
+            }
+        }
+
+        var externalServices = new List<string>();
+        if (row.TryGetProperty("externalServices", out var esProp) && esProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var es in esProp.EnumerateArray())
+            {
+                var esStr = es.GetString();
+                if (!string.IsNullOrEmpty(esStr)) externalServices.Add(esStr);
+            }
+        }
+
+        var overviewResult = new
+        {
+            workspace = wsName,
+            path = wsPath,
+            stats = new
+            {
+                total_projects = rawProjects.Count,
+                total_files = totalFiles,
+                total_nodes = totalNodes,
+                total_project_dependencies = totalRels
+            },
+            layers = groupedLayers,
+            databases = databases.Distinct().OrderBy(x => x).ToList(),
+            external_services = externalServices.Distinct().OrderBy(x => x).ToList()
+        };
+
+        return JsonSerializer.Serialize(new { results = overviewResult }, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static string ClassifyProjectLayer(string name, string path)
+    {
+        var combined = (name + " " + path).ToLowerInvariant();
+        if (combined.Contains("test") || combined.Contains("mock") || combined.Contains("spec"))
+            return "Tests";
+        if (combined.Contains("ui") || combined.Contains("web") || combined.Contains("api") ||
+            combined.Contains("client") || combined.Contains("frontend") || combined.Contains("cli"))
+            return "UI / Presentation";
+        if (combined.Contains("core") || combined.Contains("domain") || combined.Contains("common") ||
+            combined.Contains("shared") || combined.Contains("model") || combined.Contains("entity"))
+            return "Core / Domain";
+        if (combined.Contains("service") || combined.Contains("server") || combined.Contains("backend") ||
+            combined.Contains("worker") || combined.Contains("job") || combined.Contains("consumer"))
+            return "Services / Backend";
+        if (combined.Contains("infra") || combined.Contains("data") || combined.Contains("db") ||
+            combined.Contains("database") || combined.Contains("persistence") || combined.Contains("sql") ||
+            combined.Contains("repository"))
+            return "Infrastructure / Data";
+        return "Other";
+    }
+
+    public async Task<string> GetArchitectureMapAsync(string? projectName = null, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         string resultJson;
         if (!string.IsNullOrEmpty(projectName))
         {
             var query = Queries.Get("get_architecture_map_project");
-            resultJson = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectName"] = projectName });
+            resultJson = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectName"] = projectName }, cancellationToken);
         }
         else
         {
-            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object>());
+            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object>(), cancellationToken);
         }
 
         try
@@ -94,31 +236,32 @@ public class CodeExplorerRepository(
         return resultJson;
     }
 
-    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string? workspacePath = null)
+    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         if (!string.IsNullOrEmpty(projectFilter))
         {
             var query = Queries.Get("get_project_dependencies_filtered");
-            return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectFilter"] = projectFilter });
+            return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectFilter"] = projectFilter }, cancellationToken);
         }
         else
         {
             var query = Queries.Get("get_project_dependencies_all");
-            return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object>());
+            return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object>(), cancellationToken);
         }
     }
 
-    public async Task<string> GetFileOutlineAsync(string filePath, string? workspacePath = null)
+    public async Task<string> GetFileOutlineAsync(string filePath, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        var normalizedPath = filePath.Trim().Replace('\\', '/').TrimStart('/');
         var query = Queries.Get("get_file_outline");
         var parameters = new Dictionary<string, object>
         {
-            ["filePath"] = filePath
+            ["filePath"] = normalizedPath
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> FindSymbolAsync(string name, string? symbolType = null, string? workspacePath = null)
+    public async Task<string> FindSymbolAsync(string name, string? symbolType = null, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, object>
         {
@@ -143,10 +286,10 @@ public class CodeExplorerRepository(
             query = Queries.Get("find_symbol_all");
         }
 
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string? workspacePath = null)
+    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var depth = Math.Max(1, Math.Min(10, maxDepth));
         var query = Queries.Get("get_call_chain").Replace("{depth}", depth.ToString());
@@ -155,10 +298,10 @@ public class CodeExplorerRepository(
             ["startFunction"] = startFunction,
             ["endFunction"] = endFunction
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null)
+    public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get("resolve_call_target");
         var parameters = new Dictionary<string, object>
@@ -166,43 +309,43 @@ public class CodeExplorerRepository(
             ["interfaceName"] = interfaceName,
             ["methodName"] = methodName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string? workspacePath = null)
+    public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get("analyze_code_impact");
         var parameters = new Dictionary<string, object>
         {
             ["symbolName"] = symbolName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> InspectDataLineageAsync(string tableName, string? workspacePath = null)
+    public async Task<string> InspectDataLineageAsync(string tableName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get("inspect_data_lineage");
         var parameters = new Dictionary<string, object>
         {
             ["tableName"] = tableName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> GetProjectEntryPointsAsync(string projectName, string? workspacePath = null)
+    public async Task<string> GetProjectEntryPointsAsync(string projectName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get("get_project_entry_points");
         var parameters = new Dictionary<string, object>
         {
             ["projectName"] = projectName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
     }
 
-    private async Task AppendMetricResultsAsync(List<object> results, string queryKey, Dictionary<string, object> parameters)
+    private async Task AppendMetricResultsAsync(List<object> results, string queryKey, Dictionary<string, object> parameters, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get(queryKey);
-        var res = await dbClient.ExecuteQueryAsync(query, parameters);
+        var res = await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
         using var doc = JsonDocument.Parse(res);
         foreach (var item in doc.RootElement.EnumerateArray())
         {
@@ -210,21 +353,21 @@ public class CodeExplorerRepository(
         }
     }
 
-    public async Task<string> FindRefactoringOpportunitiesAsync(string projectName, string metricType = "all", string? workspacePath = null)
+    public async Task<string> FindRefactoringOpportunitiesAsync(string projectName, string metricType = "all", string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var results = new List<object>();
         var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
 
         if (metricType is "dead_code" or "all")
-            await AppendMetricResultsAsync(results, "find_refactor_dead_code", parameters);
+            await AppendMetricResultsAsync(results, "find_refactor_dead_code", parameters, cancellationToken);
 
         if (metricType is "god_objects" or "all")
-            await AppendMetricResultsAsync(results, "find_refactor_god_objects", parameters);
+            await AppendMetricResultsAsync(results, "find_refactor_god_objects", parameters, cancellationToken);
 
         return JsonSerializer.Serialize(new { results }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public async Task<string> ExecuteCustomReadCypherAsync(string query, string? workspacePath = null)
+    public async Task<string> ExecuteCustomReadCypherAsync(string query, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var lowerQuery = query.ToLowerInvariant();
 
@@ -235,41 +378,41 @@ public class CodeExplorerRepository(
             throw new InvalidOperationException("Security violation: Mutating queries are not allowed.");
         }
 
-        return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object?>());
+        return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object?>(), cancellationToken);
     }
 
-    public async Task<string> GetWorkspaceContentAsync(string? workspacePath = null, string? type = null)
+    public async Task<string> GetWorkspaceContentAsync(string? workspacePath = null, string? type = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, object?>
         {
             ["type"] = string.IsNullOrEmpty(type) ? null : type
         };
         var query = Queries.Get("get_workspace_content");
-        return await dbClient.ExecuteQueryAsync(query, parameters);
+        return await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> ExecuteRawQueryAsync(string query, Dictionary<string, object?>? parameters = null)
+    public async Task<string> ExecuteRawQueryAsync(string query, Dictionary<string, object?>? parameters = null, CancellationToken cancellationToken = default)
     {
-        return await dbClient.ExecuteQueryAsync(query, parameters);
+        return await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> GetTaxonomyAsync(string? workspacePath = null)
+    public async Task<string> GetTaxonomyAsync(string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var parameters = new Dictionary<string, object?>();
         var query = Queries.Get("get_taxonomy_nodes");
         var propQuery = Queries.Get("get_taxonomy_properties");
 
-        var resultJson = await dbClient.ExecuteQueryAsync(query, parameters);
+        var resultJson = await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
         var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? [];
 
-        var propJson = await dbClient.ExecuteQueryAsync(propQuery, parameters);
+        var propJson = await dbClient.ExecuteQueryAsync(propQuery, parameters, cancellationToken);
         var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? [];
 
         var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
         return JsonSerializer.Serialize(new { taxonomy }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public async Task<string> FetchCodeSnippetsAsync(string nodesJson, string? workspacePath = null)
+    public async Task<string> FetchCodeSnippetsAsync(string nodesJson, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         return await FetchCodeSnippetsDirectlyAsync(nodesJson, workspacePath);
     }
@@ -480,7 +623,7 @@ public class CodeExplorerRepository(
         return Directory.GetCurrentDirectory();
     }
 
-    public async Task<string> ListProjectQueriesAsync(string? workspacePath)
+    public async Task<string> ListProjectQueriesAsync(string? workspacePath, CancellationToken cancellationToken = default)
     {
         var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
         var queries = _queryManager.ListQueries(effectiveWsPath);
@@ -506,7 +649,8 @@ public class CodeExplorerRepository(
         string? parametersJson,
         string? returns,
         string? tags,
-        string? workspacePath)
+        string? workspacePath,
+        CancellationToken cancellationToken = default)
     {
         var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
 
@@ -555,7 +699,7 @@ public class CodeExplorerRepository(
         }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public async Task<string> ExecuteProjectQueryAsync(string name, string? parametersJson, string? workspacePath)
+    public async Task<string> ExecuteProjectQueryAsync(string name, string? parametersJson, string? workspacePath, CancellationToken cancellationToken = default)
     {
         var effectiveWsPath = await ResolveWorkspacePathAsync(workspacePath);
         var queryItem = _queryManager.GetQuery(effectiveWsPath, name);
@@ -612,6 +756,6 @@ public class CodeExplorerRepository(
             paramDict["workspaceIdPrefix"] = "workspace:";
         }
 
-        return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict);
+        return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict, cancellationToken);
     }
 }

@@ -1,4 +1,4 @@
-MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File)
+MATCH (p:Project {name: $projectName})-[:CONTAINS*1..5]->(f:File)
 MATCH (item)-[:DECLARED_IN]->(f) WHERE item:Function OR item:Type
 OPTIONAL MATCH (caller)-[:CALLS|USES_TYPE]->(item) WITH f, item, caller
 WHERE caller IS NULL

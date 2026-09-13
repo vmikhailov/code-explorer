@@ -24,6 +24,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         set => _logger = value ?? NullLogger.Instance;
     }
 
+    public int CommandTimeoutSeconds { get; set; } = 15;
+
     public SqliteGraphClient(string connectionStringOrPath, ILogger<SqliteGraphClient>? logger = null)
     {
         _logger = (ILogger?)logger ?? NullLogger.Instance;
@@ -472,7 +474,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
-    public async Task<string> ExecuteQueryAsync(string query, object? parameters = null)
+    public async Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
         ValidateQuerySecurity(query);
@@ -480,18 +482,19 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         var ast = CypherQueryParser.Parse(query);
         var compiled = SqliteCompiler.Compile(ast, paramDict);
 
-        await _lock.WaitAsync();
+        await _lock.WaitAsync(cancellationToken);
         try
         {
             await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
             cmd.CommandText = compiled.Sql;
             foreach (var (k, v) in compiled.Parameters)
             {
                 cmd.Parameters.AddWithValue("@" + k, v ?? DBNull.Value);
             }
 
-            await using var reader = await cmd.ExecuteReaderAsync();
-            var rows = await ReadRowsAsync(reader);
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            var rows = await ReadRowsAsync(reader, cancellationToken);
             sw.Stop();
 
             _logger.LogInformation(
@@ -501,6 +504,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 GetQueryPreview(query));
 
             return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
+        {
+            sw.Stop();
+            _logger.LogError(ex, "[DB:Query] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s): {QueryPreview}",
+                sw.Elapsed.TotalMilliseconds, CommandTimeoutSeconds, GetQueryPreview(query));
+            throw new TimeoutException($"Query execution timed out after {CommandTimeoutSeconds} seconds. Consider narrowing filters or bounding traversal depth.", ex);
         }
         finally
         {
@@ -514,10 +524,10 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         return singleLine.Length > 80 ? singleLine[..77] + "..." : singleLine;
     }
 
-    private static async Task<List<Dictionary<string, object?>>> ReadRowsAsync(SqliteDataReader reader)
+    private static async Task<List<Dictionary<string, object?>>> ReadRowsAsync(SqliteDataReader reader, CancellationToken cancellationToken = default)
     {
         var rows = new List<Dictionary<string, object?>>();
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(cancellationToken))
         {
             var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             for (var i = 0; i < reader.FieldCount; i++)
@@ -529,7 +539,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         return rows;
     }
 
-    public async Task ExecuteWriteAsync(string query, object? parameters = null)
+    public async Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
         var paramDict = ExtractParameters(parameters);
@@ -541,20 +551,28 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             return;
         }
 
-        await _lock.WaitAsync();
+        await _lock.WaitAsync(cancellationToken);
         try
         {
             await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
             cmd.CommandText = query;
             foreach (var (k, v) in paramDict)
             {
                 cmd.Parameters.AddWithValue("@" + k, v ?? DBNull.Value);
             }
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
             sw.Stop();
 
             _logger.LogInformation("[DB:Write] Write completed in {ElapsedMs:F1}ms: {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
+        {
+            sw.Stop();
+            _logger.LogError(ex, "[DB:Write] Write timed out after {ElapsedMs:F1}ms: {QueryPreview}",
+                sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
+            throw new TimeoutException($"Database write timed out after {CommandTimeoutSeconds} seconds.", ex);
         }
         finally
         {

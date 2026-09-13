@@ -1,4 +1,4 @@
-MATCH (p:Project {name: $projectName})-[:CONTAINS*1..]->(f:File)
+MATCH (p:Project {name: $projectName})-[:CONTAINS*1..5]->(f:File)
 MATCH (c:Type {kind: 'class'})-[:DECLARED_IN]->(f)
 MATCH (c)-[:HAS_METHOD|HAS_MEMBER]->(member)
 WITH c, f, count(member) AS memberCount WHERE memberCount > 15

@@ -53,12 +53,12 @@ public class InMemoryGraphClient : IGraphClient
         return Task.CompletedTask;
     }
 
-    public Task<string> ExecuteQueryAsync(string query, object? parameters = null)
+    public Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {
         return Task.FromResult("[]");
     }
 
-    public Task ExecuteWriteAsync(string query, object? parameters = null)
+    public Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
     }

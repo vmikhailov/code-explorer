@@ -303,4 +303,16 @@ public class McpIntegrationTests
         await CallToolAndAssertSuccessAsync("get_node_definition", "{\"kind\": \"Workspace\"}", 7);
         await CallToolAndAssertSuccessAsync("get_node_definition", "{\"kind\": \"Class\"}", 8);
     }
+
+    [Test]
+    public async Task Test_GetArchitectureOverview()
+    {
+        await CallToolAndAssertSuccessAsync("get_architecture_overview", "{}", 9);
+    }
+
+    [Test]
+    public async Task Test_GetFileOutline()
+    {
+        await CallToolAndAssertSuccessAsync("get_file_outline", "{\"filePath\": \"CodeExplorer/server.ts\"}", 10);
+    }
 }

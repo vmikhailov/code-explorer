@@ -38,6 +38,7 @@ public static class Queries
 
     private static readonly Dictionary<string, (string Description, string Category)> KnownMetadata = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["get_architecture_overview"] = ("High-level architectural overview with projects grouped by layers/roles and key statistics", "Architecture"),
         ["get_architecture_map_workspace"] = ("Hierarchical workspace architecture map (projects, languages, dependencies, ingress, egress)", "Architecture"),
         ["get_architecture_map_project"] = ("Project-level architecture map including dependencies and endpoints", "Architecture"),
         ["get_project_entry_points"] = ("Find API endpoints, CLI commands, and project entry points", "Architecture"),

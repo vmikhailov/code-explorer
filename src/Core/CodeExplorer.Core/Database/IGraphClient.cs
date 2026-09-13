@@ -9,6 +9,6 @@ public interface IGraphClient : IAsyncDisposable
     Task SaveEmptyWorkspaceNodeAsync(string id, string path);
     Task UploadNodesAsync(List<Node> nodes);
     Task UploadRelationshipsAsync(List<Relationship> rels);
-    Task<string> ExecuteQueryAsync(string query, object? parameters = null);
-    Task ExecuteWriteAsync(string query, object? parameters = null);
+    Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
+    Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
 }
