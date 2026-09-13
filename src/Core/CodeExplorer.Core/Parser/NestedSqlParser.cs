@@ -248,6 +248,10 @@ public static class NestedSqlParser
         var dbNodes = new Dictionary<string, DatabaseNode>(StringComparer.OrdinalIgnoreCase);
         var datasetNodes = new Dictionary<string, DataSetNode>(StringComparer.OrdinalIgnoreCase);
 
+        var colonIdx = queryNode.Id.IndexOf(':');
+        var wsPrefix = colonIdx > 0 ? queryNode.Id[..colonIdx] : "";
+        var dbPrefix = string.IsNullOrEmpty(wsPrefix) ? "db" : $"{wsPrefix}:db";
+
         // Process Tables
         foreach (var tableRef in tables)
         {
@@ -258,7 +262,7 @@ public static class NestedSqlParser
             var dbKey = dbName.ToLowerInvariant();
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
-                var dbNodeId = $"db:{dbKey}";
+                var dbNodeId = $"{dbPrefix}:{dbKey}";
                 dbNode = new DatabaseNode(dbNodeId, dbName, filePath, "relational");
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
@@ -291,7 +295,7 @@ public static class NestedSqlParser
             var dbKey = dbName.ToLowerInvariant();
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
-                var dbNodeId = $"db:{dbKey}";
+                var dbNodeId = $"{dbPrefix}:{dbKey}";
                 dbNode = new DatabaseNode(dbNodeId, dbName, filePath, "relational");
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);

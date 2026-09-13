@@ -173,27 +173,44 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     private async Task DeleteWorkspaceHierarchyAsync(string wsId)
     {
-        var wsPrefix = wsId + ":%";
+        var wsGlob = wsId + ":*";
         await using var cmd = _conn.CreateCommand();
-        cmd.CommandText = """
-            WITH RECURSIVE ws_nodes(id) AS (
-                SELECT @wsId
-                UNION
-                SELECT e.to_id FROM edges e JOIN ws_nodes w ON e.from_id = w.id WHERE e.kind = 'CONTAINS'
-            )
-            DELETE FROM edges WHERE from_id IN (SELECT id FROM ws_nodes) OR to_id IN (SELECT id FROM ws_nodes)
-                OR from_id = @wsId OR from_id LIKE @wsPrefix OR to_id = @wsId OR to_id LIKE @wsPrefix;
-
-            WITH RECURSIVE ws_nodes(id) AS (
-                SELECT @wsId
-                UNION
-                SELECT e.to_id FROM edges e JOIN ws_nodes w ON e.from_id = w.id WHERE e.kind = 'CONTAINS'
-            )
-            DELETE FROM nodes WHERE id IN (SELECT id FROM ws_nodes)
-                OR id = @wsId OR id LIKE @wsPrefix;
-            """;
         cmd.Parameters.AddWithValue("@wsId", wsId);
-        cmd.Parameters.AddWithValue("@wsPrefix", wsPrefix);
+        cmd.Parameters.AddWithValue("@wsGlob", wsGlob);
+
+        cmd.CommandText = """
+            CREATE TEMP TABLE IF NOT EXISTS temp_ws_del(id TEXT PRIMARY KEY);
+            DELETE FROM temp_ws_del;
+
+            -- 1. Instant index-range scan for all nodes prefixed with workspace ID
+            INSERT OR IGNORE INTO temp_ws_del(id)
+            SELECT id FROM nodes WHERE id = @wsId OR id GLOB @wsGlob;
+            """;
+        await cmd.ExecuteNonQueryAsync();
+
+        // 2. Include all levels of child nodes attached via CONTAINS
+        while (true)
+        {
+            cmd.CommandText = """
+                INSERT OR IGNORE INTO temp_ws_del(id)
+                SELECT to_id FROM edges
+                WHERE kind = 'CONTAINS'
+                  AND from_id IN (SELECT id FROM temp_ws_del)
+                  AND to_id NOT GLOB @wsGlob
+                  AND to_id != @wsId;
+                """;
+            var added = await cmd.ExecuteNonQueryAsync();
+            if (added == 0) break;
+        }
+
+        cmd.CommandText = """
+            -- 3. Fast indexed deletions across edges and nodes
+            DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_ws_del);
+            DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_ws_del);
+            DELETE FROM nodes WHERE id IN (SELECT id FROM temp_ws_del);
+
+            DROP TABLE IF EXISTS temp_ws_del;
+            """;
         await cmd.ExecuteNonQueryAsync();
     }
 
