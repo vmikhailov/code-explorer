@@ -1,11 +1,12 @@
-# CodeExplorer 🔍
+# CodeExplorer (`ce`) 🔍
 
-[![License: BUSL 1.1](https://img.shields.io/badge/License-BUSL_1.1-orange.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
+[![Platforms: Windows | Linux | macOS](https://img.shields.io/badge/Platforms-Win%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#-single-file-self-contained-binaries)
 
-**CodeExplorer** is an ontology-driven, multi-language codebase parser, indexer, and query service. It processes source repositories into a rich, queryable knowledge graph stored in an **embedded SQLite Graph Database** (with full Cypher query support), enabling advanced static analysis, architecture visualization, dependency mapping, and LLM-assisted code understanding.
+**CodeExplorer (`ce`)** is a fast, single-file CLI and Model Context Protocol (MCP) server for deep codebase intelligence. It transforms polyglot repositories into a rich, queryable knowledge graph stored in an **embedded SQLite graph database** (with native Cypher query compilation) — with zero external dependencies, no Docker containers, and no complex configuration.
 
-It also serves as a **Model Context Protocol (MCP)** server, allowing AI agents (such as Gemini, Claude, or ChatGPT) to recursively explore, query, and refactor the repository graph using Cypher.
+With `ce`, both developers and AI agents (Claude, Cursor, Copilot, ChatGPT, Antigravity) can perform architectural discovery, trace cross-service dependency topologies, analyze refactoring blast radiuses, and run Cypher graph queries directly from their terminal or editor.
 
 ![Codebase Ontology Graph Example](docs/graph-example.png)
 
@@ -25,7 +26,7 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
 | **Storage Strategy** | Stateful, in-memory AST caches per editor session. | **Embedded Graph Database** (SQLite, zero external dependencies). |
 | **Polyglot Scope** | Single-language boundary per server instance. | **Unified Cross-Language Graph** (bridges C#, Go, Python, TS, and SQL). |
 | **Querying** | Fixed RPC methods (`goto definition`, `find references`). | **Arbitrary Cypher Queries** (unlimited multi-hop semantic traversal). |
-| **Update Loop** | Instantaneous, keystroke-by-keystroke. | Batch ingestion pipeline (triggered via CLI or Webhooks). |
+| **Update Loop** | Instantaneous, keystroke-by-keystroke. | Fast index scan via `ce scan` (CLI, CI, or agent task). |
 
 ### 🧠 Core Architectural Differences
 
@@ -45,23 +46,26 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
 
 ## 🚀 Key Features
 
-*   **Dynamic On-the-Fly Scanning**: Recursively scans directories to detect project boundaries dynamically without hardcoded limits.
+*   **Zero-Dependency Single-File Executable**: Distributed as a self-contained binary (`ce.exe` / `ce`) for Windows, Linux, and macOS. No .NET runtime or SDK installation required.
+*   **Local `.codeexplorer` Workspace Auto-Discovery**: Initialized once per repository or mono-repo with `ce init`. Automatically discovered by walking up the directory tree — run commands from any subfolder without specifying paths.
+*   **Embedded SQLite Graph with Cypher**: Uses a high-performance embedded SQLite database compiled with custom graph indices and an optimized AST-to-SQL Cypher compiler.
 *   **Multi-Language AST Parsing**: Full AST-level parsing powered by **Tree-sitter** and Microsoft SQL **ScriptDom**:
     *   **C#** (`.cs`)
     *   **TypeScript** (`.ts`, `.tsx`)
     *   **JavaScript** (`.js`, `.jsx`)
     *   **Go** (`.go`)
     *   **Python** (`.py`)
-    *   **SQL & Embedded SQL** (`.sql` scripts, as well as SQL strings embedded inside C#, JS, TS, Python, and Go code)
-*   **Rich Ontology Extraction**: Extracts and maps codebases into three core structural layers (for a detailed specification, see the [Ontology Specification](docs/ontology.md)):
-    *   **File & Directory Structure**: Scans and maps workspaces, projects/module boundaries (e.g., `.csproj`, `go.mod`, `package.json`), project folders, and individual source files.
-    *   **Code & Class Structure**: Identifies AST-level nodes (classes, interfaces, enums, functions, methods, and variables) along with their code dependencies and inheritance hierarchy (`CALLS`, `IMPLEMENTS`, `INHERITS_FROM`).
-    *   **Ingress & Egress (API & Data Boundaries)**: Resolves system boundaries, mapping incoming **Ingress** (HTTP route controllers, queue consumers, CLI stubs), outgoing **Egress** (external HTTP/gRPC client calls), databases (tables, stored procedures, embedded SQL queries), and message brokers.
-*   **Global Resolution & Late Binding**:
-    *   Resolves type inheritance (`INHERITS_FROM`), interface implementations (`IMPLEMENTS`), and function calls (`CALLS`).
-    *   Late-binds API endpoints and message queue topics across microservices dynamically once all project scans are completed.
-*   **High Performance Ingestion**: Fast bulk/batch uploads enqueuing nodes and relationships in batches of 1000 through asynchronous database channels.
-*   **Model Context Protocol (MCP) Server**: Provides specialized tools for AI coding assistants to retrieve dependency maps, project entry points, structural taxonomies, and refactoring opportunities.
+    *   **SQL & Embedded SQL** (`.sql` scripts, and inline SQL queries in C#, JS, TS, Python, Go)
+*   **Rich Structural Ontology**: Maps codebases across three hierarchical layers (see [Ontology Specification](docs/ontology.md)):
+    *   *Physical Layer*: Workspace, projects (`.csproj`, `go.mod`, `package.json`), folders, files, and git topology.
+    *   *Syntactic Layer*: Classes, interfaces, methods, functions, structs, fields, and calls.
+    *   *Semantic Layer*: Ingress (API endpoints, controllers, event handlers), Egress (HTTP clients, RPC callers), databases, tables, and message queues.
+*   **Built-in & Custom Query Catalog**:
+    *   **21 Built-in Queries**: Architecture maps, entry points, dependencies, refactoring (dead code, god objects), symbol lookup, and graph taxonomy.
+    *   **Extensible Domain Queries**: Save custom queries in `.codeexplorer/queries/*.cypher` with companion `.json` metadata sidecars, automatically available to CLI and AI agents.
+*   **Model Context Protocol (MCP) Server**:
+    *   **stdio mode** (default): Seamless integration with Cursor, Claude Desktop, VS Code, Windsurf, and Antigravity.
+    *   **HTTP mode** (`--port <p>`): Exposes standard MCP endpoint at `/mcp` with SSE streaming.
 
 ---
 
@@ -100,98 +104,223 @@ Once the syntactic structure is captured:
 
 ---
 
-## 🏁 Getting Started
+## 📦 Installation & Single-File Binaries
 
-### Build the Project
-No external database or containers are required. You can build and run immediately:
+CodeExplorer is packaged as a **single-file, self-contained executable** with embedded Tree-sitter parsers and SQLite engine. No .NET runtime or SDK installation is required to run the binary.
+
+### Build the Executables
+
+You can compile standalone single-file binaries for any platform using the included publish scripts:
+
+**Windows (PowerShell / Command Prompt):**
+```powershell
+# Publish ce.exe for Windows x64 into .Build/bin/ce.exe
+.\scripts\publish.cmd
+
+# Or publish for all platforms (Windows, Linux, macOS)
+.\scripts\publish.cmd all
+```
+
+**Linux / macOS (Bash):**
+```bash
+# Make script executable and publish for current platform
+chmod +x scripts/publish.sh
+./scripts/publish.sh
+
+# Or publish for all target platforms
+./scripts/publish.sh all
+```
+
+Targets produced in `.Build/bin/`:
+*   **Windows x64**: `ce.exe`
+*   **Linux x64 / ARM64**: `ce`
+*   **macOS Apple Silicon (ARM64) / Intel (x64)**: `ce`
+
+Add `ce` (or `ce.exe`) to your system `PATH` to use it from anywhere.
+
+---
+
+## 🏁 Quick Start Workflow
+
+Run `ce` in your terminal to see the interactive status and workspace overview:
 
 ```bash
-# Make the build script executable and run it
-chmod +x build.sh
-./build.sh
+# 1. Initialize a .codeexplorer workspace in your repository root
+ce init MyProject
+
+# 2. Scan and index code topology, AST, dependencies, and semantic graph
+ce scan
+
+# 3. View workspace health, indexed projects, node kinds, and statistics
+ce status
+
+# 4. List all built-in and workspace-custom Cypher queries
+ce queries
+
+# 5. Execute a query by name or run ad-hoc Cypher
+ce query -n get_architecture_map_workspace
+ce query "MATCH (p:Project) RETURN p.name, p.project_type"
+
+# 6. Start the MCP server for AI coding assistants
+ce mcp
 ```
 
 ---
 
-## 💻 CLI Usage
+## 💻 CLI Command Reference
 
-The entry point of the application is the `UI/CodeExplorer` console project. It supports three modes: **ingestion**, **querying**, and **MCP server**.
-
-### A. Ingest/Index a Workspace
-Scan a target codebase directory and index it into the embedded SQLite graph:
-
+### `ce init [name]`
+Initializes a `.codeexplorer/` workspace directory in the target folder with an empty SQLite graph database and queries catalog.
 ```bash
-dotnet run --project src/UI/CodeExplorer/CodeExplorer.csproj -- ingest --dir "/path/to/your/codebase" --clear
-```
-*   `--dir`: The absolute directory path of the codebase to index.
-*   `--db-path`: (Optional) Database file path (defaults to `.codeexplorer/graph.db`).
-*   `--clear`: Clears previous data for this workspace before scanning.
-*   `--clear-all`: (Optional) Wipes the entire graph database before scanning.
-
-### B. Execute a Cypher Query
-Run custom Cypher queries directly against the graph from the command line:
-
-```bash
-dotnet run --project src/UI/CodeExplorer/CodeExplorer.csproj -- query --query "MATCH (n:Project) RETURN n.name"
+ce init
+ce init MyProject -d /path/to/repo
 ```
 
-### C. Start the MCP Server
-Launch the Model Context Protocol (MCP) server over SSE (Server-Sent Events) to expose codebase intelligence to AI tools:
-
+### `ce scan [path]` *(alias: `ce index`)*
+Scans source files, parses ASTs (Tree-sitter & ScriptDom), builds structural relationships, and resolves semantic boundaries.
 ```bash
-dotnet run --project src/UI/CodeExplorer/CodeExplorer.csproj -- mcp --port 8085
+ce scan                     # Index entire workspace
+ce scan ./src/AuthService   # Index a specific project subfolder
+ce scan -c                  # Clear previous data for path before re-indexing
+```
+
+### `ce status` *(alias: `ce info`)*
+Displays workspace statistics, database size, indexed projects by language, node counts, and available queries.
+```bash
+ce status
+ce status --json            # Output structured JSON for automation
+```
+
+### `ce queries` *(alias: `ce query -l`)*
+Displays all available Cypher queries grouped into categories (`[Architecture]`, `[Refactoring]`, `[Symbols]`, `[Taxonomy]`) along with any custom workspace queries from `.codeexplorer/queries/`.
+```bash
+ce queries
+ce queries --format json
+```
+
+### `ce query [options]`
+Executes a read-only Cypher query against the knowledge graph with formatted tabular or JSON output.
+```bash
+# Execute named built-in or custom query
+ce query -n get_architecture_map_workspace
+ce query -n get_all_workspaces
+
+# Inspect Cypher source code of any query
+ce query --show get_architecture_map_workspace
+
+# Execute raw Cypher string
+ce query "MATCH (t:Type {kind: 'interface'}) RETURN t.name"
+ce query "MATCH (p:Project)-[:DEPENDS_ON]->(d) RETURN p.name, d.name" --format json
+
+# Execute query from file
+ce query -f ./custom_audit.cypher
+```
+
+### `ce mcp [options]`
+Starts the Model Context Protocol (MCP) server exposing CodeExplorer graph tools directly to AI assistants.
+```bash
+ce mcp                      # stdio mode (default for Cursor, Claude, Antigravity)
+ce mcp --port 8085          # HTTP mode with SSE endpoint at http://localhost:8085/mcp
+```
+
+### `ce clear [path]`
+Selectively wipes a subfolder from the index or clears the entire graph database.
+```bash
+ce clear ./src/OldModule    # Remove specific subfolder
+ce clear -y                 # Reset entire graph database
 ```
 
 ---
 
-## 🤖 Model Context Protocol (MCP) Tools
+## 🤖 Model Context Protocol (MCP) Setup
 
-Once the MCP server is running (e.g. on port `8085`), it registers the following tools for AI assistants. The graph database schema and relationship models used by these tools are described in the [Ontology Specification](docs/ontology.md).
+Connect `ce` to your favorite AI development environment:
+
+### Cursor
+Add to your Cursor MCP settings (`~/.cursor/mcp.json` or Cursor Settings -> MCP):
+```json
+{
+  "mcpServers": {
+    "code-explorer": {
+      "command": "ce",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### Claude Desktop
+Add to your `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "code-explorer": {
+      "command": "ce",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+### VS Code (with Roo Code / Continue / Cline)
+Configure the tool command as `ce` with arguments `["mcp"]`.
+
+---
+
+## 🛠️ MCP Tools Reference
+
+When running as an MCP server, `ce` registers the following tools for AI assistants:
 
 | Tool Name | Parameters | Description |
 | :--- | :--- | :--- |
-| `get_taxonomy` | None | Retrieves the full structural taxonomy database schema mapping all active node types and their incoming/outgoing relationships. |
-| `get_architecture_map` | `projectName` (string, optional) | Returns the high-level infrastructure map of the workspace, including workspace folders, projects, their internal folders, and associated databases. |
-| `get_project_dependencies` | `projectFilter` (string, optional) | Retrieves the complete dependency graph between projects, including direct and transitive package/project dependencies. |
-| `get_file_outline` | `filePath` (string) | Extracts the internal outline of a specific file (classes, interfaces, functions, variables, queries) without reading the full source text. |
-| `find_symbol` | `name` (string), `symbolType` (string, optional) | Searches the semantic graph for code symbols matching a partial or full name, optionally filtered by type. |
-| `get_call_chain` | `startFunction` (string), `endFunction` (string), `maxDepth` (int, optional, default: 5) | Traces and builds a sequential execution call path (call graph) between a starting function and a target function. |
-| `resolve_call_target` | `interfaceName` (string), `methodName` (string) | Finds all concrete classes implementing a given interface and points to their real physical function implementations. |
-| `analyze_code_impact` | `symbolName` (string) | Performs a blast-radius analysis, tracking all incoming structural links to identify files/components affected by refactoring the symbol. |
-| `inspect_data_lineage` | `tableName` (string) | Tracks database change blast radius by finding raw SQL texts, source files, and functions that invoke queries targeting a specific table. |
-| `get_project_entry_points` | `projectName` (string) | Finds all architectural entry points inside a project (controllers, endpoints, event handlers, etc.). |
-| `find_refactoring_opportunities` | `projectName` (string), `metricType` (string, optional, default: "all") | Scans the project for code health anomalies, identifying dead code and god objects. |
-| `execute_custom_read_cypher` | `query` (string) | Executes a custom read-only Cypher query (MATCH only) directly against the graph database. |
-| `fetch_code_snippets` | `nodesJson` (string) | Fetches actual source code snippets for a list of serialized JSON node/URN contexts (containing file path, start line, and end line). |
-| `get_node_definition` | `kind` (string) | Retrieves documentation and schema details for a specific ontological Node Kind. |
+| `get_taxonomy` | None | Structural taxonomy database schema mapping all active node types and relationship counts. |
+| `get_architecture_map` | `projectName` (opt) | Workspace architecture map: projects, dependencies, database nodes, Ingress, and Egress. |
+| `get_project_dependencies` | `projectFilter` (opt) | Complete dependency graph between projects, including direct and transitive links. |
+| `get_file_outline` | `filePath` | AST outline of a file (classes, interfaces, functions, variables, queries) without reading full text. |
+| `find_symbol` | `name`, `symbolType` (opt) | Search semantic graph for symbols (Class, Interface, Function, Struct) matching a pattern. |
+| `get_call_chain` | `startFunction`, `endFunction`, `maxDepth` | Trace and return sequential invocation call graph between starting and target function. |
+| `resolve_call_target` | `interfaceName`, `methodName` | Find all concrete classes implementing an interface and point to physical method implementations. |
+| `analyze_code_impact` | `symbolName` | Downstream blast-radius analysis tracking all files and symbols affected by modifying a symbol. |
+| `inspect_data_lineage` | `tableName` | Trace database entity blast radius: SQL queries, functions, and files referencing a table. |
+| `get_project_entry_points` | `projectName` | Find architectural entry points (API controllers, HTTP routes, CLI commands, event handlers). |
+| `find_refactoring_opportunities` | `projectName`, `metricType` | Detect dead code, unreferenced symbols, and god objects with high coupling. |
+| `list_project_queries` | None | Discover custom parameterized project queries saved in `.codeexplorer/queries/`. |
+| `save_project_query` | `name`, `description`, `cypher`, `metadata` | Validate syntax/safety and persist reusable domain Cypher query into `.codeexplorer/queries/`. |
+| `execute_project_query` | `name`, `parameters` (opt) | Execute a workspace custom or built-in query by name with automatic workspace parameter binding. |
+| `execute_custom_read_cypher` | `query`, `parameters` (opt) | Execute arbitrary read-only Cypher (`MATCH` only) directly against the graph database. |
+| `fetch_code_snippets` | `nodesJson` | Fetch source code snippets for a list of node URN contexts (file path, start line, end line). |
+| `get_node_definition` | `kind` | Retrieve documentation and schema details for an ontological Node Kind. |
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-├── docs/                        # Architectural and ontology documentation.
+├── docs/                        # Architectural, ontology, and query specifications
+├── scripts/                     # Cross-platform single-file publish scripts (publish.cmd, publish.sh, publish.ps1)
 ├── src/
 │   ├── Core/
-│   │   └── CodeExplorer.Core/   # Core parsing engines, ontology definitions, database client, and MCP handlers.
+│   │   └── CodeExplorer.Core/   # Graph database client, ontology definitions, parser pipeline, and MCP tools
+│   ├── Cypher/
+│   │   └── CodeExplorer.Cypher/ # Cypher query parser, AST transformer, and SQLite SQL compiler
 │   ├── Parsers/
-│   │   ├── CodeExplorer.Parser.CSharp/       # C# AST Parser
-│   │   ├── CodeExplorer.Parser.Go/           # Go AST Parser
-│   │   ├── CodeExplorer.Parser.Python/       # Python AST Parser
+│   │   ├── CodeExplorer.Parser.CSharp/       # C# AST Parser (Tree-sitter)
+│   │   ├── CodeExplorer.Parser.Go/           # Go AST Parser (Tree-sitter)
+│   │   ├── CodeExplorer.Parser.Python/       # Python AST Parser (Tree-sitter)
 │   │   ├── CodeExplorer.Parser.SQL/          # SQL ScriptDom Parser
-│   │   └── CodeExplorer.Parser.TypeScript/   # TypeScript/JavaScript AST Parser
+│   │   └── CodeExplorer.Parser.TypeScript/   # TypeScript & JavaScript AST Parser (Tree-sitter)
 │   ├── Tools/
-│   │   └── CodeExplorer.OntologyGen/         # Ontological markdown generation tool.
+│   │   └── CodeExplorer.OntologyGen/         # Ontological markdown generation tool
 │   └── UI/
-│   │   └── CodeExplorer/        # Command Line Interface (CLI) and Web API (MCP SSE Server) Host.
+│       └── CodeExplorer/        # 'ce' CLI tool and MCP host (stdio & HTTP)
 ├── tests/
-│   └── CodeExplorer.Tests/      # End-to-end integration tests and parser validations.
-├── build.sh                     # Automated build and test script.
-└── CodeExplorer.slnx            # Solution layout file.
+│   ├── CodeExplorer.Cypher.Tests/ # Cypher compiler unit & regression tests
+│   └── CodeExplorer.Tests/        # CLI, indexing, integration, and MCP tests
+└── CodeExplorer.slnx            # Solution layout file
 ```
 
 ---
 
 ## 📄 License
 
-This project is licensed under the Business Source License 1.1 (BUSL-1.1), transitioning to the Apache License, Version 2.0 on June 15, 2029 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [MIT License](LICENSE).
