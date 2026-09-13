@@ -39,13 +39,11 @@ public static class Queries
     private static readonly Dictionary<string, (string Description, string Category)> KnownMetadata = new(StringComparer.OrdinalIgnoreCase)
     {
         ["get_architecture_map_workspace"] = ("Hierarchical workspace architecture map (projects, languages, dependencies, ingress, egress)", "Architecture"),
-        ["get_architecture_map_all"] = ("Global architecture map across all indexed workspaces in database", "Architecture"),
         ["get_architecture_map_project"] = ("Project-level architecture map including dependencies and endpoints", "Architecture"),
         ["get_project_entry_points"] = ("Find API endpoints, CLI commands, and project entry points", "Architecture"),
         ["get_project_dependencies_all"] = ("List all project-to-project dependency links", "Architecture"),
         ["get_project_dependencies_filtered"] = ("Project dependencies filtered by source/target project", "Architecture"),
         ["get_workspace_content"] = ("Structural breakdown of projects, folders, and files in workspace", "Architecture"),
-        ["get_all_workspaces"] = ("List all workspaces stored in the SQLite graph database", "Architecture"),
 
         ["find_refactor_dead_code"] = ("Detect unreferenced/dead functions, classes, and types", "Refactoring"),
         ["find_refactor_god_objects"] = ("Detect classes with excessive coupling and complexity", "Refactoring"),
@@ -82,8 +80,6 @@ public static class Queries
                 var sub = idx >= 0 ? r.Substring(idx + ".Queries.".Length) : r;
                 return sub.EndsWith(".cypher", StringComparison.OrdinalIgnoreCase) ? sub[..^7] : sub;
             })
-            .Where(n => !n.EndsWith("_no_ws", StringComparison.OrdinalIgnoreCase) &&
-                        !n.Equals("get_workspace_id", StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(n => n)
             .ToList();

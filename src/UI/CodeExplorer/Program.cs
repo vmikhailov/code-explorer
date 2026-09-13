@@ -400,64 +400,27 @@ public class Program
             await using var client = new SqliteGraphClient(dbPath);
 
             var parameters = new Dictionary<string, object?>();
-            // Auto-populate workspace parameters if query references them
-            if (cypherQuery.Contains("$workspaceId", StringComparison.OrdinalIgnoreCase) ||
-                cypherQuery.Contains("$wsId", StringComparison.OrdinalIgnoreCase) ||
-                cypherQuery.Contains("$wsIdPrefix", StringComparison.OrdinalIgnoreCase) ||
-                cypherQuery.Contains("$workspacePath", StringComparison.OrdinalIgnoreCase) ||
-                cypherQuery.Contains("{prefixFilter}", StringComparison.OrdinalIgnoreCase) ||
-                cypherQuery.Contains("{prefixClause}", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    var wsRow = await client.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.id AS id, w.name AS name, w.path AS path LIMIT 1");
-                    using var doc = JsonDocument.Parse(wsRow);
-                    if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
-                    {
-                        var row0 = doc.RootElement[0];
-                        var wsId = row0.TryGetProperty("id", out var pId) ? pId.GetString() : null;
-                        var wsPath = row0.TryGetProperty("path", out var pPath) ? pPath.GetString() : null;
-                        if (!string.IsNullOrEmpty(wsId))
-                        {
-                            parameters["workspaceId"] = wsId;
-                            parameters["wsId"] = wsId;
-                            parameters["wsIdPrefix"] = $"{wsId}:";
-                            parameters["workspaceIdPrefix"] = $"{wsId}:";
-                        }
-                        if (!string.IsNullOrEmpty(wsPath))
-                        {
-                            parameters["workspacePath"] = wsPath;
-                            parameters["path"] = wsPath;
-                        }
-                    }
-                }
-                catch
-                {
-                    // Fallback
-                }
-
-                if (!parameters.ContainsKey("workspaceId"))
-                {
-                    parameters["workspaceId"] = "workspace";
-                    parameters["wsId"] = "workspace";
-                    parameters["wsIdPrefix"] = "workspace:";
-                    parameters["workspaceIdPrefix"] = "workspace:";
-                }
-            }
-
             if (cypherQuery.Contains("{prefixFilter}"))
             {
-                var prefixFilter = parameters.ContainsKey("wsIdPrefix") ? "WHERE p.id STARTS WITH $wsIdPrefix " : "";
-                cypherQuery = cypherQuery.Replace("{prefixFilter}", prefixFilter);
+                cypherQuery = cypherQuery.Replace("{prefixFilter}", "");
             }
             if (cypherQuery.Contains("{prefixClause}"))
             {
-                var prefixClause = parameters.ContainsKey("wsIdPrefix") ? " AND n.id STARTS WITH $wsIdPrefix" : "";
-                cypherQuery = cypherQuery.Replace("{prefixClause}", prefixClause);
+                cypherQuery = cypherQuery.Replace("{prefixClause}", "");
             }
             if (cypherQuery.Contains("{depth}"))
             {
                 cypherQuery = cypherQuery.Replace("{depth}", "5");
+            }
+            if (cypherQuery.Contains("$workspaceId", StringComparison.OrdinalIgnoreCase))
+            {
+                parameters["workspaceId"] = "workspace";
+            }
+            if (cypherQuery.Contains("$workspaceIdPrefix", StringComparison.OrdinalIgnoreCase) ||
+                cypherQuery.Contains("$wsIdPrefix", StringComparison.OrdinalIgnoreCase))
+            {
+                parameters["workspaceIdPrefix"] = "workspace:";
+                parameters["wsIdPrefix"] = "workspace:";
             }
 
             var resultJson = await client.ExecuteQueryAsync(cypherQuery, parameters);

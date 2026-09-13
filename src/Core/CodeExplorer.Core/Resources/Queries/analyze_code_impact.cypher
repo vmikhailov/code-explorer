@@ -1,5 +1,4 @@
 MATCH (target) WHERE (target:Type OR target:Function) AND (target.symbol = $symbolName OR target.name = $symbolName)
-AND target.id STARTS WITH $wsIdPrefix
 MATCH (target)<-[:USES_TYPE|CALLS]-(dependent)
 OPTIONAL MATCH (dependent)-[:DECLARED_IN]->(f:File)
 OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f)

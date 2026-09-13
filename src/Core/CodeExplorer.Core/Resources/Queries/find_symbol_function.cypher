@@ -1,4 +1,4 @@
-MATCH (n:Function) WHERE n.name CONTAINS $name{prefixClause}
+MATCH (n:Function) WHERE n.name CONTAINS $name
 OPTIONAL MATCH (f:File)-[:DEFINES|DECLARES*1..]->(n)
 OPTIONAL MATCH (w:Workspace)-[:CONTAINS*1..]->(f)
 RETURN 'Function' AS type, n.name AS name, n.symbol AS fullName,

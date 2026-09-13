@@ -268,12 +268,6 @@ public class McpIntegrationTests
     }
 
     [Test]
-    public async Task Test_GetAllWorkspaces()
-    {
-        await CallToolAndAssertSuccessAsync("get_all_workspaces", "{}", 99);
-    }
-
-    [Test]
     public async Task Test_GetArchitectureMap()
     {
         await CallToolAndAssertSuccessAsync("get_architecture_map", "{}", 2);
@@ -282,7 +276,7 @@ public class McpIntegrationTests
     [Test]
     public async Task Test_ExecuteCustomReadCypher()
     {
-        await CallToolAndAssertSuccessAsync("execute_custom_read_cypher", "{\"query\": \"MATCH (n) WHERE toString(n.id) STARTS WITH $workspaceIdPrefix RETURN count(n) AS nodeCount\"}", 3);
+        await CallToolAndAssertSuccessAsync("execute_custom_read_cypher", "{\"query\": \"MATCH (n) RETURN count(n) AS nodeCount\"}", 3);
     }
 
     [Test]

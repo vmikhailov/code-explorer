@@ -372,10 +372,37 @@ public class RealLifeExecutionTests
         return results;
     }
 
+    private List<Dictionary<string, object?>> ExecuteCypher(string rawText, Dictionary<string, object?>? parameters = null)
+    {
+        var ast = CypherQueryParser.Parse(rawText);
+        var compiled = SqliteCompiler.Compile(ast, parameters);
+
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = compiled.Sql;
+        foreach (var (k, v) in compiled.Parameters)
+        {
+            var paramName = "@" + k.TrimStart('@');
+            cmd.Parameters.AddWithValue(paramName, v ?? DBNull.Value);
+        }
+
+        var results = new List<Dictionary<string, object?>>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+            }
+            results.Add(row);
+        }
+        return results;
+    }
+
     [Test]
     public void Test_01_GetWorkspaces_ReturnsSeededWorkspace()
     {
-        var rows = ExecuteQuery("get_all_workspaces.cypher");
+        var rows = ExecuteCypher("MATCH (w:Workspace) RETURN w.id AS id, w.path AS path");
 
         Assert.That(rows, Has.Count.EqualTo(1));
         Assert.That(rows[0]["id"], Is.EqualTo("ws:1"));

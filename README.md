@@ -203,7 +203,7 @@ Executes a read-only Cypher query against the knowledge graph with formatted tab
 ```bash
 # Execute named built-in or custom query
 ce query -n get_architecture_map_workspace -j      # View full structured JSON tree
-ce query -n get_all_workspaces
+ce query -n get_project_dependencies_all
 
 # Inspect Cypher source code of any query
 ce query --show get_architecture_map_workspace

@@ -1,4 +1,4 @@
-MATCH (t:Table {name: $tableName}) WHERE t.id STARTS WITH $wsIdPrefix
+MATCH (t:Table {name: $tableName})
 OPTIONAL MATCH (q:Query)-[:DEPENDS_ON]->(t)
 OPTIONAL MATCH (parent)-[:DEFINES|DECLARES]->(q)
 OPTIONAL MATCH (caller)-[:CALLS|DEPENDS_ON*0..]->(parent)

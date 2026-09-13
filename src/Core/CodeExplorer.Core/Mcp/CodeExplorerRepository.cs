@@ -22,96 +22,7 @@ public class CodeExplorerRepository(
             new JsonSerializerOptions { WriteIndented = true });
     }
 
-    private static string CleanPathForComparison(string? path)
-    {
-        if (string.IsNullOrEmpty(path)) return string.Empty;
-        var clean = path.Replace('\\', '/');
-        var driveMatch = System.Text.RegularExpressions.Regex.Match(clean, @"^[A-Za-z]:");
-        if (driveMatch.Success)
-        {
-            clean = clean.Substring(driveMatch.Length);
-        }
-        if (clean.StartsWith("/host", StringComparison.OrdinalIgnoreCase))
-        {
-            clean = clean.Substring(5);
-        }
-        return clean.Trim('/').ToLowerInvariant();
-    }
 
-    private static string? ExtractId(JsonElement row)
-    {
-        if (row.TryGetProperty("id", out var idProp))
-        {
-            if (idProp.ValueKind == JsonValueKind.String)
-            {
-                var idVal = idProp.GetString();
-                if (!string.IsNullOrEmpty(idVal)) return idVal;
-            }
-            else if (idProp.ValueKind == JsonValueKind.Number)
-            {
-                return idProp.GetInt64().ToString();
-            }
-        }
-        return null;
-    }
-
-    private async Task<string?> TryGetExactWorkspaceIdAsync(string workspacePath)
-    {
-        var normalized = PathTools.NormalizeToHostPath(workspacePath);
-        var normalizedAlt = normalized.Contains('/') ? normalized.Replace('/', '\\') : normalized.Replace('\\', '/');
-
-        var query = Queries.Get("get_workspace_id");
-        var resultJson = await dbClient.ExecuteQueryAsync(query, new Dictionary<string, object?>
-        {
-            ["path"] = normalized,
-            ["altPath"] = normalizedAlt
-        });
-        using var doc = JsonDocument.Parse(resultJson);
-        if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
-        {
-            return ExtractId(doc.RootElement[0]);
-        }
-        return null;
-    }
-
-    private async Task<string?> TryMatchWorkspaceFallbackAsync(string workspacePath)
-    {
-        var allQuery = Queries.Get("get_all_workspaces");
-        var allResult = await dbClient.ExecuteQueryAsync(allQuery);
-        using var allDoc = JsonDocument.Parse(allResult);
-        if (allDoc.RootElement.ValueKind != JsonValueKind.Array) return null;
-
-        if (allDoc.RootElement.GetArrayLength() == 1)
-        {
-            return ExtractId(allDoc.RootElement[0]);
-        }
-
-        var inputCleaned = CleanPathForComparison(workspacePath);
-        foreach (var row in allDoc.RootElement.EnumerateArray())
-        {
-            if (row.TryGetProperty("path", out var pathProp) &&
-                pathProp.ValueKind == JsonValueKind.String &&
-                CleanPathForComparison(pathProp.GetString()!) == inputCleaned)
-            {
-                var id = ExtractId(row);
-                if (id != null) return id;
-            }
-        }
-        return null;
-    }
-
-    private async Task<string?> GetWorkspaceIdAsync(string? workspacePath)
-    {
-        if (string.IsNullOrEmpty(workspacePath)) return null;
-
-        var exactId = await TryGetExactWorkspaceIdAsync(workspacePath);
-        if (exactId != null) return exactId;
-
-        var fallbackId = await TryMatchWorkspaceFallbackAsync(workspacePath);
-        if (fallbackId != null) return fallbackId;
-
-        throw new InvalidOperationException($"Workspace at path '{workspacePath}' is not indexed yet. Please run ingest/index first.");
-    }
 
     public async Task ClearAllAsync()
     {
@@ -141,32 +52,17 @@ public class CodeExplorerRepository(
         return (cleared, notFound);
     }
 
-    public async Task<string> GetAllWorkspacesAsync()
-    {
-        var query = Queries.Get("get_all_workspaces");
-        return await ExecuteAndFormatQueryAsync(query);
-    }
-
-    public async Task<string> GetArchitectureMapAsync(string? projectName, string? workspacePath)
+    public async Task<string> GetArchitectureMapAsync(string? projectName = null, string? workspacePath = null)
     {
         string resultJson;
         if (!string.IsNullOrEmpty(projectName))
         {
-            var wsId = await GetWorkspaceIdAsync(workspacePath);
-            var prefixFilter = wsId != null ? "WHERE p.id STARTS WITH $wsIdPrefix " : "";
-            var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
-            if (wsId != null) parameters["wsIdPrefix"] = wsId + ":";
-            var query = Queries.Get("get_architecture_map_project").Replace("{prefixFilter}", prefixFilter);
-            resultJson = await ExecuteAndFormatQueryAsync(query, parameters);
-        }
-        else if (!string.IsNullOrEmpty(workspacePath))
-        {
-            var wsId = await GetWorkspaceIdAsync(workspacePath);
-            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object> { ["workspaceId"] = wsId! });
+            var query = Queries.Get("get_architecture_map_project");
+            resultJson = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectName"] = projectName });
         }
         else
         {
-            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_all"), new Dictionary<string, object>());
+            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object>());
         }
 
         try
@@ -198,207 +94,114 @@ public class CodeExplorerRepository(
         return resultJson;
     }
 
-    public async Task<string> GetProjectDependenciesAsync(string? projectFilter, string? workspacePath)
+    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        string query;
-        var parameters = new Dictionary<string, object>();
-
-        if (wsId != null)
+        if (!string.IsNullOrEmpty(projectFilter))
         {
-            parameters["wsIdPrefix"] = wsId + ":";
-            if (!string.IsNullOrEmpty(projectFilter))
-            {
-                parameters["projectFilter"] = projectFilter;
-                query = Queries.Get("get_project_dependencies_filtered");
-            }
-            else
-            {
-                query = Queries.Get("get_project_dependencies_all");
-            }
+            var query = Queries.Get("get_project_dependencies_filtered");
+            return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectFilter"] = projectFilter });
         }
         else
         {
-            if (!string.IsNullOrEmpty(projectFilter))
-            {
-                parameters["projectFilter"] = projectFilter;
-                query = Queries.Get("get_project_dependencies_filtered_no_ws");
-            }
-            else
-            {
-                query = Queries.Get("get_project_dependencies_all_no_ws");
-            }
+            var query = Queries.Get("get_project_dependencies_all");
+            return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object>());
         }
-
-        return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<string> GetFileOutlineAsync(string filePath, string? workspacePath)
+    public async Task<string> GetFileOutlineAsync(string filePath, string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        string query;
+        var query = Queries.Get("get_file_outline");
         var parameters = new Dictionary<string, object>
         {
             ["filePath"] = filePath
         };
-        if (wsId != null)
-        {
-            parameters["wsIdPrefix"] = wsId + ":";
-            query = Queries.Get("get_file_outline");
-        }
-        else
-        {
-            query = Queries.Get("get_file_outline_no_ws");
-        }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<string> FindSymbolAsync(string name, string? symbolType, string? workspacePath)
+    public async Task<string> FindSymbolAsync(string name, string? symbolType = null, string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        string query;
         var parameters = new Dictionary<string, object>
         {
             ["name"] = name
         };
 
-        var prefixClause = wsId != null ? " AND n.id STARTS WITH $wsIdPrefix" : "";
-        if (wsId != null)
-        {
-            parameters["wsIdPrefix"] = wsId + ":";
-        }
-
+        string query;
         if (symbolType == "Function")
         {
-            query = Queries.Get("find_symbol_function").Replace("{prefixClause}", prefixClause);
+            query = Queries.Get("find_symbol_function");
         }
         else if (symbolType == "Class")
         {
-            query = Queries.Get("find_symbol_class").Replace("{prefixClause}", prefixClause);
+            query = Queries.Get("find_symbol_class");
         }
         else if (symbolType == "Interface")
         {
-            query = Queries.Get("find_symbol_interface").Replace("{prefixClause}", prefixClause);
+            query = Queries.Get("find_symbol_interface");
         }
         else
         {
-            query = Queries.Get("find_symbol_all").Replace("{prefixClause}", prefixClause);
+            query = Queries.Get("find_symbol_all");
         }
 
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth, string? workspacePath)
+    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
         var depth = Math.Max(1, Math.Min(10, maxDepth));
-        string query;
+        var query = Queries.Get("get_call_chain").Replace("{depth}", depth.ToString());
         var parameters = new Dictionary<string, object>
         {
             ["startFunction"] = startFunction,
             ["endFunction"] = endFunction
         };
-
-        if (wsId != null)
-        {
-            parameters["wsIdPrefix"] = wsId + ":";
-            query = Queries.Get("get_call_chain").Replace("{depth}", depth.ToString());
-        }
-        else
-        {
-            query = Queries.Get("get_call_chain_no_ws").Replace("{depth}", depth.ToString());
-        }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath)
+    public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        string query;
+        var query = Queries.Get("resolve_call_target");
         var parameters = new Dictionary<string, object>
         {
             ["interfaceName"] = interfaceName,
             ["methodName"] = methodName
         };
-
-        if (wsId != null)
-        {
-            parameters["wsIdPrefix"] = wsId + ":";
-            query = Queries.Get("resolve_call_target");
-        }
-        else
-        {
-            query = Queries.Get("resolve_call_target_no_ws");
-        }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string? workspacePath)
+    public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        string query;
+        var query = Queries.Get("analyze_code_impact");
         var parameters = new Dictionary<string, object>
         {
             ["symbolName"] = symbolName
         };
-
-        if (wsId != null)
-        {
-            parameters["wsIdPrefix"] = wsId + ":";
-            query = Queries.Get("analyze_code_impact");
-        }
-        else
-        {
-            query = Queries.Get("analyze_code_impact_no_ws");
-        }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<string> InspectDataLineageAsync(string tableName, string? workspacePath)
+    public async Task<string> InspectDataLineageAsync(string tableName, string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        string query;
+        var query = Queries.Get("inspect_data_lineage");
         var parameters = new Dictionary<string, object>
         {
             ["tableName"] = tableName
         };
-
-        if (wsId != null)
-        {
-            parameters["wsIdPrefix"] = wsId + ":";
-            query = Queries.Get("inspect_data_lineage");
-        }
-        else
-        {
-            query = Queries.Get("inspect_data_lineage_no_ws");
-        }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    public async Task<string> GetProjectEntryPointsAsync(string projectName, string? workspacePath)
+    public async Task<string> GetProjectEntryPointsAsync(string projectName, string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        string query;
+        var query = Queries.Get("get_project_entry_points");
         var parameters = new Dictionary<string, object>
         {
             ["projectName"] = projectName
         };
-
-        if (wsId != null)
-        {
-            parameters["wsIdPrefix"] = wsId + ":";
-            query = Queries.Get("get_project_entry_points");
-        }
-        else
-        {
-            query = Queries.Get("get_project_entry_points_no_ws");
-        }
         return await ExecuteAndFormatQueryAsync(query, parameters);
     }
 
-    private async Task AppendMetricResultsAsync(List<object> results, string queryKey, string prefixClause, Dictionary<string, object> parameters)
+    private async Task AppendMetricResultsAsync(List<object> results, string queryKey, Dictionary<string, object> parameters)
     {
-        var query = Queries.Get(queryKey).Replace("{prefixClause}", prefixClause);
+        var query = Queries.Get(queryKey);
         var res = await dbClient.ExecuteQueryAsync(query, parameters);
         using var doc = JsonDocument.Parse(res);
         foreach (var item in doc.RootElement.EnumerateArray())
@@ -407,24 +210,21 @@ public class CodeExplorerRepository(
         }
     }
 
-    public async Task<string> FindRefactoringOpportunitiesAsync(string projectName, string metricType, string? workspacePath)
+    public async Task<string> FindRefactoringOpportunitiesAsync(string projectName, string metricType = "all", string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
         var results = new List<object>();
-        var prefixClause = wsId != null ? " WHERE p.id STARTS WITH $wsIdPrefix " : "";
         var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
-        if (wsId != null) parameters["wsIdPrefix"] = wsId + ":";
 
         if (metricType is "dead_code" or "all")
-            await AppendMetricResultsAsync(results, "find_refactor_dead_code", prefixClause, parameters);
+            await AppendMetricResultsAsync(results, "find_refactor_dead_code", parameters);
 
         if (metricType is "god_objects" or "all")
-            await AppendMetricResultsAsync(results, "find_refactor_god_objects", prefixClause, parameters);
+            await AppendMetricResultsAsync(results, "find_refactor_god_objects", parameters);
 
         return JsonSerializer.Serialize(new { results }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public async Task<string> ExecuteCustomReadCypherAsync(string query, string? workspacePath)
+    public async Task<string> ExecuteCustomReadCypherAsync(string query, string? workspacePath = null)
     {
         var lowerQuery = query.ToLowerInvariant();
 
@@ -435,46 +235,16 @@ public class CodeExplorerRepository(
             throw new InvalidOperationException("Security violation: Mutating queries are not allowed.");
         }
 
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        var parameters = new Dictionary<string, object?>();
-
-        if (wsId != null)
-        {
-            var wsIdPrefix = wsId + ":";
-            // Check if the query references either parameter
-            if (!query.Contains("$workspaceId") && !query.Contains("$workspaceIdPrefix"))
-            {
-                throw new InvalidOperationException(
-                    "Security/scoping violation: Custom Cypher queries in a scoped workspace must filter nodes by workspace. " +
-                    "Please include a WHERE clause constraining matched nodes, e.g.: WHERE n.id STARTS WITH $workspaceIdPrefix");
-            }
-            parameters["workspaceId"] = wsId;
-            parameters["workspaceIdPrefix"] = wsIdPrefix;
-        }
-
-        return await ExecuteAndFormatQueryAsync(query, parameters);
+        return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object?>());
     }
 
-    public async Task<string> GetWorkspaceContentAsync(string? workspacePath, string? type)
+    public async Task<string> GetWorkspaceContentAsync(string? workspacePath = null, string? type = null)
     {
-        string query;
-        var parameters = new Dictionary<string, object?>();
-
-        if (!string.IsNullOrEmpty(workspacePath))
+        var parameters = new Dictionary<string, object?>
         {
-            var absolutePath = Path.GetFullPath(workspacePath).Replace('\\', '/');
-            parameters["workspacePath"] = absolutePath;
-            parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
-
-            query = Queries.Get("get_workspace_content");
-        }
-        else
-        {
-            parameters["type"] = string.IsNullOrEmpty(type) ? null : type;
-
-            query = Queries.Get("get_workspace_content_no_ws");
-        }
-
+            ["type"] = string.IsNullOrEmpty(type) ? null : type
+        };
+        var query = Queries.Get("get_workspace_content");
         return await dbClient.ExecuteQueryAsync(query, parameters);
     }
 
@@ -483,25 +253,11 @@ public class CodeExplorerRepository(
         return await dbClient.ExecuteQueryAsync(query, parameters);
     }
 
-    public async Task<string> GetTaxonomyAsync(string? workspacePath)
+    public async Task<string> GetTaxonomyAsync(string? workspacePath = null)
     {
-        var wsId = await GetWorkspaceIdAsync(workspacePath);
-        string query;
-        string propQuery;
         var parameters = new Dictionary<string, object?>();
-
-        if (wsId != null)
-        {
-            var wsIdPrefix = wsId + ":";
-            parameters["wsIdPrefix"] = wsIdPrefix;
-            query = Queries.Get("get_taxonomy_nodes");
-            propQuery = Queries.Get("get_taxonomy_properties");
-        }
-        else
-        {
-            query = Queries.Get("get_taxonomy_nodes_no_ws");
-            propQuery = Queries.Get("get_taxonomy_properties_no_ws");
-        }
+        var query = Queries.Get("get_taxonomy_nodes");
+        var propQuery = Queries.Get("get_taxonomy_properties");
 
         var resultJson = await dbClient.ExecuteQueryAsync(query, parameters);
         var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? [];
@@ -513,7 +269,7 @@ public class CodeExplorerRepository(
         return JsonSerializer.Serialize(new { taxonomy }, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public async Task<string> FetchCodeSnippetsAsync(string nodesJson, string? workspacePath)
+    public async Task<string> FetchCodeSnippetsAsync(string nodesJson, string? workspacePath = null)
     {
         return await FetchCodeSnippetsDirectlyAsync(nodesJson, workspacePath);
     }
@@ -704,10 +460,9 @@ public class CodeExplorerRepository(
 
         try
         {
-            var allQuery = Queries.Get("get_all_workspaces");
-            var allResult = await dbClient.ExecuteQueryAsync(allQuery);
+            var allResult = await dbClient.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.path AS path LIMIT 1;");
             using var allDoc = JsonDocument.Parse(allResult);
-            if (allDoc.RootElement.ValueKind == JsonValueKind.Array && allDoc.RootElement.GetArrayLength() == 1)
+            if (allDoc.RootElement.ValueKind == JsonValueKind.Array && allDoc.RootElement.GetArrayLength() > 0)
             {
                 var row = allDoc.RootElement[0];
                 if (row.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
@@ -849,14 +604,12 @@ public class CodeExplorerRepository(
 
         if (queryItem.Cypher.Contains("$workspaceId") && !paramDict.ContainsKey("workspaceId"))
         {
-            var wsId = await GetWorkspaceIdAsync(effectiveWsPath);
-            if (wsId != null) paramDict["workspaceId"] = wsId;
+            paramDict["workspaceId"] = "workspace";
         }
 
         if (queryItem.Cypher.Contains("$workspaceIdPrefix") && !paramDict.ContainsKey("workspaceIdPrefix"))
         {
-            var wsId = await GetWorkspaceIdAsync(effectiveWsPath);
-            if (wsId != null) paramDict["workspaceIdPrefix"] = wsId + ":";
+            paramDict["workspaceIdPrefix"] = "workspace:";
         }
 
         return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict);

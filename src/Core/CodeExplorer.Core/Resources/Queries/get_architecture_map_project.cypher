@@ -1,4 +1,4 @@
-MATCH (p:Project {name: $projectName}) {prefixFilter}
+MATCH (p:Project {name: $projectName})
 MATCH (p)-[:LOCATED_IN]->(target) WHERE NOT target:ProjectsStructure
 OPTIONAL MATCH (target)-[:CONTAINS*1..]->(pf:Folder)
 WITH p, target, collect(DISTINCT pf.name) AS folders

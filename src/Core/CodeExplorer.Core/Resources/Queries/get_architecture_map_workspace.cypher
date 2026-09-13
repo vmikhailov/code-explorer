@@ -1,4 +1,4 @@
-MATCH (w:Workspace) WHERE w.id = $workspaceId OR toString(w.id) = toString($workspaceId)
+MATCH (w:Workspace)
 MATCH (w)-[:CONTAINS]->(ps:ProjectsStructure)
 OPTIONAL MATCH (ps)<-[:LOCATED_IN]-(p:Project)
 OPTIONAL MATCH (db:Database) WHERE db.id STARTS WITH p.id

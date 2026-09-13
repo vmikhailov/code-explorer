@@ -117,13 +117,7 @@ public class McpGraphHandler(
     //     };
     // }
 
-    [UsedImplicitly]
-    [McpServerTool]
-    [Description("Lists all indexed workspaces available in the graph database, returning their IDs, names, and root directory paths.")]
-    public async Task<CallToolResult> GetAllWorkspacesAsync()
-    {
-        return await ExecuteAsync(() => repository.GetAllWorkspacesAsync());
-    }
+
 
     [UsedImplicitly]
     [McpServerTool]

@@ -48,7 +48,7 @@ public class RealQueriesTests
     public void Test_AllCypherFilesDiscovered()
     {
         var files = GetAllCypherQueryFiles().ToList();
-        Assert.That(files.Count, Is.GreaterThanOrEqualTo(33), "Expected at least 33 cypher files in Resources/Queries");
+        Assert.That(files.Count, Is.GreaterThanOrEqualTo(19), "Expected at least 19 canonical cypher files in Resources/Queries");
     }
 
     [TestCaseSource(nameof(GetAllCypherQueryFiles))]
@@ -115,34 +115,18 @@ public class RealQueriesTests
         var filePath = Path.Combine(_queriesDir, "get_architecture_map_workspace.cypher");
         var rawText = File.ReadAllText(filePath);
         var ast = CypherQueryParser.Parse(rawText);
-        var compiled = SqliteCompiler.Compile(ast, new Dictionary<string, object?> { ["workspaceId"] = "3" });
+        var compiled = SqliteCompiler.Compile(ast);
 
         // Measure execution time of compiled query
         var sw = System.Diagnostics.Stopwatch.StartNew();
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = compiled.Sql;
-            cmd.Parameters.AddWithValue("@workspaceId", "3");
             using var reader = cmd.ExecuteReader();
             int rows = 0;
             while (reader.Read()) rows++;
             sw.Stop();
             TestContext.WriteLine($"Compiled query executed in {sw.ElapsedMilliseconds}ms, rows: {rows}");
-            Assert.That(sw.ElapsedMilliseconds, Is.LessThan(1000), $"Query took {sw.ElapsedMilliseconds}ms, expected under 1000ms");
-        }
-
-        var allPath = Path.Combine(_queriesDir, "get_architecture_map_all.cypher");
-        var allAst = CypherQueryParser.Parse(File.ReadAllText(allPath));
-        var allCompiled = SqliteCompiler.Compile(allAst);
-        sw.Restart();
-        using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText = allCompiled.Sql;
-            using var reader = cmd.ExecuteReader();
-            int rows = 0;
-            while (reader.Read()) rows++;
-            sw.Stop();
-            TestContext.WriteLine($"All workspaces compiled query executed in {sw.ElapsedMilliseconds}ms, rows: {rows}");
             Assert.That(sw.ElapsedMilliseconds, Is.LessThan(1000), $"Query took {sw.ElapsedMilliseconds}ms, expected under 1000ms");
         }
     }

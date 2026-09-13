@@ -230,29 +230,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     public async Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath)
     {
-        var normalized = workspacePath.Replace('\\', '/');
         await _lock.WaitAsync();
         try
         {
             await using var cmd = _conn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id FROM nodes
-                WHERE kind = 'Workspace'
-                  AND replace(lower(json_extract(properties, '$.path')), '\', '/') = replace(lower(@path), '\', '/')
-                LIMIT 1;
-                """;
-            cmd.Parameters.AddWithValue("@path", normalized);
+            cmd.CommandText = "SELECT id FROM nodes WHERE kind = 'Workspace' LIMIT 1;";
             var existing = (string?)await cmd.ExecuteScalarAsync();
-            if (existing != null) return existing;
-
-            cmd.Parameters.Clear();
-            cmd.CommandText = """
-                INSERT INTO metadata (key, value) VALUES ('workspace_id', '1')
-                ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT);
-                SELECT value FROM metadata WHERE key = 'workspace_id';
-                """;
-            var nextId = (string?)await cmd.ExecuteScalarAsync();
-            return nextId ?? "1";
+            return existing ?? "workspace";
         }
         finally
         {
