@@ -87,4 +87,22 @@ public class CeCliTests
         var exit = await Program.Main(["scan", nonWs]);
         Assert.That(exit, Is.EqualTo(1));
     }
+
+    [Test]
+    public async Task CeCli_NoArgs_PrintsWelcomeAndHelp_Returns0()
+    {
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        var exit = await Program.Main([]);
+        Console.SetOut(originalOut);
+
+        Assert.That(exit, Is.EqualTo(0));
+        var output = sw.ToString();
+        Assert.That(output, Does.Contain("CodeExplorer (ce)"));
+        Assert.That(output, Does.Contain("QUICK START WORKFLOW"));
+        Assert.That(output, Does.Contain("AVAILABLE COMMANDS"));
+        Assert.That(output, Does.Contain("EXAMPLES"));
+    }
 }

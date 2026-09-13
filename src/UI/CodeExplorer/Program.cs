@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
@@ -25,6 +26,12 @@ public class Program
 
     public static async Task<int> Main(string[] args)
     {
+        if (args == null || args.Length == 0)
+        {
+            ShowWelcomeAndHelp();
+            return 0;
+        }
+
         WorkspaceIndexer.Register(new CSharpParser());
         WorkspaceIndexer.Register(new GoParser());
         WorkspaceIndexer.Register(new PythonParser());
@@ -97,11 +104,7 @@ public class Program
         {
             builder
                 .SetMinimumLevel(LogLevel.Information)
-                .AddSimpleConsole(options =>
-                {
-                    options.SingleLine = true;
-                    options.TimestampFormat = "[HH:mm:ss] ";
-                });
+                .AddShortConsole();
         });
 
         var logger = loggerFactory.CreateLogger<Program>();
@@ -447,11 +450,7 @@ public class Program
         {
             builder
                 .SetMinimumLevel(LogLevel.Information)
-                .AddSimpleConsole(options =>
-                {
-                    options.SingleLine = true;
-                    options.TimestampFormat = "[HH:mm:ss] ";
-                });
+                .AddShortConsole();
         });
 
         var logger = loggerFactory.CreateLogger<Program>();
@@ -497,12 +496,7 @@ public class Program
         builder.Logging.ClearProviders();
         builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
         builder.Logging.AddFilter("System", LogLevel.Warning);
-        builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
-        builder.Logging.AddSimpleConsole(options =>
-        {
-            options.SingleLine = true;
-            options.TimestampFormat = "[HH:mm:ss] ";
-        });
+        builder.Logging.AddShortConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 
         ConfigureWebServices(builder.Services, client, workspaceRoot);
 
@@ -564,15 +558,7 @@ public class Program
         var builder = Host.CreateApplicationBuilder();
         builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
         builder.Logging.AddFilter("System", LogLevel.Warning);
-        builder.Logging.AddConsole(options =>
-        {
-            options.LogToStandardErrorThreshold = LogLevel.Trace;
-        });
-        builder.Logging.AddSimpleConsole(options =>
-        {
-            options.SingleLine = true;
-            options.TimestampFormat = "[HH:mm:ss] ";
-        });
+        builder.Logging.AddShortConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
 
         RegisterCommonServices(builder.Services, client, workspaceRoot);
         builder.Services.AddMcpServer().WithStdioServerTransport().WithTools<McpGraphHandler>();
@@ -593,5 +579,85 @@ public class Program
         ));
         services.AddSingleton<WorkspaceIndexer>();
         services.AddHttpContextAccessor();
+    }
+
+    private static void ShowWelcomeAndHelp()
+    {
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("CodeExplorer (ce) - High-performance graph-based code intelligence & MCP server");
+        Console.ResetColor();
+        Console.WriteLine("Version: 1.0.0\n");
+
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("USAGE:");
+        Console.ResetColor();
+        Console.WriteLine("  ce <command> [options]\n");
+
+        // Workspace detection
+        var ws = WorkspaceLocator.Find();
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("CURRENT WORKSPACE:");
+        Console.ResetColor();
+        if (ws != null)
+        {
+            var dbExists = File.Exists(ws.DbPath);
+            var dbSize = dbExists ? new FileInfo(ws.DbPath).Length / (1024.0 * 1024.0) : 0.0;
+            var customQueriesCount = Directory.Exists(ws.QueriesDirectory)
+                ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length
+                : 0;
+
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("  [OK] ");
+            Console.ResetColor();
+            Console.WriteLine($"Found at '{ws.RootDirectory}'");
+            Console.WriteLine($"       Database: {ws.DbPath} ({(dbExists ? $"{dbSize:F1} MB" : "not indexed yet")})");
+            Console.WriteLine($"       Queries:  {ws.QueriesDirectory} ({customQueriesCount} custom query files)");
+        }
+        else
+        {
+            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.Write("  [!]  ");
+            Console.ResetColor();
+            Console.WriteLine("No .codeexplorer workspace detected in current directory or any parent.");
+            Console.WriteLine("       Run 'ce init [name]' to initialize a workspace here.");
+        }
+        Console.WriteLine();
+
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("QUICK START WORKFLOW:");
+        Console.ResetColor();
+        Console.WriteLine("  1. ce init [name]       Initialize a .codeexplorer workspace in current directory");
+        Console.WriteLine("  2. ce scan [path]       Index code topology, AST, dependencies and semantic graph");
+        Console.WriteLine("  3. ce status            View workspace health, indexed projects, and statistics");
+        Console.WriteLine("  4. ce mcp               Start MCP server (stdio) for Cursor, Claude Desktop, etc.");
+        Console.WriteLine("  5. ce query \"<cypher>\"  Execute Cypher query directly against the code graph\n");
+
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("AVAILABLE COMMANDS:");
+        Console.ResetColor();
+        Console.WriteLine("  init                    Initialize a new .codeexplorer workspace");
+        Console.WriteLine("  scan (alias: index)     Scan and index a directory into the nearest workspace");
+        Console.WriteLine("  status (alias: info)    Show workspace summary, projects, node kinds, and statistics");
+        Console.WriteLine("  clear                   Clear indexed data from the workspace database");
+        Console.WriteLine("  query                   Run a read-only Cypher query against the knowledge graph");
+        Console.WriteLine("  mcp                     Run Model Context Protocol server (stdio default, or --port)");
+        Console.WriteLine();
+
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.WriteLine("EXAMPLES:");
+        Console.ResetColor();
+        Console.WriteLine("  ce init MyProject");
+        Console.WriteLine("  ce scan ./src");
+        Console.WriteLine("  ce status");
+        Console.WriteLine("  ce mcp");
+        Console.WriteLine("  ce mcp --port 8085");
+        Console.WriteLine("  ce query \"MATCH (p:Project) RETURN p.name, p.project_type\"");
+        Console.WriteLine("  ce query --file my_query.cypher");
+        Console.WriteLine("  ce clear ./src/old-module\n");
+
+        Console.WriteLine("For options and arguments on any specific command, run:");
+        Console.ForegroundColor = ConsoleColor.DarkCyan;
+        Console.WriteLine("  ce <command> --help\n");
+        Console.ResetColor();
     }
 }

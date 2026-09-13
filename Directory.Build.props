@@ -15,7 +15,8 @@
     <OutputPath>$(SolutionDir).Build\bin_$(Configuration)_$(Platform)\$(MSBuildProjectName)\</OutputPath>
     <OutDir>$(OutputPath)</OutDir>
     <DocumentationFile>$(SolutionDir).Build\doc_$(Configuration)\$(MSBuildProjectName).xml</DocumentationFile>
-    <PublishDir>$(SolutionDir).Build\publish_$(Runtime)\$(MSBuildProjectName)</PublishDir>
+    <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' != ''">$(SolutionDir).Build\publish_$(Configuration)_$(RuntimeIdentifier)\$(MSBuildProjectName)\</PublishDir>
+    <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' == ''">$(SolutionDir).Build\publish_$(Configuration)\$(MSBuildProjectName)\</PublishDir>
 
     <!-- NuGet packages generation -->
     <PackageOutputPath>$(SolutionDir).Packages</PackageOutputPath>
