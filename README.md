@@ -202,15 +202,17 @@ ce queries --format json
 Executes a read-only Cypher query against the knowledge graph with formatted tabular or JSON output.
 ```bash
 # Execute named built-in or custom query
-ce query -n get_architecture_map_workspace
+ce query -n get_architecture_map_workspace -j      # View full structured JSON tree
 ce query -n get_all_workspaces
 
 # Inspect Cypher source code of any query
 ce query --show get_architecture_map_workspace
 
-# Execute raw Cypher string
-ce query "MATCH (t:Type {kind: 'interface'}) RETURN t.name"
-ce query "MATCH (p:Project)-[:DEPENDS_ON]->(d) RETURN p.name, d.name" --format json
+# Execute raw Cypher string with formatted JSON output
+ce query "MATCH (t:Type {kind: 'interface'}) RETURN t.name" -j
+
+# Execute table view without column truncation
+ce query "MATCH (p:Project)-[:DEPENDS_ON]->(d) RETURN p.name, d.name" --no-truncate
 
 # Execute query from file
 ce query -f ./custom_audit.cypher

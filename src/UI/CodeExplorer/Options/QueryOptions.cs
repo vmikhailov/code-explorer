@@ -33,6 +33,12 @@ public class QueryOptions
     [Option('d', "dir", Required = false, HelpText = "Starting directory to look for workspace (defaults to current directory).")]
     public string? Dir { get; set; }
 
+    [Option('j', "json", Required = false, HelpText = "Output results as formatted JSON (alias for --format json).")]
+    public bool Json { get; set; }
+
+    [Option("no-truncate", Required = false, HelpText = "Do not truncate long text values in table columns.")]
+    public bool NoTruncate { get; set; }
+
     [Option("format", Default = "table", HelpText = "Output format: 'table' or 'json'.")]
     public string Format { get; set; } = "table";
 }

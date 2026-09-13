@@ -214,4 +214,42 @@ public class CeCliTests
         var runJson = runSw.ToString();
         Assert.That(runJson, Does.Contain("CustomQueryTest"));
     }
+
+    [Test]
+    public async Task CeQuery_ShortJsonFlag_OutputsJson()
+    {
+        var initExit = await Program.Main(["init", "JsonFlagTest", "-d", _tempDir]);
+        Assert.That(initExit, Is.EqualTo(0));
+
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        var exit = await Program.Main(["query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir, "-j"]);
+        Console.SetOut(originalOut);
+
+        Assert.That(exit, Is.EqualTo(0));
+        var output = sw.ToString();
+        Assert.That(output, Does.Contain("\"name\": \"JsonFlagTest\""));
+    }
+
+    [Test]
+    public async Task CeQuery_NoTruncate_DoesNotCutoffLongStrings()
+    {
+        var initExit = await Program.Main(["init", "LongStringTest", "-d", _tempDir]);
+        Assert.That(initExit, Is.EqualTo(0));
+
+        var originalOut = Console.Out;
+        using var sw = new StringWriter();
+        Console.SetOut(sw);
+
+        var longString = new string('A', 120);
+        var exit = await Program.Main(["query", $"MATCH (w:Workspace) RETURN '{longString}' AS long_val", "-d", _tempDir, "--no-truncate"]);
+        Console.SetOut(originalOut);
+
+        Assert.That(exit, Is.EqualTo(0));
+        var output = sw.ToString();
+        Assert.That(output, Does.Contain(longString));
+        Assert.That(output, Does.Not.Contain("..."));
+    }
 }

@@ -462,7 +462,8 @@ public class Program
 
             var resultJson = await client.ExecuteQueryAsync(cypherQuery, parameters);
 
-            if (string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase))
+            bool isJsonFormat = opts.Json || string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase);
+            if (isJsonFormat)
             {
                 Console.WriteLine(resultJson);
                 return 0;
@@ -480,34 +481,72 @@ public class Program
                 }
 
                 var columns = rows[0].EnumerateObject().Select(p => p.Name).ToList();
+                var maxLimit = opts.NoTruncate ? int.MaxValue : 80;
                 var colWidths = columns.ToDictionary(c => c, c => c.Length);
+                bool wasTruncated = false;
 
+                static string FormatCell(JsonElement elem)
+                {
+                    if (elem.ValueKind == JsonValueKind.Null || elem.ValueKind == JsonValueKind.Undefined)
+                        return "";
+                    if (elem.ValueKind == JsonValueKind.String)
+                        return elem.GetString() ?? "";
+                    if (elem.ValueKind == JsonValueKind.Array || elem.ValueKind == JsonValueKind.Object)
+                        return JsonSerializer.Serialize(elem);
+                    return elem.ToString();
+                }
+
+                var tableData = new List<Dictionary<string, string>>(rows.Count);
                 foreach (var row in rows)
                 {
+                    var rowData = new Dictionary<string, string>();
                     foreach (var col in columns)
                     {
-                        var valStr = row.TryGetProperty(col, out var p) ? p.ToString() : "";
-                        if (valStr.Length > colWidths[col]) colWidths[col] = Math.Min(valStr.Length, 60);
+                        var rawStr = row.TryGetProperty(col, out var p) ? FormatCell(p) : "";
+                        var singleLine = System.Text.RegularExpressions.Regex.Replace(rawStr, @"[\r\n\t]+", " ").Trim();
+                        rowData[col] = singleLine;
+
+                        var displayLen = opts.NoTruncate ? singleLine.Length : Math.Min(singleLine.Length, maxLimit);
+                        if (displayLen > colWidths[col])
+                        {
+                            colWidths[col] = displayLen;
+                        }
                     }
+                    tableData.Add(rowData);
                 }
 
                 // Print header
+                Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine(string.Join(" | ", columns.Select(c => c.PadRight(colWidths[c]))));
                 Console.WriteLine(string.Join("-+-", columns.Select(c => new string('-', colWidths[c]))));
+                Console.ResetColor();
 
                 // Print rows
-                foreach (var row in rows)
+                foreach (var row in tableData)
                 {
                     var line = string.Join(" | ", columns.Select(c =>
                     {
-                        var valStr = row.TryGetProperty(c, out var p) ? p.ToString() : "";
-                        if (valStr.Length > 60) valStr = valStr[..57] + "...";
+                        var valStr = row[c];
+                        if (!opts.NoTruncate && valStr.Length > maxLimit)
+                        {
+                            wasTruncated = true;
+                            valStr = valStr[..(maxLimit - 3)] + "...";
+                        }
                         return valStr.PadRight(colWidths[c]);
                     }));
                     Console.WriteLine(line);
                 }
 
                 Console.WriteLine($"\n({rows.Count} rows)");
+
+                if (wasTruncated)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.WriteLine("\n[!] Output was truncated in table view.");
+                    Console.ResetColor();
+                    Console.WriteLine("    Run with -j or --json to view full structured JSON data.");
+                    Console.WriteLine("    Run with --no-truncate to display full table columns without cutoff.");
+                }
             }
             else
             {
