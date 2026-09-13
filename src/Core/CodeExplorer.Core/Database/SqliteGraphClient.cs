@@ -118,9 +118,23 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await using var cmd = _conn.CreateCommand();
-            cmd.CommandText = "DELETE FROM edges; DELETE FROM nodes; DELETE FROM metadata;";
-            await cmd.ExecuteNonQueryAsync();
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandText = "DELETE FROM edges; DELETE FROM nodes; DELETE FROM metadata;";
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            await using (var vacCmd = _conn.CreateCommand())
+            {
+                vacCmd.CommandText = "VACUUM;";
+                await vacCmd.ExecuteNonQueryAsync();
+            }
+
+            await using (var walCmd = _conn.CreateCommand())
+            {
+                walCmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+                await walCmd.ExecuteNonQueryAsync();
+            }
         }
         finally
         {
