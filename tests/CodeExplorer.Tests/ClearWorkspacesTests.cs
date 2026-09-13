@@ -1,8 +1,5 @@
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Web.Controllers;
-using Microsoft.AspNetCore.Mvc;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -12,16 +9,12 @@ public class ClearWorkspacesTests
 {
     private SqliteGraphClient _client = null!;
     private CodeExplorerRepository _repository = null!;
-    private WorkspacesController _controller = null!;
 
     [SetUp]
     public async Task SetUp()
     {
         _client = new SqliteGraphClient(":memory:");
-        var indexer = new WorkspaceIndexer(_client);
-        var taskManager = new IndexingTaskManager(indexer);
         _repository = new CodeExplorerRepository(_client);
-        _controller = new WorkspacesController(_repository, taskManager);
 
         // Seed 2 workspaces with nodes and relationships
         await _client.SaveEmptyWorkspaceNodeAsync("1", "/workspaces/proj-a");
@@ -56,8 +49,8 @@ public class ClearWorkspacesTests
     [Test]
     public async Task ClearWorkspaceById_DeletesOnlyTargetWorkspace()
     {
-        var result = await _controller.DeleteWorkspaceAsync("1");
-        Assert.That(result, Is.InstanceOf<OkObjectResult>());
+        var success = await _repository.ClearWorkspaceAsync("1");
+        Assert.That(success, Is.True);
 
         // Check workspace 1 is gone
         var checkWs1 = await _client.ClearWorkspaceAsync("1");
@@ -71,8 +64,8 @@ public class ClearWorkspacesTests
     [Test]
     public async Task ClearWorkspaceByPath_DeletesTargetWorkspace()
     {
-        var result = await _controller.DeleteWorkspaceAsync("/workspaces/proj-b");
-        Assert.That(result, Is.InstanceOf<OkObjectResult>());
+        var success = await _repository.ClearWorkspaceAsync("/workspaces/proj-b");
+        Assert.That(success, Is.True);
 
         // Check workspace 2 is gone
         var checkWs2 = await _client.ClearWorkspaceAsync("2");
@@ -84,17 +77,16 @@ public class ClearWorkspacesTests
     }
 
     [Test]
-    public async Task ClearWorkspace_NotFound_Returns404()
+    public async Task ClearWorkspace_NotFound_ReturnsFalse()
     {
-        var result = await _controller.DeleteWorkspaceAsync("nonexistent");
-        Assert.That(result, Is.InstanceOf<NotFoundObjectResult>());
+        var success = await _repository.ClearWorkspaceAsync("nonexistent");
+        Assert.That(success, Is.False);
     }
 
     [Test]
     public async Task ClearAll_DeletesAllWorkspacesAndNodes()
     {
-        var result = await _controller.ClearAllAsync();
-        Assert.That(result, Is.InstanceOf<OkObjectResult>());
+        await _repository.ClearAllAsync();
 
         var checkWs1 = await _client.ClearWorkspaceAsync("1");
         var checkWs2 = await _client.ClearWorkspaceAsync("2");
@@ -103,33 +95,16 @@ public class ClearWorkspacesTests
     }
 
     [Test]
-    public async Task PostClear_WithMultipleWorkspaces_ClearsSpecified()
+    public async Task ClearWorkspaces_WithMultipleWorkspaces_ClearsSpecified()
     {
-        var request = new ClearWorkspacesRequest
-        {
-            Workspaces = ["1", "nonexistent"]
-        };
-
-        var result = await _controller.ClearAsync(request, all: null);
-        Assert.That(result, Is.InstanceOf<OkObjectResult>());
+        var (cleared, notFound) = await _repository.ClearWorkspacesAsync(["1", "nonexistent"]);
+        Assert.That(cleared, Contains.Item("1"));
+        Assert.That(notFound, Contains.Item("nonexistent"));
 
         var checkWs1 = await _client.ClearWorkspaceAsync("1");
         Assert.That(checkWs1, Is.False, "Workspace 1 should be deleted.");
 
         var checkWs2 = await _client.ClearWorkspaceAsync("2");
         Assert.That(checkWs2, Is.True, "Workspace 2 should remain.");
-    }
-
-    [Test]
-    public async Task PostClear_WithAllFlag_ClearsEverything()
-    {
-        var request = new ClearWorkspacesRequest { All = true };
-        var result = await _controller.ClearAsync(request, all: null);
-        Assert.That(result, Is.InstanceOf<OkObjectResult>());
-
-        var checkWs1 = await _client.ClearWorkspaceAsync("1");
-        var checkWs2 = await _client.ClearWorkspaceAsync("2");
-        Assert.That(checkWs1, Is.False);
-        Assert.That(checkWs2, Is.False);
     }
 }

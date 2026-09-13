@@ -19,7 +19,7 @@ public class McpGraphHandler(
     private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
     private string? GetCurrentWorkspacePath()
     {
-        var httpContext = httpContextAccessor.HttpContext;
+        var httpContext = httpContextAccessor?.HttpContext;
         if (httpContext != null)
         {
             var workspacePath = httpContext.Request.Query["ws"].ToString();
@@ -32,7 +32,7 @@ public class McpGraphHandler(
                 return workspacePath;
             }
         }
-        return null;
+        return repository.DefaultWorkspacePath ?? Common.WorkspaceLocator.Find()?.RootDirectory;
     }
 
     private static CallToolResult WrapResult(string text)

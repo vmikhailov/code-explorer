@@ -5,9 +5,13 @@ using CodeExplorer.Core.Mcp.Models;
 
 namespace CodeExplorer.Core.Mcp;
 
-public class CodeExplorerRepository(IGraphClient dbClient, ProjectQueryManager? queryManager = null)
+public class CodeExplorerRepository(
+    IGraphClient dbClient,
+    ProjectQueryManager? queryManager = null,
+    string? defaultWorkspacePath = null)
 {
     private readonly ProjectQueryManager _queryManager = queryManager ?? new();
+    public string? DefaultWorkspacePath { get; } = defaultWorkspacePath;
 
     private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null)
     {
@@ -685,6 +689,17 @@ public class CodeExplorerRepository(IGraphClient dbClient, ProjectQueryManager? 
         if (!string.IsNullOrWhiteSpace(workspacePath))
         {
             return Path.GetFullPath(workspacePath);
+        }
+
+        if (!string.IsNullOrWhiteSpace(DefaultWorkspacePath))
+        {
+            return Path.GetFullPath(DefaultWorkspacePath);
+        }
+
+        var found = WorkspaceLocator.Find();
+        if (found != null)
+        {
+            return found.RootDirectory;
         }
 
         try

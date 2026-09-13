@@ -22,8 +22,30 @@ public class Layer1PhysicalParser
         var folderName = Path.GetFileName(normalizedHostPath);
         if (string.IsNullOrEmpty(folderName)) folderName = normalizedHostPath;
 
+        var workspaceName = folderName;
+        try
+        {
+            var wsNameResult = await ctx.DbClient.ExecuteQueryAsync(
+                "MATCH (w:Workspace) WHERE w.id = $wsId OR w.id = 'workspace' RETURN w.name AS name LIMIT 1",
+                new Dictionary<string, object?> { ["wsId"] = wsId });
+            using var doc = System.Text.Json.JsonDocument.Parse(wsNameResult);
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+            {
+                var row = doc.RootElement[0];
+                if (row.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var customName = n.GetString();
+                    if (!string.IsNullOrWhiteSpace(customName)) workspaceName = customName;
+                }
+            }
+        }
+        catch
+        {
+            // Fallback to folderName
+        }
+
         var hostPath = PathTools.NormalizeToHostPath(ctx.HostWorkspacePath);
-        var workspaceNode = new WorkspaceNode(wsId, folderName, hostPath);
+        var workspaceNode = new WorkspaceNode(wsId, workspaceName, hostPath);
 
         var filesNodeId = $"{wsId}:files_structure";
         var filesStructureNode = new FilesStructureNode(filesNodeId, "FilesStructure", hostPath);
