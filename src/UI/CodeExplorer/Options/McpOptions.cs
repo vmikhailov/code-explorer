@@ -13,4 +13,7 @@ public class McpOptions
 
     [Option("port", Default = 0, HelpText = "HTTP port to run as an SSE network service (0 for stdio).")]
     public int Port { get; set; } = 0;
+
+    [Option('q', "quiet", Required = false, HelpText = "Suppress console logging output.")]
+    public bool Quiet { get; set; }
 }

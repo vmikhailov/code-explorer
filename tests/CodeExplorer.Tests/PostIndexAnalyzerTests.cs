@@ -183,7 +183,6 @@ public class PostIndexAnalyzerTests
         
         // Find workspace
         var wsRes = await client.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.id AS id, w.name AS name, w.path AS path");
-        TestContext.WriteLine("Workspaces: " + wsRes);
 
         var queriesDir = Path.Combine(dir.FullName, "src", "Core", "CodeExplorer.Core", "Resources", "Queries");
         var cypher = File.ReadAllText(Path.Combine(queriesDir, "get_architecture_map_workspace.cypher"));
@@ -191,7 +190,6 @@ public class PostIndexAnalyzerTests
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var res = await client.ExecuteQueryAsync(cypher, new { workspaceId = "2" });
         sw.Stop();
-        TestContext.WriteLine($"Architecture map on ws 2 took {sw.ElapsedMilliseconds}ms. Result length: {res.Length}");
     }
 
     [Test]

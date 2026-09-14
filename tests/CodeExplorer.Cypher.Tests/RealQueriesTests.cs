@@ -80,9 +80,7 @@ public class RealQueriesTests
         var rawText = File.ReadAllText(filePath);
         var ast = CypherQueryParser.Parse(rawText);
         var compiled = SqliteCompiler.Compile(ast);
-        TestContext.WriteLine("=== COMPILED SQL ===");
-        TestContext.WriteLine(compiled.Sql);
-        TestContext.WriteLine("====================");
+        Assert.That(compiled.Sql, Is.Not.Null.And.Not.Empty);
     }
 
     [Test]
@@ -108,7 +106,6 @@ public class RealQueriesTests
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                TestContext.WriteLine($"Workspace: id={reader.GetString(0)}, name={reader.GetString(1)}, path={reader.GetString(2)}");
             }
         }
 
@@ -126,7 +123,6 @@ public class RealQueriesTests
             int rows = 0;
             while (reader.Read()) rows++;
             sw.Stop();
-            TestContext.WriteLine($"Compiled query executed in {sw.ElapsedMilliseconds}ms, rows: {rows}");
             Assert.That(sw.ElapsedMilliseconds, Is.LessThan(1000), $"Query took {sw.ElapsedMilliseconds}ms, expected under 1000ms");
         }
     }

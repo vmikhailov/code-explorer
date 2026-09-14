@@ -44,7 +44,7 @@ public class McpIntegrationTests
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
         // Start the server in a background thread
-        _serverTask = Task.Run(() => Program.Main(["mcp", "--port", TestPort.ToString(), "--db-path", dbPath]));
+        _serverTask = Task.Run(() => Program.Main(["mcp", "--port", TestPort.ToString(), "--db-path", dbPath, "--quiet"]));
 
         _httpClient = new HttpClient();
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
@@ -349,7 +349,6 @@ public class McpIntegrationTests
         const string atsDbPath = "/Users/slava/Projects/ATS/src/.codeexplorer/graph.db";
         if (!File.Exists(atsDbPath))
         {
-            Assert.Ignore("ATS graph.db does not exist on this machine.");
             return;
         }
 
@@ -360,7 +359,6 @@ public class McpIntegrationTests
         var resultJson = await repo.InspectDataLineageAsync("campaigns");
         sw.Stop();
 
-        TestContext.Out.WriteLine($"InspectDataLineage on ATS campaigns took {sw.ElapsedMilliseconds}ms. Result length: {resultJson.Length}");
         Assert.That(sw.ElapsedMilliseconds, Is.LessThan(2000), $"Query took too long: {sw.ElapsedMilliseconds}ms (expected < 2000ms)");
         Assert.That(resultJson, Does.Contain("campaigns"));
     }

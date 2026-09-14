@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
@@ -98,12 +98,6 @@ public class Layer5BenchmarkTests
         var task = (Task<List<Relationship>>)method.Invoke(parser, [ctx])!;
         var results = await task;
         sw.Stop();
-
-        TestContext.Progress.WriteLine($"==========================================================");
-        TestContext.Progress.WriteLine($"[BENCHMARK] Resolved {ctx.GlobalReferences.Count:N0} references in {sw.ElapsedMilliseconds} ms ({sw.Elapsed.TotalSeconds:F2} s)");
-        TestContext.Progress.WriteLine($"[BENCHMARK] Generated {results.Count:N0} relationships");
-        TestContext.Progress.WriteLine($"[BENCHMARK] Throughput: {ctx.GlobalReferences.Count / Math.Max(0.001, sw.Elapsed.TotalSeconds):N0} refs/sec");
-        TestContext.Progress.WriteLine($"==========================================================");
 
         Assert.That(results.Count, Is.GreaterThan(0));
     }
