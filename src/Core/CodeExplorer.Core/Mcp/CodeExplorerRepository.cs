@@ -2,36 +2,99 @@ using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp.Models;
+using CodeExplorer.Cypher.Parser;
 
 namespace CodeExplorer.Core.Mcp;
 
-public class CodeExplorerRepository(
-    IGraphClient dbClient,
-    ProjectQueryManager? queryManager = null,
-    string? defaultWorkspacePath = null)
+public class CodeExplorerRepository
 {
-    private readonly ProjectQueryManager _queryManager = queryManager ?? new();
-    public string? DefaultWorkspacePath { get; } = defaultWorkspacePath;
+    private static readonly JsonSerializerOptions CompactJsonOptions = new() { WriteIndented = false };
+    private readonly ProjectQueryManager _queryManager;
+    private readonly IGraphClient _defaultDbClient;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IGraphClient> _clientCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
+    public string? DefaultWorkspacePath { get; }
+
+    public const string StandbyMessageMarkdown = "⚠️ **CodeExplorer Standby Mode**: No workspace is currently bound. Specify the `workspacePath` argument on this tool call, set the `WORKSPACE_ROOT` environment variable, or launch `ce mcp --root <path>`.";
+    public const string StandbyMessageJson = "{\"status\":\"standby\",\"message\":\"CodeExplorer is running in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls, set the WORKSPACE_ROOT environment variable, or launch 'ce mcp --root <path>'.\"}";
+
+    public static string GetStandbyMessage(string format)
     {
-        var resultJson = await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase)) return StandbyMessageJson;
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+            return "status: standby\nmessage: \"CodeExplorer is running in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls, set the WORKSPACE_ROOT environment variable, or launch 'ce mcp --root <path>'.\"";
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+            return "status: standby\nmessage: CodeExplorer is running in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls, set the WORKSPACE_ROOT environment variable, or launch 'ce mcp --root <path>'.";
+        return StandbyMessageMarkdown;
+    }
+
+    public CodeExplorerRepository(
+        IGraphClient dbClient,
+        ProjectQueryManager? queryManager = null,
+        string? defaultWorkspacePath = null)
+    {
+        _defaultDbClient = dbClient;
+        _queryManager = queryManager ?? new();
+        DefaultWorkspacePath = defaultWorkspacePath;
+    }
+
+    public async Task<IGraphClient> ResolveClientAsync(string? workspacePath)
+    {
+        if (!string.IsNullOrWhiteSpace(workspacePath))
+        {
+            var ws = WorkspaceLocator.Find(workspacePath);
+            if (ws != null && File.Exists(ws.DbPath))
+            {
+                return _clientCache.GetOrAdd(ws.DbPath, path => new SqliteGraphClient(path));
+            }
+        }
+        return _defaultDbClient;
+    }
+
+    private async Task<bool> IsEmptyStandbyAsync(IGraphClient client)
+    {
+        if (client != _defaultDbClient) return false;
+        if (!string.IsNullOrWhiteSpace(DefaultWorkspacePath)) return false;
+        try
+        {
+            var testJson = await client.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt LIMIT 1;");
+            using var doc = JsonDocument.Parse(testJson);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
+            {
+                return pCnt.GetInt64() == 0;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    private Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters, CancellationToken cancellationToken)
+        => ExecuteAndFormatQueryAsync(query, parameters, null, cancellationToken);
+
+    private async Task<string> ExecuteAndFormatQueryAsync(string query, object? parameters = null, string? workspacePath = null, CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return StandbyMessageJson;
+        }
+
+        var resultJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
         using var doc = JsonDocument.Parse(resultJson);
 
-        return JsonSerializer.Serialize(new { results = doc.RootElement },
-            new JsonSerializerOptions { WriteIndented = true });
+        return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
     }
 
 
 
     public async Task ClearAllAsync()
     {
-        await dbClient.ClearDatabaseAsync();
+        await _defaultDbClient.ClearDatabaseAsync();
     }
 
     public async Task<bool> ClearWorkspaceAsync(string workspaceIdOrPath)
     {
-        return await dbClient.ClearWorkspaceAsync(workspaceIdOrPath);
+        return await _defaultDbClient.ClearWorkspaceAsync(workspaceIdOrPath);
     }
 
     public async Task<(List<string> Cleared, List<string> NotFound)> ClearWorkspacesAsync(IEnumerable<string> workspaces)
@@ -40,7 +103,7 @@ public class CodeExplorerRepository(
         var notFound = new List<string>();
         foreach (var ws in workspaces)
         {
-            if (await dbClient.ClearWorkspaceAsync(ws))
+            if (await _defaultDbClient.ClearWorkspaceAsync(ws))
             {
                 cleared.Add(ws);
             }
@@ -54,8 +117,14 @@ public class CodeExplorerRepository(
 
     public async Task<string> GetArchitectureOverviewAsync(string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return StandbyMessageJson;
+        }
+
         var overviewQuery = Queries.Get("get_architecture_overview");
-        var rawJson = await dbClient.ExecuteQueryAsync(overviewQuery, null, cancellationToken);
+        var rawJson = await client.ExecuteQueryAsync(overviewQuery, null, cancellationToken);
 
         long totalNodes = 0;
         long totalFiles = 0;
@@ -63,7 +132,7 @@ public class CodeExplorerRepository(
 
         try
         {
-            var nodesCountJson = await dbClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt;", null, cancellationToken);
+            var nodesCountJson = await client.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt;", null, cancellationToken);
             using var doc = JsonDocument.Parse(nodesCountJson);
             if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
                 totalNodes = pCnt.GetInt64();
@@ -72,7 +141,7 @@ public class CodeExplorerRepository(
 
         try
         {
-            var filesCountJson = await dbClient.ExecuteQueryAsync("MATCH (f:File) RETURN count(f) AS cnt;", null, cancellationToken);
+            var filesCountJson = await client.ExecuteQueryAsync("MATCH (f:File) RETURN count(f) AS cnt;", null, cancellationToken);
             using var doc = JsonDocument.Parse(filesCountJson);
             if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
                 totalFiles = pCnt.GetInt64();
@@ -81,7 +150,7 @@ public class CodeExplorerRepository(
 
         try
         {
-            var relsCountJson = await dbClient.ExecuteQueryAsync("MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project) RETURN count(*) AS cnt;", null, cancellationToken);
+            var relsCountJson = await client.ExecuteQueryAsync("MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project) RETURN count(*) AS cnt;", null, cancellationToken);
             using var doc = JsonDocument.Parse(relsCountJson);
             if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
                 totalRels = pCnt.GetInt64();
@@ -170,7 +239,7 @@ public class CodeExplorerRepository(
             external_services = externalServices.Distinct().OrderBy(x => x).ToList()
         };
 
-        return JsonSerializer.Serialize(new { results = overviewResult }, new JsonSerializerOptions { WriteIndented = true });
+        return JsonSerializer.Serialize(new { results = overviewResult }, CompactJsonOptions);
     }
 
     private static string ClassifyProjectLayer(string name, string path)
@@ -200,11 +269,11 @@ public class CodeExplorerRepository(
         if (!string.IsNullOrEmpty(projectName))
         {
             var query = Queries.Get("get_architecture_map_project");
-            resultJson = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectName"] = projectName }, cancellationToken);
+            resultJson = await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectName"] = projectName }, workspacePath, cancellationToken);
         }
         else
         {
-            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object>(), cancellationToken);
+            resultJson = await ExecuteAndFormatQueryAsync(Queries.Get("get_architecture_map_workspace"), new Dictionary<string, object>(), workspacePath, cancellationToken);
         }
 
         try
@@ -225,7 +294,7 @@ public class CodeExplorerRepository(
                         returns = q.Returns,
                         tags = q.Tags
                     })
-                }, new JsonSerializerOptions { WriteIndented = true });
+                }, CompactJsonOptions);
             }
         }
         catch
@@ -236,33 +305,279 @@ public class CodeExplorerRepository(
         return resultJson;
     }
 
-    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string? workspacePath = null, CancellationToken cancellationToken = default)
+    private static string SanitizeMermaidId(string text)
     {
+        return text.Replace(".", "_").Replace("-", "_").Replace(":", "_").Replace("/", "_").Replace(" ", "_");
+    }
+
+    private static string FormatDependenciesAll(string rawJson, string format, int limit)
+    {
+        using var doc = JsonDocument.Parse(rawJson);
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+        }
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
+
+        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("```mermaid");
+            sb.AppendLine("graph TD");
+            var count = 0;
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in doc.RootElement.EnumerateArray())
+                {
+                    if (count++ >= limit) break;
+                    var proj = item.TryGetProperty("project", out var p) ? p.GetString() : null;
+                    var dep = item.TryGetProperty("dependency", out var d) ? d.GetString() : null;
+                    if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
+                    {
+                        sb.AppendLine($"    {SanitizeMermaidId(proj)}[\"{proj}\"] --> {SanitizeMermaidId(dep)}[\"{dep}\"]");
+                    }
+                }
+            }
+            if (count == 0)
+            {
+                sb.AppendLine("    %% No project dependencies found");
+            }
+            sb.Append("```");
+            return sb.ToString();
+        }
+
+        // Markdown format (default)
+        var md = new System.Text.StringBuilder();
+        md.AppendLine("### Project Dependencies\n");
+        var grouped = new Dictionary<string, List<string>>();
+        var total = 0;
+        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (total++ >= limit) break;
+                var proj = item.TryGetProperty("project", out var p) ? p.GetString() : null;
+                var dep = item.TryGetProperty("dependency", out var d) ? d.GetString() : null;
+                if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
+                {
+                    if (!grouped.TryGetValue(proj, out var list))
+                    {
+                        list = [];
+                        grouped[proj] = list;
+                    }
+                    list.Add(dep);
+                }
+            }
+        }
+
+        if (grouped.Count == 0)
+        {
+            md.AppendLine("No project dependencies found in workspace.");
+        }
+        else
+        {
+            foreach (var (proj, deps) in grouped)
+            {
+                md.AppendLine($"- **{proj}** -> {string.Join(", ", deps)}");
+            }
+        }
+        return md.ToString().TrimEnd();
+    }
+
+    private static string FormatDependenciesFiltered(string rawJson, string format, string projectFilter)
+    {
+        using var doc = JsonDocument.Parse(rawJson);
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+        }
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
+
+        var outgoing = new List<string>();
+        var incoming = new List<string>();
+        if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+        {
+            var row = doc.RootElement[0];
+            if (row.TryGetProperty("outgoingDependencies", out var outProp) && outProp.ValueKind == JsonValueKind.Array)
+            {
+                outgoing = outProp.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList();
+            }
+            if (row.TryGetProperty("incomingDependencies", out var inProp) && inProp.ValueKind == JsonValueKind.Array)
+            {
+                incoming = inProp.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x)).ToList();
+            }
+        }
+
+        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("```mermaid");
+            sb.AppendLine("graph TD");
+            var pId = SanitizeMermaidId(projectFilter);
+            foreach (var o in outgoing)
+            {
+                sb.AppendLine($"    {pId}[\"{projectFilter}\"] --> {SanitizeMermaidId(o)}[\"{o}\"]");
+            }
+            foreach (var i in incoming)
+            {
+                sb.AppendLine($"    {SanitizeMermaidId(i)}[\"{i}\"] --> {pId}[\"{projectFilter}\"]");
+            }
+            if (outgoing.Count == 0 && incoming.Count == 0)
+            {
+                sb.AppendLine($"    {pId}[\"{projectFilter}\"]");
+                sb.AppendLine("    %% No connected dependencies");
+            }
+            sb.Append("```");
+            return sb.ToString();
+        }
+
+        // Markdown format
+        var md = new System.Text.StringBuilder();
+        md.AppendLine($"### Dependencies for Project: `{projectFilter}`\n");
+        md.AppendLine($"- **Outgoing Dependencies** ({outgoing.Count}): {(outgoing.Count > 0 ? string.Join(", ", outgoing) : "none")}");
+        md.AppendLine($"- **Incoming Dependencies** ({incoming.Count}): {(incoming.Count > 0 ? string.Join(", ", incoming) : "none")}");
+        return md.ToString().TrimEnd();
+    }
+
+    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string format = "markdown", int limit = 50, string? workspacePath = null, CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
         if (!string.IsNullOrEmpty(projectFilter))
         {
             var query = Queries.Get("get_project_dependencies_filtered");
-            return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object> { ["projectFilter"] = projectFilter }, cancellationToken);
+            var rawJson = await client.ExecuteQueryAsync(query, new Dictionary<string, object> { ["projectFilter"] = projectFilter }, cancellationToken);
+            return FormatDependenciesFiltered(rawJson, format, projectFilter);
         }
         else
         {
             var query = Queries.Get("get_project_dependencies_all");
-            return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object>(), cancellationToken);
+            var rawJson = await client.ExecuteQueryAsync(query, new Dictionary<string, object>(), cancellationToken);
+            return FormatDependenciesAll(rawJson, format, limit);
         }
     }
 
-    public async Task<string> GetFileOutlineAsync(string filePath, string? workspacePath = null, CancellationToken cancellationToken = default)
+    private static string FormatFileOutline(string rawJson, string format, string filePath)
     {
+        using var doc = JsonDocument.Parse(rawJson);
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+        }
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        {
+            return $"No symbols found in outline for '{filePath}'.";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"### File Outline: `{filePath}`\n");
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            var type = item.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() ?? "Symbol" : "Symbol";
+            var name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+            var startLine = item.TryGetProperty("startLine", out var sl) && sl.ValueKind == JsonValueKind.Number && sl.TryGetInt64(out var slVal) ? slVal : 0;
+            var endLine = item.TryGetProperty("endLine", out var el) && el.ValueKind == JsonValueKind.Number && el.TryGetInt64(out var elVal) ? elVal : 0;
+
+            var linesStr = startLine > 0 ? (endLine > startLine ? $" (L{startLine}-{endLine})" : $" (L{startLine})") : "";
+            sb.AppendLine($"- **{type}** `{name}`{linesStr}");
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    public async Task<string> GetFileOutlineAsync(string filePath, string format = "markdown", string? workspacePath = null, CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
         var normalizedPath = filePath.Trim().Replace('\\', '/').TrimStart('/');
         var query = Queries.Get("get_file_outline");
         var parameters = new Dictionary<string, object>
         {
             ["filePath"] = normalizedPath
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
+        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+        return FormatFileOutline(rawJson, format, normalizedPath);
     }
 
-    public async Task<string> FindSymbolAsync(string name, string? symbolType = null, string? workspacePath = null, CancellationToken cancellationToken = default)
+    private static string FormatFindSymbol(string rawJson, string format, string name, int limit)
     {
+        using var doc = JsonDocument.Parse(rawJson);
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+        }
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        {
+            return $"No symbols found matching '{name}'.";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("| Kind | Name | Symbol | File | Lines |");
+        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
+        var count = 0;
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            if (count++ >= limit) break;
+            var type = item.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
+            var symName = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+            var fullName = item.TryGetProperty("fullName", out var fn) ? fn.GetString() ?? "" : "";
+            var filePath = item.TryGetProperty("filePath", out var fp) ? fp.GetString() ?? "" : "";
+            var startLine = item.TryGetProperty("startLine", out var sl) && sl.ValueKind == JsonValueKind.Number && sl.TryGetInt64(out var slVal) ? slVal : 0;
+            var endLine = item.TryGetProperty("endLine", out var el) && el.ValueKind == JsonValueKind.Number && el.TryGetInt64(out var elVal) ? elVal : 0;
+
+            var linesStr = startLine > 0 ? (endLine > startLine ? $"L{startLine}-{endLine}" : $"L{startLine}") : "-";
+            sb.AppendLine($"| {type} | `{symName}` | `{fullName}` | `{filePath}` | {linesStr} |");
+        }
+        return sb.ToString().TrimEnd();
+    }
+
+    public async Task<string> FindSymbolAsync(string name, string? symbolType = null, string format = "markdown", int limit = 50, string? workspacePath = null, CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
         var parameters = new Dictionary<string, object>
         {
             ["name"] = name
@@ -286,11 +601,96 @@ public class CodeExplorerRepository(
             query = Queries.Get("find_symbol_all");
         }
 
-        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
+        var effectiveLimit = Math.Clamp(limit, 1, 500);
+        query = query.Replace("LIMIT 10", $"LIMIT {effectiveLimit}");
+        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+        return FormatFindSymbol(rawJson, format, name, effectiveLimit);
     }
 
-    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string? workspacePath = null, CancellationToken cancellationToken = default)
+    private static string FormatCallChain(string rawJson, string format, string startFunction, string endFunction, int maxDepth)
     {
+        using var doc = JsonDocument.Parse(rawJson);
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+        }
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        {
+            return $"No call chain found between '{startFunction}' and '{endFunction}' within depth {maxDepth}.";
+        }
+
+        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("```mermaid");
+            sb.AppendLine("graph TD");
+            var pathIndex = 0;
+            foreach (var row in doc.RootElement.EnumerateArray())
+            {
+                if (row.TryGetProperty("chain", out var chainProp) && chainProp.ValueKind == JsonValueKind.Array)
+                {
+                    var nodes = chainProp.EnumerateArray().ToList();
+                    for (var i = 0; i < nodes.Count - 1; i++)
+                    {
+                        var fromName = nodes[i].TryGetProperty("name", out var fn) ? fn.GetString() : $"Step{i}";
+                        var toName = nodes[i + 1].TryGetProperty("name", out var tn) ? tn.GetString() : $"Step{i + 1}";
+                        var fromId = $"p{pathIndex}_n{i}";
+                        var toId = $"p{pathIndex}_n{i + 1}";
+                        sb.AppendLine($"    {fromId}[\"{fromName}()\"] --> {toId}[\"{toName}()\"]");
+                    }
+                    pathIndex++;
+                }
+            }
+            sb.Append("```");
+            return sb.ToString();
+        }
+
+        // Markdown format
+        var md = new System.Text.StringBuilder();
+        md.AppendLine($"### Call Chain: `{startFunction}` → `{endFunction}`\n");
+        var pIdx = 1;
+        foreach (var row in doc.RootElement.EnumerateArray())
+        {
+            if (doc.RootElement.GetArrayLength() > 1)
+            {
+                md.AppendLine($"#### Path {pIdx++}:");
+            }
+            if (row.TryGetProperty("chain", out var chainProp) && chainProp.ValueKind == JsonValueKind.Array)
+            {
+                var step = 1;
+                foreach (var node in chainProp.EnumerateArray())
+                {
+                    var name = node.TryGetProperty("name", out var n) ? n.GetString() : "Function";
+                    var symbol = node.TryGetProperty("symbol", out var s) ? s.GetString() : null;
+                    var file = node.TryGetProperty("file_path", out var f) ? f.GetString() : null;
+                    var line = node.TryGetProperty("start_line", out var l) ? l.ToString() : null;
+
+                    var loc = !string.IsNullOrEmpty(file) ? $" *({file}{(line != null ? ":" + line : "")})*" : "";
+                    md.AppendLine($"{step++}. `{symbol ?? name}`{loc}");
+                }
+            }
+            md.AppendLine();
+        }
+        return md.ToString().TrimEnd();
+    }
+
+    public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string format = "markdown", string? workspacePath = null, CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
         var depth = Math.Max(1, Math.Min(10, maxDepth));
         var query = Queries.Get("get_call_chain").Replace("{depth}", depth.ToString());
         var parameters = new Dictionary<string, object>
@@ -298,7 +698,8 @@ public class CodeExplorerRepository(
             ["startFunction"] = startFunction,
             ["endFunction"] = endFunction
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
+        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+        return FormatCallChain(rawJson, format, startFunction, endFunction, depth);
     }
 
     public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -309,7 +710,7 @@ public class CodeExplorerRepository(
             ["interfaceName"] = interfaceName,
             ["methodName"] = methodName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
+        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
     public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -319,7 +720,7 @@ public class CodeExplorerRepository(
         {
             ["symbolName"] = symbolName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
+        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
     public async Task<string> InspectDataLineageAsync(string tableName, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -329,7 +730,7 @@ public class CodeExplorerRepository(
         {
             ["tableName"] = tableName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
+        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
     public async Task<string> GetProjectEntryPointsAsync(string projectName, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -339,13 +740,14 @@ public class CodeExplorerRepository(
         {
             ["projectName"] = projectName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters, cancellationToken);
+        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
-    private async Task AppendMetricResultsAsync(List<object> results, string queryKey, Dictionary<string, object> parameters, CancellationToken cancellationToken = default)
+    private async Task AppendMetricResultsAsync(List<object> results, string queryKey, Dictionary<string, object> parameters, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        var client = await ResolveClientAsync(workspacePath);
         var query = Queries.Get(queryKey);
-        var res = await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
+        var res = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
         using var doc = JsonDocument.Parse(res);
         foreach (var item in doc.RootElement.EnumerateArray())
         {
@@ -359,57 +761,57 @@ public class CodeExplorerRepository(
         var parameters = new Dictionary<string, object> { ["projectName"] = projectName };
 
         if (metricType is "dead_code" or "all")
-            await AppendMetricResultsAsync(results, "find_refactor_dead_code", parameters, cancellationToken);
+            await AppendMetricResultsAsync(results, "find_refactor_dead_code", parameters, workspacePath, cancellationToken);
 
         if (metricType is "god_objects" or "all")
-            await AppendMetricResultsAsync(results, "find_refactor_god_objects", parameters, cancellationToken);
+            await AppendMetricResultsAsync(results, "find_refactor_god_objects", parameters, workspacePath, cancellationToken);
 
-        return JsonSerializer.Serialize(new { results }, new JsonSerializerOptions { WriteIndented = true });
+        return JsonSerializer.Serialize(new { results }, CompactJsonOptions);
     }
 
     public async Task<string> ExecuteCustomReadCypherAsync(string query, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
-        var lowerQuery = query.ToLowerInvariant();
-
-        if (lowerQuery.Contains("create") || lowerQuery.Contains("delete") || lowerQuery.Contains("set") ||
-            lowerQuery.Contains("merge") || lowerQuery.Contains("remove") || lowerQuery.Contains("drop") ||
-            lowerQuery.Contains("detach"))
-        {
-            throw new InvalidOperationException("Security violation: Mutating queries are not allowed.");
-        }
-
-        return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object?>(), cancellationToken);
+        CypherSecurityValidator.ValidateReadOnly(query);
+        return await ExecuteAndFormatQueryAsync(query, new Dictionary<string, object?>(), workspacePath, cancellationToken);
     }
 
     public async Task<string> GetWorkspaceContentAsync(string? workspacePath = null, string? type = null, CancellationToken cancellationToken = default)
     {
+        var client = await ResolveClientAsync(workspacePath);
         var parameters = new Dictionary<string, object?>
         {
             ["type"] = string.IsNullOrEmpty(type) ? null : type
         };
         var query = Queries.Get("get_workspace_content");
-        return await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
+        return await client.ExecuteQueryAsync(query, parameters, cancellationToken);
     }
 
-    public async Task<string> ExecuteRawQueryAsync(string query, Dictionary<string, object?>? parameters = null, CancellationToken cancellationToken = default)
+    public async Task<string> ExecuteRawQueryAsync(string query, Dictionary<string, object?>? parameters = null, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
-        return await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
+        var client = await ResolveClientAsync(workspacePath);
+        return await client.ExecuteQueryAsync(query, parameters, cancellationToken);
     }
 
     public async Task<string> GetTaxonomyAsync(string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return StandbyMessageJson;
+        }
+
         var parameters = new Dictionary<string, object?>();
         var query = Queries.Get("get_taxonomy_nodes");
         var propQuery = Queries.Get("get_taxonomy_properties");
 
-        var resultJson = await dbClient.ExecuteQueryAsync(query, parameters, cancellationToken);
+        var resultJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
         var parsedTriplets = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(resultJson) ?? [];
 
-        var propJson = await dbClient.ExecuteQueryAsync(propQuery, parameters, cancellationToken);
+        var propJson = await client.ExecuteQueryAsync(propQuery, parameters, cancellationToken);
         var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? [];
 
         var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
-        return JsonSerializer.Serialize(new { taxonomy }, new JsonSerializerOptions { WriteIndented = true });
+        return JsonSerializer.Serialize(new { taxonomy }, CompactJsonOptions);
     }
 
     public async Task<string> FetchCodeSnippetsAsync(string nodesJson, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -603,7 +1005,7 @@ public class CodeExplorerRepository(
 
         try
         {
-            var allResult = await dbClient.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.path AS path LIMIT 1;");
+            var allResult = await _defaultDbClient.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.path AS path LIMIT 1;");
             using var allDoc = JsonDocument.Parse(allResult);
             if (allDoc.RootElement.ValueKind == JsonValueKind.Array && allDoc.RootElement.GetArrayLength() > 0)
             {
@@ -639,7 +1041,7 @@ public class CodeExplorerRepository(
                 returns = q.Returns,
                 tags = q.Tags
             })
-        }, new JsonSerializerOptions { WriteIndented = true });
+        }, CompactJsonOptions);
     }
 
     public async Task<string> SaveProjectQueryAsync(
@@ -696,7 +1098,7 @@ public class CodeExplorerRepository(
                 cypher_file = saved.CypherPath,
                 metadata_file = saved.MetadataPath
             }
-        }, new JsonSerializerOptions { WriteIndented = true });
+        }, CompactJsonOptions);
     }
 
     public async Task<string> ExecuteProjectQueryAsync(string name, string? parametersJson, string? workspacePath, CancellationToken cancellationToken = default)
@@ -756,6 +1158,6 @@ public class CodeExplorerRepository(
             paramDict["workspaceIdPrefix"] = "workspace:";
         }
 
-        return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict, cancellationToken);
+        return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict, workspacePath, cancellationToken);
     }
 }

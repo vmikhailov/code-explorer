@@ -84,6 +84,17 @@ public static class CypherTokenizer
             .Match(Span.Regex("(?i)\\bCALL\\b"), CypherToken.Call)
             .Match(Span.Regex("(?i)\\bYIELD\\b"), CypherToken.Yield)
 
+            // Mutating Keywords
+            .Match(Span.Regex("(?i)\\bCREATE\\b"), CypherToken.Create)
+            .Match(Span.Regex("(?i)\\bDELETE\\b"), CypherToken.Delete)
+            .Match(Span.Regex("(?i)\\bSET\\b"), CypherToken.Set)
+            .Match(Span.Regex("(?i)\\bMERGE\\b"), CypherToken.Merge)
+            .Match(Span.Regex("(?i)\\bREMOVE\\b"), CypherToken.Remove)
+            .Match(Span.Regex("(?i)\\bDROP\\b"), CypherToken.Drop)
+            .Match(Span.Regex("(?i)\\bDETACH\\b"), CypherToken.Detach)
+            .Match(Span.Regex("(?i)\\bALTER\\b"), CypherToken.Alter)
+            .Match(Span.Regex("(?i)\\bTRUNCATE\\b"), CypherToken.Truncate)
+
             // Backtick-quoted identifiers (e.g. `some-prop`)
             .Match(Span.Regex(@"`[^`]+`"), CypherToken.Identifier)
 

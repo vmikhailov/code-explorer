@@ -103,6 +103,20 @@ public class Layer1PhysicalParser
         var relativeDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
 
+        if (!string.IsNullOrEmpty(relativeDir))
+        {
+            var nestedGitIgnore = Path.Combine(currentDir, ".gitignore");
+            if (File.Exists(nestedGitIgnore))
+            {
+                gitignore.LoadScopedFile(nestedGitIgnore, relativeDir);
+            }
+            var nestedCeIgnore = Path.Combine(currentDir, ".codeexplorerignore");
+            if (File.Exists(nestedCeIgnore))
+            {
+                gitignore.LoadScopedFile(nestedCeIgnore, relativeDir);
+            }
+        }
+
         if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
         {
             ctx.Log($"[Layer1PhysicalParser] GitIgnore: Ignoring directory '{relativeDir}'");
@@ -122,7 +136,8 @@ public class Layer1PhysicalParser
         var genericExclusions = new HashSet<string>
         {
             ".git", ".github", ".vscode", ".idea", ".vs", ".go", "node_modules",
-            "bin", "obj", "packages", "dist", "build", "scratch", "demo",
+            "bin", "obj", "packages", "dist", "build", ".build", ".next", ".nuxt",
+            ".turbo", ".cache", ".output", "out", "coverage", "scratch", "demo",
             "vendor", "bower_components", "third_party", "thirdparty", "3rdparty"
         };
 
@@ -241,27 +256,32 @@ public class Layer1PhysicalParser
         {
             using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var reader = new StreamReader(stream);
-            var buffer = new char[4096];
+            var buffer = new char[8192];
             var read = reader.Read(buffer, 0, buffer.Length);
             if (read <= 0) return false;
 
             var lineLen = 0;
+            var newlines = 0;
             for (int i = 0; i < read; i++)
             {
                 if (buffer[i] == '\n')
                 {
+                    newlines++;
                     lineLen = 0;
                 }
                 else
                 {
                     lineLen++;
-                    if (lineLen > 2000)
+                    if (lineLen > 1000)
                     {
                         return true;
                     }
                 }
             }
-            if (lineLen > 2000) return true;
+            if (lineLen > 1000) return true;
+
+            // Average line length heuristic: if read >= 4096 and fewer than 4 newlines (avg line > 1000 chars)
+            if (read >= 4096 && newlines <= 3) return true;
         }
         catch
         {

@@ -82,4 +82,54 @@ public class WorkspaceLocatorTests
         Assert.That(ex!.Message, Does.Contain("No '.codeexplorer' workspace found"));
         Assert.That(ex.Message, Does.Contain("ce init"));
     }
+
+    [Test]
+    public void FindWithFallbacks_WhenExplicitPathProvided_FindsWorkspace()
+    {
+        WorkspaceLocator.Initialize(_tempDir, "ExplicitWs");
+        var found = WorkspaceLocator.FindWithFallbacks(_tempDir);
+
+        Assert.That(found, Is.Not.Null);
+        Assert.That(found!.RootDirectory, Is.EqualTo(_tempDir));
+    }
+
+    [Test]
+    public void FindWithFallbacks_WhenExplicitPathInvalid_ReturnsNull()
+    {
+        var nonWs = Path.Combine(_tempDir, "non_existent_or_empty");
+        Directory.CreateDirectory(nonWs);
+
+        var found = WorkspaceLocator.FindWithFallbacks(nonWs);
+
+        Assert.That(found, Is.Null, "Explicit invalid path should not fall back to CWD");
+    }
+
+    [Test]
+    public void FindWithFallbacks_WhenEnvVarSet_FindsWorkspace()
+    {
+        WorkspaceLocator.Initialize(_tempDir, "EnvWs");
+        var prevVal = Environment.GetEnvironmentVariable("WORKSPACE_ROOT");
+        try
+        {
+            Environment.SetEnvironmentVariable("WORKSPACE_ROOT", _tempDir);
+            var found = WorkspaceLocator.FindWithFallbacks();
+
+            Assert.That(found, Is.Not.Null);
+            Assert.That(found!.RootDirectory, Is.EqualTo(_tempDir));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("WORKSPACE_ROOT", prevVal);
+        }
+    }
+
+    [Test]
+    public void FindFromDbPath_ResolvesParentWorkspace()
+    {
+        var ws = WorkspaceLocator.Initialize(_tempDir, "DbPathWs");
+        var found = WorkspaceLocator.FindFromDbPath(ws.DbPath);
+
+        Assert.That(found, Is.Not.Null);
+        Assert.That(found!.RootDirectory, Is.EqualTo(_tempDir));
+    }
 }

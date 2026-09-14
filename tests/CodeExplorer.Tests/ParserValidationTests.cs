@@ -1024,4 +1024,64 @@ public class RestService {
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_GoParser_ServeMuxMethods_NoDuplicateVerbs()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "codeexplorer-test-go-mux-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "api.go");
+
+        var code = @"package api
+
+import ""net/http""
+
+func handleGetBundles(w http.ResponseWriter, r *http.Request) {}
+func handlePostBundle(w http.ResponseWriter, r *http.Request) {}
+
+func registerRoutes() {
+    mux := http.NewServeMux()
+    mux.HandleFunc(""GET /api/v1/bundles"", handleGetBundles)
+    mux.HandleFunc(""POST /api/v1/bundles"", handlePostBundle)
+    mux.HandleFunc(""/api/v1/legacy"", handleGetBundles)
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            var parser = new GoParser();
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            Assert.That(endpoints, Has.Count.EqualTo(3));
+
+            var getBundle = endpoints.FirstOrDefault(e => e.RouteTemplate == "/api/v1/bundles" && e.HttpMethod == "GET");
+            Assert.That(getBundle, Is.Not.Null);
+            Assert.That(getBundle!.Name, Is.EqualTo("GET:/api/v1/bundles"));
+            Assert.That(getBundle.Name, Does.Not.Contain("GET:GET"));
+
+            var postBundle = endpoints.FirstOrDefault(e => e.RouteTemplate == "/api/v1/bundles" && e.HttpMethod == "POST");
+            Assert.That(postBundle, Is.Not.Null);
+            Assert.That(postBundle!.Name, Is.EqualTo("POST:/api/v1/bundles"));
+            Assert.That(postBundle.Name, Does.Not.Contain("GET:POST"));
+
+            var legacy = endpoints.FirstOrDefault(e => e.RouteTemplate == "/api/v1/legacy");
+            Assert.That(legacy, Is.Not.Null);
+            Assert.That(legacy!.HttpMethod, Is.EqualTo("GET"));
+            Assert.That(legacy.Name, Is.EqualTo("GET:/api/v1/legacy"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

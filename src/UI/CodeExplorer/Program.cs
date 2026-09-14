@@ -670,28 +670,38 @@ public class Program
     private static async Task<int> HandleMcpAsync(McpOptions opts)
     {
         WorkspaceInfo? ws = null;
-        string dbPath;
+        string? dbPath = null;
         if (!string.IsNullOrWhiteSpace(opts.DbPath))
         {
             dbPath = Path.GetFullPath(opts.DbPath);
-            ws = WorkspaceLocator.Find(Path.GetDirectoryName(dbPath));
+            ws = WorkspaceLocator.FindFromDbPath(dbPath);
         }
         else
         {
-            ws = WorkspaceLocator.FindOrThrow(opts.Root);
-            dbPath = ws.DbPath;
+            ws = WorkspaceLocator.FindWithFallbacks(opts.Root);
+            if (ws != null)
+            {
+                dbPath = ws.DbPath;
+                WorkspaceLocator.RecordActiveWorkspace(ws.RootDirectory);
+            }
         }
 
-        await using var client = new SqliteGraphClient(dbPath);
+        var isStandby = string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath);
+        if (isStandby && string.IsNullOrEmpty(dbPath))
+        {
+            dbPath = "Data Source=:memory:;Mode=Memory;Cache=Shared";
+        }
+
+        await using var client = new SqliteGraphClient(dbPath!);
         var wsRoot = ws?.RootDirectory;
 
         if (opts.Port > 0)
         {
-            await RunMcpWebServerAsync(client, opts.Port, wsRoot);
+            await RunMcpWebServerAsync(client, opts.Port, wsRoot, isStandby);
         }
         else
         {
-            await RunMcpStdioHostAsync(client, wsRoot);
+            await RunMcpStdioHostAsync(client, wsRoot, isStandby);
         }
 
         return 0;
@@ -744,7 +754,7 @@ public class Program
         }
     }
 
-    private static async Task RunMcpWebServerAsync(SqliteGraphClient client, int port, string? workspaceRoot = null)
+    private static async Task RunMcpWebServerAsync(SqliteGraphClient client, int port, string? workspaceRoot = null, bool isStandby = false)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
@@ -760,7 +770,14 @@ public class Program
         ConfigureWebPipeline(app);
 
         app.Urls.Add($"http://0.0.0.0:{port}");
-        app.Logger.LogInformation("Starting CodeExplorer MCP HTTP Service on http://localhost:{Port} (endpoint: /mcp)...", port);
+        if (isStandby)
+        {
+            app.Logger.LogWarning("[MCP Standby] Server started in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls or set WORKSPACE_ROOT environment variable.");
+        }
+        else
+        {
+            app.Logger.LogInformation("Starting CodeExplorer MCP HTTP Service on http://localhost:{Port} (endpoint: /mcp)...", port);
+        }
         await app.RunAsync();
     }
 
@@ -807,7 +824,7 @@ public class Program
         app.MapMcp("/mcp");
     }
 
-    private static async Task RunMcpStdioHostAsync(SqliteGraphClient client, string? workspaceRoot = null)
+    private static async Task RunMcpStdioHostAsync(SqliteGraphClient client, string? workspaceRoot = null, bool isStandby = false)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
@@ -819,6 +836,11 @@ public class Program
 
         var host = builder.Build();
         client.Logger = host.Services.GetRequiredService<ILogger<SqliteGraphClient>>();
+        if (isStandby)
+        {
+            var logger = host.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("[MCP Standby] Server started in Standby Mode (no workspace bound). Specify 'workspacePath' on tool calls or set WORKSPACE_ROOT environment variable.");
+        }
         await host.RunAsync();
     }
 

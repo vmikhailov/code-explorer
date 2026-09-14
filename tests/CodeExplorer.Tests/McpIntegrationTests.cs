@@ -280,6 +280,12 @@ public class McpIntegrationTests
     }
 
     [Test]
+    public async Task Test_ExecuteCustomReadCypher_WithDatabaseTypeAlias_Succeeds()
+    {
+        await CallToolAndAssertSuccessAsync("execute_custom_read_cypher", "{\"query\": \"MATCH (n) RETURN n.kind AS databaseType LIMIT 1\"}", 16);
+    }
+
+    [Test]
     public async Task Test_GetProjectEntryPoints()
     {
         await CallToolAndAssertSuccessAsync("get_project_entry_points", "{\"projectName\": \"CodeExplorer\"}", 4);
@@ -314,5 +320,48 @@ public class McpIntegrationTests
     public async Task Test_GetFileOutline()
     {
         await CallToolAndAssertSuccessAsync("get_file_outline", "{\"filePath\": \"CodeExplorer/server.ts\"}", 10);
+    }
+
+    [Test]
+    public async Task Test_GetProjectDependencies_Formats_Mermaid_Yaml_Toon()
+    {
+        await CallToolAndAssertSuccessAsync("get_project_dependencies", "{\"format\": \"mermaid\"}", 11);
+        await CallToolAndAssertSuccessAsync("get_project_dependencies", "{\"format\": \"yaml\"}", 12);
+        await CallToolAndAssertSuccessAsync("get_project_dependencies", "{\"format\": \"toon\"}", 13);
+    }
+
+    [Test]
+    public async Task Test_GetFileOutline_Formats_Yaml_Toon()
+    {
+        await CallToolAndAssertSuccessAsync("get_file_outline", "{\"filePath\": \"CodeExplorer/server.ts\", \"format\": \"yaml\"}", 14);
+        await CallToolAndAssertSuccessAsync("get_file_outline", "{\"filePath\": \"CodeExplorer/server.ts\", \"format\": \"toon\"}", 15);
+    }
+
+    [Test]
+    public async Task Test_InspectDataLineage()
+    {
+        await CallToolAndAssertSuccessAsync("inspect_data_lineage", "{\"tableName\": \"orders\"}", 17);
+    }
+
+    [Test]
+    public async Task Test_InspectDataLineage_AtsProject_Performance()
+    {
+        const string atsDbPath = "/Users/slava/Projects/ATS/src/.codeexplorer/graph.db";
+        if (!File.Exists(atsDbPath))
+        {
+            Assert.Ignore("ATS graph.db does not exist on this machine.");
+            return;
+        }
+
+        await using var client = new SqliteGraphClient(atsDbPath);
+        var repo = new CodeExplorer.Core.Mcp.CodeExplorerRepository(client);
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var resultJson = await repo.InspectDataLineageAsync("campaigns");
+        sw.Stop();
+
+        TestContext.Out.WriteLine($"InspectDataLineage on ATS campaigns took {sw.ElapsedMilliseconds}ms. Result length: {resultJson.Length}");
+        Assert.That(sw.ElapsedMilliseconds, Is.LessThan(2000), $"Query took too long: {sw.ElapsedMilliseconds}ms (expected < 2000ms)");
+        Assert.That(resultJson, Does.Contain("campaigns"));
     }
 }

@@ -31,6 +31,8 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.StackExchangeRedisLibraryParser(),
         new Libraries.Neo4jDriverLibraryParser(),
         new Libraries.AspNetCoreLibraryParser(),
+        new Libraries.MassTransitLibraryParser(),
+        new Libraries.MediatRLibraryParser(),
 
         // Generic Cloud Services
         new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe", "Stripe"]),

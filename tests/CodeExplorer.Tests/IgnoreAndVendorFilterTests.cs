@@ -87,4 +87,59 @@ Scripts/vendor/
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public void Test_GitIgnoreMatcher_BuiltInSafeDefaults()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_defaults_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            // No .gitignore or .codeexplorerignore created
+            var matcher = new GitIgnoreMatcher(tempDir);
+
+            Assert.That(matcher.IsIgnored("node_modules/express/index.js", false), Is.True);
+            Assert.That(matcher.IsIgnored("bin/Debug/net10.0/app.dll", false), Is.True);
+            Assert.That(matcher.IsIgnored("obj/Release/app.pdb", false), Is.True);
+            Assert.That(matcher.IsIgnored(".next/cache/turbopack.js", false), Is.True);
+            Assert.That(matcher.IsIgnored(".turbo/build.log", false), Is.True);
+            Assert.That(matcher.IsIgnored("dist/bundle.js", false), Is.True);
+            Assert.That(matcher.IsIgnored("src/app.ts", false), Is.False);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void Test_GitIgnoreMatcher_NestedScopedIgnoreFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_nested_ignore_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var nestedDir = Path.Combine(tempDir, "services", "auth");
+            Directory.CreateDirectory(nestedDir);
+
+            // Nested .gitignore inside services/auth
+            var nestedIgnore = Path.Combine(nestedDir, ".gitignore");
+            File.WriteAllText(nestedIgnore, "local_cache/\n*.tmp");
+
+            var matcher = new GitIgnoreMatcher(tempDir);
+            matcher.LoadScopedFile(nestedIgnore, "services/auth");
+
+            // Should be ignored inside services/auth
+            Assert.That(matcher.IsIgnored("services/auth/local_cache/data.bin", false), Is.True);
+            Assert.That(matcher.IsIgnored("services/auth/test.tmp", false), Is.True);
+
+            // Should NOT be ignored outside services/auth
+            Assert.That(matcher.IsIgnored("services/billing/local_cache/data.bin", false), Is.False);
+            Assert.That(matcher.IsIgnored("root.tmp", false), Is.False);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

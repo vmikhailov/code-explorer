@@ -7,25 +7,25 @@
 - [x] **Graph schema discovery for Cypher**: `get_taxonomy` and `get_node_definition` tools expose complete ontology labels, relationship types, and node properties.
 - [x] **Single database per workspace & `ce` CLI**: Streamlined embedded architecture with SQLite and self-contained single-file binary.
 - [x] **Cypher query depth bounding & timeout resilience**: Eliminated unbounded graph traversal hangs, added 15s `CommandTimeout` and `CancellationToken` support.
+- [x] **TypeScript & Node.js Library Parsers**:
+  - Library trie registry matching with subpath support for popular database, queue, and framework packages.
+  - Comprehensive library parsers: NestJS, Express, Fastify, Koa, Next.js App Router, BullMQ, KafkaJS, Elasticsearch, Sequelize, TypeORM, Prisma, Drizzle, Pg, Mysql2, Sqlite3, Neo4j, InfluxDB, Got/Ky.
+  - Complete eradication of AST magic strings across all parsers (TypeScript, Go, Python, C#) with typed TreeSitterSyntax.
 
 ---
 
-### Active (In Progress)
-- [ ] **Ingress & Egress Parsers (C#)**:
-  - Full ASP.NET Core route composition: Controller-level `[Route("api/[controller]")]` + Action-level `[HttpGet("{id}")]` with token substitutions (`[controller]`, `[action]`).
-  - Minimal API `app.MapGroup(...)` prefix concatenation.
-  - Target URL/path resolution for `HttpClient`, `RestSharp`, and `Refit` declarative interfaces.
-  - Message-driven ingress and egress detection (MassTransit consumers/publishers, MediatR handlers/requests, Kafka, RabbitMQ).
-- [ ] **TypeScript & Node.js Library Parsers**:
-  - Library trie registry matching for popular database, queue, and framework packages.
-  - NestJS, Express, Fastify, BullMQ, KafkaJS, Elasticsearch, Sequelize, TypeORM, Prisma, and Drizzle parsers.
+- [x] **Message-driven ingress and egress detection**: MassTransit consumers/publishers, MediatR handlers/requests.
+- [x] **MCP Multi-Source CWD & Standby Mode**: Multi-source resolution order, standby graceful degradation mode, dynamic per-call workspacePath.
+- [x] **Token-Efficient Multi-Format Outputs**: Native Mermaid diagram generation (`graph TD`), compact Markdown tables, compact JSON (`WriteIndented = false`), YAML, and TOON (Token-Oriented Object Notation).
+- [x] **Monorepo & Nested `.gitignore` Support**: Recursive scoped ignore loading and minified/vendor bundle heuristic filtering.
 
 ---
 
 ### Backlog & Planned Initiatives
-- [ ] **MCP Multi-Source CWD & Standby Mode**: Eliminate startup crash when launched from root (`/`) or IDE extension hosts without `--root`.
-- [ ] **Token-Efficient Multi-Format Outputs**: Native Mermaid diagram generation (`graph TD`, `sequenceDiagram`) and compact Markdown tables.
-- [ ] **Monorepo & Nested `.gitignore` Support**: Recursive ignore loading and minified bundle heuristic filtering.
+- [ ] **Ingress & Egress Parsers (C#)**:
+  - Full ASP.NET Core route composition: Controller-level `[Route("api/[controller]")]` + Action-level `[HttpGet("{id}")]` with token substitutions (`[controller]`, `[action]`).
+  - Minimal API `app.MapGroup(...)` prefix concatenation.
+  - Target URL/path resolution for `HttpClient`, `RestSharp`, and `Refit` declarative interfaces.
 - [ ] **C# Constructor Dependency Injection Resolution**: Map constructor parameters to private fields and trace interface calls through `[:IMPLEMENTS]`.
 - [ ] **EF Core & Dapper Data Lineage**: Extract table names from `DbSet<T>` and Fluent API `ToTable("...")` to link C# code directly to database tables in `inspect_data_lineage`.
 - [ ] **VS Code & Antigravity IDE Extension**: Interactive Cytoscape.js webview cockpit, bi-directional code navigation, and live LSP bridge using `vscode.executeDefinitionProvider`.
@@ -174,8 +174,8 @@
 - [ ] **2.1**: Enhance `GitIgnoreMatcher` to recursively load nested `.gitignore` files in monorepo subdirectories.
 - [ ] **2.2**: Add default directory exclusions (`node_modules`, `dist`, `bin`, `obj`, `.next`, `coverage`).
 - [ ] **2.3**: Add minified bundle heuristic check to skip obfuscated JS/TS chunks.
-- [ ] **2.4**: Implement NestJS `@Module`, `@Injectable()`, and `@Controller` AST parsers in `TypeScriptParser`.
-- [ ] **2.5**: Complete BullMQ, KafkaJS, and Elasticsearch library parsers for TypeScript.
+- [x] **2.4**: Implement NestJS `@Module`, `@Injectable()`, and `@Controller` AST parsers in `TypeScriptParser`.
+- [x] **2.5**: Complete BullMQ, KafkaJS, and Elasticsearch library parsers for TypeScript.
 - [ ] **3.1**: Verify and optimize compound indexes on SQLite `edges` table.
 - [ ] **3.2**: Add query result caching for static graph structures (`get_architecture_map`, `get_taxonomy`).
 - [ ] **4.1**: Ensure MCP client connection uses `Mode=ReadOnly` with WAL concurrency tuning.

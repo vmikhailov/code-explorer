@@ -4,10 +4,42 @@ namespace CodeExplorer.Core.Parser;
 
 public class GitIgnoreMatcher
 {
-    private readonly List<(string Pattern, Regex Regex, bool IsDirectoryOnly)> _rules = [];
+    private static readonly string[] DefaultIgnorePatterns =
+    [
+        "node_modules/",
+        "bin/",
+        "obj/",
+        "packages/",
+        "dist/",
+        "build/",
+        ".Build/",
+        ".next/",
+        ".nuxt/",
+        ".output/",
+        "out/",
+        "coverage/",
+        ".git/",
+        ".github/",
+        ".turbo/",
+        ".cache/",
+        ".vscode/",
+        ".idea/",
+        ".vs/",
+        "*.min.js",
+        "*.min.css",
+        "*.bundle.js",
+        "*.bundle.min.js"
+    ];
+
+    private readonly List<(string Pattern, Regex Regex, bool IsDirectoryOnly, string? Scope)> _rules = [];
 
     public GitIgnoreMatcher(string workspaceRoot)
     {
+        foreach (var pattern in DefaultIgnorePatterns)
+        {
+            AddPattern(pattern);
+        }
+
         LoadFile(Path.Combine(workspaceRoot, ".gitignore"));
         LoadFile(Path.Combine(workspaceRoot, ".codeexplorerignore"));
     }
@@ -22,7 +54,18 @@ public class GitIgnoreMatcher
         }
     }
 
-    public void AddPattern(string pattern)
+    public void LoadScopedFile(string filePath, string scopeRelativePath)
+    {
+        if (!File.Exists(filePath)) return;
+
+        var normalizedScope = scopeRelativePath.Replace('\\', '/').Trim('/');
+        foreach (var line in File.ReadLines(filePath))
+        {
+            AddPattern(line, normalizedScope);
+        }
+    }
+
+    public void AddPattern(string pattern, string? scope = null)
     {
         var trimmed = pattern.Trim();
         if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) return;
@@ -67,7 +110,7 @@ public class GitIgnoreMatcher
         try
         {
             var regex = new Regex(regexPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            _rules.Add((trimmed, regex, isDirectoryOnly));
+            _rules.Add((trimmed, regex, isDirectoryOnly, string.IsNullOrEmpty(scope) ? null : scope));
         }
         catch
         {
@@ -82,10 +125,27 @@ public class GitIgnoreMatcher
 
         foreach (var rule in _rules)
         {
+            var testPath = relativePath;
+            if (rule.Scope != null)
+            {
+                if (rule.IsDirectoryOnly && isDirectory && string.Equals(relativePath, rule.Scope, StringComparison.OrdinalIgnoreCase))
+                {
+                    // The directory itself matches its scoped rule
+                    return true;
+                }
+
+                if (!relativePath.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                testPath = relativePath.Substring(rule.Scope.Length + 1);
+            }
+
             if (rule.IsDirectoryOnly && !isDirectory)
             {
                 // Directory-only rules like "foo/" match a file if it is inside that directory (followed by '/')
-                var m = rule.Regex.Match(relativePath);
+                var m = rule.Regex.Match(testPath);
                 if (m.Success && m.Value.EndsWith('/'))
                 {
                     return true;
@@ -93,7 +153,7 @@ public class GitIgnoreMatcher
                 continue;
             }
 
-            if (rule.Regex.IsMatch(relativePath))
+            if (rule.Regex.IsMatch(testPath))
             {
                 return true;
             }

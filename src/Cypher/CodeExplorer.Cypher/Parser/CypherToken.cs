@@ -40,6 +40,17 @@ public enum CypherToken
     Call,
     Yield,
 
+    // Mutating Keywords
+    Create,
+    Delete,
+    Set,
+    Merge,
+    Remove,
+    Drop,
+    Detach,
+    Alter,
+    Truncate,
+
     // Punctuation & Delimiters
     LParen,        // (
     RParen,        // )

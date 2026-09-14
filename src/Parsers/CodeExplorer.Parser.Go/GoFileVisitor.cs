@@ -336,6 +336,40 @@ public class GoFileVisitor : BaseParserVisitor
             }
         }
 
+        if (!string.IsNullOrEmpty(routeVal))
+        {
+            // Support Go 1.22+ ServeMux patterns, e.g. "GET /api/v1/bundles" or "POST /api/v1/bundles"
+            var spaceIdx = routeVal.IndexOf(' ');
+            if (spaceIdx > 0)
+            {
+                var candidateMethod = routeVal.Substring(0, spaceIdx).ToUpperInvariant();
+                if (candidateMethod is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD")
+                {
+                    method = candidateMethod;
+                    routeVal = routeVal.Substring(spaceIdx + 1).Trim();
+                }
+            }
+            else
+            {
+                // Support pre-formatted or colon-separated routes like "GET:/api/v1/bundles"
+                var colonIdx = routeVal.IndexOf(':');
+                if (colonIdx > 0)
+                {
+                    var candidateMethod = routeVal.Substring(0, colonIdx).ToUpperInvariant();
+                    if (candidateMethod is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD")
+                    {
+                        method = candidateMethod;
+                        routeVal = routeVal.Substring(colonIdx + 1).Trim();
+                    }
+                }
+            }
+        }
+
+        if (!routeVal.StartsWith('/'))
+        {
+            routeVal = "/" + routeVal;
+        }
+
         return $"{method}:{routeVal}";
     }
 
