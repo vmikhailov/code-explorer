@@ -67,6 +67,9 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
             PRAGMA busy_timeout = 5000;
+            PRAGMA cache_size = -64000;
+            PRAGMA temp_store = MEMORY;
+            PRAGMA mmap_size = 268435456;
             """;
         cmd.ExecuteNonQuery();
     }
@@ -423,24 +426,30 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         try
         {
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
-            await using var cmd = _conn.CreateCommand();
-            cmd.Transaction = tx;
-            cmd.CommandText = """
-                INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)
-                ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;
-                """;
+            const int batchSize = 100;
 
-            var pId = cmd.Parameters.Add("@id", SqliteType.Text);
-            var pKind = cmd.Parameters.Add("@kind", SqliteType.Text);
-            var pProps = cmd.Parameters.Add("@props", SqliteType.Text);
-
-            foreach (var node in nodes)
+            for (int i = 0; i < nodes.Count; i += batchSize)
             {
-                var dict = new Dictionary<string, object>(node.Properties) { ["id"] = node.Id };
-                pId.Value = node.Id;
-                pKind.Value = node.Kind;
-                pProps.Value = JsonSerializer.Serialize(dict);
-                await cmd.ExecuteNonQueryAsync();
+                var count = Math.Min(batchSize, nodes.Count - i);
+                await using var cmd = _conn.CreateCommand();
+                cmd.Transaction = tx;
+
+                var sb = new System.Text.StringBuilder(count * 60 + 120);
+                sb.Append("INSERT INTO nodes (id, kind, properties) VALUES ");
+                for (int j = 0; j < count; j++)
+                {
+                    if (j > 0) sb.Append(',');
+                    sb.Append($"(@i{j}, @k{j}, @p{j})");
+
+                    var node = nodes[i + j];
+                    var dict = new Dictionary<string, object>(node.Properties) { ["id"] = node.Id };
+                    cmd.Parameters.AddWithValue($"@i{j}", node.Id);
+                    cmd.Parameters.AddWithValue($"@k{j}", node.Kind);
+                    cmd.Parameters.AddWithValue($"@p{j}", JsonSerializer.Serialize(dict));
+                }
+                sb.Append(" ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;");
+                cmd.CommandText = sb.ToString();
+                cmd.ExecuteNonQuery();
             }
 
             await tx.CommitAsync();
@@ -462,26 +471,35 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         try
         {
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
-            await using var cmd = _conn.CreateCommand();
-            cmd.Transaction = tx;
-            cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, @props) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
-
-            var pFrom = cmd.Parameters.Add("@from", SqliteType.Text);
-            var pTo = cmd.Parameters.Add("@to", SqliteType.Text);
-            var pKind = cmd.Parameters.Add("@kind", SqliteType.Text);
-            var pProps = cmd.Parameters.Add("@props", SqliteType.Text);
-
             const string emptyPropsJson = "{}";
-            foreach (var rel in rels)
+            const int batchSize = 100;
+
+            for (int i = 0; i < rels.Count; i += batchSize)
             {
-                pFrom.Value = rel.From;
-                pTo.Value = rel.To;
-                pKind.Value = rel.Kind;
-                pProps.Value = rel.Properties == null || rel.Properties.Count == 0
-                    ? emptyPropsJson
-                    : JsonSerializer.Serialize(rel.Properties);
+                var count = Math.Min(batchSize, rels.Count - i);
+                await using var cmd = _conn.CreateCommand();
+                cmd.Transaction = tx;
+
+                var sb = new System.Text.StringBuilder(count * 60 + 120);
+                sb.Append("INSERT INTO edges (from_id, to_id, kind, properties) VALUES ");
+                for (int j = 0; j < count; j++)
+                {
+                    if (j > 0) sb.Append(',');
+                    sb.Append($"(@f{j}, @t{j}, @k{j}, @p{j})");
+
+                    var rel = rels[i + j];
+                    cmd.Parameters.AddWithValue($"@f{j}", rel.From);
+                    cmd.Parameters.AddWithValue($"@t{j}", rel.To);
+                    cmd.Parameters.AddWithValue($"@k{j}", rel.Kind);
+                    cmd.Parameters.AddWithValue($"@p{j}", rel.Properties == null || rel.Properties.Count == 0
+                        ? emptyPropsJson
+                        : JsonSerializer.Serialize(rel.Properties));
+                }
+                sb.Append(" ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;");
+                cmd.CommandText = sb.ToString();
                 cmd.ExecuteNonQuery();
             }
+
             await tx.CommitAsync();
             sw.Stop();
             _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count, sw.Elapsed.TotalMilliseconds);

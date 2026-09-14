@@ -81,7 +81,11 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitNode(Node node, int depth)
     {
-        SequenceDetector.Push(node);
+        if (SequenceDetector.HasRules)
+        {
+            SequenceDetector.Push(node);
+        }
+
         try
         {
             // 1. General reference collection
@@ -96,9 +100,12 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 }
             }
 
-            foreach (var libParser in LibraryParsers)
+            if (LibraryParsers.Count > 0)
             {
-                libParser.CollectReferences(node, "", currentScope.References, null!);
+                foreach (var libParser in LibraryParsers)
+                {
+                    libParser.CollectReferences(node, "", currentScope.References, null!);
+                }
             }
 
             // 2. Dispatch to specific typed visit methods
@@ -106,7 +113,10 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         }
         finally
         {
-            SequenceDetector.Pop();
+            if (SequenceDetector.HasRules)
+            {
+                SequenceDetector.Pop();
+            }
         }
     }
 

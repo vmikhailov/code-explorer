@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -29,6 +29,55 @@ public class Layer3SyntacticParser
         var globalSymbols = new Dictionary<(string Kind, string Name), string>();
         var nProject = 0;
 
+        // O(1) parent index of Layer 1 tree (eliminates 160M recursive DFS traversals)
+        var parentByChildId = new Dictionary<string, IOntologyNode>();
+        void IndexPhysicalTree(IOntologyNode parent)
+        {
+            foreach (var child in parent.Children)
+            {
+                parentByChildId[child.Id] = parent;
+                IndexPhysicalTree(child);
+            }
+        }
+        IndexPhysicalTree(l2Result.Prev.Workspace);
+
+        // O(F * P) pre-grouping of files to enclosing projects (runs once in <2ms, eliminates 167M comparisons in inner loops)
+        var filesByProjectId = new Dictionary<string, List<FileNode>>(l2Result.Projects.Count);
+        foreach (var file in l2Result.Prev.Files)
+        {
+            ProjectNode? bestMatch = null;
+            int bestMatchLength = -1;
+            foreach (var p in l2Result.Projects)
+            {
+                if (string.IsNullOrEmpty(p.Path))
+                {
+                    if (bestMatchLength < 0)
+                    {
+                        bestMatch = p;
+                        bestMatchLength = 0;
+                    }
+                    continue;
+                }
+
+                var prefix = p.Path.Replace('\\', '/').TrimEnd('/') + "/";
+                if (file.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && prefix.Length > bestMatchLength)
+                {
+                    bestMatch = p;
+                    bestMatchLength = prefix.Length;
+                }
+            }
+
+            if (bestMatch != null)
+            {
+                if (!filesByProjectId.TryGetValue(bestMatch.Id, out var list))
+                {
+                    list = new List<FileNode>();
+                    filesByProjectId[bestMatch.Id] = list;
+                }
+                list.Add(file);
+            }
+        }
+
         foreach (var project in l2Result.Projects)
         {
             nProject++;
@@ -44,20 +93,28 @@ public class Layer3SyntacticParser
             await ctx.EnqueueUploadRelationshipsAsync([belongsToRel]);
             ctx.AddRelsCount(1);
 
-            // Find all files belonging to this project
-            var projectFiles = l2Result.Prev.Files.Where(f => IsEnclosedInProject(f, project, l2Result.Projects)).ToList();
-
-            foreach (var file in projectFiles)
+            if (!filesByProjectId.TryGetValue(project.Id, out var projectFiles) || projectFiles.Count == 0)
             {
-                ctx.CancellationToken.ThrowIfCancellationRequested();
+                continue;
+            }
 
-                var ext = Path.GetExtension(file.Name).ToLower();
+            var parallelOptions = new ParallelOptions
+            {
+                CancellationToken = ctx.CancellationToken,
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            };
+
+            var parsedResults = new (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[projectFiles.Count];
+
+            await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, async (i, ct) =>
+            {
+                var file = projectFiles[i];
+                var ext = Path.GetExtension(file.Name).ToLowerInvariant();
                 var fileParser = WorkspaceIndexer._fileParsers.FirstOrDefault(p => p.CanParse(ext));
-                if (fileParser == null) continue;
+                if (fileParser == null) return;
 
-                // Find parent of the file node in Layer 1 tree
-                string? parentId = FindParentId(l2Result.Prev.Workspace, file.Id);
-                if (parentId == null) continue;
+                if (!parentByChildId.TryGetValue(file.Id, out var parentNode)) return;
+                var parentId = parentNode.Id;
 
                 try
                 {
@@ -65,42 +122,49 @@ public class Layer3SyntacticParser
                     if (syntaxTree.Tree != null)
                     {
                         ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+                        syntaxTree.Dispose(); // Free native TreeSitter memory immediately
                     }
 
-                    // Replace the empty FileNode in physical tree with the parsed FileNode
-                    var parentNode = FindNodeById(l2Result.Prev.Workspace, parentId);
-                    if (parentNode != null)
-                    {
-                        var idx = parentNode.Children.FindIndex(c => c.Id == file.Id);
-                        if (idx >= 0)
-                        {
-                            parentNode.Children[idx] = syntaxTree.FileNode;
-                        }
-                    }
-
-                    // Add top-level symbols to project syntax node
-                    foreach (var child in syntaxTree.FileNode.Children)
-                    {
-                        if (child is TypeNode || child is FunctionNode || child is MemberNode)
-                        {
-                            projectSyntaxNode.Children.Add(child);
-                        }
-                    }
-
-                    syntaxTrees.Add(syntaxTree);
-                    rawImports.AddRange(syntaxTree.RawImports);
-                    rawVariables.AddRange(syntaxTree.RawVariables);
-                    rawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
-
-                    // Add to global lists in context for late binding / indexing compatibility
-                    ctx.RawImports.AddRange(syntaxTree.RawImports);
-                    ctx.RawVariables.AddRange(syntaxTree.RawVariables);
-                    ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
+                    parsedResults[i] = (file, syntaxTree, parentNode);
                 }
                 catch (Exception ex)
                 {
                     ctx.LogWarning($"[Layer3SyntacticParser] Error parsing file '{file.Path}': {ex.Message}", ex);
                 }
+            });
+
+            for (int i = 0; i < projectFiles.Count; i++)
+            {
+                var item = parsedResults[i];
+                if (item == null) continue;
+
+                var (file, syntaxTree, parentNode) = item.Value;
+
+                // Replace the empty FileNode in physical tree with the parsed FileNode
+                var idx = parentNode.Children.FindIndex(c => c.Id == file.Id);
+                if (idx >= 0)
+                {
+                    parentNode.Children[idx] = syntaxTree.FileNode;
+                }
+
+                // Add top-level symbols to project syntax node
+                foreach (var child in syntaxTree.FileNode.Children)
+                {
+                    if (child is TypeNode || child is FunctionNode || child is MemberNode)
+                    {
+                        projectSyntaxNode.Children.Add(child);
+                    }
+                }
+
+                syntaxTrees.Add(syntaxTree);
+                rawImports.AddRange(syntaxTree.RawImports);
+                rawVariables.AddRange(syntaxTree.RawVariables);
+                rawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
+
+                // Add to global lists in context for late binding / indexing compatibility
+                ctx.RawImports.AddRange(syntaxTree.RawImports);
+                ctx.RawVariables.AddRange(syntaxTree.RawVariables);
+                ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
             }
         }
 
@@ -142,6 +206,8 @@ public class Layer3SyntacticParser
         return null;
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<IFileParser, (List<ILibraryParser> Active, LibraryTrieRegistry Registry)> _parserRegistryCache = new();
+
     public static void ProcessVisitor(SyntaxTree syntaxTree, string workspaceId, string absoluteWorkspacePath)
     {
         if (syntaxTree.Tree == null) return;
@@ -149,8 +215,14 @@ public class Layer3SyntacticParser
         var fileParser = syntaxTree.FileParser;
         var relativePath = syntaxTree.RelativePath;
 
-        var activeLibraryParsers = fileParser.LibraryParsers.Where(lp => lp.IsImplemented && lp.IsBuiltIn).ToList();
-        var registry = new LibraryTrieRegistry(fileParser.LibraryParsers);
+        var (cachedActive, registry) = _parserRegistryCache.GetOrAdd(fileParser, fp =>
+        {
+            var active = fp.LibraryParsers.Where(lp => lp.IsImplemented && lp.IsBuiltIn).ToList();
+            var reg = new LibraryTrieRegistry(fp.LibraryParsers);
+            return (active, reg);
+        });
+
+        var activeLibraryParsers = new List<ILibraryParser>(cachedActive);
 
         var mainVisitor = fileParser.CreateVisitor(syntaxTree.Tree.RootNode, activeLibraryParsers, relativePath,
             absoluteWorkspacePath, fileParser, registry);

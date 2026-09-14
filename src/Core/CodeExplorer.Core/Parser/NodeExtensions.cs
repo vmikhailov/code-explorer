@@ -1,10 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using TreeSitter;
 
 namespace CodeExplorer.Core.Parser
 {
     public static class NodeExtensions
     {
-        public static bool IsValid(this Node? node)
+        public static bool IsValid([NotNullWhen(true)] this Node? node)
         {
             return node != null && node.Id != IntPtr.Zero;
         }

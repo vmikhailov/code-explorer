@@ -44,8 +44,13 @@ public class SyntaxTree : IDisposable
     {
         Tree?.Dispose();
         Parser?.Dispose();
-        Language?.Dispose();
+        // Language is cached in _languageCache and reused across all files
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Language> _languageCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static Language GetLanguage(string languageName) =>
+        _languageCache.GetOrAdd(languageName, name => new Language(name));
 
     public static async Task<SyntaxTree> ParseAsync(
         string filePath,
@@ -58,7 +63,7 @@ public class SyntaxTree : IDisposable
         filePath = filePath.Replace('\\', '/');
         relativePath = relativePath.Replace('\\', '/');
         var sourceText = await File.ReadAllTextAsync(filePath);
-        var language = new Language(fileParser.LanguageName);
+        var language = GetLanguage(fileParser.LanguageName);
         var parser = new TreeSitter.Parser(language);
         var tree = parser.Parse(sourceText);
 
@@ -68,7 +73,6 @@ public class SyntaxTree : IDisposable
         if (tree == null)
         {
             parser.Dispose();
-            language.Dispose();
         }
 
         return new SyntaxTree(

@@ -8,60 +8,70 @@ public class GitIgnoreMatcher
 
     public GitIgnoreMatcher(string workspaceRoot)
     {
-        var gitignorePath = Path.Combine(workspaceRoot, ".gitignore");
-        if (!File.Exists(gitignorePath)) return;
+        LoadFile(Path.Combine(workspaceRoot, ".gitignore"));
+        LoadFile(Path.Combine(workspaceRoot, ".codeexplorerignore"));
+    }
 
-        foreach (var line in File.ReadLines(gitignorePath))
+    public void LoadFile(string filePath)
+    {
+        if (!File.Exists(filePath)) return;
+
+        foreach (var line in File.ReadLines(filePath))
         {
-            var trimmed = line.Trim();
-            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) continue;
+            AddPattern(line);
+        }
+    }
 
-            var isDirectoryOnly = false;
+    public void AddPattern(string pattern)
+    {
+        var trimmed = pattern.Trim();
+        if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) return;
 
-            if (trimmed.EndsWith('/'))
-            {
-                isDirectoryOnly = true;
-                trimmed = trimmed.Substring(0, trimmed.Length - 1);
-            }
+        var isDirectoryOnly = false;
 
-            var isAnchored = false;
+        if (trimmed.EndsWith('/'))
+        {
+            isDirectoryOnly = true;
+            trimmed = trimmed.Substring(0, trimmed.Length - 1);
+        }
 
-            if (trimmed.StartsWith('/'))
-            {
-                isAnchored = true;
-                trimmed = trimmed.Substring(1);
-            }
+        var isAnchored = false;
 
-            var escaped = Regex.Escape(trimmed);
-            var regexPattern = escaped.Replace("\\*", ".*").Replace("\\?", ".");
+        if (trimmed.StartsWith('/'))
+        {
+            isAnchored = true;
+            trimmed = trimmed.Substring(1);
+        }
 
-            if (isAnchored)
-            {
-                regexPattern = "^" + regexPattern;
-            }
-            else
-            {
-                regexPattern = "(^|/)" + regexPattern;
-            }
+        var escaped = Regex.Escape(trimmed);
+        var regexPattern = escaped.Replace("\\*", ".*").Replace("\\?", ".");
 
-            if (isDirectoryOnly)
-            {
-                regexPattern += "($|/)";
-            }
-            else
-            {
-                regexPattern += "($|/|\\.)";
-            }
+        if (isAnchored)
+        {
+            regexPattern = "^" + regexPattern;
+        }
+        else
+        {
+            regexPattern = "(^|/)" + regexPattern;
+        }
 
-            try
-            {
-                var regex = new Regex(regexPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-                _rules.Add((trimmed, regex, isDirectoryOnly));
-            }
-            catch
-            {
-                // Ignore malformed patterns
-            }
+        if (isDirectoryOnly)
+        {
+            regexPattern += "($|/)";
+        }
+        else
+        {
+            regexPattern += "($|/|\\.)";
+        }
+
+        try
+        {
+            var regex = new Regex(regexPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            _rules.Add((trimmed, regex, isDirectoryOnly));
+        }
+        catch
+        {
+            // Ignore malformed patterns
         }
     }
 
@@ -72,7 +82,16 @@ public class GitIgnoreMatcher
 
         foreach (var rule in _rules)
         {
-            if (rule.IsDirectoryOnly && !isDirectory) continue;
+            if (rule.IsDirectoryOnly && !isDirectory)
+            {
+                // Directory-only rules like "foo/" match a file if it is inside that directory (followed by '/')
+                var m = rule.Regex.Match(relativePath);
+                if (m.Success && m.Value.EndsWith('/'))
+                {
+                    return true;
+                }
+                continue;
+            }
 
             if (rule.Regex.IsMatch(relativePath))
             {

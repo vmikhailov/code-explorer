@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -49,13 +49,29 @@ public static class NestedSqlParser
         "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE"
     };
 
+    private static bool FastCheckSqlCandidate(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        int i = 0;
+        while (i < text.Length && (char.IsWhiteSpace(text[i]) || text[i] is '"' or '\'' or '`' or '('))
+        {
+            i++;
+        }
+        if (i >= text.Length) return false;
+        char c = char.ToUpperInvariant(text[i]);
+        return c is 'S' or 'I' or 'U' or 'D' or 'M';
+    }
+
     public static bool TryParseSql(string text, out string? firstWord, out string cleanedSql)
     {
         firstWord = null;
-        cleanedSql = CleanQueryText(text).Trim();
+        cleanedSql = text;
+        if (!FastCheckSqlCandidate(text))
+        {
+            return false;
+        }
 
-        // Console.WriteLine($"Attempting to parse SQL from text: {cleanedSql}");
-        
+        cleanedSql = CleanQueryText(text).Trim();
         if (string.IsNullOrEmpty(cleanedSql)) return false;
 
         var match = Regex.Match(cleanedSql, @"^\s*([a-zA-Z]+)\b");

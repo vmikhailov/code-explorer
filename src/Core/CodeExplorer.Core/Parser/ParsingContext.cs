@@ -118,28 +118,44 @@ public class ParsingContext
     private int _relsPersisted;
     private int _lastReportedNodes;
     private int _lastReportedRels;
+    private long _lastNodeReportTicks;
+    private long _lastRelReportTicks;
 
     public void RecordNodesPersisted(int count)
     {
         _nodesPersisted += count;
-        ReportProgressIfNeeded();
+        ReportNodesProgressIfNeeded();
         TriggerProgressReport();
     }
 
     public void RecordRelationshipsPersisted(int count)
     {
         _relsPersisted += count;
-        ReportProgressIfNeeded();
+        ReportRelationshipsProgressIfNeeded();
         TriggerProgressReport();
     }
 
-    private void ReportProgressIfNeeded()
+    private void ReportNodesProgressIfNeeded()
     {
-        if (_nodesPersisted - _lastReportedNodes >= 500 || _relsPersisted - _lastReportedRels >= 500)
+        var nowTicks = Environment.TickCount64;
+        if (_nodesPersisted - _lastReportedNodes >= 10000 ||
+            (nowTicks - _lastNodeReportTicks >= 1000 && _nodesPersisted != _lastReportedNodes))
         {
-            Log($"[PersistenceProgress] Saved: {_nodesPersisted} nodes, {_relsPersisted} relationships to database...");
+            Log($"[PersistenceProgress] Saved: {_nodesPersisted} nodes to database...");
             _lastReportedNodes = _nodesPersisted;
+            _lastNodeReportTicks = nowTicks;
+        }
+    }
+
+    private void ReportRelationshipsProgressIfNeeded()
+    {
+        var nowTicks = Environment.TickCount64;
+        if (_relsPersisted - _lastReportedRels >= 10000 ||
+            (nowTicks - _lastRelReportTicks >= 1000 && _relsPersisted != _lastReportedRels))
+        {
+            Log($"[PersistenceProgress] Saved: {_relsPersisted} relationships to database...");
             _lastReportedRels = _relsPersisted;
+            _lastRelReportTicks = nowTicks;
         }
     }
 

@@ -26,8 +26,7 @@ public class Layer1PhysicalParser
         try
         {
             var wsNameResult = await ctx.DbClient.ExecuteQueryAsync(
-                "MATCH (w:Workspace) WHERE w.id = $wsId OR w.id = 'workspace' RETURN w.name AS name LIMIT 1",
-                new Dictionary<string, object?> { ["wsId"] = wsId });
+                "MATCH (w:Workspace) RETURN w.name AS name LIMIT 1");
             using var doc = System.Text.Json.JsonDocument.Parse(wsNameResult);
             if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
             {
@@ -110,6 +109,12 @@ public class Layer1PhysicalParser
             return;
         }
 
+        var libmanPath = Path.Combine(currentDir, "libman.json");
+        if (File.Exists(libmanPath))
+        {
+            RegisterLibManExclusions(libmanPath, currentDir, ctx.AbsoluteWorkspacePath, gitignore, ctx);
+        }
+
         var dirName = Path.GetFileName(currentDir);
         if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
         var dirNameLower = dirName.ToLowerInvariant();
@@ -117,7 +122,8 @@ public class Layer1PhysicalParser
         var genericExclusions = new HashSet<string>
         {
             ".git", ".github", ".vscode", ".idea", ".vs", ".go", "node_modules",
-            "bin", "obj", "packages", "dist", "build", "scratch", "demo"
+            "bin", "obj", "packages", "dist", "build", "scratch", "demo",
+            "vendor", "bower_components", "third_party", "thirdparty", "3rdparty"
         };
 
         if (genericExclusions.Contains(dirNameLower))
@@ -138,16 +144,19 @@ public class Layer1PhysicalParser
             currentParentNode = folderNode;
         }
 
+        var dirInfo = new DirectoryInfo(currentDir);
+
         // Recurse subdirectories
-        foreach (var subDir in Directory.GetDirectories(currentDir))
+        foreach (var subDir in dirInfo.GetDirectories())
         {
-            await ScanDirectoryAsync(subDir, currentParentNode, files, folders, gitignore, ctx);
+            await ScanDirectoryAsync(subDir.FullName, currentParentNode, files, folders, gitignore, ctx);
         }
 
         // Process files
-        foreach (var file in Directory.GetFiles(currentDir))
+        foreach (var fileInfo in dirInfo.GetFiles())
         {
-            var ext = Path.GetExtension(file).ToLower();
+            var ext = fileInfo.Extension.ToLowerInvariant();
+            var file = fileInfo.FullName;
             var relativeFile = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, file).Replace('\\', '/');
 
             if (gitignore.IsIgnored(relativeFile, false))
@@ -161,15 +170,15 @@ public class Layer1PhysicalParser
                 continue;
             }
 
-            if (IsTestOrMockFile(file))
+            if (ShouldSkipFile(fileInfo))
             {
                 // we skip test files for now
                 continue;
             }
 
-            var absoluteFilePath = Path.GetFullPath(file).Replace('\\', '/');
+            var absoluteFilePath = fileInfo.FullName.Replace('\\', '/');
             var fileId = $"{ctx.WorkspaceId}:file:{relativeFile}";
-            var fileName = Path.GetFileName(file);
+            var fileName = fileInfo.Name;
             var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath);
 
             currentParentNode.Children.Add(fileNode);
@@ -177,10 +186,13 @@ public class Layer1PhysicalParser
         }
     }
 
-    private static bool IsTestOrMockFile(string filePath)
-    {
-        var fileName = Path.GetFileName(filePath).ToLowerInvariant();
+    private const long MaxSourceFileSize = 1_048_576; // 1 MB limit for AST parsing
 
+    private static bool ShouldSkipFile(FileInfo fileInfo)
+    {
+        var fileName = fileInfo.Name.ToLowerInvariant();
+
+        // 1. Tests and mocks
         if (fileName.Contains("mock")) return true;
         if (fileName.EndsWith("tests.cs") || fileName.EndsWith("test.cs")) return true;
         if (fileName.EndsWith("_test.go")) return true;
@@ -189,11 +201,107 @@ public class Layer1PhysicalParser
         if (fileName.EndsWith(".test.ts") || fileName.EndsWith(".spec.ts") || fileName.EndsWith(".test.js") ||
             fileName.EndsWith(".spec.js")) return true;
 
-        // Skip minified, bundle, and vendor files
+        // 2. TypeScript Ambient Declaration files (no executable code/endpoints/calls)
+        if (fileName.EndsWith(".d.ts")) return true;
+
+        // 3. Minified, bundle, and vendor file conventions
         if (fileName.EndsWith(".min.js") || fileName.EndsWith(".min.mjs") || fileName.EndsWith(".min.cjs") ||
             fileName.EndsWith(".min.css") || fileName.EndsWith(".bundle.js") || fileName.EndsWith(".bundle.min.js")) return true;
         if (fileName.Contains(".min.")) return true;
 
+        // 4. Oversized source files (> 1 MB are bundled distributions or generated data tables)
+        // FileInfo.Length is populated from DirectoryInfo enumeration, avoiding per-file system calls
+        try
+        {
+            if (fileInfo.Length > MaxSourceFileSize)
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // Ignore file access errors
+        }
+
+        // 5. Minification heuristic: check first 4KB for extremely long lines (> 2000 chars)
+        if (fileName.EndsWith(".js") || fileName.EndsWith(".ts") || fileName.EndsWith(".css"))
+        {
+            if (IsMinifiedContent(fileInfo.FullName))
+            {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    private static bool IsMinifiedContent(string filePath)
+    {
+        try
+        {
+            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream);
+            var buffer = new char[4096];
+            var read = reader.Read(buffer, 0, buffer.Length);
+            if (read <= 0) return false;
+
+            var lineLen = 0;
+            for (int i = 0; i < read; i++)
+            {
+                if (buffer[i] == '\n')
+                {
+                    lineLen = 0;
+                }
+                else
+                {
+                    lineLen++;
+                    if (lineLen > 2000)
+                    {
+                        return true;
+                    }
+                }
+            }
+            if (lineLen > 2000) return true;
+        }
+        catch
+        {
+            // Fall through if file unreadable
+        }
+        return false;
+    }
+
+    private static void RegisterLibManExclusions(
+        string libmanPath,
+        string currentDir,
+        string workspaceRoot,
+        GitIgnoreMatcher gitignore,
+        ParsingContext ctx)
+    {
+        try
+        {
+            var content = File.ReadAllText(libmanPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            if (doc.RootElement.TryGetProperty("libraries", out var libs) && libs.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var lib in libs.EnumerateArray())
+                {
+                    if (lib.TryGetProperty("destination", out var destProp) && destProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var dest = destProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(dest))
+                        {
+                            var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
+                            var relDest = Path.GetRelativePath(workspaceRoot, fullDest).Replace('\\', '/').Trim('/');
+                            gitignore.AddPattern(relDest + "/");
+                            ctx.Log($"[Layer1PhysicalParser] LibMan: Excluded library destination '{relDest}'");
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ctx.Log($"[Layer1PhysicalParser] Error reading libman.json: {ex.Message}");
+        }
     }
 }

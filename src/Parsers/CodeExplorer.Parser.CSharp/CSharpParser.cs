@@ -191,6 +191,7 @@ public class CSharpParser : IProjectParser, IFileParser
     public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(LibraryParsers, syntaxTree);
 
     private readonly ConcurrentDictionary<string, string> _csProjCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string?> _dirToCsprojCache = new(StringComparer.OrdinalIgnoreCase);
 
     public ImportType ResolveCsImportType(string importPath, string filePath)
     {
@@ -231,14 +232,19 @@ public class CSharpParser : IProjectParser, IFileParser
 
     private string? FindCsprojFile(string? dir)
     {
-        while (dir != null && Directory.Exists(dir))
+        if (dir == null) return null;
+        return _dirToCsprojCache.GetOrAdd(dir, d =>
         {
-            var files = Directory.GetFiles(dir, "*.csproj");
-            if (files.Length > 0)
-                return files[0];
-            dir = Path.GetDirectoryName(dir);
-        }
-        return null;
+            var current = d;
+            while (current != null && Directory.Exists(current))
+            {
+                var files = Directory.GetFiles(current, "*.csproj");
+                if (files.Length > 0)
+                    return files[0];
+                current = Path.GetDirectoryName(current);
+            }
+            return null;
+        });
     }
 
     public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)

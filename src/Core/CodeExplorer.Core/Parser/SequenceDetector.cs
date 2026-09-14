@@ -1,4 +1,4 @@
-using TreeSitter;
+﻿using TreeSitter;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -26,9 +26,11 @@ public class SequenceDetector<T>
     private readonly List<SequenceRule<T>> _rules = [];
 
     public IReadOnlyList<T> CurrentPath => _currentPath;
+    public bool HasRules => _rules.Count > 0;
 
     public void Push(T element)
     {
+        if (_rules.Count == 0) return;
         _currentPath.Add(element);
         CheckRules();
     }

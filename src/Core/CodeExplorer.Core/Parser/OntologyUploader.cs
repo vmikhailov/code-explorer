@@ -15,17 +15,17 @@ public static class OntologyUploader
 
         CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships, visitedNodeIds);
 
-        // Upload nodes in chunks of 1000
-        for (var i = 0; i < collectedNodes.Count; i += 1000)
+        // Upload nodes in chunks of 10000
+        for (var i = 0; i < collectedNodes.Count; i += 10000)
         {
-            var chunk = collectedNodes.GetRange(i, Math.Min(1000, collectedNodes.Count - i));
+            var chunk = collectedNodes.GetRange(i, Math.Min(10000, collectedNodes.Count - i));
             await ctx.EnqueueUploadNodesAsync(chunk);
         }
 
-        // Upload relationships in chunks of 1000
-        for (var i = 0; i < collectedRelationships.Count; i += 1000)
+        // Upload relationships in chunks of 10000
+        for (var i = 0; i < collectedRelationships.Count; i += 10000)
         {
-            var chunk = collectedRelationships.GetRange(i, Math.Min(1000, collectedRelationships.Count - i));
+            var chunk = collectedRelationships.GetRange(i, Math.Min(10000, collectedRelationships.Count - i));
             await ctx.EnqueueUploadRelationshipsAsync(chunk);
         }
     }

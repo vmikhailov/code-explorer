@@ -138,8 +138,10 @@ public class RestSharpLibraryParser : ILibraryParser
         return "http:restsharp-service";
     }
 
-    private static string? ExtractText(Node node)
+    private static string? ExtractText(Node? node)
     {
+        if (!node.IsValid()) return null;
+
         if (node.Type.Contains("string"))
         {
             return node.Text.Trim('"');
