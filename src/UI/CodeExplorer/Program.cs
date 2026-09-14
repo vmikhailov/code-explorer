@@ -533,7 +533,7 @@ public class Program
         var builtInQueries = Queries.GetBuiltInQueries();
         var customQueries = ws != null
             ? new ProjectQueryManager().ListQueries(ws.RootDirectory)
-            : Array.Empty<ProjectQueryItem>();
+            : [];
 
         if (string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase))
         {

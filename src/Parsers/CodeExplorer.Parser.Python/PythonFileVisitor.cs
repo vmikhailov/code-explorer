@@ -39,7 +39,7 @@ public class PythonFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.ExternalService;
         }
 
-        if (node.Type == "string")
+        if (node.Is(TreeSitterSyntax.Python.String))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
             {
@@ -48,8 +48,8 @@ public class PythonFileVisitor : BaseParserVisitor
         }
         return node.Type switch
         {
-            "class_definition" => "Class",
-            "function_definition" => OntologyConstants.NodeLabels.Function,
+            TreeSitterSyntax.Python.ClassDefinition => "Class",
+            TreeSitterSyntax.Python.FunctionDefinition => OntologyConstants.NodeLabels.Function,
             _ => null
         };
     }
@@ -71,7 +71,7 @@ public class PythonFileVisitor : BaseParserVisitor
             return ExtractPythonHttpClientTarget(node);
         }
 
-        if (node.Type == "string")
+        if (node.Is(TreeSitterSyntax.Python.String))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
             {
@@ -87,7 +87,7 @@ public class PythonFileVisitor : BaseParserVisitor
         if (symbolNode.Kind == OntologyConstants.NodeLabels.Function)
         {
             var parent = node.Parent;
-            if (parent != null && parent.Type == "decorated_definition")
+            if (parent.IsValid() && parent.Is(TreeSitterSyntax.Python.DecoratedDefinition))
             {
                 foreach (var child in parent.Children)
                 {
@@ -107,11 +107,11 @@ public class PythonFileVisitor : BaseParserVisitor
             var route = ExtractDjangoPathRoute(node);
             if (!string.IsNullOrEmpty(route))
             {
-                var args = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-                if (args != null && args.Children.Count > 1)
+                var args = node.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
+                if (args.IsValid() && args.Children.Count > 1)
                 {
-                    var viewArg = args.Children.Skip(1).FirstOrDefault(c => c.Type is "identifier" or "attribute");
-                    if (viewArg != null)
+                    var viewArg = args.Children.Skip(1).FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.Attribute));
+                    if (viewArg.IsValid())
                     {
                         var viewName = viewArg.Text;
                         if (viewName.Contains('.'))
@@ -127,7 +127,7 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private string? ExtractPythonIdentifier(Node node)
     {
-        var nameNode = node.GetChildForField("name");
+        var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
         if (nameNode != null && nameNode.Id != IntPtr.Zero)
         {
             return nameNode.Text;
@@ -135,7 +135,7 @@ public class PythonFileVisitor : BaseParserVisitor
 
         foreach (var child in node.Children)
         {
-            if (child.Type is "identifier" or "variable_name")
+            if (child.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.VariableName))
             {
                 return child.Text;
             }
@@ -160,11 +160,11 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override void VisitImportStatement(Node node, int depth)
     {
-        if (node.Type == "import_statement")
+        if (node.Is(TreeSitterSyntax.Python.ImportStatement))
         {
             foreach (var child in node.Children)
             {
-                if (child.Type is "dotted_name" or "aliased_name")
+                if (child.IsAny(TreeSitterSyntax.Python.DottedName, TreeSitterSyntax.Python.AliasedName))
                 {
                     var importPath = child.Text;
                     RawImports.Add(new RawImport(importPath, "", ImportType.External));
@@ -172,14 +172,14 @@ public class PythonFileVisitor : BaseParserVisitor
                 }
             }
         }
-        else if (node.Type == "import_from_statement")
+        else if (node.Is(TreeSitterSyntax.Python.ImportFromStatement))
         {
             var moduleNode = node.GetChildForField("module_name");
-            if (moduleNode == null || moduleNode.Id == IntPtr.Zero)
+            if (!moduleNode.IsValid())
             {
-                moduleNode = node.Children.FirstOrDefault(c => c.Type == "dotted_name");
+                moduleNode = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.DottedName));
             }
-            if (moduleNode != null && moduleNode.Id != IntPtr.Zero)
+            if (moduleNode.IsValid())
             {
                 var importPath = moduleNode.Text;
                 RawImports.Add(new RawImport(importPath, "", ImportType.External));
@@ -191,37 +191,37 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override string? FindCallName(Node callNode)
     {
-        var expr = callNode.GetChildForField("function");
-        if (expr != null && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
+        var expr = callNode.GetChildForField(TreeSitterSyntax.Fields.Function);
+        if (expr.IsValid() && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
         {
             expr = callNode.Children[0];
         }
-        if (expr == null || expr.Id == IntPtr.Zero) return null;
+        if (!expr.IsValid()) return null;
 
-        if (expr.Type == "identifier")
+        if (expr.Is(TreeSitterSyntax.Python.Identifier))
         {
             return expr.Text;
         }
-        if (expr.Type == "attribute")
+        if (expr.Is(TreeSitterSyntax.Python.Attribute))
         {
-            var attrChild = expr.GetChildForField("attribute");
-            if (attrChild != null && attrChild.Id != IntPtr.Zero) return attrChild.Text;
+            var attrChild = expr.GetChildForField(TreeSitterSyntax.Python.Attribute);
+            if (attrChild.IsValid()) return attrChild.Text;
         }
         return null;
     }
 
     private void CollectVariable(Node node)
     {
-        if (node.Type == "assignment")
+        if (node.Is(TreeSitterSyntax.Python.Assignment))
         {
-            var leftNode = node.GetChildForField("left");
-            if (leftNode == null || leftNode.Id == IntPtr.Zero)
+            var leftNode = node.GetChildForField(TreeSitterSyntax.Fields.Left);
+            if (!leftNode.IsValid())
             {
-                leftNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
+                leftNode = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier));
             }
 
-            var rightNode = node.GetChildForField("right");
-            if (rightNode == null || rightNode.Id == IntPtr.Zero)
+            var rightNode = node.GetChildForField(TreeSitterSyntax.Fields.Right);
+            if (!rightNode.IsValid())
             {
                 var eqIdx = -1;
                 for (var i = 0; i < node.Children.Count; i++)
@@ -238,10 +238,10 @@ public class PythonFileVisitor : BaseParserVisitor
                 }
             }
 
-            if (leftNode != null && leftNode.Id != IntPtr.Zero && leftNode.Type == "identifier")
+            if (leftNode.IsValid() && leftNode.Is(TreeSitterSyntax.Python.Identifier))
             {
                 var name = leftNode.Text;
-                var initializerText = rightNode != null && rightNode.Id != IntPtr.Zero ? rightNode.Text : "";
+                var initializerText = rightNode.IsValid() ? rightNode.Text : "";
 
                 var isConstant = name.All(c => !char.IsLower(c));
                 var scope = DeterminePythonScope(node);
@@ -264,11 +264,11 @@ public class PythonFileVisitor : BaseParserVisitor
     private static string DeterminePythonScope(Node node)
     {
         var curr = node.Parent;
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type == "class_definition")
+            if (curr.Is(TreeSitterSyntax.Python.ClassDefinition))
                 return "class";
-            if (curr.Type == "function_definition")
+            if (curr.Is(TreeSitterSyntax.Python.FunctionDefinition))
                 return "local";
             curr = curr.Parent;
         }
@@ -277,17 +277,17 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private static bool IsPythonDecoratorEntryPoint(Node node)
     {
-        if (node.Type != "decorator") return false;
-        var call = node.Children.FirstOrDefault(c => c.Type == "call");
-        if (call == null) return false;
-        var func = call.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && call.Children.Count > 0)) func = call.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        if (!node.Is(TreeSitterSyntax.Python.Decorator)) return false;
+        var call = node.FindChildOfType(TreeSitterSyntax.Python.Call);
+        if (!call.IsValid()) return false;
+        var func = call.GetChildForField(TreeSitterSyntax.Fields.Function);
+        if (func.IsValid() && func.Id == IntPtr.Zero && call.Children.Count > 0) func = call.Children[0];
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "attribute")
+        if (func.Is(TreeSitterSyntax.Python.Attribute))
         {
-            var attr = func.GetChildForField("attribute");
-            if (attr != null && attr.Id != IntPtr.Zero)
+            var attr = func.GetChildForField(TreeSitterSyntax.Python.Attribute);
+            if (attr.IsValid())
             {
                 var attrName = attr.Text;
                 if (attrName is "route" or "get" or "post" or "put" or "delete" or "patch")
@@ -301,17 +301,17 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private static string? ExtractPythonDecoratorRoute(Node decoratorNode)
     {
-        var call = decoratorNode.Children.FirstOrDefault(c => c.Type == "call");
-        if (call == null) return null;
-        var func = call.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && call.Children.Count > 0)) func = call.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return null;
+        var call = decoratorNode.FindChildOfType(TreeSitterSyntax.Python.Call);
+        if (!call.IsValid()) return null;
+        var func = call.GetChildForField(TreeSitterSyntax.Fields.Function);
+        if (func.IsValid() && func.Id == IntPtr.Zero && call.Children.Count > 0) func = call.Children[0];
+        if (!func.IsValid()) return null;
 
         var method = "GET";
-        if (func.Type == "attribute")
+        if (func.Is(TreeSitterSyntax.Python.Attribute))
         {
-            var attr = func.GetChildForField("attribute");
-            if (attr != null && attr.Id != IntPtr.Zero)
+            var attr = func.GetChildForField(TreeSitterSyntax.Python.Attribute);
+            if (attr.IsValid())
             {
                 var attrName = attr.Text;
                 if (attrName != "route")
@@ -320,17 +320,17 @@ public class PythonFileVisitor : BaseParserVisitor
                 }
                 else
                 {
-                    var argList = call.Children.FirstOrDefault(c => c.Type == "argument_list");
-                    if (argList != null)
+                    var argList = call.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
+                    if (argList.IsValid())
                     {
-                        var keywordArg = argList.Children.FirstOrDefault(c => c.Type == "keyword_argument" && c.Text.StartsWith("methods"));
-                        if (keywordArg != null)
+                        var keywordArg = argList.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.KeywordArgument) && c.Text.StartsWith("methods"));
+                        if (keywordArg.IsValid())
                         {
-                            var listNode = keywordArg.Children.FirstOrDefault(c => c.Type == "list");
-                            if (listNode != null)
+                            var listNode = keywordArg.FindChildOfType(TreeSitterSyntax.Python.List);
+                            if (listNode.IsValid())
                             {
-                                var firstStr = listNode.Children.FirstOrDefault(c => c.Type == "string");
-                                if (firstStr != null)
+                                var firstStr = listNode.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
+                                if (firstStr.IsValid())
                                 {
                                     method = firstStr.Text.Trim('\'', '"').ToUpperInvariant();
                                 }
@@ -341,12 +341,12 @@ public class PythonFileVisitor : BaseParserVisitor
             }
         }
 
-        var args = call.Children.FirstOrDefault(c => c.Type == "argument_list");
+        var args = call.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
         var routeVal = "/";
-        if (args != null && args.Children.Count > 1)
+        if (args.IsValid() && args.Children.Count > 1)
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type == "string");
-            if (firstArg != null)
+            var firstArg = args.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
+            if (firstArg.IsValid())
             {
                 routeVal = firstArg.Text.Trim('\'', '"');
             }
@@ -357,21 +357,21 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private static bool IsDjangoPath(Node node)
     {
-        if (node.Type != "call") return false;
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        if (!node.Is(TreeSitterSyntax.Python.Call)) return false;
+        var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
+        if (func.IsValid() && func.Id == IntPtr.Zero && node.Children.Count > 0) func = node.Children[0];
+        if (!func.IsValid()) return false;
 
-        return func.Type == "identifier" && (func.Text == "path" || func.Text == "re_path");
+        return func.Is(TreeSitterSyntax.Python.Identifier) && (func.Text == "path" || func.Text == "re_path");
     }
 
     private static string? ExtractDjangoPathRoute(Node callNode)
     {
-        var args = callNode.Children.FirstOrDefault(c => c.Type == "argument_list");
-        if (args != null && args.Children.Count > 1)
+        var args = callNode.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
+        if (args.IsValid() && args.Children.Count > 1)
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type == "string");
-            if (firstArg != null)
+            var firstArg = args.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
+            if (firstArg.IsValid())
             {
                 var routeVal = firstArg.Text.Trim('\'', '"');
                 return $"GET:{routeVal}";
@@ -382,16 +382,16 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private static bool IsPythonHttpClientCall(Node node)
     {
-        if (node.Type != "call") return false;
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        if (!node.Is(TreeSitterSyntax.Python.Call)) return false;
+        var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
+        if (func.IsValid() && func.Id == IntPtr.Zero && node.Children.Count > 0) func = node.Children[0];
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "attribute")
+        if (func.Is(TreeSitterSyntax.Python.Attribute))
         {
-            var obj = func.GetChildForField("value") ?? func.GetChildForField("object") ?? (func.Children.Count > 0 ? func.Children[0] : null);
-            var attr = func.GetChildForField("attribute");
-            if (obj != null && attr != null && attr.Id != IntPtr.Zero)
+            var obj = func.GetChildForField(TreeSitterSyntax.Fields.Value) ?? func.GetChildForField(TreeSitterSyntax.Fields.Object) ?? (func.Children.Count > 0 ? func.Children[0] : null);
+            var attr = func.GetChildForField(TreeSitterSyntax.Python.Attribute);
+            if (obj.IsValid() && attr.IsValid())
             {
                 var objName = obj.Text;
                 var attrName = attr.Text;
@@ -411,11 +411,11 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private static string? ExtractPythonHttpClientTarget(Node node)
     {
-        var args = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-        if (args != null && args.Children.Count > 1)
+        var args = node.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
+        if (args.IsValid() && args.Children.Count > 1)
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type == "string");
-            if (firstArg != null)
+            var firstArg = args.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
+            if (firstArg.IsValid())
             {
                 var text = firstArg.Text.Trim('\'', '"');
                 if (text.Contains("://"))

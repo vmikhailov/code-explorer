@@ -680,7 +680,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                     var to = reader.GetString(1);
                     if (!callsAdjacency.TryGetValue(from, out var list))
                     {
-                        list = new List<string>();
+                        list = [];
                         callsAdjacency[from] = list;
                     }
                     list.Add(to);
@@ -703,7 +703,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
                     if (!implements.TryGetValue(epId, out var list))
                     {
-                        list = new List<string>();
+                        list = [];
                         implements[epId] = list;
                     }
                     if (!list.Contains(fnId))
@@ -772,7 +772,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
                     if (!projectToEntryPoints.TryGetValue(projId, out var epList))
                     {
-                        epList = new List<string>();
+                        epList = [];
                         projectToEntryPoints[projId] = epList;
                     }
                     if (!epList.Contains(toId))

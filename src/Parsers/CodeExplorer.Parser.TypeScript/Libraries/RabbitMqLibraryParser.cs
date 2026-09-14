@@ -18,16 +18,16 @@ public class RabbitMqLibraryParser : ILibraryParser
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
-        if (node.Type == "call_expression")
+        if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
-            var funcNode = node.GetChildForField("function");
-            if (funcNode != null && funcNode.Id != IntPtr.Zero)
+            var funcNode = node.GetFunctionNode();
+            if (funcNode.IsValid())
             {
                 var funcText = funcNode.Text;
 
                 if (funcText.EndsWith(".publish", StringComparison.Ordinal))
                 {
-                    var argList = node.GetChildForField("arguments");
+                    var argList = node.GetField(TreeSitterSyntax.Fields.Arguments);
                     if (argList != null && argList.Children.Count > 3)
                     {
                         var routingKeyArg = argList.Children[2]; // argList elements: '(', exchange, routingKey, ...

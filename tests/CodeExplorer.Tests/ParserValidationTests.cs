@@ -584,7 +584,7 @@ public class ParserValidationTests
             var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Microsoft.EntityFrameworkCore");
             Assert.That(csDbNode, Is.Not.Null);
             Assert.That(csDbNode.Name, Is.EqualTo("Microsoft.EntityFrameworkCore"));
-            Assert.That(csDbNode!.DbType, Is.EqualTo("relational"));
+            Assert.That(csDbNode.DbType, Is.EqualTo("relational"));
 
             Assert.That(
                 ctx.GlobalProjectDependencies.Any(r =>
@@ -606,7 +606,7 @@ public class ParserValidationTests
             var csGraphDbNode = csGraphDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Neo4j");
             Assert.That(csGraphDbNode, Is.Not.Null);
             Assert.That(csGraphDbNode.Name, Is.EqualTo("Neo4j"));
-            Assert.That(csGraphDbNode!.DbType, Is.EqualTo("graph"));
+            Assert.That(csGraphDbNode.DbType, Is.EqualTo("graph"));
 
             Assert.That(
                 ctx.GlobalProjectDependencies.Any(r =>
@@ -628,7 +628,7 @@ public class ParserValidationTests
             var tsDbNode = tsDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "MongoDB");
             Assert.That(tsDbNode, Is.Not.Null);
             Assert.That(tsDbNode.Name, Is.EqualTo("MongoDB"));
-            Assert.That(tsDbNode!.DbType, Is.EqualTo("document"));
+            Assert.That(tsDbNode.DbType, Is.EqualTo("document"));
 
             Assert.That(
                 ctx.GlobalProjectDependencies.Any(r =>
@@ -650,7 +650,7 @@ public class ParserValidationTests
             var pyDbNode = pyDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Redis");
             Assert.That(pyDbNode, Is.Not.Null);
             Assert.That(pyDbNode.Name, Is.EqualTo("Redis"));
-            Assert.That(pyDbNode!.DbType, Is.EqualTo("keyvalue"));
+            Assert.That(pyDbNode.DbType, Is.EqualTo("keyvalue"));
 
             Assert.That(
                 ctx.GlobalProjectDependencies.Any(r =>

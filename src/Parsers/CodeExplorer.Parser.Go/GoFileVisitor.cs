@@ -34,7 +34,7 @@ public class GoFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.ExternalService;
         }
 
-        if (node.Type is "interpreted_string_literal" or "string_literal" or "raw_string_literal")
+        if (node.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
             {
@@ -42,12 +42,12 @@ public class GoFileVisitor : BaseParserVisitor
             }
         }
 
-        if (node.Type == "type_spec")
+        if (node.Is(TreeSitterSyntax.Go.TypeSpec))
         {
             var isInterface = false;
             foreach (var child in node.Children)
             {
-                if (child.Type == "interface_type")
+                if (child.Is(TreeSitterSyntax.Go.InterfaceType))
                 {
                     isInterface = true;
                     break;
@@ -58,7 +58,7 @@ public class GoFileVisitor : BaseParserVisitor
 
         return node.Type switch
         {
-            "function_declaration" or "method_declaration" => OntologyConstants.NodeLabels.Function,
+            TreeSitterSyntax.Go.FunctionDeclaration or TreeSitterSyntax.Go.MethodDeclaration => OntologyConstants.NodeLabels.Function,
             _ => null
         };
     }
@@ -75,7 +75,7 @@ public class GoFileVisitor : BaseParserVisitor
             return ExtractGoHttpClientTarget(node);
         }
 
-        if (node.Type is "interpreted_string_literal" or "string_literal" or "raw_string_literal")
+        if (node.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
             {
@@ -93,11 +93,11 @@ public class GoFileVisitor : BaseParserVisitor
             var routeVal = ExtractGoEntryPointRoute(node);
             if (!string.IsNullOrEmpty(routeVal))
             {
-                var args = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-                if (args != null && args.Children.Count > 1)
+                var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
+                if (args.IsValid() && args.Children.Count > 1)
                 {
-                    var handlerArg = args.Children.Skip(1).FirstOrDefault(c => c.Type is "identifier" or "selector_expression");
-                    if (handlerArg != null)
+                    var handlerArg = args.Children.Skip(1).FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.SelectorExpression));
+                    if (handlerArg.IsValid())
                     {
                         var handlerName = handlerArg.Text;
                         if (handlerName.Contains('.'))
@@ -113,7 +113,7 @@ public class GoFileVisitor : BaseParserVisitor
 
     private string? ExtractGoIdentifier(Node node)
     {
-        var nameNode = node.GetChildForField("name");
+        var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
         if (nameNode != null && nameNode.Id != IntPtr.Zero)
         {
             return nameNode.Text;
@@ -121,7 +121,7 @@ public class GoFileVisitor : BaseParserVisitor
 
         foreach (var child in node.Children)
         {
-            if (child.Type is "identifier" or "variable_name")
+            if (child.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName))
             {
                 return child.Text;
             }
@@ -146,8 +146,8 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override void VisitImportStatement(Node node, int depth)
     {
-        var pathNode = node.GetChildForField("path") ?? node.Children.FirstOrDefault(c => c.Type == "string_literal");
-        if (pathNode != null && pathNode.Id != IntPtr.Zero)
+        var pathNode = node.GetChildForField(TreeSitterSyntax.Fields.Path) ?? node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Go.StringLiteral));
+        if (pathNode.IsValid())
         {
             var importPath = pathNode.Text.Trim('"');
             RawImports.Add(new RawImport(importPath, "", ImportType.External));
@@ -158,28 +158,28 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override string? FindCallName(Node callNode)
     {
-        var expr = callNode.GetChildForField("function");
-        if (expr != null && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
+        var expr = callNode.GetChildForField(TreeSitterSyntax.Fields.Function);
+        if (expr.IsValid() && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
         {
             expr = callNode.Children[0];
         }
-        if (expr == null || expr.Id == IntPtr.Zero) return null;
+        if (!expr.IsValid()) return null;
 
-        if (expr.Type == "identifier")
+        if (expr.Is(TreeSitterSyntax.Go.Identifier))
         {
             return expr.Text;
         }
-        if (expr.Type == "selector_expression")
+        if (expr.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
-            var fieldChild = expr.GetChildForField("field");
-            if (fieldChild != null && fieldChild.Id != IntPtr.Zero) return fieldChild.Text;
+            var fieldChild = expr.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (fieldChild.IsValid()) return fieldChild.Text;
         }
         return null;
     }
 
     private void CollectVariable(Node node)
     {
-        if (node.Type is "var_spec" or "const_spec")
+        if (node.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec))
         {
             var identifiers = new List<Node>();
             var values = new List<Node>();
@@ -191,17 +191,17 @@ public class GoFileVisitor : BaseParserVisitor
                 {
                     passedTypeOrEq = true;
                 }
-                else if (!passedTypeOrEq && child.Type == "identifier")
+                else if (!passedTypeOrEq && child.Is(TreeSitterSyntax.Go.Identifier))
                 {
                     identifiers.Add(child);
                 }
-                else if (passedTypeOrEq && child.Type != "=")
+                else if (passedTypeOrEq && !child.Is(TreeSitterSyntax.Symbols.Equals))
                 {
                     values.Add(child);
                 }
             }
 
-            var isConstant = node.Type == "const_spec";
+            var isConstant = node.Is(TreeSitterSyntax.Go.ConstSpec);
             var scope = DetermineGoScope(node);
 
             for (var i = 0; i < identifiers.Count; i++)
@@ -222,25 +222,25 @@ public class GoFileVisitor : BaseParserVisitor
                 ));
             }
         }
-        else if (node.Type == "short_var_declaration")
+        else if (node.Is(TreeSitterSyntax.Go.ShortVarDeclaration))
         {
             var leftNode = node.Children.FirstOrDefault();
             var rightNode = node.Children.LastOrDefault();
 
-            if (leftNode != null && rightNode != null && leftNode.Id != rightNode.Id)
+            if (leftNode.IsValid() && rightNode.IsValid() && leftNode.Id != rightNode.Id)
             {
                 var names = new List<string>();
-                if (leftNode.Type == "expression_list")
+                if (leftNode.Is(TreeSitterSyntax.Go.ExpressionList))
                 {
-                    names.AddRange(leftNode.Children.Where(c => c.Type == "identifier").Select(c => c.Text));
+                    names.AddRange(leftNode.Children.Where(c => c.Is(TreeSitterSyntax.Go.Identifier)).Select(c => c.Text));
                 }
-                else if (leftNode.Type == "identifier")
+                else if (leftNode.Is(TreeSitterSyntax.Go.Identifier))
                 {
                     names.Add(leftNode.Text);
                 }
 
                 var values = new List<string>();
-                if (rightNode.Type == "expression_list")
+                if (rightNode.Is(TreeSitterSyntax.Go.ExpressionList))
                 {
                     values.AddRange(rightNode.Children.Select(c => c.Text));
                 }
@@ -274,11 +274,11 @@ public class GoFileVisitor : BaseParserVisitor
     private static string DetermineGoScope(Node node)
     {
         var curr = node.Parent;
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "type_spec" or "struct_type" or "interface_type")
+            if (curr.IsAny(TreeSitterSyntax.Go.TypeSpec, TreeSitterSyntax.Go.StructType, TreeSitterSyntax.Go.InterfaceType))
                 return "class";
-            if (curr.Type is "function_declaration" or "method_declaration" or "block")
+            if (curr.IsAny(TreeSitterSyntax.Go.FunctionDeclaration, TreeSitterSyntax.Go.MethodDeclaration, TreeSitterSyntax.Go.Block))
                 return "local";
             curr = curr.Parent;
         }
@@ -287,15 +287,14 @@ public class GoFileVisitor : BaseParserVisitor
 
     private static bool IsGoEntryPoint(Node node)
     {
-        if (node.Type != "call_expression") return false;
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return false;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "selector_expression")
+        if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
-            var field = func.GetChildForField("field");
-            if (field != null && field.Id != IntPtr.Zero)
+            var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (field.IsValid())
             {
                 var methodName = field.Text;
                 if (methodName is "HandleFunc" or "Handle" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "Any")
@@ -309,15 +308,14 @@ public class GoFileVisitor : BaseParserVisitor
 
     private static string? ExtractGoEntryPointRoute(Node callNode)
     {
-        var func = callNode.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && callNode.Children.Count > 0)) func = callNode.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return null;
+        var func = callNode.GetFunctionNode();
+        if (!func.IsValid()) return null;
 
         var method = "GET";
-        if (func.Type == "selector_expression")
+        if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
-            var field = func.GetChildForField("field");
-            if (field != null && field.Id != IntPtr.Zero)
+            var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (field.IsValid())
             {
                 var methodName = field.Text;
                 if (methodName != "HandleFunc" && methodName != "Handle" && methodName != "Any")
@@ -327,12 +325,12 @@ public class GoFileVisitor : BaseParserVisitor
             }
         }
 
-        var args = callNode.Children.FirstOrDefault(c => c.Type == "argument_list");
+        var args = callNode.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
         var routeVal = "/";
-        if (args != null && args.Children.Count > 1)
+        if (args.IsValid() && args.Children.Count > 1)
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "interpreted_string_literal" or "string_literal" or "raw_string_literal");
-            if (firstArg != null)
+            var firstArg = args.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral));
+            if (firstArg.IsValid())
             {
                 routeVal = firstArg.Text.Trim('"', '`');
             }
@@ -343,16 +341,15 @@ public class GoFileVisitor : BaseParserVisitor
 
     private static bool IsGoHttpClientCall(Node node)
     {
-        if (node.Type != "call_expression") return false;
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return false;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "selector_expression")
+        if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
-            var operand = func.GetChildForField("operand");
-            var field = func.GetChildForField("field");
-            if (operand != null && field != null && field.Id != IntPtr.Zero)
+            var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
+            var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (operand.IsValid() && field.IsValid())
             {
                 var objName = operand.Text;
                 var methodName = field.Text;
@@ -372,11 +369,11 @@ public class GoFileVisitor : BaseParserVisitor
 
     private static string? ExtractGoHttpClientTarget(Node node)
     {
-        var args = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-        if (args != null && args.Children.Count > 1)
+        var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
+        if (args.IsValid() && args.Children.Count > 1)
         {
-            var firstStrArg = args.Children.FirstOrDefault(c => c.Type is "interpreted_string_literal" or "string_literal" or "raw_string_literal");
-            if (firstStrArg != null)
+            var firstStrArg = args.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral));
+            if (firstStrArg.IsValid())
             {
                 var text = firstStrArg.Text.Trim('"', '`');
                 if (text.Contains("://"))

@@ -39,9 +39,9 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         }
     }
 
-    public List<RawImport> RawImports { get; } = new();
-    public List<RawVariable> RawVariables { get; } = new();
-    public List<RawTypeBinding> RawTypeBindings { get; } = new();
+    public List<RawImport> RawImports { get; } = [];
+    public List<RawVariable> RawVariables { get; } = [];
+    public List<RawTypeBinding> RawTypeBindings { get; } = [];
 
     public SyntacticSymbol RootSymbol { get; }
     protected readonly Stack<SyntacticSymbol> SymbolStack = new();

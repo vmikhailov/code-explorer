@@ -31,7 +31,7 @@ public static class PatternParsers
         from close in Token.EqualTo(CypherToken.RParen)
         select new NodePattern(
             varName,
-            labels.ToList(),
+            [.. labels],
             props
         );
 
@@ -65,7 +65,7 @@ public static class PatternParsers
         from close in Token.EqualTo(CypherToken.RBracket)
         select (
             varName,
-            types ?? new List<string>(),
+            types ?? [],
             range,
             props
         );
@@ -97,20 +97,20 @@ public static class PatternParsers
     private static TokenListParser<CypherToken, RelationshipPattern> SimpleOutgoingRel { get; } =
         from dash in Token.EqualTo(CypherToken.Dash).Optional()
         from arrow in Token.EqualTo(CypherToken.ArrowRight)
-        select new RelationshipPattern(null, new List<string>(), null, Direction.Outgoing, null);
+        select new RelationshipPattern(null, [], null, Direction.Outgoing, null);
 
     // 5. <- without brackets
     // 5. <-- or <- without brackets
     private static TokenListParser<CypherToken, RelationshipPattern> SimpleIncomingRel { get; } =
         from arrow in Token.EqualTo(CypherToken.ArrowLeft)
         from dash in Token.EqualTo(CypherToken.Dash).Optional()
-        select new RelationshipPattern(null, new List<string>(), null, Direction.Incoming, null);
+        select new RelationshipPattern(null, [], null, Direction.Incoming, null);
 
     // 6. -- without brackets
     private static TokenListParser<CypherToken, RelationshipPattern> SimpleUndirectedRel { get; } =
         from dash1 in Token.EqualTo(CypherToken.Dash)
         from dash2 in Token.EqualTo(CypherToken.Dash)
-        select new RelationshipPattern(null, new List<string>(), null, Direction.Undirected, null);
+        select new RelationshipPattern(null, [], null, Direction.Undirected, null);
 
     public static TokenListParser<CypherToken, RelationshipPattern> Relationship { get; } =
         OutgoingBracketedRel.Try()
@@ -155,5 +155,5 @@ public static class PatternParsers
             from target in Node
             select new PathElement(rel, target)
          ).Many()
-         select new PathPattern(head, chain.ToList(), pathVar));
+         select new PathPattern(head, [.. chain], pathVar));
 }

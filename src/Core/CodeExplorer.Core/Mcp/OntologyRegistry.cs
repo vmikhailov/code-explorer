@@ -137,10 +137,12 @@ public static class OntologyRegistry
             propertiesMarkdownList.Add($"  - `{snakeName}` ({typeStr}){formattedDesc}");
         }
 
-        propertiesMarkdownList = propertiesMarkdownList
-            .OrderBy(p => p.Contains("`name`") ? 0 : p.Contains("`path`") ? 1 : 2)
-            .ThenBy(p => p)
-            .ToList();
+        propertiesMarkdownList =
+        [
+            .. propertiesMarkdownList
+                .OrderBy(p => p.Contains("`name`") ? 0 : p.Contains("`path`") ? 1 : 2)
+                .ThenBy(p => p)
+        ];
 
         var propertiesMarkdown = string.Join("\n", propertiesMarkdownList);
 

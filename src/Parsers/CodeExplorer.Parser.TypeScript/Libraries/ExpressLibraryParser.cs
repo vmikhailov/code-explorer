@@ -18,15 +18,11 @@ public class ExpressLibraryParser : ILibraryParser
         .FunctionNode
         .HasType("member_expression")
         .HasChild("object", NodeSelector.New().TextContains("app|router|express"))
-        .HasChild("property", NodeSelector.New().Text("get|post|put|delete"));
+        .HasChild("property", NodeSelector.New().Text("get|post|put|delete|patch|options|head|all"));
 
     private static readonly NodeSelector _expressRouteMethodSelector = NodeSelector.New()
         .FunctionNode
         .GetChildForField("property");
-
-    private static readonly NodeSelector _callFirstStringArgSelector = NodeSelector.New()
-        .GetChildForField("arguments")
-        .FirstChild;
 
     public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
     {
@@ -46,14 +42,8 @@ public class ExpressLibraryParser : ILibraryParser
             var prop = _expressRouteMethodSelector.Select(node);
             if (!prop.IsValid()) return null;
 
-            var method = prop!.Text.ToUpperInvariant();
-            var routeVal = "/";
-
-            var firstArg = _callFirstStringArgSelector.Select(node);
-            if (firstArg.IsValid() && (firstArg!.Type == "string" || firstArg.Type == "template_string"))
-            {
-                routeVal = firstArg.Text.Trim('\'', '"', '`');
-            }
+            var method = prop.Text.ToUpperInvariant();
+            var routeVal = AstHelper.ExtractFirstStringArgument(node) ?? "/";
 
             return $"{method}:{routeVal}";
         }

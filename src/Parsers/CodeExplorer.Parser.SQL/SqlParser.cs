@@ -87,7 +87,7 @@ public class SqlParser : IProjectParser, IFileParser
 
         TryDetectContains(cleanSql, fileNode, fileNodeId, relativePath, datasets, tables, procedures, workspaceId);
 
-        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, this, new List<RawImport>(), new List<RawVariable>(), new List<RawTypeBinding>());
+        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, this, [], [], []);
     }
 
     private void TryDetectContains(

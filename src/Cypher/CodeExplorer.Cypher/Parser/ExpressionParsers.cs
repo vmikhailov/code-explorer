@@ -8,6 +8,8 @@ namespace CodeExplorer.Cypher.Parser;
 
 public static class ExpressionParsers
 {
+    public static TokenListParser<CypherToken, Expression> ExpressionParser { get; } =
+        input => OrExpression!(input);
     public static TokenListParser<CypherToken, string> PropertyNameText { get; } =
         Token.EqualTo(CypherToken.Identifier)
         .Or(Token.EqualTo(CypherToken.Order))
@@ -49,7 +51,7 @@ public static class ExpressionParsers
         });
 
     public static TokenListParser<CypherToken, Expression> StringLiteral { get; } =
-        Token.EqualTo(CypherToken.StringLiteral).Select(t =>
+        Token.EqualTo(CypherToken.StringLiteral).Select(Expression (t) =>
         {
             var raw = t.ToStringValue();
             var content = raw.Length >= 2 ? raw.Substring(1, raw.Length - 2) : raw;
@@ -59,21 +61,21 @@ public static class ExpressionParsers
                 .Replace("\\\\", "\\")
                 .Replace("\\n", "\n")
                 .Replace("\\t", "\t");
-            return (Expression)new StringLiteralExpression(unescaped);
+            return new StringLiteralExpression(unescaped);
         });
 
     public static TokenListParser<CypherToken, Expression> NumberLiteral { get; } =
-        Token.EqualTo(CypherToken.Number).Select(t =>
+        Token.EqualTo(CypherToken.Number).Select(Expression (t) =>
         {
             var str = t.ToStringValue();
             if (str.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             {
                 var hexVal = Convert.ToInt64(str.Substring(2), 16);
-                return (Expression)new NumberLiteralExpression(hexVal, true);
+                return new NumberLiteralExpression(hexVal, true);
             }
             if (int.TryParse(str, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intVal))
-                return (Expression)new NumberLiteralExpression(intVal, true);
-            return (Expression)new NumberLiteralExpression(double.Parse(str, NumberStyles.Float, CultureInfo.InvariantCulture), false);
+                return new NumberLiteralExpression(intVal, true);
+            return new NumberLiteralExpression(double.Parse(str, NumberStyles.Float, CultureInfo.InvariantCulture), false);
         });
 
     public static TokenListParser<CypherToken, Expression> BooleanLiteral { get; } =
@@ -84,21 +86,21 @@ public static class ExpressionParsers
         Token.EqualTo(CypherToken.Null).Value((Expression)new NullLiteralExpression());
 
     public static TokenListParser<CypherToken, Expression> Parameter { get; } =
-        Token.EqualTo(CypherToken.Parameter).Select(t =>
+        Token.EqualTo(CypherToken.Parameter).Select(Expression (t) =>
         {
             var str = t.ToStringValue();
-            return (Expression)new ParameterExpression(str.TrimStart('$'));
+            return new ParameterExpression(str.TrimStart('$'));
         });
 
     private static TokenListParser<CypherToken, Expression?> CaseTestExpression { get; } =
         input =>
         {
             var next = input.ConsumeToken();
-            if (next.HasValue && next.Value.Kind == CypherToken.When)
+            if (next is { HasValue: true, Value.Kind: CypherToken.When })
             {
                 return TokenListParserResult.Value<CypherToken, Expression?>(null, input, input);
             }
-            var res = ExpressionParser!(input);
+            var res = ExpressionParser(input);
             if (res.HasValue)
             {
                 return TokenListParserResult.Value<CypherToken, Expression?>(res.Value, input, res.Remainder);
@@ -108,35 +110,35 @@ public static class ExpressionParsers
 
     public static TokenListParser<CypherToken, Expression> CaseExpression { get; } =
         from caseTok in Token.EqualTo(CypherToken.Case)
-        from testExpr in Parse.Ref(() => CaseTestExpression!)
+        from testExpr in Parse.Ref(() => CaseTestExpression)
         from branches in (
             from whenTok in Token.EqualTo(CypherToken.When)
-            from whenExpr in Parse.Ref(() => ExpressionParser!)
+            from whenExpr in Parse.Ref(() => ExpressionParser)
             from thenTok in Token.EqualTo(CypherToken.Then)
-            from thenExpr in Parse.Ref(() => ExpressionParser!)
+            from thenExpr in Parse.Ref(() => ExpressionParser)
             select new CaseWhenItem(whenExpr, thenExpr)
         ).AtLeastOnce()
         from elseExpr in (
             from elseTok in Token.EqualTo(CypherToken.Else)
-            from e in Parse.Ref(() => ExpressionParser!)
+            from e in Parse.Ref(() => ExpressionParser)
             select e
         ).OptionalOrDefault()
         from endTok in Token.EqualTo(CypherToken.End)
-        select (Expression)new CaseExpression(testExpr, branches.ToList(), elseExpr);
+        select (Expression)new CaseExpression(testExpr, [.. branches], elseExpr);
 
     public static TokenListParser<CypherToken, Expression> ListComprehensionOrListLiteral { get; } =
         (from open in Token.EqualTo(CypherToken.LBracket)
          from varName in PropertyNameText
          from inTok in Token.EqualTo(CypherToken.In)
-         from listExpr in Parse.Ref(() => ExpressionParser!)
+         from listExpr in Parse.Ref(() => ExpressionParser)
          from whereExpr in (
              from whereTok in Token.EqualTo(CypherToken.Where)
-             from p in Parse.Ref(() => ExpressionParser!)
+             from p in Parse.Ref(() => ExpressionParser)
              select p
          ).OptionalOrDefault()
          from pipe in (
              from p in Token.EqualTo(CypherToken.Pipe)
-             from proj in Parse.Ref(() => ExpressionParser!)
+             from proj in Parse.Ref(() => ExpressionParser)
              select proj
          ).OptionalOrDefault()
          from close in Token.EqualTo(CypherToken.RBracket)
@@ -144,16 +146,16 @@ public static class ExpressionParsers
         .Try()
         .Or(
          from open in Token.EqualTo(CypherToken.LBracket)
-         from items in Parse.Ref(() => ExpressionParser!).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
+         from items in Parse.Ref(() => ExpressionParser).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
          from close in Token.EqualTo(CypherToken.RBracket)
-         select (Expression)new ListExpression(items.ToList()));
+         select (Expression)new ListExpression([.. items]));
 
     public static TokenListParser<CypherToken, Expression> MapLiteral { get; } =
         from open in Token.EqualTo(CypherToken.LBrace)
         from pairs in (
             from key in PropertyNameText
             from colon in Token.EqualTo(CypherToken.Colon)
-            from val in Parse.Ref(() => ExpressionParser!)
+            from val in Parse.Ref(() => ExpressionParser)
             select (Key: key, Value: val)
         ).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
         from close in Token.EqualTo(CypherToken.RBrace)
@@ -168,15 +170,15 @@ public static class ExpressionParsers
         from open in Token.EqualTo(CypherToken.LParen)
         from varName in PropertyNameText
         from inTok in Token.EqualTo(CypherToken.In)
-        from listExpr in Parse.Ref(() => ExpressionParser!)
+        from listExpr in Parse.Ref(() => ExpressionParser)
         from whereTok in Token.EqualTo(CypherToken.Where)
-        from pred in Parse.Ref(() => ExpressionParser!)
+        from pred in Parse.Ref(() => ExpressionParser)
         from close in Token.EqualTo(CypherToken.RParen)
         select (Expression)new ListPredicateExpression(quant.ToLowerInvariant(), varName, listExpr, pred);
 
     public static TokenListParser<CypherToken, Expression> ParenthesizedExpression { get; } =
         from open in Token.EqualTo(CypherToken.LParen)
-        from expr in Parse.Ref(() => ExpressionParser!)
+        from expr in Parse.Ref(() => ExpressionParser)
         from close in Token.EqualTo(CypherToken.RParen)
         select expr;
 
@@ -185,12 +187,12 @@ public static class ExpressionParsers
         from call in (
             from open in Token.EqualTo(CypherToken.LParen)
             from distinct in Token.EqualTo(CypherToken.Distinct).Optional()
-            from args in Parse.Ref(() => ExpressionParser!).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
+            from args in Parse.Ref(() => ExpressionParser).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
             from close in Token.EqualTo(CypherToken.RParen)
             select (IsFunction: true, Distinct: distinct.HasValue, Arguments: args.ToList())
         ).Optional()
-        select call.HasValue && call.Value.IsFunction
-            ? (Expression)new FunctionCallExpression(name, call.Value.Distinct, call.Value.Arguments)
+        select call is { IsFunction: true }
+            ? new FunctionCallExpression(name, call.Value.Distinct, call.Value.Arguments)
             : (Expression)new IdentifierExpression(name);
 
     public static TokenListParser<CypherToken, Expression> GraphPatternExpression { get; } =
@@ -204,11 +206,11 @@ public static class ExpressionParsers
          where path.Chain.Count > 0
          from whereExpr in (
              from whereTok in Token.EqualTo(CypherToken.Where)
-             from p in Parse.Ref(() => ExpressionParser!)
+             from p in Parse.Ref(() => ExpressionParser)
              select p
          ).OptionalOrDefault()
          from pipe in Token.EqualTo(CypherToken.Pipe)
-         from proj in Parse.Ref(() => ExpressionParser!)
+         from proj in Parse.Ref(() => ExpressionParser)
          from close in Token.EqualTo(CypherToken.RBracket)
          select (Expression)new PatternComprehensionExpression(path, whereExpr, proj)).Try();
 
@@ -218,13 +220,13 @@ public static class ExpressionParsers
          from open in Token.EqualTo(CypherToken.LParen)
          from acc in PropertyNameText
          from eq in Token.EqualTo(CypherToken.Equal)
-         from init in Parse.Ref(() => ExpressionParser!)
+         from init in Parse.Ref(() => ExpressionParser)
          from comma in Token.EqualTo(CypherToken.Comma)
          from varName in PropertyNameText
          from inTok in Token.EqualTo(CypherToken.In)
-         from list in Parse.Ref(() => ExpressionParser!)
+         from list in Parse.Ref(() => ExpressionParser)
          from pipe in Token.EqualTo(CypherToken.Pipe)
-         from step in Parse.Ref(() => ExpressionParser!)
+         from step in Parse.Ref(() => ExpressionParser)
          from close in Token.EqualTo(CypherToken.RParen)
          select (Expression)new ReduceExpression(acc, init, varName, list, step)).Try();
 
@@ -257,7 +259,7 @@ public static class ExpressionParsers
         .Or(
          from prop in PropertyNameText
          from colon in Token.EqualTo(CypherToken.Colon)
-         from expr in Parse.Ref(() => ExpressionParser!)
+         from expr in Parse.Ref(() => ExpressionParser)
          select new MapProjectionElement(prop, expr, false));
 
     // Postfix operations: property access (.prop), index/slice access ([0], [1..3]), label predicate (:Label), or map projection ({...})
@@ -270,12 +272,12 @@ public static class ExpressionParsers
             .Or(
              from lbracket in Token.EqualTo(CypherToken.LBracket)
              from slice in (
-                 from fromExpr in Parse.Ref(() => ExpressionParser!).OptionalOrDefault()
+                 from fromExpr in Parse.Ref(() => ExpressionParser).OptionalOrDefault()
                  from dotdot in Token.EqualTo(CypherToken.DotDot)
-                 from toExpr in Parse.Ref(() => ExpressionParser!).OptionalOrDefault()
+                 from toExpr in Parse.Ref(() => ExpressionParser).OptionalOrDefault()
                  select (IsSlice: true, From: fromExpr, To: toExpr, Single: (Expression?)null)
              ).Try().Or(
-                 from idx in Parse.Ref(() => ExpressionParser!)
+                 from idx in Parse.Ref(() => ExpressionParser)
                  select (IsSlice: false, From: (Expression?)null, To: (Expression?)null, Single: (Expression?)idx)
              )
              from rbracket in Token.EqualTo(CypherToken.RBracket)
@@ -288,7 +290,8 @@ public static class ExpressionParsers
              (from open in Token.EqualTo(CypherToken.LBrace)
               from elements in MapProjectionElementParser.ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
               from close in Token.EqualTo(CypherToken.RBrace)
-              select (Kind: "projection", Property: "", IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)elements.ToList())).Try())
+              select (Kind: "projection", Property: "", IndexExpr: (Expression?)null, SliceFrom: (Expression?)null, SliceTo: (Expression?)null, ProjElements: (List<MapProjectionElement>?)
+                  [.. elements])).Try())
         ).Many()
         select suffixes.Aggregate(baseExpr, (current, suffix) =>
         {
@@ -443,7 +446,4 @@ public static class ExpressionParsers
             select next
         ).Many()
         select rest.Aggregate(first, (l, r) => new BinaryExpression(l, BinaryOperator.Or, r));
-
-    public static TokenListParser<CypherToken, Expression> ExpressionParser { get; } =
-        OrExpression;
 }

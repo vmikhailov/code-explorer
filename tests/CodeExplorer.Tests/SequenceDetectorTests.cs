@@ -14,7 +14,7 @@ namespace CodeExplorer.Tests
             IReadOnlyList<string>? matchedPath = null;
 
             detector.Register(
-                new[] { "class", "method", "call" },
+                ["class", "method", "call"],
                 path =>
                 {
                     triggerCount++;
@@ -53,7 +53,7 @@ namespace CodeExplorer.Tests
             var triggerCount = 0;
 
             detector.Register(
-                new[] { "class", "method" },
+                ["class", "method"],
                 () => triggerCount++,
                 SequenceMatchStrategy.Exact
             );
@@ -78,7 +78,7 @@ namespace CodeExplorer.Tests
             var triggerCount = 0;
 
             detector.Register(
-                new[] { "class", "call" },
+                ["class", "call"],
                 () => triggerCount++,
                 SequenceMatchStrategy.Subsequence
             );
@@ -104,7 +104,7 @@ namespace CodeExplorer.Tests
             var triggerCount = 0;
 
             detector.Register(
-                new Predicate<int>[] { x => x % 2 == 0, x => x % 2 != 0 },
+                [x => x % 2 == 0, x => x % 2 != 0],
                 () => triggerCount++,
                 SequenceMatchStrategy.Suffix
             );

@@ -23,17 +23,18 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         // Register a sequence detector rule for CommonJS 'require' statements
         SequenceDetector.Register([
-            n => n.Type == "call_expression" && n.GetChildForField("function")?.Text == "require"
+            n => n.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
+                 n.GetField(TreeSitterSyntax.Fields.Function)?.Text == "require"
         ], path =>
         {
             var callNode = path[^1];
-            var argList = callNode.GetChildForField("arguments");
+            var argList = callNode.GetField(TreeSitterSyntax.Fields.Arguments);
 
-            if (argList != null && argList.Children.Count > 1)
+            if (argList.IsValid() && argList.Children.Count > 1)
             {
-                var firstArg = argList.Children.FirstOrDefault(c => c.Type == "string");
+                var firstArg = argList.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.String));
 
-                if (firstArg != null)
+                if (firstArg.IsValid())
                 {
                     var importPath = firstArg.Text.Trim('\'', '"');
                     RawImports.Add(new RawImport(importPath, ""));
@@ -45,7 +46,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
-        if (node.Type is "string" or "template_string")
+        if (node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
             {
@@ -55,17 +56,26 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         return node.Type switch
         {
-            "class_declaration" or "class_expression" or "enum_declaration" => "Class",
-            "interface_declaration" or "type_alias_declaration" => "Interface",
-            "method_definition" or "function_declaration" or "function_expression" or "arrow_function" =>
+            TreeSitterSyntax.TypeScript.ClassDeclaration or
+            TreeSitterSyntax.TypeScript.ClassExpression or
+            TreeSitterSyntax.TypeScript.EnumDeclaration => "Class",
+
+            TreeSitterSyntax.TypeScript.InterfaceDeclaration or
+            TreeSitterSyntax.TypeScript.TypeAliasDeclaration => "Interface",
+
+            TreeSitterSyntax.TypeScript.MethodDefinition or
+            TreeSitterSyntax.TypeScript.FunctionDeclaration or
+            TreeSitterSyntax.TypeScript.FunctionExpression or
+            TreeSitterSyntax.TypeScript.ArrowFunction =>
                 OntologyConstants.NodeLabels.Function,
+
             _ => null
         };
     }
 
     protected override string? ExtractIdentifier(Node node)
     {
-        if (node.Type is "string" or "template_string")
+        if (node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
             {
@@ -82,11 +92,11 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         SyntacticSymbol parentNode)
     {
         // If this is a decorator (EntryPoint) on a method, link it to the next method sibling via TRIGGERS
-        if (node.Type == "decorator" && symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        if (node.Is(TreeSitterSyntax.TypeScript.Decorator) && symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
             var nextNode = GetNextNamedSibling(node);
 
-            if (nextNode != null && (nextNode.Type == "method_definition" || nextNode.Type == "class_declaration"))
+            if (nextNode.IsValid() && nextNode.IsAny(TreeSitterSyntax.TypeScript.MethodDefinition, TreeSitterSyntax.TypeScript.ClassDeclaration))
             {
                 var targetName = ExtractTsIdentifier(nextNode);
 
@@ -98,11 +108,10 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         }
     }
 
-
     private static Node? GetNextNamedSibling(Node node)
     {
         var parent = node.Parent;
-        if (parent == null || parent.Id == IntPtr.Zero) return null;
+        if (!parent.IsValid()) return null;
 
         var children = parent.Children;
         var idx = -1;
@@ -122,12 +131,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             {
                 var sibling = children[i];
 
-                if (sibling.Type == "method_definition")
-                {
-                    return sibling;
-                }
-
-                if (sibling.Type == "class_declaration")
+                if (sibling.IsAny(TreeSitterSyntax.TypeScript.MethodDefinition, TreeSitterSyntax.TypeScript.ClassDeclaration))
                 {
                     return sibling;
                 }
@@ -139,38 +143,38 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     private string? ExtractTsIdentifier(Node node)
     {
-        if (node.Type is "arrow_function" or "function_expression")
+        if (node.IsAny(TreeSitterSyntax.TypeScript.ArrowFunction, TreeSitterSyntax.TypeScript.FunctionExpression))
         {
             var parent = node.Parent;
 
             if (parent.IsValid())
             {
-                if (parent!.Type == "variable_declarator")
+                if (parent.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
                 {
-                    var parentName = parent.GetChildFieldText("name");
+                    var parentName = parent.GetChildFieldText(TreeSitterSyntax.Fields.Name);
                     if (parentName != null) return parentName;
 
-                    var firstIdent = parent.Children.FirstOrDefault(c => c.Type == "identifier");
+                    var firstIdent = parent.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.Identifier));
 
                     if (firstIdent.IsValid())
                     {
-                        return firstIdent!.Text;
+                        return firstIdent.Text;
                     }
                 }
-                else if (parent.Type == "assignment_expression")
+                else if (parent.Is(TreeSitterSyntax.TypeScript.AssignmentExpression))
                 {
-                    var leftText = parent.GetChildFieldText("left");
+                    var leftText = parent.GetChildFieldText(TreeSitterSyntax.Fields.Left);
                     if (leftText != null) return leftText;
                 }
             }
         }
 
-        var nameText = node.GetChildFieldText("name");
+        var nameText = node.GetChildFieldText(TreeSitterSyntax.Fields.Name);
         if (nameText != null) return nameText;
 
         foreach (var child in node.Children)
         {
-            if (child.Type is "identifier" or "variable_name")
+            if (child.IsAny(TreeSitterSyntax.TypeScript.Identifier, TreeSitterSyntax.TypeScript.VariableName))
             {
                 return child.Text;
             }
@@ -195,25 +199,25 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override void VisitParameter(Node node, int depth)
     {
-        var identNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
+        var identNode = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.Identifier));
 
-        if (identNode == null && node.Type == "parameter_property")
+        if (identNode == null && node.Is(TreeSitterSyntax.TypeScript.ParameterProperty))
         {
-            var nestedParam = node.Children.FirstOrDefault(c => c.Type is "required_parameter" or "optional_parameter");
+            var nestedParam = node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.RequiredParameter, TreeSitterSyntax.TypeScript.OptionalParameter));
 
             if (nestedParam != null)
             {
-                identNode = nestedParam.Children.FirstOrDefault(c => c.Type == "identifier");
+                identNode = nestedParam.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.Identifier));
             }
         }
 
-        var typeAnnotation = node.Children.FirstOrDefault(c => c.Type == "type_annotation") ?? node.Children
-            .FirstOrDefault(c => c.Type is "required_parameter" or "optional_parameter")?.Children
-            .FirstOrDefault(c => c.Type == "type_annotation");
+        var typeAnnotation = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation)) ?? node.Children
+            .FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.RequiredParameter, TreeSitterSyntax.TypeScript.OptionalParameter))?.Children
+            .FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation));
 
         if (identNode != null && typeAnnotation != null)
         {
-            var typeNode = typeAnnotation.Children.FirstOrDefault(c => c.Type != ":");
+            var typeNode = typeAnnotation.Children.FirstOrDefault(c => !c.Is(TreeSitterSyntax.Symbols.Colon));
 
             if (typeNode != null)
             {
@@ -240,15 +244,15 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         if (!expr.IsValid()) return null;
 
-        if (expr!.Type == "identifier")
+        if (expr.Is(TreeSitterSyntax.TypeScript.Identifier))
         {
             return expr.Text;
         }
 
-        if (expr.Type == "member_expression")
+        if (expr.Is(TreeSitterSyntax.TypeScript.MemberExpression))
         {
-            var propChild = expr.GetChildForField("property");
-            if (propChild.IsValid()) return propChild!.Text;
+            var propChild = expr.GetField(TreeSitterSyntax.Fields.Property);
+            if (propChild.IsValid()) return propChild.Text;
         }
 
         return null;
@@ -260,7 +264,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         if (scopeSymbol.Kind != "file")
         {
-            var kind = node.Type == "implements_clause" ? "IMPLEMENTS" : "INHERITS_FROM";
+            var kind = node.Is(TreeSitterSyntax.TypeScript.ImplementsClause) ? "IMPLEMENTS" : "INHERITS_FROM";
 
             foreach (var child in node.Children)
             {
@@ -276,14 +280,14 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     private void CollectImport(Node node)
     {
-        var sourceNode = node.GetChildForField("source");
+        var sourceNode = node.GetField(TreeSitterSyntax.Fields.Source);
 
-        if (sourceNode == null || sourceNode.Id == IntPtr.Zero)
+        if (!sourceNode.IsValid())
         {
-            sourceNode = node.Children.FirstOrDefault(c => c.Type == "string");
+            sourceNode = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.String));
         }
 
-        if (sourceNode != null && sourceNode.Id != IntPtr.Zero)
+        if (sourceNode.IsValid())
         {
             var importPath = sourceNode.Text.Trim('\'', '"');
             RawImports.Add(new RawImport(importPath, "", ImportType.External));
@@ -293,35 +297,36 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     private void CollectVariableAndTypeBindings(Node node)
     {
-        if (node.Type == "variable_declarator")
+        if (node.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
         {
-            var nameNode = node.GetChildForField("name") ?? node.Children.FirstOrDefault(c => c.Type == "identifier");
+            var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ??
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.Identifier));
             var name = nameNode?.Text;
 
             if (!string.IsNullOrEmpty(name))
             {
-                var valueNode = node.GetChildForField("value");
-                var initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
+                var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
+                var initializerText = valueNode.IsValid() ? valueNode.Text : "";
                 var isConstant = IsTypeScriptConstant(node);
                 var scope = DetermineTypeScriptScope(node);
 
                 RawVariables.Add(new RawVariable(name, initializerText, scope, isConstant, "", node.StartPosition.Row,
                     node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column));
 
-                var typeAnnotation = node.Children.FirstOrDefault(c => c.Type == "type_annotation") ??
-                                     nameNode?.Children.FirstOrDefault(c => c.Type == "type_annotation");
+                var typeAnnotation = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation)) ??
+                                     nameNode?.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation));
                 string? typeName = null;
 
                 if (typeAnnotation != null)
                 {
-                    var typeNode = typeAnnotation.Children.FirstOrDefault(c => c.Type != ":");
+                    var typeNode = typeAnnotation.Children.FirstOrDefault(c => !c.Is(TreeSitterSyntax.Symbols.Colon));
                     if (typeNode != null) typeName = typeNode.Text;
                 }
-                else if (valueNode != null && valueNode.Type == "new_expression")
+                else if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.TypeScript.NewExpression))
                 {
-                    var constructorNode = valueNode.GetChildForField("constructor");
+                    var constructorNode = valueNode.GetField(TreeSitterSyntax.Fields.Constructor);
 
-                    if (constructorNode != null && constructorNode.Id != IntPtr.Zero)
+                    if (constructorNode.IsValid())
                     {
                         typeName = constructorNode.Text;
                     }
@@ -334,27 +339,27 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 }
             }
         }
-        else if (node.Type is "public_field_definition" or "property_definition")
+        else if (node.IsAny(TreeSitterSyntax.TypeScript.PublicFieldDefinition, TreeSitterSyntax.TypeScript.PropertyDefinition))
         {
-            var nameNode = node.GetChildForField("name") ??
-                           node.Children.FirstOrDefault(c => c.Type == "property_identifier");
+            var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ??
+                           node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.PropertyIdentifier));
             var name = nameNode?.Text;
 
             if (!string.IsNullOrEmpty(name))
             {
-                var valueNode = node.GetChildForField("value");
-                var initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
+                var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
+                var initializerText = valueNode.IsValid() ? valueNode.Text : "";
                 var isConstant = false;
                 var scope = "class";
 
                 RawVariables.Add(new RawVariable(name, initializerText, scope, isConstant, "", node.StartPosition.Row,
                     node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column));
 
-                var typeAnnotation = node.Children.FirstOrDefault(c => c.Type == "type_annotation");
+                var typeAnnotation = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation));
 
                 if (typeAnnotation != null)
                 {
-                    var typeNode = typeAnnotation.Children.FirstOrDefault(c => c.Type != ":");
+                    var typeNode = typeAnnotation.Children.FirstOrDefault(c => !c.Is(TreeSitterSyntax.Symbols.Colon));
 
                     if (typeNode != null)
                     {
@@ -371,9 +376,9 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     {
         var curr = node.Parent;
 
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type == "lexical_declaration")
+            if (curr.Is(TreeSitterSyntax.TypeScript.LexicalDeclaration))
             {
                 return curr.Text.StartsWith("const");
             }
@@ -388,12 +393,13 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     {
         var curr = node.Parent;
 
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "class_declaration" or "interface_declaration")
+            if (curr.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
                 return "class";
 
-            if (curr.Type is "function_declaration" or "arrow_function" or "method_definition" or "statement_block")
+            if (curr.IsAny(TreeSitterSyntax.TypeScript.FunctionDeclaration, TreeSitterSyntax.TypeScript.ArrowFunction,
+                           TreeSitterSyntax.TypeScript.MethodDefinition, TreeSitterSyntax.TypeScript.StatementBlock))
                 return "local";
 
             curr = curr.Parent;
@@ -408,14 +414,14 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         while (curr.IsValid())
         {
-            if (curr!.Type is "class_declaration" or "interface_declaration")
+            if (curr.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
             {
-                var nameText = curr.GetChildFieldText("name");
+                var nameText = curr.GetChildFieldText(TreeSitterSyntax.Fields.Name);
                 if (nameText != null) return nameText;
             }
-            else if (curr.Type is "function_declaration" or "method_definition")
+            else if (curr.IsAny(TreeSitterSyntax.TypeScript.FunctionDeclaration, TreeSitterSyntax.TypeScript.MethodDefinition))
             {
-                var nameText = curr.GetChildFieldText("name");
+                var nameText = curr.GetChildFieldText(TreeSitterSyntax.Fields.Name);
 
                 if (nameText != null)
                 {
@@ -427,9 +433,9 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
                         while (classNode.IsValid())
                         {
-                            if (classNode!.Type is "class_declaration" or "interface_declaration")
+                            if (classNode.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
                             {
-                                var classNameText = classNode.GetChildFieldText("name");
+                                var classNameText = classNode.GetChildFieldText(TreeSitterSyntax.Fields.Name);
                                 if (classNameText != null) return classNameText;
                             }
 

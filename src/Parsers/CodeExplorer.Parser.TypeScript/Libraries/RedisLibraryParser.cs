@@ -30,13 +30,12 @@ public class RedisLibraryParser : ILibraryParser
     {
         if (IsRedisCall(node))
         {
-            var func = node.GetChildForField("function");
-            if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-            if (func != null && func.Type == "member_expression")
+            var func = node.GetFunctionNode();
+            if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
             {
-                var obj = func.GetChildForField("object");
-                var prop = func.GetChildForField("property");
-                if (obj != null && prop != null)
+                var obj = func.GetField(TreeSitterSyntax.Fields.Object);
+                var prop = func.GetField(TreeSitterSyntax.Fields.Property);
+                if (obj.IsValid() && prop.IsValid())
                 {
                     return $"Redis: {obj.Text}.{prop.Text}";
                 }
@@ -53,16 +52,15 @@ public class RedisLibraryParser : ILibraryParser
 
     private static bool IsRedisCall(Node node)
     {
-        if (node.Type != "call_expression") return false;
+        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
 
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "member_expression")
+        if (func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
         {
-            var prop = func.GetChildForField("property");
-            if (prop != null && prop.Id != IntPtr.Zero)
+            var prop = func.GetField(TreeSitterSyntax.Fields.Property);
+            if (prop.IsValid())
             {
                 var propName = prop.Text;
                 return propName is "get" or "set" or "del" or "exists" or "incr" or "decr"

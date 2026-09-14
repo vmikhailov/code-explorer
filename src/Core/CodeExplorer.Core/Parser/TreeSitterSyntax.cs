@@ -20,6 +20,14 @@ public static class TreeSitterSyntax
         public const string Return = "return";
         public const string Operator = "operator";
         public const string Expression = "expression";
+        public const string Property = "property";
+        public const string Object = "object";
+        public const string Source = "source";
+        public const string Constructor = "constructor";
+        public const string Field = "field";
+        public const string Path = "path";
+        public const string Key = "key";
+        public const string Operand = "operand";
     }
 
     public static class Common
@@ -117,6 +125,26 @@ public static class TreeSitterSyntax
         public const string ExportStatement = "export_statement";
         public const string ImportStatement = "import_statement";
         public const string AssignmentExpression = "assignment_expression";
+        public const string MemberExpression = "member_expression";
+        public const string Arguments = "arguments";
+        public const string ClassBody = "class_body";
+        public const string StatementBlock = "statement_block";
+        public const string Program = "program";
+        public const string TemplateSubstitution = "template_substitution";
+        public const string Object = "object";
+        public const string Property = "property";
+        public const string Identifier = "identifier";
+        public const string VariableName = "variable_name";
+        public const string TaggedTemplateExpression = "tagged_template_expression";
+        public const string EnumDeclaration = "enum_declaration";
+        public const string Pair = "pair";
+    }
+
+    public static class Symbols
+    {
+        public const string Colon = ":";
+        public new const string Equals = "=";
+        public const string Equal = "=";
     }
 
     public static class Go
@@ -141,6 +169,12 @@ public static class TreeSitterSyntax
         public const string PackageClause = "package_clause";
         public const string InterpretedStringLiteral = "interpreted_string_literal";
         public const string RawStringLiteral = "raw_string_literal";
+        public const string ArgumentList = "argument_list";
+        public const string StringLiteral = "string_literal";
+        public const string Identifier = "identifier";
+        public const string ExpressionList = "expression_list";
+        public const string Block = "block";
+        public const string VariableName = "variable_name";
     }
 
     public static class Python
@@ -158,5 +192,11 @@ public static class TreeSitterSyntax
         public const string Parameters = "parameters";
         public const string Pattern = "pattern";
         public const string Assignment = "assignment";
+        public const string DottedName = "dotted_name";
+        public const string KeywordArgument = "keyword_argument";
+        public const string List = "list";
+        public const string Identifier = "identifier";
+        public const string AliasedName = "aliased_name";
+        public const string VariableName = "variable_name";
     }
 }

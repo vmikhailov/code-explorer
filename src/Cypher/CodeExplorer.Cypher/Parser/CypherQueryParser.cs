@@ -89,7 +89,7 @@ public static class CypherQueryParser
             from nextQuery in SingleQuery
             select new UnionClause(allTok.HasValue, nextQuery)
         ).Many()
-        select unions.Length > 0 ? first with { Unions = unions.ToList() } : first;
+        select unions.Length > 0 ? first with { Unions = [.. unions] } : first;
 
     public static CypherQuery Parse(string cypherText)
     {

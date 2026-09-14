@@ -26,12 +26,16 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.Mysql2LibraryParser(),
         new Libraries.Neo4jLibraryParser(),
         new Libraries.PgLibraryParser(),
+        new Libraries.PrismaLibraryParser(),
+        new Libraries.DrizzleLibraryParser(),
         new Libraries.RedisLibraryParser(),
         new Libraries.SequelizeLibraryParser(),
         new Libraries.Sqlite3LibraryParser(),
         new Libraries.TypeOrmLibraryParser(),
         new Libraries.GcpLibraryParser(),
         new Libraries.RabbitMqLibraryParser(),
+        new Libraries.KafkaJsLibraryParser(),
+        new Libraries.BullMqLibraryParser(),
 
         // Generic Cloud Services
         new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe"]),
@@ -40,18 +44,20 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
         new Libraries.NestJsLibraryParser(),
         new Libraries.ExpressLibraryParser(),
+        new Libraries.FastifyLibraryParser(),
+        new Libraries.KoaLibraryParser(),
+        new Libraries.NextJsLibraryParser(),
         new Libraries.FetchLibraryParser(),
+        new Libraries.GotKyLibraryParser(),
         new Libraries.SocketIoLibraryParser(),
 
         // Generic Frameworks
-        new GenericLibraryParser("nextjs", "Next.js", "framework", ["next"]),
         new GenericLibraryParser("react", "React", "framework", ["react"]),
         new GenericLibraryParser("angular", "Angular", "framework", ["@angular/core"]),
 
         // Generic API Clients
         new GenericLibraryParser("request", "request", "api", ["request"]),
         new GenericLibraryParser("undici", "undici", "api", ["undici"]),
-        new GenericLibraryParser("ky", "ky", "api", ["ky"]),
         new GenericLibraryParser("bent", "bent", "api", ["bent"]),
         new GenericLibraryParser("urllib", "urllib", "api", ["urllib"]),
     ];
@@ -302,28 +308,28 @@ public class TypeScriptParser : IProjectParser, IFileParser
     private static string GetContainingScopeName(Node node)
     {
         var curr = node.Parent;
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "class_declaration" or "interface_declaration")
+            if (curr!.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
             {
-                var nameNode = curr.GetChildForField("name");
-                if (nameNode != null && nameNode.Id != IntPtr.Zero) return nameNode.Text;
+                var nameNode = curr.GetChildForField(TreeSitterSyntax.Fields.Name);
+                if (nameNode.IsValid()) return nameNode!.Text;
             }
-            else if (curr.Type is "function_declaration" or "method_definition")
+            else if (curr!.IsAny(TreeSitterSyntax.TypeScript.FunctionDeclaration, TreeSitterSyntax.TypeScript.MethodDefinition))
             {
-                var nameNode = curr.GetChildForField("name");
-                if (nameNode != null && nameNode.Id != IntPtr.Zero)
+                var nameNode = curr.GetChildForField(TreeSitterSyntax.Fields.Name);
+                if (nameNode.IsValid())
                 {
-                    var nameText = nameNode.Text;
+                    var nameText = nameNode!.Text;
                     if (nameText == "constructor")
                     {
                         var classNode = curr.Parent;
-                        while (classNode != null && classNode.Id != IntPtr.Zero)
+                        while (classNode.IsValid())
                         {
-                            if (classNode.Type is "class_declaration" or "interface_declaration")
+                            if (classNode!.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
                             {
-                                var classNameNode = classNode.GetChildForField("name");
-                                if (classNameNode != null && classNameNode.Id != IntPtr.Zero) return classNameNode.Text;
+                                var classNameNode = classNode.GetChildForField(TreeSitterSyntax.Fields.Name);
+                                if (classNameNode.IsValid()) return classNameNode!.Text;
                             }
                             classNode = classNode.Parent;
                         }

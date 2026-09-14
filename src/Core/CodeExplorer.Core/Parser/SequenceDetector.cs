@@ -53,7 +53,7 @@ public class SequenceDetector<T>
         Action<IReadOnlyList<T>> callback,
         SequenceMatchStrategy strategy = SequenceMatchStrategy.Suffix)
     {
-        _rules.Add(new SequenceRule<T>(pattern.ToList(), callback, strategy));
+        _rules.Add(new SequenceRule<T>([.. pattern], callback, strategy));
     }
 
     public void Register(

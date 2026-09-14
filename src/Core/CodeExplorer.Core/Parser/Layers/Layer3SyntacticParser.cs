@@ -71,7 +71,7 @@ public class Layer3SyntacticParser
             {
                 if (!filesByProjectId.TryGetValue(bestMatch.Id, out var list))
                 {
-                    list = new List<FileNode>();
+                    list = [];
                     filesByProjectId[bestMatch.Id] = list;
                 }
                 list.Add(file);
@@ -298,7 +298,7 @@ public class Layer3SyntacticParser
             if (colonIdx > 0)
             {
                 var method = name.Substring(0, colonIdx).ToUpperInvariant();
-                isHttp = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH";
+                isHttp = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD";
             }
 
             if (isHttp)

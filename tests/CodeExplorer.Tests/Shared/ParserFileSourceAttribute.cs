@@ -6,7 +6,7 @@ namespace CodeExplorer.Tests.Shared;
 public class ParserFileSourceAttribute : TestCaseSourceAttribute
 {
     public ParserFileSourceAttribute(string directory, string searchPattern = "*.test")
-        : base(typeof(ParserTestData), nameof(ParserTestData.GetFiles), new object[] { directory, searchPattern })
+        : base(typeof(ParserTestData), nameof(ParserTestData.GetFiles), [directory, searchPattern])
     {
     }
 }

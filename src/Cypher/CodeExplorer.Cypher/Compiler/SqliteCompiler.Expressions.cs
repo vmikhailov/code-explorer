@@ -571,7 +571,7 @@ public partial class SqliteCompiler
                 return new FunctionCallExpression(
                     fn.FunctionName,
                     fn.IsDistinct,
-                    fn.Arguments.Select(a => SubstituteComprehensionVariable(a, varName, innerExpr)).ToList());
+                    [.. fn.Arguments.Select(a => SubstituteComprehensionVariable(a, varName, innerExpr))]);
 
             default:
                 return expr;

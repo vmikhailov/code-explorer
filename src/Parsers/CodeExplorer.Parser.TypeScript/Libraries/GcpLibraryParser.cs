@@ -18,16 +18,16 @@ public class GcpLibraryParser : ILibraryParser
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
-        if (node.Type == "call_expression")
+        if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
-            var funcNode = node.GetChildForField("function");
-            if (funcNode != null && funcNode.Id != IntPtr.Zero)
+            var funcNode = node.GetFunctionNode();
+            if (funcNode.IsValid())
             {
                 var funcText = funcNode.Text;
 
                 if (funcText.EndsWith(".publishMessage", StringComparison.Ordinal) || funcText == "sendMessageToTopic")
                 {
-                    var argList = node.GetChildForField("arguments");
+                    var argList = node.GetField(TreeSitterSyntax.Fields.Arguments);
                     if (argList != null && argList.Children.Count > 1)
                     {
                         var firstArg = argList.Children[1];
@@ -38,15 +38,15 @@ public class GcpLibraryParser : ILibraryParser
                         }
                     }
                 }
-                else if (funcText.EndsWith(".publish", StringComparison.Ordinal) && funcNode.Type == "member_expression")
+                else if (funcText.EndsWith(".publish", StringComparison.Ordinal) && funcNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
                 {
-                    var objCall = funcNode.GetChildForField("object");
-                    if (objCall != null && objCall.Type == "call_expression")
+                    var objCall = funcNode.GetField(TreeSitterSyntax.Fields.Object);
+                    if (objCall.IsValid() && objCall.Is(TreeSitterSyntax.TypeScript.CallExpression))
                     {
-                        var innerFunc = objCall.GetChildForField("function")?.Text;
+                        var innerFunc = objCall.GetChildForField(TreeSitterSyntax.Fields.Function)?.Text;
                         if (innerFunc != null && innerFunc.EndsWith(".topic", StringComparison.Ordinal))
                         {
-                            var argList = objCall.GetChildForField("arguments");
+                            var argList = objCall.GetChildForField(TreeSitterSyntax.Fields.Arguments);
                             if (argList != null && argList.Children.Count > 1)
                             {
                                 var firstArg = argList.Children[1];
@@ -61,7 +61,7 @@ public class GcpLibraryParser : ILibraryParser
                 }
                 else if (funcText.EndsWith(".subscribeToMessages", StringComparison.Ordinal))
                 {
-                    var argList = node.GetChildForField("arguments");
+                    var argList = node.GetChildForField(TreeSitterSyntax.Fields.Arguments);
                     if (argList != null && argList.Children.Count > 1)
                     {
                         var firstArg = argList.Children[1];

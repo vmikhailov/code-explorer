@@ -30,15 +30,14 @@ public class MongooseLibraryParser : ILibraryParser
     {
         if (IsMongooseCall(node))
         {
-            var func = node.GetChildForField("function");
-            if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-            if (func != null)
+            var func = node.GetFunctionNode();
+            if (func.IsValid())
             {
-                if (func.Type == "member_expression")
+                if (func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
                 {
-                    var obj = func.GetChildForField("object");
-                    var prop = func.GetChildForField("property");
-                    if (obj != null && prop != null)
+                    var obj = func.GetField(TreeSitterSyntax.Fields.Object);
+                    var prop = func.GetField(TreeSitterSyntax.Fields.Property);
+                    if (obj.IsValid() && prop.IsValid())
                     {
                         var objName = obj.Text;
                         var propName = prop.Text;
@@ -50,7 +49,7 @@ public class MongooseLibraryParser : ILibraryParser
                         return $"Mongoose: {objName}.{propName}";
                     }
                 }
-                else if (func.Type == "identifier" && func.Text == "model")
+                else if (func.Is(TreeSitterSyntax.TypeScript.Identifier) && func.Text == "model")
                 {
                     var modelName = ExtractFirstStringArgument(node);
                     return $"Mongoose Model: {modelName}";
@@ -68,17 +67,16 @@ public class MongooseLibraryParser : ILibraryParser
 
     private static bool IsMongooseCall(Node node)
     {
-        if (node.Type != "call_expression") return false;
+        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
 
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "member_expression")
+        if (func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
         {
-            var obj = func.GetChildForField("object");
-            var prop = func.GetChildForField("property");
-            if (obj != null && prop != null && prop.Id != IntPtr.Zero)
+            var obj = func.GetField(TreeSitterSyntax.Fields.Object);
+            var prop = func.GetField(TreeSitterSyntax.Fields.Property);
+            if (obj.IsValid() && prop.IsValid())
             {
                 var objName = obj.Text;
                 var propName = prop.Text;
@@ -93,7 +91,7 @@ public class MongooseLibraryParser : ILibraryParser
                                    or "updateMany" or "deleteOne" or "deleteMany" or "countDocuments";
             }
         }
-        else if (func.Type == "identifier")
+        else if (func.Is(TreeSitterSyntax.TypeScript.Identifier))
         {
             return func.Text == "model";
         }
@@ -102,11 +100,11 @@ public class MongooseLibraryParser : ILibraryParser
 
     private static string? ExtractFirstStringArgument(Node node)
     {
-        var args = node.Children.FirstOrDefault(c => c.Type == "arguments");
-        if (args != null)
+        var args = node.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+        if (args.IsValid())
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.Type is "string" or "template_string");
-            if (firstArg != null)
+            var firstArg = args.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString));
+            if (firstArg.IsValid())
             {
                 return firstArg.Text.Trim('\'', '"', '`');
             }

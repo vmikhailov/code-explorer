@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -55,23 +56,23 @@ public class SyntaxEnricher : ISyntaxEnricher
             foreach (var pkg in packageNames)
             {
                 var match = _trieRegistry.Match(pkg);
-                if (match is { Type: "framework" } && frameworkParser == null)
+                if (match is { Type: OntologyConstants.LibraryTypes.Framework } && frameworkParser == null)
                 {
                     frameworkParser = match;
                 }
             }
 
             // Fallback to built-in frameworks if no match found
-            frameworkParser ??= _libraryParsers.FirstOrDefault(lp => lp.IsBuiltIn && lp.Type == "framework");
+            frameworkParser ??= _libraryParsers.FirstOrDefault(lp => lp.IsBuiltIn && lp.Type == OntologyConstants.LibraryTypes.Framework);
         }
         else
         {
-            frameworkParser = _libraryParsers.FirstOrDefault(lp => lp.Type == "framework");
+            frameworkParser = _libraryParsers.FirstOrDefault(lp => lp.Type == OntologyConstants.LibraryTypes.Framework);
         }
 
         if (frameworkParser != null)
         {
-            projectNode.SetExtension("framework", frameworkParser.Name);
+            projectNode.SetExtension(OntologyConstants.LibraryTypes.Framework, frameworkParser.Name);
         }
 
         var fileNode = _syntaxTree.FileNode;

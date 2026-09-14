@@ -23,7 +23,7 @@ public class GenericLibraryParser : ILibraryParser
         Id = id;
         Name = name;
         Type = libraryType;
-        SupportedPatterns = supportedPatterns ?? Array.Empty<string>();
+        SupportedPatterns = supportedPatterns ?? [];
         IsBuiltIn = isBuiltIn;
     }
 

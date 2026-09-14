@@ -57,7 +57,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) return;
             if (!callsAdjacency.TryGetValue(from, out var list))
             {
-                list = new List<string>();
+                list = [];
                 callsAdjacency[from] = list;
             }
             list.Add(to);
@@ -138,7 +138,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             if (string.IsNullOrEmpty(epId) || string.IsNullOrEmpty(fnId)) return;
             if (!implements.TryGetValue(epId, out var list))
             {
-                list = new List<string>();
+                list = [];
                 implements[epId] = list;
             }
             if (!list.Contains(fnId))
@@ -203,7 +203,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
 
         var widPrefix = string.IsNullOrEmpty(ctx.WorkspaceId) ? "" : (ctx.WorkspaceId.EndsWith(':') ? ctx.WorkspaceId : ctx.WorkspaceId + ":");
-        var graphData = new PostIndexGraphData(callsAdjacency, sinks, sinkDomains, callersSet.ToList(), implements, entryPointIds, projectToEntryPoints);
+        var graphData = new PostIndexGraphData(callsAdjacency, sinks, sinkDomains, [.. callersSet], implements, entryPointIds, projectToEntryPoints);
         var result = Analyze(graphData, widPrefix);
 
         // Update project nodes in memory
@@ -384,7 +384,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                 }
             }
 
-            projectExternalApis[projId] = domains.OrderBy(x => x).ToList();
+            projectExternalApis[projId] = [.. domains.OrderBy(x => x)];
         }
 
         return new PostIndexAnalysisResult(transitivelyCalls, attributedTo, projectExternalApis);

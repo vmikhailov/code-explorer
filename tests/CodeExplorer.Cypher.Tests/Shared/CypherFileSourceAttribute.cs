@@ -6,7 +6,7 @@ namespace CodeExplorer.Cypher.Tests.Shared;
 public class CypherFileSourceAttribute : TestCaseSourceAttribute
 {
     public CypherFileSourceAttribute(string directory, string searchPattern = "*.cypher")
-        : base(typeof(CypherTestData), nameof(CypherTestData.GetFiles), new object[] { directory, searchPattern })
+        : base(typeof(CypherTestData), nameof(CypherTestData.GetFiles), [directory, searchPattern])
     {
     }
 }

@@ -60,11 +60,8 @@ public class LibraryTrieRegistry
         // 1. If we have reached a terminal node with a parser
         if (node.Parser != null)
         {
-            // If we've fully consumed the import, it's a valid match.
-            if (index == importSegments.Length)
-            {
-                results.Add(new MatchResult(node.Pattern!, node.Parser));
-            }
+            // A registered parser matches its own package root AND any deeper subpaths (e.g. "mysql2" matches "mysql2/promise")
+            results.Add(new MatchResult(node.Pattern!, node.Parser));
         }
 
         // 2. If we still have segments left to match in the import

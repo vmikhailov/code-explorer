@@ -36,7 +36,7 @@ public class Layer2ProjectParser
             dirsToCheck.Add(ctx.AbsoluteWorkspacePath);
             dirsToCheck.AddRange(l1Result.Folders.Select(f => f.Path));
         }
-        dirsToCheck = dirsToCheck.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        dirsToCheck = [.. dirsToCheck.Distinct(StringComparer.OrdinalIgnoreCase)];
 
         foreach (var dir in dirsToCheck)
         {

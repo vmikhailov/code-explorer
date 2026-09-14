@@ -85,5 +85,18 @@ public static class OntologyConstants
         public const string BelongsTo = "BELONGS_TO";
         public const string LocatedIn = "LOCATED_IN";
     }
+
+    public static class LibraryTypes
+    {
+        public const string Framework = "framework";
+        public const string RelationalDb = "db:relational";
+        public const string DocumentDb = "db:document";
+        public const string GraphDb = "db:graph";
+        public const string KeyValueDb = "db:kv";
+        public const string TimeSeriesDb = "db:timeseries";
+        public const string Cloud = "cloud";
+        public const string Queue = "queue";
+        public const string Http = "http";
+    }
 }
 

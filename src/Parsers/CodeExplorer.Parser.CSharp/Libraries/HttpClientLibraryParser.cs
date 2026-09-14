@@ -286,7 +286,7 @@ public class HttpClientLibraryParser : ILibraryParser
 
     private static void CollectNodes(Node node, string nodeType, List<Node> result)
     {
-        if (node.Type == nodeType)
+        if (node.Is(nodeType))
         {
             result.Add(node);
         }

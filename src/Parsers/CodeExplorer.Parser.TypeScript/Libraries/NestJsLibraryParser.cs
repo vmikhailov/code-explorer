@@ -24,11 +24,6 @@ public class NestJsLibraryParser : ILibraryParser
         .FirstChild
         .FunctionNode;
 
-    private static readonly NodeSelector _decoratorCallFirstStringArgSelector = NodeSelector.New()
-        .FirstChild
-        .GetChildForField("arguments")
-        .FirstChild;
-
     public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
     {
         { OntologyConstants.NodeLabels.EntryPoint, _decoratorEntryPointSelector }
@@ -47,14 +42,9 @@ public class NestJsLibraryParser : ILibraryParser
             var func = _decoratorCallFunctionSelector.Select(node);
             if (!func.IsValid()) return null;
 
-            var name = func!.Text;
-            var routeVal = "/";
-
-            var firstArg = _decoratorCallFirstStringArgSelector.Select(node);
-            if (firstArg.IsValid() && (firstArg!.Type == "string" || firstArg.Type == "template_string"))
-            {
-                routeVal = firstArg.Text.Trim('\'', '"', '`');
-            }
+            var name = func.Text;
+            var callExpr = node.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+            var routeVal = AstHelper.ExtractFirstStringArgument(callExpr) ?? "/";
 
             if (name == "SubscribeMessage") return $"ws:{routeVal}";
 
@@ -65,6 +55,11 @@ public class NestJsLibraryParser : ILibraryParser
                 {
                     routeVal = CombineRoutes(classPrefix, routeVal);
                 }
+            }
+
+            if (!routeVal.StartsWith("/"))
+            {
+                routeVal = "/" + routeVal;
             }
 
             return $"{(name == "Controller" ? "GET" : name.ToUpperInvariant())}:{routeVal}";
@@ -84,33 +79,30 @@ public class NestJsLibraryParser : ILibraryParser
     private static string? GetControllerPrefixForNode(Node node)
     {
         var classBody = node.Parent;
-        if (classBody == null || classBody.Type != "class_body") return null;
+        if (!classBody.Is(TreeSitterSyntax.TypeScript.ClassBody)) return null;
 
         var classDecl = classBody.Parent;
-        if (classDecl == null || (classDecl.Type != "class_declaration" && classDecl.Type != "class_expression")) return null;
+        if (!classDecl.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression)) return null;
 
         var candidates = new List<Node>();
         candidates.AddRange(classDecl.Children);
 
         var parent = classDecl.Parent;
-        if (parent != null && parent.Type == "export_statement")
+        if (parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
         {
             candidates.AddRange(parent.Children);
         }
 
         foreach (var c in candidates)
         {
-            if (c.Type == "decorator")
+            if (c.Is(TreeSitterSyntax.TypeScript.Decorator))
             {
                 var func = _decoratorCallFunctionSelector.Select(c);
-                if (func.IsValid() && func!.Text == "Controller")
+                if (func.IsValid() && func.Text == "Controller")
                 {
-                    var firstArg = _decoratorCallFirstStringArgSelector.Select(c);
-                    if (firstArg.IsValid() && (firstArg!.Type == "string" || firstArg.Type == "template_string"))
-                    {
-                        return firstArg.Text.Trim('\'', '"', '`');
-                    }
-                    return "/";
+                    var callExpr = c.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+                    var prefix = AstHelper.ExtractFirstStringArgument(callExpr);
+                    return !string.IsNullOrEmpty(prefix) ? prefix : "/";
                 }
             }
         }
@@ -120,7 +112,7 @@ public class NestJsLibraryParser : ILibraryParser
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
-        if (node.Type == "method_definition")
+        if (node.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
         {
             var decorators = GetPrecedingDecorators(node);
             foreach (var dec in decorators)
@@ -141,7 +133,7 @@ public class NestJsLibraryParser : ILibraryParser
     {
         var result = new List<Node>();
         var parent = node.Parent;
-        if (parent == null || parent.Id == IntPtr.Zero) return result;
+        if (!parent.IsValid()) return result;
         var children = parent.Children;
         var idx = children.ToList().FindIndex(c => c.Id == node.Id);
         if (idx <= 0) return result;
@@ -149,7 +141,7 @@ public class NestJsLibraryParser : ILibraryParser
         for (var i = idx - 1; i >= 0; i--)
         {
             var sibling = children[i];
-            if (sibling.Type == "decorator")
+            if (sibling.Is(TreeSitterSyntax.TypeScript.Decorator))
             {
                 result.Add(sibling);
             }

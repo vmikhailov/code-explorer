@@ -107,8 +107,8 @@ public class NodeSelectorTests
 
     private Node? FindNode(Node? node, string type, string? functionTextName = null)
     {
-        if (node == null || node.Id == IntPtr.Zero) return null;
-        if (node.Type == type)
+        if (!node.IsValid()) return null;
+        if (node!.Is(type))
         {
             if (functionTextName == null) return node;
             var func = node.GetFunctionNode();

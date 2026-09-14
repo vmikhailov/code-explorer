@@ -307,7 +307,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
         var result = new List<Node>();
         void Recurse(Node current)
         {
-            if (current.Type == targetType)
+            if (current.Is(targetType))
             {
                 result.Add(current);
                 return;

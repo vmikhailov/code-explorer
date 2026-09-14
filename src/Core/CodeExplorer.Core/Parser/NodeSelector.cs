@@ -17,13 +17,13 @@ public class NodeSelector
 
     public NodeSelector HasType(string type)
     {
-        return new NodeSelector([.. _steps, node => node.IsValid() && node!.Type == type ? node : null]);
+        return new NodeSelector([.. _steps, node => node.IsValid() && node.Type == type ? node : null]);
     }
 
     public NodeSelector FirstChild => new([.. _steps, node =>
     {
         if (!node.IsValid()) return null;
-        foreach (var child in node!.Children)
+        foreach (var child in node.Children)
         {
             if (child.IsValid() && !string.IsNullOrEmpty(child.Type) && (char.IsLetter(child.Type[0]) || child.Type[0] == '_'))
             {
@@ -33,11 +33,11 @@ public class NodeSelector
         return null;
     }]);
 
-    public NodeSelector FunctionNode => new([.. _steps, node => node.IsValid() ? node!.GetFunctionNode() : null]);
+    public NodeSelector FunctionNode => new([.. _steps, node => node.IsValid() ? node.GetFunctionNode() : null]);
 
     public NodeSelector GetChildForField(string fieldName)
     {
-        return new NodeSelector([.. _steps, node => node.IsValid() ? node!.GetChildForField(fieldName) : null]);
+        return new NodeSelector([.. _steps, node => node.IsValid() ? node.GetChildForField(fieldName) : null]);
     }
 
     public NodeSelector Text(string regexPattern)
@@ -46,7 +46,7 @@ public class NodeSelector
         return new NodeSelector([.. _steps, node =>
         {
             if (!node.IsValid()) return null;
-            var text = node!.Text;
+            var text = node.Text;
             foreach (var part in parts)
             {
                 if (text == part) return node;
@@ -61,7 +61,7 @@ public class NodeSelector
         return new NodeSelector([.. _steps, node =>
         {
             if (!node.IsValid()) return null;
-            var text = node!.Text;
+            var text = node.Text;
             foreach (var part in parts)
             {
                 if (text.Contains(part)) return node;
@@ -85,7 +85,7 @@ public class NodeSelector
         return new NodeSelector([.. _steps, node =>
         {
             if (!node.IsValid()) return null;
-            var child = node!.GetChildForField(fieldName);
+            var child = node.GetChildForField(fieldName);
             return child.IsValid() && subSelector.Matches(child) ? node : null;
         }]);
     }
@@ -95,7 +95,7 @@ public class NodeSelector
         return new NodeSelector([.. _steps, node =>
         {
             if (!node.IsValid()) return null;
-            foreach (var child in node!.Children)
+            foreach (var child in node.Children)
             {
                 if (child.IsValid() && subSelector.Matches(child))
                 {

@@ -54,7 +54,7 @@ public static class ClauseParsers
     public static TokenListParser<CypherToken, CallClause> Call { get; } =
         from callTok in Token.EqualTo(CypherToken.Call)
         from open in Token.EqualTo(CypherToken.LBrace)
-        from subquery in Parse.Ref(() => CypherQueryParser.Query!)
+        from subquery in Parse.Ref(() => CypherQueryParser.Query)
         from close in Token.EqualTo(CypherToken.RBrace)
         select new CallClause(subquery);
 
@@ -77,7 +77,7 @@ public static class ClauseParsers
             ).Optional()
             select new OrderByItem(expr, dir.GetValueOrDefault(false))
         ).ManyDelimitedBy(Token.EqualTo(CypherToken.Comma))
-        select new OrderByClause(items.ToList());
+        select new OrderByClause([.. items]);
 
     // SKIP expr
     public static TokenListParser<CypherToken, SkipClause> Skip { get; } =
