@@ -28,5 +28,48 @@ namespace CodeExplorer.Core.Parser
             }
             return func.Id != IntPtr.Zero ? func : null;
         }
+
+        public static bool Is([NotNullWhen(true)] this Node? node, string expectedType)
+        {
+            return node.IsValid() && node.Type == expectedType;
+        }
+
+        public static bool IsAny([NotNullWhen(true)] this Node? node, params string[] expectedTypes)
+        {
+            if (!node.IsValid()) return false;
+            for (int i = 0; i < expectedTypes.Length; i++)
+            {
+                if (node.Type == expectedTypes[i]) return true;
+            }
+            return false;
+        }
+
+        public static Node? GetField(this Node? node, string fieldName)
+        {
+            if (!node.IsValid()) return null;
+            var child = node.GetChildForField(fieldName);
+            return child.IsValid() ? child : null;
+        }
+
+        public static Node? FindChildOfType(this Node? node, string type)
+        {
+            if (!node.IsValid()) return null;
+            for (int i = 0; i < node.Children.Count; i++)
+            {
+                var child = node.Children[i];
+                if (child.IsValid() && child.Type == type) return child;
+            }
+            return null;
+        }
+
+        public static IEnumerable<Node> FindChildrenOfType(this Node? node, string type)
+        {
+            if (!node.IsValid()) yield break;
+            for (int i = 0; i < node.Children.Count; i++)
+            {
+                var child = node.Children[i];
+                if (child.IsValid() && child.Type == type) yield return child;
+            }
+        }
     }
 }

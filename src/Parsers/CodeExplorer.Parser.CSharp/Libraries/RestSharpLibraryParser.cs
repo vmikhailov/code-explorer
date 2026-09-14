@@ -36,11 +36,11 @@ public class RestSharpLibraryParser : ILibraryParser
     private static bool IsRestSharpTarget(Node node)
     {
         // 1. Check object creation: new RestRequest(...) or new RestClient(...)
-        if (node.Type == "object_creation_expression")
+        if (node.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
         {
-            var typeNode = node.GetChildForField("type")
-                           ?? node.Children.FirstOrDefault(c => c.Type is "type_identifier" or "identifier" or "generic_name");
-            if (typeNode != null)
+            var typeNode = node.GetField(TreeSitterSyntax.Fields.Type)
+                           ?? node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier, TreeSitterSyntax.CSharp.GenericName));
+            if (typeNode.IsValid())
             {
                 var typeName = typeNode.Text;
                 if (typeName is "RestRequest" or "RestClient")
@@ -51,23 +51,23 @@ public class RestSharpLibraryParser : ILibraryParser
         }
 
         // 2. Direct HTTP calls on RestClient: client.GetAsync("...") where first arg is a string
-        if (node.Type == "invocation_expression")
+        if (node.Is(TreeSitterSyntax.CSharp.InvocationExpression))
         {
-            var func = node.GetChildForField("function") ?? (node.Children.Count > 0 ? node.Children[0] : null);
-            if (func != null && func.Type == "member_access_expression")
+            var func = node.GetFunctionNode();
+            if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
             {
-                var nameChild = func.GetChildForField("name");
-                if (nameChild != null && RestClientCallMethods.Contains(nameChild.Text))
+                var nameChild = func.GetField(TreeSitterSyntax.Fields.Name);
+                if (nameChild.IsValid() && RestClientCallMethods.Contains(nameChild.Text))
                 {
-                    var expr = func.GetChildForField("expression");
-                    if (expr != null && expr.Text.ToLowerInvariant().Contains("client"))
+                    var expr = func.GetField(TreeSitterSyntax.Fields.Expression);
+                    if (expr.IsValid() && expr.Text.ToLowerInvariant().Contains("client"))
                     {
-                        var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-                        var firstArg = argList?.Children.FirstOrDefault(c => c.Type == "argument");
-                        if (firstArg != null)
+                        var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+                        var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+                        if (firstArg.IsValid())
                         {
                             var valNode = firstArg.Children.FirstOrDefault();
-                            if (valNode != null && (valNode.Type.Contains("string") || valNode.Type == "binary_expression"))
+                            if (valNode.IsValid() && (valNode.Type.Contains("string") || valNode.Is(TreeSitterSyntax.Common.BinaryExpression)))
                             {
                                 return true;
                             }
@@ -82,20 +82,20 @@ public class RestSharpLibraryParser : ILibraryParser
 
     private static string? ExtractRestSharpTarget(Node node)
     {
-        if (node.Type == "object_creation_expression")
+        if (node.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
         {
-            var typeNode = node.GetChildForField("type")
-                           ?? node.Children.FirstOrDefault(c => c.Type is "type_identifier" or "identifier" or "generic_name");
-            var typeName = typeNode?.Text;
+            var typeNode = node.GetField(TreeSitterSyntax.Fields.Type)
+                           ?? node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier, TreeSitterSyntax.CSharp.GenericName));
+            var typeName = typeNode.IsValid() ? typeNode.Text : null;
 
-            var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-            if (argList != null)
+            var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+            if (argList.IsValid())
             {
-                var firstArg = argList.Children.FirstOrDefault(c => c.Type == "argument");
-                if (firstArg != null)
+                var firstArg = argList.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+                if (firstArg.IsValid())
                 {
                     var valNode = firstArg.Children.FirstOrDefault();
-                    if (valNode != null)
+                    if (valNode.IsValid())
                     {
                         var text = ExtractText(valNode);
                         if (!string.IsNullOrEmpty(text))
@@ -117,14 +117,14 @@ public class RestSharpLibraryParser : ILibraryParser
                 }
             }
         }
-        else if (node.Type == "invocation_expression")
+        else if (node.Is(TreeSitterSyntax.CSharp.InvocationExpression))
         {
-            var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-            var firstArg = argList?.Children.FirstOrDefault(c => c.Type == "argument");
-            if (firstArg != null)
+            var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+            var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+            if (firstArg.IsValid())
             {
                 var valNode = firstArg.Children.FirstOrDefault();
-                if (valNode != null)
+                if (valNode.IsValid())
                 {
                     var text = ExtractText(valNode);
                     if (!string.IsNullOrEmpty(text))
@@ -146,26 +146,26 @@ public class RestSharpLibraryParser : ILibraryParser
         {
             return node.Text.Trim('"');
         }
-        if (node.Type == "binary_expression")
+        if (node.Is(TreeSitterSyntax.Common.BinaryExpression))
         {
-            var left = node.GetChildForField("left") ?? (node.Children.Count > 0 ? node.Children[0] : null);
-            if (left != null && left.Type.Contains("string"))
+            var left = node.GetField(TreeSitterSyntax.Fields.Left) ?? (node.Children.Count > 0 ? node.Children[0] : null);
+            if (left.IsValid() && left.Type.Contains("string"))
             {
                 return left.Text.Trim('"');
             }
         }
-        if (node.Type == "interpolated_string_expression")
+        if (node.Is(TreeSitterSyntax.CSharp.InterpolatedStringExpression))
         {
             return node.Text.Trim('$', '"');
         }
-        if (node.Type == "object_creation_expression")
+        if (node.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
         {
-            var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-            var firstArg = argList?.Children.FirstOrDefault(c => c.Type == "argument");
+            var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+            var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
             var val = firstArg?.Children.FirstOrDefault();
-            if (val != null) return ExtractText(val);
+            if (val.IsValid()) return ExtractText(val);
         }
-        if (node.Type == "identifier")
+        if (node.Is(TreeSitterSyntax.Common.Identifier))
         {
             var resolved = TryResolveVariableUri(node, node.Text);
             if (!string.IsNullOrEmpty(resolved)) return resolved;
@@ -176,9 +176,9 @@ public class RestSharpLibraryParser : ILibraryParser
     private static string? TryResolveVariableUri(Node node, string varName)
     {
         var current = node.Parent;
-        while (current != null && current.Id != IntPtr.Zero)
+        while (current.IsValid())
         {
-            if (current.Type is "block" or "method_declaration" or "local_function_statement" or "compilation_unit" or "class_declaration")
+            if (current.IsAny(TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement, TreeSitterSyntax.CSharp.CompilationUnit, TreeSitterSyntax.CSharp.ClassDeclaration))
             {
                 var uri = FindUriInScope(current, varName, 0);
                 if (!string.IsNullOrEmpty(uri)) return uri;
@@ -194,19 +194,19 @@ public class RestSharpLibraryParser : ILibraryParser
 
         foreach (var child in scopeNode.Children)
         {
-            if (child.Type is "local_declaration_statement" or "variable_declaration" or "field_declaration" or "global_statement")
+            if (child.IsAny(TreeSitterSyntax.CSharp.LocalDeclarationStatement, TreeSitterSyntax.CSharp.VariableDeclaration, TreeSitterSyntax.CSharp.FieldDeclaration, TreeSitterSyntax.CSharp.GlobalStatement))
             {
-                var decls = FindNodesOfType(child, "variable_declarator");
+                var decls = FindNodesOfType(child, TreeSitterSyntax.CSharp.VariableDeclarator);
                 foreach (var decl in decls)
                 {
-                    var nameNode = decl.GetChildForField("name") ?? decl.Children.FirstOrDefault(c => c.Type is "identifier");
+                    var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name) ?? decl.FindChildOfType(TreeSitterSyntax.Common.Identifier);
                     if (nameNode.IsValid() && nameNode.Text == targetVar)
                     {
-                        var valueNode = decl.GetChildForField("value");
+                        var valueNode = decl.GetField(TreeSitterSyntax.Fields.Value);
                         if (!valueNode.IsValid())
                         {
-                            var eqClause = decl.Children.FirstOrDefault(c => c.Type == "equals_value_clause");
-                            if (eqClause != null && eqClause.Children.Count > 1)
+                            var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
+                            if (eqClause.IsValid() && eqClause.Children.Count > 1)
                             {
                                 valueNode = eqClause.Children[1];
                             }

@@ -54,10 +54,10 @@ public class AspNetCoreLibraryParser : ILibraryParser
     private static bool IsInsideInterface(Node node)
     {
         var current = node.Parent;
-        while (current != null && current.Id != IntPtr.Zero)
+        while (current.IsValid())
         {
-            if (current.Type == "interface_declaration") return true;
-            if (current.Type is "class_declaration" or "struct_declaration" or "record_declaration") return false;
+            if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration)) return true;
+            if (current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration)) return false;
             current = current.Parent;
         }
         return false;
@@ -65,24 +65,24 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
     private static bool IsRouteAttribute(Node node)
     {
-        if (node.Type != "attribute") return false;
-        var nameNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
-        return nameNode != null && RouteAttributes.Contains(nameNode.Text);
+        if (!node.Is(TreeSitterSyntax.CSharp.Attribute)) return false;
+        var nameNode = node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+        return nameNode.IsValid() && RouteAttributes.Contains(nameNode.Text);
     }
 
     private static bool IsEndpointInvocation(Node node)
     {
-        if (node.Type != "invocation_expression") return false;
-        var func = node.GetChildForField("function") ?? (node.Children.Count > 0 ? node.Children[0] : null);
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "member_access_expression")
+        if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
         {
-            var nameNode = func.GetChildForField("name");
-            if (nameNode != null && nameNode.Id != IntPtr.Zero)
+            var nameNode = func.GetField(TreeSitterSyntax.Fields.Name);
+            if (nameNode.IsValid())
             {
-                var methodName = nameNode.Type == "generic_name"
-                    ? nameNode.Children.FirstOrDefault(c => c.Type == "identifier")?.Text
+                var methodName = nameNode.Is(TreeSitterSyntax.CSharp.GenericName)
+                    ? nameNode.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text
                     : nameNode.Text;
                 return methodName != null && EndpointMethods.Contains(methodName);
             }
@@ -92,28 +92,28 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
     private static string? ExtractDeclarativeClientRoute(Node node)
     {
-        var nameNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
-        if (nameNode == null) return null;
+        var nameNode = node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+        if (!nameNode.IsValid()) return null;
 
-        var argList = node.Children.FirstOrDefault(c => c.Type == "attribute_argument_list");
+        var argList = node.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
         var routeVal = "/";
-        if (argList != null)
+        if (argList.IsValid())
         {
-            var arg = argList.Children.FirstOrDefault(c => c.Type == "attribute_argument");
-            if (arg != null)
+            var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgument);
+            if (arg.IsValid())
             {
                 var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                if (strNode != null) routeVal = strNode.Text.Trim('"');
+                if (strNode.IsValid()) routeVal = strNode.Text.Trim('"');
             }
         }
 
         var current = node.Parent;
         string interfaceName = "api-client";
-        while (current != null && current.Id != IntPtr.Zero)
+        while (current.IsValid())
         {
-            if (current.Type == "interface_declaration")
+            if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))
             {
-                var idNode = current.GetChildForField("name");
+                var idNode = current.GetField(TreeSitterSyntax.Fields.Name);
                 if (idNode.IsValid())
                 {
                     interfaceName = idNode.Text;
@@ -133,23 +133,23 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
     private static string? ExtractEndpointIdentifier(Node node)
     {
-        var func = node.GetChildForField("function") ?? (node.Children.Count > 0 ? node.Children[0] : null);
-        if (func == null || func.Id == IntPtr.Zero) return null;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return null;
 
-        var nameNode = func.GetChildForField("name");
-        if (nameNode == null || nameNode.Id == IntPtr.Zero) return null;
+        var nameNode = func.GetField(TreeSitterSyntax.Fields.Name);
+        if (!nameNode.IsValid()) return null;
 
         string? methodName = null;
         string? typeArg = null;
 
-        if (nameNode.Type == "generic_name")
+        if (nameNode.Is(TreeSitterSyntax.CSharp.GenericName))
         {
-            methodName = nameNode.Children.FirstOrDefault(c => c.Type == "identifier")?.Text;
-            var typeArgs = nameNode.Children.FirstOrDefault(c => c.Type == "type_argument_list");
-            if (typeArgs != null)
+            methodName = nameNode.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text;
+            var typeArgs = nameNode.FindChildOfType(TreeSitterSyntax.CSharp.TypeArgumentList);
+            if (typeArgs.IsValid())
             {
-                var typeId = typeArgs.Children.FirstOrDefault(c => c.Type is "type_identifier" or "identifier");
-                typeArg = typeId?.Text;
+                var typeId = typeArgs.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));
+                typeArg = typeId.IsValid() ? typeId.Text : null;
             }
         }
         else
@@ -160,13 +160,13 @@ public class AspNetCoreLibraryParser : ILibraryParser
         if (string.IsNullOrEmpty(methodName)) return null;
 
         var routeVal = "/";
-        var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-        if (argList != null)
+        var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+        if (argList.IsValid())
         {
-            foreach (var arg in argList.Children.Where(c => c.Type == "argument"))
+            foreach (var arg in argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument))
             {
                 var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                if (strNode != null)
+                if (strNode.IsValid())
                 {
                     routeVal = strNode.Text.Trim('"');
                     break;
@@ -194,14 +194,14 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
     private static string? FindGroupPrefix(Node invocationNode)
     {
-        var func = invocationNode.GetChildForField("function") ?? (invocationNode.Children.Count > 0 ? invocationNode.Children[0] : null);
-        if (func == null || func.Type != "member_access_expression") return null;
+        var func = invocationNode.GetFunctionNode();
+        if (!func.IsValid() || !func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression)) return null;
 
-        var expr = func.GetChildForField("expression");
-        if (expr == null || expr.Id == IntPtr.Zero) return null;
+        var expr = func.GetField(TreeSitterSyntax.Fields.Expression);
+        if (!expr.IsValid()) return null;
 
         // 1. Direct chaining: app.MapGroup("/api/v1").MapGet(...)
-        if (expr.Type == "invocation_expression")
+        if (expr.Is(TreeSitterSyntax.CSharp.InvocationExpression))
         {
             var nestedGroup = ExtractGroupRouteFromInvocation(expr);
             if (!string.IsNullOrEmpty(nestedGroup))
@@ -212,7 +212,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
         }
 
         // 2. Variable reference: group.MapGet(...)
-        if (expr.Type == "identifier")
+        if (expr.Is(TreeSitterSyntax.Common.Identifier))
         {
             var varName = expr.Text;
             var groupRoute = TryResolveVariableGroupRoute(invocationNode, varName);
@@ -224,16 +224,16 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
     private static string? ExtractGroupRouteFromInvocation(Node invocation)
     {
-        var func = invocation.GetChildForField("function") ?? (invocation.Children.Count > 0 ? invocation.Children[0] : null);
-        if (func != null && func.Type == "member_access_expression")
+        var func = invocation.GetFunctionNode();
+        if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
         {
-            var nameNode = func.GetChildForField("name");
-            if (nameNode != null && nameNode.Text == "MapGroup")
+            var nameNode = func.GetField(TreeSitterSyntax.Fields.Name);
+            if (nameNode.IsValid() && nameNode.Text == "MapGroup")
             {
-                var argList = invocation.Children.FirstOrDefault(c => c.Type == "argument_list");
-                var firstArg = argList?.Children.FirstOrDefault(c => c.Type == "argument");
+                var argList = invocation.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+                var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
                 var strNode = firstArg?.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                if (strNode != null)
+                if (strNode.IsValid())
                 {
                     return strNode.Text.Trim('"');
                 }
@@ -245,9 +245,9 @@ public class AspNetCoreLibraryParser : ILibraryParser
     private static string? TryResolveVariableGroupRoute(Node node, string varName)
     {
         var current = node.Parent;
-        while (current != null && current.Id != IntPtr.Zero)
+        while (current.IsValid())
         {
-            if (current.Type is "block" or "method_declaration" or "local_function_statement" or "compilation_unit")
+            if (current.IsAny(TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement, TreeSitterSyntax.CSharp.CompilationUnit))
             {
                 var route = FindGroupRouteInScope(current, varName, 0);
                 if (!string.IsNullOrEmpty(route)) return route;
@@ -263,19 +263,19 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
         foreach (var child in scopeNode.Children)
         {
-            if (child.Type is "local_declaration_statement" or "variable_declaration" or "global_statement")
+            if (child.IsAny(TreeSitterSyntax.CSharp.LocalDeclarationStatement, TreeSitterSyntax.CSharp.VariableDeclaration, TreeSitterSyntax.CSharp.GlobalStatement))
             {
-                var decls = FindNodesOfType(child, "variable_declarator");
+                var decls = FindNodesOfType(child, TreeSitterSyntax.CSharp.VariableDeclarator);
                 foreach (var decl in decls)
                 {
-                    var nameNode = decl.GetChildForField("name") ?? decl.Children.FirstOrDefault(c => c.Type is "identifier");
+                    var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name) ?? decl.FindChildOfType(TreeSitterSyntax.Common.Identifier);
                     if (nameNode.IsValid() && nameNode.Text == targetVar)
                     {
-                        var valueNode = decl.GetChildForField("value");
+                        var valueNode = decl.GetField(TreeSitterSyntax.Fields.Value);
                         if (!valueNode.IsValid())
                         {
-                            var eqClause = decl.Children.FirstOrDefault(c => c.Type == "equals_value_clause");
-                            if (eqClause != null && eqClause.Children.Count > 1)
+                            var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
+                            if (eqClause.IsValid() && eqClause.Children.Count > 1)
                             {
                                 valueNode = eqClause.Children[1];
                             }
@@ -285,7 +285,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
                             }
                         }
 
-                        if (valueNode.IsValid() && valueNode.Type == "invocation_expression")
+                        if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.InvocationExpression))
                         {
                             var directRoute = ExtractGroupRouteFromInvocation(valueNode);
                             if (!string.IsNullOrEmpty(directRoute))
@@ -323,20 +323,20 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
     public static string? ExtractRoute(Node node)
     {
-        var nameNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
-        if (nameNode == null) return null;
+        var nameNode = node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+        if (!nameNode.IsValid()) return null;
         var name = nameNode.Text;
         if (!RouteAttributes.Contains(name)) return null;
 
-        var argList = node.Children.FirstOrDefault(c => c.Type == "attribute_argument_list");
+        var argList = node.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
         string? explicitRoute = null;
-        if (argList != null)
+        if (argList.IsValid())
         {
-            var arg = argList.Children.FirstOrDefault(c => c.Type == "attribute_argument");
-            if (arg != null)
+            var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgument);
+            if (arg.IsValid())
             {
                 var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                if (strNode != null) explicitRoute = strNode.Text.Trim('"');
+                if (strNode.IsValid()) explicitRoute = strNode.Text.Trim('"');
             }
         }
 
@@ -354,15 +354,15 @@ public class AspNetCoreLibraryParser : ILibraryParser
         };
 
         var attrList = node.Parent;
-        if (attrList == null || attrList.Type != "attribute_list") return $"{method}:{explicitRoute ?? "/"}";
+        if (!attrList.IsValid() || !attrList.Is(TreeSitterSyntax.CSharp.AttributeList)) return $"{method}:{explicitRoute ?? "/"}";
 
         var parentDecl = attrList.Parent;
-        if (parentDecl == null) return $"{method}:{explicitRoute ?? "/"}";
+        if (!parentDecl.IsValid()) return $"{method}:{explicitRoute ?? "/"}";
 
         // Case A: Attribute directly on class/struct/record
-        if (parentDecl.Type is "class_declaration" or "struct_declaration" or "record_declaration")
+        if (parentDecl.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
         {
-            var classNameNode = parentDecl.GetChildForField("name");
+            var classNameNode = parentDecl.GetField(TreeSitterSyntax.Fields.Name);
             var routeVal = explicitRoute ?? "/";
             if (classNameNode.IsValid())
             {
@@ -385,20 +385,20 @@ public class AspNetCoreLibraryParser : ILibraryParser
         }
 
         // Case B: Attribute on method declaration
-        if (parentDecl.Type == "method_declaration")
+        if (parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
         {
             var classDecl = parentDecl.Parent;
-            while (classDecl != null && classDecl.Id != IntPtr.Zero)
+            while (classDecl.IsValid())
             {
-                if (classDecl.Type is "class_declaration" or "struct_declaration" or "record_declaration")
+                if (classDecl.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
                     break;
                 classDecl = classDecl.Parent;
             }
 
             string className = "";
-            if (classDecl != null && classDecl.Id != IntPtr.Zero)
+            if (classDecl.IsValid())
             {
-                var classNameNode = classDecl.GetChildForField("name");
+                var classNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);
                 if (classNameNode.IsValid())
                 {
                     className = classNameNode.Text;
@@ -409,7 +409,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
                 }
             }
 
-            var methodNameNode = parentDecl.GetChildForField("name");
+            var methodNameNode = parentDecl.GetField(TreeSitterSyntax.Fields.Name);
             var methodName = methodNameNode.IsValid() ? methodNameNode.Text : "";
 
             var classPrefix = GetControllerRoutePrefix(node);
@@ -468,20 +468,20 @@ public class AspNetCoreLibraryParser : ILibraryParser
     private static string? GetControllerRoutePrefix(Node attributeNode)
     {
         var attrList = attributeNode.Parent;
-        if (attrList == null || attrList.Type != "attribute_list") return null;
+        if (!attrList.IsValid() || !attrList.Is(TreeSitterSyntax.CSharp.AttributeList)) return null;
 
         var current = attrList.Parent;
         Node? classDecl = null;
 
-        if (current != null && current.Type is "class_declaration" or "struct_declaration" or "record_declaration")
+        if (current.IsValid() && current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
         {
             classDecl = current;
         }
         else
         {
-            while (current != null && current.Id != IntPtr.Zero)
+            while (current.IsValid())
             {
-                if (current.Type is "class_declaration" or "struct_declaration" or "record_declaration")
+                if (current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
                 {
                     classDecl = current;
                     break;
@@ -490,42 +490,36 @@ public class AspNetCoreLibraryParser : ILibraryParser
             }
         }
 
-        if (classDecl == null || classDecl.Id == IntPtr.Zero) return null;
+        if (!classDecl.IsValid()) return null;
 
-        foreach (var child in classDecl.Children)
+        foreach (var child in classDecl.FindChildrenOfType(TreeSitterSyntax.CSharp.AttributeList))
         {
-            if (child.Type == "attribute_list")
+            foreach (var attr in child.FindChildrenOfType(TreeSitterSyntax.CSharp.Attribute))
             {
-                foreach (var attr in child.Children)
+                var nameNode = attr.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+                if (nameNode.IsValid() && (nameNode.Text == "Route" || nameNode.Text.StartsWith("Http")))
                 {
-                    if (attr.Type == "attribute")
+                    var argList = attr.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
+                    if (argList.IsValid())
                     {
-                        var nameNode = attr.Children.FirstOrDefault(c => c.Type == "identifier");
-                        if (nameNode != null && (nameNode.Text == "Route" || nameNode.Text.StartsWith("Http")))
+                        var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgument);
+                        if (arg.IsValid())
                         {
-                            var argList = attr.Children.FirstOrDefault(c => c.Type == "attribute_argument_list");
-                            if (argList != null)
+                            var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
+                            if (strNode.IsValid())
                             {
-                                var arg = argList.Children.FirstOrDefault(c => c.Type == "attribute_argument");
-                                if (arg != null)
+                                var prefix = strNode.Text.Trim('"');
+                                var classNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);
+                                if (classNameNode.IsValid() && prefix.Contains("[controller]"))
                                 {
-                                    var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                                    if (strNode != null)
+                                    var className = classNameNode.Text;
+                                    if (className.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        var prefix = strNode.Text.Trim('"');
-                                        var classNameNode = classDecl.GetChildForField("name");
-                                        if (classNameNode.IsValid() && prefix.Contains("[controller]"))
-                                        {
-                                            var className = classNameNode.Text;
-                                            if (className.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
-                                            {
-                                                className = className[..^"Controller".Length];
-                                            }
-                                            prefix = prefix.Replace("[controller]", className, StringComparison.OrdinalIgnoreCase);
-                                        }
-                                        return prefix;
+                                        className = className[..^"Controller".Length];
                                     }
+                                    prefix = prefix.Replace("[controller]", className, StringComparison.OrdinalIgnoreCase);
                                 }
+                                return prefix;
                             }
                         }
                     }

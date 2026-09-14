@@ -93,7 +93,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
             if (currentScope.Kind != "file")
             {
-                if (node.Type is "identifier" or "type_identifier")
+                if (node.IsAny(TreeSitterSyntax.Common.Identifier, TreeSitterSyntax.Common.TypeIdentifier))
                 {
                     currentScope.References.Add(new Reference("", node.Text,
                         OntologyConstants.Relationships.PotentialType));
@@ -123,15 +123,15 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     protected virtual void Dispatch(Node node, int depth)
     {
         // Union of all string/literal node types
-        if (node.Type is "string"
-                or "template_string"
-                or "string_literal"
-                or "interpreted_string_literal"
-                or "raw_string_literal"
+        if (node.IsAny(TreeSitterSyntax.Common.String,
+                       TreeSitterSyntax.TypeScript.TemplateString,
+                       TreeSitterSyntax.Common.StringLiteral,
+                       TreeSitterSyntax.Go.InterpretedStringLiteral,
+                       TreeSitterSyntax.Go.RawStringLiteral)
             || (node.Type.Contains("string")
-                && node.Type != "interpolated_string_expression"
-                && node.Type != "interpolated_verbatim_string_expression"
-                && node.Type != "interpolated_raw_string_expression"))
+                && !node.IsAny(TreeSitterSyntax.CSharp.InterpolatedStringExpression,
+                               TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
+                               TreeSitterSyntax.CSharp.InterpolatedRawStringExpression)))
         {
             VisitStringLiteral(node, depth);
             return;
@@ -140,81 +140,81 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         switch (node.Type)
         {
             // Class Declarations
-            case "class_declaration":
-            case "class_expression":
-            case "enum_declaration":
-            case "struct_declaration":
-            case "record_declaration":
-            case "class_definition":
+            case TreeSitterSyntax.CSharp.ClassDeclaration:
+            case TreeSitterSyntax.TypeScript.ClassExpression:
+            case TreeSitterSyntax.CSharp.EnumDeclaration:
+            case TreeSitterSyntax.CSharp.StructDeclaration:
+            case TreeSitterSyntax.CSharp.RecordDeclaration:
+            case TreeSitterSyntax.Python.ClassDefinition:
                 VisitClassDeclaration(node, depth);
                 break;
 
             // Interface Declarations
-            case "interface_declaration":
-            case "type_alias_declaration":
+            case TreeSitterSyntax.CSharp.InterfaceDeclaration:
+            case TreeSitterSyntax.TypeScript.TypeAliasDeclaration:
                 VisitInterfaceDeclaration(node, depth);
                 break;
 
             // Method Declarations
-            case "method_definition":
-            case "method_declaration":
-            case "constructor_declaration":
-            case "local_function_statement":
+            case TreeSitterSyntax.TypeScript.MethodDefinition:
+            case TreeSitterSyntax.CSharp.MethodDeclaration:
+            case TreeSitterSyntax.CSharp.ConstructorDeclaration:
+            case TreeSitterSyntax.CSharp.LocalFunctionStatement:
                 VisitMethodDeclaration(node, depth);
                 break;
 
             // Function Declarations
-            case "function_declaration":
-            case "function_expression":
-            case "arrow_function":
-            case "function_definition":
+            case TreeSitterSyntax.TypeScript.FunctionDeclaration:
+            case TreeSitterSyntax.TypeScript.FunctionExpression:
+            case TreeSitterSyntax.TypeScript.ArrowFunction:
+            case TreeSitterSyntax.Python.FunctionDefinition:
                 VisitFunctionDeclaration(node, depth);
                 break;
 
             // Variable/Field Declarations
-            case "variable_declarator":
-            case "public_field_definition":
-            case "property_definition":
-            case "property_declaration":
-            case "variable_declaration":
-            case "const_spec":
-            case "var_spec":
-            case "field_declaration":
-            case "short_var_declaration":
-            case "assignment":
-            case "parameters":
-            case "pattern":
+            case TreeSitterSyntax.CSharp.VariableDeclarator:
+            case TreeSitterSyntax.TypeScript.PublicFieldDefinition:
+            case TreeSitterSyntax.TypeScript.PropertyDefinition:
+            case TreeSitterSyntax.CSharp.PropertyDeclaration:
+            case TreeSitterSyntax.CSharp.VariableDeclaration:
+            case TreeSitterSyntax.Go.ConstSpec:
+            case TreeSitterSyntax.Go.VarSpec:
+            case TreeSitterSyntax.CSharp.FieldDeclaration:
+            case TreeSitterSyntax.Go.ShortVarDeclaration:
+            case TreeSitterSyntax.Python.Assignment:
+            case TreeSitterSyntax.Python.Parameters:
+            case TreeSitterSyntax.Python.Pattern:
                 VisitVariableDeclaration(node, depth);
                 break;
 
             // Parameters
-            case "parameter":
-            case "parameter_declaration":
-            case "required_parameter":
-            case "optional_parameter":
-            case "parameter_property":
+            case TreeSitterSyntax.CSharp.Parameter:
+            case TreeSitterSyntax.Go.ParameterDeclaration:
+            case TreeSitterSyntax.TypeScript.RequiredParameter:
+            case TreeSitterSyntax.TypeScript.OptionalParameter:
+            case TreeSitterSyntax.TypeScript.ParameterProperty:
                 VisitParameter(node, depth);
                 break;
 
             // Imports
-            case "import_statement":
-            case "import_from_statement":
-            case "using_directive":
-            case "import_spec":
+            case TreeSitterSyntax.TypeScript.ImportStatement:
+            case TreeSitterSyntax.Python.ImportFromStatement:
+            case TreeSitterSyntax.CSharp.UsingDirective:
+            case TreeSitterSyntax.Go.ImportSpec:
                 VisitImportStatement(node, depth);
                 break;
 
             // Call Expressions
-            case "call_expression":
-            case "invocation_expression":
-            case "call":
+            case TreeSitterSyntax.Common.CallExpression:
+            case TreeSitterSyntax.CSharp.InvocationExpression:
+            case TreeSitterSyntax.Python.Call:
                 VisitCallExpression(node, depth);
                 break;
 
             // Inheritance Clauses
-            case "extends_clause":
-            case "implements_clause":
-            case "base_list":
+            case TreeSitterSyntax.TypeScript.ExtendsClause:
+            case TreeSitterSyntax.TypeScript.ImplementsClause:
+            case TreeSitterSyntax.CSharp.BaseList:
                 VisitInheritanceClause(node, depth);
                 break;
 

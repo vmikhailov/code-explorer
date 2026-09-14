@@ -24,20 +24,20 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
-        if (node.Type == "attribute")
+        if (node.Is(TreeSitterSyntax.CSharp.Attribute))
         {
-            var nameNode = node.Children.FirstOrDefault(c => c.Type == "identifier");
-            if (nameNode != null && (nameNode.Text == "Route" || nameNode.Text.StartsWith("Http") || nameNode.Text is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "Options"))
+            var nameNode = node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+            if (nameNode.IsValid() && (nameNode.Text == "Route" || nameNode.Text.StartsWith("Http") || nameNode.Text is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "Options"))
             {
                 var parentDecl = node.Parent?.Parent;
                 var current = parentDecl?.Parent;
-                while (current != null && current.Id != IntPtr.Zero)
+                while (current.IsValid())
                 {
-                    if (current.Type == "interface_declaration")
+                    if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))
                     {
                         return OntologyConstants.NodeLabels.ExternalService;
                     }
-                    if (current.Type is "class_declaration" or "struct_declaration" or "record_declaration")
+                    if (current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
                         break;
                     current = current.Parent;
                 }
@@ -51,9 +51,9 @@ public class CSharpFileVisitor : BaseParserVisitor
         }
 
         if (node.Type.Contains("string") &&
-            node.Type != "interpolated_string_expression" &&
-            node.Type != "interpolated_verbatim_string_expression" &&
-            node.Type != "interpolated_raw_string_expression")
+            !node.IsAny(TreeSitterSyntax.CSharp.InterpolatedStringExpression,
+                        TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
+                        TreeSitterSyntax.CSharp.InterpolatedRawStringExpression))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
             {
@@ -61,18 +61,19 @@ public class CSharpFileVisitor : BaseParserVisitor
             }
         }
 
-        return node.Type switch
-        {
-            "class_declaration" or "struct_declaration" or "record_declaration" => "Class",
-            "interface_declaration" => "Interface",
-            "method_declaration" or "function_declaration" or "constructor_declaration" or "local_function_statement" => OntologyConstants.NodeLabels.Function,
-            _ => null
-        };
+        if (node.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+            return "Class";
+        if (node.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))
+            return "Interface";
+        if (node.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, "function_declaration", TreeSitterSyntax.CSharp.ConstructorDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement))
+            return OntologyConstants.NodeLabels.Function;
+
+        return null;
     }
 
     protected override string? ExtractIdentifier(Node node)
     {
-        if (node.Type == "attribute")
+        if (node.Is(TreeSitterSyntax.CSharp.Attribute))
         {
             return Libraries.AspNetCoreLibraryParser.ExtractRoute(node) ?? ExtractCSharpAttributeRoute(node);
         }
@@ -101,15 +102,15 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     private string? ExtractCsIdentifier(Node node)
     {
-        var nameNode = node.GetChildForField("name");
-        if (nameNode != null && nameNode.Id != IntPtr.Zero)
+        var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
+        if (nameNode.IsValid())
         {
             return nameNode.Text;
         }
 
         foreach (var child in node.Children)
         {
-            if (child.Type is "identifier" or "variable_name")
+            if (child.IsAny(TreeSitterSyntax.Common.Identifier, TreeSitterSyntax.CSharp.VariableName))
             {
                 return child.Text;
             }
@@ -128,26 +129,28 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     protected override void VisitVariableDeclaration(Node node, int depth)
     {
-        if (node.Type == "variable_declaration")
+        if (node.Is(TreeSitterSyntax.CSharp.VariableDeclaration))
         {
-            var typeNode = node.GetChildForField("type");
-            if (typeNode != null && typeNode.Id != IntPtr.Zero)
+            var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+            if (typeNode.IsValid())
             {
                 var typeName = typeNode.Text;
-                foreach (var declarator in node.Children.Where(c => c.Type == "variable_declarator"))
+                foreach (var declarator in node.FindChildrenOfType(TreeSitterSyntax.CSharp.VariableDeclarator))
                 {
-                    var nameNode = declarator.GetChildForField("name");
-                    if (nameNode != null && nameNode.Id != IntPtr.Zero)
+                    var nameNode = declarator.GetField(TreeSitterSyntax.Fields.Name);
+                    if (nameNode.IsValid())
                     {
                         var varName = nameNode.Text;
                         var resolvedTypeName = typeName;
                         if (typeName == "var")
                         {
-                            var valueNode = declarator.GetChildForField("value") ?? declarator.Children.FirstOrDefault(c => c.Type == "equals_value_clause")?.Children.ElementAtOrDefault(1);
-                            if (valueNode != null && valueNode.Type == "object_creation_expression")
+                            var valueNode = declarator.GetField(TreeSitterSyntax.Fields.Value) 
+                                ?? declarator.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause)?.Children.ElementAtOrDefault(1);
+                            if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
                             {
-                                var objectTypeNode = valueNode.GetChildForField("type") ?? valueNode.Children.FirstOrDefault(c => c.Type is "type_identifier" or "identifier");
-                                if (objectTypeNode != null)
+                                var objectTypeNode = valueNode.GetField(TreeSitterSyntax.Fields.Type) 
+                                    ?? valueNode.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));
+                                if (objectTypeNode.IsValid())
                                 {
                                     resolvedTypeName = objectTypeNode.Text;
                                 }
@@ -173,9 +176,9 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     protected override void VisitParameter(Node node, int depth)
     {
-        var typeNode = node.GetChildForField("type");
-        var nameNode = node.GetChildForField("name") ?? node.Children.FirstOrDefault(c => c.Type == "identifier");
-        if (typeNode != null && nameNode != null && typeNode.Id != IntPtr.Zero && nameNode.Id != IntPtr.Zero)
+        var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+        var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+        if (typeNode.IsValid() && nameNode.IsValid())
         {
             var scopeName = GetContainingScopeName(node);
             RawTypeBindings.Add(new RawTypeBinding(nameNode.Text, typeNode.Text, "", scopeName));
@@ -186,8 +189,8 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     protected override void VisitImportStatement(Node node, int depth)
     {
-        var nameNode = node.GetChildForField("name") ?? node.Children.FirstOrDefault(c => c.Type is "qualified_name" or "identifier");
-        if (nameNode != null && nameNode.Id != IntPtr.Zero)
+        var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ?? node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.Common.Identifier));
+        if (nameNode.IsValid())
         {
             var importPath = nameNode.Text;
             RawImports.Add(new RawImport(importPath, "", ImportType.External));
@@ -198,24 +201,20 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     protected override string? FindCallName(Node callNode)
     {
-        var expr = callNode.GetChildForField("function");
-        if (expr != null && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
-        {
-            expr = callNode.Children[0];
-        }
-        if (expr == null || expr.Id == IntPtr.Zero) return null;
+        var expr = callNode.GetFunctionNode();
+        if (!expr.IsValid()) return null;
 
-        if (expr.Type == "identifier")
+        if (expr.Is(TreeSitterSyntax.Common.Identifier))
         {
             return expr.Text;
         }
-        if (expr.Type == "member_access_expression")
+        if (expr.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
         {
-            var nameChild = expr.GetChildForField("name");
-            var expressionChild = expr.GetChildForField("expression");
-            if (nameChild != null && nameChild.Id != IntPtr.Zero)
+            var nameChild = expr.GetField(TreeSitterSyntax.Fields.Name);
+            var expressionChild = expr.GetField(TreeSitterSyntax.Fields.Expression);
+            if (nameChild.IsValid())
             {
-                if (expressionChild != null && expressionChild.Id != IntPtr.Zero)
+                if (expressionChild.IsValid())
                 {
                     return $"{expressionChild.Text}.{nameChild.Text}";
                 }
@@ -247,24 +246,24 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     private void CollectVariable(Node node)
     {
-        var name = node.GetChildForField("name")?.Text;
+        var name = node.GetField(TreeSitterSyntax.Fields.Name)?.Text;
         if (string.IsNullOrEmpty(name))
         {
-            name = node.Children.FirstOrDefault(c => c.Type == "identifier")?.Text;
+            name = node.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text;
         }
 
         if (!string.IsNullOrEmpty(name))
         {
-            var valueNode = node.GetChildForField("value");
-            if (valueNode == null || valueNode.Id == IntPtr.Zero)
+            var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
+            if (!valueNode.IsValid())
             {
-                var eqClause = node.Children.FirstOrDefault(c => c.Type == "equals_value_clause");
-                if (eqClause != null && eqClause.Children.Count > 1)
+                var eqClause = node.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
+                if (eqClause.IsValid() && eqClause.Children.Count > 1)
                 {
                     valueNode = eqClause.Children[1];
                 }
             }
-            var initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
+            var initializerText = valueNode.IsValid() ? valueNode.Text : "";
             var isConstant = IsCSharpConstant(node);
             var scope = DetermineCSharpScope(node);
 
@@ -280,10 +279,10 @@ public class CSharpFileVisitor : BaseParserVisitor
                 node.EndPosition.Column
             ));
 
-            if (node.Type == "property_declaration")
+            if (node.Is(TreeSitterSyntax.CSharp.PropertyDeclaration))
             {
-                var typeNode = node.GetChildForField("type");
-                if (typeNode != null && typeNode.Id != IntPtr.Zero)
+                var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+                if (typeNode.IsValid())
                 {
                     var scopeName = GetContainingScopeName(node);
                     RawTypeBindings.Add(new RawTypeBinding(name, typeNode.Text, "", scopeName));
@@ -296,13 +295,13 @@ public class CSharpFileVisitor : BaseParserVisitor
     private static bool IsCSharpConstant(Node node)
     {
         var curr = node;
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "field_declaration" or "local_declaration_statement")
+            if (curr.IsAny(TreeSitterSyntax.CSharp.FieldDeclaration, TreeSitterSyntax.CSharp.LocalDeclarationStatement))
             {
                 foreach (var child in curr.Children)
                 {
-                    if (child.Type is "const" or "readonly" || child.Text is "const" or "readonly")
+                    if (child.IsAny(TreeSitterSyntax.CSharp.Const, TreeSitterSyntax.CSharp.Readonly) || child.Text is "const" or "readonly")
                         return true;
                 }
             }
@@ -314,11 +313,11 @@ public class CSharpFileVisitor : BaseParserVisitor
     private static string DetermineCSharpScope(Node node)
     {
         var curr = node.Parent;
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "class_declaration" or "struct_declaration" or "record_declaration" or "interface_declaration")
+            if (curr.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.InterfaceDeclaration))
                 return "class";
-            if (curr.Type is "method_declaration" or "local_function_statement" or "block" or "constructor_declaration")
+            if (curr.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement, TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.ConstructorDeclaration))
                 return "local";
             curr = curr.Parent;
         }
@@ -328,17 +327,17 @@ public class CSharpFileVisitor : BaseParserVisitor
     private static string GetContainingScopeName(Node node)
     {
         var curr = node.Parent;
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "class_declaration" or "interface_declaration" or "struct_declaration" or "record_declaration")
+            if (curr.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.InterfaceDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
             {
-                var nameNode = curr.GetChildForField("name");
-                if (nameNode != null && nameNode.Id != IntPtr.Zero) return nameNode.Text;
+                var nameNode = curr.GetField(TreeSitterSyntax.Fields.Name);
+                if (nameNode.IsValid()) return nameNode.Text;
             }
-            else if (curr.Type is "method_declaration" or "function_declaration" or "constructor_declaration" or "local_function_statement")
+            else if (curr.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, "function_declaration", TreeSitterSyntax.CSharp.ConstructorDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement))
             {
-                var nameNode = curr.GetChildForField("name");
-                if (nameNode != null && nameNode.Id != IntPtr.Zero) return nameNode.Text;
+                var nameNode = curr.GetField(TreeSitterSyntax.Fields.Name);
+                if (nameNode.IsValid()) return nameNode.Text;
             }
             curr = curr.Parent;
         }

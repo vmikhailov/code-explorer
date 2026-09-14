@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -42,20 +42,19 @@ public class HttpClientLibraryParser : ILibraryParser
 
     public static bool IsHttpClientCall(Node node)
     {
-        if (node.Type != "invocation_expression") return false;
-        var func = node.GetChildForField("function")
-                   ?? (node.Children.Count > 0 ? node.Children[0] : null);
-        if (func == null || func.Id == IntPtr.Zero) return false;
+        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid()) return false;
 
-        if (func.Type == "member_access_expression")
+        if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
         {
-            var nameChild = func.GetChildForField("name");
-            if (nameChild == null || nameChild.Id == IntPtr.Zero || !HttpMethods.Contains(nameChild.Text))
+            var nameChild = func.GetField(TreeSitterSyntax.Fields.Name);
+            if (!nameChild.IsValid() || !HttpMethods.Contains(nameChild.Text))
                 return false;
 
             // Check receiver expression
-            var exprChild = func.GetChildForField("expression");
-            if (exprChild != null && exprChild.Id != IntPtr.Zero)
+            var exprChild = func.GetField(TreeSitterSyntax.Fields.Expression);
+            if (exprChild.IsValid())
             {
                 var receiverText = exprChild.Text.ToLowerInvariant();
                 foreach (var kw in NonHttpReceiverKeywords)
@@ -66,11 +65,11 @@ public class HttpClientLibraryParser : ILibraryParser
             }
 
             // Check argument list: first argument must not be pure CancellationToken
-            var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-            if (argList != null)
+            var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+            if (argList.IsValid())
             {
-                var firstArg = argList.Children.FirstOrDefault(c => c.Type == "argument");
-                if (firstArg != null)
+                var firstArg = argList.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+                if (firstArg.IsValid())
                 {
                     var argText = firstArg.Text.Trim();
                     if (IsCancellationToken(argText))
@@ -94,15 +93,15 @@ public class HttpClientLibraryParser : ILibraryParser
 
     public static string? ExtractTarget(Node node)
     {
-        var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-        if (argList == null) return "http:unknown-service";
+        var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+        if (!argList.IsValid()) return "http:unknown-service";
 
-        var args = argList.Children.Where(c => c.Type == "argument").ToList();
+        var args = argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument).ToList();
         if (args.Count == 0) return "http:unknown-service";
 
         var firstArg = args[0];
         var valNode = firstArg.Children.FirstOrDefault();
-        if (valNode != null)
+        if (valNode.IsValid())
         {
             var text = valNode.Text.Trim('"');
             if (valNode.Type.Contains("string") || text.Contains("://") || text.StartsWith("/"))
@@ -116,7 +115,7 @@ public class HttpClientLibraryParser : ILibraryParser
                 for (int i = 1; i < args.Count; i++)
                 {
                     var nextVal = args[i].Children.FirstOrDefault();
-                    if (nextVal != null)
+                    if (nextVal.IsValid())
                     {
                         var nextText = nextVal.Text.Trim('"');
                         if (!string.IsNullOrEmpty(nextText) && !IsCancellationToken(nextText))
@@ -144,9 +143,9 @@ public class HttpClientLibraryParser : ILibraryParser
     private static string? TryResolveVariableUri(Node node, string varName)
     {
         var current = node.Parent;
-        while (current != null && current.Id != IntPtr.Zero)
+        while (current.IsValid())
         {
-            if (current.Type is "block" or "method_declaration" or "local_function_statement")
+            if (current.IsAny(TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement))
             {
                 var uri = FindUriInScope(current, varName, 0);
                 if (!string.IsNullOrEmpty(uri)) return uri;
@@ -162,20 +161,20 @@ public class HttpClientLibraryParser : ILibraryParser
 
         foreach (var child in scopeNode.Children)
         {
-            if (child.Type is "local_declaration_statement" or "variable_declaration" or "using_statement")
+            if (child.IsAny(TreeSitterSyntax.CSharp.LocalDeclarationStatement, TreeSitterSyntax.CSharp.VariableDeclaration, TreeSitterSyntax.CSharp.UsingStatement))
             {
-                var decls = FindNodesOfType(child, "variable_declarator");
+                var decls = FindNodesOfType(child, TreeSitterSyntax.CSharp.VariableDeclarator);
                 foreach (var decl in decls)
                 {
-                    var nameNode = decl.GetChildForField("name")
-                                   ?? decl.Children.FirstOrDefault(c => c.Type is "identifier");
+                    var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name)
+                                   ?? decl.FindChildOfType(TreeSitterSyntax.Common.Identifier);
                     if (nameNode.IsValid() && nameNode.Text == targetVar)
                     {
-                        var valueNode = decl.GetChildForField("value");
+                        var valueNode = decl.GetField(TreeSitterSyntax.Fields.Value);
                         if (!valueNode.IsValid())
                         {
-                            var eqClause = decl.Children.FirstOrDefault(c => c.Type == "equals_value_clause");
-                            if (eqClause != null && eqClause.Children.Count > 1)
+                            var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
+                            if (eqClause.IsValid() && eqClause.Children.Count > 1)
                             {
                                 valueNode = eqClause.Children[1];
                             }
@@ -194,15 +193,15 @@ public class HttpClientLibraryParser : ILibraryParser
                 }
             }
 
-            if (child.Type is "expression_statement")
+            if (child.Is(TreeSitterSyntax.CSharp.ExpressionStatement))
             {
-                var assign = child.Children.FirstOrDefault(c => c.Type == "assignment_expression");
-                if (assign != null)
+                var assign = child.FindChildOfType(TreeSitterSyntax.Common.AssignmentExpression);
+                if (assign.IsValid())
                 {
-                    var left = assign.GetChildForField("left");
+                    var left = assign.GetField(TreeSitterSyntax.Fields.Left);
                     if (left.IsValid() && left.Text == targetVar)
                     {
-                        var right = assign.GetChildForField("right")
+                        var right = assign.GetField(TreeSitterSyntax.Fields.Right)
                                     ?? (assign.Children.Count >= 3 ? assign.Children[2] : null);
                         if (right.IsValid())
                         {
@@ -219,31 +218,31 @@ public class HttpClientLibraryParser : ILibraryParser
 
     private static string? ExtractUriFromExpression(Node? expr, Node scopeNode, int depth)
     {
-        if (expr == null || !expr.IsValid()) return null;
+        if (!expr.IsValid()) return null;
 
         if (expr.Type.Contains("string"))
         {
             return expr.Text.Trim('"');
         }
 
-        if (expr.Type == "object_creation_expression")
+        if (expr.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
         {
-            var typeNode = expr.GetChildForField("type")
-                           ?? expr.Children.FirstOrDefault(c => c.Type is "type_identifier" or "identifier");
+            var typeNode = expr.GetField(TreeSitterSyntax.Fields.Type)
+                           ?? expr.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));
             var typeName = typeNode.IsValid() ? typeNode.Text : "";
 
-            var argList = expr.Children.FirstOrDefault(c => c.Type == "argument_list");
-            if (argList != null)
+            var argList = expr.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+            if (argList.IsValid())
             {
-                var args = argList.Children.Where(c => c.Type == "argument").ToList();
+                var args = argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument).ToList();
 
                 if (typeName.Contains("Uri"))
                 {
                     var firstArg = args.FirstOrDefault();
-                    if (firstArg != null)
+                    if (firstArg.IsValid())
                     {
                         var val = firstArg.Children.FirstOrDefault();
-                        if (val != null && val.Type.Contains("string"))
+                        if (val.IsValid() && val.Type.Contains("string"))
                         {
                             return val.Text.Trim('"');
                         }
@@ -254,18 +253,18 @@ public class HttpClientLibraryParser : ILibraryParser
                     foreach (var arg in args)
                     {
                         var val = arg.Children.FirstOrDefault();
-                        if (val == null) continue;
+                        if (!val.IsValid()) continue;
 
                         if (val.Type.Contains("string"))
                         {
                             return val.Text.Trim('"');
                         }
-                        if (val.Type == "object_creation_expression")
+                        if (val.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
                         {
                             var innerUri = ExtractUriFromExpression(val, scopeNode, depth + 1);
                             if (!string.IsNullOrEmpty(innerUri)) return innerUri;
                         }
-                        if (val.Type == "identifier" && val.Text != "HttpMethod")
+                        if (val.Is(TreeSitterSyntax.Common.Identifier) && val.Text != "HttpMethod")
                         {
                             var resolved = FindUriInScope(scopeNode, val.Text, depth + 1);
                             if (!string.IsNullOrEmpty(resolved)) return resolved;
