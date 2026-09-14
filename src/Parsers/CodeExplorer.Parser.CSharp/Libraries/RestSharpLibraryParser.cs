@@ -106,7 +106,7 @@ public class RestSharpLibraryParser : ILibraryParser
                             }
                             if (typeName == "RestRequest")
                             {
-                                if (Uri.TryCreate(text, UriKind.Absolute, out var uri))
+                                if (Uri.TryCreate(text, UriKind.Absolute, out var uri) && uri.Scheme != "file")
                                 {
                                     return $"{uri.Scheme}:{uri.Host}{uri.AbsolutePath}";
                                 }
@@ -251,7 +251,7 @@ public class RestSharpLibraryParser : ILibraryParser
     private static string NormalizeUrl(string text)
     {
         text = text.Trim().Trim('"');
-        if (Uri.TryCreate(text, UriKind.Absolute, out var uri))
+        if (Uri.TryCreate(text, UriKind.Absolute, out var uri) && uri.Scheme != "file")
         {
             return $"{uri.Scheme}:{uri.Host}{uri.AbsolutePath}";
         }

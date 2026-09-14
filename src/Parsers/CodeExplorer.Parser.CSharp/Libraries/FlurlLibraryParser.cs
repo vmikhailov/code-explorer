@@ -51,18 +51,14 @@ public class FlurlLibraryParser : ILibraryParser
 
     private static bool IsFlurlCall(Node node)
     {
-        if (node.Type != "invocation_expression") return false;
+        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
 
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
-
-        if (func.Type == "member_access_expression")
+        var func = node.GetFunctionNode();
+        if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
         {
-            var nameChild = func.GetChildForField("name");
-            if (nameChild != null && nameChild.Id != IntPtr.Zero)
+            var methodName = func.GetChildFieldText(TreeSitterSyntax.Fields.Name);
+            if (!string.IsNullOrEmpty(methodName))
             {
-                var methodName = nameChild.Text;
                 return methodName is "GetAsync" or "PostAsync" or "PutAsync" or "DeleteAsync" or "PatchAsync"
                                    or "GetJsonAsync" or "PostJsonAsync" or "PutJsonAsync" or "DeleteJsonAsync" or "PatchJsonAsync"
                                    or "GetStringAsync" or "GetStreamAsync" or "GetXmlAsync" or "PostUrlEncodedAsync";
@@ -74,29 +70,28 @@ public class FlurlLibraryParser : ILibraryParser
     private static string? ExtractFlurlRootUrl(Node node)
     {
         var current = node;
-        while (current != null)
+        while (current.IsValid())
         {
-            if (current.Type == "invocation_expression")
+            if (current.Is(TreeSitterSyntax.CSharp.InvocationExpression))
             {
-                var func = current.GetChildForField("function");
-                if (func == null || (func.Id == IntPtr.Zero && current.Children.Count > 0)) func = current.Children[0];
-                if (func != null && func.Type == "member_access_expression")
+                var func = current.GetFunctionNode();
+                if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
                 {
-                    current = func.GetChildForField("expression");
+                    current = func.GetField(TreeSitterSyntax.Fields.Expression);
                     continue;
                 }
             }
-            if (current.Type == "member_access_expression")
+            if (current.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
             {
-                current = current.GetChildForField("expression");
+                current = current.GetField(TreeSitterSyntax.Fields.Expression);
                 continue;
             }
             break;
         }
 
-        if (current != null)
+        if (current.IsValid())
         {
-            if (current.Type == "string_literal" || current.Type == "verbatim_string_literal")
+            if (current.IsAny(TreeSitterSyntax.CSharp.StringLiteral, TreeSitterSyntax.CSharp.VerbatimStringLiteral))
             {
                 return current.Text.Trim('"');
             }

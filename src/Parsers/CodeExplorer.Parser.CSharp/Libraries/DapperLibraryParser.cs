@@ -59,18 +59,14 @@ public class DapperLibraryParser : ILibraryParser
 
     private static bool IsDapperCall(Node node)
     {
-        if (node.Type != "invocation_expression") return false;
+        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
 
-        var func = node.GetChildForField("function");
-        if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0)) func = node.Children[0];
-        if (func == null || func.Id == IntPtr.Zero) return false;
-
-        if (func.Type == "member_access_expression")
+        var func = node.GetFunctionNode();
+        if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
         {
-            var nameChild = func.GetChildForField("name");
-            if (nameChild != null && nameChild.Id != IntPtr.Zero)
+            var methodName = func.GetChildFieldText(TreeSitterSyntax.Fields.Name);
+            if (!string.IsNullOrEmpty(methodName))
             {
-                var methodName = nameChild.Text;
                 return methodName is "Query" or "QueryAsync" or "QueryFirst" or "QueryFirstOrDefault"
                                    or "QuerySingle" or "QuerySingleOrDefault" or "QueryMultiple" or "QueryMultipleAsync"
                                    or "Execute" or "ExecuteAsync" or "ExecuteReader" or "ExecuteScalar";
@@ -81,15 +77,15 @@ public class DapperLibraryParser : ILibraryParser
 
     private static string? ExtractSqlArgument(Node node)
     {
-        var argList = node.Children.FirstOrDefault(c => c.Type == "argument_list");
-        if (argList != null && argList.Children.Count > 1)
+        var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+        if (argList.IsValid() && argList.Children.Count > 1)
         {
             // First argument contains the SQL string
-            var arg = argList.Children.FirstOrDefault(c => c.Type == "argument");
-            if (arg != null)
+            var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+            if (arg.IsValid())
             {
-                var valNode = arg.Children.FirstOrDefault();
-                if (valNode != null)
+                var valNode = arg.Children.FirstOrDefault(c => c.IsValid());
+                if (valNode.IsValid())
                 {
                     return valNode.Text.Trim('"');
                 }

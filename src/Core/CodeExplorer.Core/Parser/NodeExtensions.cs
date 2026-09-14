@@ -20,7 +20,7 @@ namespace CodeExplorer.Core.Parser
         public static Node? GetFunctionNode(this Node? node)
         {
             if (node == null || node.Id == IntPtr.Zero) return null;
-            var func = node.GetChildForField("function");
+            var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
             if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0))
             {
                 var firstChild = node.Children[0];

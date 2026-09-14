@@ -65,7 +65,7 @@ public class CSharpFileVisitor : BaseParserVisitor
             return "Class";
         if (node.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))
             return "Interface";
-        if (node.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, "function_declaration", TreeSitterSyntax.CSharp.ConstructorDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement))
+        if (node.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.Common.FunctionDeclaration, TreeSitterSyntax.CSharp.ConstructorDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement))
             return OntologyConstants.NodeLabels.Function;
 
         return null;
@@ -334,7 +334,7 @@ public class CSharpFileVisitor : BaseParserVisitor
                 var nameNode = curr.GetField(TreeSitterSyntax.Fields.Name);
                 if (nameNode.IsValid()) return nameNode.Text;
             }
-            else if (curr.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, "function_declaration", TreeSitterSyntax.CSharp.ConstructorDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement))
+            else if (curr.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.Common.FunctionDeclaration, TreeSitterSyntax.CSharp.ConstructorDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement))
             {
                 var nameNode = curr.GetField(TreeSitterSyntax.Fields.Name);
                 if (nameNode.IsValid()) return nameNode.Text;

@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -249,40 +249,37 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public void CollectSemanticData(Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables)
     {
-        if (node.Type == "using_directive")
+        if (node.Is(TreeSitterSyntax.CSharp.UsingDirective))
         {
-            var nameNode = node.GetChildForField("name");
-            if (nameNode == null || nameNode.Id == IntPtr.Zero)
-            {
-                nameNode = node.Children.FirstOrDefault(c => c.Type is "qualified_name" or "identifier");
-            }
-            if (nameNode != null && nameNode.Id != IntPtr.Zero)
+            var nameNode = node.GetField(TreeSitterSyntax.Fields.Name)
+                ?? node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.Common.Identifier));
+            if (nameNode.IsValid())
             {
                 var importPath = nameNode.Text;
                 var type = ResolveCsImportType(importPath, filePath);
                 rawImports.Add(new RawImport(importPath, filePath, type));
             }
         }
-        else if (node.Type == "variable_declarator" || node.Type == "property_declaration")
+        else if (node.IsAny(TreeSitterSyntax.CSharp.VariableDeclarator, TreeSitterSyntax.CSharp.PropertyDeclaration))
         {
-            var name = node.GetChildForField("name")?.Text;
+            var name = node.GetField(TreeSitterSyntax.Fields.Name)?.Text;
             if (string.IsNullOrEmpty(name))
             {
-                name = node.Children.FirstOrDefault(c => c.Type == "identifier")?.Text;
+                name = node.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text;
             }
 
             if (!string.IsNullOrEmpty(name))
             {
-                var valueNode = node.GetChildForField("value");
-                if (valueNode == null || valueNode.Id == IntPtr.Zero)
+                var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
+                if (!valueNode.IsValid())
                 {
-                    var eqClause = node.Children.FirstOrDefault(c => c.Type == "equals_value_clause");
-                    if (eqClause != null && eqClause.Children.Count > 1)
+                    var eqClause = node.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
+                    if (eqClause.IsValid() && eqClause.Children.Count > 1)
                     {
                         valueNode = eqClause.Children[1];
                     }
                 }
-                var initializerText = valueNode != null && valueNode.Id != IntPtr.Zero ? valueNode.Text : "";
+                var initializerText = valueNode.IsValid() ? valueNode.Text : "";
                 var isConstant = IsCSharpConstant(node);
                 var scope = DetermineCSharpScope(node);
 
@@ -304,13 +301,13 @@ public class CSharpParser : IProjectParser, IFileParser
     private static bool IsCSharpConstant(Node node)
     {
         var curr = node;
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "field_declaration" or "local_declaration_statement")
+            if (curr.IsAny(TreeSitterSyntax.CSharp.FieldDeclaration, TreeSitterSyntax.CSharp.LocalDeclarationStatement))
             {
                 foreach (var child in curr.Children)
                 {
-                    if (child.Type is "const" or "readonly" || child.Text is "const" or "readonly")
+                    if (child.IsAny(TreeSitterSyntax.CSharp.Const, TreeSitterSyntax.CSharp.Readonly) || child.Text is "const" or "readonly")
                         return true;
                 }
             }
@@ -322,11 +319,11 @@ public class CSharpParser : IProjectParser, IFileParser
     private static string DetermineCSharpScope(Node node)
     {
         var curr = node.Parent;
-        while (curr != null && curr.Id != IntPtr.Zero)
+        while (curr.IsValid())
         {
-            if (curr.Type is "class_declaration" or "struct_declaration" or "record_declaration" or "interface_declaration")
+            if (curr.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.InterfaceDeclaration))
                 return "class";
-            if (curr.Type is "method_declaration" or "local_function_statement" or "block" or "constructor_declaration")
+            if (curr.IsAny(TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement, TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.ConstructorDeclaration))
                 return "local";
             curr = curr.Parent;
         }

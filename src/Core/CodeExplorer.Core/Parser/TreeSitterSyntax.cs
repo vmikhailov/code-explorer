@@ -36,6 +36,7 @@ public static class TreeSitterSyntax
         public const string AssignmentExpression = "assignment_expression";
         public const string BinaryExpression = "binary_expression";
         public const string Comment = "comment";
+        public const string FunctionDeclaration = "function_declaration";
     }
 
     public static class CSharp
@@ -63,6 +64,7 @@ public static class TreeSitterSyntax
         public const string InterpolatedVerbatimStringExpression = "interpolated_verbatim_string_expression";
         public const string InterpolatedRawStringExpression = "interpolated_raw_string_expression";
         public const string StringLiteral = "string_literal";
+        public const string VerbatimStringLiteral = "verbatim_string_literal";
         public const string EqualsValueClause = "equals_value_clause";
         public const string UsingStatement = "using_statement";
         public const string UsingDirective = "using_directive";
