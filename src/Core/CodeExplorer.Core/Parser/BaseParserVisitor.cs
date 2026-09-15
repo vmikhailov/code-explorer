@@ -7,6 +7,7 @@ namespace CodeExplorer.Core.Parser;
 public abstract class BaseParserVisitor : TreeSitterAstVisitor
 {
     protected readonly List<ILibraryParser> LibraryParsers;
+    protected readonly LanguageSyntaxProfile Profile;
 
     public string RelativePath { get; }
     public string AbsoluteWorkspacePath { get; }
@@ -62,6 +63,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         AbsoluteWorkspacePath = absoluteWorkspacePath;
         FileParser = fileParser;
         LibraryRegistry = libraryRegistry;
+        Profile = fileParser.SyntaxProfile ?? LanguageSyntaxProfile.Empty;
         RootSymbol = new SyntacticSymbol("file", "root", rootNode);
         SymbolStack.Push(RootSymbol);
     }
@@ -122,124 +124,70 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected virtual void Dispatch(Node node, int depth)
     {
-        // Union of all string/literal node types
-        if (node.IsAny(TreeSitterSyntax.Common.String,
-                       TreeSitterSyntax.TypeScript.TemplateString,
-                       TreeSitterSyntax.Common.StringLiteral,
-                       TreeSitterSyntax.Go.InterpretedStringLiteral,
-                       TreeSitterSyntax.Go.RawStringLiteral,
-                       TreeSitterSyntax.Java.StringLiteral,
-                       TreeSitterSyntax.Java.TextBlock)
-            || (node.Type.Contains("string")
-                && !node.IsAny(TreeSitterSyntax.CSharp.InterpolatedStringExpression,
-                               TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
-                               TreeSitterSyntax.CSharp.InterpolatedRawStringExpression)))
+        var type = node.Type;
+
+        if (Profile.StringLiterals.Contains(type)
+            || (type.Contains("string") && !Profile.ExcludedStringInterpolations.Contains(type)))
         {
             VisitStringLiteral(node, depth);
             return;
         }
 
-        switch (node.Type)
+        if (Profile.ClassDeclarations.Contains(type))
         {
-            // Class Declarations
-            case TreeSitterSyntax.CSharp.ClassDeclaration:
-            case TreeSitterSyntax.TypeScript.ClassExpression:
-            case TreeSitterSyntax.CSharp.EnumDeclaration:
-            case TreeSitterSyntax.CSharp.StructDeclaration:
-            case TreeSitterSyntax.CSharp.RecordDeclaration:
-            case TreeSitterSyntax.Python.ClassDefinition:
-            case TreeSitterSyntax.Java.AnnotationTypeDeclaration:
-                VisitClassDeclaration(node, depth);
-                break;
-
-            // Interface Declarations
-            case TreeSitterSyntax.CSharp.InterfaceDeclaration:
-            case TreeSitterSyntax.TypeScript.TypeAliasDeclaration:
-                VisitInterfaceDeclaration(node, depth);
-                break;
-
-            // Method Declarations
-            case TreeSitterSyntax.TypeScript.MethodDefinition:
-            case TreeSitterSyntax.CSharp.MethodDeclaration:
-            case TreeSitterSyntax.CSharp.ConstructorDeclaration:
-            case TreeSitterSyntax.CSharp.LocalFunctionStatement:
-            case TreeSitterSyntax.Java.CompactConstructorDeclaration:
-                VisitMethodDeclaration(node, depth);
-                break;
-
-            // Function Declarations
-            case TreeSitterSyntax.TypeScript.FunctionDeclaration:
-            case TreeSitterSyntax.TypeScript.FunctionExpression:
-            case TreeSitterSyntax.TypeScript.ArrowFunction:
-            case TreeSitterSyntax.Python.FunctionDefinition:
-                VisitFunctionDeclaration(node, depth);
-                break;
-
-            // Variable/Field Declarations
-            case TreeSitterSyntax.CSharp.VariableDeclarator:
-            case TreeSitterSyntax.TypeScript.PublicFieldDefinition:
-            case TreeSitterSyntax.TypeScript.PropertyDefinition:
-            case TreeSitterSyntax.CSharp.PropertyDeclaration:
-            case TreeSitterSyntax.CSharp.VariableDeclaration:
-            case TreeSitterSyntax.Go.ConstSpec:
-            case TreeSitterSyntax.Go.VarSpec:
-            case TreeSitterSyntax.CSharp.FieldDeclaration:
-            case TreeSitterSyntax.Go.ShortVarDeclaration:
-            case TreeSitterSyntax.Python.Assignment:
-            case TreeSitterSyntax.Python.Parameters:
-            case TreeSitterSyntax.Python.Pattern:
-            case TreeSitterSyntax.Java.ConstantDeclaration:
-            case TreeSitterSyntax.Java.LocalVariableDeclaration:
-                VisitVariableDeclaration(node, depth);
-                break;
-
-            // Parameters
-            case TreeSitterSyntax.CSharp.Parameter:
-            case TreeSitterSyntax.Go.ParameterDeclaration:
-            case TreeSitterSyntax.TypeScript.RequiredParameter:
-            case TreeSitterSyntax.TypeScript.OptionalParameter:
-            case TreeSitterSyntax.TypeScript.ParameterProperty:
-            case TreeSitterSyntax.Java.FormalParameter:
-            case TreeSitterSyntax.Java.SpreadParameter:
-            case TreeSitterSyntax.Java.ReceiverParameter:
-                VisitParameter(node, depth);
-                break;
-
-            // Imports & Packages
-            case TreeSitterSyntax.TypeScript.ImportStatement:
-            case TreeSitterSyntax.Python.ImportFromStatement:
-            case TreeSitterSyntax.CSharp.UsingDirective:
-            case TreeSitterSyntax.Go.ImportSpec:
-            case TreeSitterSyntax.Java.ImportDeclaration:
-            case TreeSitterSyntax.Java.PackageDeclaration:
-                VisitImportStatement(node, depth);
-                break;
-
-            // Call Expressions
-            case TreeSitterSyntax.Common.CallExpression:
-            case TreeSitterSyntax.CSharp.InvocationExpression:
-            case TreeSitterSyntax.Python.Call:
-            case TreeSitterSyntax.Java.MethodInvocation:
-            case TreeSitterSyntax.Java.ObjectCreationExpression:
-            case TreeSitterSyntax.Java.ExplicitConstructorInvocation:
-            case TreeSitterSyntax.Java.SuperConstructorInvocation:
-                VisitCallExpression(node, depth);
-                break;
-
-            // Inheritance Clauses
-            case TreeSitterSyntax.TypeScript.ExtendsClause:
-            case TreeSitterSyntax.TypeScript.ImplementsClause:
-            case TreeSitterSyntax.CSharp.BaseList:
-            case TreeSitterSyntax.Java.Superclass:
-            case TreeSitterSyntax.Java.SuperInterfaces:
-            case TreeSitterSyntax.Java.ExtendsInterfaces:
-                VisitInheritanceClause(node, depth);
-                break;
-
-            default:
-                VisitDefault(node, depth);
-                break;
+            VisitClassDeclaration(node, depth);
+            return;
         }
+
+        if (Profile.InterfaceDeclarations.Contains(type))
+        {
+            VisitInterfaceDeclaration(node, depth);
+            return;
+        }
+
+        if (Profile.MethodDeclarations.Contains(type))
+        {
+            VisitMethodDeclaration(node, depth);
+            return;
+        }
+
+        if (Profile.FunctionDeclarations.Contains(type))
+        {
+            VisitFunctionDeclaration(node, depth);
+            return;
+        }
+
+        if (Profile.VariableDeclarations.Contains(type))
+        {
+            VisitVariableDeclaration(node, depth);
+            return;
+        }
+
+        if (Profile.Parameters.Contains(type))
+        {
+            VisitParameter(node, depth);
+            return;
+        }
+
+        if (Profile.Imports.Contains(type))
+        {
+            VisitImportStatement(node, depth);
+            return;
+        }
+
+        if (Profile.Calls.Contains(type))
+        {
+            VisitCallExpression(node, depth);
+            return;
+        }
+
+        if (Profile.Inheritance.Contains(type))
+        {
+            VisitInheritanceClause(node, depth);
+            return;
+        }
+
+        VisitDefault(node, depth);
     }
 
     protected string? MapNodeTypeUsingLibraries(Node node)

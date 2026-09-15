@@ -45,4 +45,9 @@ public interface IFileParser
     /// The library-specific parsers registered for this language.
     /// </summary>
     IReadOnlyList<ILibraryParser> LibraryParsers { get; }
+
+    /// <summary>
+    /// The language syntax classification profile for AST traversal.
+    /// </summary>
+    LanguageSyntaxProfile SyntaxProfile => LanguageSyntaxProfile.Empty;
 }

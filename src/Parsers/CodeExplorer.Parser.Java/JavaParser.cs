@@ -60,6 +60,8 @@ public class JavaParser : IProjectParser, IFileParser
 
     public bool UsesTreeSitter => true;
 
+    public LanguageSyntaxProfile SyntaxProfile => JavaSyntaxProfile.Instance;
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".java", StringComparison.OrdinalIgnoreCase);

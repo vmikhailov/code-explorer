@@ -62,6 +62,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new GenericLibraryParser("urllib", "urllib", "api", ["urllib"]),
     ];
 
+    public bool UsesTreeSitter => true;
+
+    public LanguageSyntaxProfile SyntaxProfile => TypeScriptSyntaxProfile.Instance;
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
@@ -197,7 +201,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
     }
 
-    public bool UsesTreeSitter => true;
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');

@@ -54,6 +54,10 @@ public class GoParser : IProjectParser, IFileParser
         new GenericLibraryParser("surf", "surf", "api", ["github.com/go-surf/surf"]),
     ];
 
+    public bool UsesTreeSitter => true;
+
+    public LanguageSyntaxProfile SyntaxProfile => GoSyntaxProfile.Instance;
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".go", StringComparison.OrdinalIgnoreCase);
@@ -185,7 +189,6 @@ public class GoParser : IProjectParser, IFileParser
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
     }
 
-    public bool UsesTreeSitter => true;
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');

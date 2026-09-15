@@ -48,6 +48,8 @@ public class CSharpParser : IProjectParser, IFileParser
         new GenericLibraryParser("notoriousclient", "NotoriousClient", "api", ["NotoriousClient"]),
     ];
 
+    public LanguageSyntaxProfile SyntaxProfile => CSharpSyntaxProfile.Instance;
+
     public CSharpParser()
     {
     }

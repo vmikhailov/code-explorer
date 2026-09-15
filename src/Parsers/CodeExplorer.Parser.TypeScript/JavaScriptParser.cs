@@ -12,6 +12,10 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyList<ILibraryParser> LibraryParsers => _tsParser.LibraryParsers;
 
+    public bool UsesTreeSitter => true;
+
+    public LanguageSyntaxProfile SyntaxProfile => TypeScriptSyntaxProfile.Instance;
+
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
@@ -129,8 +133,6 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
     }
-
-    public bool UsesTreeSitter => true;
 
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
