@@ -1,14 +1,14 @@
-dot# CodeExplorer (`ce`) 🔍
+# CodeExplorer (`ce`) 🔍
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
-[![Platforms: Windows | Linux | macOS](https://img.shields.io/badge/Platforms-Win%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#-single-file-self-contained-binaries)
+[![NuGet](https://img.shields.io/nuget/v/CodeExplorer.Cli.svg)](https://www.nuget.org/packages/CodeExplorer.Cli)
 
 **CodeExplorer (`ce`)** is a fast, single-file CLI and Model Context Protocol (MCP) server for deep codebase intelligence. It transforms polyglot repositories into a rich, queryable knowledge graph stored in an **embedded SQLite graph database** (with native Cypher query compilation) — with zero external dependencies, no Docker containers, and no complex configuration.
 
 With `ce`, both developers and AI agents (Claude, Cursor, Copilot, ChatGPT, Antigravity) can perform architectural discovery, trace cross-service dependency topologies, analyze refactoring blast radiuses, and run Cypher graph queries directly from their terminal or editor.
 
-![Codebase Ontology Graph Example](docs/graph-example.png)
+![Codebase Ontology Graph Example](https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/graph-example.png)
 
 ---
 
