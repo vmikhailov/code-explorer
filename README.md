@@ -114,12 +114,12 @@ CodeExplorer (`ce`) is distributed as a **zero-dependency, single-file self-cont
 
 **macOS & Linux (Bash / Zsh):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/master/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell as Administrator or User):**
 ```powershell
-irm https://raw.githubusercontent.com/vmikhailov/code-explorer/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/scripts/install.ps1 | iex
 ```
 
 ---
