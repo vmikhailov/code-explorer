@@ -58,14 +58,15 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
     *   **Python** (`.py`)
     *   **SQL & Embedded SQL** (`.sql` scripts, and inline SQL queries in C#, Java, JS, TS, Python, Go)
 *   **Rich Structural Ontology**: Maps codebases across a 5-layer decoupled graph architecture (see [Ontology Model](docs/architecture/ontology-model.md) and [Live Schema Reference](docs/ontology.md)):
-    *   *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `go.mod`, `package.json`), folders, files, and git topology.
+    *   *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `pom.xml`, `build.gradle`, `go.mod`, `package.json`), folders, files, configuration files (`appsettings.json`, `application.properties`/`.yml`, `docker-compose.yml`, `.env`), and git topology.
     *   *Project Layer (Layer 2)*: Logical compilation units, project boundaries, and package dependencies.
     *   *Syntactic Layer (Layer 3)*: Classes, interfaces, methods, functions, structs, fields, and calls.
-    *   *Semantic Layer (Layer 4)*: Ingress (API endpoints, controllers, event handlers), Egress (HTTP clients, RPC callers), databases, tables, and message queues.
-    *   *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, and service-to-service links.
+    *   *Semantic Layer (Layer 4)*: Ingress endpoints (REST, gRPC, GraphQL, WebSocket) with security boundaries (`roles`, `policies`, `is_anonymous`), Egress callers, Code-First ORM entities (EF Core, JPA, TypeORM) mapped to `:Table` nodes, and message queues.
+    *   *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, service-to-service links, and CQRS / Event pipelines (MediatR, Spring Events, NestJS CQRS).
 *   **Built-in & Custom Query Catalog**:
-    *   **21 Built-in Queries**: Architecture maps, entry points, dependencies, refactoring (dead code, god objects), symbol lookup, and graph taxonomy.
+    *   **22 Built-in Queries**: Architecture maps, entry points, dependencies, CQRS pipelines, refactoring (dead code, god objects), symbol lookup, and graph taxonomy.
     *   **Extensible Domain Queries**: Save custom queries in `.codeexplorer/queries/*.cypher` with companion `.json` metadata sidecars, automatically available to CLI and AI agents.
+*   **Automated Diagram Generation (Mermaid & C4)**: Export high-level architecture maps, container diagrams, ORM data lineage, and event pipelines with `ce export` or through MCP.
 *   **Model Context Protocol (MCP) Server**:
     *   **stdio mode** (default): Seamless integration with Cursor, Claude Desktop, VS Code, Windsurf, and Antigravity.
     *   **HTTP mode** (`--port <p>`): Exposes standard MCP endpoint at `/mcp` with SSE streaming.
@@ -360,10 +361,13 @@ This repository uses **CodeExplorer (`ce`)** as an embedded SQLite codebase know
 
 3. **Refactoring & Blast Radius Analysis**:
    - Before modifying or deleting a symbol, class, or method, call `analyze_code_impact` with `symbolName` to identify all downstream files and callers affected.
-   - Before altering database queries or schema models, call `inspect_data_lineage` with `tableName` to trace all queries and functions accessing that table.
+   - Before altering database queries or schema models, call `inspect_data_lineage` with `tableName` to trace all queries, ORM entities, and functions accessing that table.
    - Call `find_refactoring_opportunities` with `projectName` to detect unreferenced dead code or high-coupling god objects.
 
-4. **Multi-Hop Graph Queries (Custom Cypher)**:
+4. **Diagram Generation & Event Tracing**:
+   - Call `export_architecture_diagram` with `format: "mermaid"` or `"c4"` and `type: "architecture"` | `"lineage"` | `"cqrs"` to generate visual topology diagrams.
+
+5. **Multi-Hop Graph Queries (Custom Cypher)**:
    - Use `execute_custom_read_cypher` to execute read-only `MATCH` queries for complex questions (e.g. cross-project dependency paths, unreferenced interfaces, or circular references).
    - Use `list_project_queries` to inspect saved workspace domain queries, and `execute_project_query` to run them.
    - Run `get_taxonomy` or `get_node_definition` if you need schema details for any graph node or relationship kind.
@@ -386,6 +390,7 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 | `resolve_call_target` | `interfaceName`, `methodName` | Find all concrete classes implementing an interface and point to physical method implementations. |
 | `analyze_code_impact` | `symbolName` | Downstream blast-radius analysis tracking all files and symbols affected by modifying a symbol. |
 | `inspect_data_lineage` | `tableName` | Trace database entity blast radius: SQL queries, functions, and files referencing a table. |
+| `export_architecture_diagram` | `format` (opt), `type` (opt), `projectName` (opt) | Generate visual architecture, ORM data lineage, or CQRS/Saga event diagrams in Mermaid or C4 PlantUML. |
 | `get_project_entry_points` | `projectName` | Find architectural entry points (API controllers, HTTP routes, CLI commands, event handlers). |
 | `find_refactoring_opportunities` | `projectName`, `metricType` | Detect dead code, unreferenced symbols, and god objects with high coupling. |
 | `list_project_queries` | None | Discover custom parameterized project queries saved in `.codeexplorer/queries/`. |
