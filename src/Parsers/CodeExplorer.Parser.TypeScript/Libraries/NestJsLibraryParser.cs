@@ -10,7 +10,7 @@ public class NestJsLibraryParser : ILibraryParser
     public string Name => "NestJS";
     public string Id => "nestjs";
     public string Type => "framework";
-    public IReadOnlyList<string> SupportedPatterns => ["@nestjs/common", "@nestjs/core", "@nestjs/microservices", "@nestjs/websockets"];
+    public IReadOnlyList<string> SupportedPatterns => ["@nestjs/common", "@nestjs/core", "@nestjs/microservices", "@nestjs/websockets", "@nestjs/graphql"];
     public bool IsImplemented => true;
 
     private static readonly NodeSelector _decoratorEntryPointSelector = NodeSelector.New()
@@ -18,7 +18,7 @@ public class NestJsLibraryParser : ILibraryParser
         .FirstChild
         .HasType("call_expression")
         .GetChildForField("function")
-        .Text("Controller|Get|Post|Put|Delete|Patch|SubscribeMessage");
+        .Text("Controller|Get|Post|Put|Delete|Patch|SubscribeMessage|Query|Mutation|Subscription|GrpcMethod|GrpcStreamMethod");
 
     private static readonly NodeSelector _decoratorCallFunctionSelector = NodeSelector.New()
         .FirstChild
@@ -44,9 +44,49 @@ public class NestJsLibraryParser : ILibraryParser
 
             var name = func.Text;
             var callExpr = node.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
-            var routeVal = AstHelper.ExtractFirstStringArgument(callExpr) ?? "/";
+            var routeVal = AstHelper.ExtractFirstStringArgument(callExpr) ?? "";
 
-            if (name == "SubscribeMessage") return $"ws:{routeVal}";
+            if (name == "SubscribeMessage") return $"ws:{routeVal.TrimStart('/')}";
+            if (name is "Query" or "Mutation" or "Subscription")
+            {
+                var opType = name.ToUpperInvariant();
+                var opName = string.IsNullOrEmpty(routeVal) ? GetMethodNameForNode(node) : routeVal;
+                return $"{opType}:{opName}";
+            }
+            if (name is "GrpcMethod" or "GrpcStreamMethod")
+            {
+                var args = new List<string>();
+                if (callExpr.IsValid())
+                {
+                    var argsNode = callExpr.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+                    if (argsNode.IsValid())
+                    {
+                        foreach (var arg in argsNode.Children)
+                        {
+                            if (arg.Type.Contains("string"))
+                            {
+                                var text = arg.Text.Trim('\'', '"', '`');
+                                if (!string.IsNullOrEmpty(text)) args.Add(text);
+                            }
+                        }
+                    }
+                }
+
+                string rpcName;
+                if (args.Count >= 2)
+                {
+                    rpcName = $"/{args[0]}/{args[1]}";
+                }
+                else if (args.Count == 1)
+                {
+                    rpcName = args[0];
+                }
+                else
+                {
+                    rpcName = GetMethodNameForNode(node);
+                }
+                return $"RPC:{rpcName}";
+            }
 
             if (name != "Controller")
             {
@@ -57,6 +97,7 @@ public class NestJsLibraryParser : ILibraryParser
                 }
             }
 
+            if (string.IsNullOrEmpty(routeVal)) routeVal = "/";
             if (!routeVal.StartsWith("/"))
             {
                 routeVal = "/" + routeVal;
@@ -65,6 +106,42 @@ public class NestJsLibraryParser : ILibraryParser
             return $"{(name == "Controller" ? "GET" : name.ToUpperInvariant())}:{routeVal}";
         }
         return null;
+    }
+
+    private static string GetMethodNameForNode(Node node)
+    {
+        var parent = node.Parent;
+        if (parent.IsValid())
+        {
+            var children = parent.Children.ToList();
+            var idx = children.FindIndex(c => c.Id == node.Id);
+            if (idx >= 0)
+            {
+                for (int i = idx + 1; i < children.Count; i++)
+                {
+                    if (children[i].Is(TreeSitterSyntax.TypeScript.MethodDefinition))
+                    {
+                        var nameNode = children[i].GetField(TreeSitterSyntax.Fields.Name)
+                                       ?? children[i].FindChildOfType(TreeSitterSyntax.TypeScript.PropertyIdentifier);
+                        if (nameNode.IsValid()) return nameNode.Text;
+                    }
+                    if (!children[i].Is(TreeSitterSyntax.TypeScript.Decorator)) break;
+                }
+            }
+        }
+
+        var p = node.Parent;
+        while (p.IsValid())
+        {
+            if (p.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
+            {
+                var nameNode = p.GetField(TreeSitterSyntax.Fields.Name)
+                               ?? p.FindChildOfType(TreeSitterSyntax.TypeScript.PropertyIdentifier);
+                if (nameNode.IsValid()) return nameNode.Text;
+            }
+            p = p.Parent;
+        }
+        return "anonymous";
     }
 
     private static string CombineRoutes(string prefix, string route)
@@ -156,6 +233,7 @@ public class NestJsLibraryParser : ILibraryParser
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
         var decorators = new List<Node>();
+        Node? methodNode = null;
 
         if (node.Is(TreeSitterSyntax.TypeScript.Decorator))
         {
@@ -163,7 +241,6 @@ public class NestJsLibraryParser : ILibraryParser
             var parent = node.Parent;
             if (parent.IsValid())
             {
-                // Find all sibling decorators
                 var children = parent.Children.ToList();
                 var idx = children.FindIndex(c => c.Id == node.Id);
                 if (idx >= 0)
@@ -173,16 +250,43 @@ public class NestJsLibraryParser : ILibraryParser
                         if (children[i].Is(TreeSitterSyntax.TypeScript.Decorator))
                             decorators.Add(children[i]);
                     }
+
+                    for (int i = idx + 1; i < children.Count; i++)
+                    {
+                        if (children[i].Is(TreeSitterSyntax.TypeScript.MethodDefinition))
+                        {
+                            methodNode = children[i];
+                            break;
+                        }
+                        if (!children[i].Is(TreeSitterSyntax.TypeScript.Decorator))
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (methodNode == null)
+            {
+                var p = node.Parent;
+                while (p.IsValid())
+                {
+                    if (p.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
+                    {
+                        methodNode = p;
+                        break;
+                    }
+                    p = p.Parent;
                 }
             }
         }
         else if (node.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
         {
+            methodNode = node;
             decorators.AddRange(GetPrecedingDecorators(node));
             decorators.AddRange(node.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
         }
 
-        // Also look at class-level decorators
         var classDecl = node;
         while (classDecl.IsValid() && !classDecl.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
         {
@@ -229,11 +333,99 @@ public class NestJsLibraryParser : ILibraryParser
             else if (decName is "Resolver" or "Query" or "Mutation" or "Subscription")
             {
                 symbol.Protocol = "GraphQL";
+                symbol.OperationType = decName switch
+                {
+                    "Mutation" => "Mutation",
+                    "Subscription" => "Subscription",
+                    _ => "Query"
+                };
             }
             else if (decName is "GrpcMethod" or "GrpcStreamMethod")
             {
                 symbol.Protocol = "gRPC";
+                symbol.OperationType = decName == "GrpcStreamMethod" ? "ServerStreaming" : "Unary";
+            }
+            else if (decName is "SubscribeMessage")
+            {
+                symbol.Protocol = null;
+            }
+            else if (decName is "Get" or "Post" or "Put" or "Delete" or "Patch")
+            {
+                symbol.Protocol = "REST";
+            }
+            else if (decName is "Controller" && !symbol.Name.StartsWith("ws:"))
+            {
+                symbol.Protocol = "REST";
             }
         }
+
+        if (methodNode != null && methodNode.IsValid())
+        {
+            ExtractTypeScriptPayloadSchemas(methodNode, symbol);
+        }
+    }
+
+    private static void ExtractTypeScriptPayloadSchemas(Node methodNode, SyntacticSymbol symbol)
+    {
+        // Response Type: find return type annotation
+        var typeAnnot = methodNode.GetField(TreeSitterSyntax.Fields.Return)
+                        ?? methodNode.FindChildOfType(TreeSitterSyntax.TypeScript.TypeAnnotation);
+        if (typeAnnot.IsValid())
+        {
+            var ret = CleanTypeScriptTypeName(typeAnnot.Text.TrimStart(':').Trim());
+            if (!string.IsNullOrEmpty(ret) && ret != "void" && ret != "Promise" && ret != "Observable")
+            {
+                symbol.ResponseType = ret;
+            }
+        }
+
+        // Request Type: find @Body() or parameters
+        var paramsNode = methodNode.GetField(TreeSitterSyntax.Fields.Parameters);
+        if (paramsNode.IsValid())
+        {
+            foreach (var param in paramsNode.Children)
+            {
+                if (param.Type.Contains("parameter") || param.Type.Contains("identifier"))
+                {
+                    var isBody = param.Text.Contains("@Body");
+                    var pAnnot = param.FindChildOfType(TreeSitterSyntax.TypeScript.TypeAnnotation);
+                    if (pAnnot.IsValid())
+                    {
+                        var pType = CleanTypeScriptTypeName(pAnnot.Text.TrimStart(':').Trim());
+                        if (isBody || (!IsTypeScriptPrimitive(pType) && symbol.RequestType == null))
+                        {
+                            symbol.RequestType = pType;
+                            if (isBody) break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static string CleanTypeScriptTypeName(string rawType)
+    {
+        if (string.IsNullOrWhiteSpace(rawType)) return "";
+        var type = rawType.Trim();
+        while (true)
+        {
+            var genericIdx = type.IndexOf('<');
+            if (genericIdx > 0 && type.EndsWith('>'))
+            {
+                var outer = type.Substring(0, genericIdx).Trim();
+                if (outer is "Promise" or "Observable" or "Array" or "Partial" or "Readonly")
+                {
+                    type = type.Substring(genericIdx + 1, type.Length - genericIdx - 2).Trim();
+                    continue;
+                }
+            }
+            break;
+        }
+        return type;
+    }
+
+    private static bool IsTypeScriptPrimitive(string type)
+    {
+        return type is "string" or "number" or "boolean" or "any" or "unknown" or "void" or "null" or "undefined" or "never" or "object" or "Record<string, any>" or "Request" or "Response";
     }
 }

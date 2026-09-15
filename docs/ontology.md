@@ -637,6 +637,9 @@ graph TD
 | `IsAnonymous` | `bool` | Whether endpoint allows unauthenticated anonymous access. |
 | `RequiredRoles` | `string?` | Comma-separated required roles or permissions. |
 | `Policies` | `string?` | Authorization policies guarding the endpoint. |
+| `RequestType` | `string?` | The request payload type (e.g. StartRideRequest, CreateOrderDto). |
+| `ResponseType` | `string?` | The response payload type (e.g. RideDto, OrderResponse). |
+| `OperationType` | `string?` | The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming). |
 
 ---
 

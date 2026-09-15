@@ -294,14 +294,18 @@ public class Layer3SyntacticParser
         else if (kind == OntologyConstants.NodeLabels.EntryPoint)
         {
             var colonIdx = name.IndexOf(':');
-            var isHttp = false;
+            var isEndpoint = false;
             if (colonIdx > 0)
             {
                 var method = name.Substring(0, colonIdx).ToUpperInvariant();
-                isHttp = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD";
+                isEndpoint = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD" or "GRAPHQL" or "RPC" or "GRPC" or "QUERY" or "MUTATION" or "SUBSCRIPTION";
+            }
+            if (syntactic.Protocol is "GraphQL" or "gRPC" or "REST")
+            {
+                isEndpoint = true;
             }
 
-            if (isHttp)
+            if (isEndpoint)
             {
                 typedNode = CreateEndpointNode(name, node, relativePath, workspaceId, syntactic);
             }
@@ -347,10 +351,14 @@ public class Layer3SyntacticParser
         SyntacticSymbol? syntactic = null)
     {
         var idx = name.IndexOf(':');
-        var method = name.Substring(0, idx).ToUpperInvariant();
-        var route = name.Substring(idx + 1);
+        var method = idx > 0 ? name.Substring(0, idx).ToUpperInvariant() : (syntactic?.Protocol == "gRPC" ? "RPC" : "GET");
+        var route = idx > 0 ? name.Substring(idx + 1) : name;
 
-        var protocol = syntactic?.Protocol ?? (method is "RPC" ? "gRPC" : (method is "GRAPHQL" ? "GraphQL" : "REST"));
+        var protocol = syntactic?.Protocol ?? (method is "RPC" or "GRPC" ? "gRPC" : (method is "GRAPHQL" or "QUERY" or "MUTATION" or "SUBSCRIPTION" ? "GraphQL" : "REST"));
+        var operationType = syntactic?.OperationType ?? (protocol == "GraphQL"
+            ? (method is "MUTATION" ? "Mutation" : (method is "SUBSCRIPTION" ? "Subscription" : "Query"))
+            : (protocol == "gRPC" ? "Unary" : null));
+
         var endpointId = $"{workspaceId}:endpoint:{method}:{route}";
         return new EndpointNode(
             endpointId,
@@ -361,7 +369,10 @@ public class Layer3SyntacticParser
             protocol,
             syntactic?.IsAnonymous ?? false,
             syntactic?.RequiredRoles,
-            syntactic?.Policies);
+            syntactic?.Policies,
+            syntactic?.RequestType,
+            syntactic?.ResponseType,
+            operationType);
     }
 
     private static EntryPointNode CreateEntryPointNode(

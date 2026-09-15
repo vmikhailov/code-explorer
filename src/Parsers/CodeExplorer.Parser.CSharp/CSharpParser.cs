@@ -31,6 +31,8 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.StackExchangeRedisLibraryParser(),
         new Libraries.Neo4jDriverLibraryParser(),
         new Libraries.AspNetCoreLibraryParser(),
+        new Libraries.HotChocolateLibraryParser(),
+        new Libraries.GrpcCSharpLibraryParser(),
         new Libraries.MassTransitLibraryParser(),
         new Libraries.MediatRLibraryParser(),
 

@@ -8,5 +8,11 @@ RETURN coalesce(func.name, ep.name) AS entryPoint,
        coalesce(class.name, '') AS className,
        coalesce(f.path, '') AS filePath,
        coalesce(func.start_line, 0) AS startLine,
-       coalesce(ep.route, '') AS route,
-       coalesce(ep.http_method, '') AS httpMethod
+       coalesce(ep.route, ep.route_template, '') AS route,
+       coalesce(ep.http_method, '') AS httpMethod,
+       coalesce(ep.protocol, 'REST') AS protocol,
+       coalesce(ep.request_type, '') AS requestType,
+       coalesce(ep.response_type, '') AS responseType,
+       coalesce(ep.operation_type, '') AS operationType,
+       coalesce(ep.is_anonymous, false) AS isAnonymous,
+       coalesce(ep.required_roles, '') AS requiredRoles

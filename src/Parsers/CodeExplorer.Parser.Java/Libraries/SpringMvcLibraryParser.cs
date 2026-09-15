@@ -115,6 +115,8 @@ public class SpringMvcLibraryParser : ILibraryParser
 
             if (targetDecl.IsValid() && targetDecl.Is(TreeSitterSyntax.Java.MethodDeclaration))
             {
+                ExtractJavaPayloadSchemas(targetDecl, symbol);
+
                 var classDecl = targetDecl.Parent;
                 while (classDecl.IsValid())
                 {
@@ -127,6 +129,66 @@ public class SpringMvcLibraryParser : ILibraryParser
                 }
             }
         }
+    }
+
+    private static void ExtractJavaPayloadSchemas(Node methodDecl, SyntacticSymbol symbol)
+    {
+        var typeNode = methodDecl.GetField(TreeSitterSyntax.Fields.Type);
+        if (typeNode.IsValid())
+        {
+            var ret = CleanJavaTypeName(typeNode.Text);
+            if (!string.IsNullOrEmpty(ret) && ret != "void")
+            {
+                symbol.ResponseType = ret;
+            }
+        }
+
+        var paramList = methodDecl.GetField(TreeSitterSyntax.Fields.Parameters);
+        if (paramList.IsValid())
+        {
+            foreach (var param in paramList.Children)
+            {
+                if (!param.Type.Contains("formal_parameter")) continue;
+
+                var isRequestBody = param.Text.Contains("@RequestBody") || param.Text.Contains("@ModelAttribute");
+                var pType = param.GetField(TreeSitterSyntax.Fields.Type);
+                if (pType.IsValid())
+                {
+                    var pTypeName = CleanJavaTypeName(pType.Text);
+                    if (isRequestBody || (!IsJavaPrimitiveOrSystemType(pTypeName) && symbol.RequestType == null))
+                    {
+                        symbol.RequestType = pTypeName;
+                        if (isRequestBody) break;
+                    }
+                }
+            }
+        }
+    }
+
+    private static string CleanJavaTypeName(string rawType)
+    {
+        if (string.IsNullOrWhiteSpace(rawType)) return "";
+        var type = rawType.Trim();
+        while (true)
+        {
+            var genericIdx = type.IndexOf('<');
+            if (genericIdx > 0 && type.EndsWith('>'))
+            {
+                var outer = type.Substring(0, genericIdx).Trim();
+                if (outer is "ResponseEntity" or "CompletableFuture" or "Mono" or "Flux" or "List" or "Set" or "Collection" or "Optional" or "HttpEntity")
+                {
+                    type = type.Substring(genericIdx + 1, type.Length - genericIdx - 2).Trim();
+                    continue;
+                }
+            }
+            break;
+        }
+        return type;
+    }
+
+    private static bool IsJavaPrimitiveOrSystemType(string type)
+    {
+        return type is "int" or "long" or "String" or "boolean" or "double" or "float" or "byte" or "short" or "char" or "Integer" or "Long" or "Boolean" or "Double" or "Float" or "UUID" or "Date" or "Instant" or "LocalDate" or "LocalDateTime" or "HttpServletRequest" or "HttpServletResponse" or "Principal" or "Authentication" or "HttpSession" or "Object";
     }
 
     private static void EnrichFromJavaAnnotations(Node targetDecl, SyntacticSymbol symbol)

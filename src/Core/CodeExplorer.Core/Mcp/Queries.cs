@@ -46,6 +46,9 @@ public static class Queries
         ["get_project_dependencies_filtered"] = ("Project dependencies filtered by source/target project", "Architecture"),
         ["get_workspace_content"] = ("Structural breakdown of projects, folders, and files in workspace", "Architecture"),
 
+        ["trace_cqrs_pipeline"] = ("Trace CQRS command/query handlers, event producers, message topics, and consumer subscribers", "Architecture"),
+        ["trace_ingress_to_egress"] = ("Trace gateway ingress entry points through internal call paths to downstream egress microservices and APIs", "Architecture"),
+
         ["find_refactor_dead_code"] = ("Detect unreferenced/dead functions, classes, and types", "Refactoring"),
         ["find_refactor_god_objects"] = ("Detect classes with excessive coupling and complexity", "Refactoring"),
         ["analyze_code_impact"] = ("Analyze downstream blast radius / impact of changing a symbol or file", "Refactoring"),

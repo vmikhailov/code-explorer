@@ -22,6 +22,8 @@ public class JavaParser : IProjectParser, IFileParser
     public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.SpringMvcLibraryParser(),
+        new Libraries.SpringGraphQlLibraryParser(),
+        new Libraries.GrpcJavaLibraryParser(),
         new Libraries.SpringEventsLibraryParser(),
         new Libraries.JpaLibraryParser(),
         new Libraries.JdbcTemplateLibraryParser(),

@@ -64,6 +64,8 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
             if (parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
             {
+                ExtractPayloadSchemas(parentDecl, symbol);
+
                 var classDecl = parentDecl.Parent;
                 while (classDecl.IsValid())
                 {
@@ -76,6 +78,83 @@ public class AspNetCoreLibraryParser : ILibraryParser
                 }
             }
         }
+    }
+
+    private static void ExtractPayloadSchemas(Node methodDecl, SyntacticSymbol symbol)
+    {
+        var typeNode = methodDecl.GetField("returns")
+                       ?? methodDecl.GetField(TreeSitterSyntax.Fields.Type)
+                       ?? methodDecl.GetField("return_type")
+                       ?? methodDecl.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, "predefined_type", "nullable_type", "generic_name", "type_identifier"));
+        if (typeNode.IsValid())
+        {
+            var returnTypeText = CleanTypeName(typeNode.Text);
+            if (!string.IsNullOrEmpty(returnTypeText) && returnTypeText != "void" && returnTypeText != "Task" && returnTypeText != "ValueTask" && returnTypeText != "IActionResult" && returnTypeText != "IResult")
+            {
+                symbol.ResponseType = returnTypeText;
+            }
+        }
+
+        var paramList = methodDecl.GetField(TreeSitterSyntax.Fields.Parameters)
+                        ?? methodDecl.FindChildOfType(TreeSitterSyntax.CSharp.ParameterList);
+        if (paramList.IsValid())
+        {
+            foreach (var param in paramList.Children)
+            {
+                if (!param.Is(TreeSitterSyntax.CSharp.Parameter)) continue;
+
+                var isFromBody = false;
+                foreach (var child in param.Children)
+                {
+                    if (child.Is(TreeSitterSyntax.CSharp.AttributeList))
+                    {
+                        if (child.Text.Contains("FromBody") || child.Text.Contains("FromForm") || child.Text.Contains("FromQuery"))
+                        {
+                            isFromBody = true;
+                            break;
+                        }
+                    }
+                }
+
+                var pType = param.GetField(TreeSitterSyntax.Fields.Type)
+                            ?? param.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, "predefined_type", "nullable_type", "generic_name", "type_identifier"));
+                if (pType.IsValid())
+                {
+                    var pTypeName = CleanTypeName(pType.Text);
+                    if (isFromBody || (!IsPrimitiveOrSystemType(pTypeName) && symbol.RequestType == null))
+                    {
+                        symbol.RequestType = pTypeName;
+                        if (isFromBody) break;
+                    }
+                }
+            }
+        }
+    }
+
+    private static string CleanTypeName(string rawType)
+    {
+        if (string.IsNullOrWhiteSpace(rawType)) return "";
+        var type = rawType.Trim();
+        while (true)
+        {
+            var genericIdx = type.IndexOf('<');
+            if (genericIdx > 0 && type.EndsWith('>'))
+            {
+                var outer = type.Substring(0, genericIdx).Trim();
+                if (outer is "Task" or "ValueTask" or "ActionResult" or "Results" or "ResponseEntity" or "Promise" or "Observable" or "CompletableFuture" or "Mono" or "Flux")
+                {
+                    type = type.Substring(genericIdx + 1, type.Length - genericIdx - 2).Trim();
+                    continue;
+                }
+            }
+            break;
+        }
+        return type;
+    }
+
+    private static bool IsPrimitiveOrSystemType(string type)
+    {
+        return type is "int" or "long" or "string" or "bool" or "double" or "float" or "decimal" or "Guid" or "DateTime" or "DateTimeOffset" or "CancellationToken" or "HttpContext" or "HttpRequest" or "HttpResponse" or "ClaimsPrincipal" or "object";
     }
 
     private static void EnrichFromAttributes(Node targetDecl, SyntacticSymbol symbol)
