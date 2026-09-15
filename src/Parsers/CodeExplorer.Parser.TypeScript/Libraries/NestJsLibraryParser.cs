@@ -152,4 +152,88 @@ public class NestJsLibraryParser : ILibraryParser
         }
         return result;
     }
+
+    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        var decorators = new List<Node>();
+
+        if (node.Is(TreeSitterSyntax.TypeScript.Decorator))
+        {
+            decorators.Add(node);
+            var parent = node.Parent;
+            if (parent.IsValid())
+            {
+                // Find all sibling decorators
+                var children = parent.Children.ToList();
+                var idx = children.FindIndex(c => c.Id == node.Id);
+                if (idx >= 0)
+                {
+                    for (int i = 0; i < children.Count; i++)
+                    {
+                        if (children[i].Is(TreeSitterSyntax.TypeScript.Decorator))
+                            decorators.Add(children[i]);
+                    }
+                }
+            }
+        }
+        else if (node.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
+        {
+            decorators.AddRange(GetPrecedingDecorators(node));
+            decorators.AddRange(node.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+        }
+
+        // Also look at class-level decorators
+        var classDecl = node;
+        while (classDecl.IsValid() && !classDecl.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
+        {
+            classDecl = classDecl.Parent;
+        }
+        if (classDecl.IsValid())
+        {
+            decorators.AddRange(classDecl.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+            if (classDecl.Parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
+            {
+                decorators.AddRange(classDecl.Parent.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+            }
+        }
+
+        foreach (var dec in decorators)
+        {
+            var callFunc = _decoratorCallFunctionSelector.Select(dec);
+            var decName = callFunc.IsValid() ? callFunc.Text : dec.Text.TrimStart('@');
+            if (decName.Contains('(')) decName = decName.Substring(0, decName.IndexOf('('));
+
+            if (decName is "Public" or "AllowAnonymous")
+            {
+                symbol.IsAnonymous = true;
+            }
+            else if (decName is "Roles")
+            {
+                var callExpr = dec.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+                if (callExpr.IsValid())
+                {
+                    var args = callExpr.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+                    if (args.IsValid())
+                    {
+                        foreach (var arg in args.Children)
+                        {
+                            if (arg.Type.Contains("string"))
+                            {
+                                var r = arg.Text.Trim('\'', '"', '`');
+                                symbol.RequiredRoles = string.IsNullOrEmpty(symbol.RequiredRoles) ? r : $"{symbol.RequiredRoles},{r}";
+                            }
+                        }
+                    }
+                }
+            }
+            else if (decName is "Resolver" or "Query" or "Mutation" or "Subscription")
+            {
+                symbol.Protocol = "GraphQL";
+            }
+            else if (decName is "GrpcMethod" or "GrpcStreamMethod")
+            {
+                symbol.Protocol = "gRPC";
+            }
+        }
+    }
 }

@@ -78,4 +78,9 @@ public interface ILibraryParser
     /// Collects references inside a scope for this library's nodes.
     /// </summary>
     void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx);
+
+    /// <summary>
+    /// Enriches a synthesized syntactic symbol with domain-specific metadata (e.g., security roles, authorization, protocol).
+    /// </summary>
+    void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx) { }
 }

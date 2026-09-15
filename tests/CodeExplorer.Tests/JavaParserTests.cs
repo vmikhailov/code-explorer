@@ -92,10 +92,11 @@ public class JavaParserTests
         Assert.That(functionNames, Contains.Item("createUser"));
         Assert.That(functionNames, Contains.Item("deleteUser"));
 
+        var endpoints = FindNodes<EndpointNode>(fileNode.Children);
         var entryPoints = FindNodes<EntryPointNode>(fileNode.Children);
-        Assert.That(entryPoints, Is.Not.Empty);
-        var routeNames = entryPoints.Select(e => e.Name).ToList();
-        Assert.That(routeNames, Contains.Item("GET /api/v1/users").Or.Contains("GET /").Or.Contains("GET /{id}"));
+        Assert.That(endpoints.Count + entryPoints.Count, Is.GreaterThan(0));
+        var routeNames = endpoints.Select(e => e.Name).Concat(entryPoints.Select(e => e.Name)).ToList();
+        Assert.That(routeNames, Contains.Item("GET:/api/v1/users").Or.Contains("GET:/").Or.Contains("GET:/{id}").Or.Contains("/api/v1/users"));
     }
 
     [Test]

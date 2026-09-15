@@ -11,6 +11,10 @@ public class SyntacticSymbol
     public List<SyntacticSymbol> Children { get; } = [];
     public List<Reference> References { get; } = [];
     public string? Text { get; set; }
+    public string? Protocol { get; set; }
+    public bool IsAnonymous { get; set; }
+    public string? RequiredRoles { get; set; }
+    public string? Policies { get; set; }
 
     public SyntacticSymbol(string kind, string name, Node node)
     {

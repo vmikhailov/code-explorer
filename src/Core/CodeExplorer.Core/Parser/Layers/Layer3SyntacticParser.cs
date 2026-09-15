@@ -303,7 +303,7 @@ public class Layer3SyntacticParser
 
             if (isHttp)
             {
-                typedNode = CreateEndpointNode(name, node, relativePath, workspaceId);
+                typedNode = CreateEndpointNode(name, node, relativePath, workspaceId, syntactic);
             }
             else
             {
@@ -338,14 +338,25 @@ public class Layer3SyntacticParser
         string name,
         TreeSitter.Node node,
         string relativePath,
-        string workspaceId)
+        string workspaceId,
+        SyntacticSymbol? syntactic = null)
     {
         var idx = name.IndexOf(':');
         var method = name.Substring(0, idx).ToUpperInvariant();
         var route = name.Substring(idx + 1);
 
+        var protocol = syntactic?.Protocol ?? (method is "RPC" ? "gRPC" : (method is "GRAPHQL" ? "GraphQL" : "REST"));
         var endpointId = $"{workspaceId}:endpoint:{method}:{route}";
-        return new EndpointNode(endpointId, name, relativePath, method, route);
+        return new EndpointNode(
+            endpointId,
+            name,
+            relativePath,
+            method,
+            route,
+            protocol,
+            syntactic?.IsAnonymous ?? false,
+            syntactic?.RequiredRoles,
+            syntactic?.Policies);
     }
 
     private static EntryPointNode CreateEntryPointNode(

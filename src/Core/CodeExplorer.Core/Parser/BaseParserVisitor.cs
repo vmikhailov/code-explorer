@@ -275,6 +275,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         foreach (var libParser in LibraryParsers)
         {
             libParser.CollectReferences(node, "", syntacticNode.References, null!);
+            libParser.EnrichSymbol(node, syntacticNode, null!);
         }
 
         if (kind == OntologyConstants.NodeLabels.Query)

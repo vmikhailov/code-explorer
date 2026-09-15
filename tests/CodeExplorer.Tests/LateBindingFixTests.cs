@@ -63,8 +63,7 @@ public class LateBindingFixTests
             "PUT /:source_id",
             "controllers/source.controller.ts",
             "PUT",
-            "/:source_id",
-            null);
+            "/:source_id");
 
         Assert.That(InvokeIsMatch(extService, endpoint), Is.False);
     }
@@ -85,8 +84,7 @@ public class LateBindingFixTests
             "GET /ping",
             "controllers/ping.controller.ts",
             "GET",
-            "/ping",
-            null);
+            "/ping");
 
         Assert.That(InvokeIsMatch(extService, endpoint), Is.False);
     }
@@ -107,8 +105,7 @@ public class LateBindingFixTests
             "POST orders/charge",
             "orders.controller.ts",
             "POST",
-            "orders/charge",
-            null);
+            "orders/charge");
 
         Assert.That(InvokeIsMatch(extService, endpoint), Is.True);
     }

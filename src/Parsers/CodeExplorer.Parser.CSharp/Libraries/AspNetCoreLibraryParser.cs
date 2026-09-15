@@ -51,6 +51,114 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
+    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (IsRouteAttribute(node))
+        {
+            var attrList = node.Parent;
+            if (!attrList.IsValid()) return;
+            var parentDecl = attrList.Parent;
+            if (!parentDecl.IsValid()) return;
+
+            EnrichFromAttributes(parentDecl, symbol);
+
+            if (parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
+            {
+                var classDecl = parentDecl.Parent;
+                while (classDecl.IsValid())
+                {
+                    if (classDecl.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+                    {
+                        EnrichFromAttributes(classDecl, symbol);
+                        break;
+                    }
+                    classDecl = classDecl.Parent;
+                }
+            }
+        }
+    }
+
+    private static void EnrichFromAttributes(Node targetDecl, SyntacticSymbol symbol)
+    {
+        foreach (var child in targetDecl.Children)
+        {
+            if (child.Is(TreeSitterSyntax.CSharp.AttributeList))
+            {
+                foreach (var attr in child.Children)
+                {
+                    if (attr.Is(TreeSitterSyntax.CSharp.Attribute))
+                    {
+                        var nameNode = attr.GetField(TreeSitterSyntax.Fields.Name)
+                                       ?? attr.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+                        if (!nameNode.IsValid()) continue;
+                        var attrName = nameNode.Text;
+
+                        if (attrName is "AllowAnonymous" or "AllowAnonymousAttribute")
+                        {
+                            symbol.IsAnonymous = true;
+                        }
+                        else if (attrName is "Authorize" or "AuthorizeAttribute")
+                        {
+                            foreach (var attrChild in attr.Children)
+                            {
+                                if (attrChild.Is(TreeSitterSyntax.CSharp.AttributeArgumentList))
+                                {
+                                    foreach (var arg in attrChild.Children)
+                                    {
+                                        if (arg.Is(TreeSitterSyntax.CSharp.AttributeArgument))
+                                        {
+                                            var argText = arg.Text;
+                                            if (argText.StartsWith("Roles", StringComparison.OrdinalIgnoreCase) && argText.Contains('='))
+                                            {
+                                                var val = ExtractStringFromArg(arg);
+                                                if (!string.IsNullOrEmpty(val))
+                                                    symbol.RequiredRoles = string.IsNullOrEmpty(symbol.RequiredRoles) ? val : $"{symbol.RequiredRoles},{val}";
+                                            }
+                                            else if (argText.StartsWith("Policy", StringComparison.OrdinalIgnoreCase) && argText.Contains('='))
+                                            {
+                                                var val = ExtractStringFromArg(arg);
+                                                if (!string.IsNullOrEmpty(val))
+                                                    symbol.Policies = string.IsNullOrEmpty(symbol.Policies) ? val : $"{symbol.Policies},{val}";
+                                            }
+                                            else
+                                            {
+                                                var val = ExtractStringFromArg(arg);
+                                                if (!string.IsNullOrEmpty(val))
+                                                    symbol.Policies = string.IsNullOrEmpty(symbol.Policies) ? val : $"{symbol.Policies},{val}";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if (attrName is "Query" or "Mutation" or "Subscription" or "ExtendObjectType")
+                        {
+                            symbol.Protocol = "GraphQL";
+                        }
+                        else if (attrName is "GrpcMethod" or "GrpcService")
+                        {
+                            symbol.Protocol = "gRPC";
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static string? ExtractStringFromArg(Node argNode)
+    {
+        foreach (var child in argNode.Children)
+        {
+            if (child.Type.Contains("string"))
+            {
+                return child.Text.Trim('"');
+            }
+        }
+        var text = argNode.Text;
+        if (text.Contains('=')) text = text.Substring(text.IndexOf('=') + 1).Trim();
+        return text.Trim('"');
+    }
+
     private static bool IsInsideInterface(Node node)
     {
         var current = node.Parent;

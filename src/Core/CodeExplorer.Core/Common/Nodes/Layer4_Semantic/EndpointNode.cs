@@ -15,8 +15,12 @@ public record EndpointNode(
     string Id,
     [property: OntologyProperty("The HTTP endpoint name (e.g. GET /api/orders).")] string Name,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
-    [property: JsonPropertyName("http_method"), OntologyProperty("The HTTP Verb (GET, POST, PUT, DELETE).")] string HttpMethod,
+    [property: JsonPropertyName("http_method"), OntologyProperty("The HTTP Verb (GET, POST, PUT, DELETE, ALL).")] string HttpMethod,
     [property: JsonPropertyName("route_template"), OntologyProperty("The declared route template.")] string RouteTemplate,
+    [property: JsonPropertyName("protocol"), OntologyProperty("The API protocol (REST, gRPC, GraphQL).")] string Protocol = "REST",
+    [property: JsonPropertyName("is_anonymous"), OntologyProperty("Whether endpoint allows unauthenticated anonymous access.")] bool IsAnonymous = false,
+    [property: JsonPropertyName("required_roles"), OntologyProperty("Comma-separated required roles or permissions.")] string? RequiredRoles = null,
+    [property: JsonPropertyName("policies"), OntologyProperty("Authorization policies guarding the endpoint.")] string? Policies = null,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {

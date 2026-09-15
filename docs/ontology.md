@@ -627,8 +627,12 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The HTTP endpoint name (e.g. GET /api/orders). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
-| `HttpMethod` | `string` | The HTTP Verb (GET, POST, PUT, DELETE). |
+| `HttpMethod` | `string` | The HTTP Verb (GET, POST, PUT, DELETE, ALL). |
 | `RouteTemplate` | `string` | The declared route template. |
+| `Protocol` | `string` | The API protocol (REST, gRPC, GraphQL). |
+| `IsAnonymous` | `bool` | Whether endpoint allows unauthenticated anonymous access. |
+| `RequiredRoles` | `string?` | Comma-separated required roles or permissions. |
+| `Policies` | `string?` | Authorization policies guarding the endpoint. |
 
 ---
 
