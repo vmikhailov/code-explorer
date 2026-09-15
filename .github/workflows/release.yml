@@ -23,7 +23,7 @@ jobs:
             archive: tar.gz
             bin_name: ce
           # macOS Intel
-          - os: macos-13
+          - os: macos-latest
             rid: osx-x64
             archive: tar.gz
             bin_name: ce
