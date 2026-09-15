@@ -8,6 +8,7 @@
     <ProjectReference Include="..\..\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.CSharp\CodeExplorer.Parser.CSharp.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Go\CodeExplorer.Parser.Go.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Java\CodeExplorer.Parser.Java.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Python\CodeExplorer.Parser.Python.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.TypeScript\CodeExplorer.Parser.TypeScript.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.SQL\CodeExplorer.Parser.SQL.csproj" />

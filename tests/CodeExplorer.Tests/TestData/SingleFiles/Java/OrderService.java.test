@@ -1,0 +1,40 @@
+package com.example.demo.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.kafka.core.KafkaTemplate;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
+import com.example.demo.model.Order;
+import com.example.demo.repository.OrderRepository;
+
+@Service
+public class OrderService {
+
+    private final OrderRepository orderRepository;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final HttpClient httpClient;
+
+    public OrderService(OrderRepository orderRepository, KafkaTemplate<String, String> kafkaTemplate) {
+        this.orderRepository = orderRepository;
+        this.kafkaTemplate = kafkaTemplate;
+        this.httpClient = HttpClient.newHttpClient();
+    }
+
+    @Transactional
+    public Order placeOrder(Order order) {
+        Order saved = orderRepository.save(order);
+        kafkaTemplate.send("orders.created", String.valueOf(saved.getId()));
+        return saved;
+    }
+
+    public void verifyPayment(String orderId) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.payment-gateway.com/v1/verify/" + orderId))
+                .GET()
+                .build();
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+}

@@ -199,4 +199,49 @@ public static class TreeSitterSyntax
         public const string AliasedName = "aliased_name";
         public const string VariableName = "variable_name";
     }
+
+    public static class Java
+    {
+        public const string ClassDeclaration = "class_declaration";
+        public const string RecordDeclaration = "record_declaration";
+        public const string EnumDeclaration = "enum_declaration";
+        public const string InterfaceDeclaration = "interface_declaration";
+        public const string AnnotationTypeDeclaration = "annotation_type_declaration";
+        public const string MethodDeclaration = "method_declaration";
+        public const string ConstructorDeclaration = "constructor_declaration";
+        public const string CompactConstructorDeclaration = "compact_constructor_declaration";
+        public const string FieldDeclaration = "field_declaration";
+        public const string ConstantDeclaration = "constant_declaration";
+        public const string VariableDeclarator = "variable_declarator";
+        public const string LocalVariableDeclaration = "local_variable_declaration";
+        public const string FormalParameter = "formal_parameter";
+        public const string SpreadParameter = "spread_parameter";
+        public const string ReceiverParameter = "receiver_parameter";
+        public const string FormalParameters = "formal_parameters";
+        public const string PackageDeclaration = "package_declaration";
+        public const string ImportDeclaration = "import_declaration";
+        public const string MethodInvocation = "method_invocation";
+        public const string ObjectCreationExpression = "object_creation_expression";
+        public const string ExplicitConstructorInvocation = "explicit_constructor_invocation";
+        public const string SuperConstructorInvocation = "super_constructor_invocation";
+        public const string Superclass = "superclass";
+        public const string SuperInterfaces = "super_interfaces";
+        public const string ExtendsInterfaces = "extends_interfaces";
+        public const string StringLiteral = "string_literal";
+        public const string TextBlock = "text_block";
+        public const string MarkerAnnotation = "marker_annotation";
+        public const string Annotation = "annotation";
+        public const string Modifiers = "modifiers";
+        public const string ScopedIdentifier = "scoped_identifier";
+        public const string TypeIdentifier = "type_identifier";
+        public const string Identifier = "identifier";
+        public const string ArgumentList = "argument_list";
+        public const string Block = "block";
+        public const string ClassBody = "class_body";
+        public const string InterfaceBody = "interface_body";
+        public const string EnumBody = "enum_body";
+        public const string AnnotationTypeBody = "annotation_type_body";
+        public const string ElementValuePair = "element_value_pair";
+        public const string ElementValueArrayInitializer = "element_value_array_initializer";
+    }
 }

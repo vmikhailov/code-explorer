@@ -24,7 +24,7 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
 | :--- | :--- | :--- |
 | **Primary Consumer** | Humans (real-time IDE autocompletion/linting). | **AI Agents / LLMs** (autonomous workspace exploration). |
 | **Storage Strategy** | Stateful, in-memory AST caches per editor session. | **Embedded Graph Database** (SQLite, zero external dependencies). |
-| **Polyglot Scope** | Single-language boundary per server instance. | **Unified Cross-Language Graph** (bridges C#, Go, Python, TS, and SQL). |
+| **Polyglot Scope** | Single-language boundary per server instance. | **Unified Cross-Language Graph** (bridges C#, Java, Go, Python, TS, and SQL). |
 | **Querying** | Fixed RPC methods (`goto definition`, `find references`). | **Arbitrary Cypher Queries** (unlimited multi-hop semantic traversal). |
 | **Update Loop** | Instantaneous, keystroke-by-keystroke. | Fast index scan via `ce scan` (CLI, CI, or agent task). |
 
@@ -51,11 +51,12 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
 *   **Embedded SQLite Graph with Cypher**: Uses a high-performance embedded SQLite database compiled with custom graph indices and an optimized AST-to-SQL Cypher compiler.
 *   **Multi-Language AST Parsing**: Full AST-level parsing powered by **Tree-sitter** and Microsoft SQL **ScriptDom**:
     *   **C#** (`.cs`)
+    *   **Java** (`.java`, Maven `pom.xml`, Gradle `build.gradle` / `build.gradle.kts`)
     *   **TypeScript** (`.ts`, `.tsx`)
     *   **JavaScript** (`.js`, `.jsx`)
     *   **Go** (`.go`)
     *   **Python** (`.py`)
-    *   **SQL & Embedded SQL** (`.sql` scripts, and inline SQL queries in C#, JS, TS, Python, Go)
+    *   **SQL & Embedded SQL** (`.sql` scripts, and inline SQL queries in C#, Java, JS, TS, Python, Go)
 *   **Rich Structural Ontology**: Maps codebases across a 5-layer decoupled graph architecture (see [Ontology Model](docs/architecture/ontology-model.md) and [Live Schema Reference](docs/ontology.md)):
     *   *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `go.mod`, `package.json`), folders, files, and git topology.
     *   *Project Layer (Layer 2)*: Logical compilation units, project boundaries, and package dependencies.
@@ -353,6 +354,7 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 │   ├── Parsers/
 │   │   ├── CodeExplorer.Parser.CSharp/       # C# AST Parser (Tree-sitter)
 │   │   ├── CodeExplorer.Parser.Go/           # Go AST Parser (Tree-sitter)
+│   │   ├── CodeExplorer.Parser.Java/         # Java AST Parser (Tree-sitter)
 │   │   ├── CodeExplorer.Parser.Python/       # Python AST Parser (Tree-sitter)
 │   │   ├── CodeExplorer.Parser.SQL/          # SQL ScriptDom Parser
 │   │   └── CodeExplorer.Parser.TypeScript/   # TypeScript & JavaScript AST Parser (Tree-sitter)

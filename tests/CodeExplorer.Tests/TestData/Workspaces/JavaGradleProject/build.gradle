@@ -1,0 +1,18 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.0'
+}
+
+group = 'com.example.gradle'
+version = '2.1.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web:3.2.0'
+    implementation 'org.postgresql:postgresql:42.6.0'
+    implementation 'redis.clients:jedis:5.1.0'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}

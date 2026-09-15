@@ -1,0 +1,7 @@
+package com.example.gradle;
+
+public class ServiceApp {
+    public static void main(String[] args) {
+        System.out.println("Hello Gradle Java");
+    }
+}

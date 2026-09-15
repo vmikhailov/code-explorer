@@ -1,0 +1,21 @@
+package com.example.demo.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+import com.example.demo.model.User;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+
+    Optional<User> findByEmail(String email);
+
+    @Query("SELECT u FROM users u WHERE u.status = :status AND u.active = true")
+    List<User> findActiveUsersByStatus(@Param("status") String status);
+
+    @Query(value = "SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 10", nativeQuery = true)
+    List<User> findTop10RecentUsers();
+}

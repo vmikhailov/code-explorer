@@ -9,6 +9,7 @@ using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
+using CodeExplorer.Parser.Java;
 using CodeExplorer.Parser.Python;
 using CodeExplorer.Parser.SQL;
 using CodeExplorer.Parser.TypeScript;
@@ -35,6 +36,7 @@ public class Program
         }
 
         WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.Register(new JavaParser());
         WorkspaceIndexer.Register(new GoParser());
         WorkspaceIndexer.Register(new PythonParser());
         WorkspaceIndexer.Register(new TypeScriptParser());

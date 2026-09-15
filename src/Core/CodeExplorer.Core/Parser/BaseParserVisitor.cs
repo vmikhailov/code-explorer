@@ -127,7 +127,9 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                        TreeSitterSyntax.TypeScript.TemplateString,
                        TreeSitterSyntax.Common.StringLiteral,
                        TreeSitterSyntax.Go.InterpretedStringLiteral,
-                       TreeSitterSyntax.Go.RawStringLiteral)
+                       TreeSitterSyntax.Go.RawStringLiteral,
+                       TreeSitterSyntax.Java.StringLiteral,
+                       TreeSitterSyntax.Java.TextBlock)
             || (node.Type.Contains("string")
                 && !node.IsAny(TreeSitterSyntax.CSharp.InterpolatedStringExpression,
                                TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
@@ -146,6 +148,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             case TreeSitterSyntax.CSharp.StructDeclaration:
             case TreeSitterSyntax.CSharp.RecordDeclaration:
             case TreeSitterSyntax.Python.ClassDefinition:
+            case TreeSitterSyntax.Java.AnnotationTypeDeclaration:
                 VisitClassDeclaration(node, depth);
                 break;
 
@@ -160,6 +163,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             case TreeSitterSyntax.CSharp.MethodDeclaration:
             case TreeSitterSyntax.CSharp.ConstructorDeclaration:
             case TreeSitterSyntax.CSharp.LocalFunctionStatement:
+            case TreeSitterSyntax.Java.CompactConstructorDeclaration:
                 VisitMethodDeclaration(node, depth);
                 break;
 
@@ -184,6 +188,8 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             case TreeSitterSyntax.Python.Assignment:
             case TreeSitterSyntax.Python.Parameters:
             case TreeSitterSyntax.Python.Pattern:
+            case TreeSitterSyntax.Java.ConstantDeclaration:
+            case TreeSitterSyntax.Java.LocalVariableDeclaration:
                 VisitVariableDeclaration(node, depth);
                 break;
 
@@ -193,14 +199,19 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             case TreeSitterSyntax.TypeScript.RequiredParameter:
             case TreeSitterSyntax.TypeScript.OptionalParameter:
             case TreeSitterSyntax.TypeScript.ParameterProperty:
+            case TreeSitterSyntax.Java.FormalParameter:
+            case TreeSitterSyntax.Java.SpreadParameter:
+            case TreeSitterSyntax.Java.ReceiverParameter:
                 VisitParameter(node, depth);
                 break;
 
-            // Imports
+            // Imports & Packages
             case TreeSitterSyntax.TypeScript.ImportStatement:
             case TreeSitterSyntax.Python.ImportFromStatement:
             case TreeSitterSyntax.CSharp.UsingDirective:
             case TreeSitterSyntax.Go.ImportSpec:
+            case TreeSitterSyntax.Java.ImportDeclaration:
+            case TreeSitterSyntax.Java.PackageDeclaration:
                 VisitImportStatement(node, depth);
                 break;
 
@@ -208,6 +219,10 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             case TreeSitterSyntax.Common.CallExpression:
             case TreeSitterSyntax.CSharp.InvocationExpression:
             case TreeSitterSyntax.Python.Call:
+            case TreeSitterSyntax.Java.MethodInvocation:
+            case TreeSitterSyntax.Java.ObjectCreationExpression:
+            case TreeSitterSyntax.Java.ExplicitConstructorInvocation:
+            case TreeSitterSyntax.Java.SuperConstructorInvocation:
                 VisitCallExpression(node, depth);
                 break;
 
@@ -215,6 +230,9 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             case TreeSitterSyntax.TypeScript.ExtendsClause:
             case TreeSitterSyntax.TypeScript.ImplementsClause:
             case TreeSitterSyntax.CSharp.BaseList:
+            case TreeSitterSyntax.Java.Superclass:
+            case TreeSitterSyntax.Java.SuperInterfaces:
+            case TreeSitterSyntax.Java.ExtendsInterfaces:
                 VisitInheritanceClause(node, depth);
                 break;
 

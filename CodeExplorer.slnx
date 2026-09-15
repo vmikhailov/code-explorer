@@ -10,6 +10,7 @@
   <Folder Name="/Parsers/">
     <Project Path="src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj" />
+    <Project Path="src/Parsers/CodeExplorer.Parser.Java/CodeExplorer.Parser.Java.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.Python/CodeExplorer.Parser.Python.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj" />
