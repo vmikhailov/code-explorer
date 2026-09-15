@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
@@ -97,12 +97,20 @@ public class Layer5AnalysisParser
         return scopeSymbolId.Substring(start, end - start);
     }
 
+    private static string? ExtractSymbolNameFromId(string symbolId)
+    {
+        // Format: {workspaceId}:symbol:{relativePath}:{mappedKind}:{name}:{row}
+        var parts = symbolId.Split(':');
+        return parts.Length >= 2 ? parts[^2] : null;
+    }
+
     private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
     {
         var totalReferences = ctx.GlobalReferences.Count;
         ctx.Log($"[Layer5AnalysisParser] Resolving {totalReferences} global cross-references...");
         var referenceRelationships = new List<Relationship>(totalReferences > 0 ? Math.Min(totalReferences, 2000000) : 0);
         var inheritanceRels = new HashSet<(string From, string To)>();
+        var interfaceToImplementors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
         // Pre-split GlobalSymbols into single-string dictionaries for O(1) single-hash lookups
         var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -159,6 +167,20 @@ public class Layer5AnalysisParser
                     }
 
                     inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
+
+                    var className = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
+                    if (!string.IsNullOrEmpty(className))
+                    {
+                        if (!interfaceToImplementors.TryGetValue(refItem.TargetName, out var implList))
+                        {
+                            implList = [];
+                            interfaceToImplementors[refItem.TargetName] = implList;
+                        }
+                        if (!implList.Contains(className))
+                        {
+                            implList.Add(className);
+                        }
+                    }
                 }
                 else if (refItem.Kind == OntologyConstants.Relationships.Implements)
                 {
@@ -216,19 +238,19 @@ public class Layer5AnalysisParser
             if (refItem.Kind == OntologyConstants.Relationships.Calls)
             {
                 var targetName = refItem.TargetName;
+                string? targetTypeName = null;
+                string? methodName = null;
 
                 if (targetName.Contains('.'))
                 {
                     var dotIdx = targetName.LastIndexOf('.');
                     var varName = targetName.Substring(0, dotIdx);
-                    var methodName = targetName.Substring(dotIdx + 1);
+                    methodName = targetName.Substring(dotIdx + 1);
 
                     var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
 
                     if (filePath != null)
                     {
-                        string? targetTypeName = null;
-
                         if (bindingsLookup.TryGetValue((filePath, varName), out var candidates))
                         {
                             // Priority 1: Match by scope name
@@ -262,15 +284,38 @@ public class Layer5AnalysisParser
                     }
                 }
 
+                var callAdded = false;
                 if (functionSymbols.TryGetValue(targetName, out var targetNodeId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+                    callAdded = true;
                 }
                 else if (procedureSymbols.TryGetValue(targetName, out var targetProcId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new CalledByRelationship(targetProcId, refItem.ScopeSymbolId)));
+                    callAdded = true;
+                }
+
+                // If targetTypeName is an interface or base class with implementations, link to the concrete implementations
+                if (targetTypeName != null && !string.IsNullOrEmpty(methodName) && interfaceToImplementors.TryGetValue(targetTypeName, out var implementors))
+                {
+                    foreach (var implClass in implementors)
+                    {
+                        if (functionSymbols.TryGetValue($"{implClass}.{methodName}", out var implNodeId) && implNodeId != targetNodeId)
+                        {
+                            referenceRelationships.Add(
+                                Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, implNodeId)));
+                            callAdded = true;
+                        }
+                    }
+                }
+
+                if (!callAdded && methodName != null && functionSymbols.TryGetValue(methodName, out var fallbackNodeId))
+                {
+                    referenceRelationships.Add(
+                        Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
                 }
             }
             else if (refItem.Kind == OntologyConstants.Relationships.DependsOn)

@@ -39,6 +39,9 @@ public class QueryOptions
     [Option("no-truncate", Required = false, HelpText = "Do not truncate long text values in table columns.")]
     public bool NoTruncate { get; set; }
 
+    [Option('p', "param", Required = false, HelpText = "Key-value parameter to pass to the Cypher query (e.g. -p tableName=users). Can be repeated.")]
+    public IEnumerable<string>? Params { get; set; }
+
     [Option("format", Default = "table", HelpText = "Output format: 'table' or 'json'.")]
     public string Format { get; set; } = "table";
 }

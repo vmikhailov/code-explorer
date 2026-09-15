@@ -128,10 +128,10 @@ public class GitIgnoreMatcher
             var testPath = relativePath;
             if (rule.Scope != null)
             {
-                if (rule.IsDirectoryOnly && isDirectory && string.Equals(relativePath, rule.Scope, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(relativePath, rule.Scope, StringComparison.OrdinalIgnoreCase))
                 {
-                    // The directory itself matches its scoped rule
-                    return true;
+                    // A scoped rule loaded from inside a directory cannot ignore the directory itself
+                    continue;
                 }
 
                 if (!relativePath.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))

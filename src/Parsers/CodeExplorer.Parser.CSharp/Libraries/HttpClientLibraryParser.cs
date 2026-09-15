@@ -106,6 +106,10 @@ public class HttpClientLibraryParser : ILibraryParser
             var text = valNode.Text.Trim('"');
             if (valNode.Type.Contains("string") || text.Contains("://") || text.StartsWith("/"))
             {
+                if (text.StartsWith("$") || text.StartsWith("@$") || text.StartsWith("$@"))
+                {
+                    text = text.TrimStart('$', '@').Trim('"');
+                }
                 return NormalizeUrl(text);
             }
 
@@ -120,6 +124,10 @@ public class HttpClientLibraryParser : ILibraryParser
                         var nextText = nextVal.Text.Trim('"');
                         if (!string.IsNullOrEmpty(nextText) && !IsCancellationToken(nextText))
                         {
+                            if (nextText.StartsWith("$") || nextText.StartsWith("@$") || nextText.StartsWith("$@"))
+                            {
+                                nextText = nextText.TrimStart('$', '@').Trim('"');
+                            }
                             return NormalizeUrl(nextText);
                         }
                     }
@@ -134,7 +142,12 @@ public class HttpClientLibraryParser : ILibraryParser
                 return NormalizeUrl(resolvedUri);
             }
 
-            return $"http:{text}";
+            if (text.Contains('/') || text.Contains('.') || text.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"http:{text}";
+            }
+
+            return "http:unknown-service";
         }
 
         return "http:unknown-service";

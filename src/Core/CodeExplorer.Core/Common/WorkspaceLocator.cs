@@ -18,12 +18,19 @@ public static class WorkspaceLocator
             ? Directory.GetCurrentDirectory()
             : Path.GetFullPath(startDirectory);
 
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var current = new DirectoryInfo(dirStr);
         while (current != null)
         {
             var ceDir = Path.Combine(current.FullName, FolderName);
             if (Directory.Exists(ceDir))
             {
+                if (current.FullName.Equals(userProfile, StringComparison.OrdinalIgnoreCase) &&
+                    !dirStr.Equals(userProfile, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
                 return new WorkspaceInfo(
                     RootDirectory: current.FullName,
                     DbPath: Path.Combine(ceDir, DbFileName),

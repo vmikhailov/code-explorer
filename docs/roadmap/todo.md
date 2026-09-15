@@ -18,18 +18,36 @@
 - [x] **MCP Multi-Source CWD & Standby Mode**: Multi-source resolution order, standby graceful degradation mode, dynamic per-call workspacePath.
 - [x] **Token-Efficient Multi-Format Outputs**: Native Mermaid diagram generation (`graph TD`), compact Markdown tables, compact JSON (`WriteIndented = false`), YAML, and TOON (Token-Oriented Object Notation).
 - [x] **Monorepo & Nested `.gitignore` Support**: Recursive scoped ignore loading and minified/vendor bundle heuristic filtering.
+- [x] **Token-Based Mutating Query Security Validator**: Enforced word boundaries (`\b`) and regex token isolation for mutating Cypher statements (`SET`, `CREATE`, `DELETE`, etc.), eliminating false positive rejections on benign identifiers like `databaseType`.
+- [x] **Data Lineage Traversal Optimization**: Resolved latency bottlenecks on high-degree node lineage queries (`inspect_data_lineage`), dropping multi-minute traversals on large production graphs to sub-20ms.
+- [x] **Zero-Warning & Zero-Noise Test Suite**: Added `--quiet` flag to `ce mcp`, silenced diagnostic loggers in test runners, and achieved 100% clean test execution (382/382 passed, 0 warnings, 0 errors with `/warnaserror`).
+- [x] **Real-World Multi-Project Scale Verification (Dedalos & ATS)**:
+  - Fixed SQLite constraint violation (Error 19) in `PostIndexAnalyzer` and `SqliteGraphClient` during large-scale post-indexing.
+  - Successfully indexed Dedalos (`pow3`): 146 C# projects, 149,078 nodes, 655,095 edges.
+  - Fixed Cypher compiler implicit `GROUP BY` for `WITH` clauses containing aggregations (e.g. `WITH labels(n)[0] AS kind, count(n) AS count`).
+  - Added CLI query parameter support (`-p` / `--param key=value`) for parameterized built-in queries.
+  - Eliminated variable-depth folder recursion bottlenecks in `get_architecture_map_project.cypher`.
+  - Filtered C#/TypeScript code expression noise from `ExternalService` discovery.
 
 ---
 
 ### Backlog & Planned Initiatives
+- [ ] **OpenCypher Edge Navigation & Transpiler Expansion**:
+  - Full edge function support: `type(r)`, `properties(r)`, `startNode(r)`, `endNode(r)` across `WITH`, `UNWIND`, and aggregations.
+  - Multi-branch `OPTIONAL MATCH` Cartesian product decomposition (correlated subqueries / discrete CTEs).
+  - Path and list predicates: `WHERE EXISTS((n)-[:REL]->(m))` and quantifiers `all()`, `any()`, `none()`.
+- [ ] **SQLite Concurrency & In-Memory Macro Structure Caching**:
+  - In-memory caching for static workspace maps (`get_architecture_map_workspace`, `get_taxonomy`) in `CodeExplorerRepository` with invalidation triggers on `ce scan` / `ce clear`.
+  - SQLite PRAGMA concurrency tuning: `PRAGMA busy_timeout = 5000;`, `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA cache_size = -64000;`, `PRAGMA temp_store = MEMORY;` and enforcing `Mode=ReadOnly` on tool connection strings.
 - [ ] **Ingress & Egress Parsers (C#)**:
   - Full ASP.NET Core route composition: Controller-level `[Route("api/[controller]")]` + Action-level `[HttpGet("{id}")]` with token substitutions (`[controller]`, `[action]`).
   - Minimal API `app.MapGroup(...)` prefix concatenation.
   - Target URL/path resolution for `HttpClient`, `RestSharp`, and `Refit` declarative interfaces.
-- [ ] **C# Constructor Dependency Injection Resolution**: Map constructor parameters to private fields and trace interface calls through `[:IMPLEMENTS]`.
+- [ ] **C# Constructor Dependency Injection Resolution**: Map constructor parameters and primary constructor parameters to private fields and trace interface calls through `[:IMPLEMENTS]` to concrete service classes on Layer 5.
 - [ ] **EF Core & Dapper Data Lineage**: Extract table names from `DbSet<T>` and Fluent API `ToTable("...")` to link C# code directly to database tables in `inspect_data_lineage`.
+- [ ] **Incremental File Watcher (`ce watch`)**: Real-time graph synchronization during active coding sessions via debounced `ParsingContext.IsSubtreeScan`.
+- [ ] **Self-Contained CI/CD Benchmark Fixture**: Portable synthetic 100k-node graph fixture for automated performance regression testing in CI, decoupling tests from local machine paths.
 - [ ] **VS Code & Antigravity IDE Extension**: Interactive Cytoscape.js webview cockpit, bi-directional code navigation, and live LSP bridge using `vscode.executeDefinitionProvider`.
-- [ ] **Incremental File Watcher (`ce watch`)**: Real-time graph synchronization during active coding sessions.
 
 ---
 
@@ -142,41 +160,121 @@
        - `CREATE INDEX idx_edges_to_kind ON edges(to_id, kind);`
        - `CREATE INDEX idx_edges_kind ON edges(kind);`
   2. **Query Result Caching**:
-     - Cache static graph structures (such as `get_architecture_map` and `get_taxonomy`) in memory with an invalidation trigger on `ce scan` / `ce clear`.
+     - Cache static graph structures (such as `get_architecture_map_workspace` and `get_taxonomy`) in memory with an invalidation trigger on `ce scan` / `ce clear`.
   3. **Cartesian Explosion Detection**:
      - In `SqliteCompiler`, detect multiple independent `OPTIONAL MATCH` clauses and translate them into separate sequential joins or correlated subqueries rather than a single Cartesian product CTE.
+
+#### 2.3.2 OpenCypher Edge Navigation & Function Compatibility
+* **Problem**:
+  - `SqliteCompiler` currently treats edges as anonymous join conditions without first-class expression semantics.
+  - Queries using OpenCypher relationship functions (`type(r)`, `properties(r)`, `startNode(r)`, `endNode(r)`) or edge variable projections (e.g. `MATCH (a)-[r:CALLS]->(b) RETURN type(r), properties(r), r.weight`) fail during transpilation or throw unsupported function exceptions.
+* **Technical Solution**:
+  1. **Edge Variable Scoping**:
+     - Expose relationship variables `r` in the symbol table with bindings to `edges.kind` (`type(r)`), `edges.properties_json` (`properties(r)`), `edges.from_id` (`startNode(r)`), and `edges.to_id` (`endNode(r)`).
+  2. **Relational Attribute Access**:
+     - Support accessing property fields directly on edge variables (e.g., `r.weight`, `r.route`) using `json_extract(r.properties_json, '$.weight')`.
+  3. **Multi-Hop Edge Aggregations & WITH Clauses**:
+     - Allow edge variables to pass cleanly through intermediate `WITH` clauses and aggregations (e.g., `WITH r, count(r) AS rel_count`).
+
+#### 2.3.3 Multi-Branch OPTIONAL MATCH Decomposition (Cartesian Product Elimination)
+* **Problem**:
+  - Complex architectural queries frequently query multiple orthogonal relationships from a single central entity (e.g. finding a table's upstream writers, downstream readers, and schema definitions).
+  - Translating multiple `OPTIONAL MATCH` clauses into chained relational `LEFT JOIN`s causes an $O(N \cdot M \cdot K)$ Cartesian row expansion before grouping or `DISTINCT`, generating millions of intermediate rows and stalling SQLite.
+* **Technical Solution**:
+  1. **Independent Branch Isolation**:
+     - Analyze the query AST to detect when separate `OPTIONAL MATCH` branches only correlate back to the root node variable.
+  2. **Correlated Subqueries / Discrete CTEs**:
+     - Transpile independent branches into isolated correlated subqueries (e.g., `SELECT json_group_array(...) FROM edges ... WHERE from_id = root.id`) or discrete CTEs aggregated by root node ID before joining to the projection query.
+     - Keeps computational complexity strictly linear: $O(N + M + K)$.
+
+#### 2.3.4 Path & List Predicates in Cypher Transpiler
+* **Problem**:
+  - Expressive pattern conditions like `WHERE EXISTS((n)-[:IMPLEMENTS]->(:Interface))` or list predicates (`all(x IN list WHERE ...)`, `any(...)`, `none(...)`) are not yet transpiled.
+* **Technical Solution**:
+  1. **EXISTS Pattern Predicate**:
+     - Map `EXISTS((a)-[r:KIND]->(b))` into SQL `EXISTS (SELECT 1 FROM edges e WHERE e.from_id = a.id AND e.kind = 'KIND' ...)`.
+  2. **List Quantifiers**:
+     - Implement `any()`, `all()`, and `none()` functions over JSON arrays via `json_each()` subqueries.
 
 ---
 
 ### 2.4 Concurrency & Incremental Synchronization (Priority: Medium)
 
-#### 2.4.1 SQLite Single-Writer Lock Mitigation
-1. **Read-Only Connections for MCP**:
-   - Open SQLite connections for MCP tool calls with `Mode=ReadOnly;` to prevent lock escalation.
-2. **Busy Timeout & WAL Tuning**:
-   - Set `PRAGMA busy_timeout = 5000;` and `PRAGMA synchronous = NORMAL;` to allow smooth concurrent reads while background indexing executes.
+#### 2.4.1 SQLite Single-Writer Lock Mitigation & WAL Concurrency
+* **Problem**:
+  - Background indexing or concurrent tool invocations can trigger `SQLite Error: database is locked` if connection parameters and transaction locks are not explicitly tuned for high-concurrency reader/writer isolation.
+* **Technical Solution**:
+  1. **Read-Only Connections for MCP**:
+     - Open read connections in `CodeExplorerRepository` with `Data Source=...;Mode=ReadOnly;Cache=Shared;`.
+  2. **WAL Tuning & Connection PRAGMAs**:
+     - On connection initialization, execute:
+       ```sql
+       PRAGMA busy_timeout = 5000;
+       PRAGMA journal_mode = WAL;
+       PRAGMA synchronous = NORMAL;
+       PRAGMA cache_size = -64000;
+       PRAGMA temp_store = MEMORY;
+       ```
 
-#### 2.4.2 Incremental File Watching
-1. **File Watcher (`ce watch`)**:
-   - Implement `FileSystemWatcher` tracking file modifications in active workspaces.
-   - Selectively trigger `ParsingContext.IsSubtreeScan` on modified files only, keeping the graph synchronized in real-time during development without requiring manual full scans.
+#### 2.4.2 In-Memory Macro Structure Caching
+* **Problem**:
+  - Macro-level queries such as `get_architecture_map_workspace` and `get_taxonomy` traverse entire workspace node graphs (hundreds of thousands of rows). Repeating these queries during multi-step assistant sessions creates unnecessary I/O and latency.
+* **Technical Solution**:
+  1. **Thread-Safe Repository Cache**:
+     - Add `ConcurrentDictionary` or `MemoryCache` in `CodeExplorerRepository` for macro results keyed by workspace root and options.
+  2. **Invalidation Hooks**:
+     - Invalidate caches on mutation operations: `ce scan`, `ce clear`, or upon detecting file modification events via watcher.
+
+#### 2.4.3 Incremental File Watching (`ce watch`)
+* **Problem**:
+  - Developers currently have to run `ce scan` manually after refactoring or editing files.
+* **Technical Solution**:
+  1. **File Watcher (`ce watch`)**:
+     - Implement `FileSystemWatcher` tracking file modifications in active workspaces with a 500ms debounce buffer.
+     - Selectively trigger `ParsingContext.IsSubtreeScan` on modified files only, updating the SQLite graph incrementally in sub-second time without blocking concurrent tool queries.
+
+---
+
+### 2.5 Test Automation & Benchmark Fixtures (Priority: Low / Medium)
+
+#### 2.5.1 Portable Synthetic 100k-Node CI Benchmark Fixture
+* **Problem**:
+  - `Layer5BenchmarkTests` currently relies on a machine-local graph path (`/Users/slava/Projects/ATS/src/.codeexplorer/graph.db`) and is skipped if the local database does not exist. This prevents CI/CD pipelines from automatically catching performance regressions on large graphs.
+* **Technical Solution**:
+  1. **Deterministic In-Memory Synthetic Graph Generator**:
+     - Implement a benchmark fixture that programmatically seeds a temporary SQLite database with a realistic enterprise topology:
+       - 10,000 files, 25,000 classes/structs, 70,000 methods/functions, 500 API endpoints, 200 DB tables.
+       - 300,000 edges (`CONTAINS`, `CALLS`, `IMPLEMENTS`, `WRITES_TO`, `READS_FROM`).
+  2. **Automated SLA Assertion Suite**:
+     - Run benchmarks as part of the test suite verifying:
+       - `find_symbol`: < 25ms.
+       - `get_call_chain` (3 hops): < 100ms.
+       - `inspect_data_lineage`: < 50ms.
+       - OpenCypher multi-branch traversals: < 150ms.
 
 ---
 
 ## 3. Master Implementation Checklist
 
-- [ ] **1.1**: Implement `WorkspaceLocator.FindWithFallbacks` with environment variable checks (`WORKSPACE_ROOT`, `CE_WORKSPACE`, `VSCODE_WORKSPACE`).
-- [ ] **1.2**: Implement MCP Standby mode in `Program.cs` without throwing on startup when no workspace is detected.
-- [ ] **1.3**: Set `WriteIndented = false` by default for compact JSON in `ExecuteAndFormatQueryAsync`.
-- [ ] **1.4**: Add `format: "markdown" | "mermaid" | "json"` parameter to `GetProjectDependenciesAsync`.
-- [ ] **1.5**: Add Mermaid sequence / flowchart formatter for `GetCallChainAsync`.
-- [ ] **1.6**: Add compact Markdown table formatters for `FindSymbolAsync` and `GetFileOutlineAsync`.
-- [ ] **2.1**: Enhance `GitIgnoreMatcher` to recursively load nested `.gitignore` files in monorepo subdirectories.
-- [ ] **2.2**: Add default directory exclusions (`node_modules`, `dist`, `bin`, `obj`, `.next`, `coverage`).
-- [ ] **2.3**: Add minified bundle heuristic check to skip obfuscated JS/TS chunks.
+- [x] **1.1**: Implement `WorkspaceLocator.FindWithFallbacks` with environment variable checks (`WORKSPACE_ROOT`, `CE_WORKSPACE`, `VSCODE_WORKSPACE`).
+- [x] **1.2**: Implement MCP Standby mode in `Program.cs` without throwing on startup when no workspace is detected.
+- [x] **1.3**: Set `WriteIndented = false` by default for compact JSON in `ExecuteAndFormatQueryAsync`.
+- [x] **1.4**: Add `format: "markdown" | "mermaid" | "json" | "yaml" | "toon"` parameter to `GetProjectDependenciesAsync`.
+- [x] **1.5**: Add Mermaid sequence / flowchart formatter for `GetCallChainAsync`.
+- [x] **1.6**: Add compact Markdown table formatters for `FindSymbolAsync` and `GetFileOutlineAsync`.
+- [x] **2.1**: Enhance `GitIgnoreMatcher` to recursively load nested `.gitignore` files in monorepo subdirectories.
+- [x] **2.2**: Add default directory exclusions (`node_modules`, `dist`, `bin`, `obj`, `.next`, `coverage`).
+- [x] **2.3**: Add minified bundle heuristic check to skip obfuscated JS/TS chunks.
 - [x] **2.4**: Implement NestJS `@Module`, `@Injectable()`, and `@Controller` AST parsers in `TypeScriptParser`.
 - [x] **2.5**: Complete BullMQ, KafkaJS, and Elasticsearch library parsers for TypeScript.
-- [ ] **3.1**: Verify and optimize compound indexes on SQLite `edges` table.
-- [ ] **3.2**: Add query result caching for static graph structures (`get_architecture_map`, `get_taxonomy`).
-- [ ] **4.1**: Ensure MCP client connection uses `Mode=ReadOnly` with WAL concurrency tuning.
-- [ ] **4.2**: Implement `ce watch` file watcher for live incremental indexing.
+- [x] **3.1**: Verify and optimize compound indexes on SQLite `edges` table.
+- [ ] **3.2**: Add in-memory query result caching for static graph structures (`get_architecture_map_workspace`, `get_taxonomy`) with invalidation hooks.
+- [ ] **3.3**: Support OpenCypher relationship functions (`type(r)`, `properties(r)`, `startNode(r)`, `endNode(r)`) and edge variable bindings in `SqliteCompiler`.
+- [ ] **3.4**: Implement multi-branch `OPTIONAL MATCH` Cartesian product decomposition into correlated subqueries/CTEs.
+- [ ] **3.5**: Transpile path predicates (`WHERE EXISTS((n)-[:REL]->(m))`) and list quantifiers (`all()`, `any()`, `none()`) in Cypher compiler.
+- [ ] **4.1**: Configure SQLite connections with `Mode=ReadOnly`, WAL tuning (`PRAGMA busy_timeout = 5000`, `cache_size = -64000`).
+- [ ] **4.2**: Implement `ce watch` file watcher with debounced subtree scanning (`ParsingContext.IsSubtreeScan`).
+- [ ] **5.1**: Implement ASP.NET Core hierarchical route composition (`[Route]` + `[HttpGet]`) and Minimal API `MapGroup` in `CSharpParser`.
+- [ ] **5.2**: Implement C# constructor DI resolution and interface call late binding in Layer 5.
+- [ ] **5.3**: Implement EF Core `DbSet<T>` / `ToTable` and Dapper data lineage mapping in `CSharpParser`.
+- [ ] **6.1**: Implement self-contained synthetic 100k-node graph benchmark fixture for CI/CD in `Layer5BenchmarkTests`.

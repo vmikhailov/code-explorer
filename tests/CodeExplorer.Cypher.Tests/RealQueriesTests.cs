@@ -84,6 +84,16 @@ public class RealQueriesTests
     }
 
     [Test]
+    public void Test_GetTaxonomyNodes_ProducesSelectDistinct()
+    {
+        var filePath = Path.Combine(_queriesDir, "get_taxonomy_nodes.cypher");
+        var rawText = File.ReadAllText(filePath);
+        var ast = CypherQueryParser.Parse(rawText);
+        var compiled = SqliteCompiler.Compile(ast);
+        Assert.That(compiled.Sql, Does.StartWith("SELECT DISTINCT"));
+    }
+
+    [Test]
     public void Test_Benchmark_ArchitectureMap_OnRealDb()
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -125,5 +135,21 @@ public class RealQueriesTests
             sw.Stop();
             Assert.That(sw.ElapsedMilliseconds, Is.LessThan(1000), $"Query took {sw.ElapsedMilliseconds}ms, expected under 1000ms");
         }
+    }
+
+    [Test]
+    public void Test_With_LabelsAggregation_GroupsByKind()
+    {
+        var cypher = @"
+            MATCH (n)
+            WITH DISTINCT labels(n)[0] AS kind, count(n) AS count
+            RETURN kind, count
+            ORDER BY count DESC
+        ";
+
+        var ast = CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+        Assert.That(compiled.Sql, Does.Contain("GROUP BY"));
+        Assert.That(compiled.Sql, Does.Contain("n.kind"));
     }
 }

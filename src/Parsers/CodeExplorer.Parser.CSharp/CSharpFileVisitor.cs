@@ -27,7 +27,7 @@ public class CSharpFileVisitor : BaseParserVisitor
         if (node.Is(TreeSitterSyntax.CSharp.Attribute))
         {
             var nameNode = node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
-            if (nameNode.IsValid() && (nameNode.Text == "Route" || nameNode.Text.StartsWith("Http") || nameNode.Text is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "Options"))
+            if (nameNode.IsValid() && (nameNode.Text is "Route" or "RoutePrefix" || nameNode.Text.StartsWith("Http") || nameNode.Text is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "Options"))
             {
                 var parentDecl = node.Parent?.Parent;
                 var current = parentDecl?.Parent;
@@ -161,6 +161,7 @@ public class CSharpFileVisitor : BaseParserVisitor
                         {
                             var scopeName = GetContainingScopeName(node);
                             RawTypeBindings.Add(new RawTypeBinding(varName, resolvedTypeName, "", scopeName));
+                            RawTypeBindings.Add(new RawTypeBinding("this." + varName, resolvedTypeName, "", scopeName));
                         }
                     }
                 }

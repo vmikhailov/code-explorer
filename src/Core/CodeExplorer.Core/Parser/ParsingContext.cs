@@ -59,6 +59,7 @@ public class ParsingContext
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
     public List<Reference> GlobalReferences { get; }
     public List<Relationship> GlobalProjectDependencies { get; }
+    public List<Relationship> TreeRelationships { get; } = [];
 
     public List<RawImport> RawImports { get; } = [];
     public List<RawVariable> RawVariables { get; } = [];

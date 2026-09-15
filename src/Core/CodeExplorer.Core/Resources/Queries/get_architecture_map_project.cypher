@@ -1,5 +1,5 @@
-﻿MATCH (p:Project {name: $projectName})
-OPTIONAL MATCH (p)-[:LOCATED_IN]->(target:Folder)-[:CONTAINS*0..3]->(pf:Folder)
+MATCH (p:Project {name: $projectName})
+OPTIONAL MATCH (p)-[:LOCATED_IN]->(target:Folder)-[:CONTAINS]->(pf:Folder)
 OPTIONAL MATCH (db:Database) WHERE db.id STARTS WITH p.id
 WITH p, collect(DISTINCT pf.name) AS folders, collect(DISTINCT db.name) AS projectDbs
 RETURN p.name AS project, p.project_type AS language, folders,

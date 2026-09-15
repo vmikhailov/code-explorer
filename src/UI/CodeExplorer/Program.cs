@@ -423,6 +423,36 @@ public class Program
                 parameters["wsIdPrefix"] = "workspace:";
             }
 
+            if (opts.Params != null)
+            {
+                foreach (var paramStr in opts.Params)
+                {
+                    if (string.IsNullOrWhiteSpace(paramStr)) continue;
+                    var eqIdx = paramStr.IndexOf('=');
+                    if (eqIdx > 0)
+                    {
+                        var key = paramStr.Substring(0, eqIdx).Trim().TrimStart('$');
+                        var valStr = paramStr.Substring(eqIdx + 1).Trim();
+                        if (long.TryParse(valStr, out var longVal))
+                        {
+                            parameters[key] = longVal;
+                        }
+                        else if (double.TryParse(valStr, System.Globalization.CultureInfo.InvariantCulture, out var dblVal))
+                        {
+                            parameters[key] = dblVal;
+                        }
+                        else if (bool.TryParse(valStr, out var boolVal))
+                        {
+                            parameters[key] = boolVal;
+                        }
+                        else
+                        {
+                            parameters[key] = valStr;
+                        }
+                    }
+                }
+            }
+
             var resultJson = await client.ExecuteQueryAsync(cypherQuery, parameters);
 
             bool isJsonFormat = opts.Json || string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase);

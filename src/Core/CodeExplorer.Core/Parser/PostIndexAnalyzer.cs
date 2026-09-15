@@ -63,25 +63,29 @@ public class PostIndexAnalyzer(IGraphClient db)
             list.Add(to);
         }
 
-        foreach (var rel in referenceRelationships)
+        void AddRel(Relationship rel)
         {
-            if (rel.Kind == OntologyConstants.Relationships.Calls)
+            if (rel.Kind == OntologyConstants.Relationships.Calls ||
+                rel.Kind == OntologyConstants.Relationships.CallsEndpoint ||
+                rel.Kind == OntologyConstants.Relationships.UsesDb)
             {
                 AddCall(rel.From, rel.To);
+            }
+            else if (rel.Kind == OntologyConstants.Relationships.CalledBy ||
+                     rel.Kind == OntologyConstants.Relationships.QueriedBy)
+            {
+                AddCall(rel.To, rel.From);
             }
         }
 
-        foreach (var rel in lateBoundRels)
-        {
-            if (rel.Kind == OntologyConstants.Relationships.Calls)
-            {
-                AddCall(rel.From, rel.To);
-            }
-        }
+        foreach (var rel in referenceRelationships) AddRel(rel);
+        foreach (var rel in lateBoundRels) AddRel(rel);
+        foreach (var rel in ctx.TreeRelationships) AddRel(rel);
+        foreach (var rel in ctx.GlobalProjectDependencies) AddRel(rel);
 
         var sinks = new Dictionary<string, string>();
         var sinkDomains = new Dictionary<string, string?>();
-        var entryPointIds = new List<string>();
+        var entryPointIds = new HashSet<string>();
 
         void CollectNodes(IOntologyNode node)
         {
@@ -92,7 +96,8 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
             else if (node is DatabaseNode db)
             {
-                sinks[db.Id] = "DB";
+                sinks[db.Id] = "Database";
+                sinkDomains[db.Id] = db.Name;
             }
             else if (node is QueryNode q)
             {
@@ -125,10 +130,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             if (key.Kind == OntologyConstants.NodeLabels.EntryPoint || key.Kind == OntologyConstants.NodeLabels.Endpoint)
             {
-                if (!entryPointIds.Contains(id))
-                {
-                    entryPointIds.Add(id);
-                }
+                entryPointIds.Add(id);
             }
         }
 
@@ -147,9 +149,10 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        foreach (var rel in ctx.GlobalProjectDependencies)
+        void ProcessImplementsRel(Relationship rel)
         {
-            if (rel.Kind == OntologyConstants.Relationships.ImplementedBy)
+            if (rel.Kind == OntologyConstants.Relationships.ImplementedBy ||
+                rel.Kind == OntologyConstants.Relationships.ExposedBy)
             {
                 AddImplements(rel.From, rel.To);
             }
@@ -159,17 +162,9 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        foreach (var rel in referenceRelationships)
-        {
-            if (rel.Kind == OntologyConstants.Relationships.ImplementedBy)
-            {
-                AddImplements(rel.From, rel.To);
-            }
-            else if (rel.Kind == OntologyConstants.Relationships.Implements)
-            {
-                AddImplements(rel.To, rel.From);
-            }
-        }
+        foreach (var rel in ctx.GlobalProjectDependencies) ProcessImplementsRel(rel);
+        foreach (var rel in referenceRelationships) ProcessImplementsRel(rel);
+        foreach (var rel in ctx.TreeRelationships) ProcessImplementsRel(rel);
 
         var projectToEntryPoints = new Dictionary<string, List<string>>();
         foreach (var project in l4Result.Prev.Prev.Projects)
@@ -203,7 +198,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
 
         var widPrefix = string.IsNullOrEmpty(ctx.WorkspaceId) ? "" : (ctx.WorkspaceId.EndsWith(':') ? ctx.WorkspaceId : ctx.WorkspaceId + ":");
-        var graphData = new PostIndexGraphData(callsAdjacency, sinks, sinkDomains, [.. callersSet], implements, entryPointIds, projectToEntryPoints);
+        var graphData = new PostIndexGraphData(callsAdjacency, sinks, sinkDomains, [.. callersSet], implements, [.. entryPointIds], projectToEntryPoints);
         var result = Analyze(graphData, widPrefix);
 
         // Update project nodes in memory
@@ -387,28 +382,31 @@ public class PostIndexAnalyzer(IGraphClient db)
             projectExternalApis[projId] = [.. domains.OrderBy(x => x)];
         }
 
-        return new PostIndexAnalysisResult(transitivelyCalls, attributedTo, projectExternalApis);
+        return new PostIndexAnalysisResult(
+            transitivelyCalls.DistinctBy(x => (x.From, x.To)).ToList(),
+            attributedTo.DistinctBy(x => (x.EpId, x.SinkId)).ToList(),
+            projectExternalApis);
     }
 
     private Task WriteTransitivelyCallsAsync(string widPrefix) => db.ExecuteWriteAsync("""
-        MATCH path = (caller:Function)-[:CALLS*1..15]->(sink)
-        WHERE caller.id STARTS WITH $widPrefix AND (sink:ExternalService OR sink:DB OR sink:Query)
+        MATCH path = (caller:Function)-[:CALLS|CALLS_ENDPOINT|USES_DB*1..15]->(sink)
+        WHERE caller.id STARTS WITH $widPrefix AND (sink:ExternalService OR sink:DB OR sink:Database OR sink:Query)
         WITH caller, sink, min(length(path)) AS hops
         MERGE (caller)-[r:TRANSITIVELY_CALLS]->(sink)
         SET r.hops = hops
         """, new { widPrefix });
 
     private Task WriteAttributedToAsync(string widPrefix) => db.ExecuteWriteAsync("""
-        MATCH path = (ep:EntryPoint)<-[:IMPLEMENTS]-(fn:Function)-[:CALLS*0..15]->(sink)
-        WHERE ep.id STARTS WITH $widPrefix AND (sink:ExternalService OR sink:DB OR sink:Query)
+        MATCH path = (ep)-[:IMPLEMENTS|IMPLEMENTED_BY|EXPOSED_BY]-(fn:Function)-[:CALLS|CALLS_ENDPOINT|USES_DB*0..15]->(sink)
+        WHERE (ep:EntryPoint OR ep:Endpoint) AND ep.id STARTS WITH $widPrefix AND (sink:ExternalService OR sink:DB OR sink:Database OR sink:Query)
         WITH ep, sink, min(length(path)) AS hops, labels(sink)[0] AS sinkKind
         MERGE (ep)-[r:ATTRIBUTED_TO]->(sink)
         SET r.hops = hops, r.sink_kind = sinkKind
         """, new { widPrefix });
 
     private Task WriteProjectApiAnnotationsAsync(string widPrefix) => db.ExecuteWriteAsync("""
-        MATCH (p:Project)-[:CONTAINS|EXPOSES*1..2]->(ep:EntryPoint)-[:ATTRIBUTED_TO]->(es:ExternalService)
-        WHERE p.id STARTS WITH $widPrefix
+        MATCH (p:Project)-[:CONTAINS|EXPOSES*1..2]->(ep)-[:ATTRIBUTED_TO]->(es:ExternalService)
+        WHERE (ep:EntryPoint OR ep:Endpoint) AND p.id STARTS WITH $widPrefix
         WITH p, collect(DISTINCT es.domain_or_service) AS domains
         SET p.external_apis = domains
         """, new { widPrefix });

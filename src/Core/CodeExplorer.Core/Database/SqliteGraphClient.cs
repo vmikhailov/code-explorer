@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -427,10 +427,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
             const int batchSize = 100;
+            var distinctNodes = nodes.Count > 1 ? nodes.DistinctBy(n => n.Id).ToList() : nodes;
 
-            for (int i = 0; i < nodes.Count; i += batchSize)
+            for (int i = 0; i < distinctNodes.Count; i += batchSize)
             {
-                var count = Math.Min(batchSize, nodes.Count - i);
+                var count = Math.Min(batchSize, distinctNodes.Count - i);
                 await using var cmd = _conn.CreateCommand();
                 cmd.Transaction = tx;
 
@@ -441,7 +442,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                     if (j > 0) sb.Append(',');
                     sb.Append($"(@i{j}, @k{j}, @p{j})");
 
-                    var node = nodes[i + j];
+                    var node = distinctNodes[i + j];
                     var dict = new Dictionary<string, object>(node.Properties) { ["id"] = node.Id };
                     cmd.Parameters.AddWithValue($"@i{j}", node.Id);
                     cmd.Parameters.AddWithValue($"@k{j}", node.Kind);
@@ -473,10 +474,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
             const string emptyPropsJson = "{}";
             const int batchSize = 100;
+            var distinctRels = rels.Count > 1 ? rels.DistinctBy(r => (r.From, r.To, r.Kind)).ToList() : rels;
 
-            for (int i = 0; i < rels.Count; i += batchSize)
+            for (int i = 0; i < distinctRels.Count; i += batchSize)
             {
-                var count = Math.Min(batchSize, rels.Count - i);
+                var count = Math.Min(batchSize, distinctRels.Count - i);
                 await using var cmd = _conn.CreateCommand();
                 cmd.Transaction = tx;
 
@@ -487,7 +489,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                     if (j > 0) sb.Append(',');
                     sb.Append($"(@f{j}, @t{j}, @k{j}, @p{j})");
 
-                    var rel = rels[i + j];
+                    var rel = distinctRels[i + j];
                     cmd.Parameters.AddWithValue($"@f{j}", rel.From);
                     cmd.Parameters.AddWithValue($"@t{j}", rel.To);
                     cmd.Parameters.AddWithValue($"@k{j}", rel.Kind);
@@ -656,7 +658,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             var sinkDomains = new Dictionary<string, string?>();
             await using (var cmd = _conn.CreateCommand())
             {
-                cmd.CommandText = "SELECT id, kind, json_extract(properties, '$.domain_or_service') FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query', 'CloudService');";
+                cmd.CommandText = "SELECT id, kind, COALESCE(json_extract(properties, '$.domain_or_service'), json_extract(properties, '$.name')) FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query', 'CloudService');";
                 await using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
@@ -668,11 +670,15 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 }
             }
 
-            // 2. CALLS edges
+            // 2. CALLS edges (including reversed CALLED_BY, QUERIED_BY, and USES_DB)
             var callsAdjacency = new Dictionary<string, List<string>>();
             await using (var cmd = _conn.CreateCommand())
             {
-                cmd.CommandText = "SELECT from_id, to_id FROM edges WHERE kind = 'CALLS';";
+                cmd.CommandText = """
+                    SELECT from_id, to_id FROM edges WHERE kind IN ('CALLS', 'CALLS_ENDPOINT', 'USES_DB')
+                    UNION
+                    SELECT to_id, from_id FROM edges WHERE kind IN ('CALLED_BY', 'QUERIED_BY');
+                    """;
                 await using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
@@ -687,11 +693,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 }
             }
 
-            // 3. IMPLEMENTS and IMPLEMENTED_BY edges
+            // 3. IMPLEMENTS, IMPLEMENTED_BY, and EXPOSED_BY edges
             var implements = new Dictionary<string, List<string>>(); // epId -> list of fnIds
             await using (var cmd = _conn.CreateCommand())
             {
-                cmd.CommandText = "SELECT from_id, to_id, kind FROM edges WHERE kind IN ('IMPLEMENTS', 'IMPLEMENTED_BY');";
+                cmd.CommandText = "SELECT from_id, to_id, kind FROM edges WHERE kind IN ('IMPLEMENTS', 'IMPLEMENTED_BY', 'EXPOSED_BY');";
                 await using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
@@ -815,7 +821,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             {
                 await using var insCmd = _conn.CreateCommand();
                 insCmd.Transaction = tx;
-                insCmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', @props);";
+                insCmd.CommandText = "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', @props);";
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
@@ -834,7 +840,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             {
                 await using var insCmd = _conn.CreateCommand();
                 insCmd.Transaction = tx;
-                insCmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', @props);";
+                insCmd.CommandText = "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', @props);";
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);

@@ -293,4 +293,53 @@ public class SqliteCompilerTests
         var compiled = SqliteCompiler.Compile(ast);
         Assert.That(compiled.Sql, Is.Not.Empty);
     }
+
+    [Test]
+    public void Test_Relationship_Functions_Type_StartNode_EndNode_Properties()
+    {
+        var cypher = @"
+            MATCH (a:Function)-[r:CALLS]->(b:Function)
+            RETURN type(r) AS relType, startNode(r) AS fromId, endNode(r) AS toId, properties(r) AS relProps, r.kind AS rKind
+            LIMIT 1
+        ";
+
+        var rows = ExecuteCypher(cypher);
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["relType"], Is.EqualTo("CALLS"));
+        Assert.That(rows[0]["rKind"], Is.EqualTo("CALLS"));
+        Assert.That(rows[0]["fromId"], Is.EqualTo("fn:process"));
+        Assert.That(rows[0]["toId"], Is.EqualTo("fn:save"));
+    }
+
+    [Test]
+    public void Test_Return_Relationship_Object()
+    {
+        var cypher = @"
+            MATCH (a:Function)-[r:CALLS]->(b:Function)
+            RETURN r
+            LIMIT 1
+        ";
+
+        var rows = ExecuteCypher(cypher);
+        Assert.That(rows, Has.Count.EqualTo(1));
+        var relJson = (string)rows[0]["r"]!;
+        using var doc = JsonDocument.Parse(relJson);
+        Assert.That(doc.RootElement.GetProperty("type").GetString(), Is.EqualTo("CALLS"));
+        Assert.That(doc.RootElement.GetProperty("from").GetString(), Is.EqualTo("fn:process"));
+        Assert.That(doc.RootElement.GetProperty("to").GetString(), Is.EqualTo("fn:save"));
+    }
+
+    [Test]
+    public void Test_With_Distinct_Propagates_To_Select()
+    {
+        var cypher = @"
+            MATCH (n)-[r]->(m)
+            WITH DISTINCT labels(n)[0] AS fromLabel, type(r) AS relType, labels(m)[0] AS toLabel
+            RETURN fromLabel, relType, toLabel
+        ";
+
+        var compiled = SqliteCompiler.Compile(CypherQueryParser.Parse(cypher));
+        Assert.That(compiled.Sql, Does.StartWith("SELECT DISTINCT"));
+    }
 }
+

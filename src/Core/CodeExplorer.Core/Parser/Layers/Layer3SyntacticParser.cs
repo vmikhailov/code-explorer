@@ -392,15 +392,24 @@ public class Layer3SyntacticParser
         string relativePath,
         string workspaceId)
     {
-        var cleanName = name;
+        var cleanName = name?.Trim('"', '\'', '`', ' ', ';') ?? "";
         if (string.IsNullOrWhiteSpace(cleanName) ||
             cleanName.Length > 256 ||
             cleanName.Contains('\n') ||
             cleanName.Contains('\r') ||
             cleanName.Contains('{') ||
             cleanName.Contains('}') ||
+            cleanName.Contains('<') ||
+            cleanName.Contains('>') ||
+            cleanName.Contains('+') ||
+            cleanName.Contains('(') ||
+            cleanName.Contains(')') ||
+            cleanName.Contains('"') ||
+            cleanName.Contains('\'') ||
+            cleanName.StartsWith('$') ||
             cleanName.Contains("=>") ||
-            cleanName.Contains(';'))
+            cleanName.Contains(';') ||
+            int.TryParse(cleanName, out _))
         {
             cleanName = "unknown-service";
         }
@@ -453,6 +462,27 @@ public class Layer3SyntacticParser
             var trimmed = domainOrService.TrimStart('/');
             var nextSlash = trimmed.IndexOf('/');
             domainOrService = nextSlash > 0 ? trimmed.Substring(0, nextSlash) : trimmed;
+        }
+
+        if (domainOrService.Contains('.'))
+        {
+            var lastPart = domainOrService.Split('.').Last();
+            if (lastPart.Any(char.IsUpper) || lastPart.Contains('_') || lastPart.Length > 12)
+            {
+                domainOrService = "unknown-service";
+            }
+        }
+        else if (domainOrService != "*" &&
+                 protocol != "ws" && protocol != "wss" && protocol != "grpc" &&
+                 !domainOrService.EndsWith("-service", StringComparison.OrdinalIgnoreCase) &&
+                 !domainOrService.EndsWith("-api", StringComparison.OrdinalIgnoreCase) &&
+                 !domainOrService.EndsWith("-worker", StringComparison.OrdinalIgnoreCase) &&
+                 !domainOrService.Equals("auth", StringComparison.OrdinalIgnoreCase) &&
+                 !domainOrService.Equals("jira", StringComparison.OrdinalIgnoreCase) &&
+                 !domainOrService.Equals("redis", StringComparison.OrdinalIgnoreCase) &&
+                 !domainOrService.Equals("unknown-service", StringComparison.OrdinalIgnoreCase))
+        {
+            domainOrService = "unknown-service";
         }
 
         var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";

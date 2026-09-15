@@ -16,7 +16,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
     private static readonly HashSet<string> RouteAttributes =
     [
-        "Route", "HttpGet", "HttpPost", "HttpPut", "HttpDelete", "HttpPatch", "HttpHead", "HttpOptions",
+        "Route", "RoutePrefix", "HttpGet", "HttpPost", "HttpPut", "HttpDelete", "HttpPatch", "HttpHead", "HttpOptions",
         "Get", "Post", "Put", "Delete", "Patch", "Head", "Options"
     ];
     private static readonly HashSet<string> EndpointMethods = ["MapHub", "MapGet", "MapPost", "MapPut", "MapDelete", "MapPatch"];
@@ -417,9 +417,24 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
             if (string.IsNullOrEmpty(explicitRoute))
             {
-                routeVal = !string.IsNullOrEmpty(classPrefix)
+                var baseRoute = !string.IsNullOrEmpty(classPrefix)
                     ? classPrefix
                     : (!string.IsNullOrEmpty(className) ? "/" + className : "/");
+
+                if (!string.IsNullOrEmpty(methodName) &&
+                    !methodName.Equals("Get", StringComparison.OrdinalIgnoreCase) &&
+                    !methodName.Equals("Post", StringComparison.OrdinalIgnoreCase) &&
+                    !methodName.Equals("Put", StringComparison.OrdinalIgnoreCase) &&
+                    !methodName.Equals("Delete", StringComparison.OrdinalIgnoreCase) &&
+                    !methodName.Equals("Patch", StringComparison.OrdinalIgnoreCase) &&
+                    !methodName.Equals("Index", StringComparison.OrdinalIgnoreCase))
+                {
+                    routeVal = CombineRoutes(baseRoute, methodName);
+                }
+                else
+                {
+                    routeVal = baseRoute;
+                }
             }
             else if (explicitRoute.StartsWith("/") || explicitRoute.StartsWith("~/"))
             {
@@ -497,7 +512,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
             foreach (var attr in child.FindChildrenOfType(TreeSitterSyntax.CSharp.Attribute))
             {
                 var nameNode = attr.FindChildOfType(TreeSitterSyntax.Common.Identifier);
-                if (nameNode.IsValid() && (nameNode.Text == "Route" || nameNode.Text.StartsWith("Http")))
+                if (nameNode.IsValid() && (nameNode.Text is "Route" or "RoutePrefix" || nameNode.Text.StartsWith("Http")))
                 {
                     var argList = attr.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
                     if (argList.IsValid())

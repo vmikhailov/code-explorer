@@ -12,6 +12,12 @@ public class CodeExplorerRepository
     private readonly ProjectQueryManager _queryManager;
     private readonly IGraphClient _defaultDbClient;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IGraphClient> _clientCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _macroCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public void InvalidateCache()
+    {
+        _macroCache.Clear();
+    }
 
     public string? DefaultWorkspacePath { get; }
 
@@ -89,16 +95,19 @@ public class CodeExplorerRepository
 
     public async Task ClearAllAsync()
     {
+        InvalidateCache();
         await _defaultDbClient.ClearDatabaseAsync();
     }
 
     public async Task<bool> ClearWorkspaceAsync(string workspaceIdOrPath)
     {
+        InvalidateCache();
         return await _defaultDbClient.ClearWorkspaceAsync(workspaceIdOrPath);
     }
 
     public async Task<(List<string> Cleared, List<string> NotFound)> ClearWorkspacesAsync(IEnumerable<string> workspaces)
     {
+        InvalidateCache();
         var cleared = new List<string>();
         var notFound = new List<string>();
         foreach (var ws in workspaces)
@@ -265,6 +274,12 @@ public class CodeExplorerRepository
 
     public async Task<string> GetArchitectureMapAsync(string? projectName = null, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        var cacheKey = $"arch:{workspacePath ?? ""}:{projectName ?? ""}";
+        if (_macroCache.TryGetValue(cacheKey, out var cachedResult))
+        {
+            return cachedResult;
+        }
+
         string resultJson;
         if (!string.IsNullOrEmpty(projectName))
         {
@@ -283,7 +298,7 @@ public class CodeExplorerRepository
             if (savedQueries.Count > 0)
             {
                 using var doc = JsonDocument.Parse(resultJson);
-                return JsonSerializer.Serialize(new
+                var formatted = JsonSerializer.Serialize(new
                 {
                     results = doc.RootElement.GetProperty("results"),
                     saved_project_queries = savedQueries.Select(q => new
@@ -295,6 +310,8 @@ public class CodeExplorerRepository
                         tags = q.Tags
                     })
                 }, CompactJsonOptions);
+                _macroCache[cacheKey] = formatted;
+                return formatted;
             }
         }
         catch
@@ -302,6 +319,7 @@ public class CodeExplorerRepository
             // Do not fail architecture map if project query listing fails
         }
 
+        _macroCache[cacheKey] = resultJson;
         return resultJson;
     }
 
@@ -794,6 +812,12 @@ public class CodeExplorerRepository
 
     public async Task<string> GetTaxonomyAsync(string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        var cacheKey = $"taxonomy:{workspacePath ?? ""}";
+        if (_macroCache.TryGetValue(cacheKey, out var cachedTaxonomy))
+        {
+            return cachedTaxonomy;
+        }
+
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
         {
@@ -811,7 +835,9 @@ public class CodeExplorerRepository
         var parsedProperties = JsonSerializer.Deserialize<List<Dictionary<string, string>>>(propJson) ?? [];
 
         var taxonomy = BuildTaxonomy(parsedTriplets, parsedProperties);
-        return JsonSerializer.Serialize(new { taxonomy }, CompactJsonOptions);
+        var finalJson = JsonSerializer.Serialize(new { taxonomy }, CompactJsonOptions);
+        _macroCache[cacheKey] = finalJson;
+        return finalJson;
     }
 
     public async Task<string> FetchCodeSnippetsAsync(string nodesJson, string? workspacePath = null, CancellationToken cancellationToken = default)

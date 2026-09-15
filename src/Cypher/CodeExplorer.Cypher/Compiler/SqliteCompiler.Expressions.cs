@@ -56,7 +56,7 @@ public partial class SqliteCompiler
             return $"{EscapeVar(relVar)}.path_nodes";
         }
 
-        return TryVisitNodeIdentifier(id.Name, escaped) ?? escaped;
+        return TryVisitNodeIdentifier(id.Name, escaped) ?? TryVisitRelIdentifier(id.Name, escaped) ?? escaped;
     }
 
     private string? TryVisitNodeIdentifier(string name, string escaped)
@@ -75,6 +75,16 @@ public partial class SqliteCompiler
         return null;
     }
 
+    private string? TryVisitRelIdentifier(string name, string escaped)
+    {
+        if (_declaredRels.Contains(name))
+        {
+            return $"json_object('type', {escaped}.kind, 'from', {escaped}.from_id, 'to', {escaped}.to_id, 'properties', json({escaped}.properties))";
+        }
+
+        return null;
+    }
+
     private string VisitPropertyAccess(PropertyAccessExpression prop)
     {
         var v = EscapeVar(prop.Variable);
@@ -88,7 +98,7 @@ public partial class SqliteCompiler
             return VisitSourcePropertyAccess(prop.Variable, propSrc, prop.PropertyName);
         }
 
-        return VisitDefaultPropertyAccess(v, prop.PropertyName);
+        return VisitDefaultPropertyAccess(v, prop.PropertyName, prop.Variable);
     }
 
     private static string VisitUnwindPropertyAccess(string v, string propName)
@@ -122,8 +132,33 @@ public partial class SqliteCompiler
         return $"json_extract({propSrc}, '$.{propName}')";
     }
 
-    private static string VisitDefaultPropertyAccess(string v, string propName)
+    private string VisitDefaultPropertyAccess(string v, string propName, string originalVar)
     {
+        if (_declaredRels.Contains(originalVar))
+        {
+            if (propName.Equals("id", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{v}.rowid";
+            }
+
+            if (propName.Equals("kind", StringComparison.OrdinalIgnoreCase) || propName.Equals("type", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{v}.kind";
+            }
+
+            if (propName.Equals("from", StringComparison.OrdinalIgnoreCase) || propName.Equals("from_id", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{v}.from_id";
+            }
+
+            if (propName.Equals("to", StringComparison.OrdinalIgnoreCase) || propName.Equals("to_id", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{v}.to_id";
+            }
+
+            return $"json_extract({v}.properties, '$.{propName}')";
+        }
+
         if (propName.Equals("id", StringComparison.OrdinalIgnoreCase))
         {
             return $"{v}.id";
@@ -329,7 +364,16 @@ public partial class SqliteCompiler
             return $"{EscapeVar(rel.Name)}.rowid";
         }
 
-        return $"{VisitExpression(func.Arguments[0])}.id";
+        var innerSql = VisitExpression(func.Arguments[0]);
+        if (innerSql.EndsWith(".from_id", StringComparison.OrdinalIgnoreCase) ||
+            innerSql.EndsWith(".to_id", StringComparison.OrdinalIgnoreCase) ||
+            innerSql.EndsWith(".id", StringComparison.OrdinalIgnoreCase) ||
+            innerSql.EndsWith(".rowid", StringComparison.OrdinalIgnoreCase))
+        {
+            return innerSql;
+        }
+
+        return $"{innerSql}.id";
     }
 
     private string? TryVisitScalarFunction(string fn, FunctionCallExpression func)
@@ -362,6 +406,12 @@ public partial class SqliteCompiler
             return $"({VisitExpression(func.Arguments[0])} IS NOT NULL)";
         }
 
+        if (fn == "tostring" && func.Arguments.Count == 1)
+            return $"CAST({VisitExpression(func.Arguments[0])} AS TEXT)";
+
+        if (fn == "length" && func.Arguments.Count == 1)
+            return $"length({VisitExpression(func.Arguments[0])})";
+
         return null;
     }
 
@@ -392,18 +442,15 @@ public partial class SqliteCompiler
             return $"length({VisitExpression(func.Arguments[0])})";
 
         if (fn == "substring" && (func.Arguments.Count == 2 || func.Arguments.Count == 3))
-            return VisitSubstringFunction(func);
+        {
+            var strSql = VisitExpression(func.Arguments[0]);
+            var startSql = VisitExpression(func.Arguments[1]);
+            return func.Arguments.Count == 3
+                ? $"substr({strSql}, ({startSql}) + 1, {VisitExpression(func.Arguments[2])})"
+                : $"substr({strSql}, ({startSql}) + 1)";
+        }
 
         return null;
-    }
-
-    private string VisitSubstringFunction(FunctionCallExpression func)
-    {
-        var strSql = VisitExpression(func.Arguments[0]);
-        var startSql = VisitExpression(func.Arguments[1]);
-        return func.Arguments.Count == 3
-            ? $"substr({strSql}, ({startSql}) + 1, {VisitExpression(func.Arguments[2])})"
-            : $"substr({strSql}, ({startSql}) + 1)";
     }
 
     private string? TryVisitAggregateFunction(string fn, FunctionCallExpression func, string distinctStr)
@@ -430,8 +477,26 @@ public partial class SqliteCompiler
         if (fn == "labels" && func.Arguments.Count == 1 && func.Arguments[0] is IdentifierExpression nodeVar)
             return $"json_array({EscapeVar(nodeVar.Name)}.kind)";
 
-        if (fn == "type" && func.Arguments.Count == 1 && func.Arguments[0] is IdentifierExpression relVar)
-            return $"{EscapeVar(relVar.Name)}.kind";
+        if (fn == "type" && func.Arguments.Count == 1)
+        {
+            if (func.Arguments[0] is IdentifierExpression relVar)
+                return $"{EscapeVar(relVar.Name)}.kind";
+            return $"json_extract({VisitExpression(func.Arguments[0])}, '$.type')";
+        }
+
+        if ((fn == "startnode" || fn == "start_node") && func.Arguments.Count == 1)
+        {
+            if (func.Arguments[0] is IdentifierExpression startRelVar)
+                return $"{EscapeVar(startRelVar.Name)}.from_id";
+            return $"json_extract({VisitExpression(func.Arguments[0])}, '$.from')";
+        }
+
+        if ((fn == "endnode" || fn == "end_node") && func.Arguments.Count == 1)
+        {
+            if (func.Arguments[0] is IdentifierExpression endRelVar)
+                return $"{EscapeVar(endRelVar.Name)}.to_id";
+            return $"json_extract({VisitExpression(func.Arguments[0])}, '$.to')";
+        }
 
         if (fn == "nodes" && func.Arguments.Count == 1 &&
             func.Arguments[0] is IdentifierExpression pathVar &&

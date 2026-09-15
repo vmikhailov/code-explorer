@@ -12,8 +12,12 @@ public static class OntologyUploader
         var collectedNodes = new List<Node>();
         var collectedRelationships = new List<Relationship>();
         var visitedNodeIds = new HashSet<string>();
+        var visitedRelKeys = new HashSet<(string From, string To, string Kind)>();
 
-        CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships, visitedNodeIds);
+        CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
+
+        // Store all tree relationships in ctx for post-indexing and layer 5 analysis
+        ctx.TreeRelationships.AddRange(collectedRelationships);
 
         // Upload nodes in chunks of 10000
         for (var i = 0; i < collectedNodes.Count; i += 10000)
@@ -36,7 +40,8 @@ public static class OntologyUploader
         ParsingContext ctx,
         List<Node> collectedNodes,
         List<Relationship> collectedRelationships,
-        HashSet<string> visitedNodeIds)
+        HashSet<string> visitedNodeIds,
+        HashSet<(string From, string To, string Kind)> visitedRelKeys)
     {
         var isDuplicate = visitedNodeIds.Contains(node.Id);
 
@@ -45,18 +50,22 @@ public static class OntologyUploader
         {
             var ontologyRel = GetRelationship(parentNode.Id, node);
             var dbRel = Relationship.FromRelationship(ontologyRel);
-            collectedRelationships.Add(dbRel);
-            ctx.AddRelsCount(1);
+            if (visitedRelKeys.Add((dbRel.From, dbRel.To, dbRel.Kind)))
+            {
+                collectedRelationships.Add(dbRel);
+                ctx.AddRelsCount(1);
+            }
         }
 
-        if (isDuplicate) return;
-        visitedNodeIds.Add(node.Id);
+        if (!isDuplicate)
+        {
+            visitedNodeIds.Add(node.Id);
 
-        // 1. Convert and collect the current node
-        var dbNode = Node.FromNode(node);
-        collectedNodes.Add(dbNode);
-        ctx.IncrementNodeKind(node.Kind);
-        ctx.AddNodesCount(1);
+            // 1. Convert and collect the current node
+            var dbNode = Node.FromNode(node);
+            collectedNodes.Add(dbNode);
+            ctx.IncrementNodeKind(node.Kind);
+            ctx.AddNodesCount(1);
 
         // 2. Map global symbols for reference resolution
         if (node.Kind == OntologyConstants.NodeLabels.Type ||
@@ -115,16 +124,17 @@ public static class OntologyUploader
             ctx.AddRelsCount(1);
         }
 
-        // 4. Collect unresolved references/dependencies
-        if (node.References.Count > 0)
-        {
-            ctx.AddGlobalReferences(node.References);
+            // 4. Collect unresolved references/dependencies
+            if (node.References.Count > 0)
+            {
+                ctx.AddGlobalReferences(node.References);
+            }
         }
 
         // 5. Recursively collect all children
         foreach (var child in node.Children)
         {
-            CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds);
+            CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
         }
     }
 
