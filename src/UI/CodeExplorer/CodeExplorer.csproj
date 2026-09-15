@@ -24,6 +24,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
+    <!-- Runtime compatibility -->
+    <RollForward>Major</RollForward>
+    <TargetLatestRuntimePatch>false</TargetLatestRuntimePatch>
+    <RuntimeFrameworkVersion>10.0.0</RuntimeFrameworkVersion>
+
     <!-- Single-file self-contained publish settings -->
     <PublishSingleFile Condition="'$(PublishSingleFile)' == ''">true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
