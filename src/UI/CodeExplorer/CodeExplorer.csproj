@@ -41,8 +41,6 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>ce</ToolCommandName>
     <PackageId>CodeExplorer.Cli</PackageId>
-    <Version Condition="'$(Version)' == ''">1.0.0</Version>
-    <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
     <Authors>Slava Mikhailov</Authors>
     <PackageDescription>Ultra-fast code graph exploration &amp; architecture mapping CLI and MCP server</PackageDescription>
     <PackageTags>graph;ast;tree-sitter;cypher;mcp;codebase-intelligence;architecture;cli</PackageTags>

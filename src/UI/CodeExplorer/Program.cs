@@ -1020,7 +1020,9 @@ public class Program
         Console.WriteLine("  clear                   Clear indexed data from the workspace database");
         Console.WriteLine("  queries                 List all available built-in and workspace custom queries");
         Console.WriteLine("  query                   Run a read-only Cypher query against the knowledge graph");
+        Console.WriteLine("  export                  Export architecture and lineage diagrams (Mermaid, C4)");
         Console.WriteLine("  mcp                     Run Model Context Protocol server (stdio default, or --port)");
+        Console.WriteLine("  ingest                  Direct batch ingestion of code nodes and relationships");
         Console.WriteLine();
 
         Console.ForegroundColor = ConsoleColor.White;
