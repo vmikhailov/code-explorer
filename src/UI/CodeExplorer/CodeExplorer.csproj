@@ -30,6 +30,23 @@
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
+
+    <!-- .NET Global Tool settings -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>ce</ToolCommandName>
+    <PackageId>CodeExplorer.Cli</PackageId>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">1.0.0</PackageVersion>
+    <Authors>Slava Mikhailov</Authors>
+    <PackageDescription>Ultra-fast code graph exploration &amp; architecture mapping CLI and MCP server</PackageDescription>
+    <PackageTags>graph;ast;tree-sitter;cypher;mcp;codebase-intelligence;architecture;cli</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/vmikhailov/code-explorer</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/vmikhailov/code-explorer</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>

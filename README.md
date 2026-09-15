@@ -1,4 +1,4 @@
-# CodeExplorer (`ce`) 🔍
+dot# CodeExplorer (`ce`) 🔍
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
@@ -120,6 +120,20 @@ curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/scrip
 **Windows (PowerShell as Administrator or User):**
 ```powershell
 irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/scripts/install.ps1 | iex
+```
+
+---
+
+### 📦 .NET Global Tool
+
+If you have [.NET SDK](https://dotnet.microsoft.com/download) installed:
+
+```bash
+# Install globally
+dotnet tool install -g CodeExplorer.Cli
+
+# Update to latest version
+dotnet tool update -g CodeExplorer.Cli
 ```
 
 ---
