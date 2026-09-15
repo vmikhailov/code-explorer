@@ -1,5 +1,12 @@
-MATCH (p:Project {name: $projectName})-[:CONTAINS*1..5]->(f:File)
-MATCH (f)-[:DEFINES|DECLARES*1..3]->(func:Function)
-WHERE f.path CONTAINS 'Controller' OR f.path CONTAINS 'Endpoint' OR f.path CONTAINS 'Handler' OR f.path CONTAINS 'Resolver' OR func.name STARTS WITH 'On' OR func.name STARTS WITH 'Handle'
-OPTIONAL MATCH (class:Type {kind: 'class'})-[:HAS_METHOD]->(func)
-RETURN func.name AS entryPoint, func.symbol AS symbol, class.name AS className, f.path AS filePath, func.start_line AS startLine
+MATCH (p:Project {name: $projectName})<-[:BELONGS_TO]-(psem:ProjectSemantic)-[:CONTAINS]->(ep)
+WHERE ep:Endpoint OR ep:EntryPoint
+OPTIONAL MATCH (ep)-[:TRIGGERS]->(func:Function)
+OPTIONAL MATCH (ep)-[:EXPOSED_BY]->(class:Type)
+OPTIONAL MATCH (func)-[:DECLARED_IN]->(f:File)
+RETURN coalesce(func.name, ep.name) AS entryPoint,
+       coalesce(func.symbol, ep.symbol) AS symbol,
+       coalesce(class.name, '') AS className,
+       coalesce(f.path, '') AS filePath,
+       coalesce(func.start_line, 0) AS startLine,
+       coalesce(ep.route, '') AS route,
+       coalesce(ep.http_method, '') AS httpMethod

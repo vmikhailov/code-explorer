@@ -1,7 +1,11 @@
 MATCH (t:Table {name: $tableName})
-OPTIONAL MATCH (t)-[:QUERIED_BY|DEPENDS_ON]-(q:Query)
-OPTIONAL MATCH (parent)-[:DEFINES|DECLARES]->(q)
-OPTIONAL MATCH (caller)-[:CALLS]->(parent)
-RETURN t.name AS tableName, q.name AS queryName, q.query_text AS queryText, q.path AS filePath,
-       collect(DISTINCT parent.name) AS parentName, labels(parent)[0] AS parentType,
+OPTIONAL MATCH (q:Query)-[:DEPENDS_ON]->(t)
+OPTIONAL MATCH (t)-[:QUERIED_BY]->(func:Function)
+OPTIONAL MATCH (caller)-[:CALLS]->(func)
+RETURN t.name AS tableName,
+       coalesce(q.name, '') AS queryName,
+       coalesce(q.query_text, '') AS queryText,
+       coalesce(q.path, '') AS filePath,
+       collect(DISTINCT func.name) AS parentName,
+       'Function' AS parentType,
        collect(DISTINCT caller.name) AS callingSymbols
