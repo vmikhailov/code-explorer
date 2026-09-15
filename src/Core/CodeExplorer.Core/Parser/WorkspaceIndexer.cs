@@ -78,7 +78,7 @@ public class WorkspaceIndexer
         await RunParsingPipelineAsync(ctx);
 
         ctx.Log(
-            $"[WorkspaceIndexer] Indexing process completed successfully! Total Nodes: {ctx.TotalNodesCount}, Total Relationships: {ctx.TotalRelsCount}.");
+            $"Indexing process completed successfully! Total Nodes: {ctx.TotalNodesCount}, Total Relationships: {ctx.TotalRelsCount}.");
 
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
     }
@@ -153,7 +153,7 @@ public class WorkspaceIndexer
         if (ctx.Clear)
         {
             var clearTarget = ctx.IsSubtreeScan ? ctx.ScanPath : ctx.HostWorkspacePath;
-            ctx.Log($"[WorkspaceIndexer] Clearing previous data for '{clearTarget}'...");
+            ctx.Log($"Clearing previous data for '{clearTarget}'...");
             await _dbClient.ClearWorkspaceAsync(clearTarget);
         }
 
@@ -163,7 +163,7 @@ public class WorkspaceIndexer
     private void LogPersistenceSummary(ParsingContext ctx)
     {
         ctx.Log(
-            $"[WorkspaceIndexer] All background channel persistence writes completed! Total parsed: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
+            $"All background channel persistence writes completed! Total parsed: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
     }
 
 }

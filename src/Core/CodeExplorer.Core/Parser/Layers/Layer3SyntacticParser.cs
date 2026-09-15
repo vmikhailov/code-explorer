@@ -14,7 +14,7 @@ public class Layer3SyntacticParser
 {
     public async Task<Layer3Result> ParseAsync(Layer2Result l2Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer3SyntacticParser] Starting tree-sitter AST syntactic parsing pass...");
+        ctx.Log("[Layer3] Starting tree-sitter AST syntactic parsing pass...");
 
         var syntaxNodeId = $"{ctx.WorkspaceId}:syntax_structure";
         var syntaxStructureNode = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", l2Result.Prev.Workspace.Path);
@@ -83,7 +83,7 @@ public class Layer3SyntacticParser
             nProject++;
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
-            ctx.Log($"[Layer3SyntacticParser] Parsing project {nProject} of {l2Result.Projects.Count} at:'{project.Path}'...");
+            ctx.Log($"[Layer3] Parsing project {nProject} of {l2Result.Projects.Count} at:'{project.Path}'...");
 
             var projectSyntaxId = $"{ctx.WorkspaceId}:project:{project.Path}:project_syntax";
             var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", project.Path);
@@ -129,7 +129,7 @@ public class Layer3SyntacticParser
                 }
                 catch (Exception ex)
                 {
-                    ctx.LogWarning($"[Layer3SyntacticParser] Error parsing file '{file.Path}': {ex.Message}", ex);
+                    ctx.LogWarning($"[Layer3] Error parsing file '{file.Path}': {ex.Message}", ex);
                 }
             });
 
@@ -168,7 +168,7 @@ public class Layer3SyntacticParser
             }
         }
 
-        ctx.Log($"[Layer3SyntacticParser] Syntactic parsing pass complete. Parsed {syntaxTrees.Count} AST trees.");
+        ctx.Log($"[Layer3] Syntactic parsing pass complete. Parsed {syntaxTrees.Count} AST trees.");
         return new Layer3Result(
             l2Result,
             syntaxStructureNode,

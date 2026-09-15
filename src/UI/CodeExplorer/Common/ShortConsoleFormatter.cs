@@ -30,7 +30,6 @@ public sealed class ShortConsoleFormatter : ConsoleFormatter
 
         textWriter.Write($"[{timestamp}] ");
         textWriter.Write($"{logLevelString}: ");
-        textWriter.Write($"{shortCategory}[{logEntry.EventId.Id}] ");
         textWriter.WriteLine(message);
 
         if (logEntry.Exception != null)

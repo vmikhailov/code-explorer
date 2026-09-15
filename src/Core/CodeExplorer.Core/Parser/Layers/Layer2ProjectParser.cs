@@ -9,7 +9,7 @@ public class Layer2ProjectParser
 {
     public async Task<Layer2Result> ParseAsync(Layer1Result l1Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer2ProjectParser] Starting project boundary detection and dependency scan...");
+        ctx.Log("[Layer2] Starting project boundary detection and dependency scan...");
 
         var projectsStructureNode = new ProjectsStructureNode(
             $"{ctx.WorkspaceId}:projects_structure", 
@@ -118,7 +118,7 @@ public class Layer2ProjectParser
             }
         }
 
-        ctx.Log($"[Layer2ProjectParser] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
+        ctx.Log($"[Layer2] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }
 
@@ -168,7 +168,7 @@ public class Layer2ProjectParser
         }
         catch (Exception ex)
         {
-            ctx.LogWarning($"[Layer2ProjectParser] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
+            ctx.LogWarning($"[Layer2] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
         }
     }
 
@@ -204,7 +204,7 @@ public class Layer2ProjectParser
         }
         catch (Exception ex)
         {
-            ctx.LogWarning($"[Layer2ProjectParser] Error getting produced package from {projectParser.ProjectType} parser in '{projectDir}': {ex.Message}", ex);
+            ctx.LogWarning($"[Layer2] Error getting produced package from {projectParser.ProjectType} parser in '{projectDir}': {ex.Message}", ex);
         }
 
         if (!packageDetected)

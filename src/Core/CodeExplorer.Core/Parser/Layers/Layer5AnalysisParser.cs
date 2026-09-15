@@ -10,7 +10,7 @@ public class Layer5AnalysisParser
 {
     public async Task<Layer5Result> ParseAsync(Layer4Result l4Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer5AnalysisParser] Starting Layer 5 (Late Binding, Cross-References & Post-Indexing Analysis)...");
+        ctx.Log("[Layer5] Starting Layer 5 (Late Binding, Cross-References & Post-Indexing Analysis)...");
 
         // 1. Upload the early enqueued relationships after all nodes are created
         var belongsToRels = new List<Relationship>();
@@ -37,7 +37,7 @@ public class Layer5AnalysisParser
 
         if (belongsToRels.Count > 0)
         {
-            ctx.Log($"[Layer5AnalysisParser] Uploading {belongsToRels.Count} project containment (BelongsTo) relationships...");
+            ctx.Log($"[Layer5] Uploading {belongsToRels.Count} project containment (BelongsTo) relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(belongsToRels);
             ctx.TotalRelsCount += belongsToRels.Count;
         }
@@ -53,11 +53,11 @@ public class Layer5AnalysisParser
         var lateBoundRels = await PerformLateBindingAsync(workspaceNode, ctx);
 
         // 5. Run PostIndexAnalyzer
-        ctx.Log("[Layer5AnalysisParser] Running in-memory post-indexing analysis via PostIndexAnalyzer...");
+        ctx.Log("[Layer5] Running in-memory post-indexing analysis via PostIndexAnalyzer...");
         var postAnalyzer = new PostIndexAnalyzer(ctx.DbClient);
         await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
 
-        ctx.Log("[Layer5AnalysisParser] Late binding and post-indexing analysis pass complete.");
+        ctx.Log("[Layer5] Late binding and post-indexing analysis pass complete.");
         return new Layer5Result(l4Result, lateBoundRels);
     }
 
@@ -66,7 +66,7 @@ public class Layer5AnalysisParser
         if (ctx.GlobalProjectDependencies.Count > 0)
         {
             ctx.Log(
-                $"[Layer5AnalysisParser] Uploading {ctx.GlobalProjectDependencies.Count} local project dependency relationships...");
+                $"[Layer5] Uploading {ctx.GlobalProjectDependencies.Count} local project dependency relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(ctx.GlobalProjectDependencies);
             ctx.TotalRelsCount += ctx.GlobalProjectDependencies.Count;
         }
@@ -107,7 +107,7 @@ public class Layer5AnalysisParser
     private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
     {
         var totalReferences = ctx.GlobalReferences.Count;
-        ctx.Log($"[Layer5AnalysisParser] Resolving {totalReferences} global cross-references...");
+        ctx.Log($"[Layer5] Resolving {totalReferences} global cross-references...");
         var referenceRelationships = new List<Relationship>(totalReferences > 0 ? Math.Min(totalReferences, 2000000) : 0);
         var inheritanceRels = new HashSet<(string From, string To)>();
         var interfaceToImplementors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -226,7 +226,7 @@ public class Layer5AnalysisParser
 
             if (resolvedCount % 100000 == 0)
             {
-                ctx.Log($"[Layer5AnalysisParser] Resolving global cross-references: {resolvedCount}/{totalReferences}...");
+                ctx.Log($"[Layer5] Resolving global cross-references: {resolvedCount}/{totalReferences}...");
             }
 
             if (refItem.Kind == OntologyConstants.Relationships.Implements ||
@@ -441,7 +441,7 @@ public class Layer5AnalysisParser
 
         if (referenceRelationships.Count > 0)
         {
-            ctx.Log($"[Layer5AnalysisParser] Uploading {referenceRelationships.Count} resolved reference relationships...");
+            ctx.Log($"[Layer5] Uploading {referenceRelationships.Count} resolved reference relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(referenceRelationships);
             ctx.TotalRelsCount += referenceRelationships.Count;
         }
@@ -456,7 +456,7 @@ public class Layer5AnalysisParser
 
         CollectPublicSymbols(rootNode, entryPoints, endpoints, externalServices);
 
-        ctx.Log($"[Layer5AnalysisParser] [LateBinding] Found {entryPoints.Count} EntryPoints, {endpoints.Count} Endpoints, and {externalServices.Count} ExternalServices.");
+        ctx.Log($"[Layer5] [LateBinding] Found {entryPoints.Count} EntryPoints, {endpoints.Count} Endpoints, and {externalServices.Count} ExternalServices.");
 
         var lateBoundRels = new List<Relationship>();
 
@@ -466,7 +466,7 @@ public class Layer5AnalysisParser
             {
                 if (IsMatch(extService, entryPoint))
                 {
-                    ctx.Log($"[Layer5AnalysisParser] [LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
+                    ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsRelationship(extService.Id, entryPoint.Id));
                     lateBoundRels.Add(rel);
                 }
@@ -476,7 +476,7 @@ public class Layer5AnalysisParser
             {
                 if (IsMatch(extService, endpoint))
                 {
-                    ctx.Log($"[Layer5AnalysisParser] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
+                    ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Id, endpoint.Id));
                     lateBoundRels.Add(rel);
                 }
@@ -485,7 +485,7 @@ public class Layer5AnalysisParser
 
         if (lateBoundRels.Count > 0)
         {
-            ctx.Log($"[Layer5AnalysisParser] Uploading {lateBoundRels.Count} late-bound relationships...");
+            ctx.Log($"[Layer5] Uploading {lateBoundRels.Count} late-bound relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(lateBoundRels);
             ctx.TotalRelsCount += lateBoundRels.Count;
         }

@@ -11,7 +11,7 @@ public class Layer4SemanticParser
 {
     public async Task<Layer4Result> ParseAsync(Layer3Result l3Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer4SemanticParser] Starting semantic enrichment pass...");
+        ctx.Log("[Layer4] Starting semantic enrichment pass...");
 
         var semanticNodeId = $"{ctx.WorkspaceId}:semantic_structure";
         var semanticStructureNode = new SemanticStructureNode(semanticNodeId, "SemanticStructure", l3Result.Prev.Prev.Workspace.Path);
@@ -27,7 +27,7 @@ public class Layer4SemanticParser
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
             nProject++;
-            ctx.Log($"[Layer4SemanticParser] Enriching project {nProject} of {l3Result.Prev.Projects.Count} at:'{project.Path}' with semantic information...");
+            ctx.Log($"[Layer4] Enriching project {nProject} of {l3Result.Prev.Projects.Count} at:'{project.Path}' with semantic information...");
 
             var projectSemanticId = $"{ctx.WorkspaceId}:project:{project.Path}:project_semantic";
             var projectSemanticNode = new ProjectSemanticNode(projectSemanticId, "ProjectSemantic", project.Path);
@@ -107,10 +107,10 @@ public class Layer4SemanticParser
 
         // 3. Upload the entire Workspace Node tree using OntologyUploader
         ctx.CancellationToken.ThrowIfCancellationRequested();
-        ctx.Log("[Layer4SemanticParser] Uploading the entire Workspace Node tree...");
+        ctx.Log("[Layer4] Uploading the entire Workspace Node tree...");
         await OntologyUploader.UploadNodeTreeAsync(l3Result.Prev.Prev.Workspace, null, ctx);
 
-        ctx.Log($"[Layer4SemanticParser] Semantic enrichment pass complete. Identified {semanticNodes.Count} semantic nodes.");
+        ctx.Log($"[Layer4] Semantic enrichment pass complete. Identified {semanticNodes.Count} semantic nodes.");
         return new Layer4Result(l3Result, semanticStructureNode, semanticNodes, semanticRelationships);
     }
 

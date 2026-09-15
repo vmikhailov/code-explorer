@@ -8,7 +8,7 @@ public class Layer1PhysicalParser
 {
     public async Task<Layer1Result> ParseAsync(ParsingContext ctx)
     {
-        ctx.Log("[Layer1PhysicalParser] Starting physical scan of directory topology...");
+        ctx.Log("[Layer1] Starting physical scan of directory topology...");
 
         // 0. Get or create Workspace ID from database (auto-incremented)
         var wsId = await ctx.DbClient.GetOrCreateWorkspaceIdAsync(ctx.HostWorkspacePath);
@@ -87,7 +87,7 @@ public class Layer1PhysicalParser
             await ScanDirectoryAsync(ctx.ScanPath, currentParent, files, folders, gitignore, ctx);
         }
 
-        ctx.Log($"[Layer1PhysicalParser] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");
+        ctx.Log($"[Layer1] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");
         return new Layer1Result(workspaceNode, filesStructureNode, files, folders);
     }
 
@@ -119,7 +119,7 @@ public class Layer1PhysicalParser
 
         if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
         {
-            ctx.Log($"[Layer1PhysicalParser] GitIgnore: Ignoring directory '{relativeDir}'");
+            ctx.Log($"[Layer1] GitIgnore: Ignoring directory '{relativeDir}'");
             return;
         }
 
@@ -314,7 +314,7 @@ public class Layer1PhysicalParser
                             var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
                             var relDest = Path.GetRelativePath(workspaceRoot, fullDest).Replace('\\', '/').Trim('/');
                             gitignore.AddPattern(relDest + "/");
-                            ctx.Log($"[Layer1PhysicalParser] LibMan: Excluded library destination '{relDest}'");
+                            ctx.Log($"[Layer1] LibMan: Excluded library destination '{relDest}'");
                         }
                     }
                 }
@@ -322,7 +322,7 @@ public class Layer1PhysicalParser
         }
         catch (Exception ex)
         {
-            ctx.Log($"[Layer1PhysicalParser] Error reading libman.json: {ex.Message}");
+            ctx.Log($"[Layer1] Error reading libman.json: {ex.Message}");
         }
     }
 }
