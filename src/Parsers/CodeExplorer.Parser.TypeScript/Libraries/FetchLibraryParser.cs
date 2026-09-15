@@ -19,10 +19,10 @@ public class FetchLibraryParser : ILibraryParser
         .HasType("call_expression")
         .FunctionNode
         .Where(NodeSelector.Or(
-            NodeSelector.New().HasType("identifier").Text("fetch|nodeFetch|got|superagent"),
+            NodeSelector.New().HasType("identifier").Text("fetch|nodeFetch|got|superagent|restRequest|apiClient"),
             NodeSelector.New()
                 .HasType("member_expression")
-                .HasChild("object", NodeSelector.New().Text("got|superagent|request|http|https"))
+                .HasChild("object", NodeSelector.New().Text("got|superagent|request|http|https|api|client"))
                 .HasChild("property", NodeSelector.New().Text("get|post|put|delete|request|patch|head"))
         ));
 

@@ -129,27 +129,46 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     protected override void VisitVariableDeclaration(Node node, int depth)
     {
-        if (node.Is(TreeSitterSyntax.CSharp.VariableDeclaration))
+        VisitSymbolOrBase(node, depth, () =>
         {
-            var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
-            if (typeNode.IsValid())
+            if (!node.Is(TreeSitterSyntax.CSharp.VariableDeclaration))
             {
-                var typeName = typeNode.Text;
-                foreach (var declarator in node.FindChildrenOfType(TreeSitterSyntax.CSharp.VariableDeclarator))
+                CollectVariable(node);
+                VisitChildren(node, depth);
+            }
+            else
+            {
+                var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+
+                if (typeNode.IsValid())
                 {
-                    var nameNode = declarator.GetField(TreeSitterSyntax.Fields.Name);
-                    if (nameNode.IsValid())
+                    var typeName = typeNode.Text;
+
+                    foreach (var declarator in node.FindChildrenOfType(TreeSitterSyntax.CSharp.VariableDeclarator))
                     {
+                        var nameNode = declarator.GetField(TreeSitterSyntax.Fields.Name);
+
+                        if (!nameNode.IsValid())
+                        {
+                            continue;
+                        }
+
                         var varName = nameNode.Text;
                         var resolvedTypeName = typeName;
+
                         if (typeName == "var")
                         {
-                            var valueNode = declarator.GetField(TreeSitterSyntax.Fields.Value) 
-                                ?? declarator.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause)?.Children.ElementAtOrDefault(1);
+                            var valueNode = declarator.GetField(TreeSitterSyntax.Fields.Value) ?? declarator
+                                .FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause)?.Children
+                                .ElementAtOrDefault(1);
+
                             if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
                             {
-                                var objectTypeNode = valueNode.GetField(TreeSitterSyntax.Fields.Type) 
-                                    ?? valueNode.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));
+                                var objectTypeNode = valueNode.GetField(TreeSitterSyntax.Fields.Type) ??
+                                                     valueNode.Children.FirstOrDefault(c =>
+                                                         c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier,
+                                                             TreeSitterSyntax.Common.Identifier));
+
                                 if (objectTypeNode.IsValid())
                                 {
                                     resolvedTypeName = objectTypeNode.Text;
@@ -165,14 +184,10 @@ public class CSharpFileVisitor : BaseParserVisitor
                         }
                     }
                 }
+
+                VisitChildren(node, depth);
             }
-            VisitChildren(node, depth);
-        }
-        else
-        {
-            CollectVariable(node);
-            VisitChildren(node, depth);
-        }
+        });
     }
 
     protected override void VisitParameter(Node node, int depth)

@@ -249,4 +249,51 @@ export class RidesGrpcService {
         Assert.That(result, Does.Contain("StartRideDto"));
         Assert.That(result, Does.Contain("RideResultDto"));
     }
+
+    [Test]
+    public async Task Test_CSharp_AspNetCore_MinimalApi_FluentRoute_Extraction()
+    {
+        var projDir = Path.Combine(_tempDir, "Services", "DirectiveService").Replace('\\', '/');
+        Directory.CreateDirectory(projDir);
+        await File.WriteAllTextAsync(Path.Combine(projDir, "DirectiveService.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"/>");
+
+        var code = @"
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Http;
+
+namespace Directives;
+
+public static class DirectivesEndpoints
+{
+    public static void MapDirectives(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup(""/directives"").WithTags(""Directives"").RequireAuthorization();
+        group.MapGet(string.Empty, DirectivesHandlers.GetAll);
+        group.MapPost(""/create"", DirectivesHandlers.Create);
+    }
 }
+
+public static class DirectivesHandlers
+{
+    public static IResult GetAll() => Results.Ok();
+    public static IResult Create() => Results.Ok();
+}
+";
+        await File.WriteAllTextAsync(Path.Combine(projDir, "DirectivesEndpoints.cs"), code);
+
+        var dbPath = Path.Combine(_tempDir, "graph.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        WorkspaceIndexer.Register(new CSharpParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+        var result = await client.ExecuteQueryAsync("MATCH (ep:Endpoint) RETURN ep.name AS name, ep.route AS route ORDER BY ep.route");
+        Assert.That(result, Does.Contain("/directives"));
+        Assert.That(result, Does.Contain("/directives/create"));
+
+        var triggersResult = await client.ExecuteQueryAsync("MATCH (ep:Endpoint)-[:TRIGGERS]->(fn:Function) RETURN ep.name AS epName, fn.name AS fnName");
+        Assert.That(triggersResult, Does.Contain("GetAll"));
+    }
+}
+

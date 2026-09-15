@@ -186,4 +186,61 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_KafkaFlowLibraryParser_ConsumerAndProduce()
+    {
+        var parser = new CSharpParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_kafkaflow_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "OrderDirectiveHandler.cs");
+
+        var code = @"
+using KafkaFlow;
+using System.Threading.Tasks;
+
+namespace MyApp.Handlers;
+
+public record OrderDirectiveMessage(string DirectiveId);
+
+public class OrderDirectiveHandler : IMessageHandler<OrderDirectiveMessage>
+{
+    public async Task Handle(IMessageContext context, OrderDirectiveMessage message)
+    {
+        await Task.CompletedTask;
+    }
 }
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var refs = FindReferences(fileNode.Children);
+
+            // Verify EntryPoint created for IMessageHandler
+            var consumerEp = entryPoints.FirstOrDefault(e => e.EntryType == "Consumer");
+            Assert.That(consumerEp, Is.Not.Null, "Expected KafkaFlow EntryPointNode for IMessageHandler");
+            Assert.That(consumerEp!.Name, Does.Contain("OrderDirectiveMessage"));
+
+            // Verify SubscribesTo relationship to OrderDirectiveMessage
+            var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "kafka:OrderDirectiveMessage");
+            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for OrderDirectiveMessage");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+}
+

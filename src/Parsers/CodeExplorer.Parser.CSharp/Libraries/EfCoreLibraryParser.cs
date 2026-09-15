@@ -21,7 +21,7 @@ public class EfCoreLibraryParser : ILibraryParser
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsTableAttribute(node) || IsDbSetProperty(node))
+        if (IsTableAttribute(node) || IsDbSetProperty(node) || IsToTableCall(node))
         {
             return OntologyConstants.NodeLabels.Table;
         }
@@ -38,6 +38,11 @@ public class EfCoreLibraryParser : ILibraryParser
         if (IsDbSetProperty(node))
         {
             var tableName = ExtractTableNameFromDbSet(node);
+            if (!string.IsNullOrEmpty(tableName)) return tableName;
+        }
+        if (IsToTableCall(node))
+        {
+            var tableName = ExtractTableNameFromToTable(node);
             if (!string.IsNullOrEmpty(tableName)) return tableName;
         }
         return null;
@@ -65,6 +70,20 @@ public class EfCoreLibraryParser : ILibraryParser
             {
                 references.Add(new Reference(scopeSymbolId, tableName, OntologyConstants.Relationships.PersistedIn));
                 references.Add(new Reference(scopeSymbolId, entityType, OntologyConstants.Relationships.UsesType));
+            }
+        }
+        else if (IsToTableCall(node))
+        {
+            var tableName = ExtractTableNameFromToTable(node);
+            var entityType = FindEntityTypeForToTable(node);
+            if (!string.IsNullOrEmpty(tableName))
+            {
+                references.Add(new Reference(scopeSymbolId, tableName, OntologyConstants.Relationships.PersistedIn));
+                if (!string.IsNullOrEmpty(entityType))
+                {
+                    references.Add(new Reference(entityType, tableName, OntologyConstants.Relationships.PersistedIn));
+                    references.Add(new Reference(scopeSymbolId, entityType, OntologyConstants.Relationships.UsesType));
+                }
             }
         }
     }
@@ -115,6 +134,15 @@ public class EfCoreLibraryParser : ILibraryParser
                 symbol.References.Add(new Reference(entityType, tableName, OntologyConstants.Relationships.PersistedIn));
             }
         }
+        else if (IsToTableCall(node))
+        {
+            var tableName = ExtractTableNameFromToTable(node);
+            var entityType = FindEntityTypeForToTable(node);
+            if (!string.IsNullOrEmpty(tableName) && !string.IsNullOrEmpty(entityType))
+            {
+                symbol.References.Add(new Reference(entityType, tableName, OntologyConstants.Relationships.PersistedIn));
+            }
+        }
     }
 
     private static bool IsTableAttribute(Node node)
@@ -152,6 +180,97 @@ public class EfCoreLibraryParser : ILibraryParser
         if (!node.Is(TreeSitterSyntax.CSharp.PropertyDeclaration)) return false;
         var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
         return typeNode.IsValid() && (typeNode.Text.StartsWith("DbSet<") || typeNode.Text.StartsWith("IDbSet<"));
+    }
+
+    private static bool IsToTableCall(Node node)
+    {
+        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
+        var func = node.GetFunctionNode();
+        if (!func.IsValid() || !func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression)) return false;
+        var nameNode = func.GetField(TreeSitterSyntax.Fields.Name);
+        return nameNode.IsValid() && nameNode.Text == "ToTable";
+    }
+
+    private static string? ExtractTableNameFromToTable(Node invocationNode)
+    {
+        var argList = invocationNode.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+        var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+        if (firstArg == null || !firstArg.IsValid()) return null;
+
+        var strNode = firstArg.Children.FirstOrDefault(c => c.Type.Contains("string"));
+        if (strNode.IsValid())
+        {
+            return strNode.Text.Trim('"');
+        }
+
+        var expr = firstArg.GetField(TreeSitterSyntax.Fields.Expression)
+                   ?? firstArg.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.MemberAccessExpression, TreeSitterSyntax.Common.Identifier));
+        if (expr.IsValid())
+        {
+            if (expr.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+            {
+                var nameChild = expr.GetField(TreeSitterSyntax.Fields.Name);
+                if (nameChild.IsValid()) return nameChild.Text;
+            }
+            return expr.Text.Trim('"');
+        }
+
+        return null;
+    }
+
+    private static string? FindEntityTypeForToTable(Node invocationNode)
+    {
+        var current = invocationNode.Parent;
+        while (current.IsValid())
+        {
+            if (current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+            {
+                var entityType = ExtractEntityTypeFromConfigurationClass(current);
+                if (!string.IsNullOrEmpty(entityType)) return entityType;
+            }
+            current = current.Parent;
+        }
+
+        var func = invocationNode.GetFunctionNode();
+        if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+        {
+            var receiver = func.GetField(TreeSitterSyntax.Fields.Expression);
+            if (receiver.IsValid() && receiver.Is(TreeSitterSyntax.CSharp.InvocationExpression))
+            {
+                var receiverFunc = receiver.GetFunctionNode();
+                if (receiverFunc.IsValid() && receiverFunc.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+                {
+                    var receiverMethodName = receiverFunc.GetField(TreeSitterSyntax.Fields.Name);
+                    if (receiverMethodName.IsValid() && receiverMethodName.Text == "Entity")
+                    {
+                        var typeArgList = receiver.FindChildOfType(TreeSitterSyntax.CSharp.TypeArgumentList)
+                                          ?? receiverFunc.FindChildOfType(TreeSitterSyntax.CSharp.TypeArgumentList);
+                        var firstType = typeArgList?.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));
+                        if (firstType.IsValid()) return firstType.Text;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ExtractEntityTypeFromConfigurationClass(Node classNode)
+    {
+        var baseList = classNode.FindChildOfType(TreeSitterSyntax.CSharp.BaseList);
+        if (!baseList.IsValid()) return null;
+
+        foreach (var child in baseList.Children)
+        {
+            if (child.Is(TreeSitterSyntax.CSharp.GenericName) || child.Text.Contains("IEntityTypeConfiguration"))
+            {
+                var typeArgList = child.FindChildOfType(TreeSitterSyntax.CSharp.TypeArgumentList);
+                var firstType = typeArgList?.Children.FirstOrDefault(c =>
+                    c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier, TreeSitterSyntax.CSharp.GenericName));
+                if (firstType.IsValid()) return firstType.Text;
+            }
+        }
+        return null;
     }
 
     private static (string? EntityType, string? TableName) ExtractDbSetInfo(Node propNode)

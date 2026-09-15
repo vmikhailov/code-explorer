@@ -49,7 +49,49 @@ public class AspNetCoreLibraryParser : ILibraryParser
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
+    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+        if (IsEndpointInvocation(node))
+        {
+            var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+            if (argList.IsValid())
+            {
+                var args = argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument).ToList();
+                Node? handlerArg = args.Count > 1 ? args[1] : (args.Count == 1 ? args[0] : null);
+                if (handlerArg != null && handlerArg.IsValid())
+                {
+                    var expr = handlerArg.GetField(TreeSitterSyntax.Fields.Expression)
+                               ?? handlerArg.Children.FirstOrDefault(c => !c.Type.Contains("string"));
+                    if (expr.IsValid())
+                    {
+                        if (expr.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+                        {
+                            var nameChild = expr.GetField(TreeSitterSyntax.Fields.Name);
+                            var exprChild = expr.GetField(TreeSitterSyntax.Fields.Expression);
+                            var methodName = nameChild.IsValid() ? nameChild.Text : "";
+                            var typeName = exprChild.IsValid() ? exprChild.Text : "";
+                            if (!string.IsNullOrEmpty(methodName))
+                            {
+                                references.Add(new Reference(scopeSymbolId, methodName, OntologyConstants.Relationships.Triggers));
+                                if (!string.IsNullOrEmpty(typeName))
+                                {
+                                    references.Add(new Reference(scopeSymbolId, $"{typeName}.{methodName}", OntologyConstants.Relationships.Triggers));
+                                }
+                            }
+                        }
+                        else if (expr.Is(TreeSitterSyntax.Common.Identifier))
+                        {
+                            var handlerName = expr.Text;
+                            if (!string.IsNullOrEmpty(handlerName))
+                            {
+                                references.Add(new Reference(scopeSymbolId, handlerName, OntologyConstants.Relationships.Triggers));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
@@ -77,6 +119,86 @@ public class AspNetCoreLibraryParser : ILibraryParser
                     classDecl = classDecl.Parent;
                 }
             }
+        }
+        else if (IsEndpointInvocation(node))
+        {
+            EnrichMinimalApiEndpoint(node, symbol);
+        }
+    }
+
+    private static void EnrichMinimalApiEndpoint(Node invocationNode, SyntacticSymbol symbol)
+    {
+        var argList = invocationNode.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+        if (argList.IsValid())
+        {
+            var args = argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument).ToList();
+            Node? handlerArg = args.Count > 1 ? args[1] : (args.Count == 1 ? args[0] : null);
+            if (handlerArg != null && handlerArg.IsValid())
+            {
+                var expr = handlerArg.GetField(TreeSitterSyntax.Fields.Expression)
+                           ?? handlerArg.Children.FirstOrDefault(c => !c.Type.Contains("string"));
+                if (expr.IsValid())
+                {
+                    if (expr.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+                    {
+                        var nameChild = expr.GetField(TreeSitterSyntax.Fields.Name);
+                        var exprChild = expr.GetField(TreeSitterSyntax.Fields.Expression);
+                        var methodName = nameChild.IsValid() ? nameChild.Text : "";
+                        var typeName = exprChild.IsValid() ? exprChild.Text : "";
+                        if (!string.IsNullOrEmpty(methodName))
+                        {
+                            symbol.References.Add(new Reference(symbol.Name, methodName, OntologyConstants.Relationships.Triggers));
+                            if (!string.IsNullOrEmpty(typeName))
+                            {
+                                symbol.References.Add(new Reference(symbol.Name, $"{typeName}.{methodName}", OntologyConstants.Relationships.Triggers));
+                            }
+                        }
+                    }
+                    else if (expr.Is(TreeSitterSyntax.Common.Identifier))
+                    {
+                        var handlerName = expr.Text;
+                        if (!string.IsNullOrEmpty(handlerName))
+                        {
+                            symbol.References.Add(new Reference(symbol.Name, handlerName, OntologyConstants.Relationships.Triggers));
+                        }
+                    }
+                }
+            }
+        }
+
+        var current = invocationNode.Parent;
+        while (current.IsValid() && current.Is(TreeSitterSyntax.CSharp.InvocationExpression))
+        {
+            var func = current.GetFunctionNode();
+            if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+            {
+                var chainedMethod = func.GetField(TreeSitterSyntax.Fields.Name)?.Text;
+                if (chainedMethod == "RequireAuthorization")
+                {
+                    var pArgs = current.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+                    var firstP = pArgs?.FindChildOfType(TreeSitterSyntax.CSharp.Argument)?.Children.FirstOrDefault(c => c.Type.Contains("string"));
+                    if (firstP.IsValid())
+                    {
+                        var policy = firstP.Text.Trim('"');
+                        symbol.Policies = string.IsNullOrEmpty(symbol.Policies) ? policy : $"{symbol.Policies},{policy}";
+                    }
+                }
+                else if (chainedMethod == "AllowAnonymous")
+                {
+                    symbol.IsAnonymous = true;
+                }
+                else if (chainedMethod is "Produces" or "ProducesProblem")
+                {
+                    var typeArgs = current.FindChildOfType(TreeSitterSyntax.CSharp.TypeArgumentList)
+                                   ?? func.FindChildOfType(TreeSitterSyntax.CSharp.TypeArgumentList);
+                    var tNode = typeArgs?.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));
+                    if (tNode.IsValid() && symbol.ResponseType == null && chainedMethod == "Produces")
+                    {
+                        symbol.ResponseType = tNode.Text;
+                    }
+                }
+            }
+            current = current.Parent;
         }
     }
 
@@ -387,15 +509,10 @@ public class AspNetCoreLibraryParser : ILibraryParser
         var expr = func.GetField(TreeSitterSyntax.Fields.Expression);
         if (!expr.IsValid()) return null;
 
-        // 1. Direct chaining: app.MapGroup("/api/v1").MapGet(...)
+        // 1. Direct chaining: app.MapGroup("/api/v1").WithTags().MapGet(...)
         if (expr.Is(TreeSitterSyntax.CSharp.InvocationExpression))
         {
-            var nestedGroup = ExtractGroupRouteFromInvocation(expr);
-            if (!string.IsNullOrEmpty(nestedGroup))
-            {
-                var parentGroup = FindGroupPrefix(expr);
-                return !string.IsNullOrEmpty(parentGroup) ? CombineRoutes(parentGroup, nestedGroup) : nestedGroup;
-            }
+            return ExtractGroupRouteFromChain(expr);
         }
 
         // 2. Variable reference: group.MapGet(...)
@@ -409,24 +526,52 @@ public class AspNetCoreLibraryParser : ILibraryParser
         return null;
     }
 
-    private static string? ExtractGroupRouteFromInvocation(Node invocation)
+    private static string? ExtractGroupRouteFromChain(Node invocation)
     {
-        var func = invocation.GetFunctionNode();
-        if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+        var routes = new List<string>();
+        var current = invocation;
+        while (current.IsValid() && current.Is(TreeSitterSyntax.CSharp.InvocationExpression))
         {
-            var nameNode = func.GetField(TreeSitterSyntax.Fields.Name);
-            if (nameNode.IsValid() && nameNode.Text == "MapGroup")
+            var func = current.GetFunctionNode();
+            if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
             {
-                var argList = invocation.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
-                var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
-                var strNode = firstArg?.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                if (strNode.IsValid())
+                var nameNode = func.GetField(TreeSitterSyntax.Fields.Name);
+                if (nameNode.IsValid() && nameNode.Text == "MapGroup")
                 {
-                    return strNode.Text.Trim('"');
+                    var argList = current.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+                    var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+                    var strNode = firstArg?.Children.FirstOrDefault(c => c.Type.Contains("string"));
+                    if (strNode.IsValid())
+                    {
+                        var groupRoute = strNode.Text.Trim('"');
+                        if (!string.IsNullOrEmpty(groupRoute))
+                        {
+                            routes.Insert(0, groupRoute);
+                        }
+                    }
                 }
+                current = func.GetField(TreeSitterSyntax.Fields.Expression);
+                continue;
+            }
+            break;
+        }
+
+        if (current.IsValid() && current.Is(TreeSitterSyntax.Common.Identifier))
+        {
+            var parentVarRoute = TryResolveVariableGroupRoute(current, current.Text);
+            if (!string.IsNullOrEmpty(parentVarRoute))
+            {
+                routes.Insert(0, parentVarRoute);
             }
         }
-        return null;
+
+        if (routes.Count == 0) return null;
+        var combined = routes[0];
+        for (var i = 1; i < routes.Count; i++)
+        {
+            combined = CombineRoutes(combined, routes[i]);
+        }
+        return combined;
     }
 
     private static string? TryResolveVariableGroupRoute(Node node, string varName)
@@ -474,11 +619,10 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
                         if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.InvocationExpression))
                         {
-                            var directRoute = ExtractGroupRouteFromInvocation(valueNode);
+                            var directRoute = ExtractGroupRouteFromChain(valueNode);
                             if (!string.IsNullOrEmpty(directRoute))
                             {
-                                var parentGroup = FindGroupPrefix(valueNode);
-                                return !string.IsNullOrEmpty(parentGroup) ? CombineRoutes(parentGroup, directRoute) : directRoute;
+                                return directRoute;
                             }
                         }
                     }

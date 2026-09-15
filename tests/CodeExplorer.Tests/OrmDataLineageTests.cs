@@ -52,6 +52,20 @@ public class OrderEntity
     public int Id { get; set; }
     public decimal Amount { get; set; }
 }
+
+public class Invoice
+{
+    public int Id { get; set; }
+    public string Number { get; set; }
+}
+
+public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
+{
+    public void Configure(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<Invoice> builder)
+    {
+        builder.ToTable(""invoices"");
+    }
+}
 ";
         await File.WriteAllTextAsync(Path.Combine(csharpDir, "AppDbContext.cs"), csharpCode);
 
@@ -121,15 +135,16 @@ export class Product {
     public async Task Test_EfCore_ExtractsTablesAndPersistedInRelationships()
     {
         // Check customers table from [Table("customers")]
-        var qTable = "MATCH (t:Table) WHERE t.name = 'customers' OR t.name = 'Orders' OR t.name = 'orders' RETURN t.name AS name";
+        var qTable = "MATCH (t:Table) WHERE t.name = 'customers' OR t.name = 'Orders' OR t.name = 'orders' OR t.name = 'invoices' RETURN t.name AS name";
         var res = await _client.ExecuteQueryAsync(qTable);
         using var doc = JsonDocument.Parse(res);
         var tables = doc.RootElement.EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToList();
 
         Assert.That(tables, Does.Contain("customers").Or.Contain("Orders").Or.Contain("orders"), "EF Core tables not extracted!");
+        Assert.That(tables, Does.Contain("invoices"), "EF Core IEntityTypeConfiguration ToTable not extracted!");
 
         // Check PERSISTED_IN relationship between Customer Type and Table
-        var qRel = "MATCH (c:Type)-[:PERSISTED_IN]->(t:Table) WHERE c.name = 'Customer' OR c.name = 'OrderEntity' RETURN c.name AS className, t.name AS tableName";
+        var qRel = "MATCH (c:Type)-[:PERSISTED_IN]->(t:Table) WHERE c.name = 'Customer' OR c.name = 'OrderEntity' OR c.name = 'Invoice' RETURN c.name AS className, t.name AS tableName";
         var resRel = await _client.ExecuteQueryAsync(qRel);
         using var docRel = JsonDocument.Parse(resRel);
         Assert.That(docRel.RootElement.GetArrayLength(), Is.GreaterThan(0), "No PERSISTED_IN relationship found for EF Core entity!");
