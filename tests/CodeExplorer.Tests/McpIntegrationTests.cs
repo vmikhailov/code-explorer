@@ -344,6 +344,26 @@ public class McpIntegrationTests
     }
 
     [Test]
+    public async Task Test_GetWorkspaceStatus()
+    {
+        await CallToolAndAssertSuccessAsync("get_workspace_status", "{}", 18);
+    }
+
+    [Test]
+    public async Task Test_ScanWorkspace()
+    {
+        await CallToolAndAssertSuccessAsync("scan_workspace", "{\"clear\": false}", 19);
+    }
+
+    [Test]
+    public async Task Test_IngestGraphData()
+    {
+        var nodesJson = "[{\"id\":\"custom_test_node\",\"kind\":\"TestKind\",\"properties\":{\"name\":\"TestNode\"}}]";
+        var relsJson = "[{\"type\":\"TEST_REL\",\"from_id\":\"workspace\",\"to_id\":\"custom_test_node\",\"properties\":{}}]";
+        await CallToolAndAssertSuccessAsync("ingest_graph_data", $"{{\"nodesJson\": {JsonSerializer.Serialize(nodesJson)}, \"relationshipsJson\": {JsonSerializer.Serialize(relsJson)}}}", 20);
+    }
+
+    [Test]
     public async Task Test_InspectDataLineage_AtsProject_Performance()
     {
         const string atsDbPath = "/Users/slava/Projects/ATS/src/.codeexplorer/graph.db";

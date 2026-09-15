@@ -3,6 +3,7 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Diagrams;
 using CodeExplorer.Core.Mcp.Models;
+using CodeExplorer.Core.Parser;
 using CodeExplorer.Cypher.Parser;
 
 namespace CodeExplorer.Core.Mcp;
@@ -1202,5 +1203,222 @@ public class CodeExplorerRepository
         }
 
         return await DiagramExporter.ExportAsync(client, format, type, projectFilter, cancellationToken);
+    }
+
+    public async Task<string> InitWorkspaceAsync(
+        string? name = null,
+        string? workspacePath = null,
+        bool force = false,
+        CancellationToken cancellationToken = default)
+    {
+        var targetDir = Path.GetFullPath(workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory());
+        var wsName = string.IsNullOrWhiteSpace(name) ? new DirectoryInfo(targetDir).Name : name.Trim();
+
+        var existing = WorkspaceLocator.Find(targetDir);
+        if (existing != null && existing.RootDirectory.Equals(targetDir, StringComparison.OrdinalIgnoreCase) && !force)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                status = "exists",
+                message = $"Workspace already exists at '{existing.RootDirectory}'. Set force=true to reinitialize.",
+                workspacePath = existing.RootDirectory,
+                dbPath = existing.DbPath
+            }, CompactJsonOptions);
+        }
+
+        var ws = WorkspaceLocator.Initialize(targetDir, wsName);
+        await using (var client = new SqliteGraphClient(ws.DbPath))
+        {
+            await client.ExecuteWriteAsync(
+                "INSERT INTO nodes (id, kind, properties) VALUES ('workspace', 'Workspace', json_object('id', 'workspace', 'name', @name, 'path', @path)) " +
+                "ON CONFLICT(id) DO UPDATE SET properties = json_object('id', 'workspace', 'name', @name, 'path', @path);",
+                new Dictionary<string, object?> { ["name"] = wsName, ["path"] = ws.RootDirectory }, cancellationToken);
+        }
+
+        return JsonSerializer.Serialize(new
+            {
+                status = "initialized",
+                name = wsName,
+                workspacePath = ws.RootDirectory,
+                dbPath = ws.DbPath,
+                queriesPath = ws.QueriesDirectory
+            }, CompactJsonOptions);
+    }
+
+    public async Task<string> ScanWorkspaceAsync(
+        string? path = null,
+        bool clear = false,
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetDir = Path.GetFullPath(path ?? workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory());
+        var ws = WorkspaceLocator.Find(targetDir);
+        if (ws == null)
+        {
+            var defaultName = new DirectoryInfo(targetDir).Name;
+            ws = WorkspaceLocator.Initialize(targetDir, defaultName);
+        }
+
+        var client = await ResolveClientAsync(ws.RootDirectory);
+        if (clear)
+        {
+            await client.ClearWorkspaceAsync(targetDir);
+        }
+
+        var indexer = new WorkspaceIndexer(client);
+        var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetDir, ws.RootDirectory, clear: false, cancellationToken: cancellationToken);
+
+        InvalidateCache();
+
+        return JsonSerializer.Serialize(new
+        {
+            status = "success",
+            workspacePath = ws.RootDirectory,
+            scannedPath = targetDir,
+            nodesCount,
+            relationshipsCount = relsCount,
+            nodesByKind
+        }, CompactJsonOptions);
+    }
+
+    public async Task<string> GetWorkspaceStatusAsync(
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetDir = Path.GetFullPath(workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory());
+        var ws = WorkspaceLocator.Find(targetDir);
+        if (ws == null || !File.Exists(ws.DbPath))
+        {
+            return JsonSerializer.Serialize(new
+            {
+                status = "not_initialized",
+                message = $"No indexed workspace found for '{targetDir}'. Call scan_workspace or init_workspace first."
+            }, CompactJsonOptions);
+        }
+
+        var fileInfo = new FileInfo(ws.DbPath);
+        var sizeMb = fileInfo.Length / (1024.0 * 1024.0);
+        var client = await ResolveClientAsync(ws.RootDirectory);
+
+        var projResult = await client.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name, p.language AS language, p.project_type AS type, p.path AS path", null, cancellationToken);
+        using var projDoc = JsonDocument.Parse(projResult);
+
+        var countResult = await client.ExecuteQueryAsync("MATCH (n) RETURN labels(n)[0] AS kind, count(n) AS count ORDER BY count DESC", null, cancellationToken);
+        using var countDoc = JsonDocument.Parse(countResult);
+
+        var customQueriesCount = Directory.Exists(ws.QueriesDirectory)
+            ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length
+            : 0;
+
+        return JsonSerializer.Serialize(new
+        {
+            status = "ready",
+            workspacePath = ws.RootDirectory,
+            dbPath = ws.DbPath,
+            databaseSizeMb = Math.Round(sizeMb, 2),
+            projects = projDoc.RootElement,
+            nodeCounts = countDoc.RootElement,
+            customQueriesCount
+        }, CompactJsonOptions);
+    }
+
+    public async Task<string> ClearWorkspaceIndexAsync(
+        string? path = null,
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetDir = Path.GetFullPath(path ?? workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory());
+        var ws = WorkspaceLocator.Find(targetDir);
+        if (ws == null || !File.Exists(ws.DbPath))
+        {
+            return JsonSerializer.Serialize(new
+            {
+                status = "not_found",
+                message = "Workspace or database not found."
+            }, CompactJsonOptions);
+        }
+
+        var client = await ResolveClientAsync(ws.RootDirectory);
+        if (string.IsNullOrWhiteSpace(path) || path.TrimEnd('/', '\\').Equals(ws.RootDirectory.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase))
+        {
+            await client.ClearDatabaseAsync();
+        }
+        else
+        {
+            await client.ClearWorkspaceAsync(targetDir);
+        }
+
+        InvalidateCache();
+
+        return JsonSerializer.Serialize(new
+        {
+            status = "cleared",
+            targetPath = targetDir
+        }, CompactJsonOptions);
+    }
+
+    public async Task<string> IngestGraphDataAsync(
+        string nodesJson,
+        string? relationshipsJson = null,
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return StandbyMessageJson;
+        }
+
+        using var nodesDoc = JsonDocument.Parse(nodesJson);
+        int nodesIngested = 0;
+        int relsIngested = 0;
+
+        if (nodesDoc.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var node in nodesDoc.RootElement.EnumerateArray())
+            {
+                if (node.TryGetProperty("id", out var idProp) && node.TryGetProperty("kind", out var kindProp))
+                {
+                    var id = idProp.GetString()!;
+                    var kind = kindProp.GetString()!;
+                    var props = node.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
+                    await client.ExecuteWriteAsync(
+                        "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, json(@props)) ON CONFLICT(id) DO UPDATE SET kind = @kind, properties = json(@props);",
+                        new Dictionary<string, object?> { ["id"] = id, ["kind"] = kind, ["props"] = props }, cancellationToken);
+                    nodesIngested++;
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(relationshipsJson))
+        {
+            using var relsDoc = JsonDocument.Parse(relationshipsJson);
+            if (relsDoc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var rel in relsDoc.RootElement.EnumerateArray())
+                {
+                    var kind = rel.TryGetProperty("kind", out var kProp) ? kProp.GetString() : (rel.TryGetProperty("type", out var tProp) ? tProp.GetString() : null);
+                    if (!string.IsNullOrEmpty(kind) && rel.TryGetProperty("from_id", out var fProp) && rel.TryGetProperty("to_id", out var toProp))
+                    {
+                        var fromId = fProp.GetString()!;
+                        var toId = toProp.GetString()!;
+                        var props = rel.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
+                        await client.ExecuteWriteAsync(
+                            "INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES (@fromId, @toId, @kind, json(@props));",
+                            new Dictionary<string, object?> { ["kind"] = kind, ["fromId"] = fromId, ["toId"] = toId, ["props"] = props }, cancellationToken);
+                        relsIngested++;
+                    }
+                }
+            }
+        }
+
+        InvalidateCache();
+
+        return JsonSerializer.Serialize(new
+        {
+            status = "success",
+            nodesIngested,
+            relationshipsIngested = relsIngested
+        }, CompactJsonOptions);
     }
 }

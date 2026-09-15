@@ -394,4 +394,69 @@ public class McpGraphHandler(
         return await ExecuteAsync(() => repository.ExportArchitectureDiagramAsync(
             format, type, project, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
     }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Initializes a new '.codeexplorer' workspace in the target directory if not already created.")]
+    public async Task<CallToolResult> InitWorkspaceAsync(
+        [Description("Optional display name for the workspace (defaults to target directory name).")] string? name = null,
+        [Description("Optional workspace root directory path. Defaults to current directory.")] string? workspacePath = null,
+        [Description("If true, reinitializes an existing workspace (default: false).")] bool force = false,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(() => repository.InitWorkspaceAsync(
+            name, workspacePath ?? GetCurrentWorkspacePath(), force, cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Scans and indexes source files, projects, ASTs, and dependencies into the embedded graph database. Call this after editing code or adding new files to refresh the knowledge graph.")]
+    public async Task<CallToolResult> ScanWorkspaceAsync(
+        [Description("Optional relative or absolute subfolder path to scan (defaults to entire workspace).")] string? path = null,
+        [Description("If true, clears previous index data for the specified path before scanning (default: false).")] bool clear = false,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(() => repository.ScanWorkspaceAsync(
+            path, clear, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Returns the workspace health status, SQLite database size, indexed projects by language, total node/relationship counts, and custom query counts.")]
+    public async Task<CallToolResult> GetWorkspaceStatusAsync(
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(() => repository.GetWorkspaceStatusAsync(
+            workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Clears indexed data from the workspace database for a specific subpath or the entire workspace.")]
+    public async Task<CallToolResult> ClearWorkspaceIndexAsync(
+        [Description("Optional subpath to selectively clear. If omitted or set to workspace root, clears all graph data.")] string? path = null,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(() => repository.ClearWorkspaceIndexAsync(
+            path, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Direct batch ingestion of custom/external nodes and relationships into the graph database.")]
+    public async Task<CallToolResult> IngestGraphDataAsync(
+        [Description("JSON array of node objects: [{\"id\":\"...\",\"kind\":\"...\",\"properties\":{...}}]")] string nodesJson,
+        [Description("Optional JSON array of relationship objects: [{\"type\":\"...\",\"from_id\":\"...\",\"to_id\":\"...\",\"properties\":{...}}]")] string? relationshipsJson = null,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(nodesJson))
+            return WrapError("Missing 'nodesJson' argument.");
+
+        return await ExecuteAsync(() => repository.IngestGraphDataAsync(
+            nodesJson, relationshipsJson, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+    }
 }

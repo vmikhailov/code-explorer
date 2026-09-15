@@ -399,6 +399,11 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 | `execute_custom_read_cypher` | `query`, `parameters` (opt) | Execute arbitrary read-only Cypher (`MATCH` only) directly against the graph database. |
 | `fetch_code_snippets` | `nodesJson` | Fetch source code snippets for a list of node URN contexts (file path, start line, end line). |
 | `get_node_definition` | `kind` | Retrieve documentation and schema details for an ontological Node Kind. |
+| `init_workspace` | `name` (opt), `force` (opt) | Initialize a new `.codeexplorer` workspace in the target folder. |
+| `scan_workspace` | `path` (opt), `clear` (opt) | Scan and index/reindex source files, ASTs, and dependencies into the graph database. |
+| `get_workspace_status` | None | Get workspace health status, SQLite DB size, indexed projects by language, and node counts. |
+| `clear_workspace_index` | `path` (opt) | Clear indexed graph data for a specific subpath or the entire workspace database. |
+| `ingest_graph_data` | `nodesJson`, `relationshipsJson` (opt) | Direct batch ingestion of custom/external nodes and relationships into SQLite graph. |
 
 ---
 
