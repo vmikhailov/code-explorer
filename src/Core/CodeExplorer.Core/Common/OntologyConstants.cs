@@ -85,6 +85,7 @@ public static class OntologyConstants
         public const string BelongsTo = "BELONGS_TO";
         public const string LocatedIn = "LOCATED_IN";
         public const string PersistedIn = "PERSISTED_IN";
+        public const string Configures = "CONFIGURES";
     }
 
     public static class LibraryTypes

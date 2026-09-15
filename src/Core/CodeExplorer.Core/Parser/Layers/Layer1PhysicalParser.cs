@@ -180,7 +180,8 @@ public class Layer1PhysicalParser
             }
 
             var hasParser = WorkspaceIndexer._fileParsers.Any(p => p.CanParse(ext));
-            if (!hasParser)
+            var isConfigFile = ConfigurationParser.IsConfigurationFile(fileInfo.Name);
+            if (!hasParser && !isConfigFile)
             {
                 continue;
             }

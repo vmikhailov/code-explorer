@@ -74,6 +74,35 @@ public class Layer4SemanticParser
 
             // Group EntryPoints
             GroupEntryPoints(projectSemanticNode, projectTrees, ctx);
+
+            // Parse project-level configuration files
+            var projectFiles = l3Result.Prev.Prev.Files.Where(f => IsEnclosedInProject(f, project, l3Result.Prev.Projects)).ToList();
+            foreach (var pfile in projectFiles)
+            {
+                if (ConfigurationParser.IsConfigurationFile(pfile.Name))
+                {
+                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, projectSemanticNode, semanticRelationships, ctx);
+                }
+            }
+        }
+
+        // Parse workspace-level configuration and infrastructure files (e.g. docker-compose.yml, root .env)
+        var workspaceRootFiles = l3Result.Prev.Prev.Files.Where(f => !l3Result.Prev.Projects.Any(p => IsEnclosedInProject(f, p, l3Result.Prev.Projects))).ToList();
+        foreach (var wfile in workspaceRootFiles)
+        {
+            if (ConfigurationParser.IsConfigurationFile(wfile.Name))
+            {
+                ConfigurationParser.ParseAndEnrich(wfile.FullPath, wfile.Path, ctx.WorkspaceId, semanticStructureNode, semanticRelationships, ctx);
+            }
+        }
+
+        // Collect all semantic nodes from semanticStructureNode
+        CollectSemanticNodes(semanticStructureNode, semanticNodes);
+
+        if (semanticRelationships.Count > 0)
+        {
+            await ctx.DbClient.UploadRelationshipsAsync(semanticRelationships);
+            ctx.TotalRelsCount += semanticRelationships.Count;
         }
 
         // 3. Upload the entire Workspace Node tree using OntologyUploader

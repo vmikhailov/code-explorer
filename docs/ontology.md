@@ -834,6 +834,7 @@ graph TD
 | `CALLED_BY` | Links an external service or database to the function that invokes or queries it. |
 | `CALLS` | Links a calling function to the function it directly invokes. |
 | `CALLS_ENDPOINT` | Links an external API call to the target HTTP endpoint it invokes. |
+| `CONFIGURES` | Links a configuration or infrastructure file to the semantic node (database, message broker, cloud or external service) it configures. |
 | `CONTAINS` | Represents directory structure containment or syntactic scoping of elements. |
 | `DECLARED_IN` | Links a syntactic type, function, or member declaration to its physical declaring source file. |
 | `DECLARES` | Indicates that a container entity declares a sub-entity. |
