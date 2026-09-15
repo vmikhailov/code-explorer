@@ -380,4 +380,18 @@ public class McpGraphHandler(
         return await ExecuteAsync(() => repository.ExecuteProjectQueryAsync(
             name, parametersJson, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
     }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Exports visual architecture and system topology diagrams directly from the knowledge graph in Mermaid or C4 syntax (flowcharts, container diagrams, data lineage, or CQRS pipeline diagrams).")]
+    public async Task<CallToolResult> ExportArchitectureDiagramAsync(
+        [Description("Diagram syntax format: 'mermaid' (default) or 'c4'.")] string format = "mermaid",
+        [Description("Diagram type: 'architecture' (default system topology), 'lineage' (data model/entities to tables), or 'cqrs' (events/commands/saga message flow).")] string type = "architecture",
+        [Description("Optional project name to scope the diagram to a specific subsystem.")] string? project = null,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(() => repository.ExportArchitectureDiagramAsync(
+            format, type, project, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+    }
 }

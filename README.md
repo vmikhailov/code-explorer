@@ -271,6 +271,23 @@ ce mcp                      # stdio mode (default for Cursor, Claude, Antigravit
 ce mcp --port 8085          # HTTP mode with SSE endpoint at http://localhost:8085/mcp
 ```
 
+### `ce export [options]`
+Exports architecture and system topology diagrams directly from the knowledge graph in Mermaid or C4 syntax.
+```bash
+# Export Mermaid system architecture diagram to terminal or file
+ce export --format mermaid
+ce export -f mermaid -o architecture.mmd
+
+# Export C4 Container diagram
+ce export --format c4 -o c4_containers.mmd
+
+# Export ORM Data Lineage diagram (Entities -> Tables)
+ce export --type lineage -o data_lineage.mmd
+
+# Export CQRS & Event Pipeline diagram (Producers -> Topics -> Consumers)
+ce export --type cqrs -o event_pipeline.mmd
+```
+
 ### `ce clear [path]`
 Selectively wipes a subfolder from the index or clears the entire graph database.
 ```bash

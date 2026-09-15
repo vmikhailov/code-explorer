@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Diagrams;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Cypher.Parser;
 
@@ -1185,5 +1186,21 @@ public class CodeExplorerRepository
         }
 
         return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict, workspacePath, cancellationToken);
+    }
+
+    public async Task<string> ExportArchitectureDiagramAsync(
+        string format = "mermaid",
+        string type = "architecture",
+        string? projectFilter = null,
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        return await DiagramExporter.ExportAsync(client, format, type, projectFilter, cancellationToken);
     }
 }
