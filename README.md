@@ -313,6 +313,45 @@ Add to your `claude_desktop_config.json`:
 ### VS Code (with Roo Code / Continue / Cline)
 Configure the tool command as `ce` with arguments `["mcp"]`.
 
+### Google Antigravity / Gemini CLI
+Add to your `.gemini/antigravity-ide/mcp/code-explorer` or workspace MCP configuration.
+
+---
+
+## 🧠 AI Agent Instructions & System Prompts
+
+To enable AI coding agents (Claude, Cursor, Copilot, ChatGPT, Antigravity, Roo Code) to effectively leverage `ce`, add the following instructions to your project's agent rules file (e.g. `.cursorrules`, `CLAUDE.md`, `.windsurfrules`, or `.agents/rules/code-explorer.md`):
+
+### 📋 Copy-Pasteable Agent Prompt / Rules
+
+````markdown
+# Codebase Exploration with CodeExplorer (`ce`)
+
+This repository uses **CodeExplorer (`ce`)** as an embedded SQLite codebase knowledge graph and MCP server. 
+
+## When and How to Use CodeExplorer MCP Tools:
+
+1. **Architecture Discovery (Start of Task)**:
+   - When asked to explore the repository, understand high-level architecture, or find microservice boundaries, **DO NOT** run blind file searches or scan directory trees.
+   - Call `get_architecture_map` or `get_architecture_overview` to obtain a structured breakdown of projects, frameworks, dependencies, ingress endpoints, and egress callers.
+   - Call `get_project_entry_points` with `projectName` to discover HTTP controllers, routes, CLI commands, and message listeners.
+
+2. **Symbol & File Inspection (Low-Token Context)**:
+   - Instead of reading entire files into context, call `get_file_outline` with `filePath` to inspect declared classes, methods, and line numbers.
+   - Use `find_symbol` (with optional `symbolType`: `class`, `interface`, `function`) to pinpoint exact symbol locations and signatures.
+   - Use `resolve_call_target` to locate concrete implementations of an interface method.
+
+3. **Refactoring & Blast Radius Analysis**:
+   - Before modifying or deleting a symbol, class, or method, call `analyze_code_impact` with `symbolName` to identify all downstream files and callers affected.
+   - Before altering database queries or schema models, call `inspect_data_lineage` with `tableName` to trace all queries and functions accessing that table.
+   - Call `find_refactoring_opportunities` with `projectName` to detect unreferenced dead code or high-coupling god objects.
+
+4. **Multi-Hop Graph Queries (Custom Cypher)**:
+   - Use `execute_custom_read_cypher` to execute read-only `MATCH` queries for complex questions (e.g. cross-project dependency paths, unreferenced interfaces, or circular references).
+   - Use `list_project_queries` to inspect saved workspace domain queries, and `execute_project_query` to run them.
+   - Run `get_taxonomy` or `get_node_definition` if you need schema details for any graph node or relationship kind.
+````
+
 ---
 
 ## 🛠️ MCP Tools Reference
