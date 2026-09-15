@@ -116,15 +116,23 @@ jobs:
           if [ -z "$VERSION" ]; then VERSION="1.0.0"; fi
           dotnet pack src/UI/CodeExplorer/CodeExplorer.csproj -c Release -p:PackageVersion="$VERSION" -o ./dist
 
-      - name: Push to NuGet.org (Trusted Publishing / OIDC)
+      - name: NuGet Login (Trusted Publishing / OIDC)
+        uses: NuGet/login@v1
+        id: nuget-login
+        continue-on-error: true
+        with:
+          user: vmikhailov
+
+      - name: Push to NuGet.org
         env:
-          NUGET_KEY: ${{ secrets.NUGET_API_KEY }}
+          MANUAL_KEY: ${{ secrets.NUGET_API_KEY }}
+          OIDC_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
-          if [ -n "$NUGET_KEY" ]; then
-            dotnet nuget push ./dist/*.nupkg --api-key "$NUGET_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate || true
+          API_KEY="${OIDC_KEY:-$MANUAL_KEY}"
+          if [ -n "$API_KEY" ]; then
+            dotnet nuget push ./dist/*.nupkg --api-key "$API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
           else
-            # Native NuGet OIDC / Trusted Publishing
-            dotnet nuget push ./dist/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate || true
+            echo "::warning::No NuGet API key or OIDC token available."
           fi
 
       - name: Generate Checksums
