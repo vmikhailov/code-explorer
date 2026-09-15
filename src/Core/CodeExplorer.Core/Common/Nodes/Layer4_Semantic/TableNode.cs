@@ -10,6 +10,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.QueriedBy)]
 [OntologyEdge<QueryNode>(OntologyConstants.Relationships.QueriedBy)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.PersistedIn)]
 public record TableNode(
     string Id,
     string Name,

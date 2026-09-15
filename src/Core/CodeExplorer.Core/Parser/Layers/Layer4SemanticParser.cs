@@ -92,7 +92,7 @@ public class Layer4SemanticParser
     {
         foreach (var child in node.Children)
         {
-            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is ApiInUseNode)
+            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is ApiInUseNode || child is TableNode || child is DataSetNode)
             {
                 semanticNodes.Add(child);
             }

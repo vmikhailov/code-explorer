@@ -94,6 +94,7 @@ graph TD
     SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|QUERIED_BY| Function
     Table -->|QUERIED_BY| Query
+    Table -->|PERSISTED_IN| Type
     Topic -->|PUBLISHED_BY| Function
     Topic -->|SUBSCRIBED_BY| Function
     Type -->|DECLARED_IN| File
@@ -103,6 +104,7 @@ graph TD
     Type -->|POTENTIAL_TYPE| Type
     Type -->|HAS_METHOD| Function
     Type -->|HAS_MEMBER| Member
+    Type -->|PERSISTED_IN| Table
     Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| ProjectsStructure
     Workspace -->|CONTAINS| SyntaxStructure
@@ -491,6 +493,7 @@ graph TD
 | `POTENTIAL_TYPE` | `Type` |
 | `HAS_METHOD` | `Function` |
 | `HAS_MEMBER` | `Member` |
+| `PERSISTED_IN` | `Table` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -501,6 +504,7 @@ graph TD
 | `Function` | `USES_TYPE` |
 | `Member` | `OF_TYPE` |
 | `ProjectSyntax` | `CONTAINS` |
+| `Table` | `PERSISTED_IN` |
 | `Type` | `USES_TYPE` |
 | `Type` | `IMPLEMENTS` |
 | `Type` | `INHERITS_FROM` |
@@ -781,6 +785,7 @@ graph TD
 | :--- | :--- |
 | `QUERIED_BY` | `Function` |
 | `QUERIED_BY` | `Query` |
+| `PERSISTED_IN` | `Type` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -788,6 +793,7 @@ graph TD
 | :--- | :--- |
 | `DataSet` | `CONTAINS` |
 | `Query` | `DEPENDS_ON` |
+| `Type` | `PERSISTED_IN` |
 
 ---
 
@@ -843,6 +849,7 @@ graph TD
 | `INHERITS_FROM` | Links a class/interface to its base class or inherited interface. |
 | `LOCATED_IN` | Links a project to the physical folder or files structure where it is located. |
 | `OF_TYPE` | Links a member variable or field to its declared type. |
+| `PERSISTED_IN` | Links an ORM entity or model class to its physical database table. |
 | `POTENTIAL_TYPE` | Links a variable or parameter to concrete classes that implement its declared interface type. |
 | `PUBLISHED_BY` | Links a topic to the function that publishes to it. |
 | `QUERIED_BY` | Links a database or table to the function or query that accesses it. |

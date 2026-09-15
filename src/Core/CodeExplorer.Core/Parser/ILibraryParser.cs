@@ -25,11 +25,11 @@ public interface ILibraryParser
         var aParts = a.Split(['.', '/'], StringSplitOptions.RemoveEmptyEntries);
         var bParts = b.Split(['.', '/'], StringSplitOptions.RemoveEmptyEntries);
 
-        var minLen = Math.Min(aParts.Length, bParts.Length);
-        if (minLen == 0) return false;
+        if (aParts.Length < bParts.Length) return false;
 
-        for (var i = 0; i < minLen; i++)
+        for (var i = 0; i < bParts.Length; i++)
         {
+            if (bParts[i] == "*") continue;
             if (!aParts[i].Equals(bParts[i], StringComparison.OrdinalIgnoreCase))
                 return false;
         }

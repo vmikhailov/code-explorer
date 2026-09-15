@@ -314,6 +314,11 @@ public class Layer3SyntacticParser
         {
             typedNode = CreateExternalServiceNode(name, node, relativePath, workspaceId);
         }
+        else if (kind == OntologyConstants.NodeLabels.Table)
+        {
+            var tableId = $"{workspaceId}:table:{name.ToLowerInvariant()}";
+            typedNode = new TableNode(tableId, name, relativePath);
+        }
         else
         {
             throw new InvalidOperationException($"Unsupported symbol type: {kind}");

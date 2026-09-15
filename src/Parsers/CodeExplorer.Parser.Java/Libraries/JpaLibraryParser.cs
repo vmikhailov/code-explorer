@@ -28,6 +28,10 @@ public class JpaLibraryParser : ILibraryParser
         {
             return OntologyConstants.NodeLabels.Query;
         }
+        if (IsJpaTableAnnotation(node))
+        {
+            return OntologyConstants.NodeLabels.Table;
+        }
         return null;
     }
 
@@ -47,6 +51,10 @@ public class JpaLibraryParser : ILibraryParser
             }
             return "JPA Query";
         }
+        if (IsJpaTableAnnotation(node))
+        {
+            return ExtractTableName(node);
+        }
         return null;
     }
 
@@ -60,6 +68,100 @@ public class JpaLibraryParser : ILibraryParser
                 NestedSqlParser.TryDetectSqlDependencies(sqlText, scopeSymbolId, references);
             }
         }
+        else if (IsJpaTableAnnotation(node))
+        {
+            var tableName = ExtractTableName(node);
+            if (!string.IsNullOrEmpty(tableName))
+            {
+                references.Add(new Reference(scopeSymbolId, tableName, OntologyConstants.Relationships.PersistedIn));
+            }
+        }
+    }
+
+    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (node.Is(TreeSitterSyntax.Java.ClassDeclaration))
+        {
+            var annotations = GetClassAnnotations(node);
+            var isEntity = annotations.Any(a => GetAnnotationName(a) is "Entity" or "Table");
+            if (isEntity)
+            {
+                var tableAnnot = annotations.FirstOrDefault(a => GetAnnotationName(a) == "Table");
+                var tableName = tableAnnot.IsValid() ? ExtractTableName(tableAnnot) : symbol.Name;
+                if (!string.IsNullOrEmpty(tableName))
+                {
+                    symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.PersistedIn));
+                }
+            }
+        }
+    }
+
+    public static bool IsJpaTableAnnotation(Node node)
+    {
+        if (!node.IsAny(TreeSitterSyntax.Java.MarkerAnnotation, TreeSitterSyntax.Java.Annotation)) return false;
+        var name = GetAnnotationName(node);
+        return name is "Table" or "Entity";
+    }
+
+    private static List<Node> GetClassAnnotations(Node classDecl)
+    {
+        var result = new List<Node>();
+        foreach (var child in classDecl.Children)
+        {
+            if (child.IsAny(TreeSitterSyntax.Java.Annotation, TreeSitterSyntax.Java.MarkerAnnotation))
+            {
+                result.Add(child);
+            }
+            else if (child.Is(TreeSitterSyntax.Java.Modifiers))
+            {
+                foreach (var modChild in child.Children)
+                {
+                    if (modChild.IsAny(TreeSitterSyntax.Java.Annotation, TreeSitterSyntax.Java.MarkerAnnotation))
+                    {
+                        result.Add(modChild);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static string? GetAnnotationName(Node annot)
+    {
+        var nameNode = annot.FindChildOfType(TreeSitterSyntax.Java.Identifier)
+                       ?? annot.FindChildOfType(TreeSitterSyntax.Java.ScopedIdentifier);
+        if (!nameNode.IsValid()) return null;
+        var name = nameNode.Text;
+        if (name.Contains('.')) name = name.Substring(name.LastIndexOf('.') + 1);
+        return name;
+    }
+
+    public static string? ExtractTableName(Node tableAnnot)
+    {
+        foreach (var child in tableAnnot.Children)
+        {
+            if (child.Is(TreeSitterSyntax.Java.ElementValuePair))
+            {
+                var key = child.FindChildOfType(TreeSitterSyntax.Java.Identifier);
+                if (key.IsValid() && (key.Text is "name" or "value"))
+                {
+                    var val = child.FindChildOfType(TreeSitterSyntax.Java.StringLiteral);
+                    if (val.IsValid()) return val.Text.Trim('"');
+                }
+            }
+            else if (child.Is(TreeSitterSyntax.Java.StringLiteral))
+            {
+                return child.Text.Trim('"');
+            }
+        }
+        var text = tableAnnot.Text;
+        if (text.Contains('"'))
+        {
+            var f = text.IndexOf('"');
+            var l = text.LastIndexOf('"');
+            if (l > f) return text.Substring(f + 1, l - f - 1);
+        }
+        return null;
     }
 
     public static bool IsJpaQuery(Node node)
@@ -67,15 +169,10 @@ public class JpaLibraryParser : ILibraryParser
         // Case 1: @Query annotation on method
         if (node.IsAny(TreeSitterSyntax.Java.MarkerAnnotation, TreeSitterSyntax.Java.Annotation))
         {
-            var nameNode = node.FindChildOfType(TreeSitterSyntax.Java.Identifier)
-                           ?? node.FindChildOfType(TreeSitterSyntax.Java.ScopedIdentifier);
-            if (nameNode.IsValid())
+            var name = GetAnnotationName(node);
+            if (name != null && name.EndsWith("Query", StringComparison.OrdinalIgnoreCase))
             {
-                var name = nameNode.Text;
-                if (name.EndsWith("Query", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
+                return true;
             }
         }
 
@@ -96,7 +193,6 @@ public class JpaLibraryParser : ILibraryParser
     {
         if (node.IsAny(TreeSitterSyntax.Java.MarkerAnnotation, TreeSitterSyntax.Java.Annotation))
         {
-            // Direct string literal e.g. @Query("SELECT u FROM User u")
             var strNode = node.FindChildOfType(TreeSitterSyntax.Java.StringLiteral)
                           ?? node.FindChildOfType(TreeSitterSyntax.Java.TextBlock);
             if (strNode.IsValid())
@@ -104,7 +200,6 @@ public class JpaLibraryParser : ILibraryParser
                 return strNode.Text.Trim('"').Trim();
             }
 
-            // value = "..."
             foreach (var pair in node.Children)
             {
                 if (pair.Is(TreeSitterSyntax.Java.ElementValuePair))

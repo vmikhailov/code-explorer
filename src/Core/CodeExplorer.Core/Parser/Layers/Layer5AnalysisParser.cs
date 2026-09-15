@@ -116,7 +116,7 @@ public class Layer5AnalysisParser
         var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var procedureSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
-        var tableSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var tableSymbols = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var endpointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var entryPointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -393,6 +393,12 @@ public class Layer5AnalysisParser
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new SubscribedByRelationship(topicId, refItem.ScopeSymbolId)));
                 }
+            }
+            else if (refItem.Kind == OntologyConstants.Relationships.PersistedIn)
+            {
+                var fromTypeId = typeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid) ? tid : refItem.ScopeSymbolId;
+                var targetTableId = tableSymbols.TryGetValue(refItem.TargetName, out var tblId) ? tblId : $"{ctx.WorkspaceId}:table:{refItem.TargetName.ToLowerInvariant()}";
+                referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(fromTypeId, targetTableId)));
             }
         }
 
