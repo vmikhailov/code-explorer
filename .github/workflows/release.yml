@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write  # Required for NuGet Trusted Publishing (OIDC)
 
 jobs:
   build-matrix:
@@ -112,12 +113,16 @@ jobs:
           if [ -z "$VERSION" ]; then VERSION="1.0.0"; fi
           dotnet pack src/UI/CodeExplorer/CodeExplorer.csproj -c Release -p:PackageVersion="$VERSION" -o ./dist
 
-      - name: Push to NuGet.org (if NUGET_API_KEY secret configured)
-        if: env.NUGET_KEY != ''
+      - name: Push to NuGet.org (Trusted Publishing / OIDC)
         env:
           NUGET_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          dotnet nuget push ./dist/*.nupkg --api-key "$NUGET_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate || true
+          if [ -n "$NUGET_KEY" ]; then
+            dotnet nuget push ./dist/*.nupkg --api-key "$NUGET_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate || true
+          else
+            # Native NuGet OIDC / Trusted Publishing
+            dotnet nuget push ./dist/*.nupkg --source https://api.nuget.org/v3/index.json --skip-duplicate || true
+          fi
 
       - name: Generate Checksums
         run: |
