@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
@@ -908,12 +909,24 @@ public class Program
         services.AddHttpContextAccessor();
     }
 
+    private static string GetAppVersion()
+    {
+        var asm = typeof(Program).Assembly;
+        var infoVer = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (!string.IsNullOrWhiteSpace(infoVer))
+        {
+            return infoVer.Split('+')[0];
+        }
+        var ver = asm.GetName().Version;
+        return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "1.0.0";
+    }
+
     private static void ShowWelcomeAndHelp()
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("CodeExplorer (ce) - High-performance graph-based code intelligence & MCP server");
         Console.ResetColor();
-        Console.WriteLine("Version: 1.0.0\n");
+        Console.WriteLine($"Version: {GetAppVersion()}\n");
 
         Console.ForegroundColor = ConsoleColor.White;
         Console.WriteLine("USAGE:");

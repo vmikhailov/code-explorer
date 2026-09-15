@@ -9,16 +9,28 @@ CONFIGURATION="Release"
 
 TARGET="${1:-current}"
 
+VERSION="${VERSION:-${2:-}}"
+if [[ -z "$VERSION" ]]; then
+    # Try getting from git tag, fallback to 1.0.0
+    GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+    VERSION="${GIT_TAG#v}"
+fi
+
 publish_target() {
     local rid="$1"
     local out_dir="$2"
     echo ""
-    echo "==> Publishing single-file self-contained binary for: $rid"
+    echo "==> Publishing single-file self-contained binary for: $rid (Version: $VERSION)"
     mkdir -p "$out_dir"
     dotnet publish "$PROJECT" \
         -c "$CONFIGURATION" \
         -r "$rid" \
         --self-contained true \
+        -p:Version="$VERSION" \
+        -p:PackageVersion="$VERSION" \
+        -p:AssemblyVersion="$VERSION" \
+        -p:FileVersion="$VERSION" \
+        -p:InformationalVersion="$VERSION" \
         -p:PublishSingleFile=true \
         -p:IncludeNativeLibrariesForSelfExtract=true \
         -p:IncludeAllContentForSelfExtract=true \
