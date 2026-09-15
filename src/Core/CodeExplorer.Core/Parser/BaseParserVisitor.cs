@@ -371,6 +371,11 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
             if (currentScope.Kind != "file")
             {
+                foreach (var libParser in LibraryParsers)
+                {
+                    libParser.CollectReferences(node, "", currentScope.References, null!);
+                }
+
                 var callName = FindCallName(node);
 
                 if (!string.IsNullOrEmpty(callName))

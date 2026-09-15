@@ -361,16 +361,46 @@ public class Layer5AnalysisParser
                      refItem.Kind == OntologyConstants.Relationships.SubscribesTo)
             {
                 var topicName = refItem.TargetName;
-                var brokerType = "gcp";
+                var brokerType = "event";
                 if (topicName.StartsWith("rabbitmq:", StringComparison.OrdinalIgnoreCase))
                 {
                     brokerType = "rabbitmq";
                     topicName = topicName.Substring("rabbitmq:".Length);
                 }
+                else if (topicName.StartsWith("kafka:", StringComparison.OrdinalIgnoreCase))
+                {
+                    brokerType = "kafka";
+                    topicName = topicName.Substring("kafka:".Length);
+                }
                 else if (topicName.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase))
                 {
                     brokerType = "gcp";
                     topicName = topicName.Substring("gcp:".Length);
+                }
+                else if (topicName.StartsWith("mediatr:", StringComparison.OrdinalIgnoreCase))
+                {
+                    brokerType = "mediatr";
+                    topicName = topicName.Substring("mediatr:".Length);
+                }
+                else if (topicName.StartsWith("masstransit:", StringComparison.OrdinalIgnoreCase))
+                {
+                    brokerType = "masstransit";
+                    topicName = topicName.Substring("masstransit:".Length);
+                }
+                else if (topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase))
+                {
+                    brokerType = "spring";
+                    topicName = topicName.Substring("spring:".Length);
+                }
+                else if (topicName.StartsWith("cqrs:", StringComparison.OrdinalIgnoreCase))
+                {
+                    brokerType = "cqrs";
+                    topicName = topicName.Substring("cqrs:".Length);
+                }
+                else if (topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase))
+                {
+                    brokerType = "event";
+                    topicName = topicName.Substring("event:".Length);
                 }
 
                 var topicId = $"{ctx.WorkspaceId}:topic:{brokerType}:{topicName}";

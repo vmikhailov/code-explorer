@@ -43,6 +43,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new GenericLibraryParser("azure", "Azure", "cloud", ["@azure/*"]),
 
         new Libraries.NestJsLibraryParser(),
+        new Libraries.NestJsCqrsLibraryParser(),
         new Libraries.ExpressLibraryParser(),
         new Libraries.FastifyLibraryParser(),
         new Libraries.KoaLibraryParser(),
