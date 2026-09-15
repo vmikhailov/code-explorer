@@ -37,7 +37,7 @@ jobs:
             archive: tar.gz
             bin_name: ce
           # Linux ARM64
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-latest
             rid: linux-arm64
             archive: tar.gz
             bin_name: ce
@@ -104,19 +104,19 @@ jobs:
     needs: build-matrix
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./dist
-          merge-multiple: true
-
-      - name: Checkout repository (for NuGet pack)
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          merge-multiple: true
 
       - name: Build NuGet Dotnet Tool Package
         run: |
