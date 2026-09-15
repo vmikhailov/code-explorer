@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-matrix:
+    name: Build ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS Apple Silicon (M1/M2/M3/M4)
+          - os: macos-latest
+            rid: osx-arm64
+            archive: tar.gz
+            bin_name: ce
+          # macOS Intel
+          - os: macos-13
+            rid: osx-x64
+            archive: tar.gz
+            bin_name: ce
+          # Linux x64
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: tar.gz
+            bin_name: ce
+          # Linux ARM64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+            archive: tar.gz
+            bin_name: ce
+          # Windows x64
+          - os: windows-latest
+            rid: win-x64
+            archive: zip
+            bin_name: ce.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and Publish Single-File Binary
+        shell: bash
+        run: |
+          dotnet publish src/UI/CodeExplorer/CodeExplorer.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:IncludeAllContentForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:PublishTrimmed=false \
+            -p:DebugType=none \
+            -o ./out/${{ matrix.rid }}
+
+      - name: Package Artifacts (Unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd ./out/${{ matrix.rid }}
+          chmod +x ${{ matrix.bin_name }}
+          tar -czf ../../ce-${{ matrix.rid }}.tar.gz ${{ matrix.bin_name }}
+
+      - name: Package Artifacts (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path ./out/${{ matrix.rid }}/${{ matrix.bin_name }} -DestinationPath ./ce-${{ matrix.rid }}.zip
+
+      - name: Upload Artifact to Job
+        uses: actions/upload-artifact@v4
+        with:
+          name: ce-${{ matrix.rid }}
+          path: ce-${{ matrix.rid }}.${{ matrix.archive }}
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./dist
+          merge-multiple: true
+
+      - name: Generate Checksums
+        run: |
+          cd ./dist
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./dist/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false

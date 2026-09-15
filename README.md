@@ -106,37 +106,66 @@ Once the syntactic structure is captured:
 
 ---
 
-## 📦 Installation & Single-File Binaries
+## 📦 Quick Installation
 
-CodeExplorer is packaged as a **single-file, self-contained executable** with embedded Tree-sitter parsers and SQLite engine. No .NET runtime or SDK installation is required to run the binary.
+CodeExplorer (`ce`) is distributed as a **zero-dependency, single-file self-contained binary** with embedded Tree-sitter parsers and SQLite engine. No .NET runtime or SDK installation is required.
 
-### Build the Executables
+### ⚡ One-Line Install (Recommended)
 
-You can compile standalone single-file binaries for any platform using the included publish scripts:
-
-**Windows (PowerShell / Command Prompt):**
-```powershell
-# Publish ce.exe for Windows x64 into .Build/bin/ce.exe
-.\scripts\publish.cmd
-
-# Or publish for all platforms (Windows, Linux, macOS)
-.\scripts\publish.cmd all
+**macOS & Linux (Bash / Zsh):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/master/scripts/install.sh | bash
 ```
 
-**Linux / macOS (Bash):**
+**Windows (PowerShell as Administrator or User):**
+```powershell
+irm https://raw.githubusercontent.com/vmikhailov/code-explorer/master/scripts/install.ps1 | iex
+```
+
+---
+
+### 🍺 Homebrew (macOS & Linux)
+
 ```bash
-# Make script executable and publish for current platform
-chmod +x scripts/publish.sh
+brew tap vmikhailov/tap
+brew install ce
+```
+
+---
+
+### 📥 Manual Download
+
+Download the pre-compiled binary for your platform from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest):
+
+| Platform | Architecture | Binary Asset |
+| :--- | :--- | :--- |
+| **macOS** | Apple Silicon (M1/M2/M3/M4) | `ce-osx-arm64.tar.gz` |
+| **macOS** | Intel x64 | `ce-osx-x64.tar.gz` |
+| **Linux** | x86_64 | `ce-linux-x64.tar.gz` |
+| **Linux** | ARM64 | `ce-linux-arm64.tar.gz` |
+| **Windows** | x86_64 | `ce-win-x64.zip` |
+
+---
+
+### 🛠️ Build from Source
+
+If you have [.NET 10.0 SDK](https://dotnet.microsoft.com/download) installed:
+
+```bash
+# 1. Build and run all unit tests
+./scripts/build.sh
+
+# 2. Publish single-file binary for your current machine
 ./scripts/publish.sh
 
-# Or publish for all target platforms
+# Or publish for all supported platforms
 ./scripts/publish.sh all
 ```
 
 Targets produced in `.Build/bin/`:
-*   **Windows x64**: `ce.exe`
-*   **Linux x64 / ARM64**: `ce`
-*   **macOS Apple Silicon (ARM64) / Intel (x64)**: `ce`
+*   **Windows x64**: `.Build/bin/win-x64/ce.exe`
+*   **Linux x64 / ARM64**: `.Build/bin/linux-x64/ce`, `.Build/bin/linux-arm64/ce`
+*   **macOS (ARM64 / x64)**: `.Build/bin/osx-arm64/ce`, `.Build/bin/osx-x64/ce`
 
 Add `ce` (or `ce.exe`) to your system `PATH` to use it from anywhere.
 
