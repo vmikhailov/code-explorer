@@ -179,7 +179,35 @@ public class EfCoreLibraryParser : ILibraryParser
     {
         if (!node.Is(TreeSitterSyntax.CSharp.PropertyDeclaration)) return false;
         var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
-        return typeNode.IsValid() && (typeNode.Text.StartsWith("DbSet<") || typeNode.Text.StartsWith("IDbSet<"));
+        if (!typeNode.IsValid() || (!typeNode.Text.StartsWith("DbSet<") && !typeNode.Text.StartsWith("IDbSet<"))) return false;
+
+        var (entityType, tableName) = ExtractDbSetInfo(node);
+        if (string.IsNullOrEmpty(tableName) || string.IsNullOrEmpty(entityType)) return false;
+
+        if (tableName.Equals("DbSet", StringComparison.OrdinalIgnoreCase) || tableName.Equals("IDbSet", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (IsGenericTypeParameter(node, entityType))
+            return false;
+
+        return true;
+    }
+
+    private static bool IsGenericTypeParameter(Node propNode, string typeName)
+    {
+        var classDecl = GetParentClass(propNode);
+        if (!classDecl.IsValid()) return false;
+
+        var typeParams = classDecl.FindChildOfType(TreeSitterSyntax.CSharp.TypeParameterList);
+        if (typeParams.IsValid())
+        {
+            foreach (var child in typeParams.Children)
+            {
+                if ((child.Is(TreeSitterSyntax.CSharp.TypeParameter) || child.Is(TreeSitterSyntax.Common.Identifier)) && child.Text == typeName)
+                    return true;
+            }
+        }
+        return false;
     }
 
     private static bool IsToTableCall(Node node)
@@ -294,6 +322,7 @@ public class EfCoreLibraryParser : ILibraryParser
 
     private static string? ExtractTableNameFromDbSet(Node node)
     {
+        if (!IsDbSetProperty(node)) return null;
         var (_, tableName) = ExtractDbSetInfo(node);
         return tableName;
     }

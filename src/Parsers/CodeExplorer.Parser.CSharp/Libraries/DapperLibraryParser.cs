@@ -87,7 +87,7 @@ public class DapperLibraryParser : ILibraryParser
                 var valNode = arg.Children.FirstOrDefault(c => c.IsValid());
                 if (valNode.IsValid())
                 {
-                    return valNode.Text.Trim('"');
+                    return CSharpFileVisitor.ExtractFullStringText(valNode).Trim('"');
                 }
             }
         }

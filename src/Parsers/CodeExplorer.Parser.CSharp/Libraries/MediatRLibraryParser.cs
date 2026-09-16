@@ -10,8 +10,9 @@ public class MediatRLibraryParser : ILibraryParser
     public string Name => "MediatR";
     public string Id => "mediatr";
     public string Type => OntologyConstants.LibraryTypes.Framework;
-    public IReadOnlyList<string> SupportedPatterns => ["MediatR"];
+    public IReadOnlyList<string> SupportedPatterns => ["MediatR", "MediatR.*", "*Mediator*"];
     public bool IsImplemented => true;
+    public bool IsBuiltIn => true;
 
     private static readonly HashSet<string> HandlerInterfaces =
     [
@@ -19,14 +20,21 @@ public class MediatRLibraryParser : ILibraryParser
         "INotificationHandler",
         "IStreamRequestHandler",
         "RequestHandler",
-        "NotificationHandler"
+        "NotificationHandler",
+        "IMediatorHandler",
+        "ICommandHandler",
+        "IQueryHandler"
     ];
 
     private static readonly HashSet<string> EgressMethodNames =
     [
         "Send",
+        "SendAsync",
         "Publish",
-        "CreateStream"
+        "PublishAsync",
+        "CreateStream",
+        "Dispatch",
+        "DispatchAsync"
     ];
 
     public string? MapNodeType(Node node, ParsingContext ctx)

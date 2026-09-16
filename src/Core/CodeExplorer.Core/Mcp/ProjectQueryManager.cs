@@ -11,7 +11,6 @@ namespace CodeExplorer.Core.Mcp;
 public class ProjectQueryManager(ILogger<ProjectQueryManager>? logger = null)
 {
     private static readonly Regex SafeNameRegex = new(@"^[a-zA-Z0-9_-]+$", RegexOptions.Compiled);
-    private static readonly string[] ForbiddenKeywords = ["create ", "merge ", "delete ", "remove ", "drop ", "set ", "detach "];
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
@@ -24,15 +23,7 @@ public class ProjectQueryManager(ILogger<ProjectQueryManager>? logger = null)
         if (string.IsNullOrWhiteSpace(cypher))
             throw new ArgumentException("Cypher query cannot be empty.", nameof(cypher));
 
-        var lower = cypher.ToLowerInvariant();
-        foreach (var word in ForbiddenKeywords)
-        {
-            if (lower.Contains(word))
-            {
-                throw new InvalidOperationException(
-                    $"Security violation: modifying keyword '{word.Trim()}' is not allowed in project queries.");
-            }
-        }
+        CypherSecurityValidator.ValidateReadOnly(cypher);
     }
 
     public void ValidateQuerySyntax(string cypher)

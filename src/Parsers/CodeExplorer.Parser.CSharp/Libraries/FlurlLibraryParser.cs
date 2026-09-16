@@ -37,9 +37,13 @@ public class FlurlLibraryParser : ILibraryParser
                 {
                     return uri.Host;
                 }
-                return rootUrl;
+                var clean = rootUrl.Trim('"').Trim();
+                if (!string.IsNullOrEmpty(clean) && !clean.Contains(' '))
+                {
+                    return clean;
+                }
             }
-            return "Flurl Call";
+            return "flurl-service";
         }
         return null;
     }

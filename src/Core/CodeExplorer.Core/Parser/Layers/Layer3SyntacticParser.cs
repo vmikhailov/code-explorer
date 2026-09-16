@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -493,23 +494,20 @@ public class Layer3SyntacticParser
 
         if (domainOrService.Contains('.'))
         {
-            var lastPart = domainOrService.Split('.').Last();
-            if (lastPart.Any(char.IsUpper) || lastPart.Contains('_') || lastPart.Length > 12)
+            if (domainOrService.Contains(' ') || domainOrService.Any(c => c is '"' or '\'' or '{' or '}'))
             {
                 domainOrService = "unknown-service";
             }
         }
         else if (domainOrService != "*" &&
-                 protocol != "ws" && protocol != "wss" && protocol != "grpc" &&
-                 !domainOrService.EndsWith("-service", StringComparison.OrdinalIgnoreCase) &&
-                 !domainOrService.EndsWith("-api", StringComparison.OrdinalIgnoreCase) &&
-                 !domainOrService.EndsWith("-worker", StringComparison.OrdinalIgnoreCase) &&
-                 !domainOrService.Equals("auth", StringComparison.OrdinalIgnoreCase) &&
-                 !domainOrService.Equals("jira", StringComparison.OrdinalIgnoreCase) &&
-                 !domainOrService.Equals("redis", StringComparison.OrdinalIgnoreCase) &&
-                 !domainOrService.Equals("unknown-service", StringComparison.OrdinalIgnoreCase))
+                 protocol != "ws" && protocol != "wss" && protocol != "grpc")
         {
-            domainOrService = "unknown-service";
+            if (string.IsNullOrWhiteSpace(domainOrService) ||
+                domainOrService.Contains(' ') ||
+                !Regex.IsMatch(domainOrService, @"^[a-zA-Z0-9_\-]+$"))
+            {
+                domainOrService = "unknown-service";
+            }
         }
 
         var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";

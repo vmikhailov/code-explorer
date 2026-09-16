@@ -86,6 +86,8 @@ public static class TreeSitterSyntax
         public const string AttributeArgumentList = "attribute_argument_list";
         public const string AttributeArgument = "attribute_argument";
         public const string TypeArgumentList = "type_argument_list";
+        public const string TypeParameterList = "type_parameter_list";
+        public const string TypeParameter = "type_parameter";
         public const string Block = "block";
         public const string LocalFunctionStatement = "local_function_statement";
         public const string CompilationUnit = "compilation_unit";

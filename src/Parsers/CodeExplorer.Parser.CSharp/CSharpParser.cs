@@ -36,6 +36,7 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.MassTransitLibraryParser(),
         new Libraries.MediatRLibraryParser(),
         new Libraries.KafkaFlowLibraryParser(),
+        new Libraries.OrleansLibraryParser(),
 
         // Generic Cloud Services
         new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe", "Stripe"]),

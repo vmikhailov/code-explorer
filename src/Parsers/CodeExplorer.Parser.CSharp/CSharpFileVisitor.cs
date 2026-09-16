@@ -30,6 +30,10 @@ public class CSharpFileVisitor : BaseParserVisitor
             if (nameNode.IsValid() && (nameNode.Text is "Route" or "RoutePrefix" || nameNode.Text.StartsWith("Http") || nameNode.Text is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "Options"))
             {
                 var parentDecl = node.Parent?.Parent;
+                if (parentDecl.IsValid() && parentDecl.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+                {
+                    return null;
+                }
                 var current = parentDecl?.Parent;
                 while (current.IsValid())
                 {
@@ -50,12 +54,15 @@ public class CSharpFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.ExternalService;
         }
 
-        if (node.Type.Contains("string") &&
-            !node.IsAny(TreeSitterSyntax.CSharp.InterpolatedStringExpression,
-                        TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
-                        TreeSitterSyntax.CSharp.InterpolatedRawStringExpression))
+        if (IsInsideInterpolatedString(node))
         {
-            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
+            return null;
+        }
+
+        if (node.Type.Contains("string") || IsInterpolatedStringExpression(node))
+        {
+            var sqlCandidate = ExtractFullStringText(node);
+            if (NestedSqlParser.TryParseSql(sqlCandidate, out _, out _))
             {
                 return OntologyConstants.NodeLabels.Query;
             }
@@ -75,6 +82,11 @@ public class CSharpFileVisitor : BaseParserVisitor
     {
         if (node.Is(TreeSitterSyntax.CSharp.Attribute))
         {
+            var parentDecl = node.Parent?.Parent;
+            if (parentDecl.IsValid() && parentDecl.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+            {
+                return null;
+            }
             return Libraries.AspNetCoreLibraryParser.ExtractRoute(node) ?? ExtractCSharpAttributeRoute(node);
         }
 
@@ -83,9 +95,15 @@ public class CSharpFileVisitor : BaseParserVisitor
             return ExtractHttpClientTarget(node);
         }
 
-        if (node.Type.Contains("string"))
+        if (IsInsideInterpolatedString(node))
         {
-            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
+            return null;
+        }
+
+        if (node.Type.Contains("string") || IsInterpolatedStringExpression(node))
+        {
+            var sqlCandidate = ExtractFullStringText(node);
+            if (NestedSqlParser.TryParseSql(sqlCandidate, out var firstWord, out _))
             {
                 return $"{firstWord} Query";
             }
@@ -99,6 +117,44 @@ public class CSharpFileVisitor : BaseParserVisitor
     private static string? ExtractHttpClientTarget(Node node) => Libraries.HttpClientLibraryParser.ExtractTarget(node);
 
     private static string? ExtractCSharpAttributeRoute(Node attributeNode) => Libraries.AspNetCoreLibraryParser.ExtractRoute(attributeNode);
+
+    private static bool IsInterpolatedStringExpression(Node node) =>
+        node.IsAny(TreeSitterSyntax.CSharp.InterpolatedStringExpression,
+                   TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
+                   TreeSitterSyntax.CSharp.InterpolatedRawStringExpression);
+
+    private static bool IsInsideInterpolatedString(Node node) =>
+        node.Parent.IsValid() && IsInterpolatedStringExpression(node.Parent);
+
+    public static string ExtractFullStringText(Node node)
+    {
+        if (IsInterpolatedStringExpression(node))
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var child in node.Children)
+            {
+                if (child.Type == "interpolated_string_text")
+                {
+                    sb.Append(child.Text);
+                }
+                else if (child.Type == "interpolation")
+                {
+                    var expr = child.Children.FirstOrDefault(c => c.Text != "{" && c.Text != "}");
+                    if (expr.IsValid())
+                    {
+                        var exprText = expr.Text;
+                        if (exprText.Contains('.'))
+                        {
+                            exprText = exprText[(exprText.LastIndexOf('.') + 1)..];
+                        }
+                        sb.Append(exprText.Trim('"'));
+                    }
+                }
+            }
+            return sb.ToString();
+        }
+        return node.Text;
+    }
 
     private string? ExtractCsIdentifier(Node node)
     {

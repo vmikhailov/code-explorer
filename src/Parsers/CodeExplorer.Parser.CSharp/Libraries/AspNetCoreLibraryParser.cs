@@ -25,6 +25,10 @@ public class AspNetCoreLibraryParser : ILibraryParser
     {
         if (IsRouteAttribute(node))
         {
+            if (IsClassLevelAttribute(node))
+            {
+                return null;
+            }
             if (IsInsideInterface(node))
             {
                 return OntologyConstants.NodeLabels.ExternalService;
@@ -39,6 +43,10 @@ public class AspNetCoreLibraryParser : ILibraryParser
     {
         if (IsRouteAttribute(node))
         {
+            if (IsClassLevelAttribute(node))
+            {
+                return null;
+            }
             if (IsInsideInterface(node))
             {
                 return ExtractDeclarativeClientRoute(node);
@@ -360,6 +368,14 @@ public class AspNetCoreLibraryParser : ILibraryParser
         return text.Trim('"');
     }
 
+    private static bool IsClassLevelAttribute(Node node)
+    {
+        var attrList = node.Parent;
+        if (!attrList.IsValid() || !attrList.Is(TreeSitterSyntax.CSharp.AttributeList)) return false;
+        var parentDecl = attrList.Parent;
+        return parentDecl.IsValid() && parentDecl.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration);
+    }
+
     private static bool IsInsideInterface(Node node)
     {
         var current = node.Parent;
@@ -376,7 +392,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
     {
         if (!node.Is(TreeSitterSyntax.CSharp.Attribute)) return false;
         var nameNode = node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
-        return nameNode.IsValid() && RouteAttributes.Contains(nameNode.Text);
+        return nameNode.IsValid() && (RouteAttributes.Contains(nameNode.Text) || RouteAttributes.Contains(nameNode.Text.Replace("Attribute", "")));
     }
 
     private static bool IsEndpointInvocation(Node node)
@@ -742,6 +758,10 @@ public class AspNetCoreLibraryParser : ILibraryParser
 
             var methodNameNode = parentDecl.GetField(TreeSitterSyntax.Fields.Name);
             var methodName = methodNameNode.IsValid() ? methodNameNode.Text : "";
+            if (methodName.EndsWith("Async", StringComparison.Ordinal) && methodName.Length > 5)
+            {
+                methodName = methodName[..^"Async".Length];
+            }
 
             var classPrefix = GetControllerRoutePrefix(node);
             string routeVal;
@@ -760,7 +780,14 @@ public class AspNetCoreLibraryParser : ILibraryParser
                     !methodName.Equals("Patch", StringComparison.OrdinalIgnoreCase) &&
                     !methodName.Equals("Index", StringComparison.OrdinalIgnoreCase))
                 {
-                    routeVal = CombineRoutes(baseRoute, methodName);
+                    if (baseRoute.Contains("[action]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        routeVal = baseRoute;
+                    }
+                    else
+                    {
+                        routeVal = CombineRoutes(baseRoute, methodName);
+                    }
                 }
                 else
                 {

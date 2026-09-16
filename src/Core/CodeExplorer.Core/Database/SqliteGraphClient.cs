@@ -953,15 +953,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     private static void ValidateQuerySecurity(string query)
     {
-        var forbidden = new[] { "create ", "merge ", "delete ", "remove ", "drop ", "set ", "detach " };
-        var lowerQuery = query.ToLowerInvariant();
-        foreach (var word in forbidden)
-        {
-            if (lowerQuery.Contains(word))
-            {
-                throw new InvalidOperationException($"Security violation: modifying keyword '{word.Trim()}' is not allowed in sandbox mode.");
-            }
-        }
+        CodeExplorer.Cypher.Parser.CypherSecurityValidator.ValidateReadOnly(query);
     }
 
     public async ValueTask DisposeAsync()
