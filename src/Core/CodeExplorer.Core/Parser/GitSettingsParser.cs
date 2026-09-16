@@ -19,17 +19,17 @@ public static class GitSettingsParser
             if (File.Exists(headPath))
             {
                 var headContent = File.ReadAllText(headPath).Trim();
-                if (headContent.StartsWith("ref:"))
+                if (headContent.StartsWith("ref:", StringComparison.Ordinal))
                 {
-                    branch = headContent.Substring("ref:".Length).Trim();
-                    if (branch.StartsWith("refs/heads/"))
+                    branch = headContent["ref:".Length..].Trim();
+                    if (branch.StartsWith("refs/heads/", StringComparison.Ordinal))
                     {
-                        branch = branch.Substring("refs/heads/".Length);
+                        branch = branch["refs/heads/".Length..];
                     }
                 }
                 else if (headContent.Length == 40)
                 {
-                    branch = $"Detached HEAD ({headContent.Substring(0, 7)})";
+                    branch = $"Detached HEAD ({headContent[..7]})";
                 }
             }
         }
@@ -56,15 +56,15 @@ public static class GitSettingsParser
 
                     if (line.StartsWith('[') && line.EndsWith(']'))
                     {
-                        currentSection = line.Substring(1, line.Length - 2).Trim();
+                        currentSection = line[1..^1].Trim();
                         continue;
                     }
 
                     var eqIndex = line.IndexOf('=');
                     if (eqIndex > 0)
                     {
-                        var key = line.Substring(0, eqIndex).Trim();
-                        var val = line.Substring(eqIndex + 1).Trim().Trim('"');
+                        var key = line[..eqIndex].Trim();
+                        var val = line[(eqIndex + 1)..].Trim().Trim('"');
 
                         if (currentSection.Equals("remote \"origin\"", StringComparison.OrdinalIgnoreCase) &&
                             key.Equals("url", StringComparison.OrdinalIgnoreCase))

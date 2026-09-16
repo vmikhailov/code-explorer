@@ -168,7 +168,7 @@ public class EfCoreLibraryParser : ILibraryParser
                     }
                 }
                 var text = arg.Text.Trim('"');
-                if (text.Contains('=')) text = text.Substring(text.IndexOf('=') + 1).Trim().Trim('"');
+                if (text.Contains('=')) text = text[(text.IndexOf('=') + 1)..].Trim().Trim('"');
                 return text;
             }
         }
@@ -314,7 +314,7 @@ public class EfCoreLibraryParser : ILibraryParser
             var end = typeNode.Text.LastIndexOf('>');
             if (end > start)
             {
-                entityType = typeNode.Text.Substring(start + 1, end - start - 1).Trim();
+                entityType = typeNode.Text[(start + 1)..end].Trim();
             }
         }
         return (entityType, tableName);

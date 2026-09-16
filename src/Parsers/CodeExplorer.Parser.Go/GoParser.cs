@@ -103,10 +103,10 @@ public class GoParser : IProjectParser, IFileParser
         try
         {
             var lines = await File.ReadAllLinesAsync(goModPath);
-            var moduleLine = lines.FirstOrDefault(l => l.Trim().StartsWith("module "));
+            var moduleLine = lines.FirstOrDefault(l => l.Trim().StartsWith("module ", StringComparison.Ordinal));
             if (moduleLine != null)
             {
-                var modName = moduleLine.Trim().Substring("module ".Length).Trim();
+                var modName = moduleLine.Trim()["module ".Length..].Trim();
                 if (!string.IsNullOrEmpty(modName))
                 {
                     var version = "unknown";
@@ -149,9 +149,9 @@ public class GoParser : IProjectParser, IFileParser
                 if (string.IsNullOrEmpty(line)) continue;
 
                 // Handle single-line require
-                if (line.StartsWith("require ") && !line.EndsWith("("))
+                if (line.StartsWith("require ", StringComparison.Ordinal) && !line.EndsWith('('))
                 {
-                    var content = line.Substring("require ".Length).Trim();
+                    var content = line["require ".Length..].Trim();
                     var parts = content.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 1)
                     {
@@ -160,7 +160,7 @@ public class GoParser : IProjectParser, IFileParser
                         externalPackages.Add(new ProducedPackageInfo(name, version, "go"));
                     }
                 }
-                else if (line.StartsWith("require ("))
+                else if (line.StartsWith("require (", StringComparison.Ordinal))
                 {
                     inRequireBlock = true;
                 }
@@ -249,9 +249,9 @@ public class GoParser : IProjectParser, IFileParser
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();
-                if (trimmed.StartsWith("module "))
+                if (trimmed.StartsWith("module ", StringComparison.Ordinal))
                 {
-                    return trimmed.Substring("module ".Length).Trim();
+                    return trimmed["module ".Length..].Trim();
                 }
             }
         }

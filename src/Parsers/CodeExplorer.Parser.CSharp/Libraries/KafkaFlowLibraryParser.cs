@@ -269,12 +269,12 @@ public class KafkaFlowLibraryParser : ILibraryParser
         var dotIdx = type.LastIndexOf('.');
         if (dotIdx >= 0 && dotIdx < type.Length - 1)
         {
-            type = type.Substring(dotIdx + 1);
+            type = type[(dotIdx + 1)..];
         }
         var genericIdx = type.IndexOf('<');
         if (genericIdx > 0)
         {
-            type = type.Substring(0, genericIdx);
+            type = type[..genericIdx];
         }
         return type.Trim('?', ' ');
     }

@@ -322,7 +322,7 @@ public class JavaParser : IProjectParser, IFileParser
             var importRelDir = importPath.Replace('.', '/');
             if (importRelDir.Contains('/'))
             {
-                var dirPart = importRelDir.Substring(0, importRelDir.LastIndexOf('/'));
+                var dirPart = importRelDir[..importRelDir.LastIndexOf('/')];
                 var possiblePath = Path.Combine(absoluteWorkspacePath, "src/main/java", dirPart);
                 if (Directory.Exists(possiblePath)) return ImportType.Internal;
 

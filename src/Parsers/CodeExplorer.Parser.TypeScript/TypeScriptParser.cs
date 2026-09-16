@@ -177,9 +177,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
                         var packageVersion = prop.Value.GetString() ?? "unknown";
 
                         // Check if it is a local workspace project reference
-                        if (packageVersion.StartsWith("file:") || packageVersion.StartsWith("workspace:"))
+                        if (packageVersion.StartsWith("file:", StringComparison.Ordinal) || packageVersion.StartsWith("workspace:", StringComparison.Ordinal))
                         {
-                            var relativePath = packageVersion.Substring(packageVersion.IndexOf(':') + 1);
+                            var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
                             if (!string.IsNullOrEmpty(relativePath))
                             {
                                 var referencedDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!, relativePath)).Replace('\\', '/');

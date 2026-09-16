@@ -81,7 +81,7 @@ public static class Queries
             .Select(r =>
             {
                 var idx = r.IndexOf(".Queries.", StringComparison.OrdinalIgnoreCase);
-                var sub = idx >= 0 ? r.Substring(idx + ".Queries.".Length) : r;
+                var sub = idx >= 0 ? r[(idx + ".Queries.".Length)..] : r;
                 return sub.EndsWith(".cypher", StringComparison.OrdinalIgnoreCase) ? sub[..^7] : sub;
             })
             .Distinct(StringComparer.OrdinalIgnoreCase)

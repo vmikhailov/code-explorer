@@ -133,10 +133,10 @@ public class HotChocolateLibraryParser : ILibraryParser
             var genericIdx = type.IndexOf('<');
             if (genericIdx > 0 && type.EndsWith('>'))
             {
-                var outer = type.Substring(0, genericIdx).Trim();
+                var outer = type[..genericIdx].Trim();
                 if (outer is "Task" or "ValueTask" or "IQueryable" or "IEnumerable" or "List" or "IList")
                 {
-                    type = type.Substring(genericIdx + 1, type.Length - genericIdx - 2).Trim();
+                    type = type[(genericIdx + 1)..^1].Trim();
                     continue;
                 }
             }

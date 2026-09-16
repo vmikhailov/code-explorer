@@ -305,7 +305,7 @@ public class NestJsLibraryParser : ILibraryParser
         {
             var callFunc = _decoratorCallFunctionSelector.Select(dec);
             var decName = callFunc.IsValid() ? callFunc.Text : dec.Text.TrimStart('@');
-            if (decName.Contains('(')) decName = decName.Substring(0, decName.IndexOf('('));
+            if (decName.Contains('(')) decName = decName[..decName.IndexOf('(')];
 
             if (decName is "Public" or "AllowAnonymous")
             {
@@ -412,10 +412,10 @@ public class NestJsLibraryParser : ILibraryParser
             var genericIdx = type.IndexOf('<');
             if (genericIdx > 0 && type.EndsWith('>'))
             {
-                var outer = type.Substring(0, genericIdx).Trim();
+                var outer = type[..genericIdx].Trim();
                 if (outer is "Promise" or "Observable" or "Array" or "Partial" or "Readonly")
                 {
-                    type = type.Substring(genericIdx + 1, type.Length - genericIdx - 2).Trim();
+                    type = type[(genericIdx + 1)..^1].Trim();
                     continue;
                 }
             }

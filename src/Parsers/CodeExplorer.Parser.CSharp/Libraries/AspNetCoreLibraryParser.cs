@@ -270,10 +270,10 @@ public class AspNetCoreLibraryParser : ILibraryParser
             var genericIdx = type.IndexOf('<');
             if (genericIdx > 0 && type.EndsWith('>'))
             {
-                var outer = type.Substring(0, genericIdx).Trim();
+                var outer = type[..genericIdx].Trim();
                 if (outer is "Task" or "ValueTask" or "ActionResult" or "Results" or "ResponseEntity" or "Promise" or "Observable" or "CompletableFuture" or "Mono" or "Flux")
                 {
-                    type = type.Substring(genericIdx + 1, type.Length - genericIdx - 2).Trim();
+                    type = type[(genericIdx + 1)..^1].Trim();
                     continue;
                 }
             }
@@ -364,7 +364,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
             }
         }
         var text = argNode.Text;
-        if (text.Contains('=')) text = text.Substring(text.IndexOf('=') + 1).Trim();
+        if (text.Contains('=')) text = text[(text.IndexOf('=') + 1)..].Trim();
         return text.Trim('"');
     }
 

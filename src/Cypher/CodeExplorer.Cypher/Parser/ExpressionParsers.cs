@@ -45,8 +45,8 @@ public static class ExpressionParsers
         .Select(t =>
         {
             var str = t.ToStringValue();
-            if (str.StartsWith("`") && str.EndsWith("`") && str.Length >= 2)
-                return str.Substring(1, str.Length - 2);
+            if (str.StartsWith('`') && str.EndsWith('`') && str.Length >= 2)
+                return str[1..^1];
             return str;
         });
 
@@ -54,7 +54,7 @@ public static class ExpressionParsers
         Token.EqualTo(CypherToken.StringLiteral).Select(Expression (t) =>
         {
             var raw = t.ToStringValue();
-            var content = raw.Length >= 2 ? raw.Substring(1, raw.Length - 2) : raw;
+            var content = raw.Length >= 2 ? raw[1..^1] : raw;
             var unescaped = content
                 .Replace("\\'", "'")
                 .Replace("\\\"", "\"")
@@ -70,7 +70,7 @@ public static class ExpressionParsers
             var str = t.ToStringValue();
             if (str.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             {
-                var hexVal = Convert.ToInt64(str.Substring(2), 16);
+                var hexVal = Convert.ToInt64(str[2..], 16);
                 return new NumberLiteralExpression(hexVal, true);
             }
             if (int.TryParse(str, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intVal))

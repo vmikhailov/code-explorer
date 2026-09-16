@@ -58,7 +58,7 @@ public class SpringMvcLibraryParser : ILibraryParser
         if (!nameNode.IsValid()) return false;
 
         var name = nameNode.Text;
-        if (name.Contains('.')) name = name.Substring(name.LastIndexOf('.') + 1);
+        if (name.Contains('.')) name = name[(name.LastIndexOf('.') + 1)..];
 
         return HttpMappingAnnotations.Contains(name);
     }
@@ -71,7 +71,7 @@ public class SpringMvcLibraryParser : ILibraryParser
         if (!nameNode.IsValid()) return null;
 
         var annotName = nameNode.Text;
-        if (annotName.Contains('.')) annotName = annotName.Substring(annotName.LastIndexOf('.') + 1);
+        if (annotName.Contains('.')) annotName = annotName[(annotName.LastIndexOf('.') + 1)..];
 
         var httpMethod = annotName switch
         {
@@ -174,10 +174,10 @@ public class SpringMvcLibraryParser : ILibraryParser
             var genericIdx = type.IndexOf('<');
             if (genericIdx > 0 && type.EndsWith('>'))
             {
-                var outer = type.Substring(0, genericIdx).Trim();
+                var outer = type[..genericIdx].Trim();
                 if (outer is "ResponseEntity" or "CompletableFuture" or "Mono" or "Flux" or "List" or "Set" or "Collection" or "Optional" or "HttpEntity")
                 {
-                    type = type.Substring(genericIdx + 1, type.Length - genericIdx - 2).Trim();
+                    type = type[(genericIdx + 1)..^1].Trim();
                     continue;
                 }
             }
@@ -219,7 +219,7 @@ public class SpringMvcLibraryParser : ILibraryParser
             if (!nameNode.IsValid()) continue;
 
             var name = nameNode.Text;
-            if (name.Contains('.')) name = name.Substring(name.LastIndexOf('.') + 1);
+            if (name.Contains('.')) name = name[(name.LastIndexOf('.') + 1)..];
 
             if (name is "PermitAll" or "AnonymousAllowed")
             {
@@ -245,7 +245,7 @@ public class SpringMvcLibraryParser : ILibraryParser
                         var endQuote = expr.LastIndexOf('\'');
                         if (startQuote >= 0 && endQuote > startQuote)
                         {
-                            var role = expr.Substring(startQuote + 1, endQuote - startQuote - 1);
+                            var role = expr[(startQuote + 1)..endQuote];
                             symbol.RequiredRoles = string.IsNullOrEmpty(symbol.RequiredRoles) ? role : $"{symbol.RequiredRoles},{role}";
                         }
                     }
@@ -279,7 +279,7 @@ public class SpringMvcLibraryParser : ILibraryParser
         {
             var first = text.IndexOf('"');
             var last = text.LastIndexOf('"');
-            if (last > first) return text.Substring(first + 1, last - first - 1);
+            if (last > first) return text[(first + 1)..last];
         }
         return null;
     }

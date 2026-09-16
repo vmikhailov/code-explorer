@@ -21,13 +21,13 @@ public static class PathTools
 
         if (!string.IsNullOrEmpty(normalizedHostPath) && normalizedFilePath.StartsWith(normalizedHostPath, StringComparison.OrdinalIgnoreCase))
         {
-            return normalizedFilePath.Substring(normalizedHostPath.Length).TrimStart('/');
+            return normalizedFilePath[normalizedHostPath.Length..].TrimStart('/');
         }
 
         var driveMatch = Regex.Match(normalizedFilePath, @"^[A-Za-z]:");
         if (driveMatch.Success)
         {
-            return normalizedFilePath.Substring(driveMatch.Length).TrimStart('/');
+            return normalizedFilePath[driveMatch.Length..].TrimStart('/');
         }
 
         return normalizedFilePath;

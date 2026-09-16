@@ -342,11 +342,11 @@ public class GoFileVisitor : BaseParserVisitor
             var spaceIdx = routeVal.IndexOf(' ');
             if (spaceIdx > 0)
             {
-                var candidateMethod = routeVal.Substring(0, spaceIdx).ToUpperInvariant();
+                var candidateMethod = routeVal[..spaceIdx].ToUpperInvariant();
                 if (candidateMethod is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD")
                 {
                     method = candidateMethod;
-                    routeVal = routeVal.Substring(spaceIdx + 1).Trim();
+                    routeVal = routeVal[(spaceIdx + 1)..].Trim();
                 }
             }
             else
@@ -355,11 +355,11 @@ public class GoFileVisitor : BaseParserVisitor
                 var colonIdx = routeVal.IndexOf(':');
                 if (colonIdx > 0)
                 {
-                    var candidateMethod = routeVal.Substring(0, colonIdx).ToUpperInvariant();
+                    var candidateMethod = routeVal[..colonIdx].ToUpperInvariant();
                     if (candidateMethod is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD")
                     {
                         method = candidateMethod;
-                        routeVal = routeVal.Substring(colonIdx + 1).Trim();
+                        routeVal = routeVal[(colonIdx + 1)..].Trim();
                     }
                 }
             }

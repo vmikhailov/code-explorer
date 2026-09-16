@@ -10,7 +10,7 @@ public class TreeSitterAstDebugVisitor : TreeSitterAstVisitor
         var textSnippet = node.Text.Replace("\r", "").Replace("\n", " ");
         if (textSnippet.Length > 60)
         {
-            textSnippet = textSnippet.Substring(0, 57) + "...";
+            textSnippet = $"{textSnippet[..57]}...";
         }
         // Console.WriteLine($"{indent}Type: {node.Type}, Text: [{textSnippet}]");
     }

@@ -94,7 +94,7 @@ public class Layer5AnalysisParser
         var end = scopeSymbolId.IndexOf(':', start);
         if (end <= start) return null;
 
-        return scopeSymbolId.Substring(start, end - start);
+        return scopeSymbolId[start..end];
     }
 
     private static string? ExtractSymbolNameFromId(string symbolId)
@@ -244,8 +244,8 @@ public class Layer5AnalysisParser
                 if (targetName.Contains('.'))
                 {
                     var dotIdx = targetName.LastIndexOf('.');
-                    var varName = targetName.Substring(0, dotIdx);
-                    methodName = targetName.Substring(dotIdx + 1);
+                    var varName = targetName[..dotIdx];
+                    methodName = targetName[(dotIdx + 1)..];
 
                     var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
 
@@ -362,46 +362,18 @@ public class Layer5AnalysisParser
             {
                 var topicName = refItem.TargetName;
                 var brokerType = "event";
-                if (topicName.StartsWith("rabbitmq:", StringComparison.OrdinalIgnoreCase))
+                (brokerType, topicName) = topicName switch
                 {
-                    brokerType = "rabbitmq";
-                    topicName = topicName.Substring("rabbitmq:".Length);
-                }
-                else if (topicName.StartsWith("kafka:", StringComparison.OrdinalIgnoreCase))
-                {
-                    brokerType = "kafka";
-                    topicName = topicName.Substring("kafka:".Length);
-                }
-                else if (topicName.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase))
-                {
-                    brokerType = "gcp";
-                    topicName = topicName.Substring("gcp:".Length);
-                }
-                else if (topicName.StartsWith("mediatr:", StringComparison.OrdinalIgnoreCase))
-                {
-                    brokerType = "mediatr";
-                    topicName = topicName.Substring("mediatr:".Length);
-                }
-                else if (topicName.StartsWith("masstransit:", StringComparison.OrdinalIgnoreCase))
-                {
-                    brokerType = "masstransit";
-                    topicName = topicName.Substring("masstransit:".Length);
-                }
-                else if (topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase))
-                {
-                    brokerType = "spring";
-                    topicName = topicName.Substring("spring:".Length);
-                }
-                else if (topicName.StartsWith("cqrs:", StringComparison.OrdinalIgnoreCase))
-                {
-                    brokerType = "cqrs";
-                    topicName = topicName.Substring("cqrs:".Length);
-                }
-                else if (topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase))
-                {
-                    brokerType = "event";
-                    topicName = topicName.Substring("event:".Length);
-                }
+                    _ when topicName.StartsWith("rabbitmq:", StringComparison.OrdinalIgnoreCase) => ("rabbitmq", topicName["rabbitmq:".Length..]),
+                    _ when topicName.StartsWith("kafka:", StringComparison.OrdinalIgnoreCase) => ("kafka", topicName["kafka:".Length..]),
+                    _ when topicName.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["gcp:".Length..]),
+                    _ when topicName.StartsWith("mediatr:", StringComparison.OrdinalIgnoreCase) => ("mediatr", topicName["mediatr:".Length..]),
+                    _ when topicName.StartsWith("masstransit:", StringComparison.OrdinalIgnoreCase) => ("masstransit", topicName["masstransit:".Length..]),
+                    _ when topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase) => ("spring", topicName["spring:".Length..]),
+                    _ when topicName.StartsWith("cqrs:", StringComparison.OrdinalIgnoreCase) => ("cqrs", topicName["cqrs:".Length..]),
+                    _ when topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase) => ("event", topicName["event:".Length..]),
+                    _ => (brokerType, topicName)
+                };
 
                 var topicId = $"{ctx.WorkspaceId}:topic:{brokerType}:{topicName}";
 
@@ -643,7 +615,7 @@ public class Layer5AnalysisParser
 
         if (protocolIdx != -1)
         {
-            normalized = normalized.Substring(protocolIdx + 3);
+            normalized = normalized[(protocolIdx + 3)..];
         }
 
         return normalized.Trim('/');

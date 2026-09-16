@@ -470,8 +470,8 @@ public class Program
                     var eqIdx = paramStr.IndexOf('=');
                     if (eqIdx > 0)
                     {
-                        var key = paramStr.Substring(0, eqIdx).Trim().TrimStart('$');
-                        var valStr = paramStr.Substring(eqIdx + 1).Trim();
+                        var key = paramStr[..eqIdx].Trim().TrimStart('$');
+                        var valStr = paramStr[(eqIdx + 1)..].Trim();
                         if (long.TryParse(valStr, out var longVal))
                         {
                             parameters[key] = longVal;

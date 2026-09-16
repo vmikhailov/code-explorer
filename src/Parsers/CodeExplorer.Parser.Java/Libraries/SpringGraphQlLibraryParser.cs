@@ -129,7 +129,7 @@ public class SpringGraphQlLibraryParser : ILibraryParser
                        ?? node.FindChildOfType(TreeSitterSyntax.Java.ScopedIdentifier);
         if (!nameNode.IsValid()) return "";
         var name = nameNode.Text;
-        return name.Contains('.') ? name.Substring(name.LastIndexOf('.') + 1) : name;
+        return name.Contains('.') ? name[(name.LastIndexOf('.') + 1)..] : name;
     }
 
     private static string CleanJavaTypeName(string rawType)
@@ -141,10 +141,10 @@ public class SpringGraphQlLibraryParser : ILibraryParser
             var genericIdx = type.IndexOf('<');
             if (genericIdx > 0 && type.EndsWith('>'))
             {
-                var outer = type.Substring(0, genericIdx).Trim();
+                var outer = type[..genericIdx].Trim();
                 if (outer is "CompletableFuture" or "Mono" or "Flux" or "List" or "Set" or "Collection" or "Optional")
                 {
-                    type = type.Substring(genericIdx + 1, type.Length - genericIdx - 2).Trim();
+                    type = type[(genericIdx + 1)..^1].Trim();
                     continue;
                 }
             }

@@ -109,7 +109,7 @@ public class DrizzleLibraryParser : ILibraryParser
                 var tickEnd = node.Text.LastIndexOf('`');
                 if (tickStart >= 0 && tickEnd > tickStart)
                 {
-                    sqlText = node.Text.Substring(tickStart + 1, tickEnd - tickStart - 1);
+                    sqlText = node.Text[(tickStart + 1)..tickEnd];
                     return true;
                 }
             }

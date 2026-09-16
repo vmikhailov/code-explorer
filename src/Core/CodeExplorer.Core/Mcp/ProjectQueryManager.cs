@@ -20,8 +20,7 @@ public class ProjectQueryManager(ILogger<ProjectQueryManager>? logger = null)
 
     public void ValidateQuerySecurity(string cypher)
     {
-        if (string.IsNullOrWhiteSpace(cypher))
-            throw new ArgumentException("Cypher query cannot be empty.", nameof(cypher));
+        ArgumentException.ThrowIfNullOrWhiteSpace(cypher);
 
         CypherSecurityValidator.ValidateReadOnly(cypher);
     }
@@ -146,8 +145,7 @@ public class ProjectQueryManager(ILogger<ProjectQueryManager>? logger = null)
         string cypher,
         ProjectQueryMetadata metadata)
     {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Query name cannot be empty.", nameof(name));
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         name = name.Trim();
         if (!SafeNameRegex.IsMatch(name))

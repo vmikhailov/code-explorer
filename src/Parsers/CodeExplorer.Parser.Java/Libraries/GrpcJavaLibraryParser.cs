@@ -126,7 +126,7 @@ public class GrpcJavaLibraryParser : ILibraryParser
         var end = rawType.LastIndexOf('>');
         if (idx > 0 && end > idx)
         {
-            return rawType.Substring(idx + 1, end - idx - 1).Trim();
+            return rawType[(idx + 1)..end].Trim();
         }
         return rawType.Trim();
     }

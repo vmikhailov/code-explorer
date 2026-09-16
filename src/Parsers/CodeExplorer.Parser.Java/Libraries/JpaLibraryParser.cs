@@ -132,7 +132,7 @@ public class JpaLibraryParser : ILibraryParser
                        ?? annot.FindChildOfType(TreeSitterSyntax.Java.ScopedIdentifier);
         if (!nameNode.IsValid()) return null;
         var name = nameNode.Text;
-        if (name.Contains('.')) name = name.Substring(name.LastIndexOf('.') + 1);
+        if (name.Contains('.')) name = name[(name.LastIndexOf('.') + 1)..];
         return name;
     }
 
@@ -159,7 +159,7 @@ public class JpaLibraryParser : ILibraryParser
         {
             var f = text.IndexOf('"');
             var l = text.LastIndexOf('"');
-            if (l > f) return text.Substring(f + 1, l - f - 1);
+            if (l > f) return text[(f + 1)..l];
         }
         return null;
     }

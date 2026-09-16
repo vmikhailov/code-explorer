@@ -215,7 +215,7 @@ public class SqlParser : IProjectParser, IFileParser
                 ? nextGo
                 : ((i + 1 < tempScopes.Count) ? tempScopes[i + 1].Match.Index : cleanSql.Length);
 
-            var body = cleanSql.Substring(start, end - start);
+            var body = cleanSql[start..end];
             procedures.Add(new ProcedureScope(current.Name, current.RawName, current.Id, start, end, body, current.Node));
         }
 
@@ -241,7 +241,7 @@ public class SqlParser : IProjectParser, IFileParser
                     var queryNode = new QueryNode(
                         queryNodeId,
                         queryName,
-                        statement.Length > 200 ? statement.Substring(0, 197) + "..." : statement,
+                        statement.Length > 200 ? $"{statement[..197]}..." : statement,
                         relativePath
                     );
                     proc.Node.Children.Add(queryNode);
@@ -283,7 +283,7 @@ public class SqlParser : IProjectParser, IFileParser
                 var queryNode = new QueryNode(
                     queryNodeId,
                     queryName,
-                    statement.Length > 200 ? statement.Substring(0, 197) + "..." : statement,
+                    statement.Length > 200 ? $"{statement[..197]}..." : statement,
                     relativePath
                 );
                 fileNode.Children.Add(queryNode);

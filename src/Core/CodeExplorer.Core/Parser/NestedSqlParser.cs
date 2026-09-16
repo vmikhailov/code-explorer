@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -98,7 +98,7 @@ public static class NestedSqlParser
                 (cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) || 
                 (cleaned.StartsWith('`') && cleaned.EndsWith('`'))))
         {
-            cleaned = cleaned.Substring(1, cleaned.Length - 2).Trim();
+            cleaned = cleaned[1..^1].Trim();
         }
 
         // Unescape standard escape sequences
@@ -392,7 +392,7 @@ public static class NestedSqlParser
                  (current.StartsWith('"') && current.EndsWith('"')) ||
                  (current.StartsWith('[') && current.EndsWith(']'))))
             {
-                current = current.Substring(1, current.Length - 2);
+                current = current[1..^1];
             }
             
             current = current.Replace("\"", "").Replace("`", "").Replace("'", "").Trim();

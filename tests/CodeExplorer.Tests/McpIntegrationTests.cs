@@ -96,7 +96,7 @@ public class McpIntegrationTests
         var relativeEndpoint = dataLine["data:".Length..].Trim();
         var queryIndex = relativeEndpoint.IndexOf('?');
         Assert.That(queryIndex, Is.GreaterThan(0));
-        var queryString = relativeEndpoint.Substring(queryIndex + 1);
+        var queryString = relativeEndpoint[(queryIndex + 1)..];
         var queryParams = System.Web.HttpUtility.ParseQueryString(queryString);
         _sessionId = queryParams["sessionId"];
         Assert.That(_sessionId, Is.Not.Null.And.Not.Empty);

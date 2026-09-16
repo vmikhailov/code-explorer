@@ -298,7 +298,7 @@ public class Layer3SyntacticParser
             var isEndpoint = false;
             if (colonIdx > 0)
             {
-                var method = name.Substring(0, colonIdx).ToUpperInvariant();
+                var method = name[..colonIdx].ToUpperInvariant();
                 isEndpoint = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD" or "GRAPHQL" or "RPC" or "GRPC" or "QUERY" or "MUTATION" or "SUBSCRIPTION";
             }
             if (syntactic.Protocol is "GraphQL" or "gRPC" or "REST")
@@ -352,8 +352,8 @@ public class Layer3SyntacticParser
         SyntacticSymbol? syntactic = null)
     {
         var idx = name.IndexOf(':');
-        var method = idx > 0 ? name.Substring(0, idx).ToUpperInvariant() : (syntactic?.Protocol == "gRPC" ? "RPC" : "GET");
-        var route = idx > 0 ? name.Substring(idx + 1) : name;
+        var method = idx > 0 ? name[..idx].ToUpperInvariant() : (syntactic?.Protocol == "gRPC" ? "RPC" : "GET");
+        var route = idx > 0 ? name[(idx + 1)..] : name;
 
         var protocol = syntactic?.Protocol ?? (method is "RPC" or "GRPC" ? "gRPC" : (method is "GRAPHQL" or "QUERY" or "MUTATION" or "SUBSCRIPTION" ? "GraphQL" : "REST"));
         var operationType = syntactic?.OperationType ?? (protocol == "GraphQL"
@@ -391,18 +391,18 @@ public class Layer3SyntacticParser
         if (name.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
         {
             entryType = "queue-listener";
-            cleanName = name.Substring(3);
+            cleanName = name[3..];
         }
         else if (name.StartsWith("event:", StringComparison.OrdinalIgnoreCase))
         {
             entryType = "queue-listener";
-            cleanName = name.Substring(6);
+            cleanName = name[6..];
         }
         else if (name.Contains(':'))
         {
             var idx = name.IndexOf(':');
-            entryType = name.Substring(0, idx);
-            cleanName = name.Substring(idx + 1);
+            entryType = name[..idx];
+            cleanName = name[(idx + 1)..];
         }
 
         var entryPointId = $"{workspaceId}:entrypoint:{entryType}:{cleanName}";
@@ -448,32 +448,32 @@ public class Layer3SyntacticParser
         if (domainOrService.Contains("://"))
         {
             var pIdx = domainOrService.IndexOf("://");
-            protocol = domainOrService.Substring(0, pIdx);
-            domainOrService = domainOrService.Substring(pIdx + 3);
+            protocol = domainOrService[..pIdx];
+            domainOrService = domainOrService[(pIdx + 3)..];
         }
         else if (domainOrService.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
         {
             protocol = "ws";
-            domainOrService = domainOrService.Substring(3);
+            domainOrService = domainOrService[3..];
         }
         else if (domainOrService.StartsWith("http:", StringComparison.OrdinalIgnoreCase))
         {
             protocol = "http";
-            domainOrService = domainOrService.Substring(5);
+            domainOrService = domainOrService[5..];
         }
         else if (domainOrService.StartsWith("https:", StringComparison.OrdinalIgnoreCase))
         {
             protocol = "https";
-            domainOrService = domainOrService.Substring(6);
+            domainOrService = domainOrService[6..];
         }
         else if (domainOrService.Contains(':'))
         {
             var idx = domainOrService.IndexOf(':');
-            var candidateProto = domainOrService.Substring(0, idx).ToLowerInvariant();
+            var candidateProto = domainOrService[..idx].ToLowerInvariant();
             if (candidateProto is "http" or "https" or "ws" or "wss" or "grpc")
             {
                 protocol = candidateProto;
-                domainOrService = domainOrService.Substring(idx + 1);
+                domainOrService = domainOrService[(idx + 1)..];
             }
         }
 
@@ -481,15 +481,15 @@ public class Layer3SyntacticParser
         var slashIdx = domainOrService.IndexOf('/');
         if (slashIdx > 0)
         {
-            path = domainOrService.Substring(slashIdx);
-            domainOrService = domainOrService.Substring(0, slashIdx);
+            path = domainOrService[slashIdx..];
+            domainOrService = domainOrService[..slashIdx];
         }
         else if (slashIdx == 0)
         {
             path = domainOrService;
             var trimmed = domainOrService.TrimStart('/');
             var nextSlash = trimmed.IndexOf('/');
-            domainOrService = nextSlash > 0 ? trimmed.Substring(0, nextSlash) : trimmed;
+            domainOrService = nextSlash > 0 ? trimmed[..nextSlash] : trimmed;
         }
 
         if (domainOrService.Contains('.'))

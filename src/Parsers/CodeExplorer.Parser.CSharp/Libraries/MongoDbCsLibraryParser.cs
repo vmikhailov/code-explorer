@@ -185,7 +185,7 @@ public class MongoDbCsLibraryParser : ILibraryParser
         var end = text.LastIndexOf('>');
         if (start >= 0 && end > start)
         {
-            return text.Substring(start + 1, end - start - 1).Trim();
+            return text[(start + 1)..end].Trim();
         }
         return null;
     }

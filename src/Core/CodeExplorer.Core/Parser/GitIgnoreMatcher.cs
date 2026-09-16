@@ -75,7 +75,7 @@ public class GitIgnoreMatcher
         if (trimmed.EndsWith('/'))
         {
             isDirectoryOnly = true;
-            trimmed = trimmed.Substring(0, trimmed.Length - 1);
+            trimmed = trimmed[..^1];
         }
 
         var isAnchored = false;
@@ -83,7 +83,7 @@ public class GitIgnoreMatcher
         if (trimmed.StartsWith('/'))
         {
             isAnchored = true;
-            trimmed = trimmed.Substring(1);
+            trimmed = trimmed[1..];
         }
 
         var escaped = Regex.Escape(trimmed);
@@ -139,7 +139,7 @@ public class GitIgnoreMatcher
                     continue;
                 }
 
-                testPath = relativePath.Substring(rule.Scope.Length + 1);
+                testPath = relativePath[(rule.Scope.Length + 1)..];
             }
 
             if (rule.IsDirectoryOnly && !isDirectory)

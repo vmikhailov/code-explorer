@@ -147,9 +147,9 @@ public class MassTransitLibraryParser : ILibraryParser
             if (typeNode.IsValid())
             {
                 var text = typeNode.Text;
-                if (text.StartsWith("ConsumeContext<") && text.EndsWith('>'))
+                if (text.StartsWith("ConsumeContext<", StringComparison.Ordinal) && text.EndsWith('>'))
                 {
-                    return CleanTypeName(text.Substring("ConsumeContext<".Length, text.Length - "ConsumeContext<".Length - 1));
+                    return CleanTypeName(text["ConsumeContext<".Length..^1]);
                 }
             }
         }

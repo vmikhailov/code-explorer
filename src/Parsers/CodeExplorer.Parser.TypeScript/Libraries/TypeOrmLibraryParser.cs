@@ -153,7 +153,7 @@ public class TypeOrmLibraryParser : ILibraryParser
         {
             var f = text.IndexOfAny(['\'', '"']);
             var l = text.LastIndexOfAny(['\'', '"']);
-            if (l > f) return text.Substring(f + 1, l - f - 1);
+            if (l > f) return text[(f + 1)..l];
         }
         return null;
     }
