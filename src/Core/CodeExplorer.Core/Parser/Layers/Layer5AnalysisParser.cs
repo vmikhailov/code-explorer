@@ -53,9 +53,18 @@ public class Layer5AnalysisParser
         var lateBoundRels = await PerformLateBindingAsync(workspaceNode, ctx);
 
         // 5. Run PostIndexAnalyzer
-        ctx.Log("[Layer5] Running in-memory post-indexing analysis via PostIndexAnalyzer...");
         var postAnalyzer = new PostIndexAnalyzer(ctx.DbClient);
-        await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
+        if (ctx.IsSubtreeScan)
+        {
+            await ctx.WaitForQueueDrainedAsync();
+            ctx.Log("[Layer5] Running global post-indexing analysis via PostIndexAnalyzer across workspace...");
+            await postAnalyzer.RunAsync(ctx.WorkspaceId);
+        }
+        else
+        {
+            ctx.Log("[Layer5] Running in-memory post-indexing analysis via PostIndexAnalyzer...");
+            await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
+        }
 
         ctx.Log("[Layer5] Late binding and post-indexing analysis pass complete.");
         return new Layer5Result(l4Result, lateBoundRels);
@@ -104,6 +113,88 @@ public class Layer5AnalysisParser
         return parts.Length >= 2 ? parts[^2] : null;
     }
 
+    private async Task PreloadTargetedSymbolsAsync(ParsingContext ctx, Dictionary<string, List<string>> interfaceToImplementors)
+    {
+        if (!ctx.IsSubtreeScan) return;
+
+        var neededNames = new HashSet<string>(StringComparer.Ordinal);
+        var candidateTypeNames = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var r in ctx.GlobalReferences)
+        {
+            if (!string.IsNullOrWhiteSpace(r.TargetName))
+            {
+                neededNames.Add(r.TargetName);
+                if (r.TargetName.Contains('.'))
+                {
+                    var dotIdx = r.TargetName.LastIndexOf('.');
+                    var typePart = r.TargetName[..dotIdx];
+                    var memberPart = r.TargetName[(dotIdx + 1)..];
+                    neededNames.Add(typePart);
+                    neededNames.Add(memberPart);
+                    candidateTypeNames.Add(typePart);
+                }
+                else
+                {
+                    candidateTypeNames.Add(r.TargetName);
+                }
+            }
+        }
+
+        foreach (var b in ctx.RawTypeBindings)
+        {
+            if (!string.IsNullOrWhiteSpace(b.TypeName))
+            {
+                neededNames.Add(b.TypeName);
+                candidateTypeNames.Add(b.TypeName);
+                if (b.TypeName.Contains('.'))
+                {
+                    var parts = b.TypeName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var part in parts)
+                    {
+                        neededNames.Add(part);
+                    }
+                }
+            }
+        }
+
+        if (neededNames.Count == 0) return;
+
+        // 1. Query interface implementations from SQLite for candidate types
+        if (candidateTypeNames.Count > 0)
+        {
+            var dbImplementors = await ctx.DbClient.LoadImplementationsForTypesAsync(candidateTypeNames, ctx.WorkspaceId, ctx.CancellationToken);
+            foreach (var (iface, impls) in dbImplementors)
+            {
+                if (!interfaceToImplementors.TryGetValue(iface, out var list))
+                {
+                    list = [];
+                    interfaceToImplementors[iface] = list;
+                }
+                foreach (var impl in impls)
+                {
+                    if (!list.Contains(impl)) list.Add(impl);
+                    neededNames.Add(impl);
+                }
+            }
+        }
+
+        // 2. Query matching symbols from SQLite
+        ctx.Log($"[Layer5] Targeted preloading: querying SQLite for {neededNames.Count} referenced symbol names across workspace...");
+        var preloaded = await ctx.DbClient.LoadSymbolsByNamesAsync(neededNames, ctx.WorkspaceId, ctx.CancellationToken);
+
+        var addedCount = 0;
+        foreach (var ((kind, name), id) in preloaded)
+        {
+            if (ctx.GlobalSymbols.TryAdd((kind, name), id))
+            {
+                addedCount++;
+            }
+        }
+
+        ctx.Log($"[Layer5] Targeted preloading complete: preloaded {addedCount} external symbols into memory.");
+    }
+
     private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
     {
         var totalReferences = ctx.GlobalReferences.Count;
@@ -111,6 +202,8 @@ public class Layer5AnalysisParser
         var referenceRelationships = new List<Relationship>(totalReferences > 0 ? Math.Min(totalReferences, 2000000) : 0);
         var inheritanceRels = new HashSet<(string From, string To)>();
         var interfaceToImplementors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        await PreloadTargetedSymbolsAsync(ctx, interfaceToImplementors);
 
         // Pre-split GlobalSymbols into single-string dictionaries for O(1) single-hash lookups
         var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -428,6 +521,40 @@ public class Layer5AnalysisParser
 
         CollectPublicSymbols(rootNode, entryPoints, endpoints, externalServices);
 
+        var localExtIds = new HashSet<string>(externalServices.Select(e => e.Id));
+        var localEndpointIds = new HashSet<string>(endpoints.Select(e => e.Id));
+        var localEntryPointIds = new HashSet<string>(entryPoints.Select(e => e.Id));
+
+        if (ctx.IsSubtreeScan)
+        {
+            var needEndpoints = externalServices.Count > 0;
+            var needExternalServices = endpoints.Count > 0 || entryPoints.Count > 0;
+            if (needEndpoints || needExternalServices)
+            {
+                var (dbEndpoints, dbEntryPoints, dbExtServices) = await ctx.DbClient.LoadLateBindingCandidatesAsync(
+                    ctx.WorkspaceId,
+                    needEndpoints: needEndpoints,
+                    needExternalServices: needExternalServices,
+                    ctx.CancellationToken
+                );
+
+                if (needEndpoints)
+                {
+                    var curEpIds = new HashSet<string>(endpoints.Select(e => e.Id));
+                    endpoints.AddRange(dbEndpoints.Where(e => curEpIds.Add(e.Id)));
+
+                    var curEntryIds = new HashSet<string>(entryPoints.Select(e => e.Id));
+                    entryPoints.AddRange(dbEntryPoints.Where(e => curEntryIds.Add(e.Id)));
+                }
+
+                if (needExternalServices)
+                {
+                    var curExtIds = new HashSet<string>(externalServices.Select(e => e.Id));
+                    externalServices.AddRange(dbExtServices.Where(e => curExtIds.Add(e.Id)));
+                }
+            }
+        }
+
         ctx.Log($"[Layer5] [LateBinding] Found {entryPoints.Count} EntryPoints, {endpoints.Count} Endpoints, and {externalServices.Count} ExternalServices.");
 
         var lateBoundRels = new List<Relationship>();
@@ -436,6 +563,11 @@ public class Layer5AnalysisParser
         {
             foreach (var entryPoint in entryPoints)
             {
+                if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Id) && !localEntryPointIds.Contains(entryPoint.Id))
+                {
+                    continue;
+                }
+
                 if (IsMatch(extService, entryPoint))
                 {
                     ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
@@ -446,6 +578,11 @@ public class Layer5AnalysisParser
 
             foreach (var endpoint in endpoints)
             {
+                if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Id) && !localEndpointIds.Contains(endpoint.Id))
+                {
+                    continue;
+                }
+
                 if (IsMatch(extService, endpoint))
                 {
                     ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");

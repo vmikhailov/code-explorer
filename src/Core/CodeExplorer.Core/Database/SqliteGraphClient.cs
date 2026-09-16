@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 namespace CodeExplorer.Core.Database;
 
@@ -646,6 +647,224 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
 
         return "";
+    }
+
+    public async Task<Dictionary<(string Kind, string Name), string>> LoadSymbolsByNamesAsync(
+        IEnumerable<string> names,
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var distinctNames = names
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (distinctNames.Count == 0) return [];
+
+        var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
+        var namesJson = JsonSerializer.Serialize(distinctNames);
+        var result = new Dictionary<(string Kind, string Name), string>();
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.Parameters.AddWithValue("@namesJson", namesJson);
+            cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+            cmd.CommandText = """
+                WITH target_names(val) AS (
+                    SELECT value FROM json_each(@namesJson)
+                )
+                SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name,
+                       json_extract(p.properties, '$.name') AS parent_name
+                FROM nodes n
+                JOIN target_names t ON json_extract(n.properties, '$.name') = t.val
+                LEFT JOIN edges e ON e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'CONTAINS')
+                LEFT JOIN nodes p ON p.id = e.from_id AND p.kind = 'Type'
+                WHERE n.kind IN ('Type', 'Function', 'Procedure', 'Table', 'EntryPoint', 'Endpoint')
+                  AND (length(@widPrefix) = 0 OR n.id LIKE @widPrefix || '%');
+                """;
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var id = reader.GetString(0);
+                var kind = reader.GetString(1);
+                var name = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                var parentName = reader.IsDBNull(3) ? null : reader.GetString(3);
+
+                if (!string.IsNullOrEmpty(name))
+                {
+                    result[(kind, name)] = id;
+
+                    if (kind == "Endpoint" || kind == "EntryPoint")
+                    {
+                        result[(kind, name.Replace(":", " "))] = id;
+                    }
+
+                    if (kind == "Function" && !string.IsNullOrEmpty(parentName))
+                    {
+                        result[(kind, $"{parentName}.{name}")] = id;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return result;
+    }
+
+    public async Task<Dictionary<string, List<string>>> LoadImplementationsForTypesAsync(
+        IEnumerable<string> typeNames,
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var distinctTypes = typeNames
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (distinctTypes.Count == 0) return [];
+
+        var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
+        var typesJson = JsonSerializer.Serialize(distinctTypes);
+        var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.Parameters.AddWithValue("@typesJson", typesJson);
+            cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+            cmd.CommandText = """
+                WITH target_types(val) AS (
+                    SELECT value FROM json_each(@typesJson)
+                )
+                SELECT json_extract(t_target.properties, '$.name') AS iface_name,
+                       json_extract(t_impl.properties, '$.name') AS impl_name
+                FROM edges e
+                JOIN nodes t_target ON t_target.id = e.to_id AND t_target.kind = 'Type'
+                JOIN target_types tt ON json_extract(t_target.properties, '$.name') = tt.val
+                JOIN nodes t_impl ON t_impl.id = e.from_id AND t_impl.kind = 'Type'
+                WHERE e.kind = 'IMPLEMENTS'
+                  AND (length(@widPrefix) = 0 OR e.from_id LIKE @widPrefix || '%');
+                """;
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var iface = reader.IsDBNull(0) ? null : reader.GetString(0);
+                var impl = reader.IsDBNull(1) ? null : reader.GetString(1);
+
+                if (!string.IsNullOrEmpty(iface) && !string.IsNullOrEmpty(impl))
+                {
+                    if (!result.TryGetValue(iface, out var list))
+                    {
+                        list = [];
+                        result[iface] = list;
+                    }
+                    if (!list.Contains(impl))
+                    {
+                        list.Add(impl);
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return result;
+    }
+
+    public async Task<(List<EndpointNode> Endpoints, List<EntryPointNode> EntryPoints, List<ExternalServiceNode> ExternalServices)> LoadLateBindingCandidatesAsync(
+        string workspaceId,
+        bool needEndpoints,
+        bool needExternalServices,
+        CancellationToken cancellationToken = default)
+    {
+        var endpoints = new List<EndpointNode>();
+        var entryPoints = new List<EntryPointNode>();
+        var externalServices = new List<ExternalServiceNode>();
+
+        if (!needEndpoints && !needExternalServices)
+        {
+            return (endpoints, entryPoints, externalServices);
+        }
+
+        var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+            cmd.Parameters.AddWithValue("@needEndpoints", needEndpoints ? 1 : 0);
+            cmd.Parameters.AddWithValue("@needExternalServices", needExternalServices ? 1 : 0);
+
+            cmd.CommandText = """
+                SELECT id, kind, properties
+                FROM nodes
+                WHERE (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%')
+                  AND (
+                    (@needEndpoints = 1 AND kind IN ('Endpoint', 'EntryPoint'))
+                    OR
+                    (@needExternalServices = 1 AND kind = 'ExternalService')
+                  );
+                """;
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var id = reader.GetString(0);
+                var kind = reader.GetString(1);
+                var propsJson = reader.GetString(2);
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(propsJson);
+                    var root = doc.RootElement;
+
+                    if (kind == "Endpoint")
+                    {
+                        var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        var filePath = root.TryGetProperty("file_path", out var fp) ? fp.GetString() ?? "" : "";
+                        var httpMethod = root.TryGetProperty("http_method", out var hm) ? hm.GetString() ?? "" : "";
+                        var route = root.TryGetProperty("route", out var r) ? r.GetString() ?? "" : "";
+                        endpoints.Add(new EndpointNode(id, name, filePath, httpMethod, route));
+                    }
+                    else if (kind == "EntryPoint")
+                    {
+                        var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
+                        var type = root.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
+                        entryPoints.Add(new EntryPointNode(id, name, path, type));
+                    }
+                    else if (kind == "ExternalService")
+                    {
+                        var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        var protocol = root.TryGetProperty("protocol", out var pr) ? pr.GetString() ?? "" : (root.TryGetProperty("service_type", out var st) ? st.GetString() ?? "" : "");
+                        var domain = root.TryGetProperty("domain_or_service", out var d) ? d.GetString() ?? "" : "";
+                        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? "" : (root.TryGetProperty("target_path", out var tp) ? tp.GetString() ?? "" : "");
+                        externalServices.Add(new ExternalServiceNode(id, name, protocol, domain, path));
+                    }
+                }
+                catch
+                {
+                    // Ignore malformed node properties
+                }
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return (endpoints, entryPoints, externalServices);
     }
 
     public async Task<PostIndexGraphData> LoadPostIndexGraphDataAsync(string widPrefix)

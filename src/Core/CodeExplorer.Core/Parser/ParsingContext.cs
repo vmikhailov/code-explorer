@@ -207,6 +207,17 @@ public class ParsingContext
         });
     }
 
+    public async Task WaitForQueueDrainedAsync()
+    {
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await SharedChannel.Writer.WriteAsync(() =>
+        {
+            tcs.SetResult();
+            return Task.CompletedTask;
+        });
+        await tcs.Task;
+    }
+
     public ParsingContext(
         string absoluteWorkspacePath,
         string hostWorkspacePath,
