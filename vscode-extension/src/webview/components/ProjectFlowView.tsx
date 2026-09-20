@@ -282,7 +282,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           id: `edge-${key}`,
           source: sourceId,
           target: targetId,
-          type: 'smoothstep',
+          type: 'bezier',
           animated: false,
           style: { stroke: '#64748b', strokeWidth: 1.2 },
           markerEnd: {
@@ -433,19 +433,93 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       levelNodesMap.set(0, reordered);
     }
 
-    // In all other levels, sort alphabetically by name for clean, deterministic display
-    for (const [lvl, list] of levelNodesMap.entries()) {
-      if (lvl !== 0) {
-        list.sort((a, b) => a.name.localeCompare(b.name));
+    // ----------------------------------------------------
+    // Phase 4: Barycentric Crossing Minimization
+    // Reorders nodes in each column according to average connected neighbor positions
+    // to minimize edge crossings.
+    // ----------------------------------------------------
+    const sortedLevels = Array.from(levelNodesMap.keys()).sort((a, b) => a - b);
+
+    // Forward sweep (from Level 1 to max level):
+    // Align downstream targets with the vertical order of their upstream sources.
+    for (const lvl of sortedLevels) {
+      if (lvl <= 0) continue;
+      const list = levelNodesMap.get(lvl) || [];
+      if (list.length <= 1) continue;
+
+      const barycenterMap = new Map<string, number>();
+      for (const node of list) {
+        const sources = inboundMap.get(node.id) || inboundMap.get(node.name) || [];
+        const visibleSources = sources.filter(
+          (s) => visibleIdSet.has(s.id) && getNodeLevel(s) < lvl
+        );
+
+        if (visibleSources.length > 0) {
+          let sumRank = 0;
+          for (const s of visibleSources) {
+            const sLvl = getNodeLevel(s);
+            const sList = levelNodesMap.get(sLvl) || [];
+            const sIndex = sList.findIndex((n) => n.id === s.id || n.name === s.name);
+            sumRank += sIndex >= 0 ? sIndex : 0;
+          }
+          barycenterMap.set(node.id, sumRank / visibleSources.length);
+        } else {
+          barycenterMap.set(node.id, 999);
+        }
       }
+
+      list.sort((a, b) => {
+        const bA = barycenterMap.get(a.id) ?? 999;
+        const bB = barycenterMap.get(b.id) ?? 999;
+        if (bA !== bB) return bA - bB;
+        return a.name.localeCompare(b.name);
+      });
+      levelNodesMap.set(lvl, list);
     }
 
-    // Compute Coordinates
+    // Backward sweep (from Level -1 down to min level):
+    // Align upstream callers with the vertical order of their downstream targets.
+    for (const lvl of [...sortedLevels].reverse()) {
+      if (lvl >= 0) continue;
+      const list = levelNodesMap.get(lvl) || [];
+      if (list.length <= 1) continue;
+
+      const barycenterMap = new Map<string, number>();
+      for (const node of list) {
+        const targets = outboundMap.get(node.id) || outboundMap.get(node.name) || [];
+        const visibleTargets = targets.filter(
+          (t) => visibleIdSet.has(t.id) && getNodeLevel(t) > lvl
+        );
+
+        if (visibleTargets.length > 0) {
+          let sumRank = 0;
+          for (const t of visibleTargets) {
+            const tLvl = getNodeLevel(t);
+            const tList = levelNodesMap.get(tLvl) || [];
+            const tIndex = tList.findIndex((n) => n.id === t.id || n.name === t.name);
+            sumRank += tIndex >= 0 ? tIndex : 0;
+          }
+          barycenterMap.set(node.id, sumRank / visibleTargets.length);
+        } else {
+          barycenterMap.set(node.id, 999);
+        }
+      }
+
+      list.sort((a, b) => {
+        const bA = barycenterMap.get(a.id) ?? 999;
+        const bB = barycenterMap.get(b.id) ?? 999;
+        if (bA !== bB) return bA - bB;
+        return a.name.localeCompare(b.name);
+      });
+      levelNodesMap.set(lvl, list);
+    }
+
+    // Compute Coordinates with increased breathing room
     const activeLevels = Array.from(levelNodesMap.keys()).sort((a, b) => a - b);
     const minLevel = activeLevels[0] ?? 0;
 
-    const colStep = 280;
-    const rowHeight = 90;
+    const colStep = 340;
+    const rowHeight = 120;
     const xBaseOffset = Math.abs(Math.min(0, minLevel)) * colStep + 60;
 
     // Find maximum level height to vertically balance columns
