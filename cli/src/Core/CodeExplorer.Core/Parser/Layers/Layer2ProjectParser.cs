@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
@@ -38,6 +39,9 @@ public class Layer2ProjectParser
         }
         dirsToCheck = [.. dirsToCheck.Distinct(StringComparer.OrdinalIgnoreCase)];
 
+        var projectDepList = new List<(ProjectNode Project, ProjectDependencyInfo DepInfo)>();
+        var packageToProjectMap = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var dir in dirsToCheck)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
@@ -58,10 +62,21 @@ public class Layer2ProjectParser
 
                 projectsStructureNode.Children.Add(projectNode);
                 projects.Add(projectNode);
+                packageToProjectMap[folderName] = projectNode;
 
                 // Parse project dependencies and packages
-                await ParseDependenciesAsync(projectNode, projectNodeId, projectParser, dir, dependencies, packages, ctx);
-                await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
+                var depInfo = await ParseDependenciesAsync(projectNode, projectNodeId, projectParser, dir, dependencies, packages, ctx);
+                if (depInfo != null)
+                {
+                    projectDepList.Add((projectNode, depInfo));
+                }
+
+                var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
+                if (!string.IsNullOrEmpty(prodPkg))
+                {
+                    packageToProjectMap[prodPkg] = projectNode;
+                    packageToProjectMap[$"{ctx.WorkspaceId}:package:{prodPkg.ToLowerInvariant()}"] = projectNode;
+                }
             }
         }
 
@@ -98,8 +113,18 @@ public class Layer2ProjectParser
                             projectsStructureNode.Children.Add(projectNode);
                             projects.Add(projectNode);
 
-                            await ParseDependenciesAsync(projectNode, projectNodeId, projectParser, dir, dependencies, packages, ctx);
-                            await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
+                            var depInfo = await ParseDependenciesAsync(projectNode, projectNodeId, projectParser, dir, dependencies, packages, ctx);
+                            if (depInfo != null)
+                            {
+                                projectDepList.Add((projectNode, depInfo));
+                            }
+
+                            var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
+                            if (!string.IsNullOrEmpty(prodPkg))
+                            {
+                                packageToProjectMap[prodPkg] = projectNode;
+                                packageToProjectMap[$"{ctx.WorkspaceId}:package:{prodPkg.ToLowerInvariant()}"] = projectNode;
+                            }
 
                             if (uncoveredFiles.All(f => projects.Any(p => IsEnclosedInProject(f, p, projects))))
                             {
@@ -118,11 +143,43 @@ public class Layer2ProjectParser
             }
         }
 
+        // Resolve cross-project dependencies via workspace packages/modules
+        var crossProjectRels = new List<Relationship>();
+        foreach (var (proj, depInfo) in projectDepList)
+        {
+            foreach (var extPack in depInfo.ExternalPackages)
+            {
+                if (string.IsNullOrWhiteSpace(extPack.Name)) continue;
+
+                if (packageToProjectMap.TryGetValue(extPack.Name, out var targetProj) ||
+                    packageToProjectMap.TryGetValue($"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}", out targetProj))
+                {
+                    if (!string.Equals(proj.Id, targetProj.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var depRel = Relationship.FromRelationship(new DependsOnRelationship(proj.Id, targetProj.Id));
+                        if (!dependencies.Any(d => d.From == proj.Id && d.To == targetProj.Id && d.Kind == OntologyConstants.Relationships.DependsOn))
+                        {
+                            dependencies.Add(depRel);
+                            ctx.AddGlobalProjectDependency(depRel);
+                            crossProjectRels.Add(depRel);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (crossProjectRels.Count > 0)
+        {
+            await ctx.EnqueueUploadRelationshipsAsync(crossProjectRels);
+            ctx.AddRelsCount(crossProjectRels.Count);
+            ctx.Log($"[Layer2] Resolved {crossProjectRels.Count} cross-project dependencies via workspace packages/modules.");
+        }
+
         ctx.Log($"[Layer2] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }
 
-    private async Task ParseDependenciesAsync(
+    private async Task<ProjectDependencyInfo?> ParseDependenciesAsync(
         ProjectNode projectNode,
         string projectNodeId,
         IProjectParser projectParser,
@@ -164,15 +221,19 @@ public class Layer2ProjectParser
                         packages.Add(packageNode);
                     }
                 }
+
+                return depInfo;
             }
         }
         catch (Exception ex)
         {
             ctx.LogWarning($"[Layer2] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
         }
+
+        return null;
     }
 
-    private async Task LinkProducedPackageAsync(
+    private async Task<string?> LinkProducedPackageAsync(
         ProjectNode projectNode,
         string projectNodeId,
         IProjectParser projectParser,
@@ -180,6 +241,7 @@ public class Layer2ProjectParser
         ParsingContext ctx)
     {
         var packageDetected = false;
+        string? resultName = null;
 
         try
         {
@@ -200,6 +262,7 @@ public class Layer2ProjectParser
                 ctx.AddRelsCount(1);
 
                 packageDetected = true;
+                resultName = producedPackage.Name;
             }
         }
         catch (Exception ex)
@@ -222,8 +285,12 @@ public class Layer2ProjectParser
                     Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, projectNodeId));
                 await ctx.EnqueueUploadRelationshipsAsync([implRel]);
                 ctx.AddRelsCount(1);
+
+                resultName = dirName;
             }
         }
+
+        return resultName;
     }
 
     public static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects)

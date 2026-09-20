@@ -48,6 +48,20 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
     return { incomingCounts: inc, outgoingCounts: out };
   }, [graph]);
 
+  const getProjectLanguageLabel = (node: GraphNode) => {
+    if (node.kind === 'Database') return node.properties?.db_type || 'DB';
+    if (node.kind === 'ExternalService') return 'Service';
+    const pt = (node.properties?.project_type || node.properties?.language || '').toLowerCase();
+    if (pt === 'go' || pt === 'golang') return 'Go';
+    if (pt === 'csharp' || pt === 'cs' || pt === 'dotnet') return 'C#';
+    if (pt === 'typescript' || pt === 'ts') return 'TypeScript';
+    if (pt === 'javascript' || pt === 'js') return 'JavaScript';
+    if (pt === 'python' || pt === 'py') return 'Python';
+    if (pt === 'java') return 'Java';
+    if (pt === 'sql') return 'SQL';
+    return node.properties?.framework || 'Project';
+  };
+
   const toggleLayer = (layerId: string) => {
     setCollapsedLayers((prev) => {
       const next = new Set(prev);
@@ -166,7 +180,7 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
                               className="tier-node-kind"
                               style={{ color: layer.color, backgroundColor: `${layer.color}15` }}
                             >
-                              {isDb ? node.properties?.db_type || 'DB' : 'Project'}
+                              {getProjectLanguageLabel(node)}
                             </span>
                             <div className="tier-io-badges">
                               {inCount > 0 && (

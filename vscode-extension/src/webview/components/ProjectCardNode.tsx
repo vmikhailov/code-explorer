@@ -63,14 +63,40 @@ export const ProjectCardNode = memo((props: any) => {
     }
   };
 
+  const projectType = (graphNode.properties?.project_type || graphNode.properties?.language || '').toLowerCase();
+
   let badgeColor = '#c084fc';
   let badgeLabel = 'Project';
+
   if (isDatabase) {
     badgeColor = '#34d399';
     badgeLabel = graphNode.properties?.db_type || 'Database';
   } else if (graphNode.kind === 'ExternalService') {
     badgeColor = '#fbbf24';
     badgeLabel = 'Service';
+  } else if (projectType === 'go' || projectType === 'golang') {
+    badgeColor = '#00add8';
+    badgeLabel = 'Go';
+  } else if (projectType === 'csharp' || projectType === 'cs' || projectType === 'dotnet') {
+    badgeColor = '#a855f7';
+    badgeLabel = 'C#';
+  } else if (projectType === 'typescript' || projectType === 'ts') {
+    badgeColor = '#3178c6';
+    badgeLabel = 'TypeScript';
+  } else if (projectType === 'javascript' || projectType === 'js') {
+    badgeColor = '#f59e0b';
+    badgeLabel = 'JavaScript';
+  } else if (projectType === 'python' || projectType === 'py') {
+    badgeColor = '#38bdf8';
+    badgeLabel = 'Python';
+  } else if (projectType === 'java') {
+    badgeColor = '#ea580c';
+    badgeLabel = 'Java';
+  } else if (projectType === 'sql') {
+    badgeColor = '#06b6d4';
+    badgeLabel = 'SQL';
+  } else if (framework) {
+    badgeLabel = framework;
   }
 
   return (
@@ -85,12 +111,22 @@ export const ProjectCardNode = memo((props: any) => {
 
       {/* Top row: badge + actions (code, focus) */}
       <div className="project-card-header">
-        <span
-          className="project-badge"
-          style={{ backgroundColor: `${badgeColor}18`, color: badgeColor, borderColor: `${badgeColor}44` }}
-        >
-          {badgeLabel}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span
+            className="project-badge"
+            style={{ backgroundColor: `${badgeColor}18`, color: badgeColor, borderColor: `${badgeColor}44` }}
+          >
+            {badgeLabel}
+          </span>
+          {framework && framework.toLowerCase() !== badgeLabel.toLowerCase() && (
+            <span
+              className="project-badge"
+              style={{ backgroundColor: '#64748b18', color: '#94a3b8', borderColor: '#64748b33', fontSize: '10px' }}
+            >
+              {framework}
+            </span>
+          )}
+        </div>
         <div className="card-top-actions">
           {graphNode.filePath && (
             <button

@@ -14,7 +14,7 @@ public static class GraphDataConverter
         var nodeMap = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
 
         // 1. Projects
-        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path";
+        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path, p.project_type AS project_type";
         var projJson = await client.ExecuteQueryAsync(projQuery, null, cancellationToken);
         using var projDoc = JsonDocument.Parse(projJson);
 
@@ -24,6 +24,7 @@ public static class GraphDataConverter
             var name = row.GetProperty("name").GetString() ?? id;
             var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
             var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+            var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
 
             if (!string.IsNullOrWhiteSpace(projectFilter) && !name.Contains(projectFilter, StringComparison.OrdinalIgnoreCase))
             {
@@ -41,6 +42,7 @@ public static class GraphDataConverter
             };
             if (!string.IsNullOrEmpty(framework)) node.Properties["framework"] = framework;
             if (!string.IsNullOrEmpty(path)) node.Properties["path"] = path;
+            if (!string.IsNullOrEmpty(projectType)) node.Properties["project_type"] = projectType;
 
             nodeMap[id] = node;
             graph.Nodes.Add(node);
@@ -119,6 +121,33 @@ public static class GraphDataConverter
             }
         }
 
+        // 4b. Project -> Package -> Project Dependencies (Workspace Packages/Modules fallback)
+        try
+        {
+            var pkgDepQuery = "MATCH (p1:Project)-[:DEPENDS_ON]->(pkg:Package)<-[:IMPLEMENTED_BY]-(p2:Project) WHERE p1.id <> p2.id RETURN DISTINCT p1.id AS source, p2.id AS target";
+            var pkgDepJson = await client.ExecuteQueryAsync(pkgDepQuery, null, cancellationToken);
+            using var pkgDepDoc = JsonDocument.Parse(pkgDepJson);
+            foreach (var row in pkgDepDoc.RootElement.EnumerateArray())
+            {
+                var src = row.GetProperty("source").GetString() ?? "";
+                var tgt = row.GetProperty("target").GetString() ?? "";
+                if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt) && src != tgt)
+                {
+                    if (graph.Edges.All(e => !(e.Source == src && e.Target == tgt && e.Kind == "DEPENDS_ON")))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{src}->{tgt}:DEPENDS_ON",
+                            Source = src,
+                            Target = tgt,
+                            Kind = "DEPENDS_ON"
+                        });
+                    }
+                }
+            }
+        }
+        catch { }
+
         // 5. Project -> Database
         var usesDbQuery = "MATCH (p:Project)-[r:USES_DB]->(d:Database) RETURN p.id AS source, d.id AS target, r.kind AS kind";
         var usesDbJson = await client.ExecuteQueryAsync(usesDbQuery, null, cancellationToken);
@@ -129,6 +158,29 @@ public static class GraphDataConverter
             var src = row.GetProperty("source").GetString() ?? "";
             var tgt = row.GetProperty("target").GetString() ?? "";
             var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "USES_DB") : "USES_DB";
+
+            if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt))
+            {
+                graph.Edges.Add(new GraphEdgeDto
+                {
+                    Id = $"{src}->{tgt}:{kind}",
+                    Source = src,
+                    Target = tgt,
+                    Kind = kind
+                });
+            }
+        }
+
+        // 6. External Service Links
+        var svcLinkQuery = "MATCH (p:Project)-[r:CALLS_ENDPOINT|TRIGGERS]->(s:ExternalService) RETURN p.id AS source, s.id AS target, r.kind AS kind";
+        var svcLinkJson = await client.ExecuteQueryAsync(svcLinkQuery, null, cancellationToken);
+        using var svcLinkDoc = JsonDocument.Parse(svcLinkJson);
+
+        foreach (var row in svcLinkDoc.RootElement.EnumerateArray())
+        {
+            var src = row.GetProperty("source").GetString() ?? "";
+            var tgt = row.GetProperty("target").GetString() ?? "";
+            var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "CALLS_ENDPOINT") : "CALLS_ENDPOINT";
 
             if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt))
             {
@@ -233,7 +285,7 @@ public static class GraphDataConverter
         var targetName = string.IsNullOrWhiteSpace(projectName) ? allProjects[0] : projectName;
 
         // 1. Target Center Project
-        var centerQuery = "MATCH (p:Project) WHERE p.name = $name OR p.id = $name RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path LIMIT 1";
+        var centerQuery = "MATCH (p:Project) WHERE p.name = $name OR p.id = $name RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path, p.project_type AS project_type LIMIT 1";
         var centerJson = await client.ExecuteQueryAsync(centerQuery, new Dictionary<string, object> { ["name"] = targetName }, cancellationToken);
         using var centerDoc = JsonDocument.Parse(centerJson);
 
@@ -255,6 +307,7 @@ public static class GraphDataConverter
         var centerProjName = centerRow.GetProperty("name").GetString() ?? centerId;
         var centerFramework = centerRow.TryGetProperty("framework", out var cf) && cf.ValueKind == JsonValueKind.String ? cf.GetString() : null;
         var centerPath = centerRow.TryGetProperty("path", out var cp) && cp.ValueKind == JsonValueKind.String ? cp.GetString() : null;
+        var centerProjectType = centerRow.TryGetProperty("project_type", out var cpt) && cpt.ValueKind == JsonValueKind.String ? cpt.GetString() : null;
 
         var centerNode = new GraphNodeDto
         {
@@ -271,12 +324,13 @@ public static class GraphDataConverter
         };
         if (!string.IsNullOrEmpty(centerFramework)) centerNode.Properties["framework"] = centerFramework;
         if (!string.IsNullOrEmpty(centerPath)) centerNode.Properties["path"] = centerPath;
+        if (!string.IsNullOrEmpty(centerProjectType)) centerNode.Properties["project_type"] = centerProjectType;
 
         graph.Nodes.Add(centerNode);
         graph.Metadata["selectedProject"] = centerProjName;
 
         // 2. Inbound Project Dependencies (Left Column)
-        var inQuery = "MATCH (in:Project)-[r:DEPENDS_ON]->(p:Project {id: $centerId}) RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, r.kind AS kind";
+        var inQuery = "MATCH (in:Project)-[r:DEPENDS_ON]->(p:Project {id: $centerId}) RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, in.project_type AS project_type, r.kind AS kind";
         var inJson = await client.ExecuteQueryAsync(inQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
         using var inDoc = JsonDocument.Parse(inJson);
 
@@ -286,6 +340,7 @@ public static class GraphDataConverter
             var name = row.GetProperty("name").GetString() ?? id;
             var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
             var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+            var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
             var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "DEPENDS_ON") : "DEPENDS_ON";
 
             if (graph.Nodes.All(n => n.Id != id))
@@ -305,20 +360,73 @@ public static class GraphDataConverter
                 };
                 if (!string.IsNullOrEmpty(framework)) inNode.Properties["framework"] = framework;
                 if (!string.IsNullOrEmpty(path)) inNode.Properties["path"] = path;
+                if (!string.IsNullOrEmpty(projectType)) inNode.Properties["project_type"] = projectType;
                 graph.Nodes.Add(inNode);
             }
 
-            graph.Edges.Add(new GraphEdgeDto
+            if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId && e.Kind == kind)))
             {
-                Id = $"{id}->{centerId}:{kind}",
-                Source = id,
-                Target = centerId,
-                Kind = kind
-            });
+                graph.Edges.Add(new GraphEdgeDto
+                {
+                    Id = $"{id}->{centerId}:{kind}",
+                    Source = id,
+                    Target = centerId,
+                    Kind = kind
+                });
+            }
         }
 
+        // 2b. Inbound package fallback
+        try
+        {
+            var inPkgQuery = "MATCH (in:Project)-[:DEPENDS_ON]->(:Package)<-[:IMPLEMENTED_BY]-(p:Project {id: $centerId}) WHERE in.id <> p.id RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, in.project_type AS project_type";
+            var inPkgJson = await client.ExecuteQueryAsync(inPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+            using var inPkgDoc = JsonDocument.Parse(inPkgJson);
+            foreach (var row in inPkgDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetProperty("id").GetString() ?? "";
+                var name = row.GetProperty("name").GetString() ?? id;
+                var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
+                var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+                var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
+
+                if (graph.Nodes.All(n => n.Id != id))
+                {
+                    var inNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "Project",
+                        Name = name,
+                        DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
+                        FilePath = path,
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["column"] = "left",
+                            ["role"] = "inbound"
+                        }
+                    };
+                    if (!string.IsNullOrEmpty(framework)) inNode.Properties["framework"] = framework;
+                    if (!string.IsNullOrEmpty(path)) inNode.Properties["path"] = path;
+                    if (!string.IsNullOrEmpty(projectType)) inNode.Properties["project_type"] = projectType;
+                    graph.Nodes.Add(inNode);
+                }
+
+                if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId && e.Kind == "DEPENDS_ON")))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{id}->{centerId}:DEPENDS_ON",
+                        Source = id,
+                        Target = centerId,
+                        Kind = "DEPENDS_ON"
+                    });
+                }
+            }
+        }
+        catch { }
+
         // 3. Outbound Project Dependencies (Right Column)
-        var outQuery = "MATCH (p:Project {id: $centerId})-[r:DEPENDS_ON]->(out:Project) RETURN out.id AS id, out.name AS name, out.framework AS framework, out.path AS path, r.kind AS kind";
+        var outQuery = "MATCH (p:Project {id: $centerId})-[r:DEPENDS_ON]->(out:Project) RETURN out.id AS id, out.name AS name, out.framework AS framework, out.path AS path, out.project_type AS project_type, r.kind AS kind";
         var outJson = await client.ExecuteQueryAsync(outQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
         using var outDoc = JsonDocument.Parse(outJson);
 
@@ -328,6 +436,7 @@ public static class GraphDataConverter
             var name = row.GetProperty("name").GetString() ?? id;
             var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
             var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+            var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
             var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "DEPENDS_ON") : "DEPENDS_ON";
 
             if (graph.Nodes.All(n => n.Id != id))
@@ -347,17 +456,70 @@ public static class GraphDataConverter
                 };
                 if (!string.IsNullOrEmpty(framework)) outNode.Properties["framework"] = framework;
                 if (!string.IsNullOrEmpty(path)) outNode.Properties["path"] = path;
+                if (!string.IsNullOrEmpty(projectType)) outNode.Properties["project_type"] = projectType;
                 graph.Nodes.Add(outNode);
             }
 
-            graph.Edges.Add(new GraphEdgeDto
+            if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id && e.Kind == kind)))
             {
-                Id = $"{centerId}->{id}:{kind}",
-                Source = centerId,
-                Target = id,
-                Kind = kind
-            });
+                graph.Edges.Add(new GraphEdgeDto
+                {
+                    Id = $"{centerId}->{id}:{kind}",
+                    Source = centerId,
+                    Target = id,
+                    Kind = kind
+                });
+            }
         }
+
+        // 3b. Outbound package fallback
+        try
+        {
+            var outPkgQuery = "MATCH (p:Project {id: $centerId})-[:DEPENDS_ON]->(:Package)<-[:IMPLEMENTED_BY]-(out:Project) WHERE p.id <> out.id RETURN out.id AS id, out.name AS name, out.framework AS framework, out.path AS path, out.project_type AS project_type";
+            var outPkgJson = await client.ExecuteQueryAsync(outPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+            using var outPkgDoc = JsonDocument.Parse(outPkgJson);
+            foreach (var row in outPkgDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetProperty("id").GetString() ?? "";
+                var name = row.GetProperty("name").GetString() ?? id;
+                var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
+                var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+                var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
+
+                if (graph.Nodes.All(n => n.Id != id))
+                {
+                    var outNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "Project",
+                        Name = name,
+                        DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
+                        FilePath = path,
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["column"] = "right",
+                            ["role"] = "outbound"
+                        }
+                    };
+                    if (!string.IsNullOrEmpty(framework)) outNode.Properties["framework"] = framework;
+                    if (!string.IsNullOrEmpty(path)) outNode.Properties["path"] = path;
+                    if (!string.IsNullOrEmpty(projectType)) outNode.Properties["project_type"] = projectType;
+                    graph.Nodes.Add(outNode);
+                }
+
+                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id && e.Kind == "DEPENDS_ON")))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{centerId}->{id}:DEPENDS_ON",
+                        Source = centerId,
+                        Target = id,
+                        Kind = "DEPENDS_ON"
+                    });
+                }
+            }
+        }
+        catch { }
 
         // 4. Outbound Databases / Services (Right Column)
         var dbQuery = "MATCH (p:Project {id: $centerId})-[r:USES_DB]->(d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, r.kind AS kind";

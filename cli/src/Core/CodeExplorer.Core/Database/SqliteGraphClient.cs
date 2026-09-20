@@ -114,6 +114,17 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            -- Promote workspace package dependencies to direct project DEPENDS_ON links
+            INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+            SELECT DISTINCT d.from_id, i.to_id, 'DEPENDS_ON', '{}'
+            FROM edges d
+            JOIN edges i ON d.to_id = i.from_id
+            WHERE d.kind = 'DEPENDS_ON'
+              AND i.kind = 'IMPLEMENTED_BY'
+              AND d.from_id != i.to_id
+              AND d.from_id LIKE '%:project:%'
+              AND i.to_id LIKE '%:project:%';
             """;
         cmd.ExecuteNonQuery();
     }

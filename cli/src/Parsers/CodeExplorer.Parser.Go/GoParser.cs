@@ -142,11 +142,47 @@ public class GoParser : IProjectParser, IFileParser
         {
             var lines = await File.ReadAllLinesAsync(goModPath);
             var inRequireBlock = false;
+            var inReplaceBlock = false;
 
             foreach (var rawLine in lines)
             {
                 var line = rawLine.Trim();
-                if (string.IsNullOrEmpty(line)) continue;
+                if (string.IsNullOrEmpty(line) || line.StartsWith("//", StringComparison.Ordinal)) continue;
+
+                // Handle replace directives (e.g. "replace example.com/pkg => ../pkg" or inside "replace (...)")
+                if (line.StartsWith("replace (", StringComparison.Ordinal))
+                {
+                    inReplaceBlock = true;
+                    continue;
+                }
+                if (inReplaceBlock && line == ")")
+                {
+                    inReplaceBlock = false;
+                    continue;
+                }
+
+                if (inReplaceBlock || line.StartsWith("replace ", StringComparison.Ordinal))
+                {
+                    var replaceContent = line.StartsWith("replace ", StringComparison.Ordinal)
+                        ? line["replace ".Length..].Trim()
+                        : line;
+
+                    if (replaceContent.Contains("=>"))
+                    {
+                        var arrowIdx = replaceContent.IndexOf("=>", StringComparison.Ordinal);
+                        var target = replaceContent[(arrowIdx + 2)..].Trim();
+                        var targetParts = target.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                        if (targetParts.Length >= 1)
+                        {
+                            var targetPath = targetParts[0];
+                            if (targetPath.StartsWith('.') || targetPath.StartsWith('/') || targetPath.StartsWith('\\'))
+                            {
+                                localProjectPaths.Add(targetPath);
+                            }
+                        }
+                    }
+                    continue;
+                }
 
                 // Handle single-line require
                 if (line.StartsWith("require ", StringComparison.Ordinal) && !line.EndsWith('('))
