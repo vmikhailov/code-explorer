@@ -64,10 +64,48 @@ The extension opens `.codeexplorer/graph.db` directly in read-only mode using `@
 
 ---
 
-### Option 1.4: Hybrid Approach *(Recommended Evolution)*
-- **Querying & Navigation**: Persistent MCP Daemon (`ce mcp`) for fast Cypher queries and graph exploration.
-- **Indexing & Heavy Tasks**: Trigger `ce scan <path>` as a background task with status-bar progress indicators.
-- **Fallback**: If `ce` is not installed, prompt the user with an installation action or offer read-only SQLite inspection if a database is present.
+### Option 1.4: Local WebSocket API Server (`ce serve --port 0`) — *(Top Recommendation)*
+The extension spawns `ce serve --port 0` (ephemeral port). The server exposes a bi-directional, full-duplex WebSocket endpoint (`ws://127.0.0.1:<port>/ws`):
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        VS Code Webview (iframe)                        │
+│                                                                        │
+│   const ws = new WebSocket("ws://127.0.0.1:<port>/ws");                │
+└───────────────────────────────────▲────────────────────────────────────┘
+                                    │ Direct WebSocket (ws://)
+                                    │ (Zero Extension Host double-hop!)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               ce.exe (ASP.NET Core Minimal API + WebSockets)           │
+│                                                                        │
+│  - Endpoint: /ws (Full-duplex JSON messages)                           │
+│  - Ephemeral port (--port 0) -> prevents port collisions               │
+│  - Self-terminating heartbeat -> kills ce.exe when client disconnects  │
+└───────────────────────────────────▲────────────────────────────────────┘
+                                    │
+                                    ▼
+                     ┌──────────────────────────────┐
+                     │    .codeexplorer/graph.db    │
+                     │        (SQLite WAL)          │
+                     └──────────────────────────────┘
+```
+
+| Pros | Cons |
+| :--- | :--- |
+| **Direct Webview connection**: Bypasses the Extension Host `postMessage` relay entirely. The Webview browser context communicates directly with `ce.exe` via native `new WebSocket(...)`. | Requires port management (solved by ephemeral `--port 0`). |
+| **Sub-millisecond latency (<1ms)**: Zero HTTP handshake/header overhead per query. Cursor movements stream ego-graphs in real time without stutter. | Requires loopback binding (`127.0.0.1`) and handshake security token. |
+| **Real-time server push**: Server pushes `graph_patch` (diffs from incremental file saves) and `scan_progress` (live indexing % and current file) without polling. | Small memory footprint (~60–90 MB RAM for ASP.NET Core process). |
+| **Zero orphaned processes**: The server tracks active WebSocket connections. When VS Code closes or the Webview disconnects, the server automatically shuts down cleanly after a brief timeout. | |
+| **External browser cockpit**: The exact same WebSocket endpoint can power a dedicated full-screen browser window on a second monitor (`http://localhost:<port>`). | |
+| **Native in ASP.NET Core**: Built directly into `Microsoft.AspNetCore.App` via `app.UseWebSockets()` with zero third-party dependencies. | |
+
+---
+
+### Option 1.5: Hybrid Communication Architecture
+- **Real-Time Interactive Graph & Navigation**: Local WebSocket Server (`ce serve --port 0`) connected directly to the Webview.
+- **Background Heavy Jobs**: Spawning CLI commands (`ce scan <dir>`) with live output streamed over the WebSocket.
+- **Fallback**: Stdio-based MCP Daemon (`ce mcp`) if local socket creation is restricted by OS firewall/security policy.
 
 ---
 
@@ -162,8 +200,8 @@ How the `ce` engine is delivered to extension users:
 
 | Dimension | MVP (Phase 1) | Target Architecture (Phase 2+) |
 | :--- | :--- | :--- |
-| **Communication Channel** | **Persistent MCP Daemon (`ce mcp` over stdio)** with CLI fallback | MCP Daemon with background file-watcher for live incremental patching |
+| **Communication Channel** | **Local WebSocket API Server (`ce serve --port 0`)** with direct Webview connection | WebSocket Server with real-time `graph_patch` streaming and self-terminating heartbeat |
 | **Graph Rendering** | **Cytoscape.js** + `cytoscape-dagre` (fast start, high performance) | Cytoscape.js for graph canvas + Svelte/React HUD for controls & node inspectors |
-| **UI Placement** | Dedicated Editor Tab (`ViewColumn.Beside`) | Editor Tab + persistent Sidebar Ego-Graph + inline CodeLens |
+| **UI Placement** | Dedicated Editor Tab (`ViewColumn.Beside`) | Editor Tab + persistent Sidebar Ego-Graph + inline CodeLens + External Browser Cockpit |
 | **Binary Resolution** | PATH lookup + monorepo local build auto-detection | Platform-specific `.vsix` releases bundled via GitHub Actions |
 | **Interactivity** | Bi-directional Jump-to-Code (clicking node opens code line in editor) | Visual Blast Radius highlighting (amber/red impact paths) and Cypher playground |
