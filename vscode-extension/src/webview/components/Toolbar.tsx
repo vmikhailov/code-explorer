@@ -1,8 +1,8 @@
 import React from 'react';
 
 export interface ToolbarProps {
-  viewMode: 'flow' | 'full';
-  onViewModeChange: (mode: 'flow' | 'full') => void;
+  viewMode: 'flow' | 'layers' | 'full';
+  onViewModeChange: (mode: 'flow' | 'layers' | 'full') => void;
   allProjects: string[];
   selectedProject: string;
   onSelectProject: (project: string) => void;
@@ -12,6 +12,8 @@ export interface ToolbarProps {
   cypherQuery: string;
   onCypherQueryChange: (query: string) => void;
   onRunCypher: () => void;
+  showTests: boolean;
+  onToggleShowTests: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -26,6 +28,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   cypherQuery,
   onCypherQueryChange,
   onRunCypher,
+  showTests,
+  onToggleShowTests,
 }) => {
   return (
     <header className="toolbar">
@@ -41,9 +45,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       {/* Mode Switcher Tabs */}
       <div className="view-mode-tabs">
         <button
+          className={`mode-tab-btn ${viewMode === 'layers' ? 'active' : ''}`}
+          onClick={() => onViewModeChange('layers')}
+          title="Hierarchical collapsible system layers"
+        >
+          🏛️ System Layers
+        </button>
+        <button
           className={`mode-tab-btn ${viewMode === 'flow' ? 'active' : ''}`}
           onClick={() => onViewModeChange('flow')}
-          title="Focused 3-column project dependency flow"
+          title="Focused 3-column project dependency flow (React Flow)"
         >
           🔀 Project Flow
         </button>
@@ -58,7 +69,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Dynamic Controls based on Mode */}
       <div className="toolbar-controls">
-        {viewMode === 'flow' ? (
+        {viewMode === 'layers' && (
+          <div className="layers-controls">
+            <button
+              className={`test-toggle-btn ${showTests ? 'active' : ''}`}
+              onClick={onToggleShowTests}
+              title={showTests ? 'Hide test projects' : 'Show test projects'}
+            >
+              🧪 {showTests ? 'Hide Tests' : 'Show Tests'}
+            </button>
+            <button onClick={onRefresh} title="Reload layers">
+              Refresh
+            </button>
+          </div>
+        )}
+
+        {viewMode === 'flow' && (
           <div className="flow-controls">
             <label className="project-dropdown-label">
               <span className="label-text">Target Project:</span>
@@ -85,7 +111,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               </button>
             </div>
           </div>
-        ) : (
+        )}
+
+        {viewMode === 'full' && (
           <div className="search-box">
             <input
               type="text"

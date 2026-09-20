@@ -13,6 +13,7 @@ import {
 import { Toolbar } from './components/Toolbar';
 import { ProjectFlowView } from './components/ProjectFlowView';
 import { CytoscapeView } from './components/CytoscapeView';
+import { LayeredArchitectureView } from './components/LayeredArchitectureView';
 
 declare function acquireVsCodeApi(): {
   postMessage(message: any): void;
@@ -26,7 +27,7 @@ try {
 } catch {}
 
 export const App: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'flow' | 'full'>('flow');
+  const [viewMode, setViewMode] = useState<'layers' | 'flow' | 'full'>('layers');
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [allProjects, setAllProjects] = useState<string[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
@@ -34,6 +35,7 @@ export const App: React.FC = () => {
   const [fullGraph, setFullGraph] = useState<GraphData | null>(null);
   const [cypherQuery, setCypherQuery] = useState<string>('');
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
+  const [showTests, setShowTests] = useState<boolean>(true);
 
   const wsRef = useRef<WebSocket | null>(null);
   const workspaceRootRef = useRef<string>('');
@@ -70,6 +72,13 @@ export const App: React.FC = () => {
     if (!project) return;
     setSelectedProject(project);
     requestDependencies(project);
+  }, [requestDependencies]);
+
+  const handleFocusInFlow = useCallback((project: string) => {
+    if (!project) return;
+    setSelectedProject(project);
+    requestDependencies(project);
+    setViewMode('flow');
   }, [requestDependencies]);
 
   const handleOpenFile = useCallback((filePath: string, lineStart?: number) => {
@@ -118,11 +127,11 @@ export const App: React.FC = () => {
       };
       ws.send(JSON.stringify(handshake));
 
-      // 2. Fetch dependencies for default/first project
-      requestDependencies();
-
-      // 3. Pre-fetch full architecture for the Cytoscape view
+      // 2. Fetch full architecture (with layer classifications)
       requestArchitecture();
+
+      // 3. Fetch dependencies for default/first project
+      requestDependencies();
     };
 
     ws.onmessage = (event) => {
@@ -138,7 +147,6 @@ export const App: React.FC = () => {
           case 'QUERY_RESPONSE': {
             const resp = msg.payload as QueryResponse;
             if (resp.success && resp.graph) {
-              // Check if this is a 3-column flow response or a full architecture response
               const hasColumns = resp.graph.nodes?.some((n) => n.properties?.column);
               if (hasColumns) {
                 setFlowGraph(resp.graph);
@@ -154,6 +162,17 @@ export const App: React.FC = () => {
                 }
               } else {
                 setFullGraph(resp.graph);
+                // Also extract all project names from full architecture if not set
+                if (resp.graph.nodes) {
+                  const projs = resp.graph.nodes
+                    .filter((n) => n.kind === 'Project')
+                    .map((n) => n.name)
+                    .sort();
+                  if (projs.length > 0) {
+                    setAllProjects((prev) => (prev.length === 0 ? projs : prev));
+                    setSelectedProject((prev) => (prev ? prev : projs[0]));
+                  }
+                }
               }
             } else if (!resp.success && vscodeApi) {
               vscodeApi.postMessage({
@@ -230,16 +249,29 @@ export const App: React.FC = () => {
         cypherQuery={cypherQuery}
         onCypherQueryChange={setCypherQuery}
         onRunCypher={handleRunCypher}
+        showTests={showTests}
+        onToggleShowTests={() => setShowTests((prev) => !prev)}
       />
 
       <main className="main-viewport">
-        {viewMode === 'flow' ? (
+        {viewMode === 'layers' && (
+          <LayeredArchitectureView
+            graph={fullGraph}
+            onOpenFile={handleOpenFile}
+            onFocusInFlow={handleFocusInFlow}
+            showTests={showTests}
+          />
+        )}
+
+        {viewMode === 'flow' && (
           <ProjectFlowView
             graph={flowGraph}
             onSelectProject={handleSelectProject}
             onOpenFile={handleOpenFile}
           />
-        ) : (
+        )}
+
+        {viewMode === 'full' && (
           <CytoscapeView
             graph={fullGraph}
             onOpenFile={handleOpenFile}

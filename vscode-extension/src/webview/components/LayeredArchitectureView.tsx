@@ -1,0 +1,290 @@
+import React, { useState, useMemo } from 'react';
+import { GraphData, GraphNode } from '../../../../proto/types';
+
+export interface LayerDefinition {
+  layerId: string;
+  layerName: string;
+  order: number;
+  color: string;
+  icon: string;
+  description: string;
+}
+
+export interface LayeredArchitectureViewProps {
+  graph: GraphData | null;
+  onOpenFile: (filePath: string, lineStart?: number) => void;
+  onFocusInFlow: (projectName: string) => void;
+  showTests: boolean;
+}
+
+const DEFAULT_LAYERS: LayerDefinition[] = [
+  {
+    layerId: 'layer_presentation',
+    layerName: 'Ingress & Presentation',
+    order: 0,
+    color: '#fbbf24',
+    icon: '⚡',
+    description: 'Entry points, CLI commands, HTTP APIs, and Host executables',
+  },
+  {
+    layerId: 'layer_core',
+    layerName: 'Application & Domain Core',
+    order: 1,
+    color: '#c084fc',
+    icon: '🏛️',
+    description: 'Core orchestration, domain models, and business logic',
+  },
+  {
+    layerId: 'layer_engines',
+    layerName: 'Domain Services & Specialized Engines',
+    order: 2,
+    color: '#38bdf8',
+    icon: '⚙️',
+    description: 'Parsers, query engines, algorithms, and domain handlers',
+  },
+  {
+    layerId: 'layer_foundation',
+    layerName: 'Foundation & Storage',
+    order: 3,
+    color: '#34d399',
+    icon: '🗄️',
+    description: 'Shared utilities, database entities, and common abstractions',
+  },
+  {
+    layerId: 'layer_tests',
+    layerName: 'Tests & Verification',
+    order: 4,
+    color: '#94a3b8',
+    icon: '🧪',
+    description: 'Unit tests, integration suites, benchmarks, and generator tools',
+  },
+];
+
+export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = ({
+  graph,
+  onOpenFile,
+  onFocusInFlow,
+  showTests,
+}) => {
+  const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
+
+  // Parse layers from metadata or use default
+  const layerDefs = useMemo(() => {
+    if (graph?.metadata?.layers) {
+      try {
+        const parsed = JSON.parse(graph.metadata.layers) as LayerDefinition[];
+        return parsed.sort((a, b) => a.order - b.order);
+      } catch {}
+    }
+    return DEFAULT_LAYERS;
+  }, [graph]);
+
+  // Group nodes by layerId
+  const nodesByLayer = useMemo(() => {
+    const map = new Map<string, GraphNode[]>();
+    for (const def of layerDefs) {
+      map.set(def.layerId, []);
+    }
+
+    for (const node of graph?.nodes || []) {
+      const layerId = node.properties?.layerId || 'layer_engines';
+      const list = map.get(layerId) || [];
+      list.push(node);
+      map.set(layerId, list);
+    }
+
+    return map;
+  }, [graph, layerDefs]);
+
+  // Dependency count maps for badges
+  const { incomingCounts, outgoingCounts } = useMemo(() => {
+    const inc: Record<string, number> = {};
+    const out: Record<string, number> = {};
+    for (const edge of graph?.edges || []) {
+      out[edge.source] = (out[edge.source] || 0) + 1;
+      inc[edge.target] = (inc[edge.target] || 0) + 1;
+    }
+    return { incomingCounts: inc, outgoingCounts: out };
+  }, [graph]);
+
+  const toggleLayer = (layerId: string) => {
+    setCollapsedLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(layerId)) {
+        next.delete(layerId);
+      } else {
+        next.add(layerId);
+      }
+      return next;
+    });
+  };
+
+  const collapseAll = () => {
+    setCollapsedLayers(new Set(layerDefs.map((l) => l.layerId)));
+  };
+
+  const expandAll = () => {
+    setCollapsedLayers(new Set());
+  };
+
+  const visibleLayers = layerDefs.filter((l) => showTests || l.layerId !== 'layer_tests');
+
+  return (
+    <div className="layers-view-container">
+      {/* Top Quick Actions Bar */}
+      <div className="layers-quick-actions">
+        <div className="layer-stats-info">
+          <span>Architectural Tiers: <strong>{visibleLayers.length}</strong></span>
+          <span>•</span>
+          <span>Total Projects &amp; DBs: <strong>{graph?.nodes?.length || 0}</strong></span>
+        </div>
+        <div className="layers-action-buttons">
+          <button className="small-action-btn" onClick={expandAll} title="Expand all layers">
+            Expand All
+          </button>
+          <button className="small-action-btn" onClick={collapseAll} title="Collapse all layers into macro bars">
+            Collapse All
+          </button>
+        </div>
+      </div>
+
+      {/* Layer Tiers Stack */}
+      <div className="layers-stack">
+        {visibleLayers.map((layer, index) => {
+          const nodes = nodesByLayer.get(layer.layerId) || [];
+          const isCollapsed = collapsedLayers.has(layer.layerId);
+
+          if (nodes.length === 0 && layer.layerId === 'layer_tests') {
+            return null; // Skip empty tests
+          }
+
+          return (
+            <React.Fragment key={layer.layerId}>
+              {/* Layer Container */}
+              <section
+                className={`layer-tier-card ${isCollapsed ? 'collapsed' : 'expanded'}`}
+                style={{ borderLeftColor: layer.color }}
+              >
+                {/* Layer Header */}
+                <header
+                  className="layer-header"
+                  onClick={() => toggleLayer(layer.layerId)}
+                  title="Click to collapse / expand this layer"
+                >
+                  <div className="layer-title-area">
+                    <span className="layer-icon">{layer.icon}</span>
+                    <div className="layer-name-group">
+                      <h3 className="layer-name" style={{ color: layer.color }}>
+                        {layer.layerName}
+                      </h3>
+                      <span className="layer-desc">{layer.description}</span>
+                    </div>
+                  </div>
+
+                  <div className="layer-header-controls">
+                    <span className="layer-count-badge" style={{ backgroundColor: `${layer.color}22`, color: layer.color }}>
+                      {nodes.length} {nodes.length === 1 ? 'item' : 'items'}
+                    </span>
+                    <button
+                      className="layer-toggle-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleLayer(layer.layerId);
+                      }}
+                      title={isCollapsed ? 'Expand Layer' : 'Collapse Layer'}
+                    >
+                      {isCollapsed ? '➕ Expand' : '➖ Collapse'}
+                    </button>
+                  </div>
+                </header>
+
+                {/* Layer Body */}
+                {isCollapsed ? (
+                  <div
+                    className="layer-collapsed-summary"
+                    onClick={() => toggleLayer(layer.layerId)}
+                    title="Click to expand"
+                  >
+                    <span className="collapsed-preview-text">
+                      📦 {nodes.length} projects condensed ({nodes.map((n) => n.name).slice(0, 4).join(', ')}
+                      {nodes.length > 4 ? ` +${nodes.length - 4} more` : ''})
+                    </span>
+                    <span className="expand-hint">Click to expand ➔</span>
+                  </div>
+                ) : (
+                  <div className="layer-nodes-grid">
+                    {nodes.map((node) => {
+                      const isDb = node.kind === 'Database';
+                      const inCount = incomingCounts[node.id] || 0;
+                      const outCount = outgoingCounts[node.id] || 0;
+
+                      return (
+                        <div key={node.id} className="tier-project-card">
+                          <div className="tier-card-header">
+                            <span
+                              className="tier-node-kind"
+                              style={{ color: layer.color, backgroundColor: `${layer.color}15` }}
+                            >
+                              {isDb ? node.properties?.db_type || 'DB' : 'Project'}
+                            </span>
+                            <div className="tier-io-badges">
+                              {inCount > 0 && (
+                                <span className="io-badge in" title={`${inCount} incoming callers`}>
+                                  ← {inCount}
+                                </span>
+                              )}
+                              {outCount > 0 && (
+                                <span className="io-badge out" title={`Depends on ${outCount} items`}>
+                                  {outCount} →
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="tier-card-title">{node.name}</div>
+                          {node.properties?.framework && (
+                            <div className="tier-framework">{node.properties.framework}</div>
+                          )}
+
+                          <div className="tier-card-actions">
+                            {!isDb && (
+                              <button
+                                className="tier-flow-btn"
+                                onClick={() => onFocusInFlow(node.name)}
+                                title="Inspect in 3-column Project Flow"
+                              >
+                                🔀 Inspect Flow
+                              </button>
+                            )}
+                            {node.filePath && (
+                              <button
+                                className="tier-code-btn"
+                                onClick={() => onOpenFile(node.filePath!, node.lineStart)}
+                                title="Open project file"
+                              >
+                                📄 Code
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* Inter-Layer Dependency Arrow */}
+              {index < visibleLayers.length - 1 && (
+                <div className="inter-layer-connector">
+                  <div className="connector-line"></div>
+                  <span className="connector-arrow">▼</span>
+                  <div className="connector-line"></div>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+};

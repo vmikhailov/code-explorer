@@ -142,6 +142,55 @@ public static class GraphDataConverter
             }
         }
 
+        // 6. Layer Classification
+        var classifierItems = graph.Nodes
+            .Where(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase))
+            .Select(n => new CodeExplorer.Core.Analysis.ProjectClassifierItem
+            {
+                Id = n.Id,
+                Name = n.Name,
+                FilePath = n.FilePath,
+                Framework = n.Properties?.GetValueOrDefault("framework")
+            });
+
+        var dependencyItems = graph.Edges
+            .Where(e => e.Kind.Equals("DEPENDS_ON", StringComparison.OrdinalIgnoreCase))
+            .Select(e => new CodeExplorer.Core.Analysis.DependencyItem
+            {
+                SourceId = e.Source,
+                TargetId = e.Target
+            });
+
+        var layerMap = CodeExplorer.Core.Analysis.ProjectLayerClassifier.Classify(classifierItems, dependencyItems);
+
+        foreach (var node in graph.Nodes)
+        {
+            node.Properties ??= new Dictionary<string, string>();
+
+            if (node.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase))
+            {
+                if (layerMap.TryGetValue(node.Id, out var layer))
+                {
+                    node.Properties["layerId"] = layer.LayerId;
+                    node.Properties["layerName"] = layer.LayerName;
+                    node.Properties["layerOrder"] = layer.Order.ToString();
+                    node.Properties["layerColor"] = layer.Color;
+                    node.Properties["layerIcon"] = layer.Icon;
+                }
+            }
+            else if (node.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase))
+            {
+                node.Properties["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId;
+                node.Properties["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName;
+                node.Properties["layerOrder"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Order.ToString();
+                node.Properties["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color;
+                node.Properties["layerIcon"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Icon;
+            }
+        }
+
+        graph.Metadata ??= new Dictionary<string, string>();
+        graph.Metadata["layers"] = JsonSerializer.Serialize(CodeExplorer.Core.Analysis.StandardLayers.All);
+
         return graph;
     }
 
