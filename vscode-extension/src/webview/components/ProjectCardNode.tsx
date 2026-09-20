@@ -4,11 +4,15 @@ import { GraphNode } from '../../../../proto/types';
 
 export interface ProjectCardData {
   graphNode: GraphNode;
-  column: 'left' | 'center' | 'right';
+  level: number;
   isCenter: boolean;
   inCount?: number;
   outCount?: number;
-  onNavigate?: (projectName: string, direction: 'all' | 'using' | 'used_by') => void;
+  isInboundExpanded?: boolean;
+  isOutboundExpanded?: boolean;
+  onToggleInbound?: (projectName: string) => void;
+  onToggleOutbound?: (projectName: string) => void;
+  onFocusProject?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
 }
 
@@ -16,34 +20,39 @@ export const ProjectCardNode = memo((props: any) => {
   const nodeData = props.data as ProjectCardData;
   const {
     graphNode,
-    column,
+    level,
     isCenter,
     inCount = 0,
     outCount = 0,
-    onNavigate,
+    isInboundExpanded = false,
+    isOutboundExpanded = false,
+    onToggleInbound,
+    onToggleOutbound,
+    onFocusProject,
     onOpenFile,
   } = nodeData;
 
   const framework = graphNode.properties?.framework;
   const isDatabase = graphNode.kind === 'Database';
 
-  const handleCardClick = () => {
-    if (!isCenter && !isDatabase && onNavigate) {
-      onNavigate(graphNode.name, column === 'left' ? 'used_by' : column === 'right' ? 'using' : 'all');
+  const handleTitleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isCenter && !isDatabase && onFocusProject) {
+      onFocusProject(graphNode.name);
     }
   };
 
-  const handleUsedByClick = (e: React.MouseEvent) => {
+  const handleToggleInboundClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onNavigate) {
-      onNavigate(graphNode.name, 'used_by');
+    if (onToggleInbound && inCount > 0) {
+      onToggleInbound(graphNode.name);
     }
   };
 
-  const handleUsingClick = (e: React.MouseEvent) => {
+  const handleToggleOutboundClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onNavigate) {
-      onNavigate(graphNode.name, 'using');
+    if (onToggleOutbound && outCount > 0) {
+      onToggleOutbound(graphNode.name);
     }
   };
 
@@ -64,83 +73,96 @@ export const ProjectCardNode = memo((props: any) => {
     badgeLabel = 'Service';
   }
 
-  const roleLabel =
-    column === 'left' ? 'Inbound Caller' : column === 'right' ? 'Dependency' : 'Target';
-
   return (
-    <div
-      className={`project-card ${column} ${isCenter ? 'center-hero' : 'clickable-card'}`}
-      onClick={handleCardClick}
-    >
-      {/* Inbound Handle (Left) */}
-      {(column === 'center' || column === 'right') && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="flow-handle target-handle"
-          isConnectable={false}
-        />
-      )}
+    <div className={`project-card ${isCenter ? 'center-hero' : ''}`}>
+      {/* Target handle on left for incoming edges */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="flow-handle target-handle"
+        isConnectable={false}
+      />
 
-      {/* Card Header */}
+      {/* Top row: badge + actions (code, focus) */}
       <div className="project-card-header">
         <span
           className="project-badge"
-          style={{ backgroundColor: `${badgeColor}22`, color: badgeColor, borderColor: `${badgeColor}55` }}
+          style={{ backgroundColor: `${badgeColor}18`, color: badgeColor, borderColor: `${badgeColor}44` }}
         >
           {badgeLabel}
         </span>
-        <span className="column-role">{roleLabel}</span>
+        <div className="card-top-actions">
+          {graphNode.filePath && (
+            <button
+              className="card-icon-link"
+              onClick={handleOpenClick}
+              title={`Open code: ${graphNode.filePath}`}
+            >
+              📄
+            </button>
+          )}
+          {!isCenter && !isDatabase && (
+            <button
+              className="card-icon-link"
+              onClick={handleTitleClick}
+              title={`Center focus on ${graphNode.name}`}
+            >
+              🎯
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Card Title */}
-      <div className="project-card-title">{graphNode.name}</div>
+      {/* Project Title */}
+      <div
+        className={`project-card-title ${!isCenter && !isDatabase ? 'clickable-title' : ''}`}
+        onClick={handleTitleClick}
+        title={!isCenter && !isDatabase ? `Click to center focus on ${graphNode.name}` : graphNode.name}
+      >
+        {graphNode.name}
+      </div>
 
-      {/* Card Details */}
+      {/* Framework if available */}
       {framework && <div className="project-framework">{framework}</div>}
 
-      {/* Navigation Buttons (Used by / Using) */}
+      {/* Action Links Row (Used by / Using) */}
       {!isDatabase && (
-        <div className="project-card-actions">
-          <button
-            className={`flow-nav-btn used-by-btn ${column === 'left' ? 'primary' : ''}`}
-            onClick={handleUsedByClick}
-            title={`Explore callers: who uses ${graphNode.name}`}
-          >
-            ← Used by {inCount > 0 ? `(${inCount})` : ''}
-          </button>
-          <button
-            className={`flow-nav-btn using-btn ${column === 'right' ? 'primary' : ''}`}
-            onClick={handleUsingClick}
-            title={`Explore dependencies: what ${graphNode.name} is using`}
-          >
-            Using → {outCount > 0 ? `(${outCount})` : ''}
-          </button>
+        <div className="card-links-row">
+          {inCount > 0 ? (
+            <button
+              className={`action-link-btn used-by ${isInboundExpanded ? 'expanded' : ''}`}
+              onClick={handleToggleInboundClick}
+              title={isInboundExpanded ? `Close callers of ${graphNode.name}` : `Open callers of ${graphNode.name}`}
+            >
+              <span className="link-arrow">{isInboundExpanded ? '▾' : '◂'}</span>
+              <span>Used by ({inCount})</span>
+            </button>
+          ) : (
+            <span className="action-link-disabled">Used by (0)</span>
+          )}
+
+          {outCount > 0 ? (
+            <button
+              className={`action-link-btn using ${isOutboundExpanded ? 'expanded' : ''}`}
+              onClick={handleToggleOutboundClick}
+              title={isOutboundExpanded ? `Close dependencies of ${graphNode.name}` : `Open dependencies of ${graphNode.name}`}
+            >
+              <span>Using ({outCount})</span>
+              <span className="link-arrow">{isOutboundExpanded ? '▾' : '▸'}</span>
+            </button>
+          ) : (
+            <span className="action-link-disabled">Using (0)</span>
+          )}
         </div>
       )}
 
-      {/* Footer with Open Code */}
-      {graphNode.filePath && (
-        <div className="project-card-footer">
-          <button
-            className="code-jump-btn"
-            onClick={handleOpenClick}
-            title={`Open ${graphNode.filePath}`}
-          >
-            📄 Code
-          </button>
-        </div>
-      )}
-
-      {/* Outbound Handle (Right) */}
-      {(column === 'left' || column === 'center') && (
-        <Handle
-          type="source"
-          position={Position.Right}
-          className="flow-handle source-handle"
-          isConnectable={false}
-        />
-      )}
+      {/* Source handle on right for outgoing edges */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="flow-handle source-handle"
+        isConnectable={false}
+      />
     </div>
   );
 });

@@ -295,232 +295,222 @@ button:active {
   background-color: var(--bg-primary);
 }
 
-/* Column Headers Overlay */
-.column-headers-overlay {
+/* Project Flow Levels HUD */
+.flow-levels-hud {
   position: absolute;
   top: 10px;
-  left: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  pointer-events: none;
+  left: 16px;
   z-index: 10;
-  padding: 0 20px;
-}
-
-/* Direction Filter Bar */
-.flow-direction-bar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: rgba(18, 18, 22, 0.85);
+  gap: 12px;
+  background: rgba(20, 20, 26, 0.85);
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 2px 4px;
-  pointer-events: auto;
+  padding: 4px 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
 }
 
-.direction-btn {
-  background: transparent;
-  color: #999999;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 4px 10px;
+.hud-title-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 11px;
+}
+
+.hud-title-badge .hud-label {
+  color: #888888;
   font-weight: 600;
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+}
+
+.hud-title-badge .hud-target-name {
+  color: var(--accent-purple);
+  font-weight: 700;
+}
+
+.flow-levels-hud .hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.flow-levels-hud .hud-action-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cccccc;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.direction-btn:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.direction-btn.active {
-  background: var(--btn-bg);
+.flow-levels-hud .hud-action-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
 }
 
-.direction-btn.using.active {
-  background: rgba(52, 211, 153, 0.2);
-  color: var(--accent-emerald);
-  border-color: rgba(52, 211, 153, 0.5);
-}
-
-.direction-btn.used-by.active {
-  background: rgba(56, 189, 248, 0.2);
-  color: var(--accent-cyan);
-  border-color: rgba(56, 189, 248, 0.5);
-}
-
-.columns-titles-row {
-  display: flex;
-  width: 100%;
-  justify-content: space-around;
-  pointer-events: none;
-}
-
-.col-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 12px;
-  background: rgba(20, 20, 20, 0.7);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  pointer-events: auto;
-}
-
-.col-tag {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  color: var(--accent-cyan);
-}
-
-.col-header.col-center .col-tag {
-  color: var(--accent-purple);
-}
-
-.col-header.col-right .col-tag {
-  color: var(--accent-emerald);
-}
-
-.col-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: #cccccc;
-}
-
-/* Project Card Node */
+/* Compact Project Card Node */
 .project-card {
-  width: 260px;
-  background: #252526;
-  border: 1px solid #3c3c3c;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  width: 200px;
+  background: #202024;
+  border: 1px solid #38383e;
+  border-radius: 6px;
+  padding: 7px 10px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
-.project-card.clickable-card {
-  cursor: pointer;
-}
-
-.project-card.clickable-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--accent-cyan);
-  box-shadow: 0 6px 16px rgba(56, 189, 248, 0.25);
+.project-card:hover {
+  border-color: rgba(56, 189, 248, 0.6);
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.2);
 }
 
 .project-card.center-hero {
-  width: 290px;
+  width: 215px;
   border: 2px solid var(--accent-purple);
-  box-shadow: 0 0 20px rgba(192, 132, 252, 0.3);
-  background: linear-gradient(145deg, #2a1b38, #1f1f24);
+  box-shadow: 0 0 16px rgba(192, 132, 252, 0.25);
+  background: linear-gradient(145deg, #281a36, #1b1b22);
 }
 
 .project-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .project-badge {
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
   border: 1px solid;
 }
 
-.column-role {
-  font-size: 10px;
-  color: #888888;
-  text-transform: uppercase;
+.card-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.card-icon-link {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.65;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.card-icon-link:hover {
+  opacity: 1;
+  transform: scale(1.15);
 }
 
 .project-card-title {
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 600;
   color: #ffffff;
-  word-break: break-word;
-  line-height: 1.3;
-}
-
-.project-framework {
-  font-size: 11px;
-  color: #a855f7;
-  margin-top: 4px;
-  font-family: monospace;
-}
-
-/* Navigation Buttons: Used by / Using */
-.project-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.flow-nav-btn {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 4px 6px;
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.flow-nav-btn.used-by-btn {
-  background: rgba(56, 189, 248, 0.1);
+.project-card-title.clickable-title {
+  cursor: pointer;
+}
+
+.project-card-title.clickable-title:hover {
   color: var(--accent-cyan);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  text-decoration: underline;
 }
 
-.flow-nav-btn.used-by-btn:hover {
-  background: var(--accent-cyan);
-  color: #000000;
-  border-color: var(--accent-cyan);
+.project-framework {
+  font-size: 9px;
+  color: #a855f7;
+  margin-top: 2px;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.flow-nav-btn.using-btn {
-  background: rgba(52, 211, 153, 0.1);
-  color: var(--accent-emerald);
-  border: 1px solid rgba(52, 211, 153, 0.3);
-}
-
-.flow-nav-btn.using-btn:hover {
-  background: var(--accent-emerald);
-  color: #000000;
-  border-color: var(--accent-emerald);
-}
-
-.flow-nav-btn.primary {
-  font-weight: 700;
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.1);
-}
-
-.project-card-footer {
-  margin-top: 8px;
+/* Action Links Row (Used by / Using) */
+.card-links-row {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.action-link-btn {
+  background: transparent !important;
+  border: none !important;
+  padding: 1px 3px !important;
+  font-size: 9.5px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  text-decoration: none !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap !important;
+  line-height: 1.2 !important;
+}
+
+.action-link-btn.used-by {
+  color: var(--accent-cyan) !important;
+}
+
+.action-link-btn.used-by:hover {
+  text-decoration: underline !important;
+  color: #ffffff !important;
+}
+
+.action-link-btn.used-by.expanded {
+  color: var(--accent-cyan) !important;
+  font-weight: 700 !important;
+}
+
+.action-link-btn.using {
+  color: var(--accent-emerald) !important;
+}
+
+.action-link-btn.using:hover {
+  text-decoration: underline !important;
+  color: #ffffff !important;
+}
+
+.action-link-btn.using.expanded {
+  color: var(--accent-emerald) !important;
+  font-weight: 700 !important;
+}
+
+.action-link-disabled {
+  font-size: 9px;
+  color: #555555;
+  padding: 1px 3px;
+  user-select: none;
+}
+
+.link-arrow {
+  font-size: 8.5px;
+  opacity: 0.8;
 }
 
 /* React Flow Handles (Passive anchors only, drawing disabled) */

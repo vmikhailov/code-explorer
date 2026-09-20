@@ -392,10 +392,9 @@ export const App: React.FC = () => {
         {viewMode === 'flow' && (
           <ProjectFlowView
             graph={flowGraph}
+            fullGraph={fullGraph}
             onSelectProject={(p) => navigateTo('flow', p)}
             onOpenFile={handleOpenFile}
-            projectInCounts={projectInCounts}
-            projectOutCounts={projectOutCounts}
           />
         )}
 
