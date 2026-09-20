@@ -32,3 +32,8 @@ appsettings.local.json
 dist/
 scratch/
 .codeexplorer/
+
+# --- Node.js & VS Code Extension ---
+node_modules/
+out/
+*.vsix

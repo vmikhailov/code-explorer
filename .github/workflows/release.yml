@@ -63,7 +63,7 @@ jobs:
           VERSION="${TAG_NAME#v}"
           if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then VERSION="1.0.0"; fi
           echo "Publishing version: $VERSION"
-          dotnet publish src/UI/CodeExplorer/CodeExplorer.csproj \
+          dotnet publish cli/src/UI/CodeExplorer/CodeExplorer.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
             --self-contained true \
@@ -124,7 +124,7 @@ jobs:
           VERSION="${TAG_NAME#v}"
           if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then VERSION="1.0.0"; fi
           echo "Packing NuGet tool version: $VERSION"
-          dotnet pack src/UI/CodeExplorer/CodeExplorer.csproj \
+          dotnet pack cli/src/UI/CodeExplorer/CodeExplorer.csproj \
             -c Release \
             -p:Version="$VERSION" \
             -p:PackageVersion="$VERSION" \
