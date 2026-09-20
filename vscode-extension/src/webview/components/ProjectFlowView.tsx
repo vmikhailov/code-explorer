@@ -208,19 +208,71 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       return;
     }
 
-    // Bidirectional expansion maps
+    // ----------------------------------------------------
+    // Phase 1: Progressive Expansion of Visible Nodes
+    // ----------------------------------------------------
     const visibleNodesMap = new Map<string, GraphNode>();
     visibleNodesMap.set(rootNode.id, rootNode);
     if (rootNode.name !== rootNode.id) {
       visibleNodesMap.set(rootNode.name, rootNode);
     }
 
-    const nodeLevelMap = new Map<string, number>();
-    nodeLevelMap.set(rootNode.id, 0);
-    nodeLevelMap.set(rootNode.name, 0);
+    // Iterative expansion for any visible node whose outbound or inbound is toggled on
+    const processedOut = new Set<string>();
+    const processedIn = new Set<string>();
 
+    for (let round = 0; round < 10; round++) {
+      let newlyAdded = false;
+      const currentNodes = Array.from(new Set(visibleNodesMap.values()));
+
+      for (const curr of currentNodes) {
+        // Outbound expansion (curr uses children)
+        const isExpOut = expandedOutbound.has(curr.id) || expandedOutbound.has(curr.name);
+        if (isExpOut && !processedOut.has(curr.id)) {
+          processedOut.add(curr.id);
+          processedOut.add(curr.name);
+          const children = outboundMap.get(curr.id) || outboundMap.get(curr.name) || [];
+          for (const child of children) {
+            if (!visibleNodesMap.has(child.id) && !visibleNodesMap.has(child.name)) {
+              visibleNodesMap.set(child.id, child);
+              if (child.name !== child.id) visibleNodesMap.set(child.name, child);
+              newlyAdded = true;
+            }
+          }
+        }
+
+        // Inbound expansion (parents use curr)
+        const isExpIn = expandedInbound.has(curr.id) || expandedInbound.has(curr.name);
+        if (isExpIn && !processedIn.has(curr.id)) {
+          processedIn.add(curr.id);
+          processedIn.add(curr.name);
+          const parents = inboundMap.get(curr.id) || inboundMap.get(curr.name) || [];
+          for (const parent of parents) {
+            if (!visibleNodesMap.has(parent.id) && !visibleNodesMap.has(parent.name)) {
+              visibleNodesMap.set(parent.id, parent);
+              if (parent.name !== parent.id) visibleNodesMap.set(parent.name, parent);
+              newlyAdded = true;
+            }
+          }
+        }
+      }
+
+      if (!newlyAdded) break;
+    }
+
+    const uniqueVisible = Array.from(new Set(visibleNodesMap.values()));
+    const visibleIdSet = new Set<string>();
+    for (const n of uniqueVisible) {
+      visibleIdSet.add(n.id);
+      visibleIdSet.add(n.name);
+    }
+
+    // ----------------------------------------------------
+    // Phase 2: Collect All Directed Edges between Visible Nodes
+    // ----------------------------------------------------
     const generatedEdges: Edge[] = [];
     const edgeKeySet = new Set<string>();
+    const visibleEdgePairs: Array<{ sourceNode: GraphNode; targetNode: GraphNode }> = [];
 
     const addEdge = (sourceId: string, targetId: string) => {
       const key = `${sourceId}->${targetId}`;
@@ -243,92 +295,122 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       }
     };
 
-    // Iterative expansion for any visible node whose outbound or inbound is toggled on
-    const processedOut = new Set<string>();
-    const processedIn = new Set<string>();
-
-    for (let round = 0; round < 10; round++) {
-      let newlyAdded = false;
-      const currentNodes = Array.from(new Set(visibleNodesMap.values()));
-
-      for (const curr of currentNodes) {
-        const currLevel = nodeLevelMap.get(curr.id) ?? nodeLevelMap.get(curr.name) ?? 0;
-
-        // Outbound expansion (curr uses children -> placed at currLevel + 1)
-        const isExpOut = expandedOutbound.has(curr.id) || expandedOutbound.has(curr.name);
-        if (isExpOut && !processedOut.has(curr.id)) {
-          processedOut.add(curr.id);
-          processedOut.add(curr.name);
-          const targetLevel = currLevel + 1;
-
-          if (targetLevel <= 6) {
-            const children = outboundMap.get(curr.id) || outboundMap.get(curr.name) || [];
-            for (const child of children) {
-              addEdge(curr.id, child.id);
-              if (!visibleNodesMap.has(child.id) && !visibleNodesMap.has(child.name)) {
-                visibleNodesMap.set(child.id, child);
-                if (child.name !== child.id) visibleNodesMap.set(child.name, child);
-                nodeLevelMap.set(child.id, targetLevel);
-                nodeLevelMap.set(child.name, targetLevel);
-                newlyAdded = true;
-              }
-            }
-          }
-        }
-
-        // Inbound expansion (parents use curr -> placed at currLevel - 1)
-        const isExpIn = expandedInbound.has(curr.id) || expandedInbound.has(curr.name);
-        if (isExpIn && !processedIn.has(curr.id)) {
-          processedIn.add(curr.id);
-          processedIn.add(curr.name);
-          const targetLevel = currLevel - 1;
-
-          if (targetLevel >= -6) {
-            const parents = inboundMap.get(curr.id) || inboundMap.get(curr.name) || [];
-            for (const parent of parents) {
-              addEdge(parent.id, curr.id);
-              if (!visibleNodesMap.has(parent.id) && !visibleNodesMap.has(parent.name)) {
-                visibleNodesMap.set(parent.id, parent);
-                if (parent.name !== parent.id) visibleNodesMap.set(parent.name, parent);
-                nodeLevelMap.set(parent.id, targetLevel);
-                nodeLevelMap.set(parent.name, targetLevel);
-                newlyAdded = true;
-              }
-            }
-          }
+    // Any edge between two visible nodes in the solution graph is an active visible edge
+    for (const u of uniqueVisible) {
+      const children = outboundMap.get(u.id) || outboundMap.get(u.name) || [];
+      for (const child of children) {
+        if (visibleIdSet.has(child.id) || visibleIdSet.has(child.name)) {
+          addEdge(u.id, child.id);
+          visibleEdgePairs.push({
+            sourceNode: u,
+            targetNode: child,
+          });
         }
       }
-
-      if (!newlyAdded) break;
     }
 
-    // Connect edges between any visible nodes if source is expanded outbound or target is expanded inbound
-    const uniqueVisible = Array.from(new Set(visibleNodesMap.values()));
-    for (const u of uniqueVisible) {
-      const isExpOut = expandedOutbound.has(u.id) || expandedOutbound.has(u.name);
-      if (isExpOut) {
-        const children = outboundMap.get(u.id) || outboundMap.get(u.name) || [];
-        for (const child of children) {
-          if (visibleNodesMap.has(child.id) || visibleNodesMap.has(child.name)) {
-            addEdge(u.id, child.id);
+    // ----------------------------------------------------
+    // Phase 3: DAG Topological Rank & Longest-Path Layering
+    // Pushes dependencies to the right (level(target) >= level(source) + 1)
+    // so no connections ever exist on the same level!
+    // ----------------------------------------------------
+    const nodeLevelMap = new Map<string, number>();
+    const setNodeLevel = (node: GraphNode, lvl: number) => {
+      nodeLevelMap.set(node.id, lvl);
+      nodeLevelMap.set(node.name, lvl);
+    };
+    const getNodeLevel = (node: GraphNode): number => {
+      return nodeLevelMap.get(node.id) ?? nodeLevelMap.get(node.name) ?? 0;
+    };
+
+    // Root is permanently pinned at Level 0
+    setNodeLevel(rootNode, 0);
+
+    // Initial base levels relative to root
+    for (const n of uniqueVisible) {
+      if (n.id === rootNode.id || n.name === rootNode.name) continue;
+      setNodeLevel(n, 1);
+    }
+
+    // Upstream BFS to mark callers of root as negative
+    const upstreamQueue: GraphNode[] = [rootNode];
+    const visitedUpstream = new Set<string>([rootNode.id, rootNode.name]);
+    while (upstreamQueue.length > 0) {
+      const curr = upstreamQueue.shift()!;
+      const currLvl = getNodeLevel(curr);
+      const parents = inboundMap.get(curr.id) || inboundMap.get(curr.name) || [];
+      for (const p of parents) {
+        if (visibleIdSet.has(p.id) || visibleIdSet.has(p.name)) {
+          if (!visitedUpstream.has(p.id)) {
+            visitedUpstream.add(p.id);
+            visitedUpstream.add(p.name);
+            setNodeLevel(p, currLvl - 1);
+            upstreamQueue.push(p);
           }
         }
       }
-      const isExpIn = expandedInbound.has(u.id) || expandedInbound.has(u.name);
-      if (isExpIn) {
-        const parents = inboundMap.get(u.id) || inboundMap.get(u.name) || [];
-        for (const parent of parents) {
-          if (visibleNodesMap.has(parent.id) || visibleNodesMap.has(parent.name)) {
-            addEdge(parent.id, u.id);
+    }
+
+    // Forward BFS for downstream nodes starting from root (Level 0)
+    const downstreamQueue: GraphNode[] = [rootNode];
+    const visitedDownstream = new Set<string>([rootNode.id, rootNode.name]);
+    while (downstreamQueue.length > 0) {
+      const curr = downstreamQueue.shift()!;
+      const currLvl = getNodeLevel(curr);
+      const children = outboundMap.get(curr.id) || outboundMap.get(curr.name) || [];
+      for (const c of children) {
+        if (visibleIdSet.has(c.id) || visibleIdSet.has(c.name)) {
+          if (!visitedDownstream.has(c.id)) {
+            visitedDownstream.add(c.id);
+            visitedDownstream.add(c.name);
+            setNodeLevel(c, currLvl + 1);
+            downstreamQueue.push(c);
           }
         }
       }
+    }
+
+    // Relaxation passes:
+    // For every edge u -> v: enforce level(v) >= level(u) + 1!
+    // Never allow u and v to be on the same level or backwards.
+    const maxIterations = Math.max(12, uniqueVisible.length);
+    for (let iter = 0; iter < maxIterations; iter++) {
+      let changed = false;
+
+      for (const pair of visibleEdgePairs) {
+        const srcLvl = getNodeLevel(pair.sourceNode);
+        const tgtLvl = getNodeLevel(pair.targetNode);
+
+        // If target is not strictly to the right of source:
+        if (tgtLvl <= srcLvl) {
+          // If source is at or to the right of root (>= 0), push target to the right
+          if (srcLvl >= 0) {
+            const newTgtLvl = Math.min(6, srcLvl + 1);
+            if (newTgtLvl !== tgtLvl) {
+              setNodeLevel(pair.targetNode, newTgtLvl);
+              changed = true;
+            }
+          } else if (tgtLvl <= 0) {
+            // Both are to the left of root (<= 0), push source to the left
+            const newSrcLvl = Math.max(-6, tgtLvl - 1);
+            if (newSrcLvl !== srcLvl && pair.sourceNode.id !== rootNode.id && pair.sourceNode.name !== rootNode.name) {
+              setNodeLevel(pair.sourceNode, newSrcLvl);
+              changed = true;
+            }
+          }
+        }
+      }
+
+      // Root is always pinned at level 0
+      setNodeLevel(rootNode, 0);
+
+      if (!changed) break;
     }
 
     // Group unique nodes by level
     const levelNodesMap = new Map<number, GraphNode[]>();
     for (const node of uniqueVisible) {
-      const lvl = nodeLevelMap.get(node.id) ?? nodeLevelMap.get(node.name) ?? 0;
+      const lvl = getNodeLevel(node);
       const list = levelNodesMap.get(lvl) || [];
       list.push(node);
       levelNodesMap.set(lvl, list);
