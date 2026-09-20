@@ -14,6 +14,10 @@ export interface ToolbarProps {
   onRunCypher: () => void;
   showTests: boolean;
   onToggleShowTests: () => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onGoBack: () => void;
+  onGoForward: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -30,6 +34,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onRunCypher,
   showTests,
   onToggleShowTests,
+  canGoBack,
+  canGoForward,
+  onGoBack,
+  onGoForward,
 }) => {
   return (
     <header className="toolbar">
@@ -40,6 +48,26 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <span className={`status-badge ${connectionStatus}`}>
           {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting...' : 'Offline'}
         </span>
+      </div>
+
+      {/* History Navigation (Back / Forward) */}
+      <div className="history-nav-group">
+        <button
+          className="history-nav-btn"
+          disabled={!canGoBack}
+          onClick={onGoBack}
+          title="Go back (Alt+Left)"
+        >
+          ◀ Back
+        </button>
+        <button
+          className="history-nav-btn forward"
+          disabled={!canGoForward}
+          onClick={onGoForward}
+          title="Go forward (Alt+Right)"
+        >
+          ▶
+        </button>
       </div>
 
       {/* Mode Switcher Tabs */}

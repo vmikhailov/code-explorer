@@ -26,6 +26,11 @@ try {
   vscodeApi = acquireVsCodeApi();
 } catch {}
 
+export interface HistoryItem {
+  viewMode: 'layers' | 'flow' | 'full';
+  selectedProject: string;
+}
+
 export const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<'layers' | 'flow' | 'full'>('layers');
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
@@ -36,6 +41,12 @@ export const App: React.FC = () => {
   const [cypherQuery, setCypherQuery] = useState<string>('');
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
   const [showTests, setShowTests] = useState<boolean>(true);
+
+  // Navigation History Stack
+  const [history, setHistory] = useState<HistoryItem[]>([
+    { viewMode: 'layers', selectedProject: '' },
+  ]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
 
   const wsRef = useRef<WebSocket | null>(null);
   const workspaceRootRef = useRef<string>('');
@@ -68,18 +79,86 @@ export const App: React.FC = () => {
     sendWsMessage(req);
   }, [sendWsMessage]);
 
-  const handleSelectProject = useCallback((project: string) => {
-    if (!project) return;
-    setSelectedProject(project);
-    requestDependencies(project);
-  }, [requestDependencies]);
+  const navigateTo = useCallback(
+    (mode: 'layers' | 'flow' | 'full', project?: string) => {
+      const nextProject = (project !== undefined && project !== '') ? project : selectedProject;
 
-  const handleFocusInFlow = useCallback((project: string) => {
-    if (!project) return;
-    setSelectedProject(project);
-    requestDependencies(project);
-    setViewMode('flow');
-  }, [requestDependencies]);
+      // Avoid redundant history entry if both mode and project match current state
+      if (viewMode === mode && nextProject === selectedProject) {
+        return;
+      }
+
+      setViewMode(mode);
+      if (nextProject !== selectedProject) {
+        setSelectedProject(nextProject);
+        if (nextProject) {
+          requestDependencies(nextProject);
+        }
+      } else if (mode === 'flow' && nextProject) {
+        requestDependencies(nextProject);
+      }
+
+      setHistory((prev) => {
+        const currentSlice = prev.slice(0, historyIndex + 1);
+        const lastItem = currentSlice[currentSlice.length - 1];
+        if (lastItem && lastItem.viewMode === mode && lastItem.selectedProject === nextProject) {
+          return currentSlice;
+        }
+        const updated = [...currentSlice, { viewMode: mode, selectedProject: nextProject }];
+        setHistoryIndex(updated.length - 1);
+        return updated;
+      });
+    },
+    [viewMode, selectedProject, historyIndex, requestDependencies]
+  );
+
+  const handleGoBack = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const targetIndex = historyIndex - 1;
+    const target = history[targetIndex];
+    if (!target) return;
+
+    setHistoryIndex(targetIndex);
+    setViewMode(target.viewMode);
+    if (target.selectedProject) {
+      setSelectedProject(target.selectedProject);
+      if (target.viewMode === 'flow') {
+        requestDependencies(target.selectedProject);
+      }
+    }
+  }, [historyIndex, history, requestDependencies]);
+
+  const handleGoForward = useCallback(() => {
+    if (historyIndex >= history.length - 1) return;
+    const targetIndex = historyIndex + 1;
+    const target = history[targetIndex];
+    if (!target) return;
+
+    setHistoryIndex(targetIndex);
+    setViewMode(target.viewMode);
+    if (target.selectedProject) {
+      setSelectedProject(target.selectedProject);
+      if (target.viewMode === 'flow') {
+        requestDependencies(target.selectedProject);
+      }
+    }
+  }, [historyIndex, history, requestDependencies]);
+
+  // Keyboard shortcut listener for Back / Forward (Alt+Left / Alt+Right)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleGoBack();
+      } else if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleGoForward();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleGoBack, handleGoForward]);
 
   const handleOpenFile = useCallback((filePath: string, lineStart?: number) => {
     if (vscodeApi) {
@@ -152,7 +231,14 @@ export const App: React.FC = () => {
                 setFlowGraph(resp.graph);
                 const metadata = resp.graph.metadata;
                 if (metadata?.selectedProject) {
-                  setSelectedProject(metadata.selectedProject);
+                  const sp = metadata.selectedProject;
+                  setSelectedProject(sp);
+                  setHistory((prev) => {
+                    if (prev.length === 1 && !prev[0].selectedProject) {
+                      return [{ ...prev[0], selectedProject: sp }];
+                    }
+                    return prev;
+                  });
                 }
                 if (metadata?.allProjects) {
                   try {
@@ -170,7 +256,16 @@ export const App: React.FC = () => {
                     .sort();
                   if (projs.length > 0) {
                     setAllProjects((prev) => (prev.length === 0 ? projs : prev));
-                    setSelectedProject((prev) => (prev ? prev : projs[0]));
+                    setSelectedProject((prev) => {
+                      const chosen = prev ? prev : projs[0];
+                      setHistory((prevHist) => {
+                        if (prevHist.length === 1 && !prevHist[0].selectedProject) {
+                          return [{ ...prevHist[0], selectedProject: chosen }];
+                        }
+                        return prevHist;
+                      });
+                      return chosen;
+                    });
                   }
                 }
               }
@@ -227,10 +322,10 @@ export const App: React.FC = () => {
     <div id="app">
       <Toolbar
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={(m) => navigateTo(m)}
         allProjects={allProjects}
         selectedProject={selectedProject}
-        onSelectProject={handleSelectProject}
+        onSelectProject={(p) => navigateTo('flow', p)}
         connectionStatus={connectionStatus}
         onFitView={() => {
           if (viewMode === 'flow') {
@@ -251,6 +346,10 @@ export const App: React.FC = () => {
         onRunCypher={handleRunCypher}
         showTests={showTests}
         onToggleShowTests={() => setShowTests((prev) => !prev)}
+        canGoBack={historyIndex > 0}
+        canGoForward={historyIndex < history.length - 1}
+        onGoBack={handleGoBack}
+        onGoForward={handleGoForward}
       />
 
       <main className="main-viewport">
@@ -258,7 +357,7 @@ export const App: React.FC = () => {
           <LayeredArchitectureView
             graph={fullGraph}
             onOpenFile={handleOpenFile}
-            onFocusInFlow={handleFocusInFlow}
+            onFocusInFlow={(p) => navigateTo('flow', p)}
             showTests={showTests}
           />
         )}
@@ -266,7 +365,7 @@ export const App: React.FC = () => {
         {viewMode === 'flow' && (
           <ProjectFlowView
             graph={flowGraph}
-            onSelectProject={handleSelectProject}
+            onSelectProject={(p) => navigateTo('flow', p)}
             onOpenFile={handleOpenFile}
           />
         )}

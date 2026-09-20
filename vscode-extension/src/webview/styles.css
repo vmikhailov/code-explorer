@@ -99,6 +99,53 @@ html, body, #root {
   border: 1px solid rgba(251, 113, 133, 0.4);
 }
 
+/* History Navigation (Back / Forward) */
+.history-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
+.history-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: transparent;
+  color: var(--fg-primary);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.history-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.history-nav-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.history-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.history-nav-btn.forward {
+  padding: 4px 6px;
+}
+
 /* Mode Switcher Tabs */
 .view-mode-tabs {
   display: flex;
