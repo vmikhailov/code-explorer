@@ -155,14 +155,18 @@ export class ProcessManager implements vscode.Disposable {
       }
     }
 
-    // Check monorepo standard build locations
+    // Check monorepo standard build locations (relative to workspace or extension directory)
     const candidatePaths = [
       path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.exe'),
       path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.dll'),
+      path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.exe'),
+      path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.dll'),
       path.resolve(workspaceRoot, '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.exe'),
       path.resolve(workspaceRoot, '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.dll'),
-      path.resolve(workspaceRoot, '..', 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.exe'),
-      path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.exe'),
+      path.resolve(__dirname, '..', '..', 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.exe'),
+      path.resolve(__dirname, '..', '..', 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.dll'),
+      path.resolve(__dirname, '..', '..', 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.exe'),
+      path.resolve(__dirname, '..', '..', 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.dll'),
     ];
 
     for (const candidate of candidatePaths) {
