@@ -126,35 +126,45 @@ export const ProjectCardNode = memo((props: any) => {
       {framework && <div className="project-framework">{framework}</div>}
 
       {/* Action Links Row (Used by / Using) */}
-      {!isDatabase && (
-        <div className="card-links-row">
-          {inCount > 0 ? (
-            <button
-              className={`action-link-btn used-by ${isInboundExpanded ? 'expanded' : ''}`}
-              onClick={handleToggleInboundClick}
-              title={isInboundExpanded ? `Close callers of ${graphNode.name}` : `Open callers of ${graphNode.name}`}
-            >
-              <span className="link-arrow">{isInboundExpanded ? '▾' : '◂'}</span>
-              <span>Used by ({inCount})</span>
-            </button>
-          ) : (
-            <span className="action-link-disabled">Used by (0)</span>
-          )}
+      <div className="card-links-row">
+        {inCount > 0 ? (
+          <button
+            className={`action-link-btn used-by ${isInboundExpanded ? 'expanded' : ''}`}
+            onClick={handleToggleInboundClick}
+            title={isInboundExpanded ? `Скрыть входящие вызовы ${graphNode.name}` : `Показать входящие вызовы ${graphNode.name}`}
+          >
+            <span className="link-arrow">{isInboundExpanded ? '▾' : '◂'}</span>
+            <span>Used by ({inCount})</span>
+          </button>
+        ) : (
+          <button
+            className="action-link-btn disabled"
+            disabled
+            title={`У ${graphNode.name} нет входящих вызовов`}
+          >
+            нет callers
+          </button>
+        )}
 
-          {outCount > 0 ? (
-            <button
-              className={`action-link-btn using ${isOutboundExpanded ? 'expanded' : ''}`}
-              onClick={handleToggleOutboundClick}
-              title={isOutboundExpanded ? `Close dependencies of ${graphNode.name}` : `Open dependencies of ${graphNode.name}`}
-            >
-              <span>Using ({outCount})</span>
-              <span className="link-arrow">{isOutboundExpanded ? '▾' : '▸'}</span>
-            </button>
-          ) : (
-            <span className="action-link-disabled">Using (0)</span>
-          )}
-        </div>
-      )}
+        {outCount > 0 && !isDatabase ? (
+          <button
+            className={`action-link-btn using ${isOutboundExpanded ? 'expanded' : ''}`}
+            onClick={handleToggleOutboundClick}
+            title={isOutboundExpanded ? `Скрыть зависимости ${graphNode.name}` : `Показать зависимости ${graphNode.name}`}
+          >
+            <span>Using ({outCount})</span>
+            <span className="link-arrow">{isOutboundExpanded ? '▾' : '▸'}</span>
+          </button>
+        ) : (
+          <button
+            className="action-link-btn disabled"
+            disabled
+            title={`У ${graphNode.name} нет исходящих зависимостей`}
+          >
+            нет юзингов
+          </button>
+        )}
+      </div>
 
       {/* Source handle on right for outgoing edges */}
       <Handle

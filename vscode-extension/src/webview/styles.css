@@ -501,6 +501,20 @@ button:active {
   font-weight: 700 !important;
 }
 
+.action-link-btn.disabled {
+  color: #666666 !important;
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  text-decoration: none !important;
+  font-style: italic !important;
+  pointer-events: auto !important;
+}
+
+.action-link-btn.disabled:hover {
+  text-decoration: none !important;
+  color: #666666 !important;
+}
+
 .action-link-disabled {
   font-size: 9px;
   color: #555555;
