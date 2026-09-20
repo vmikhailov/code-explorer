@@ -1,18 +1,18 @@
-# Варианты реализации VS Code расширения для CodeExplorer
+# CodeExplorer VS Code Extension — Implementation Variants & Architecture Tradeoffs
 
-В данном документе зафиксированы и детально сопоставлены различные варианты архитектуры, визуального стека, способов взаимодействия с бэкендом и стратегий дистрибуции для расширения **CodeExplorer** в VS Code / Antigravity IDE.
+This document details and compares the architectural options, graph visualization rendering engines, backend communication channels, and distribution strategies for the **CodeExplorer** VS Code / Antigravity extension.
 
 ---
 
-## 1. Способы взаимодействия расширения с движком CodeExplorer
+## 1. Extension $\leftrightarrow$ CodeExplorer Engine Communication
 
-Как расширение получает данные о графе, структуре и связях проекта из `.codeexplorer/graph.db`:
+How the extension queries graph data, architecture topologies, and relationships from `.codeexplorer/graph.db`:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        VS Code Extension Host                          │
 └──────────┬───────────────────┬───────────────────┬─────────────────────┘
-           │ Вариант 1         │ Вариант 2         │ Вариант 3
+           │ Option 1          │ Option 2          │ Option 3
            │ CLI Subprocess    │ MCP Daemon (RPC)  │ Direct SQLite WASM
            ▼                   ▼                   ▼
     ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
@@ -28,80 +28,80 @@
                 └──────────────────────────────┘
 ```
 
-### Вариант 1.1: CLI Subprocess (`ce query / ce export`)
-Расширение при необходимости вызывает бинарник `ce` как дочерний процесс:
+### Option 1.1: CLI Subprocess (`ce query / ce export`)
+The extension spawns the `ce` executable on demand as a child process:
 - `ce query "MATCH ... RETURN ..." --json`
 - `ce export --format json --type architecture`
 
-| Плюсы | Минусы |
+| Pros | Cons |
 | :--- | :--- |
-| **Простота реализации**: расширение полностью stateless, не требует поддержания сессий и перезапусков. | **Задержка на запуск процесса**: 100–300 мс на вызов `dotnet / ce.exe`, что не подходит для real-time отклика при каждом перемещении курсора. |
-| **Единый источник правды**: используется существующий Cypher-компилятор и бизнес-логика. | Постоянная сериализация/десериализация JSON через stdout. |
-| **Изоляция памяти**: расширение не держит память, процесс завершается сразу после ответа. | Невозможно реализовать server-push (уведомления об окончании инкрементального скана). |
+| **Simple implementation**: The extension is completely stateless, requiring no session management or crash supervision. | **Process spawn latency**: 100–300 ms per `dotnet / ce.exe` invocation; too slow for real-time cursor tracking. |
+| **Single source of truth**: Directly reuses the Cypher query compiler and domain logic. | Constant JSON serialization/deserialization overhead over stdout. |
+| **Memory isolation**: Zero idle memory overhead; process terminates immediately after returning results. | No server-push capability (cannot notify the extension when background incremental scanning completes). |
 
 ---
 
-### Вариант 1.2: Долгоживущий процесс (MCP Daemon по stdio / JSON-RPC) — *Рекомендуемый*
-Расширение при открытии воркспейса запускает `ce mcp` в фоновом режиме и общается с ним по stdio через стандартный протокол JSON-RPC / MCP.
+### Option 1.2: Persistent MCP Daemon (stdio / JSON-RPC) — *(Recommended)*
+On workspace activation, the extension launches `ce mcp` in the background and communicates over stdio using standard JSON-RPC / MCP protocols.
 
-| Плюсы | Минусы |
+| Pros | Cons |
 | :--- | :--- |
-| **Минимальная задержка (<10 мс)**: процесс прогрет, JIT отработал, пул соединений SQLite открыт. | Нужно управлять жизненным циклом (запуск, graceful shutdown, рестарт при краше). |
-| **Готовые типизированные методы**: `get_architecture_map`, `get_call_chain`, `find_symbol`, `analyze_code_impact`. | Фоновый процесс потребляет фиксированный объем RAM (~60–100 МБ). |
-| **Двусторонняя связь (Server Push)**: движок может слать уведомления об обновлении графа после переиндексации файлов. | |
-| **Нативная совместимость**: протокол MCP уже поддерживается и оттестирован в проекте. | |
+| **Sub-10ms response time**: Process is pre-warmed, JIT is compiled, and SQLite connection pool is active. | Requires lifecycle supervision (startup, graceful shutdown, restart on crash). |
+| **Ready-to-use typed methods**: `get_architecture_map`, `get_call_chain`, `find_symbol`, `analyze_code_impact`. | Consumes steady background RAM (~60–100 MB). |
+| **Bi-directional communication (Server Push)**: The engine can push notifications when the graph is updated after file edits. | Slightly more complex initial setup. |
+| **Native compatibility**: The MCP protocol is already built, tested, and maintained in the core repository. | |
 
 ---
 
-### Вариант 1.3: Прямое чтение SQLite через WASM (In-Process, без `ce.exe`)
-Расширение напрямую открывает файл `.codeexplorer/graph.db` в read-only режиме, используя `@sqlite.org/sqlite-wasm` или `sql.js` внутри Node.js процесса расширения.
+### Option 1.3: In-Process SQLite via WASM (Zero External Process)
+The extension opens `.codeexplorer/graph.db` directly in read-only mode using `@sqlite.org/sqlite-wasm` or `sql.js` inside the Node.js extension host.
 
-| Плюсы | Минусы |
+| Pros | Cons |
 | :--- | :--- |
-| **Мгновенный доступ (<2 мс)**: прямое чтение из файла без межпроцессного взаимодействия. | **Дублирование логики**: в Node.js нет компилятора Cypher (`CodeExplorer.Cypher`). Придется писать сырые SQL-запросы к таблицам `nodes` и `edges`. |
-| **Работает в веб-версии VS Code** (vscode.dev, github.dev), если база смонтирована. | При изменении схемы БД в C# придется синхронно менять SQL-запросы в TypeScript. |
-| Не требует наличия бинарника `ce` на целевой машине для чтения уже построенного графа. | Не решает задачу запуска индексации (`ce scan`), для скана всё равно нужен `ce`. |
+| **Ultra-fast read access (<2ms)**: Direct in-memory reads without IPC. | **Logic duplication**: The Cypher compiler (`CodeExplorer.Cypher`) does not exist in JS; queries must be written as raw SQL against `nodes` and `edges`. |
+| **Web-ready**: Operates in browser-based VS Code environments (vscode.dev, github.dev) if the DB file is mounted. | Schema coupling: Any changes to the C# SQLite schema require synchronized updates to TypeScript SQL queries. |
+| Does not require the `ce` binary for read-only visualization of an existing database. | Cannot perform workspace indexing (`ce scan`), which still requires the core engine. |
 
 ---
 
-### Вариант 1.4: Гибридный подход (Рекомендуемая эволюция)
-- **Чтение / Навигация**: Долгоживущий MCP Daemon (`ce mcp`) для быстрых запросов и Cypher.
-- **Индексация / Тяжелые задачи**: Вызов `ce scan <path>` через CLI-задачу или фоновый worker с отображением прогресс-бара в статус-баре VS Code.
-- **Fallback**: Если `ce` не найден локально, переход в режим Direct SQLite (если база уже есть) или предложение установить CLI.
+### Option 1.4: Hybrid Approach *(Recommended Evolution)*
+- **Querying & Navigation**: Persistent MCP Daemon (`ce mcp`) for fast Cypher queries and graph exploration.
+- **Indexing & Heavy Tasks**: Trigger `ce scan <path>` as a background task with status-bar progress indicators.
+- **Fallback**: If `ce` is not installed, prompt the user with an installation action or offer read-only SQLite inspection if a database is present.
 
 ---
 
-## 2. Стек рендеринга графа (Webview Frontend)
+## 2. Graph Visualization & Rendering Engine (Webview Frontend)
 
-Сравнение библиотек для визуализации графа внутри VS Code Webview:
+Comparison of graph libraries evaluated for the VS Code Webview:
 
-| Критерий | **Cytoscape.js** | **React Flow (@xyflow)** | **Sigma.js / Graphology** | **Mermaid.js (SVG)** |
+| Criterion | **Cytoscape.js** | **React Flow (@xyflow)** | **Sigma.js / Graphology** | **Mermaid.js (SVG)** |
 | :--- | :--- | :--- | :--- | :--- |
-| **Технология** | HTML5 Canvas | DOM + React Components | WebGL / Canvas | SVG DOM |
-| **Масштабируемость** | До 5 000 – 10 000 узлов | До 500 – 1 000 узлов | 100 000+ узлов | До 100 узлов (дальше тормозит) |
-| **Иерархические структуры** | **Отлично** (`compound nodes`, группировка проект $\to$ файл $\to$ класс) | Ограничено (нужны кастомные под-ноды) | Плохо (только плоские графы) | Базовые `subgraph` |
-| **Алгоритмы укладки** | **Богатые**: Dagre, fCoSE, Elk, Concentric, Cola | Базовые (требует внешнего dagre/elk) | ForceAtlas2, плоские физические | Фиксированные Mermaid-лейауты |
-| **Кастомизация узлов** | Стилизация через CSS/Canvas selectors | **Максимальная** (произвольный HTML/JSX, кнопки, иконки, вкладки) | Ограниченная (шейдеры/канвас) | Минимальная (только базовые CSS) |
-| **Сложность разработки** | Средняя (чистый JS/TS, работает без React) | Низкая (если проект на React) | Высокая | Очень низкая (рендерит готовый текст) |
-| **Размер бандла** | ~300 КБ | ~450 КБ (+ React) | ~250 КБ | ~1.5 МБ |
+| **Rendering** | HTML5 Canvas | DOM + React Components | WebGL / Canvas | SVG DOM |
+| **Scalability** | Up to 5,000 – 10,000 nodes | Up to 500 – 1,000 nodes | 100,000+ nodes | Up to 100 nodes (DOM bottlenecks) |
+| **Hierarchical Nesting** | **Native** (`compound nodes`: Project $\to$ File $\to$ Class) | Limited (requires custom sub-nodes) | Weak (flat graphs only) | Basic `subgraph` blocks |
+| **Layout Algorithms** | **Extensive**: Dagre, fCoSE, Elk, Concentric, Cola | Basic (requires external Dagre/Elk) | ForceAtlas2, physics layouts | Fixed sequential Mermaid layouts |
+| **Node Customization** | Canvas selectors & styles | **Maximum** (arbitrary HTML/JSX, buttons, tabs) | Shader/Canvas based | Minimal (basic CSS classes) |
+| **Framework Agnostic** | Yes (plain JS/TS, works with or without React) | No (React-coupled, Svelte variant exists) | Yes | Yes |
+| **Bundle Size** | ~300 KB | ~450 KB (+ React runtime) | ~250 KB | ~1.5 MB |
 
-### Выводы по фронтенду:
-1. **Для Macro Architecture Map & Call Trees**: **Cytoscape.js** с плагином `cytoscape-dagre` или `cytoscape-fcose` — идеальный выбор благодаря поддержке составных узлов (`compound nodes`) и высокой производительности на Canvas.
-2. **Для интерактивных карточек узлов**: React Flow хорош для детальных инспекторов (где внутри ноды нужно отобразить список методов с иконками и кнопками перехода), но проигрывает Cytoscape на больших графах решений (100+ проектов).
-3. **Mermaid.js**: Подходит только для быстрого статического превью (или экспорта в Markdown), но не для полноценного интерактивного эксплорера с зумом, перемещением и кликом по сущностям.
+### Frontend Takeaways:
+1. **Macro Architecture Maps & Call Trees**: **Cytoscape.js** with `cytoscape-dagre` and `cytoscape-fcose` is the optimal choice. It natively handles compound nested nodes (e.g. classes inside projects) and renders thousands of elements smoothly at 60 FPS on HTML5 Canvas.
+2. **Detailed Node Inspectors**: React Flow excels at rich interactive node cards (e.g. lists of methods with clickable badges and ports), but suffers performance degradation on large solution graphs (100+ projects).
+3. **Mermaid.js**: Suitable only for static Markdown exports, not for a fluid interactive explorer with smooth zooming, panning, and entity selection.
 
 ---
 
-## 3. Варианты интеграции в интерфейс VS Code (UX)
+## 3. VS Code User Experience & Layout Modes
 
-Где и как пользователь видит граф:
+Where and how the graph is presented within the editor:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                              VS Code UI                                │
 ├─────────┬──────────────────────────────────┬───────────────────────────┤
 │ Sidebar │ Editor Area (Active File)        │ Secondary Editor Column   │
-│ (View 1)│                                  │ (View 2 - Full Canvas)    │
+│ (Mode 2)│                                  │ (Mode 1 - Full Canvas)    │
 │ ┌─────┐ │ public class OrderService {      │ ┌───────────────────────┐ │
 │ │Tree/│ │   [CodeLens: 3 Callers | Graph]  │ │   [Cytoscape Canvas]  │ │
 │ │Mini │ │   public void ProcessOrder() {   │ │                       │ │
@@ -111,59 +111,59 @@
 └─────────┴──────────────────────────────────┴───────────────────────────┘
 ```
 
-### Вариант 3.1: Dedicated Editor Tab (Основной холст)
-- Открывается по команде `CodeExplorer: Open Architecture Map` или клику в статус-баре.
-- Занимает соседнюю колонку редактора (`ViewColumn.Beside`).
-- Полноразмерный холст для исследования графа, поиска, зума и применения Cypher-фильтров.
+### Mode 3.1: Dedicated Editor Tab (Full Canvas)
+- Opened via command `CodeExplorer: Open Architecture Map` or status-bar shortcut.
+- Occupies the beside editor column (`ViewColumn.Beside`).
+- Provides a full-screen canvas for panning, zooming, filtering node kinds, and running custom Cypher queries.
 
-### Вариант 3.2: Activity Bar Webview View (Сайдбар)
-- Постоянно видимая панель в левой или правой боковой панели VS Code (`WebviewViewProvider`).
-- Режим **"Context Ego-Graph"**: показывает микро-граф (на 1–2 шага) вокруг того символа или файла, где сейчас стоит курсор в коде.
+### Mode 3.2: Activity Bar Webview View (Sidebar Ego-Graph)
+- Resides persistently in the secondary sidebar or activity bar (`WebviewViewProvider`).
+- Automatically updates in real time to show an **"Ego-Graph"** (1–2 hops of inbound callers and outbound dependencies) centered on the symbol under the active editor cursor.
 
-### Вариант 3.3: CodeLens & Hover Integration
-- Над каждым методом или классом отображается CodeLens:  
+### Mode 3.3: CodeLens & Hover Integration
+- Displays actionable CodeLens metrics above methods and classes:  
   `👁 4 callers | 2 tables | Impact Graph`
-- Клик открывает панель графа, сфокусированную именно на этом методе.
+- Clicking focuses the graph canvas directly on that target symbol.
 
 ---
 
-## 4. Стратегии дистрибуции и упаковки бинарников
+## 4. Binary Distribution & Packaging Strategies
 
-Как доставлять движок `ce` пользователю расширения:
+How the `ce` engine is delivered to extension users:
 
-### Вариант 4.1: "All-Inclusive" (Платформозависимые `.vsix` пакеты) — *Рекомендуемый*
-- Используется механизм VS Code Marketplace: `vsce package --target <platform>`.
-- Собираются 4–5 независимых пакетов:
-  - `code-explorer-win32-x64.vsix` (внутри лежит self-contained `ce.exe`)
-  - `code-explorer-linux-x64.vsix` (внутри `ce`)
+### Strategy 4.1: "Batteries-Included" (Platform-Specific `.vsix` Packages) — *(Recommended)*
+- Uses VS Code Marketplace targeting: `vsce package --target <platform>`.
+- Generates platform-specific packages bundling self-contained `ce` binaries:
+  - `code-explorer-win32-x64.vsix`
+  - `code-explorer-linux-x64.vsix`
   - `code-explorer-linux-arm64.vsix`
   - `code-explorer-darwin-arm64.vsix` (Apple Silicon)
   - `code-explorer-darwin-x64.vsix` (Intel Mac)
-- **Плюсы**: Пользователь просто нажимает "Install" в маркете, и всё работает из коробки без предварительной установки .NET SDK/Runtime.
-- **Минусы**: Размер каждого `.vsix` составляет ~35–45 МБ из-за скомпилированного .NET бинарника.
+- **Pros**: Frictionless out-of-the-box experience. Users click "Install" and it immediately works without requiring .NET installed on their system.
+- **Cons**: Package size is ~35–45 MB per platform due to the self-contained native binary.
 
-### Вариант 4.2: "Thin Client" (Требует установленный .NET Tool)
-- Расширение весит <1 МБ и содержит только TypeScript-код.
-- При запуске проверяет наличие `ce` в `$PATH` или в настройке `codeExplorer.executablePath`.
-- Если не найден — показывает уведомление с кнопкой:  
+### Strategy 4.2: "Thin Client" (Prerequisite .NET Tool)
+- The extension bundle is tiny (<1 MB), containing only TypeScript code.
+- At runtime, it searches for `ce` in `$PATH` or the `codeExplorer.executablePath` setting.
+- If missing, it displays a notification:  
   `"CodeExplorer CLI not found. Run 'dotnet tool install -g CodeExplorer.Cli'"`
-- **Плюсы**: Крошечный размер расширения, простая публикация одного универсального `.vsix`.
-- **Минусы**: Барьер для пользователей, у которых нет глобального .NET 10 Tool.
+- **Pros**: Minimal bundle size; simple single-package publishing.
+- **Cons**: Requires the user to have .NET 10 SDK/Runtime installed globally.
 
-### Вариант 4.3: On-Demand Auto-Download
-- Расширение распространяется тонким клиентом.
-- При первом запуске определяет OS/Arch и скачивает подходящий архив `ce-<rid>.tar.gz` / `zip` из официальных GitHub Releases (`https://github.com/vmikhailov/code-explorer/releases`).
-- **Плюсы**: Маленький маркетплейс-пакет, автоматическая установка для пользователя без необходимости иметь .NET SDK.
-- **Минусы**: Требует доступа в интернет при первом старте (проблемы в корпоративных сетях/прокси).
+### Strategy 4.3: On-Demand Auto-Download
+- Extension is distributed as a thin package.
+- On first activation, it detects the local OS/architecture and downloads the matching release archive from GitHub Releases (`https://github.com/vmikhailov/code-explorer/releases`).
+- **Pros**: Small marketplace download; automatic installation without pre-installed .NET.
+- **Cons**: Requires outbound internet access on first launch (can fail in restricted corporate environments).
 
 ---
 
-## 5. Итоговая матрица решений и план MVP
+## 5. Decision Matrix & Recommended MVP Roadmap
 
-| Область | Выбор для MVP (Этап 1) | Целевая архитектура (Этап 2+) |
+| Dimension | MVP (Phase 1) | Target Architecture (Phase 2+) |
 | :--- | :--- | :--- |
-| **Связь с движком** | **MCP Daemon по stdio** (`ce mcp`) с fallback на CLI | MCP Daemon + фоновый file-watcher для инкрементальных патчей |
-| **Рендеринг** | **Cytoscape.js** + `cytoscape-dagre` (быстрый старт, высокая производительность) | Cytoscape.js для графа + React/Svelte оверлей для панелей управления и инспектора свойств |
-| **Размещение UI** | Панель в соседней вкладке редактора (`ViewColumn.Beside`) | Вкладка редактора + компактный Ego-Graph в сайдбаре + CodeLens |
-| **Дистрибуция** | Thin Client с поиском в `PATH` / автопоиском в папке сборки монорепо | Платформенные `.vsix` с предсобранными бинарниками через GitHub Actions |
-| **Навигация** | Двусторонний Jump-to-Code (клик по узлу открывает строку в коде) | Подсветка Blast Radius (красный/зеленый) и Cypher Console |
+| **Communication Channel** | **Persistent MCP Daemon (`ce mcp` over stdio)** with CLI fallback | MCP Daemon with background file-watcher for live incremental patching |
+| **Graph Rendering** | **Cytoscape.js** + `cytoscape-dagre` (fast start, high performance) | Cytoscape.js for graph canvas + Svelte/React HUD for controls & node inspectors |
+| **UI Placement** | Dedicated Editor Tab (`ViewColumn.Beside`) | Editor Tab + persistent Sidebar Ego-Graph + inline CodeLens |
+| **Binary Resolution** | PATH lookup + monorepo local build auto-detection | Platform-specific `.vsix` releases bundled via GitHub Actions |
+| **Interactivity** | Bi-directional Jump-to-Code (clicking node opens code line in editor) | Visual Blast Radius highlighting (amber/red impact paths) and Cypher playground |
