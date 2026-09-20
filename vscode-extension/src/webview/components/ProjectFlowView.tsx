@@ -172,13 +172,13 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           source: sourceId,
           target: targetId,
           type: 'smoothstep',
-          animated: true,
-          style: { stroke: '#38bdf8', strokeWidth: 2 },
+          animated: false,
+          style: { stroke: '#64748b', strokeWidth: 1.2 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: '#38bdf8',
-            width: 12,
-            height: 12,
+            color: '#64748b',
+            width: 9,
+            height: 9,
           },
         });
       }

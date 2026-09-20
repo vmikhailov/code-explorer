@@ -529,10 +529,10 @@ button:active {
 
 /* React Flow Handles (Passive anchors only, drawing disabled) */
 .flow-handle {
-  width: 6px !important;
-  height: 6px !important;
-  background: var(--accent-cyan) !important;
-  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  width: 4px !important;
+  height: 4px !important;
+  background: #64748b !important;
+  border: none !important;
   pointer-events: none !important;
   cursor: default !important;
 }
