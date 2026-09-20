@@ -131,7 +131,7 @@ export const ProjectCardNode = memo((props: any) => {
           <button
             className={`action-link-btn used-by ${isInboundExpanded ? 'expanded' : ''}`}
             onClick={handleToggleInboundClick}
-            title={isInboundExpanded ? `Скрыть входящие вызовы ${graphNode.name}` : `Показать входящие вызовы ${graphNode.name}`}
+            title={isInboundExpanded ? `Collapse incoming callers of ${graphNode.name}` : `Expand incoming callers of ${graphNode.name}`}
           >
             <span className="link-arrow">{isInboundExpanded ? '▾' : '◂'}</span>
             <span>Used by ({inCount})</span>
@@ -140,9 +140,9 @@ export const ProjectCardNode = memo((props: any) => {
           <button
             className="action-link-btn disabled"
             disabled
-            title={`У ${graphNode.name} нет входящих вызовов`}
+            title={`No incoming callers for ${graphNode.name}`}
           >
-            нет callers
+            No callers
           </button>
         )}
 
@@ -150,7 +150,7 @@ export const ProjectCardNode = memo((props: any) => {
           <button
             className={`action-link-btn using ${isOutboundExpanded ? 'expanded' : ''}`}
             onClick={handleToggleOutboundClick}
-            title={isOutboundExpanded ? `Скрыть зависимости ${graphNode.name}` : `Показать зависимости ${graphNode.name}`}
+            title={isOutboundExpanded ? `Collapse dependencies of ${graphNode.name}` : `Expand dependencies of ${graphNode.name}`}
           >
             <span>Using ({outCount})</span>
             <span className="link-arrow">{isOutboundExpanded ? '▾' : '▸'}</span>
@@ -159,9 +159,9 @@ export const ProjectCardNode = memo((props: any) => {
           <button
             className="action-link-btn disabled"
             disabled
-            title={`У ${graphNode.name} нет исходящих зависимостей`}
+            title={`No dependencies for ${graphNode.name}`}
           >
-            нет юзингов
+            No dependencies
           </button>
         )}
       </div>
