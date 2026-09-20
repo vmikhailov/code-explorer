@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   WebSocketMessage,
   HandshakeRequest,
@@ -42,6 +42,30 @@ export const App: React.FC = () => {
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
   const [showTests, setShowTests] = useState<boolean>(true);
   const [groupLayers, setGroupLayers] = useState<boolean>(true);
+
+  // Global dependency counts derived from full architecture graph
+  const { projectInCounts, projectOutCounts } = useMemo(() => {
+    const inMap: Record<string, number> = {};
+    const outMap: Record<string, number> = {};
+
+    const idToName: Record<string, string> = {};
+    for (const n of fullGraph?.nodes || []) {
+      idToName[n.id] = n.name;
+    }
+
+    for (const edge of fullGraph?.edges || []) {
+      const srcName = idToName[edge.source] || edge.source;
+      const tgtName = idToName[edge.target] || edge.target;
+
+      outMap[edge.source] = (outMap[edge.source] || 0) + 1;
+      outMap[srcName] = (outMap[srcName] || 0) + 1;
+
+      inMap[edge.target] = (inMap[edge.target] || 0) + 1;
+      inMap[tgtName] = (inMap[tgtName] || 0) + 1;
+    }
+
+    return { projectInCounts: inMap, projectOutCounts: outMap };
+  }, [fullGraph]);
 
   // Navigation History Stack
   const [history, setHistory] = useState<HistoryItem[]>([
@@ -370,6 +394,8 @@ export const App: React.FC = () => {
             graph={flowGraph}
             onSelectProject={(p) => navigateTo('flow', p)}
             onOpenFile={handleOpenFile}
+            projectInCounts={projectInCounts}
+            projectOutCounts={projectOutCounts}
           />
         )}
 
