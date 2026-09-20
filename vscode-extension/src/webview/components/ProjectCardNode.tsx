@@ -10,8 +10,8 @@ export interface ProjectCardData {
   outCount?: number;
   isInboundExpanded?: boolean;
   isOutboundExpanded?: boolean;
-  onToggleInbound?: (projectName: string) => void;
-  onToggleOutbound?: (projectName: string) => void;
+  onToggleInbound?: (projectName: string, projectId?: string) => void;
+  onToggleOutbound?: (projectName: string, projectId?: string) => void;
   onFocusProject?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
 }
@@ -45,14 +45,14 @@ export const ProjectCardNode = memo((props: any) => {
   const handleToggleInboundClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onToggleInbound && inCount > 0) {
-      onToggleInbound(graphNode.name);
+      onToggleInbound(graphNode.name, graphNode.id);
     }
   };
 
   const handleToggleOutboundClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onToggleOutbound && outCount > 0) {
-      onToggleOutbound(graphNode.name);
+      onToggleOutbound(graphNode.name, graphNode.id);
     }
   };
 

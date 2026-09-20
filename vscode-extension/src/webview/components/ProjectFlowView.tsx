@@ -49,16 +49,6 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
   const [expandedOutbound, setExpandedOutbound] = useState<Set<string>>(new Set());
   const [expandedInbound, setExpandedInbound] = useState<Set<string>>(new Set());
 
-  // Whenever the root target project changes, initialize its direct levels (+1 and -1) as expanded
-  const lastRootRef = useRef<string>('');
-  useEffect(() => {
-    if (rootProjectName && rootProjectName !== lastRootRef.current) {
-      lastRootRef.current = rootProjectName;
-      setExpandedOutbound(new Set([rootProjectName]));
-      setExpandedInbound(new Set([rootProjectName]));
-    }
-  }, [rootProjectName]);
-
   // Build comprehensive graph lookup from fullGraph (fallback to graph)
   const { nodeMap, outboundMap, inboundMap, inCountMap, outCountMap } = useMemo(() => {
     const dataSource = fullGraph && fullGraph.nodes && fullGraph.nodes.length > 0 ? fullGraph : graph;
@@ -82,60 +72,104 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     for (const n of graph?.nodes || []) {
       if (!nMap.has(n.id)) nMap.set(n.id, n);
       if (!nMap.has(n.name)) nMap.set(n.name, n);
-      if (!outMap.has(n.id)) outMap.set(n.id, []);
-      if (!inMap.has(n.id)) inMap.set(n.id, []);
+      if (!outMap.has(n.id)) {
+        outMap.set(n.id, []);
+        outMap.set(n.name, []);
+      }
+      if (!inMap.has(n.id)) {
+        inMap.set(n.id, []);
+        inMap.set(n.name, []);
+      }
     }
 
-    for (const e of dataSource?.edges || []) {
+    // Combine all edges from dataSource and graph
+    const allEdges = [...(dataSource?.edges || [])];
+    if (graph?.edges && graph !== dataSource) {
+      for (const ge of graph.edges) {
+        if (!allEdges.some((e) => e.source === ge.source && e.target === ge.target)) {
+          allEdges.push(ge);
+        }
+      }
+    }
+
+    for (const e of allEdges) {
       const srcNode = nMap.get(e.source);
       const tgtNode = nMap.get(e.target);
       if (!srcNode || !tgtNode) continue;
 
       // Outbound (srcNode is using tgtNode)
       const curOut = outMap.get(srcNode.id) || [];
-      if (!curOut.some((x) => x.id === tgtNode.id)) {
+      if (!curOut.some((x) => x.id === tgtNode.id || x.name === tgtNode.name)) {
         curOut.push(tgtNode);
         outMap.set(srcNode.id, curOut);
         if (srcNode.name !== srcNode.id) outMap.set(srcNode.name, curOut);
       }
-      outc[srcNode.id] = (outc[srcNode.id] || 0) + 1;
-      outc[srcNode.name] = (outc[srcNode.name] || 0) + 1;
 
       // Inbound (tgtNode is used by srcNode)
       const curIn = inMap.get(tgtNode.id) || [];
-      if (!curIn.some((x) => x.id === srcNode.id)) {
+      if (!curIn.some((x) => x.id === srcNode.id || x.name === srcNode.name)) {
         curIn.push(srcNode);
         inMap.set(tgtNode.id, curIn);
         if (tgtNode.name !== tgtNode.id) inMap.set(tgtNode.name, curIn);
       }
-      inc[tgtNode.id] = (inc[tgtNode.id] || 0) + 1;
-      inc[tgtNode.name] = (inc[tgtNode.name] || 0) + 1;
+    }
+
+    for (const n of nMap.values()) {
+      const outList = outMap.get(n.id) || [];
+      const inList = inMap.get(n.id) || [];
+      outc[n.id] = outList.length;
+      outc[n.name] = outList.length;
+      inc[n.id] = inList.length;
+      inc[n.name] = inList.length;
     }
 
     return { nodeMap: nMap, outboundMap: outMap, inboundMap: inMap, inCountMap: inc, outCountMap: outc };
   }, [fullGraph, graph]);
 
+  // Whenever the root target project changes, initialize its direct levels (+1 and -1) as expanded
+  const lastRootRef = useRef<string>('');
+  useEffect(() => {
+    if (rootProjectName && rootProjectName !== lastRootRef.current) {
+      lastRootRef.current = rootProjectName;
+      const rootNode = nodeMap.get(rootProjectName);
+      const setOut = new Set<string>([rootProjectName]);
+      const setIn = new Set<string>([rootProjectName]);
+      if (rootNode) {
+        setOut.add(rootNode.id);
+        setIn.add(rootNode.id);
+      }
+      setExpandedOutbound(setOut);
+      setExpandedInbound(setIn);
+    }
+  }, [rootProjectName, nodeMap]);
+
   // Toggle outbound dependencies (using) for a project
-  const handleToggleOutbound = useCallback((projectName: string) => {
+  const handleToggleOutbound = useCallback((projectName: string, projectId?: string) => {
     setExpandedOutbound((prev) => {
       const next = new Set(prev);
-      if (next.has(projectName)) {
+      const isPresent = next.has(projectName) || (projectId && next.has(projectId));
+      if (isPresent) {
         next.delete(projectName);
+        if (projectId) next.delete(projectId);
       } else {
         next.add(projectName);
+        if (projectId) next.add(projectId);
       }
       return next;
     });
   }, []);
 
   // Toggle inbound callers (used by) for a project
-  const handleToggleInbound = useCallback((projectName: string) => {
+  const handleToggleInbound = useCallback((projectName: string, projectId?: string) => {
     setExpandedInbound((prev) => {
       const next = new Set(prev);
-      if (next.has(projectName)) {
+      const isPresent = next.has(projectName) || (projectId && next.has(projectId));
+      if (isPresent) {
         next.delete(projectName);
+        if (projectId) next.delete(projectId);
       } else {
         next.add(projectName);
+        if (projectId) next.add(projectId);
       }
       return next;
     });
@@ -143,22 +177,47 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
   const handleResetLevels = useCallback(() => {
     if (rootProjectName) {
-      setExpandedOutbound(new Set([rootProjectName]));
-      setExpandedInbound(new Set([rootProjectName]));
+      const rootNode = nodeMap.get(rootProjectName);
+      const setOut = new Set<string>([rootProjectName]);
+      const setIn = new Set<string>([rootProjectName]);
+      if (rootNode) {
+        setOut.add(rootNode.id);
+        setIn.add(rootNode.id);
+      }
+      setExpandedOutbound(setOut);
+      setExpandedInbound(setIn);
     }
-  }, [rootProjectName]);
+  }, [rootProjectName, nodeMap]);
 
-  // Multi-Level Progressive Layout Construction
+  // Multi-Level Progressive Layout Construction (Bidirectional)
   useEffect(() => {
-    const rootNode = nodeMap.get(rootProjectName);
+    let rootNode = nodeMap.get(rootProjectName);
+    if (!rootNode && rootProjectName) {
+      const lower = rootProjectName.toLowerCase();
+      for (const [key, n] of nodeMap.entries()) {
+        if (key.toLowerCase() === lower || n.name.toLowerCase() === lower) {
+          rootNode = n;
+          break;
+        }
+      }
+    }
+
     if (!rootNode) {
       setNodes([]);
       setEdges([]);
       return;
     }
 
-    const levelNodesMap = new Map<number, GraphNode[]>();
-    levelNodesMap.set(0, [rootNode]);
+    // Bidirectional expansion maps
+    const visibleNodesMap = new Map<string, GraphNode>();
+    visibleNodesMap.set(rootNode.id, rootNode);
+    if (rootNode.name !== rootNode.id) {
+      visibleNodesMap.set(rootNode.name, rootNode);
+    }
+
+    const nodeLevelMap = new Map<string, number>();
+    nodeLevelMap.set(rootNode.id, 0);
+    nodeLevelMap.set(rootNode.name, 0);
 
     const generatedEdges: Edge[] = [];
     const edgeKeySet = new Set<string>();
@@ -184,71 +243,122 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       }
     };
 
-    // 1. Progressive Outbound Expansion (Levels +1, +2, +3 ...)
-    let currentOutLevelNodes = [rootNode];
-    let currentOutLevel = 1;
-    const visitedOutbound = new Set<string>([rootNode.id, rootNode.name]);
+    // Iterative expansion for any visible node whose outbound or inbound is toggled on
+    const processedOut = new Set<string>();
+    const processedIn = new Set<string>();
 
-    while (currentOutLevelNodes.length > 0 && currentOutLevel <= 6) {
-      const nextOutLevelNodes: GraphNode[] = [];
+    for (let round = 0; round < 10; round++) {
+      let newlyAdded = false;
+      const currentNodes = Array.from(new Set(visibleNodesMap.values()));
 
-      for (const parent of currentOutLevelNodes) {
-        const isExp = expandedOutbound.has(parent.id) || expandedOutbound.has(parent.name);
-        if (isExp) {
-          const children = outboundMap.get(parent.id) || outboundMap.get(parent.name) || [];
-          for (const child of children) {
-            addEdge(parent.id, child.id);
-            if (!visitedOutbound.has(child.id)) {
-              visitedOutbound.add(child.id);
-              visitedOutbound.add(child.name);
-              nextOutLevelNodes.push(child);
+      for (const curr of currentNodes) {
+        const currLevel = nodeLevelMap.get(curr.id) ?? nodeLevelMap.get(curr.name) ?? 0;
+
+        // Outbound expansion (curr uses children -> placed at currLevel + 1)
+        const isExpOut = expandedOutbound.has(curr.id) || expandedOutbound.has(curr.name);
+        if (isExpOut && !processedOut.has(curr.id)) {
+          processedOut.add(curr.id);
+          processedOut.add(curr.name);
+          const targetLevel = currLevel + 1;
+
+          if (targetLevel <= 6) {
+            const children = outboundMap.get(curr.id) || outboundMap.get(curr.name) || [];
+            for (const child of children) {
+              addEdge(curr.id, child.id);
+              if (!visibleNodesMap.has(child.id) && !visibleNodesMap.has(child.name)) {
+                visibleNodesMap.set(child.id, child);
+                if (child.name !== child.id) visibleNodesMap.set(child.name, child);
+                nodeLevelMap.set(child.id, targetLevel);
+                nodeLevelMap.set(child.name, targetLevel);
+                newlyAdded = true;
+              }
+            }
+          }
+        }
+
+        // Inbound expansion (parents use curr -> placed at currLevel - 1)
+        const isExpIn = expandedInbound.has(curr.id) || expandedInbound.has(curr.name);
+        if (isExpIn && !processedIn.has(curr.id)) {
+          processedIn.add(curr.id);
+          processedIn.add(curr.name);
+          const targetLevel = currLevel - 1;
+
+          if (targetLevel >= -6) {
+            const parents = inboundMap.get(curr.id) || inboundMap.get(curr.name) || [];
+            for (const parent of parents) {
+              addEdge(parent.id, curr.id);
+              if (!visibleNodesMap.has(parent.id) && !visibleNodesMap.has(parent.name)) {
+                visibleNodesMap.set(parent.id, parent);
+                if (parent.name !== parent.id) visibleNodesMap.set(parent.name, parent);
+                nodeLevelMap.set(parent.id, targetLevel);
+                nodeLevelMap.set(parent.name, targetLevel);
+                newlyAdded = true;
+              }
             }
           }
         }
       }
 
-      if (nextOutLevelNodes.length > 0) {
-        levelNodesMap.set(currentOutLevel, nextOutLevelNodes);
-        currentOutLevelNodes = nextOutLevelNodes;
-        currentOutLevel++;
-      } else {
-        break;
-      }
+      if (!newlyAdded) break;
     }
 
-    // 2. Progressive Inbound Expansion (Levels -1, -2, -3 ...)
-    let currentInLevelNodes = [rootNode];
-    let currentInLevel = -1;
-    const visitedInbound = new Set<string>([rootNode.id, rootNode.name]);
-
-    while (currentInLevelNodes.length > 0 && currentInLevel >= -6) {
-      const nextInLevelNodes: GraphNode[] = [];
-
-      for (const child of currentInLevelNodes) {
-        const isExp = expandedInbound.has(child.id) || expandedInbound.has(child.name);
-        if (isExp) {
-          const parents = inboundMap.get(child.id) || inboundMap.get(child.name) || [];
-          for (const parent of parents) {
-            addEdge(parent.id, child.id);
-            if (!visitedInbound.has(parent.id)) {
-              visitedInbound.add(parent.id);
-              visitedInbound.add(parent.name);
-              nextInLevelNodes.push(parent);
-            }
+    // Connect edges between any visible nodes if source is expanded outbound or target is expanded inbound
+    const uniqueVisible = Array.from(new Set(visibleNodesMap.values()));
+    for (const u of uniqueVisible) {
+      const isExpOut = expandedOutbound.has(u.id) || expandedOutbound.has(u.name);
+      if (isExpOut) {
+        const children = outboundMap.get(u.id) || outboundMap.get(u.name) || [];
+        for (const child of children) {
+          if (visibleNodesMap.has(child.id) || visibleNodesMap.has(child.name)) {
+            addEdge(u.id, child.id);
           }
         }
       }
-
-      if (nextInLevelNodes.length > 0) {
-        levelNodesMap.set(currentInLevel, nextInLevelNodes);
-        currentInLevelNodes = nextInLevelNodes;
-        currentInLevel--;
-      } else {
-        break;
+      const isExpIn = expandedInbound.has(u.id) || expandedInbound.has(u.name);
+      if (isExpIn) {
+        const parents = inboundMap.get(u.id) || inboundMap.get(u.name) || [];
+        for (const parent of parents) {
+          if (visibleNodesMap.has(parent.id) || visibleNodesMap.has(parent.name)) {
+            addEdge(parent.id, u.id);
+          }
+        }
       }
     }
 
-    // 3. Compute Coordinates
+    // Group unique nodes by level
+    const levelNodesMap = new Map<number, GraphNode[]>();
+    for (const node of uniqueVisible) {
+      const lvl = nodeLevelMap.get(node.id) ?? nodeLevelMap.get(node.name) ?? 0;
+      const list = levelNodesMap.get(lvl) || [];
+      list.push(node);
+      levelNodesMap.set(lvl, list);
+    }
+
+    // In Level 0, if there are multiple nodes (e.g. callers of a Level 1 dependency),
+    // ensure rootNode is vertically centered in the column so it lines up with its dependencies.
+    const listAtZero = levelNodesMap.get(0) || [];
+    if (listAtZero.length > 1) {
+      const otherNodes = listAtZero.filter(
+        (n) => n.id !== rootNode!.id && n.name !== rootNode!.name
+      );
+      otherNodes.sort((a, b) => a.name.localeCompare(b.name));
+      const mid = Math.floor(otherNodes.length / 2);
+      const reordered = [
+        ...otherNodes.slice(0, mid),
+        rootNode,
+        ...otherNodes.slice(mid),
+      ];
+      levelNodesMap.set(0, reordered);
+    }
+
+    // In all other levels, sort alphabetically by name for clean, deterministic display
+    for (const [lvl, list] of levelNodesMap.entries()) {
+      if (lvl !== 0) {
+        list.sort((a, b) => a.name.localeCompare(b.name));
+      }
+    }
+
+    // Compute Coordinates
     const activeLevels = Array.from(levelNodesMap.keys()).sort((a, b) => a - b);
     const minLevel = activeLevels[0] ?? 0;
 
@@ -272,7 +382,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       const startY = Math.max(60, maxCenterY - colHeight / 2);
 
       list.forEach((node, i) => {
-        const isCenter = lvl === 0;
+        const isCenter = node.id === rootNode!.id || node.name === rootNode!.name;
         const inCount = inCountMap[node.id] || inCountMap[node.name] || 0;
         const outCount = outCountMap[node.id] || outCountMap[node.name] || 0;
         const isOutboundExp = expandedOutbound.has(node.id) || expandedOutbound.has(node.name);
