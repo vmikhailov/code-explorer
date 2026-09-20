@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export class GraphPanel {
   public static currentPanel: GraphPanel | undefined;
@@ -85,13 +86,23 @@ export class GraphPanel {
     try {
       if (!filePath) return;
 
-      const fullPath = path.isAbsolute(filePath)
-        ? filePath
-        : path.resolve(this.workspaceRoot, filePath);
+      const resolvedPath = await this.resolveTargetFile(filePath);
+      if (!resolvedPath) {
+        vscode.window.showWarningMessage(`Could not locate file or project for "${filePath}".`);
+        return;
+      }
 
-      const uri = vscode.Uri.file(fullPath);
+      const stat = fs.statSync(resolvedPath);
+      if (stat.isDirectory()) {
+        // Reveal directory in file explorer if no text file was found
+        const uri = vscode.Uri.file(resolvedPath);
+        await vscode.commands.executeCommand('revealInExplorer', uri);
+        return;
+      }
+
+      const uri = vscode.Uri.file(resolvedPath);
       const doc = await vscode.workspace.openTextDocument(uri);
-      
+
       let selection: vscode.Range | undefined;
       if (lineStart && lineStart > 0) {
         const startLineIdx = Math.max(0, lineStart - 1);
@@ -105,8 +116,91 @@ export class GraphPanel {
         selection,
       });
     } catch (err: any) {
-      vscode.window.showErrorMessage(`Failed to open file "${filePath}": ${err.message}`);
+      vscode.window.showErrorMessage(`Failed to open "${filePath}": ${err.message}`);
     }
+  }
+
+  private async resolveTargetFile(targetPath: string): Promise<string | null> {
+    if (!targetPath) return null;
+
+    // 1. Direct path check (if absolute or relative to workspaceRoot)
+    const directPath = path.isAbsolute(targetPath)
+      ? targetPath
+      : path.resolve(this.workspaceRoot, targetPath);
+
+    let candidate = this.checkPathOrDirectory(directPath);
+    if (candidate) return candidate;
+
+    // 2. Check under 'cli/' subfolder if workspace is monorepo root
+    const cliPath = path.resolve(this.workspaceRoot, 'cli', targetPath);
+    candidate = this.checkPathOrDirectory(cliPath);
+    if (candidate) return candidate;
+
+    // 3. If targetPath starts with 'cli/', try stripping it in case workspaceRoot is already inside cli/
+    if (targetPath.startsWith('cli/') || targetPath.startsWith('cli\\')) {
+      const stripped = targetPath.replace(/^cli[\\/]/, '');
+      candidate = this.checkPathOrDirectory(path.resolve(this.workspaceRoot, stripped));
+      if (candidate) return candidate;
+    }
+
+    // 4. Fallback: Search workspace for matching file or project
+    const baseName = path.basename(targetPath);
+    if (baseName) {
+      // If it's a project without extension, search for <baseName>.*proj
+      const searchPattern = baseName.includes('.') ? `**/${baseName}` : `**/${baseName}.*proj`;
+      const matches = await vscode.workspace.findFiles(searchPattern, '**/node_modules/**', 2);
+      if (matches.length > 0) {
+        return matches[0].fsPath;
+      }
+
+      // If still not found and baseName has no extension, search for directory
+      const folderMatches = await vscode.workspace.findFiles(`**/${baseName}/**`, '**/node_modules/**', 5);
+      for (const m of folderMatches) {
+        const dir = path.dirname(m.fsPath);
+        const resolvedProj = this.findProjectFileInDir(dir);
+        if (resolvedProj) return resolvedProj;
+      }
+    }
+
+    return null;
+  }
+
+  private checkPathOrDirectory(p: string): string | null {
+    if (!fs.existsSync(p)) return null;
+
+    try {
+      const stat = fs.statSync(p);
+      if (stat.isFile()) {
+        return p;
+      }
+
+      if (stat.isDirectory()) {
+        const proj = this.findProjectFileInDir(p);
+        return proj || p;
+      }
+    } catch {}
+
+    return null;
+  }
+
+  private findProjectFileInDir(dir: string): string | null {
+    if (!fs.existsSync(dir)) return null;
+    try {
+      const files = fs.readdirSync(dir);
+      const projFile = files.find((f) =>
+        f.endsWith('.csproj') ||
+        f.endsWith('.fsproj') ||
+        f.endsWith('.vbproj') ||
+        f === 'package.json' ||
+        f === 'go.mod' ||
+        f === 'pom.xml' ||
+        f === 'Cargo.toml'
+      );
+      if (projFile) {
+        return path.join(dir, projFile);
+      }
+    } catch {}
+    return null;
   }
 
   public postMessage(message: any) {
