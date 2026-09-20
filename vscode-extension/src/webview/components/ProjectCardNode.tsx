@@ -78,6 +78,7 @@ export const ProjectCardNode = memo((props: any) => {
           type="target"
           position={Position.Left}
           className="flow-handle target-handle"
+          isConnectable={false}
         />
       )}
 
@@ -137,6 +138,7 @@ export const ProjectCardNode = memo((props: any) => {
           type="source"
           position={Position.Right}
           className="flow-handle source-handle"
+          isConnectable={false}
         />
       )}
     </div>

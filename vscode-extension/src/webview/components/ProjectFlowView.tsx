@@ -255,6 +255,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
+        nodesConnectable={false}
+        autoPanOnConnect={false}
+        connectOnClick={false}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.2}
