@@ -18,6 +18,8 @@ export interface ToolbarProps {
   canGoForward: boolean;
   onGoBack: () => void;
   onGoForward: () => void;
+  groupLayers: boolean;
+  onToggleGroupLayers: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -38,6 +40,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   canGoForward,
   onGoBack,
   onGoForward,
+  groupLayers,
+  onToggleGroupLayers,
 }) => {
   return (
     <header className="toolbar">
@@ -143,6 +147,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {viewMode === 'full' && (
           <div className="search-box">
+            <button
+              className={`group-layers-btn ${groupLayers ? 'active' : ''}`}
+              onClick={onToggleGroupLayers}
+              title={groupLayers ? 'Disable layer grouping (show flat graph)' : 'Group projects into system layers'}
+            >
+              📁 {groupLayers ? 'Ungroup' : 'Group Layers'}
+            </button>
             <input
               type="text"
               placeholder="Search or run Cypher: MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 50"

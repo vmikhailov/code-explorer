@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import { GraphData, GraphNode } from '../../../../proto/types';
+import { LayerDefinition, getLayersFromGraph } from '../layers';
 
 cytoscape.use(dagre);
 
@@ -9,16 +10,82 @@ export interface CytoscapeViewProps {
   graph: GraphData | null;
   onOpenFile: (filePath: string, lineStart?: number) => void;
   onSelectNode: (node: GraphNode) => void;
+  groupLayers: boolean;
+  onToggleGroupLayers: () => void;
+  showTests: boolean;
 }
 
 export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
   graph,
   onOpenFile,
   onSelectNode,
+  groupLayers,
+  onToggleGroupLayers,
+  showTests,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
+  const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
+
+  const onSelectNodeRef = useRef(onSelectNode);
+  onSelectNodeRef.current = onSelectNode;
+
+  const onOpenFileRef = useRef(onOpenFile);
+  onOpenFileRef.current = onOpenFile;
+
+  // Extract layer definitions from graph metadata or standard defaults
+  const layerDefs = useMemo(() => getLayersFromGraph(graph), [graph]);
+
+  const toggleLayerCollapse = useCallback((layerId: string) => {
+    setCollapsedLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(layerId)) {
+        next.delete(layerId);
+      } else {
+        next.add(layerId);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleLayerCollapseRef = useRef(toggleLayerCollapse);
+  toggleLayerCollapseRef.current = toggleLayerCollapse;
+
+  const collapseAllLayers = useCallback(() => {
+    setCollapsedLayers(new Set(layerDefs.map((l) => l.layerId)));
+  }, [layerDefs]);
+
+  const expandAllLayers = useCallback(() => {
+    setCollapsedLayers(new Set());
+  }, []);
+
+  const handleFit = useCallback(() => {
+    if (cyRef.current) {
+      cyRef.current.fit(undefined, 30);
+    }
+  }, []);
+
+  // Compute active layers that have at least one node in the solution
+  const activeLayers = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const n of graph?.nodes || []) {
+      if (!showTests && (n.properties?.isTest === 'true' || n.properties?.layerId === 'layer_tests')) {
+        continue;
+      }
+      const lid = n.properties?.layerId || 'layer_engines';
+      counts[lid] = (counts[lid] || 0) + 1;
+    }
+
+    return layerDefs
+      .filter((l) => counts[l.layerId] && counts[l.layerId] > 0)
+      .map((l) => ({
+        layer: l,
+        count: counts[l.layerId],
+      }));
+  }, [graph, layerDefs, showTests]);
+
+  // 1. Initialize Cytoscape instance
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -26,15 +93,16 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
       container: containerRef.current,
       boxSelectionEnabled: false,
       style: [
+        // Leaf / Childless Nodes (Projects, Classes, Databases, Endpoints)
         {
-          selector: 'node',
+          selector: 'node:childless',
           style: {
             'label': 'data(label)',
             'color': '#ffffff',
             'font-size': '11px',
             'text-valign': 'center',
             'text-halign': 'center',
-            'background-color': '#334155',
+            'background-color': '#1e293b',
             'border-width': 2,
             'border-color': '#64748b',
             'width': 'label',
@@ -42,29 +110,29 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
             'padding': '10px',
             'shape': 'round-rectangle',
             'text-wrap': 'ellipsis',
-            'text-max-width': '160px',
+            'text-max-width': '170px',
           },
         },
         {
-          selector: 'node[kind = "Project"]',
+          selector: 'node:childless[kind = "Project"]',
           style: {
-            'background-color': '#3b0764',
-            'border-color': '#a855f7',
-            'border-width': 3,
+            'background-color': '#1e1b4b',
+            'border-color': 'data(layerColor)',
+            'border-width': 2,
             'font-weight': 'bold',
-            'height': 42,
-            'font-size': '12px',
+            'height': 38,
+            'font-size': '11px',
           },
         },
         {
-          selector: 'node[kind = "Class"]',
+          selector: 'node:childless[kind = "Class"]',
           style: {
             'background-color': '#0c4a6e',
             'border-color': '#38bdf8',
           },
         },
         {
-          selector: 'node[kind = "Database"], node[kind = "Table"]',
+          selector: 'node:childless[kind = "Database"], node:childless[kind = "Table"]',
           style: {
             'background-color': '#064e3b',
             'border-color': '#34d399',
@@ -72,23 +140,67 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
           },
         },
         {
-          selector: 'node[kind = "Endpoint"]',
+          selector: 'node:childless[kind = "Endpoint"]',
           style: {
             'background-color': '#78350f',
             'border-color': '#fbbf24',
             'shape': 'tag',
           },
         },
+        // Compound Parent Node (Expanded Layer Group)
+        {
+          selector: 'node:parent',
+          style: {
+            'background-color': 'data(layerBg)',
+            'background-opacity': 0.08,
+            'border-color': 'data(layerColor)',
+            'border-width': 2,
+            'border-style': 'dashed',
+            'border-opacity': 0.7,
+            'label': 'data(label)',
+            'font-size': '12px',
+            'font-weight': 'bold',
+            'color': 'data(layerColor)',
+            'text-valign': 'top',
+            'text-halign': 'center',
+            'text-margin-y': -8,
+            'padding': '22px',
+            'shape': 'round-rectangle',
+          },
+        },
+        // Collapsed Layer Node (Summary Box)
+        {
+          selector: 'node[kind = "LayerCollapsed"]',
+          style: {
+            'background-color': '#181825',
+            'border-color': 'data(layerColor)',
+            'border-width': 2,
+            'border-style': 'solid',
+            'shape': 'round-rectangle',
+            'label': 'data(label)',
+            'color': '#ffffff',
+            'font-size': '12px',
+            'font-weight': 'bold',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'text-wrap': 'wrap',
+            'width': 'label',
+            'height': 48,
+            'padding': '16px',
+          },
+        },
+        // Selection Highlighting
         {
           selector: 'node:selected',
           style: {
             'border-color': '#ffffff',
-            'border-width': 4,
+            'border-width': 3,
             'underlay-color': '#38bdf8',
             'underlay-padding': '4px',
             'underlay-opacity': 0.5,
           },
         },
+        // Edges
         {
           selector: 'edge',
           style: {
@@ -119,14 +231,33 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
 
     cy.on('tap', 'node', (evt) => {
       const node = evt.target;
-      onSelectNode(node.data() as GraphNode);
+      const data = node.data();
+
+      // If clicked on collapsed layer box, expand it
+      if (data.kind === 'LayerCollapsed') {
+        if (data.layerId) {
+          toggleLayerCollapseRef.current(data.layerId);
+        }
+        return;
+      }
+
+      // If clicked on parent compound node header, collapse it
+      if (node.isParent()) {
+        if (data.layerId) {
+          toggleLayerCollapseRef.current(data.layerId);
+        }
+        return;
+      }
+
+      // Normal node selection
+      onSelectNodeRef.current(data as GraphNode);
     });
 
     cy.on('dbltap', 'node', (evt) => {
       const node = evt.target;
       const data = node.data() as GraphNode;
       if (data.filePath) {
-        onOpenFile(data.filePath, data.lineStart);
+        onOpenFileRef.current(data.filePath, data.lineStart);
       }
     });
 
@@ -138,6 +269,7 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
     };
   }, []);
 
+  // 2. Build graph elements when graph, groupLayers, collapsedLayers, or showTests changes
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy || !graph) return;
@@ -146,50 +278,248 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
 
     const elements: cytoscape.ElementDefinition[] = [];
 
-    for (const n of graph.nodes || []) {
-      elements.push({
-        group: 'nodes',
-        data: {
-          id: n.id,
-          label: n.displayName || n.name,
-          kind: n.kind,
-          filePath: n.filePath,
-          lineStart: n.lineStart,
-          lineEnd: n.lineEnd,
-          properties: n.properties,
-          parent: n.parentId,
-        },
-      });
-    }
+    // Filter test nodes if showTests is false
+    const validNodes = (graph.nodes || []).filter((n) => {
+      if (!showTests && (n.properties?.isTest === 'true' || n.properties?.layerId === 'layer_tests')) {
+        return false;
+      }
+      return true;
+    });
 
-    for (const e of graph.edges || []) {
-      elements.push({
-        group: 'edges',
-        data: {
-          id: e.id || `${e.source}->${e.target}`,
-          source: e.source,
-          target: e.target,
-          kind: e.kind,
-          properties: e.properties,
-        },
-      });
+    const validNodeIds = new Set(validNodes.map((n) => n.id));
+
+    if (!groupLayers) {
+      // Flat graph without grouping
+      for (const n of validNodes) {
+        const layerColor = n.properties?.layerColor || '#38bdf8';
+        elements.push({
+          group: 'nodes',
+          data: {
+            id: n.id,
+            label: n.displayName || n.name,
+            kind: n.kind,
+            filePath: n.filePath,
+            lineStart: n.lineStart,
+            lineEnd: n.lineEnd,
+            properties: n.properties,
+            layerColor,
+          },
+        });
+      }
+
+      for (const e of graph.edges || []) {
+        if (!validNodeIds.has(e.source) || !validNodeIds.has(e.target)) continue;
+        elements.push({
+          group: 'edges',
+          data: {
+            id: e.id || `${e.source}->${e.target}`,
+            source: e.source,
+            target: e.target,
+            kind: e.kind,
+            properties: e.properties,
+          },
+        });
+      }
+    } else {
+      // Grouped by System Layers with Collapsing Support
+      const nodeToLayer: Record<string, string> = {};
+      const nodesByLayer = new Map<string, GraphNode[]>();
+
+      for (const def of layerDefs) {
+        nodesByLayer.set(def.layerId, []);
+      }
+
+      for (const node of validNodes) {
+        const layerId = node.properties?.layerId || 'layer_engines';
+        nodeToLayer[node.id] = layerId;
+
+        const list = nodesByLayer.get(layerId) || [];
+        list.push(node);
+        nodesByLayer.set(layerId, list);
+      }
+
+      // Add Layer Nodes & Child Nodes
+      for (const def of layerDefs) {
+        const members = nodesByLayer.get(def.layerId) || [];
+        if (members.length === 0) continue;
+
+        const isCollapsed = collapsedLayers.has(def.layerId);
+
+        if (isCollapsed) {
+          // Collapsed Layer summary node
+          elements.push({
+            group: 'nodes',
+            data: {
+              id: def.layerId,
+              label: `${def.icon} ${def.layerName}\n▶ [${members.length} projects collapsed]`,
+              kind: 'LayerCollapsed',
+              layerId: def.layerId,
+              layerColor: def.color,
+              layerBg: def.color,
+            },
+          });
+        } else {
+          // Expanded Compound Parent node
+          elements.push({
+            group: 'nodes',
+            data: {
+              id: def.layerId,
+              label: `${def.icon} ${def.layerName} [${members.length}]`,
+              kind: 'LayerGroup',
+              layerId: def.layerId,
+              layerColor: def.color,
+              layerBg: def.color,
+              isParent: true,
+            },
+          });
+
+          // Add member child nodes
+          for (const n of members) {
+            elements.push({
+              group: 'nodes',
+              data: {
+                id: n.id,
+                label: n.displayName || n.name,
+                kind: n.kind,
+                filePath: n.filePath,
+                lineStart: n.lineStart,
+                lineEnd: n.lineEnd,
+                properties: n.properties,
+                parent: def.layerId,
+                layerId: def.layerId,
+                layerColor: def.color,
+              },
+            });
+          }
+        }
+      }
+
+      // Add Edges with Collapsed Re-routing and Aggregation
+      const edgeMap = new Map<string, { source: string; target: string; count: number; kinds: Set<string> }>();
+
+      for (const e of graph.edges || []) {
+        if (!validNodeIds.has(e.source) || !validNodeIds.has(e.target)) continue;
+
+        const sourceLayer = nodeToLayer[e.source];
+        const targetLayer = nodeToLayer[e.target];
+
+        const effectiveSource = (sourceLayer && collapsedLayers.has(sourceLayer))
+          ? sourceLayer
+          : e.source;
+
+        const effectiveTarget = (targetLayer && collapsedLayers.has(targetLayer))
+          ? targetLayer
+          : e.target;
+
+        // Skip internal self-loops within the same collapsed layer
+        if (effectiveSource === effectiveTarget) {
+          continue;
+        }
+
+        const key = `${effectiveSource}->${effectiveTarget}`;
+        if (!edgeMap.has(key)) {
+          edgeMap.set(key, {
+            source: effectiveSource,
+            target: effectiveTarget,
+            count: 1,
+            kinds: new Set([e.kind]),
+          });
+        } else {
+          const existing = edgeMap.get(key)!;
+          existing.count += 1;
+          existing.kinds.add(e.kind);
+        }
+      }
+
+      for (const [key, agg] of edgeMap) {
+        const isAggregated = agg.count > 1;
+        const label = isAggregated
+          ? `${agg.count} calls`
+          : Array.from(agg.kinds)[0] || 'calls';
+
+        elements.push({
+          group: 'edges',
+          data: {
+            id: key,
+            source: agg.source,
+            target: agg.target,
+            kind: label,
+          },
+        });
+      }
     }
 
     cy.add(elements);
+
     const layout = cy.layout({
       name: 'dagre',
       rankDir: 'TB',
-      nodeSep: 50,
-      rankSep: 80,
+      nodeSep: 40,
+      rankSep: 60,
       animate: true,
       animationDuration: 300,
     } as any);
+
     layout.run();
-  }, [graph]);
+  }, [graph, groupLayers, collapsedLayers, showTests, layerDefs]);
 
   return (
     <div className="cytoscape-view-wrapper">
       <div ref={containerRef} className="cytoscape-viewport" />
+
+      {/* Floating System Layers HUD inside Cytoscape canvas */}
+      {groupLayers && activeLayers.length > 0 && (
+        <div className="cytoscape-layers-hud">
+          <div className="hud-header">
+            <span className="hud-title">🏛️ System Layers</span>
+            <div className="hud-actions">
+              <button
+                className="hud-action-btn"
+                onClick={collapseAllLayers}
+                title="Collapse all layers into summary boxes"
+              >
+                Collapse All
+              </button>
+              <button
+                className="hud-action-btn"
+                onClick={expandAllLayers}
+                title="Expand all layers"
+              >
+                Expand All
+              </button>
+              <button
+                className="hud-action-btn"
+                onClick={handleFit}
+                title="Fit diagram to view"
+              >
+                Fit
+              </button>
+            </div>
+          </div>
+          <div className="hud-chips-list">
+            {activeLayers.map(({ layer, count }) => {
+              const isCollapsed = collapsedLayers.has(layer.layerId);
+              return (
+                <button
+                  key={layer.layerId}
+                  className={`hud-layer-chip ${isCollapsed ? 'collapsed' : 'expanded'}`}
+                  style={{
+                    borderColor: `${layer.color}66`,
+                    backgroundColor: isCollapsed ? `${layer.color}15` : `${layer.color}25`,
+                  }}
+                  onClick={() => toggleLayerCollapse(layer.layerId)}
+                  title={isCollapsed ? `Click to expand ${layer.layerName}` : `Click to collapse ${layer.layerName}`}
+                >
+                  <span className="chip-icon">{layer.icon}</span>
+                  <span className="chip-name">{layer.layerName}</span>
+                  <span className="chip-count" style={{ color: layer.color }}>{count}</span>
+                  <span className="chip-toggle-arrow">{isCollapsed ? '▶' : '▼'}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

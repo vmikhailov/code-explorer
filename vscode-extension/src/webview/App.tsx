@@ -41,6 +41,7 @@ export const App: React.FC = () => {
   const [cypherQuery, setCypherQuery] = useState<string>('');
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
   const [showTests, setShowTests] = useState<boolean>(true);
+  const [groupLayers, setGroupLayers] = useState<boolean>(true);
 
   // Navigation History Stack
   const [history, setHistory] = useState<HistoryItem[]>([
@@ -350,6 +351,8 @@ export const App: React.FC = () => {
         canGoForward={historyIndex < history.length - 1}
         onGoBack={handleGoBack}
         onGoForward={handleGoForward}
+        groupLayers={groupLayers}
+        onToggleGroupLayers={() => setGroupLayers((prev) => !prev)}
       />
 
       <main className="main-viewport">
@@ -375,6 +378,9 @@ export const App: React.FC = () => {
             graph={fullGraph}
             onOpenFile={handleOpenFile}
             onSelectNode={setSelectedDrawerNode}
+            groupLayers={groupLayers}
+            onToggleGroupLayers={() => setGroupLayers((prev) => !prev)}
+            showTests={showTests}
           />
         )}
       </main>
