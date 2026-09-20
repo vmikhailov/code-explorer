@@ -1,0 +1,86 @@
+{
+  "name": "code-explorer-vscode",
+  "displayName": "CodeExplorer",
+  "description": "Interactive code architecture and dependency graph visualizer powered by CodeExplorer (ce)",
+  "version": "0.1.0",
+  "publisher": "vmikhailov",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Visualization",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:codeExplorer.showGraph",
+    "onCommand:codeExplorer.reindex"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeExplorer.showGraph",
+        "title": "CodeExplorer: Show Architecture Graph",
+        "icon": "$(type-hierarchy-sub)"
+      },
+      {
+        "command": "codeExplorer.reindex",
+        "title": "CodeExplorer: Reindex Workspace",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "codeExplorer.showGraph",
+          "group": "navigation",
+          "when": "workspaceFolderCount > 0"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "codeExplorer.showGraph",
+          "group": "7_modification"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "CodeExplorer",
+      "properties": {
+        "codeExplorer.executablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to the 'ce' or 'ce.exe' binary. If empty, searches the workspace and system PATH."
+        },
+        "codeExplorer.serverPort": {
+          "type": "number",
+          "default": 0,
+          "description": "Port for CodeExplorer WebSocket server. Set to 0 to use an automatically allocated ephemeral port."
+        },
+        "codeExplorer.idleTimeout": {
+          "type": "number",
+          "default": 60,
+          "description": "Idle timeout in seconds before the background ce.exe server terminates when all windows are closed."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cytoscape": "^3.30.4",
+    "cytoscape-dagre": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/cytoscape": "^3.19.16",
+    "@types/cytoscape-dagre": "^2.3.3",
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.4"
+  }
+}
