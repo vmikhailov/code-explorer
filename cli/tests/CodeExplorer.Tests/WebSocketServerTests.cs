@@ -231,6 +231,35 @@ public class WebSocketServerTests
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
+    [Test]
+    public async Task Test_WebSocket_GetDependencies_ReturnsNeighborhoodGraph()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{TestPort}/ws"), CancellationToken.None);
+
+        var req = new WsEnvelope<GetDependenciesRequestDto>
+        {
+            Type = WsMessageTypes.GetDependenciesRequest,
+            RequestId = "dep-req-1",
+            Payload = new GetDependenciesRequestDto
+            {
+                ProjectName = "SampleProject"
+            }
+        };
+
+        await SendJsonAsync(ws, req);
+        var response = await ReceiveJsonAsync<QueryResponseDto>(ws);
+
+        Assert.That(response, Is.Not.Null);
+        Assert.That(response.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
+        Assert.That(response.Payload?.Success, Is.True);
+        Assert.That(response.Payload?.Graph, Is.Not.Null);
+        Assert.That(response.Payload!.Graph!.Nodes.Any(n => n.Properties != null && n.Properties.ContainsKey("column")), Is.True);
+        Assert.That(response.Payload.Graph.Metadata != null && response.Payload.Graph.Metadata.ContainsKey("allProjects"), Is.True);
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+    }
+
     private static async Task SendJsonAsync<T>(ClientWebSocket ws, T data)
     {
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });

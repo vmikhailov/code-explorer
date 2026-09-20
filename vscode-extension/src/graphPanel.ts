@@ -140,70 +140,7 @@ export class GraphPanel {
   <link rel="stylesheet" href="${styleUri}">
 </head>
 <body>
-  <div id="app">
-    <!-- Top HUD Toolbar -->
-    <header class="toolbar">
-      <div class="toolbar-brand">
-        <span class="brand-icon">⚡</span>
-        <span class="brand-title">CodeExplorer</span>
-        <span id="connection-status" class="status-badge connecting">Connecting...</span>
-      </div>
-
-      <div class="toolbar-controls">
-        <div class="search-box">
-          <input
-            id="cypher-input"
-            type="text"
-            placeholder="Search symbols or run Cypher: MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 50"
-            spellcheck="false"
-          />
-          <button id="run-btn" title="Run Cypher Query">Run</button>
-        </div>
-
-        <div class="button-group">
-          <button id="fit-btn" title="Fit to View">Fit</button>
-          <button id="layout-btn" title="Re-run Dagre Layout">Layout</button>
-          <button id="refresh-btn" title="Reload Architecture Graph">Refresh</button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Scan Progress Overlay -->
-    <div id="progress-bar-container" class="hidden">
-      <div class="progress-bar-track">
-        <div id="progress-bar-fill"></div>
-      </div>
-      <span id="progress-bar-text">Scanning...</span>
-    </div>
-
-    <!-- Main Cytoscape Viewport -->
-    <main id="cy-container">
-      <div id="cy"></div>
-    </main>
-
-    <!-- Node Details Sidebar / Drawer -->
-    <aside id="node-drawer" class="drawer hidden">
-      <div class="drawer-header">
-        <span id="drawer-kind-badge" class="badge">Kind</span>
-        <h3 id="drawer-title">Node Name</h3>
-        <button id="drawer-close-btn" class="close-btn">&times;</button>
-      </div>
-      <div class="drawer-content">
-        <div class="drawer-field" id="file-field">
-          <label>File Location</label>
-          <div id="drawer-file" class="clickable-code-link"></div>
-        </div>
-        <div class="drawer-field">
-          <label>Properties</label>
-          <div id="drawer-properties" class="property-list"></div>
-        </div>
-        <div class="drawer-actions">
-          <button id="jump-code-btn" class="primary-btn">Jump to Code</button>
-        </div>
-      </div>
-    </aside>
-  </div>
-
+  <div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;

@@ -144,4 +144,211 @@ public static class GraphDataConverter
 
         return graph;
     }
+
+    public static async Task<List<string>> GetAllProjectsAsync(
+        IGraphClient client,
+        CancellationToken cancellationToken = default)
+    {
+        var query = "MATCH (p:Project) RETURN p.name AS name ORDER BY p.name";
+        var json = await client.ExecuteQueryAsync(query, null, cancellationToken);
+        using var doc = JsonDocument.Parse(json);
+        var result = new List<string>();
+        foreach (var row in doc.RootElement.EnumerateArray())
+        {
+            var name = row.GetProperty("name").GetString();
+            if (!string.IsNullOrEmpty(name))
+            {
+                result.Add(name);
+            }
+        }
+        return result;
+    }
+
+    public static async Task<GraphDataDto> GetProjectNeighborhoodAsync(
+        IGraphClient client,
+        string? projectName,
+        CancellationToken cancellationToken = default)
+    {
+        var graph = new GraphDataDto
+        {
+            Metadata = new Dictionary<string, string>()
+        };
+        var allProjects = await GetAllProjectsAsync(client, cancellationToken);
+        graph.Metadata["allProjects"] = JsonSerializer.Serialize(allProjects);
+
+        if (allProjects.Count == 0)
+        {
+            return graph;
+        }
+
+        var targetName = string.IsNullOrWhiteSpace(projectName) ? allProjects[0] : projectName;
+
+        // 1. Target Center Project
+        var centerQuery = "MATCH (p:Project) WHERE p.name = $name OR p.id = $name RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path LIMIT 1";
+        var centerJson = await client.ExecuteQueryAsync(centerQuery, new Dictionary<string, object> { ["name"] = targetName }, cancellationToken);
+        using var centerDoc = JsonDocument.Parse(centerJson);
+
+        if (centerDoc.RootElement.GetArrayLength() == 0)
+        {
+            // Fallback to first project if name not found
+            targetName = allProjects[0];
+            centerJson = await client.ExecuteQueryAsync(centerQuery, new Dictionary<string, object> { ["name"] = targetName }, cancellationToken);
+        }
+
+        using var actualCenterDoc = JsonDocument.Parse(centerJson);
+        if (actualCenterDoc.RootElement.GetArrayLength() == 0)
+        {
+            return graph;
+        }
+
+        var centerRow = actualCenterDoc.RootElement[0];
+        var centerId = centerRow.GetProperty("id").GetString() ?? "";
+        var centerProjName = centerRow.GetProperty("name").GetString() ?? centerId;
+        var centerFramework = centerRow.TryGetProperty("framework", out var cf) && cf.ValueKind == JsonValueKind.String ? cf.GetString() : null;
+        var centerPath = centerRow.TryGetProperty("path", out var cp) && cp.ValueKind == JsonValueKind.String ? cp.GetString() : null;
+
+        var centerNode = new GraphNodeDto
+        {
+            Id = centerId,
+            Kind = "Project",
+            Name = centerProjName,
+            DisplayName = string.IsNullOrEmpty(centerFramework) ? centerProjName : $"{centerProjName} ({centerFramework})",
+            FilePath = centerPath,
+            Properties = new Dictionary<string, string>
+            {
+                ["column"] = "center",
+                ["role"] = "target"
+            }
+        };
+        if (!string.IsNullOrEmpty(centerFramework)) centerNode.Properties["framework"] = centerFramework;
+        if (!string.IsNullOrEmpty(centerPath)) centerNode.Properties["path"] = centerPath;
+
+        graph.Nodes.Add(centerNode);
+        graph.Metadata["selectedProject"] = centerProjName;
+
+        // 2. Inbound Project Dependencies (Left Column)
+        var inQuery = "MATCH (in:Project)-[r:DEPENDS_ON]->(p:Project {id: $centerId}) RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, r.kind AS kind";
+        var inJson = await client.ExecuteQueryAsync(inQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+        using var inDoc = JsonDocument.Parse(inJson);
+
+        foreach (var row in inDoc.RootElement.EnumerateArray())
+        {
+            var id = row.GetProperty("id").GetString() ?? "";
+            var name = row.GetProperty("name").GetString() ?? id;
+            var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
+            var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+            var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "DEPENDS_ON") : "DEPENDS_ON";
+
+            if (graph.Nodes.All(n => n.Id != id))
+            {
+                var inNode = new GraphNodeDto
+                {
+                    Id = id,
+                    Kind = "Project",
+                    Name = name,
+                    DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
+                    FilePath = path,
+                    Properties = new Dictionary<string, string>
+                    {
+                        ["column"] = "left",
+                        ["role"] = "inbound"
+                    }
+                };
+                if (!string.IsNullOrEmpty(framework)) inNode.Properties["framework"] = framework;
+                if (!string.IsNullOrEmpty(path)) inNode.Properties["path"] = path;
+                graph.Nodes.Add(inNode);
+            }
+
+            graph.Edges.Add(new GraphEdgeDto
+            {
+                Id = $"{id}->{centerId}:{kind}",
+                Source = id,
+                Target = centerId,
+                Kind = kind
+            });
+        }
+
+        // 3. Outbound Project Dependencies (Right Column)
+        var outQuery = "MATCH (p:Project {id: $centerId})-[r:DEPENDS_ON]->(out:Project) RETURN out.id AS id, out.name AS name, out.framework AS framework, out.path AS path, r.kind AS kind";
+        var outJson = await client.ExecuteQueryAsync(outQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+        using var outDoc = JsonDocument.Parse(outJson);
+
+        foreach (var row in outDoc.RootElement.EnumerateArray())
+        {
+            var id = row.GetProperty("id").GetString() ?? "";
+            var name = row.GetProperty("name").GetString() ?? id;
+            var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
+            var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+            var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "DEPENDS_ON") : "DEPENDS_ON";
+
+            if (graph.Nodes.All(n => n.Id != id))
+            {
+                var outNode = new GraphNodeDto
+                {
+                    Id = id,
+                    Kind = "Project",
+                    Name = name,
+                    DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
+                    FilePath = path,
+                    Properties = new Dictionary<string, string>
+                    {
+                        ["column"] = "right",
+                        ["role"] = "outbound"
+                    }
+                };
+                if (!string.IsNullOrEmpty(framework)) outNode.Properties["framework"] = framework;
+                if (!string.IsNullOrEmpty(path)) outNode.Properties["path"] = path;
+                graph.Nodes.Add(outNode);
+            }
+
+            graph.Edges.Add(new GraphEdgeDto
+            {
+                Id = $"{centerId}->{id}:{kind}",
+                Source = centerId,
+                Target = id,
+                Kind = kind
+            });
+        }
+
+        // 4. Outbound Databases / Services (Right Column)
+        var dbQuery = "MATCH (p:Project {id: $centerId})-[r:USES_DB]->(d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, r.kind AS kind";
+        var dbJson = await client.ExecuteQueryAsync(dbQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+        using var dbDoc = JsonDocument.Parse(dbJson);
+
+        foreach (var row in dbDoc.RootElement.EnumerateArray())
+        {
+            var id = row.GetProperty("id").GetString() ?? "";
+            var name = row.GetProperty("name").GetString() ?? id;
+            var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
+            var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "USES_DB") : "USES_DB";
+
+            if (graph.Nodes.All(n => n.Id != id))
+            {
+                var dbNode = new GraphNodeDto
+                {
+                    Id = id,
+                    Kind = "Database",
+                    Name = name,
+                    DisplayName = $"{name} [{dbType}]",
+                    Properties = new Dictionary<string, string>
+                    {
+                        ["column"] = "right",
+                        ["role"] = "database",
+                        ["db_type"] = dbType
+                    }
+                };
+                graph.Nodes.Add(dbNode);
+            }
+
+            graph.Edges.Add(new GraphEdgeDto
+            {
+                Id = $"{centerId}->{id}:{kind}",
+                Source = centerId,
+                Target = id,
+                Kind = kind
+            });
+        }
+
+        return graph;
+    }
 }

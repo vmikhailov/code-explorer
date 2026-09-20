@@ -1078,6 +1078,18 @@ public class Program
             return Results.Ok(graph);
         });
 
+        app.MapGet("/api/projects", async (IGraphClient graphClient) =>
+        {
+            var projects = await GraphDataConverter.GetAllProjectsAsync(graphClient);
+            return Results.Ok(projects);
+        });
+
+        app.MapGet("/api/dependencies", async (IGraphClient graphClient, string? project) =>
+        {
+            var graph = await GraphDataConverter.GetProjectNeighborhoodAsync(graphClient, project);
+            return Results.Ok(graph);
+        });
+
         await app.StartAsync();
 
         var serverAddressesFeature = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()

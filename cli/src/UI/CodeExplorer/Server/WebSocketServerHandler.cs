@@ -181,11 +181,11 @@ public class WebSocketServerHandler
                     var depReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<GetDependenciesRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    var depJson = await _repository.GetProjectDependenciesAsync(depReq?.ProjectName, "json", 100, _workspaceRoot, cancellationToken);
+                    var depGraph = await GraphDataConverter.GetProjectNeighborhoodAsync(_graphClient, depReq?.ProjectName, cancellationToken);
                     await SendResponseAsync(socket, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
-                        RawJson = depJson
+                        Graph = depGraph
                     }, cancellationToken);
                     break;
 

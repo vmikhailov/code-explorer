@@ -10,14 +10,21 @@ if (!fs.existsSync('dist')) {
   fs.mkdirSync('dist', { recursive: true });
 }
 
-// Copy static CSS to dist
+// Combine React Flow CSS + Custom CSS to dist/styles.css
 function copyStyles() {
-  const src = path.resolve('src', 'webview', 'styles.css');
-  const dest = path.resolve('dist', 'styles.css');
-  if (fs.existsSync(src)) {
-    fs.copyFileSync(src, dest);
-    console.log('[build] Copied styles.css -> dist/styles.css');
+  let combinedCss = '';
+  const reactFlowCssPath = path.resolve('node_modules', '@xyflow', 'react', 'dist', 'style.css');
+  if (fs.existsSync(reactFlowCssPath)) {
+    combinedCss += fs.readFileSync(reactFlowCssPath, 'utf8') + '\n';
   }
+
+  const customCssPath = path.resolve('src', 'webview', 'styles.css');
+  if (fs.existsSync(customCssPath)) {
+    combinedCss += fs.readFileSync(customCssPath, 'utf8');
+  }
+
+  fs.writeFileSync(path.resolve('dist', 'styles.css'), combinedCss);
+  console.log('[build] Combined React Flow CSS + styles.css -> dist/styles.css');
 }
 
 copyStyles();
@@ -35,9 +42,9 @@ const extensionContext = await esbuild.context({
   minify: isProduction,
 });
 
-// Build Webview Script (Browser IIFE)
+// Build Webview Script (Browser IIFE with React & React Flow)
 const webviewContext = await esbuild.context({
-  entryPoints: ['src/webview/main.ts'],
+  entryPoints: ['src/webview/index.tsx'],
   bundle: true,
   outfile: 'dist/webview.js',
   format: 'iife',
@@ -45,6 +52,9 @@ const webviewContext = await esbuild.context({
   target: 'es2022',
   sourcemap: !isProduction,
   minify: isProduction,
+  define: {
+    'process.env.NODE_ENV': isProduction ? '"production"' : '"development"',
+  },
 });
 
 if (isWatch) {
