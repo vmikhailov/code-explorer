@@ -1,0 +1,194 @@
+syntax = "proto3";
+
+package codeexplorer;
+
+option csharp_namespace = "CodeExplorer.Protocol";
+
+// ============================================================================
+// Top-Level WebSocket Message Envelope
+// ============================================================================
+
+enum MessageType {
+  UNKNOWN = 0;
+  
+  // Client -> Server requests
+  HANDSHAKE_REQUEST = 1;
+  PING_REQUEST = 2;
+  GET_ARCHITECTURE_REQUEST = 3;
+  GET_DEPENDENCIES_REQUEST = 4;
+  GET_SYMBOL_NEIGHBORHOOD_REQUEST = 5;
+  GET_CALL_CHAIN_REQUEST = 6;
+  GET_IMPACT_REQUEST = 7;
+  EXECUTE_CYPHER_REQUEST = 8;
+  TRIGGER_SCAN_REQUEST = 9;
+
+  // Server -> Client responses
+  HANDSHAKE_RESPONSE = 100;
+  PONG_RESPONSE = 101;
+  QUERY_RESPONSE = 102;
+  ERROR_RESPONSE = 103;
+
+  // Server -> Client broadcast events
+  GRAPH_PATCH_EVENT = 200;
+  SCAN_PROGRESS_EVENT = 201;
+}
+
+message WebSocketMessage {
+  MessageType type = 1;
+  string request_id = 2; // Unique identifier for request/response correlation
+
+  oneof payload {
+    // Requests
+    HandshakeRequest handshake_request = 10;
+    PingRequest ping_request = 11;
+    GetArchitectureRequest get_architecture_request = 12;
+    GetDependenciesRequest get_dependencies_request = 13;
+    GetSymbolNeighborhoodRequest get_symbol_neighborhood_request = 14;
+    GetCallChainRequest get_call_chain_request = 15;
+    GetImpactRequest get_impact_request = 16;
+    ExecuteCypherRequest execute_cypher_request = 17;
+    TriggerScanRequest trigger_scan_request = 18;
+
+    // Responses
+    HandshakeResponse handshake_response = 50;
+    PongResponse pong_response = 51;
+    QueryResponse query_response = 52;
+    ErrorResponse error_response = 53;
+
+    // Events
+    GraphPatchEvent graph_patch_event = 80;
+    ScanProgressEvent scan_progress_event = 81;
+  }
+}
+
+// ============================================================================
+// Common Graph Entities
+// ============================================================================
+
+message GraphNode {
+  string id = 1;
+  string kind = 2;               // Project, Class, Function, Endpoint, Table, etc.
+  string name = 3;
+  string display_name = 4;
+  string file_path = 5;          // Relative or absolute file path
+  int32 line_start = 6;
+  int32 line_end = 7;
+  string parent_id = 8;          // For compound / nested hierarchy
+  map<string, string> properties = 9;
+}
+
+message GraphEdge {
+  string id = 1;
+  string source = 2;             // Source node ID
+  string target = 3;             // Target node ID
+  string kind = 4;               // CALLS, DEPENDS_ON, WRITES_TO, IMPLEMENTS, etc.
+  map<string, string> properties = 5;
+}
+
+message GraphData {
+  repeated GraphNode nodes = 1;
+  repeated GraphEdge edges = 2;
+  map<string, string> metadata = 3;
+}
+
+// ============================================================================
+// Requests
+// ============================================================================
+
+message HandshakeRequest {
+  string client_version = 1;
+  string client_name = 2;        // e.g. "vscode-extension", "antigravity"
+  string workspace_path = 3;     // Path to target workspace
+}
+
+message PingRequest {
+  int64 timestamp = 1;
+}
+
+message GetArchitectureRequest {
+  string project_filter = 1;     // Optional filter by project name
+  string format = 2;             // "graph" (default), "mermaid", "c4"
+}
+
+message GetDependenciesRequest {
+  string project_name = 1;       // Target project name (empty for all projects)
+  bool include_incoming = 2;     // Include inbound dependencies
+  bool include_outgoing = 3;     // Include outbound dependencies
+}
+
+message GetSymbolNeighborhoodRequest {
+  string symbol_name = 1;        // Name of function, class, endpoint, or table
+  int32 depth = 2;               // Number of hops (default 1, max 3)
+}
+
+message GetCallChainRequest {
+  string from_symbol = 1;        // Caller function/method
+  string to_symbol = 2;          // Callee or target sink (empty for all reachable)
+  int32 max_depth = 3;           // Max traversal depth (default 5)
+}
+
+message GetImpactRequest {
+  string symbol_name = 1;        // Target function/type to inspect blast radius
+}
+
+message ExecuteCypherRequest {
+  string query = 1;              // Raw Cypher query string
+  map<string, string> parameters = 2;
+}
+
+message TriggerScanRequest {
+  string target_path = 1;        // Path to scan (or null/empty for entire workspace)
+  bool clear = 2;                // Clear target path data before scanning
+}
+
+// ============================================================================
+// Responses
+// ============================================================================
+
+message HandshakeResponse {
+  string server_version = 1;
+  string workspace_root = 2;
+  string db_path = 3;
+  int64 total_nodes = 4;
+  int64 total_edges = 5;
+  repeated string capabilities = 6;
+}
+
+message PongResponse {
+  int64 client_timestamp = 1;
+  int64 server_timestamp = 2;
+}
+
+message QueryResponse {
+  bool success = 1;
+  string error_message = 2;
+  GraphData graph = 3;           // Structured graph if query returned graph
+  string raw_json = 4;           // Raw JSON payload for tabular/scalar queries
+}
+
+message ErrorResponse {
+  string code = 1;               // e.g. "INVALID_REQUEST", "NOT_FOUND", "INTERNAL_ERROR"
+  string message = 2;
+  string details = 3;
+}
+
+// ============================================================================
+// Broadcast Events (Server -> Client)
+// ============================================================================
+
+message GraphPatchEvent {
+  int64 timestamp = 1;
+  repeated GraphNode added_nodes = 2;
+  repeated GraphNode updated_nodes = 3;
+  repeated string removed_node_ids = 4;
+  repeated GraphEdge added_edges = 5;
+  repeated string removed_edge_ids = 6;
+}
+
+message ScanProgressEvent {
+  string phase = 1;              // "Discovery", "Parsing", "Linking", "PostAnalysis"
+  double percentage = 2;         // 0.0 to 100.0
+  string current_file = 3;
+  int32 total_files = 4;
+  int32 processed_files = 5;
+}

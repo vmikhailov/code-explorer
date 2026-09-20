@@ -26,6 +26,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
     }
 
     public int CommandTimeoutSeconds { get; set; } = 15;
+    public string DbPath => _conn.DataSource;
 
     public SqliteGraphClient(string connectionStringOrPath, ILogger<SqliteGraphClient>? logger = null)
     {

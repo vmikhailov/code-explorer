@@ -17,10 +17,13 @@ using CodeExplorer.Parser.TypeScript;
 using CommandLine;
 using CommandLineParser = CommandLine.Parser;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using CodeExplorer.Server;
+using CodeExplorer.Core.Protocol;
 
 namespace CodeExplorer;
 
@@ -56,7 +59,8 @@ public class Program
                 QueryOptions,
                 McpOptions,
                 IngestOptions,
-                ExportOptions>(args)
+                ExportOptions,
+                ServeOptions>(args)
             .MapResult(
                 (InitOptions opts) => HandleInitAsync(opts),
                 (ScanOptions opts) => HandleScanAsync(opts),
@@ -69,6 +73,7 @@ public class Program
                 (McpOptions opts) => HandleMcpAsync(opts),
                 (IngestOptions opts) => HandleIngestAsync(opts),
                 (ExportOptions opts) => HandleExportAsync(opts),
+                (ServeOptions opts) => HandleServeAsync(opts),
                 _ => Task.FromResult(1));
     }
 
@@ -959,6 +964,144 @@ public class Program
         return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "1.0.0";
     }
 
+    private static async Task<int> HandleServeAsync(ServeOptions opts)
+    {
+        WorkspaceInfo? ws = null;
+        string? dbPath = null;
+        if (!string.IsNullOrWhiteSpace(opts.DbPath))
+        {
+            dbPath = Path.GetFullPath(opts.DbPath);
+            ws = WorkspaceLocator.FindFromDbPath(dbPath);
+        }
+        else
+        {
+            ws = WorkspaceLocator.FindWithFallbacks(opts.Root);
+            if (ws != null)
+            {
+                dbPath = ws.DbPath;
+                WorkspaceLocator.RecordActiveWorkspace(ws.RootDirectory);
+            }
+        }
+
+        if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Error.WriteLine("Error: Graph database not found. Run 'ce scan' first or specify --root / --db-path.");
+            Console.ResetColor();
+            return 1;
+        }
+
+        var client = new SqliteGraphClient(dbPath);
+        var wsRoot = ws?.RootDirectory ?? opts.Root ?? Directory.GetCurrentDirectory();
+
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        if (!opts.Quiet)
+        {
+            builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+            builder.Logging.AddFilter("System", LogLevel.Warning);
+            builder.Logging.AddShortConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
+        }
+        else
+        {
+            builder.Logging.SetMinimumLevel(LogLevel.None);
+        }
+
+        builder.Services.AddCors(options => options.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+        RegisterCommonServices(builder.Services, client, wsRoot);
+        builder.Services.AddSingleton(sp => new WebSocketServerHandler(
+            client,
+            sp.GetRequiredService<CodeExplorerRepository>(),
+            sp.GetRequiredService<WorkspaceIndexer>(),
+            sp.GetRequiredService<ILogger<WebSocketServerHandler>>(),
+            sp.GetService<IHostApplicationLifetime>(),
+            opts.IdleTimeoutSeconds,
+            wsRoot,
+            GetAppVersion()
+        ));
+
+        builder.WebHost.ConfigureKestrel(serverOptions =>
+        {
+            serverOptions.Listen(System.Net.IPAddress.Parse(opts.Host), opts.Port);
+        });
+
+        var app = builder.Build();
+        App = app;
+        client.Logger = app.Services.GetRequiredService<ILogger<SqliteGraphClient>>();
+
+        app.UseCors();
+        app.UseWebSockets(new WebSocketOptions
+        {
+            KeepAliveInterval = TimeSpan.FromSeconds(15)
+        });
+
+        var wsHandler = app.Services.GetRequiredService<WebSocketServerHandler>();
+
+        app.Map("/ws", async (HttpContext context) =>
+        {
+            if (context.WebSockets.IsWebSocketRequest)
+            {
+                using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+                await wsHandler.HandleConnectionAsync(webSocket, context.RequestAborted);
+            }
+            else
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsync("WebSocket connection expected at /ws");
+            }
+        });
+
+        app.MapGet("/", () => Results.Ok(new
+        {
+            service = "CodeExplorer API Server",
+            version = GetAppVersion(),
+            wsEndpoint = "/ws",
+            workspace = wsRoot
+        }));
+
+        app.MapGet("/api/status", async (IGraphClient graphClient) =>
+        {
+            var nodeCountJson = await graphClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt");
+            var edgeCountJson = await graphClient.ExecuteQueryAsync("MATCH ()-[r]->() RETURN count(r) AS cnt");
+            return Results.Ok(new
+            {
+                status = "ok",
+                workspace = wsRoot,
+                nodes = nodeCountJson,
+                edges = edgeCountJson
+            });
+        });
+
+        app.MapGet("/api/architecture", async (IGraphClient graphClient, string? project) =>
+        {
+            var graph = await GraphDataConverter.GetArchitectureGraphAsync(graphClient, project);
+            return Results.Ok(graph);
+        });
+
+        await app.StartAsync();
+
+        var serverAddressesFeature = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
+            .Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>();
+        var boundAddress = serverAddressesFeature?.Addresses.FirstOrDefault() ?? $"http://{opts.Host}:{opts.Port}";
+        var boundUri = new Uri(boundAddress);
+        var actualPort = boundUri.Port;
+        var wsUrl = $"ws://{opts.Host}:{actualPort}/ws";
+
+        // Machine-readable stdout line
+        Console.WriteLine($"{{\"status\":\"ready\",\"port\":{actualPort},\"wsUrl\":\"{wsUrl}\",\"httpUrl\":\"{boundAddress}\",\"workspace\":\"{wsRoot.Replace("\\", "/")}\"}}");
+
+        if (!opts.Quiet)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"✓ CodeExplorer WebSocket Server running at {wsUrl}");
+            Console.WriteLine($"✓ REST API available at {boundAddress}");
+            Console.ResetColor();
+        }
+
+        await app.WaitForShutdownAsync();
+        return 0;
+    }
+
     private static void ShowWelcomeAndHelp()
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
@@ -1022,6 +1165,7 @@ public class Program
         Console.WriteLine("  query                   Run a read-only Cypher query against the knowledge graph");
         Console.WriteLine("  export                  Export architecture and lineage diagrams (Mermaid, C4)");
         Console.WriteLine("  mcp                     Run Model Context Protocol server (stdio default, or --port)");
+        Console.WriteLine("  serve                   Run real-time WebSocket and HTTP API server (ws:// on --port)");
         Console.WriteLine("  ingest                  Direct batch ingestion of code nodes and relationships");
         Console.WriteLine();
 
