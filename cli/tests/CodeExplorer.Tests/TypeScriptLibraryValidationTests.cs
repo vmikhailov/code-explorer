@@ -651,4 +651,139 @@ async function test() {
         Assert.That(q, Is.Not.Null);
         Assert.That(q!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON"), Is.True);
     }
+
+    [Test]
+    public async Task Test_Angular_HttpClient_DirectCalls()
+    {
+        RouteDictionaryRegistry.Clear();
+        var code = @"
+import { Component } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+
+@Component({
+  selector: 'app-games',
+  template: '<div>Games</div>'
+})
+export class GamesComponent {
+  constructor(private httpClient: HttpClient) {}
+
+  loadGames() {
+    this.httpClient.get<any>('http://localhost:8060/api/v1/games').subscribe();
+    this.httpClient.post<any>('/api/v1/profiles', { name: 'Player1' }).subscribe();
+  }
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(code, "games.component.ts");
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        Assert.That(extServices, Has.Count.EqualTo(2));
+
+        var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
+        Assert.That(gamesSvc, Is.Not.Null);
+        Assert.That(gamesSvc!.DomainOrService, Is.EqualTo("localhost"));
+
+        var profileSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
+        Assert.That(profileSvc, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task Test_Angular_HttpClient_EnvironmentAndGetterFunctions()
+    {
+        RouteDictionaryRegistry.Clear();
+
+        // 1. Simulate environment.ts and urlConstructor.ts scanning
+        var envCode = @"
+export const environment = {
+  production: false,
+  players: 'http://localhost:8050/api/v1/profiles',
+  tournament: 'http://localhost:8060/api/v1/tournaments',
+  games: 'http://localhost:8060/api/v1/games',
+  genres: 'http://localhost:8060/api/v1/genres',
+  users: 'https://localhost:8020/identity/api/v1/users',
+  identity: 'https://localhost:8020/identity'
+};
+";
+        RouteDictionaryRegistry.ScanAndRegister(envCode);
+
+        var urlConstructorCode = @"
+import { environment as env } from './environment';
+
+export const getGamesListUrl = () => env.games;
+export const getPlayerUrl = () => env.players;
+export const getUsersFromIdentityUrl = () => env.users;
+export const getIdentityUrl = () => env.identity;
+";
+        RouteDictionaryRegistry.ScanAndRegister(urlConstructorCode);
+
+        // 2. Parse Angular components using these getters
+        var componentCode = @"
+import { Component, OnInit } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { getGamesListUrl, getPlayerUrl, getUsersFromIdentityUrl } from './urlConstructor';
+
+@Component({
+  selector: 'app-admin',
+  template: '<div>Admin</div>'
+})
+export class AdminComponent implements OnInit {
+  constructor(private httpClient: HttpClient) {}
+
+  ngOnInit() {
+    this.httpClient.get<any>(getGamesListUrl()).subscribe();
+    this.httpClient.post<any>(getPlayerUrl(), { name: 'NewPlayer' }).subscribe();
+    this.httpClient.get<any>(getUsersFromIdentityUrl()).subscribe();
+  }
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(componentCode, "admin.component.ts");
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        Assert.That(extServices, Has.Count.EqualTo(3));
+
+        var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
+        Assert.That(gamesSvc, Is.Not.Null);
+
+        var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
+        Assert.That(playerSvc, Is.Not.Null);
+
+        var userSvc = extServices.FirstOrDefault(s => s.Path.EndsWith("/api/v1/users"));
+        Assert.That(userSvc, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task Test_Angular_HttpClient_HeuristicGetterResolution()
+    {
+        RouteDictionaryRegistry.Clear();
+
+        // Only environment is scanned; getter functions are NOT explicitly registered in dictionary
+        var envCode = @"
+export const environment = {
+  games: 'http://localhost:8060/api/v1/games',
+  players: 'http://localhost:8050/api/v1/profiles'
+};
+";
+        RouteDictionaryRegistry.ScanAndRegister(envCode);
+
+        var componentCode = @"
+import { Component } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+
+@Component({ selector: 'app-test', template: '' })
+export class TestComponent {
+  constructor(private httpClient: HttpClient) {}
+
+  fetch() {
+    this.httpClient.get(getGamesListUrl()).subscribe();
+    this.httpClient.post(getPlayerUrl(), {}).subscribe();
+  }
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(componentCode, "test.component.ts");
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        Assert.That(extServices, Has.Count.EqualTo(2));
+
+        var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
+        Assert.That(gamesSvc, Is.Not.Null);
+
+        var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
+        Assert.That(playerSvc, Is.Not.Null);
+    }
 }

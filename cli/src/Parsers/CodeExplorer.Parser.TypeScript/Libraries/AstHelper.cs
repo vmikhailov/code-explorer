@@ -32,10 +32,32 @@ public static class AstHelper
         if (argNode.Is(TreeSitterSyntax.TypeScript.Identifier))
         {
             var varName = argNode.Text;
+            if (RouteDictionaryRegistry.TryResolve(varName, out var rPath, out var rService))
+            {
+                var cleanPath = rPath.Split('?')[0];
+                return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+            }
+
             var val = FindVariableInitializerInAst(argNode, varName);
             if (val != null)
             {
                 return NormalizeResolvedUrl(val);
+            }
+        }
+
+        if (argNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            if (RouteDictionaryRegistry.TryResolve(argNode.Text, out var rPath, out var rService))
+            {
+                var cleanPath = rPath.Split('?')[0];
+                return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+            }
+
+            var prop = argNode.GetField(TreeSitterSyntax.Fields.Property);
+            if (prop.IsValid() && RouteDictionaryRegistry.TryResolve(prop.Text, out rPath, out rService))
+            {
+                var cleanPath = rPath.Split('?')[0];
+                return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
             }
         }
 
@@ -45,6 +67,32 @@ public static class AstHelper
             if (!string.IsNullOrEmpty(firstArg))
             {
                 return NormalizeResolvedUrl(firstArg);
+            }
+
+            var func = argNode.GetFunctionNode();
+            if (func.IsValid())
+            {
+                var funcText = func.Text;
+                if (funcText.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+                {
+                    funcText = funcText[5..];
+                }
+
+                if (RouteDictionaryRegistry.TryResolve(funcText, out var rPath, out var rService))
+                {
+                    var cleanPath = rPath.Split('?')[0];
+                    return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+                }
+
+                if (func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+                {
+                    var prop = func.GetField(TreeSitterSyntax.Fields.Property);
+                    if (prop.IsValid() && RouteDictionaryRegistry.TryResolve(prop.Text, out rPath, out rService))
+                    {
+                        var cleanPath = rPath.Split('?')[0];
+                        return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+                    }
+                }
             }
         }
 
@@ -191,10 +239,10 @@ public static class AstHelper
                                     }
                                     else if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
                                     {
-                                        var callArg = ExtractFirstStringArgument(valNode);
-                                        if (!string.IsNullOrEmpty(callArg))
+                                        var callRes = ResolveStringOrTemplate(valNode);
+                                        if (!string.IsNullOrEmpty(callRes))
                                         {
-                                            return callArg;
+                                            return callRes;
                                         }
                                     }
                                     else if (valNode.Is(TreeSitterSyntax.Common.BinaryExpression))

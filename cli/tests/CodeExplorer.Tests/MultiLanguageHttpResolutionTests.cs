@@ -11,6 +11,7 @@ using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Java;
 using CodeExplorer.Parser.Python;
+using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;
 
 namespace CodeExplorer.Tests;
@@ -402,5 +403,58 @@ public class MultiLanguageHttpResolutionTests
 
         var isMatch = (bool)isMatchMethod.Invoke(layer5, [goSvc, tsEndpoint])!;
         Assert.That(isMatch, Is.True, "Go HTTP client external service should late-bind to TypeScript endpoint");
+    }
+
+    [Test]
+    public async Task CrossLanguage_AngularHttpClient_Matches_DotNetEndpoint()
+    {
+        RouteDictionaryRegistry.Clear();
+        var envCode = """
+        export const environment = {
+            games: 'http://localhost:8060/api/v1/games',
+            players: 'http://localhost:8050/api/v1/profiles'
+        };
+        """;
+        RouteDictionaryRegistry.ScanAndRegister(envCode);
+
+        var urlConstructor = """
+        import { environment as env } from './environment';
+        export const getGamesListUrl = () => env.games;
+        """;
+        RouteDictionaryRegistry.ScanAndRegister(urlConstructor);
+
+        var angularCode = """
+        import { Component } from '@angular/core';
+        import { HttpClient } from '@angular/common/http';
+        import { getGamesListUrl } from './urlConstructor';
+
+        @Component({ selector: 'app-games', template: '' })
+        export class GamesComponent {
+            constructor(private httpClient: HttpClient) {}
+            getGames() {
+                this.httpClient.get<any>(getGamesListUrl()).subscribe();
+            }
+        }
+        """;
+
+        var services = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), angularCode, "games.component.ts");
+        Assert.That(services, Has.Count.GreaterThan(0));
+        var angularSvc = services.First();
+
+        var dotNetEndpoint = new EndpointNode(
+            "cs-tournament:endpoint:GET:/api/v1/games",
+            "GET /api/v1/games",
+            "GamesController.cs",
+            "GET",
+            "/api/v1/games"
+        );
+
+        var layer5 = new Layer5AnalysisParser();
+        var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            [typeof(ExternalServiceNode), typeof(EndpointNode)])!;
+
+        var isMatch = (bool)isMatchMethod.Invoke(layer5, [angularSvc, dotNetEndpoint])!;
+        Assert.That(isMatch, Is.True, "Angular HttpClient external service should late-bind to .NET backend endpoint");
     }
 }

@@ -11,11 +11,26 @@ public static class RouteDictionaryRegistry
     private static readonly ConcurrentDictionary<string, string> _serviceDomains =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, string> _aliases =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public static void RegisterServiceDomain(string key, string domain)
     {
         if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(domain))
         {
             _serviceDomains[key] = domain;
+        }
+    }
+
+    public static void RegisterAlias(string aliasKey, string targetKey)
+    {
+        if (!string.IsNullOrEmpty(aliasKey) && !string.IsNullOrEmpty(targetKey))
+        {
+            _aliases[aliasKey] = targetKey;
+            if (_routes.TryGetValue(targetKey, out var tuple))
+            {
+                _routes[aliasKey] = tuple;
+            }
         }
     }
 
@@ -28,17 +43,74 @@ public static class RouteDictionaryRegistry
             {
                 RegisterServiceDomain(service, service);
             }
+
+            foreach (var (alias, target) in _aliases)
+            {
+                if (string.Equals(target, key, StringComparison.OrdinalIgnoreCase))
+                {
+                    _routes[alias] = (path, service);
+                }
+            }
         }
     }
 
     public static bool TryResolve(string key, out string path, out string? service)
     {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            path = null!;
+            service = null;
+            return false;
+        }
+
+        // 1. Direct lookup
         if (_routes.TryGetValue(key, out var tuple))
         {
             path = tuple.Path;
             service = tuple.Service;
             return true;
         }
+
+        // 2. Alias lookup
+        if (_aliases.TryGetValue(key, out var targetKey) && _routes.TryGetValue(targetKey, out tuple))
+        {
+            path = tuple.Path;
+            service = tuple.Service;
+            return true;
+        }
+
+        // 3. Strip parentheses if passed as "funcName()"
+        var cleanKey = key.Trim();
+        if (cleanKey.EndsWith("()"))
+        {
+            cleanKey = cleanKey[..^2].Trim();
+            if (_routes.TryGetValue(cleanKey, out tuple) ||
+                (_aliases.TryGetValue(cleanKey, out targetKey) && _routes.TryGetValue(targetKey, out tuple)))
+            {
+                path = tuple.Path;
+                service = tuple.Service;
+                return true;
+            }
+        }
+
+        // 4. Heuristic inference for getter functions: e.g. getGamesListUrl, getPlayerUrl, getUsersFromIdentityUrl
+        var getterMatch = Regex.Match(cleanKey, @"^get([A-Za-z0-9_]+?)(?:From[A-Za-z0-9_]+)?(?:List)?Url$", RegexOptions.IgnoreCase);
+        if (getterMatch.Success)
+        {
+            var entityName = getterMatch.Groups[1].Value.ToLowerInvariant();
+            var candidates = new[] { entityName, entityName + "s", entityName.TrimEnd('s') };
+            foreach (var cand in candidates)
+            {
+                if (_routes.TryGetValue(cand, out tuple) ||
+                    (_aliases.TryGetValue(cand, out var candTarget) && _routes.TryGetValue(candTarget, out tuple)))
+                {
+                    path = tuple.Path;
+                    service = tuple.Service;
+                    return true;
+                }
+            }
+        }
+
         path = null!;
         service = null;
         return false;
@@ -50,6 +122,7 @@ public static class RouteDictionaryRegistry
     {
         _routes.Clear();
         _serviceDomains.Clear();
+        _aliases.Clear();
     }
 
     public static string NormalizeResolvedUrl(string raw)
@@ -167,6 +240,122 @@ public static class RouteDictionaryRegistry
                     }
                 }
                 _serviceDomains[sKey] = sVal;
+            }
+        }
+
+        // 1b. Environment, URL map, and configuration dictionaries:
+        // export const environment = { ... }, const urlMap = { ... }, const Endpoints = { ... }
+        var envDictMatches = Regex.Matches(content,
+            @"(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*\{([\s\S]*?)\}(?:\s*as\s+const)?\s*(?:;|\n|$)",
+            RegexOptions.Multiline);
+        foreach (Match m in envDictMatches)
+        {
+            var varName = m.Groups[1].Value;
+            var isCandidate = Regex.IsMatch(varName,
+                @"(?:env|environment|url|endpoint|route|service|api|config)",
+                RegexOptions.IgnoreCase);
+            if (!isCandidate) continue;
+
+            var body = m.Groups[2].Value;
+            var entryMatches = Regex.Matches(body, @"['""]?([A-Za-z0-9_\-]+)['""]?\s*:\s*['""`]([^'""`\r\n]+)['""`]");
+            foreach (Match em in entryMatches)
+            {
+                var key = em.Groups[1].Value;
+                var val = em.Groups[2].Value.Trim();
+
+                if (val.Contains('/') || val.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || val.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    Register(key, val, null);
+                    Register($"{varName}.{key}", val, null);
+                    if (varName.StartsWith("env", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Register($"env.{key}", val, null);
+                        Register($"environment.{key}", val, null);
+                    }
+                }
+            }
+        }
+
+        // 1c. URL getter functions:
+        // export const getGamesListUrl = () => env.games;
+        // const getPlayerUrl = () => 'http://localhost:8050/api/v1/profiles';
+        var getterMatches = Regex.Matches(content,
+            @"(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_]+)\s*=\s*\([^)]*\)\s*=>\s*(?:['""`]([^'""`\r\n]+)['""`]|([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)|([A-Za-z0-9_]+)\(\))",
+            RegexOptions.Multiline);
+        foreach (Match gm in getterMatches)
+        {
+            var fnName = gm.Groups[1].Value;
+            if (gm.Groups[2].Success)
+            {
+                var rawUrl = gm.Groups[2].Value.Trim();
+                var tplMatch = Regex.Match(rawUrl, @"\$\{([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\}");
+                if (tplMatch.Success && TryResolve(tplMatch.Groups[2].Value, out var baseP, out _))
+                {
+                    rawUrl = rawUrl.Replace(tplMatch.Value, baseP);
+                }
+
+                if (rawUrl.Contains('/') || rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    Register(fnName, rawUrl, null);
+                }
+            }
+            else if (gm.Groups[3].Success && gm.Groups[4].Success)
+            {
+                var objName = gm.Groups[3].Value;
+                var propName = gm.Groups[4].Value;
+
+                RegisterAlias(fnName, propName);
+                RegisterAlias(fnName, $"{objName}.{propName}");
+
+                if (TryResolve(propName, out var p, out var s))
+                {
+                    Register(fnName, p, s);
+                }
+                else if (TryResolve($"{objName}.{propName}", out p, out s))
+                {
+                    Register(fnName, p, s);
+                }
+            }
+        }
+
+        // 1d. Traditional function declarations:
+        // export function getGamesListUrl() { return env.games; }
+        var funcDeclMatches = Regex.Matches(content,
+            @"(?:export\s+)?function\s+([A-Za-z0-9_]+)\s*\([^)]*\)\s*(?::\s*[^{]+)?\s*\{\s*return\s+(?:['""`]([^'""`\r\n]+)['""`]|([A-Za-z0-9_]+)\.([A-Za-z0-9_]+));?\s*\}",
+            RegexOptions.Multiline);
+        foreach (Match fm in funcDeclMatches)
+        {
+            var fnName = fm.Groups[1].Value;
+            if (fm.Groups[2].Success)
+            {
+                var rawUrl = fm.Groups[2].Value.Trim();
+                var tplMatch = Regex.Match(rawUrl, @"\$\{([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\}");
+                if (tplMatch.Success && TryResolve(tplMatch.Groups[2].Value, out var baseP, out _))
+                {
+                    rawUrl = rawUrl.Replace(tplMatch.Value, baseP);
+                }
+
+                if (rawUrl.Contains('/') || rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    Register(fnName, rawUrl, null);
+                }
+            }
+            else if (fm.Groups[3].Success && fm.Groups[4].Success)
+            {
+                var objName = fm.Groups[3].Value;
+                var propName = fm.Groups[4].Value;
+
+                RegisterAlias(fnName, propName);
+                RegisterAlias(fnName, $"{objName}.{propName}");
+
+                if (TryResolve(propName, out var p, out var s))
+                {
+                    Register(fnName, p, s);
+                }
+                else if (TryResolve($"{objName}.{propName}", out p, out s))
+                {
+                    Register(fnName, p, s);
+                }
             }
         }
 
