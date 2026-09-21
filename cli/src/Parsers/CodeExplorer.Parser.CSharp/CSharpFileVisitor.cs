@@ -118,6 +118,50 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     private static string? ExtractCSharpAttributeRoute(Node attributeNode) => Libraries.AspNetCoreLibraryParser.ExtractRoute(attributeNode);
 
+    protected override void CollectCustomReferencesForSymbol(
+        Node node,
+        SyntacticSymbol symbolNode,
+        SyntacticSymbol parentNode)
+    {
+        if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        {
+            var curr = node.Parent;
+            while (curr.IsValid() && !curr.IsAny(
+                TreeSitterSyntax.CSharp.MethodDeclaration,
+                TreeSitterSyntax.CSharp.LocalFunctionStatement,
+                TreeSitterSyntax.CSharp.ConstructorDeclaration,
+                TreeSitterSyntax.Common.FunctionDeclaration))
+            {
+                curr = curr.Parent;
+            }
+
+            if (curr.IsValid())
+            {
+                var methodName = ExtractCsIdentifier(curr);
+                if (!string.IsNullOrEmpty(methodName))
+                {
+                    var classCurr = curr.Parent;
+                    while (classCurr.IsValid() && !classCurr.IsAny(
+                        TreeSitterSyntax.CSharp.ClassDeclaration,
+                        TreeSitterSyntax.CSharp.StructDeclaration,
+                        TreeSitterSyntax.CSharp.RecordDeclaration,
+                        TreeSitterSyntax.CSharp.InterfaceDeclaration))
+                    {
+                        classCurr = classCurr.Parent;
+                    }
+
+                    var className = classCurr.IsValid() ? ExtractCsIdentifier(classCurr) : null;
+                    var targetName = !string.IsNullOrEmpty(className) ? $"{className}.{methodName}" : methodName;
+
+                    if (!symbolNode.References.Any(r => r.TargetName == targetName && r.Kind == OntologyConstants.Relationships.Triggers))
+                    {
+                        symbolNode.References.Add(new Reference("", targetName, OntologyConstants.Relationships.Triggers));
+                    }
+                }
+            }
+        }
+    }
+
     private static bool IsInterpolatedStringExpression(Node node) =>
         node.IsAny(TreeSitterSyntax.CSharp.InterpolatedStringExpression,
                    TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,

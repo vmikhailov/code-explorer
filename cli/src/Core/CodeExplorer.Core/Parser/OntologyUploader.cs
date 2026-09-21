@@ -47,7 +47,7 @@ public static class OntologyUploader
         var isDuplicate = visitedNodeIds.Contains(node.Id);
 
         // 3. Link to parent if present (we still link, even if node is duplicate, to capture secondary parent relationships)
-        if (parentNode != null)
+        if (parentNode != null && parentNode.Id != node.Id)
         {
             var ontologyRel = GetRelationship(parentNode.Id, node);
             var dbRel = Relationship.FromRelationship(ontologyRel);

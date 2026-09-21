@@ -683,7 +683,22 @@ public class AspNetCoreLibraryParser : ILibraryParser
             if (arg.IsValid())
             {
                 var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                if (strNode.IsValid()) explicitRoute = strNode.Text.Trim('"');
+                if (strNode.IsValid())
+                {
+                    explicitRoute = strNode.Text.Trim('"');
+                }
+                else
+                {
+                    var rawArg = arg.Text.Trim();
+                    if (rawArg.EndsWith("SyncRoutePrefix", StringComparison.OrdinalIgnoreCase))
+                    {
+                        explicitRoute = "api/v1/[controller]";
+                    }
+                    else if (rawArg.Contains("RoutePrefix", StringComparison.OrdinalIgnoreCase) || rawArg.Contains("ApiPrefix", StringComparison.OrdinalIgnoreCase))
+                    {
+                        explicitRoute = "api/[controller]";
+                    }
+                }
             }
         }
 
@@ -878,10 +893,31 @@ public class AspNetCoreLibraryParser : ILibraryParser
                         var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgument);
                         if (arg.IsValid())
                         {
+                            string? prefix = null;
                             var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
                             if (strNode.IsValid())
                             {
-                                var prefix = strNode.Text.Trim('"');
+                                prefix = strNode.Text.Trim('"');
+                            }
+                            else
+                            {
+                                var rawArg = arg.Text.Trim();
+                                if (rawArg.EndsWith("SyncRoutePrefix", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    prefix = "api/v1/[controller]";
+                                }
+                                else if (rawArg.Contains("RoutePrefix", StringComparison.OrdinalIgnoreCase) || rawArg.Contains("ApiPrefix", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    prefix = "api/[controller]";
+                                }
+                                else if (!string.IsNullOrEmpty(rawArg) && !rawArg.Contains('"'))
+                                {
+                                    prefix = "api/v1/[controller]";
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(prefix))
+                            {
                                 var classNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);
                                 if (classNameNode.IsValid() && prefix.Contains("[controller]"))
                                 {

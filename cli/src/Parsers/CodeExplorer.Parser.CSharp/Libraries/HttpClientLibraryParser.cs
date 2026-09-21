@@ -50,7 +50,16 @@ public class HttpClientLibraryParser : ILibraryParser
         if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
         {
             var nameChild = func.GetField(TreeSitterSyntax.Fields.Name);
-            if (!nameChild.IsValid() || !HttpMethods.Contains(nameChild.Text))
+            if (!nameChild.IsValid()) return false;
+
+            var methodName = nameChild.Text;
+            var angleIdx = methodName.IndexOf('<');
+            if (angleIdx > 0)
+            {
+                methodName = methodName[..angleIdx].Trim();
+            }
+
+            if (!HttpMethods.Contains(methodName))
                 return false;
 
             // Check receiver expression
@@ -65,7 +74,7 @@ public class HttpClientLibraryParser : ILibraryParser
                 }
             }
 
-            // Check argument list: first argument must not be pure CancellationToken
+            // Check argument list: first argument must not be pure CancellationToken, unless fluent HTTP builder is used
             var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
             if (argList.IsValid())
             {
@@ -74,7 +83,10 @@ public class HttpClientLibraryParser : ILibraryParser
                 {
                     var argText = firstArg.Text.Trim();
                     if (IsCancellationToken(argText))
-                        return false;
+                    {
+                        if (!HasFluentHttpRequestInReceiver(exprChild))
+                            return false;
+                    }
                 }
             }
 
@@ -92,8 +104,34 @@ public class HttpClientLibraryParser : ILibraryParser
         return false;
     }
 
+    private static readonly Dictionary<string, string> KnownHttpClientResources = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Tournaments"] = "api/v1/tournaments",
+        ["Identity"] = "api/v1",
+        ["Player"] = "api/v1/profiles",
+        ["Profiles"] = "api/v1/profiles",
+        ["Notifications"] = "api/v1/notifications",
+        ["Media"] = "api/v1/Media",
+        ["Games"] = "api/v1/games",
+        ["Teams"] = "api/v1/teams",
+        ["Invitations"] = "api/v1/invitations"
+    };
+
     public static string? ExtractTarget(Node node)
     {
+        // 1. Try fluent request chain first (from receiver expression)
+        var func = node.GetFunctionNode();
+        if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+        {
+            var expr = func.GetField(TreeSitterSyntax.Fields.Expression);
+            var fluentTarget = TryExtractFluentTarget(expr);
+            if (!string.IsNullOrEmpty(fluentTarget))
+            {
+                return NormalizeUrl(fluentTarget);
+            }
+        }
+
+        // 2. Standard HttpClient arguments
         var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
         if (!argList.IsValid()) return "http:unknown-service";
 
@@ -370,6 +408,201 @@ public class HttpClientLibraryParser : ILibraryParser
         {
             CollectNodes(child, nodeType, result);
         }
+    }
+
+    private static bool HasFluentHttpRequestInReceiver(Node? expr)
+    {
+        var curr = expr;
+        while (curr.IsValid())
+        {
+            if (curr.Is(TreeSitterSyntax.CSharp.InvocationExpression))
+            {
+                var func = curr.GetFunctionNode();
+                if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+                {
+                    var name = func.GetField(TreeSitterSyntax.Fields.Name)?.Text;
+                    if (name is "GetRequest" or "PostRequest" or "PutRequest" or "DeleteRequest" or "PatchRequest" or "AddUrlSegment" or "AddUriParameter")
+                    {
+                        return true;
+                    }
+                }
+                curr = func.IsValid() ? func.GetField(TreeSitterSyntax.Fields.Expression) : null;
+            }
+            else if (curr.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+            {
+                var name = curr.GetField(TreeSitterSyntax.Fields.Name)?.Text;
+                if (name != null && (name.Contains("HttpClientResource") || curr.Text.Contains("HttpClientResource")))
+                {
+                    return true;
+                }
+                curr = curr.GetField(TreeSitterSyntax.Fields.Expression);
+            }
+            else if (curr.Is(TreeSitterSyntax.Common.Identifier))
+            {
+                var initNode = FindVariableInitializer(curr, curr.Text);
+                if (initNode.IsValid())
+                {
+                    return HasFluentHttpRequestInReceiver(initNode);
+                }
+                break;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private static string? TryExtractFluentTarget(Node? expr)
+    {
+        if (!expr.IsValid()) return null;
+
+        var curr = expr;
+        if (curr.Is(TreeSitterSyntax.Common.Identifier))
+        {
+            var initNode = FindVariableInitializer(curr, curr.Text);
+            if (initNode.IsValid())
+            {
+                curr = initNode;
+            }
+        }
+
+        string? baseRoute = null;
+        var segments = new List<string>();
+
+        while (curr.IsValid())
+        {
+            if (curr.Is(TreeSitterSyntax.CSharp.InvocationExpression))
+            {
+                var func = curr.GetFunctionNode();
+                if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+                {
+                    var methodName = func.GetField(TreeSitterSyntax.Fields.Name)?.Text;
+                    if (methodName is "AddUrlSegment")
+                    {
+                        var argList = curr.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+                        var firstArg = argList.IsValid() ? argList.FindChildOfType(TreeSitterSyntax.CSharp.Argument) : null;
+                        if (firstArg.IsValid())
+                        {
+                            var argVal = firstArg.Children.FirstOrDefault();
+                            if (argVal.IsValid())
+                            {
+                                if (argVal.Type.Contains("string"))
+                                {
+                                    segments.Add(argVal.Text.Trim('"'));
+                                }
+                                else
+                                {
+                                    segments.Add("*");
+                                }
+                            }
+                        }
+                    }
+                    else if (methodName is "GetRequest" or "PostRequest" or "PutRequest" or "DeleteRequest" or "PatchRequest")
+                    {
+                        var argList = curr.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+                        var firstArg = argList.IsValid() ? argList.FindChildOfType(TreeSitterSyntax.CSharp.Argument) : null;
+                        if (firstArg.IsValid())
+                        {
+                            var argVal = firstArg.Children.FirstOrDefault();
+                            if (argVal.IsValid())
+                            {
+                                baseRoute = ResolveResourceArg(argVal);
+                            }
+                        }
+                    }
+
+                    curr = func.GetField(TreeSitterSyntax.Fields.Expression);
+                    continue;
+                }
+            }
+
+            break;
+        }
+
+        if (!string.IsNullOrEmpty(baseRoute) || segments.Count > 0)
+        {
+            segments.Reverse();
+            var path = baseRoute ?? "";
+            foreach (var seg in segments)
+            {
+                if (string.IsNullOrEmpty(path))
+                    path = seg;
+                else
+                    path = path.TrimEnd('/') + "/" + seg.TrimStart('/');
+            }
+            if (!string.IsNullOrEmpty(path))
+            {
+                return path.StartsWith('/') ? path : "/" + path;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ResolveResourceArg(Node argVal)
+    {
+        if (argVal.Type.Contains("string"))
+        {
+            return argVal.Text.Trim('"');
+        }
+
+        var text = argVal.Text;
+        if (text.Contains('.'))
+        {
+            var propName = text[(text.LastIndexOf('.') + 1)..];
+            if (KnownHttpClientResources.TryGetValue(propName, out var route))
+            {
+                return route;
+            }
+            return $"api/v1/{propName.ToLowerInvariant()}";
+        }
+
+        if (KnownHttpClientResources.TryGetValue(text, out var knownRoute))
+        {
+            return knownRoute;
+        }
+
+        return null;
+    }
+
+    private static Node? FindVariableInitializer(Node node, string varName)
+    {
+        var curr = node.Parent;
+        while (curr.IsValid())
+        {
+            if (curr.IsAny(TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement))
+            {
+                foreach (var child in curr.Children)
+                {
+                    if (child.IsAny(TreeSitterSyntax.CSharp.LocalDeclarationStatement, TreeSitterSyntax.CSharp.VariableDeclaration))
+                    {
+                        var decls = FindNodesOfType(child, TreeSitterSyntax.CSharp.VariableDeclarator);
+                        foreach (var decl in decls)
+                        {
+                            var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name)
+                                           ?? decl.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+                            if (nameNode.IsValid() && nameNode.Text == varName)
+                            {
+                                var valueNode = decl.GetField(TreeSitterSyntax.Fields.Value);
+                                if (!valueNode.IsValid())
+                                {
+                                    var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
+                                    if (eqClause.IsValid() && eqClause.Children.Count > 1)
+                                    {
+                                        valueNode = eqClause.Children[1];
+                                    }
+                                }
+                                if (valueNode.IsValid()) return valueNode;
+                            }
+                        }
+                    }
+                }
+            }
+            curr = curr.Parent;
+        }
+        return null;
     }
 
     public static string NormalizeUrl(string text)

@@ -57,9 +57,9 @@ public class EfCoreLibraryParser : ILibraryParser
             if (classDecl.IsValid() && !string.IsNullOrEmpty(tableName))
             {
                 var classNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);
-                if (classNameNode.IsValid())
+                if (classNameNode.IsValid() && classNameNode.Text != tableName)
                 {
-                    references.Add(new Reference(scopeSymbolId, tableName, OntologyConstants.Relationships.PersistedIn));
+                    references.Add(new Reference(classNameNode.Text, tableName, OntologyConstants.Relationships.PersistedIn));
                 }
             }
         }
@@ -68,20 +68,22 @@ public class EfCoreLibraryParser : ILibraryParser
             var (entityType, tableName) = ExtractDbSetInfo(node);
             if (!string.IsNullOrEmpty(entityType) && !string.IsNullOrEmpty(tableName))
             {
-                references.Add(new Reference(scopeSymbolId, tableName, OntologyConstants.Relationships.PersistedIn));
-                references.Add(new Reference(scopeSymbolId, entityType, OntologyConstants.Relationships.UsesType));
+                references.Add(new Reference(entityType, tableName, OntologyConstants.Relationships.PersistedIn));
+                if (!string.IsNullOrEmpty(scopeSymbolId))
+                {
+                    references.Add(new Reference(scopeSymbolId, entityType, OntologyConstants.Relationships.UsesType));
+                }
             }
         }
         else if (IsToTableCall(node))
         {
             var tableName = ExtractTableNameFromToTable(node);
             var entityType = FindEntityTypeForToTable(node);
-            if (!string.IsNullOrEmpty(tableName))
+            if (!string.IsNullOrEmpty(tableName) && !string.IsNullOrEmpty(entityType))
             {
-                references.Add(new Reference(scopeSymbolId, tableName, OntologyConstants.Relationships.PersistedIn));
-                if (!string.IsNullOrEmpty(entityType))
+                references.Add(new Reference(entityType, tableName, OntologyConstants.Relationships.PersistedIn));
+                if (!string.IsNullOrEmpty(scopeSymbolId))
                 {
-                    references.Add(new Reference(entityType, tableName, OntologyConstants.Relationships.PersistedIn));
                     references.Add(new Reference(scopeSymbolId, entityType, OntologyConstants.Relationships.UsesType));
                 }
             }
@@ -90,23 +92,7 @@ public class EfCoreLibraryParser : ILibraryParser
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
-        if (IsTableAttribute(node))
-        {
-            var tableName = ExtractTableNameFromAttribute(node);
-            if (!string.IsNullOrEmpty(tableName))
-            {
-                var classDecl = GetParentClass(node);
-                if (classDecl.IsValid())
-                {
-                    var nameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);
-                    if (nameNode.IsValid())
-                    {
-                        symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.PersistedIn));
-                    }
-                }
-            }
-        }
-        else if (node.Is(TreeSitterSyntax.CSharp.ClassDeclaration))
+        if (node.Is(TreeSitterSyntax.CSharp.ClassDeclaration))
         {
             foreach (var child in node.Children)
             {

@@ -178,7 +178,24 @@ public class CSharpParser : IProjectParser, IFileParser
                     var include = pref.Attribute("Include")?.Value;
                     if (string.IsNullOrEmpty(include)) continue;
 
-                    var referencedCsprojPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(csprojFile)!, include)).Replace('\\', '/');
+                    var resolvedInclude = include;
+                    if (resolvedInclude.Contains("$(SolutionDir)", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var slnDir = FindSolutionDir(Path.GetDirectoryName(csprojFile)!);
+                        resolvedInclude = resolvedInclude.Replace("$(SolutionDir)", slnDir.TrimEnd('\\', '/') + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                    }
+                    if (resolvedInclude.Contains("$(MSBuildThisFileDirectory)", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var thisDir = Path.GetDirectoryName(csprojFile)!;
+                        resolvedInclude = resolvedInclude.Replace("$(MSBuildThisFileDirectory)", thisDir.TrimEnd('\\', '/') + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                    }
+                    if (resolvedInclude.Contains("$(ProjectDir)", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var thisDir = Path.GetDirectoryName(csprojFile)!;
+                        resolvedInclude = resolvedInclude.Replace("$(ProjectDir)", thisDir.TrimEnd('\\', '/') + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    var referencedCsprojPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(csprojFile)!, resolvedInclude)).Replace('\\', '/');
                     var referencedProjectDir = Path.GetFullPath(Path.GetDirectoryName(referencedCsprojPath)!).Replace('\\', '/');
                     localProjectPaths.Add(referencedProjectDir);
                 }
@@ -213,6 +230,20 @@ public class CSharpParser : IProjectParser, IFileParser
         }
 
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+    }
+
+    private static string FindSolutionDir(string startDir)
+    {
+        var curr = new DirectoryInfo(startDir);
+        while (curr != null)
+        {
+            if (curr.GetFiles("*.sln").Length > 0 || curr.GetFiles("*.slnx").Length > 0)
+            {
+                return curr.FullName;
+            }
+            curr = curr.Parent;
+        }
+        return startDir;
     }
 
     public bool UsesTreeSitter => true;

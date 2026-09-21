@@ -246,7 +246,7 @@ public class Layer5AnalysisParser
             if (refItem.Kind == OntologyConstants.Relationships.Implements ||
                 refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
             {
-                if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId))
+                if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId) && refItem.ScopeSymbolId != targetNodeId)
                 {
                     if (refItem.Kind == OntologyConstants.Relationships.Implements)
                     {
@@ -444,10 +444,20 @@ public class Layer5AnalysisParser
             }
             else if (refItem.Kind == OntologyConstants.Relationships.Triggers)
             {
-                if (functionSymbols.TryGetValue(refItem.TargetName, out var targetNodeId))
+                var targetId = functionSymbols.GetValueOrDefault(refItem.TargetName);
+                if (targetId == null && refItem.TargetName.Contains('.'))
                 {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetNodeId)));
+                    var shortName = refItem.TargetName[(refItem.TargetName.LastIndexOf('.') + 1)..];
+                    targetId = functionSymbols.GetValueOrDefault(shortName);
+                }
+
+                if (targetId != null)
+                {
+                    if (!referenceRelationships.Any(r => r.From == refItem.ScopeSymbolId && r.To == targetId && r.Kind == OntologyConstants.Relationships.Triggers))
+                    {
+                        referenceRelationships.Add(
+                            Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetId)));
+                    }
                 }
             }
             else if (refItem.Kind == OntologyConstants.Relationships.PublishesTo ||
@@ -478,22 +488,22 @@ public class Layer5AnalysisParser
                     ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
                 }
 
-                if (refItem.Kind == OntologyConstants.Relationships.PublishesTo)
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new PublishedByRelationship(topicId, refItem.ScopeSymbolId)));
-                }
-                else
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new SubscribedByRelationship(topicId, refItem.ScopeSymbolId)));
-                }
+                var relKind = refItem.Kind == OntologyConstants.Relationships.PublishesTo
+                    ? OntologyConstants.Relationships.PublishedBy
+                    : OntologyConstants.Relationships.SubscribedBy;
+
+                referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, new()));
             }
             else if (refItem.Kind == OntologyConstants.Relationships.PersistedIn)
             {
-                var fromTypeId = typeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid) ? tid : refItem.ScopeSymbolId;
-                var targetTableId = tableSymbols.TryGetValue(refItem.TargetName, out var tblId) ? tblId : $"{ctx.WorkspaceId}:table:{refItem.TargetName.ToLowerInvariant()}";
-                referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(fromTypeId, targetTableId)));
+                if (typeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid))
+                {
+                    var targetTableId = tableSymbols.TryGetValue(refItem.TargetName, out var tblId) ? tblId : $"{ctx.WorkspaceId}:table:{refItem.TargetName.ToLowerInvariant()}";
+                    if (tid != targetTableId && !referenceRelationships.Any(r => r.From == tid && r.To == targetTableId && r.Kind == OntologyConstants.Relationships.PersistedIn))
+                    {
+                        referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(tid, targetTableId)));
+                    }
+                }
             }
         }
 
