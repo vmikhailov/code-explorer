@@ -1084,4 +1084,59 @@ func registerRoutes() {
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_CSharpParser_Refit()
+    {
+        var parser = new CSharpParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_refit_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "IUsersApi.cs");
+
+        var code = @"
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using Refit;
+
+namespace Clients;
+
+public interface IUsersApi
+{
+    [Get(""/api/v1/users"")]
+    Task<List<string>> GetUsers();
+
+    [Post(""/api/v1/profiles"")]
+    Task CreateProfile([Body] object profile);
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var extServices = FindExternalServiceNodes(fileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(2));
+
+            var getUsers = extServices.FirstOrDefault(es => es.Path == "/api/v1/users");
+            Assert.That(getUsers, Is.Not.Null);
+            Assert.That(getUsers!.DomainOrService, Is.EqualTo("users"));
+
+            var createProfile = extServices.FirstOrDefault(es => es.Path == "/api/v1/profiles");
+            Assert.That(createProfile, Is.Not.Null);
+            Assert.That(createProfile!.DomainOrService, Is.EqualTo("users"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

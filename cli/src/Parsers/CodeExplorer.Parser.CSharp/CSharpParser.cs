@@ -46,7 +46,7 @@ public class CSharpParser : IProjectParser, IFileParser
 
         // Generic API Clients
         new Libraries.RestSharpLibraryParser(),
-        new GenericLibraryParser("refit", "Refit", "api", ["Refit"]),
+        new Libraries.RefitLibraryParser(),
         new GenericLibraryParser("webapiclient", "WebApiClient", "api", ["WebApiClient"]),
         new GenericLibraryParser("apizr", "Apizr", "api", ["Apizr"]),
         new GenericLibraryParser("notoriousclient", "NotoriousClient", "api", ["NotoriousClient"]),

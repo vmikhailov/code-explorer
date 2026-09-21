@@ -786,4 +786,95 @@ export class TestComponent {
         var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
         Assert.That(playerSvc, Is.Not.Null);
     }
+
+    [Test]
+    public async Task Test_TypeScript_AngularOidc()
+    {
+        RouteDictionaryRegistry.Clear();
+
+        var authConfigCode = @"
+import { AuthConfig } from 'angular-oauth2-oidc';
+
+export const authCodeFlowConfig: AuthConfig = {
+  issuer: 'https://localhost:8020/identity',
+  redirectUri: 'http://localhost:4200/index.html',
+  clientId: 'admin-application',
+  responseType: 'code',
+  scope: 'openid profile email roles',
+  showDebugInformation: true
+};
+";
+        using var wsConfig = await TestWorkspace.CreateAsync(authConfigCode, "auth.config.ts");
+        var extServicesConfig = FindNodes<ExternalServiceNode>(wsConfig.FileNode.Children);
+        Assert.That(extServicesConfig, Has.Count.GreaterThan(0));
+
+        var oidcConfigEs = extServicesConfig.FirstOrDefault(s => s.Path.Contains(".well-known/openid-configuration"));
+        Assert.That(oidcConfigEs, Is.Not.Null);
+        Assert.That(oidcConfigEs!.DomainOrService, Is.EqualTo("localhost"));
+
+        var authServiceCode = @"
+import { Injectable } from '@angular/core';
+import { OAuthService } from 'angular-oauth2-oidc';
+
+@Injectable({ providedIn: 'root' })
+export class AuthService {
+  constructor(private oauthService: OAuthService) {}
+
+  public async init() {
+    await this.oauthService.loadDiscoveryDocumentAndTryLogin();
+  }
+}
+";
+        using var wsService = await TestWorkspace.CreateAsync(authServiceCode, "auth.service.ts");
+        var extServicesService = FindNodes<ExternalServiceNode>(wsService.FileNode.Children);
+        Assert.That(extServicesService, Has.Count.GreaterThan(0));
+        var oidcCallEs = extServicesService.FirstOrDefault(s => s.Path.Contains(".well-known/openid-configuration"));
+        Assert.That(oidcCallEs, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task Test_TypeScript_SignalR()
+    {
+        RouteDictionaryRegistry.Clear();
+        var code = @"
+import * as signalR from '@microsoft/signalr';
+
+export class RealtimeService {
+  private hubConnection: signalR.HubConnection;
+
+  public start() {
+    this.hubConnection = new signalR.HubConnectionBuilder()
+      .withUrl('http://localhost:8060/hub/games')
+      .build();
+  }
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(code, "realtime.service.ts");
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        Assert.That(extServices, Has.Count.EqualTo(1));
+
+        var hubSvc = extServices.First();
+        Assert.That(hubSvc.Protocol, Is.EqualTo("ws"));
+        Assert.That(hubSvc.Path, Is.EqualTo("/hub/games"));
+    }
+
+    [Test]
+    public async Task Test_TypeScript_GraphQL()
+    {
+        RouteDictionaryRegistry.Clear();
+        var code = @"
+import { ApolloClient, InMemoryCache } from '@apollo/client';
+
+const client = new ApolloClient({
+  uri: 'http://localhost:8060/graphql',
+  cache: new InMemoryCache()
+});
+";
+        using var ws = await TestWorkspace.CreateAsync(code, "apollo.ts");
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        Assert.That(extServices, Has.Count.EqualTo(1));
+
+        var gqlSvc = extServices.First();
+        Assert.That(gqlSvc.Path, Is.EqualTo("/graphql"));
+    }
 }

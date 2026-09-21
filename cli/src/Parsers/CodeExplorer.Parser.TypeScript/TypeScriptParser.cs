@@ -52,6 +52,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.GotKyLibraryParser(),
         new Libraries.SocketIoLibraryParser(),
         new Libraries.AngularHttpLibraryParser(),
+        new Libraries.AngularOidcLibraryParser(),
+        new Libraries.SignalRLibraryParser(),
+        new Libraries.GraphQLClientLibraryParser(),
 
         // Generic Frameworks
         new GenericLibraryParser("react", "React", "framework", ["react"]),

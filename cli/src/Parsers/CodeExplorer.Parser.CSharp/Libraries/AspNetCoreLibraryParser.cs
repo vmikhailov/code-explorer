@@ -446,6 +446,18 @@ public class AspNetCoreLibraryParser : ILibraryParser
                     {
                         interfaceName = interfaceName[1..];
                     }
+                    if (interfaceName.EndsWith("Api", StringComparison.OrdinalIgnoreCase))
+                    {
+                        interfaceName = interfaceName[..^"Api".Length];
+                    }
+                    else if (interfaceName.EndsWith("Client", StringComparison.OrdinalIgnoreCase))
+                    {
+                        interfaceName = interfaceName[..^"Client".Length];
+                    }
+                    else if (interfaceName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+                    {
+                        interfaceName = interfaceName[..^"Service".Length];
+                    }
                 }
                 break;
             }
@@ -453,7 +465,8 @@ public class AspNetCoreLibraryParser : ILibraryParser
         }
 
         routeVal = "/" + routeVal.Trim('/');
-        return $"http:{interfaceName}{routeVal}";
+        var cleanService = interfaceName.ToLowerInvariant();
+        return $"http:{cleanService}{routeVal}";
     }
 
     private static string? ExtractEndpointIdentifier(Node node)
