@@ -1,6 +1,7 @@
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Parser.Go.Libraries;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Go;
@@ -392,9 +393,11 @@ public class GoFileVisitor : BaseParserVisitor
                 {
                     return methodName is "Get" or "Post" or "Head" or "PostForm" or "NewRequest" or "NewRequestWithContext";
                 }
-                if (objName.Contains("client") || objName.Contains("Client"))
+                if (objName.Contains("client", StringComparison.OrdinalIgnoreCase) ||
+                    objName.Contains("req", StringComparison.OrdinalIgnoreCase) ||
+                    objName is "r" or "c")
                 {
-                    return methodName is "Get" or "Post" or "Head" or "PostForm" or "Do";
+                    return methodName is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "PostForm" or "Do";
                 }
             }
         }
@@ -403,27 +406,43 @@ public class GoFileVisitor : BaseParserVisitor
 
     private static string? ExtractGoHttpClientTarget(Node node)
     {
-        var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
-        if (args.IsValid() && args.Children.Count > 1)
+        var func = node.GetFunctionNode();
+        var methodName = "";
+        if (func.IsValid() && func.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
-            var firstStrArg = args.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral));
-            if (firstStrArg.IsValid())
+            var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (field.IsValid()) methodName = field.Text;
+        }
+
+        var args = GoAstHelper.GetCallArguments(node);
+        if (args.Count > 0)
+        {
+            int targetArgIndex = 0;
+            if (methodName == "NewRequest" && args.Count > 1)
             {
-                var text = firstStrArg.Text.Trim('"', '`');
-                if (text.Contains("://"))
+                targetArgIndex = 1;
+            }
+            else if (methodName == "NewRequestWithContext" && args.Count > 2)
+            {
+                targetArgIndex = 2;
+            }
+
+            if (targetArgIndex < args.Count)
+            {
+                var resolved = GoAstHelper.ResolveStringOrVariable(args[targetArgIndex]);
+                if (!string.IsNullOrEmpty(resolved)) return resolved;
+            }
+
+            foreach (var arg in args)
+            {
+                var resolved = GoAstHelper.ResolveStringOrVariable(arg);
+                if (!string.IsNullOrEmpty(resolved) && (resolved.Contains('/') || resolved.StartsWith("http")))
                 {
-                    try
-                    {
-                        var uri = new Uri(text);
-                        return $"{uri.Scheme}:{uri.Host}{uri.AbsolutePath}";
-                    }
-                    catch
-                    {
-                    }
+                    return resolved;
                 }
-                return $"http:{text}";
             }
         }
+
         return "http:unknown-service";
     }
 }

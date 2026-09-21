@@ -21,6 +21,15 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     {
         _parser = parser;
 
+        if (relativePath.Contains("route", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.Contains("const", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.Contains("config", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.Contains("api", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.Contains("endpoint", StringComparison.OrdinalIgnoreCase))
+        {
+            RouteDictionaryRegistry.ScanAndRegister(rootNode.Text);
+        }
+
         // Register a sequence detector rule for CommonJS 'require' statements
         SequenceDetector.Register([
             n => n.Is(TreeSitterSyntax.TypeScript.CallExpression) &&

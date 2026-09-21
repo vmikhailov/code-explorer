@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -99,18 +100,35 @@ public class HttpClientLibraryParser : ILibraryParser
         var args = argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument).ToList();
         if (args.Count == 0) return "http:unknown-service";
 
+        var namedService = TryResolveNamedClientService(node);
+
         var firstArg = args[0];
         var valNode = firstArg.Children.FirstOrDefault();
         if (valNode.IsValid())
         {
             var text = valNode.Text.Trim('"');
+
+            // Check if route registry has this constant directly
+            if (RouteDictionaryRegistry.TryResolve(text, out var rp, out var rs))
+            {
+                var cleanPath = rp.Split('?')[0];
+                var s = rs ?? namedService;
+                var combined = !string.IsNullOrEmpty(s) ? $"{s}{cleanPath}" : cleanPath;
+                return NormalizeUrl(combined);
+            }
+
             if (valNode.Type.Contains("string") || text.Contains("://") || text.StartsWith("/"))
             {
                 if (text.StartsWith("$") || text.StartsWith("@$") || text.StartsWith("$@"))
                 {
                     text = text.TrimStart('$', '@').Trim('"');
                 }
-                return NormalizeUrl(text);
+                var normalized = NormalizeUrl(text);
+                if (!string.IsNullOrEmpty(namedService) && normalized.StartsWith('/'))
+                {
+                    return $"{namedService}{normalized}";
+                }
+                return normalized;
             }
 
             // If argument is a CancellationToken, try subsequent arguments
@@ -124,11 +142,24 @@ public class HttpClientLibraryParser : ILibraryParser
                         var nextText = nextVal.Text.Trim('"');
                         if (!string.IsNullOrEmpty(nextText) && !IsCancellationToken(nextText))
                         {
+                            if (RouteDictionaryRegistry.TryResolve(nextText, out var nrp, out var nrs))
+                            {
+                                var cleanPath = nrp.Split('?')[0];
+                                var s = nrs ?? namedService;
+                                var combined = !string.IsNullOrEmpty(s) ? $"{s}{cleanPath}" : cleanPath;
+                                return NormalizeUrl(combined);
+                            }
+
                             if (nextText.StartsWith("$") || nextText.StartsWith("@$") || nextText.StartsWith("$@"))
                             {
                                 nextText = nextText.TrimStart('$', '@').Trim('"');
                             }
-                            return NormalizeUrl(nextText);
+                            var norm = NormalizeUrl(nextText);
+                            if (!string.IsNullOrEmpty(namedService) && norm.StartsWith('/'))
+                            {
+                                return $"{namedService}{norm}";
+                            }
+                            return norm;
                         }
                     }
                 }
@@ -139,7 +170,12 @@ public class HttpClientLibraryParser : ILibraryParser
             var resolvedUri = TryResolveVariableUri(node, text);
             if (!string.IsNullOrEmpty(resolvedUri))
             {
-                return NormalizeUrl(resolvedUri);
+                var norm = NormalizeUrl(resolvedUri);
+                if (!string.IsNullOrEmpty(namedService) && norm.StartsWith('/'))
+                {
+                    return $"{namedService}{norm}";
+                }
+                return norm;
             }
 
             if (text.Contains('/') || text.Contains('.') || text.StartsWith("http", StringComparison.OrdinalIgnoreCase))
@@ -151,6 +187,33 @@ public class HttpClientLibraryParser : ILibraryParser
         }
 
         return "http:unknown-service";
+    }
+
+    private static string? TryResolveNamedClientService(Node node)
+    {
+        var func = node.GetFunctionNode();
+        if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+        {
+            var expr = func.GetField(TreeSitterSyntax.Fields.Expression);
+            if (expr.IsValid())
+            {
+                var receiverName = expr.Text;
+                var curr = node.Parent;
+                while (curr.IsValid())
+                {
+                    if (curr.IsAny(TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.ClassDeclaration))
+                    {
+                        var createClientMatch = Regex.Match(curr.Text, receiverName + @"\s*=\s*.*?CreateClient\s*\(\s*[""']([^""']+)[""']");
+                        if (createClientMatch.Success)
+                        {
+                            return createClientMatch.Groups[1].Value;
+                        }
+                    }
+                    curr = curr.Parent;
+                }
+            }
+        }
+        return null;
     }
 
     private static string? TryResolveVariableUri(Node node, string varName)
@@ -311,11 +374,6 @@ public class HttpClientLibraryParser : ILibraryParser
 
     public static string NormalizeUrl(string text)
     {
-        text = text.Trim().Trim('"');
-        if (Uri.TryCreate(text, UriKind.Absolute, out var uri))
-        {
-            return $"{uri.Scheme}:{uri.Host}{uri.AbsolutePath}";
-        }
-        return text;
+        return RouteDictionaryRegistry.NormalizeResolvedUrl(text);
     }
 }

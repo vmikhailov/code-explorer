@@ -12,6 +12,45 @@ using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Server;
 
+public class ClientSession : IDisposable
+{
+    public string Id { get; }
+    public WebSocket Socket { get; }
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
+
+    public ClientSession(string id, WebSocket socket)
+    {
+        Id = id;
+        Socket = socket;
+    }
+
+    public async Task SendAsync(byte[] bytes, WebSocketMessageType messageType = WebSocketMessageType.Text, bool endOfMessage = true, CancellationToken cancellationToken = default)
+    {
+        if (Socket.State != WebSocketState.Open)
+        {
+            return;
+        }
+
+        await _sendLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (Socket.State == WebSocketState.Open)
+            {
+                await Socket.SendAsync(new ArraySegment<byte>(bytes), messageType, endOfMessage, cancellationToken);
+            }
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    public void Dispose()
+    {
+        _sendLock.Dispose();
+    }
+}
+
 public class WebSocketServerHandler
 {
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -21,7 +60,9 @@ public class WebSocketServerHandler
         WriteIndented = false
     };
 
-    private readonly ConcurrentDictionary<string, WebSocket> _sockets = new();
+    private readonly ConcurrentDictionary<string, ClientSession> _sessions = new();
+    public int ActiveSessionsCount => _sessions.Count;
+
     private readonly IGraphClient _graphClient;
     private readonly CodeExplorerRepository _repository;
     private readonly WorkspaceIndexer _indexer;
@@ -62,8 +103,9 @@ public class WebSocketServerHandler
     public async Task HandleConnectionAsync(WebSocket socket, CancellationToken cancellationToken)
     {
         var connectionId = Guid.NewGuid().ToString("N");
-        _sockets[connectionId] = socket;
-        _logger.LogInformation("[WS] Client connected: {ConnectionId} (total active: {Count})", connectionId, _sockets.Count);
+        using var session = new ClientSession(connectionId, socket);
+        _sessions[connectionId] = session;
+        _logger.LogInformation("[WS] Client connected: {ConnectionId} (total active: {Count})", connectionId, _sessions.Count);
 
         CancelIdleTimer();
 
@@ -88,17 +130,20 @@ public class WebSocketServerHandler
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
-                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", cancellationToken);
+                    if (socket.State == WebSocketState.CloseReceived)
+                    {
+                        await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Closing", cancellationToken);
+                    }
                     break;
                 }
 
                 if (ms.Length == 0) continue;
 
                 var messageJson = Encoding.UTF8.GetString(ms.ToArray());
-                await ProcessMessageAsync(socket, messageJson, cancellationToken);
+                await ProcessMessageAsync(session, messageJson, cancellationToken);
             }
         }
-        catch (WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely)
+        catch (WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely || ex.WebSocketErrorCode == WebSocketError.InvalidState)
         {
             _logger.LogDebug("[WS] Client disconnected prematurely: {ConnectionId}", connectionId);
         }
@@ -112,17 +157,17 @@ public class WebSocketServerHandler
         }
         finally
         {
-            _sockets.TryRemove(connectionId, out _);
-            _logger.LogInformation("[WS] Client disconnected: {ConnectionId} (remaining active: {Count})", connectionId, _sockets.Count);
+            _sessions.TryRemove(connectionId, out _);
+            _logger.LogInformation("[WS] Client disconnected: {ConnectionId} (remaining active: {Count})", connectionId, _sessions.Count);
 
-            if (_sockets.IsEmpty && _idleTimeoutSeconds > 0)
+            if (_sessions.IsEmpty && _idleTimeoutSeconds > 0)
             {
                 ResetIdleTimer();
             }
         }
     }
 
-    private async Task ProcessMessageAsync(WebSocket socket, string json, CancellationToken cancellationToken)
+    public async Task ProcessMessageAsync(ClientSession session, string json, CancellationToken cancellationToken)
     {
         WsEnvelope? envelope;
         try
@@ -130,17 +175,18 @@ public class WebSocketServerHandler
             envelope = JsonSerializer.Deserialize<WsEnvelope>(json, JsonOpts);
             if (envelope == null || string.IsNullOrEmpty(envelope.Type))
             {
-                await SendErrorAsync(socket, "", "INVALID_MESSAGE", "Message envelope must include 'type'.", cancellationToken);
+                await SendErrorAsync(session, "", "INVALID_MESSAGE", "Message envelope must include 'type'.", cancellationToken);
                 return;
             }
         }
         catch (Exception ex)
         {
-            await SendErrorAsync(socket, "", "PARSE_ERROR", $"Invalid JSON payload: {ex.Message}", cancellationToken);
+            await SendErrorAsync(session, "", "PARSE_ERROR", $"Invalid JSON payload: {ex.Message}", cancellationToken);
             return;
         }
 
         var reqId = envelope.RequestId ?? "";
+        _logger.LogInformation("[WS] Received '{Type}' (reqId: {ReqId}, client: {ClientId})", envelope.Type, reqId, session.Id);
 
         try
         {
@@ -148,7 +194,7 @@ public class WebSocketServerHandler
             {
                 case WsMessageTypes.HandshakeRequest:
                 case "HANDSHAKE":
-                    await HandleHandshakeAsync(socket, reqId, envelope.Payload, cancellationToken);
+                    await HandleHandshakeAsync(session, reqId, envelope.Payload, cancellationToken);
                     break;
 
                 case WsMessageTypes.PingRequest:
@@ -156,7 +202,7 @@ public class WebSocketServerHandler
                     var ping = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<PingRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    await SendResponseAsync(socket, WsMessageTypes.PongResponse, reqId, new PongResponseDto
+                    await SendResponseAsync(session, WsMessageTypes.PongResponse, reqId, new PongResponseDto
                     {
                         ClientTimestamp = ping?.Timestamp ?? 0,
                         ServerTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
@@ -169,7 +215,7 @@ public class WebSocketServerHandler
                         ? JsonSerializer.Deserialize<GetArchitectureRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
                     var archGraph = await GraphDataConverter.GetArchitectureGraphAsync(_graphClient, archReq?.ProjectFilter, cancellationToken);
-                    await SendResponseAsync(socket, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
+                    await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
                         Graph = archGraph
@@ -182,7 +228,7 @@ public class WebSocketServerHandler
                         ? JsonSerializer.Deserialize<GetDependenciesRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
                     var depGraph = await GraphDataConverter.GetProjectNeighborhoodAsync(_graphClient, depReq?.ProjectName, cancellationToken);
-                    await SendResponseAsync(socket, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
+                    await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
                         Graph = depGraph
@@ -195,7 +241,7 @@ public class WebSocketServerHandler
                         ? JsonSerializer.Deserialize<GetCallChainRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
                     var callJson = await _repository.GetCallChainAsync(callReq?.FromSymbol ?? "", callReq?.ToSymbol ?? "", callReq?.MaxDepth ?? 5, "json", _workspaceRoot, cancellationToken);
-                    await SendResponseAsync(socket, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
+                    await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
                         RawJson = callJson
@@ -208,7 +254,7 @@ public class WebSocketServerHandler
                         ? JsonSerializer.Deserialize<GetImpactRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
                     var impactJson = await _repository.AnalyzeCodeImpactAsync(impactReq?.SymbolName ?? "", _workspaceRoot, cancellationToken);
-                    await SendResponseAsync(socket, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
+                    await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
                         RawJson = impactJson
@@ -222,12 +268,12 @@ public class WebSocketServerHandler
                         : null;
                     if (string.IsNullOrWhiteSpace(cypherReq?.Query))
                     {
-                        await SendErrorAsync(socket, reqId, "INVALID_QUERY", "Cypher query must not be empty.", cancellationToken);
+                        await SendErrorAsync(session, reqId, "INVALID_QUERY", "Cypher query must not be empty.", cancellationToken);
                         return;
                     }
 
                     var cypherResult = await _graphClient.ExecuteQueryAsync(cypherReq.Query, cypherReq.Parameters, cancellationToken);
-                    await SendResponseAsync(socket, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
+                    await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
                         RawJson = cypherResult
@@ -267,7 +313,7 @@ public class WebSocketServerHandler
                         }
                     }, cancellationToken);
 
-                    await SendResponseAsync(socket, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
+                    await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
                         RawJson = "{\"status\":\"scanning_started\"}"
@@ -275,18 +321,18 @@ public class WebSocketServerHandler
                     break;
 
                 default:
-                    await SendErrorAsync(socket, reqId, "UNKNOWN_TYPE", $"Unknown message type: '{envelope.Type}'", cancellationToken);
+                    await SendErrorAsync(session, reqId, "UNKNOWN_TYPE", $"Unknown message type: '{envelope.Type}'", cancellationToken);
                     break;
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[WS] Failed processing message {Type} (reqId: {ReqId})", envelope.Type, reqId);
-            await SendErrorAsync(socket, reqId, "EXECUTION_ERROR", ex.Message, cancellationToken);
+            await SendErrorAsync(session, reqId, "EXECUTION_ERROR", ex.Message, cancellationToken, ex.ToString());
         }
     }
 
-    private async Task HandleHandshakeAsync(WebSocket socket, string reqId, JsonElement payload, CancellationToken cancellationToken)
+    private async Task HandleHandshakeAsync(ClientSession session, string reqId, JsonElement payload, CancellationToken cancellationToken)
     {
         long nodesCount = 0;
         long edgesCount = 0;
@@ -321,11 +367,12 @@ public class WebSocketServerHandler
             Capabilities = ["architecture", "dependencies", "call_chain", "impact", "cypher", "scan", "graph_patch"]
         };
 
-        await SendResponseAsync(socket, WsMessageTypes.HandshakeResponse, reqId, response, cancellationToken);
+        await SendResponseAsync(session, WsMessageTypes.HandshakeResponse, reqId, response, cancellationToken);
     }
 
     public async Task BroadcastAsync<T>(string type, T payload, CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("[WS] Broadcasting '{Type}' to {Count} active clients", type, _sessions.Count);
         var envelope = new WsEnvelope<T>
         {
             Type = type,
@@ -336,24 +383,22 @@ public class WebSocketServerHandler
         var json = JsonSerializer.Serialize(envelope, JsonOpts);
         var bytes = Encoding.UTF8.GetBytes(json);
 
-        foreach (var (id, socket) in _sockets)
+        foreach (var (id, session) in _sessions)
         {
-            if (socket.State == WebSocketState.Open)
+            try
             {
-                try
-                {
-                    await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "[WS] Failed broadcasting to client {Id}", id);
-                }
+                await session.SendAsync(bytes, cancellationToken: cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[WS] Failed broadcasting to client {Id}", id);
             }
         }
     }
 
-    private static async Task SendResponseAsync<T>(WebSocket socket, string type, string reqId, T payload, CancellationToken cancellationToken)
+    private async Task SendResponseAsync<T>(ClientSession session, string type, string reqId, T payload, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("[WS] Responding '{Type}' (reqId: {ReqId}, client: {ClientId})", type, reqId, session.Id);
         var envelope = new WsEnvelope<T>
         {
             Type = type,
@@ -362,11 +407,12 @@ public class WebSocketServerHandler
         };
         var json = JsonSerializer.Serialize(envelope, JsonOpts);
         var bytes = Encoding.UTF8.GetBytes(json);
-        await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cancellationToken);
+        await session.SendAsync(bytes, cancellationToken: cancellationToken);
     }
 
-    private static async Task SendErrorAsync(WebSocket socket, string reqId, string code, string message, CancellationToken cancellationToken)
+    private async Task SendErrorAsync(ClientSession session, string reqId, string code, string message, CancellationToken cancellationToken, string? details = null)
     {
+        _logger.LogWarning("[WS] Sending error [{Code}] (reqId: {ReqId}, client: {ClientId}): {Message} | Details: {Details}", code, reqId, session.Id, message, details ?? "none");
         var envelope = new WsEnvelope<ErrorResponseDto>
         {
             Type = WsMessageTypes.ErrorResponse,
@@ -374,12 +420,13 @@ public class WebSocketServerHandler
             Payload = new ErrorResponseDto
             {
                 Code = code,
-                Message = message
+                Message = message,
+                Details = details
             }
         };
         var json = JsonSerializer.Serialize(envelope, JsonOpts);
         var bytes = Encoding.UTF8.GetBytes(json);
-        await socket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, cancellationToken);
+        await session.SendAsync(bytes, cancellationToken: cancellationToken);
     }
 
     private void CancelIdleTimer()
@@ -407,7 +454,7 @@ public class WebSocketServerHandler
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(_idleTimeoutSeconds), token);
-                    if (!token.IsCancellationRequested && _sockets.IsEmpty)
+                    if (!token.IsCancellationRequested && _sessions.IsEmpty)
                     {
                         _logger.LogInformation("[WS Server] Idle timeout of {Seconds}s reached with 0 connected clients. Shutting down...", _idleTimeoutSeconds);
                         _appLifetime?.StopApplication();

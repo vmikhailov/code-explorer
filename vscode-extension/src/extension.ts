@@ -41,10 +41,22 @@ export function activate(context: vscode.ExtensionContext) {
           try {
             progress.report({ message: 'Connecting to ce serve...' });
             const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
-            GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot);
+            GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel);
           } catch (err: any) {
-            outputChannel.appendLine(`[Activation Error] ${err.message}`);
-            vscode.window.showErrorMessage(`CodeExplorer Server Error: ${err.message}`);
+            outputChannel.appendLine(`\n[CodeExplorer Server Activation Error]\n${err.message}\n`);
+            const firstLine = err.message.split('\n')[0] || 'Server process failed';
+            const action = await vscode.window.showErrorMessage(
+              `CodeExplorer Error: ${firstLine}`,
+              'Show Logs',
+              'Copy Error Details'
+            );
+            if (action === 'Show Logs') {
+              outputChannel.show(true);
+            } else if (action === 'Copy Error Details') {
+              const fullDetails = (err as any).diagnosticReport?.fullReport || err.stack || err.message;
+              await vscode.env.clipboard.writeText(fullDetails);
+              vscode.window.showInformationMessage('CodeExplorer diagnostic details copied to clipboard.');
+            }
           }
         }
       );
@@ -69,7 +81,15 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(showGraphCommand, reindexCommand);
+  // Command: Show Logs
+  const showLogsCommand = vscode.commands.registerCommand(
+    'codeExplorer.showLogs',
+    () => {
+      outputChannel.show(true);
+    }
+  );
+
+  context.subscriptions.push(showGraphCommand, reindexCommand, showLogsCommand);
   outputChannel.appendLine('CodeExplorer extension activated.');
 }
 

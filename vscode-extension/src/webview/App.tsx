@@ -7,6 +7,7 @@ import {
   GetDependenciesRequest,
   ExecuteCypherRequest,
   QueryResponse,
+  ErrorResponse,
   GraphData,
   GraphNode,
 } from '../../../proto/types';
@@ -26,9 +27,86 @@ try {
   vscodeApi = acquireVsCodeApi();
 } catch {}
 
+const logToExtension = (level: 'INFO' | 'WARN' | 'ERROR', message: string) => {
+  if (level === 'ERROR') {
+    console.error(`[CodeExplorer Webview] ${message}`);
+  } else if (level === 'WARN') {
+    console.warn(`[CodeExplorer Webview] ${message}`);
+  } else {
+    console.log(`[CodeExplorer Webview] ${message}`);
+  }
+  if (vscodeApi) {
+    try {
+      vscodeApi.postMessage({
+        type: 'LOG',
+        level,
+        message,
+      });
+    } catch {}
+  }
+};
+
 export interface HistoryItem {
   viewMode: 'layers' | 'flow' | 'full';
   selectedProject: string;
+}
+
+export interface ErrorInfo {
+  code?: string;
+  message: string;
+  details?: string;
+  timestamp: number;
+}
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  onLogError?: (error: Error, info: React.ErrorInfo) => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.props.onLogError?.(error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="view-error-fallback">
+          <div className="error-fallback-card">
+            <div className="error-fallback-icon">⚠️</div>
+            <h2>View Render Error</h2>
+            <p className="error-fallback-msg">
+              {this.state.error?.message || 'An unexpected error occurred while rendering this view.'}
+            </p>
+            {this.state.error?.stack && (
+              <pre className="error-fallback-stack">{this.state.error.stack}</pre>
+            )}
+            <button
+              className="error-action-btn primary"
+              onClick={() => this.setState({ hasError: false, error: null })}
+            >
+              Retry View
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export const App: React.FC = () => {
@@ -42,6 +120,12 @@ export const App: React.FC = () => {
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
   const [showTests, setShowTests] = useState<boolean>(true);
   const [groupLayers, setGroupLayers] = useState<boolean>(true);
+
+  // Active error and diagnostics state
+  const [activeError, setActiveError] = useState<ErrorInfo | null>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState<boolean>(false);
+  const [copiedError, setCopiedError] = useState<boolean>(false);
+  const lastWsUrlRef = useRef<string>('');
 
   // Global dependency counts derived from full architecture graph
   const { projectInCounts, projectOutCounts } = useMemo(() => {
@@ -78,7 +162,10 @@ export const App: React.FC = () => {
 
   const sendWsMessage = useCallback((msg: WebSocketMessage) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      logToExtension('INFO', `Sending WS message '${msg.type}' (${msg.requestId || 'no-id'})`);
       wsRef.current.send(JSON.stringify(msg));
+    } else {
+      logToExtension('WARN', `Cannot send '${msg.type}': WebSocket is not open (state: ${wsRef.current?.readyState})`);
     }
   }, []);
 
@@ -213,12 +300,16 @@ export const App: React.FC = () => {
       wsRef.current = null;
     }
 
+    lastWsUrlRef.current = url;
+    logToExtension('INFO', `Connecting to backend WebSocket at ${url}...`);
     setConnectionStatus('connecting');
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      logToExtension('INFO', `Connected to backend WebSocket at ${url}`);
       setConnectionStatus('connected');
+      setActiveError(null);
       // 1. Handshake
       const handshake: WebSocketMessage<HandshakeRequest> = {
         type: 'HANDSHAKE_REQUEST',
@@ -244,15 +335,42 @@ export const App: React.FC = () => {
         switch (msg.type) {
           case 'HANDSHAKE_RESPONSE': {
             const resp = msg.payload as HandshakeResponse;
+            logToExtension('INFO', `Handshake successful: server v${resp.serverVersion}, nodes=${resp.totalNodes}, edges=${resp.totalEdges}`);
             console.log(`Connected to CodeExplorer ${resp.serverVersion}`);
+            break;
+          }
+
+          case 'ERROR_RESPONSE': {
+            const err = msg.payload as ErrorResponse;
+            logToExtension('ERROR', `Server error [${err.code}]: ${err.message}`);
+            setActiveError({
+              code: err.code || 'ERROR',
+              message: err.message || 'An unexpected error occurred',
+              details: err.details,
+              timestamp: Date.now(),
+            });
+            setShowErrorDetails(false);
+            if (vscodeApi) {
+              vscodeApi.postMessage({
+                type: 'SHOW_ERROR',
+                message: err.message,
+                details: err.details,
+              });
+            }
             break;
           }
 
           case 'QUERY_RESPONSE': {
             const resp = msg.payload as QueryResponse;
             if (resp.success && resp.graph) {
+              const nodeCount = resp.graph.nodes?.length || 0;
+              const edgeCount = resp.graph.edges?.length || 0;
+              const isArch = msg.requestId?.startsWith('req_arch') || resp.graph.metadata?.graphType === 'architecture';
+              const isFlow = msg.requestId?.startsWith('req_dep') || resp.graph.metadata?.graphType === 'flow';
               const hasColumns = resp.graph.nodes?.some((n) => n.properties?.column);
-              if (hasColumns) {
+              const isFlowGraph = isFlow || (!isArch && hasColumns);
+              logToExtension('INFO', `Query response received: ${nodeCount} nodes, ${edgeCount} edges (type=${isFlowGraph ? 'flow' : 'architecture'})`);
+              if (isFlowGraph) {
                 setFlowGraph(resp.graph);
                 const metadata = resp.graph.metadata;
                 if (metadata?.selectedProject) {
@@ -294,26 +412,56 @@ export const App: React.FC = () => {
                   }
                 }
               }
-            } else if (!resp.success && vscodeApi) {
-              vscodeApi.postMessage({
-                type: 'SHOW_ERROR',
-                message: resp.errorMessage || 'Query failed',
+            } else if (!resp.success) {
+              const errorMsg = resp.errorMessage || 'Query execution failed';
+              const errorDetails = (resp as any).errorDetails;
+              logToExtension('ERROR', `Query failed: ${errorMsg}`);
+              setActiveError({
+                code: 'QUERY_FAILED',
+                message: errorMsg,
+                details: errorDetails,
+                timestamp: Date.now(),
               });
+              setShowErrorDetails(false);
+              if (vscodeApi) {
+                vscodeApi.postMessage({
+                  type: 'SHOW_ERROR',
+                  message: errorMsg,
+                  details: errorDetails,
+                });
+              }
             }
             break;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        logToExtension('ERROR', `Failed to parse WS message: ${err?.message || err}`);
         console.error('Failed to parse WS message:', err);
       }
     };
 
     ws.onerror = () => {
+      logToExtension('ERROR', `WebSocket connection error at ${url}`);
       setConnectionStatus('disconnected');
+      setActiveError((prev) => prev ?? {
+        code: 'CONNECTION_FAILED',
+        message: `Failed to connect to CodeExplorer server at ${url}`,
+        details: 'Verify that the backend process is running and that port conflicts or firewall rules are not blocking WebSocket connections.',
+        timestamp: Date.now(),
+      });
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      logToExtension('WARN', `WebSocket closed (code: ${ev.code}, reason: ${ev.reason || 'none'})`);
       setConnectionStatus('disconnected');
+      if (ev.code !== 1000 && ev.code !== 1001) {
+        setActiveError({
+          code: `WS_DISCONNECTED_${ev.code}`,
+          message: `Lost connection to CodeExplorer server (code: ${ev.code})`,
+          details: `Reason: ${ev.reason || 'No specific close reason'}\nServer URL: ${url}`,
+          timestamp: Date.now(),
+        });
+      }
     };
   }, [requestDependencies, requestArchitecture]);
 
@@ -322,6 +470,7 @@ export const App: React.FC = () => {
       const msg = event.data;
       switch (msg.type) {
         case 'SERVER_CONFIG':
+          logToExtension('INFO', `Received SERVER_CONFIG: wsUrl=${msg.wsUrl}, workspace=${msg.workspaceRoot}`);
           workspaceRootRef.current = msg.workspaceRoot;
           connectWebSocket(msg.wsUrl);
           break;
@@ -341,6 +490,36 @@ export const App: React.FC = () => {
         wsRef.current.close();
       }
     };
+  }, [connectWebSocket]);
+
+  const handleCopyError = useCallback(() => {
+    if (!activeError) return;
+    const text = `[CodeExplorer Error ${activeError.code || 'ERROR'}]\nMessage: ${activeError.message}\n${activeError.details ? 'Details:\n' + activeError.details : ''}`;
+    if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'COPY_TO_CLIPBOARD', text });
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
+    setCopiedError(true);
+    setTimeout(() => setCopiedError(false), 2000);
+  }, [activeError]);
+
+  const handleShowLogs = useCallback(() => {
+    if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'SHOW_LOGS' });
+    }
+  }, []);
+
+  const handleReconnect = useCallback(() => {
+    setActiveError(null);
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {}
+    }
+    if (lastWsUrlRef.current) {
+      connectWebSocket(lastWsUrlRef.current);
+    }
   }, [connectWebSocket]);
 
   return (
@@ -379,35 +558,94 @@ export const App: React.FC = () => {
         onToggleGroupLayers={() => setGroupLayers((prev) => !prev)}
       />
 
+      {activeError && (
+        <div className="error-banner" role="alert">
+          <div className="error-banner-main">
+            <div className="error-badge-icon">⚠️</div>
+            <div className="error-content">
+              <div className="error-header">
+                {activeError.code && <span className="error-code-badge">{activeError.code}</span>}
+                <span className="error-title">{activeError.message}</span>
+              </div>
+              {showErrorDetails && activeError.details && (
+                <pre className="error-details-view">{activeError.details}</pre>
+              )}
+            </div>
+            <div className="error-actions">
+              {activeError.details && (
+                <button
+                  className="error-action-btn secondary"
+                  onClick={() => setShowErrorDetails((prev) => !prev)}
+                >
+                  {showErrorDetails ? 'Hide Details' : 'View Details'}
+                </button>
+              )}
+              <button
+                className="error-action-btn secondary"
+                onClick={handleCopyError}
+                title="Copy error details to clipboard"
+              >
+                {copiedError ? '✓ Copied' : 'Copy'}
+              </button>
+              <button
+                className="error-action-btn secondary"
+                onClick={handleShowLogs}
+                title="Open VS Code Output Channel"
+              >
+                Show Logs
+              </button>
+              {connectionStatus === 'disconnected' && (
+                <button
+                  className="error-action-btn primary"
+                  onClick={handleReconnect}
+                  title="Reconnect to server"
+                >
+                  Reconnect
+                </button>
+              )}
+              <button
+                className="error-action-btn close"
+                onClick={() => setActiveError(null)}
+                title="Dismiss error"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="main-viewport">
-        {viewMode === 'layers' && (
-          <LayeredArchitectureView
-            graph={fullGraph}
-            onOpenFile={handleOpenFile}
-            onFocusInFlow={(p) => navigateTo('flow', p)}
-            showTests={showTests}
-          />
-        )}
+        <ErrorBoundary onLogError={(err) => logToExtension('ERROR', `View crash: ${err.message}\n${err.stack}`)}>
+          {viewMode === 'layers' && (
+            <LayeredArchitectureView
+              graph={fullGraph}
+              onOpenFile={handleOpenFile}
+              onFocusInFlow={(p) => navigateTo('flow', p)}
+              showTests={showTests}
+            />
+          )}
 
-        {viewMode === 'flow' && (
-          <ProjectFlowView
-            graph={flowGraph}
-            fullGraph={fullGraph}
-            onSelectProject={(p) => navigateTo('flow', p)}
-            onOpenFile={handleOpenFile}
-          />
-        )}
+          {viewMode === 'flow' && (
+            <ProjectFlowView
+              graph={flowGraph}
+              fullGraph={fullGraph}
+              onSelectProject={(p) => navigateTo('flow', p)}
+              onOpenFile={handleOpenFile}
+            />
+          )}
 
-        {viewMode === 'full' && (
-          <CytoscapeView
-            graph={fullGraph}
-            onOpenFile={handleOpenFile}
-            onSelectNode={setSelectedDrawerNode}
-            groupLayers={groupLayers}
-            onToggleGroupLayers={() => setGroupLayers((prev) => !prev)}
-            showTests={showTests}
-          />
-        )}
+          {viewMode === 'full' && (
+            <CytoscapeView
+              graph={fullGraph}
+              onOpenFile={handleOpenFile}
+              onSelectNode={setSelectedDrawerNode}
+              groupLayers={groupLayers}
+              onToggleGroupLayers={() => setGroupLayers((prev) => !prev)}
+              showTests={showTests}
+            />
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* Slide-out drawer for Cytoscape node inspection */}

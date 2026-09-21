@@ -983,18 +983,55 @@ public class Program
             }
         }
 
+        var wsRoot = ws?.RootDirectory ?? (opts.Root != null ? Path.GetFullPath(opts.Root) : Directory.GetCurrentDirectory());
+
         if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.Error.WriteLine("Error: Graph database not found. Run 'ce scan' first or specify --root / --db-path.");
-            Console.ResetColor();
-            return 1;
+            var targetDir = ws != null
+                ? Path.GetDirectoryName(ws.DbPath)!
+                : Path.Combine(wsRoot, ".codeexplorer");
+
+            if (!Directory.Exists(targetDir))
+            {
+                Directory.CreateDirectory(targetDir);
+            }
+
+            dbPath = ws?.DbPath ?? Path.Combine(targetDir, "graph.db");
+            WorkspaceLocator.RecordActiveWorkspace(wsRoot);
         }
 
         var client = new SqliteGraphClient(dbPath);
-        var wsRoot = ws?.RootDirectory ?? opts.Root ?? Directory.GetCurrentDirectory();
 
-        var builder = WebApplication.CreateBuilder();
+        var app = CreateWebApplication(opts, wsRoot, client);
+        App = app;
+
+        await app.StartAsync();
+
+        var serverAddressesFeature = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
+            .Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>();
+        var boundAddress = serverAddressesFeature?.Addresses.FirstOrDefault() ?? $"http://{opts.Host}:{opts.Port}";
+        var boundUri = new Uri(boundAddress);
+        var actualPort = boundUri.Port;
+        var wsUrl = $"ws://{opts.Host}:{actualPort}/ws";
+
+        // Machine-readable stdout line
+        Console.WriteLine($"{{\"status\":\"ready\",\"port\":{actualPort},\"wsUrl\":\"{wsUrl}\",\"httpUrl\":\"{boundAddress}\",\"workspace\":\"{wsRoot.Replace("\\", "/")}\"}}");
+
+        if (!opts.Quiet)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"✓ CodeExplorer WebSocket Server running at {wsUrl}");
+            Console.WriteLine($"✓ REST API available at {boundAddress}");
+            Console.ResetColor();
+        }
+
+        await app.WaitForShutdownAsync();
+        return 0;
+    }
+
+    public static WebApplication CreateWebApplication(ServeOptions opts, string wsRoot, SqliteGraphClient client, string[]? args = null)
+    {
+        var builder = WebApplication.CreateBuilder(args ?? []);
         builder.Logging.ClearProviders();
         if (!opts.Quiet)
         {
@@ -1026,8 +1063,10 @@ public class Program
         });
 
         var app = builder.Build();
-        App = app;
-        client.Logger = app.Services.GetRequiredService<ILogger<SqliteGraphClient>>();
+        if (client is SqliteGraphClient sqliteClient)
+        {
+            sqliteClient.Logger = app.Services.GetRequiredService<ILogger<SqliteGraphClient>>();
+        }
 
         app.UseCors();
         app.UseWebSockets(new WebSocketOptions
@@ -1036,6 +1075,7 @@ public class Program
         });
 
         var wsHandler = app.Services.GetRequiredService<WebSocketServerHandler>();
+        var serverLogger = app.Services.GetRequiredService<ILogger<Program>>();
 
         app.Map("/ws", async (HttpContext context) =>
         {
@@ -1046,72 +1086,92 @@ public class Program
             }
             else
             {
+                serverLogger.LogWarning("[HTTP] Non-WebSocket request rejected at /ws");
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
                 await context.Response.WriteAsync("WebSocket connection expected at /ws");
             }
         });
 
-        app.MapGet("/", () => Results.Ok(new
+        app.MapGet("/", () =>
         {
-            service = "CodeExplorer API Server",
-            version = GetAppVersion(),
-            wsEndpoint = "/ws",
-            workspace = wsRoot
-        }));
+            serverLogger.LogInformation("[REST] GET / (metadata)");
+            return Results.Ok(new
+            {
+                service = "CodeExplorer API Server",
+                version = GetAppVersion(),
+                wsEndpoint = "/ws",
+                workspace = wsRoot
+            });
+        });
 
         app.MapGet("/api/status", async (IGraphClient graphClient) =>
         {
-            var nodeCountJson = await graphClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt");
-            var edgeCountJson = await graphClient.ExecuteQueryAsync("MATCH ()-[r]->() RETURN count(r) AS cnt");
-            return Results.Ok(new
+            try
             {
-                status = "ok",
-                workspace = wsRoot,
-                nodes = nodeCountJson,
-                edges = edgeCountJson
-            });
+                serverLogger.LogInformation("[REST] GET /api/status");
+                var nodeCountJson = await graphClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt");
+                var edgeCountJson = await graphClient.ExecuteQueryAsync("MATCH ()-[r]->() RETURN count(r) AS cnt");
+                return Results.Ok(new
+                {
+                    status = "ok",
+                    workspace = wsRoot,
+                    nodes = nodeCountJson,
+                    edges = edgeCountJson
+                });
+            }
+            catch (Exception ex)
+            {
+                serverLogger.LogError(ex, "[REST] Failed /api/status");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
         app.MapGet("/api/architecture", async (IGraphClient graphClient, string? project) =>
         {
-            var graph = await GraphDataConverter.GetArchitectureGraphAsync(graphClient, project);
-            return Results.Ok(graph);
+            try
+            {
+                serverLogger.LogInformation("[REST] GET /api/architecture (project: {Project})", project ?? "all");
+                var graph = await GraphDataConverter.GetArchitectureGraphAsync(graphClient, project);
+                return Results.Ok(graph);
+            }
+            catch (Exception ex)
+            {
+                serverLogger.LogError(ex, "[REST] Failed /api/architecture");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
         app.MapGet("/api/projects", async (IGraphClient graphClient) =>
         {
-            var projects = await GraphDataConverter.GetAllProjectsAsync(graphClient);
-            return Results.Ok(projects);
+            try
+            {
+                serverLogger.LogInformation("[REST] GET /api/projects");
+                var projects = await GraphDataConverter.GetAllProjectsAsync(graphClient);
+                return Results.Ok(projects);
+            }
+            catch (Exception ex)
+            {
+                serverLogger.LogError(ex, "[REST] Failed /api/projects");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
         app.MapGet("/api/dependencies", async (IGraphClient graphClient, string? project) =>
         {
-            var graph = await GraphDataConverter.GetProjectNeighborhoodAsync(graphClient, project);
-            return Results.Ok(graph);
+            try
+            {
+                serverLogger.LogInformation("[REST] GET /api/dependencies (project: {Project})", project ?? "default");
+                var graph = await GraphDataConverter.GetProjectNeighborhoodAsync(graphClient, project);
+                return Results.Ok(graph);
+            }
+            catch (Exception ex)
+            {
+                serverLogger.LogError(ex, "[REST] Failed /api/dependencies");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
         });
 
-        await app.StartAsync();
-
-        var serverAddressesFeature = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>()
-            .Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>();
-        var boundAddress = serverAddressesFeature?.Addresses.FirstOrDefault() ?? $"http://{opts.Host}:{opts.Port}";
-        var boundUri = new Uri(boundAddress);
-        var actualPort = boundUri.Port;
-        var wsUrl = $"ws://{opts.Host}:{actualPort}/ws";
-
-        // Machine-readable stdout line
-        Console.WriteLine($"{{\"status\":\"ready\",\"port\":{actualPort},\"wsUrl\":\"{wsUrl}\",\"httpUrl\":\"{boundAddress}\",\"workspace\":\"{wsRoot.Replace("\\", "/")}\"}}");
-
-        if (!opts.Quiet)
-        {
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"✓ CodeExplorer WebSocket Server running at {wsUrl}");
-            Console.WriteLine($"✓ REST API available at {boundAddress}");
-            Console.ResetColor();
-        }
-
-        await app.WaitForShutdownAsync();
-        return 0;
+        return app;
     }
 
     private static void ShowWelcomeAndHelp()

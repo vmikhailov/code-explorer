@@ -1,5 +1,6 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
@@ -147,6 +148,10 @@ public static class OntologyUploader
 
         if (child.Kind == OntologyConstants.NodeLabels.Package)
         {
+            if (child is PackageNode pn && !string.IsNullOrEmpty(pn.Path) && parentId.Contains(":project:"))
+            {
+                return new ImplementedByRelationship(child.Id, parentId);
+            }
             return new DependsOnRelationship(parentId, child.Id);
         }
         if (child.Kind == OntologyConstants.NodeLabels.Project)

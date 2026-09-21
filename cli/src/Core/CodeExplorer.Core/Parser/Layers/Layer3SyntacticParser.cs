@@ -99,6 +99,29 @@ public class Layer3SyntacticParser
                 continue;
             }
 
+            // Pre-scan route/const/config files in this project to populate RouteDictionaryRegistry
+            foreach (var file in projectFiles)
+            {
+                if (file.Name.Contains("route", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("const", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("config", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("api", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        if (File.Exists(file.FullPath))
+                        {
+                            var text = File.ReadAllText(file.FullPath);
+                            RouteDictionaryRegistry.ScanAndRegister(text);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore unreadable files
+                    }
+                }
+            }
+
             var parallelOptions = new ParallelOptions
             {
                 CancellationToken = ctx.CancellationToken,
@@ -486,10 +509,30 @@ public class Layer3SyntacticParser
         }
         else if (slashIdx == 0)
         {
-            path = domainOrService;
-            var trimmed = domainOrService.TrimStart('/');
-            var nextSlash = trimmed.IndexOf('/');
-            domainOrService = nextSlash > 0 ? trimmed[..nextSlash] : trimmed;
+            var nextSlash = domainOrService.IndexOf('/', 1);
+            if (nextSlash > 1)
+            {
+                var candidate = domainOrService[1..nextSlash];
+                if (candidate.EndsWith("service", StringComparison.OrdinalIgnoreCase) ||
+                    candidate.EndsWith("client", StringComparison.OrdinalIgnoreCase) ||
+                    candidate.Contains('-') ||
+                    candidate.Contains('_') ||
+                    RouteDictionaryRegistry.GetAllKnownServices().Any(s => string.Equals(s, candidate, StringComparison.OrdinalIgnoreCase)))
+                {
+                    path = domainOrService;
+                    domainOrService = candidate;
+                }
+                else
+                {
+                    path = domainOrService;
+                    domainOrService = "*";
+                }
+            }
+            else
+            {
+                path = domainOrService;
+                domainOrService = "*";
+            }
         }
 
         if (domainOrService.Contains('.'))
@@ -510,7 +553,9 @@ public class Layer3SyntacticParser
             }
         }
 
-        var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";
+        var extServiceId = string.IsNullOrEmpty(relativePath)
+            ? $"{workspaceId}:externalservice:{protocol}:{domainOrService}"
+            : $"{workspaceId}:externalservice:{protocol}:{domainOrService}:{relativePath}:{node.StartPosition.Row}";
 
         var ext = new Dictionary<string, string>
         {

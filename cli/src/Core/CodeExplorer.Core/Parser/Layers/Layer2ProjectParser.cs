@@ -76,6 +76,14 @@ public class Layer2ProjectParser
                 {
                     packageToProjectMap[prodPkg] = projectNode;
                     packageToProjectMap[$"{ctx.WorkspaceId}:package:{prodPkg.ToLowerInvariant()}"] = projectNode;
+                    if (prodPkg.Contains('/'))
+                    {
+                        var shortName = prodPkg.Split('/')[^1];
+                        if (!string.IsNullOrEmpty(shortName))
+                        {
+                            packageToProjectMap.TryAdd(shortName, projectNode);
+                        }
+                    }
                 }
             }
         }
@@ -124,6 +132,14 @@ public class Layer2ProjectParser
                             {
                                 packageToProjectMap[prodPkg] = projectNode;
                                 packageToProjectMap[$"{ctx.WorkspaceId}:package:{prodPkg.ToLowerInvariant()}"] = projectNode;
+                                if (prodPkg.Contains('/'))
+                                {
+                                    var shortName = prodPkg.Split('/')[^1];
+                                    if (!string.IsNullOrEmpty(shortName))
+                                    {
+                                        packageToProjectMap.TryAdd(shortName, projectNode);
+                                    }
+                                }
                             }
 
                             if (uncoveredFiles.All(f => projects.Any(p => IsEnclosedInProject(f, p, projects))))
@@ -143,6 +159,82 @@ public class Layer2ProjectParser
             }
         }
 
+        // Check for sibling or parent library directories if there are unresolved external packages
+        var unresolvedPackages = projectDepList
+            .SelectMany(p => p.DepInfo.ExternalPackages)
+            .Where(p => !string.IsNullOrWhiteSpace(p.Name) &&
+                        !packageToProjectMap.ContainsKey(p.Name) &&
+                        (!p.Name.Contains('/') || !packageToProjectMap.ContainsKey(p.Name.Split('/')[^1])))
+            .Select(p => p.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (unresolvedPackages.Count > 0)
+        {
+            var parentDir = Directory.GetParent(ctx.AbsoluteWorkspacePath)?.FullName;
+            if (parentDir != null)
+            {
+                var candidateLibraryDirs = new List<string>();
+                var searchFolderNames = new[] { "libs", "libraries", "packages", "shared", "integrations/libs", "integrations\\libs" };
+                foreach (var folder in searchFolderNames)
+                {
+                    var fullCandidate = Path.GetFullPath(Path.Combine(parentDir, folder));
+                    if (Directory.Exists(fullCandidate) && !fullCandidate.StartsWith(ctx.AbsoluteWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        candidateLibraryDirs.Add(fullCandidate);
+                    }
+                }
+
+                foreach (var libRoot in candidateLibraryDirs)
+                {
+                    try
+                    {
+                        var subDirs = Directory.GetDirectories(libRoot, "*", SearchOption.AllDirectories);
+                        foreach (var subDir in subDirs)
+                        {
+                            var filesInSubDir = Directory.GetFiles(subDir);
+                            var subParser = WorkspaceIndexer._projectParsers.FirstOrDefault(p => p.IsProjectDirectory(subDir, filesInSubDir));
+                            if (subParser != null)
+                            {
+                                var prod = await subParser.GetProducedPackageAsync(subDir);
+                                if (prod != null && (unresolvedPackages.Contains(prod.Name) || (prod.Name.Contains('/') && unresolvedPackages.Contains(prod.Name.Split('/')[^1]))))
+                                {
+                                    var folderName = Path.GetFileName(subDir);
+                                    var relDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, subDir).Replace('\\', '/');
+                                    var subProjId = $"{ctx.WorkspaceId}:project:{relDir}:";
+
+                                    if (!projects.Any(p => p.Id == subProjId))
+                                    {
+                                        var libProjectNode = new ProjectNode(subProjId, folderName, relDir, subParser.ProjectType);
+                                        projectsStructureNode.Children.Add(libProjectNode);
+                                        projects.Add(libProjectNode);
+
+                                        packageToProjectMap[folderName] = libProjectNode;
+                                        packageToProjectMap[prod.Name] = libProjectNode;
+                                        packageToProjectMap[$"{ctx.WorkspaceId}:package:{prod.Name.ToLowerInvariant()}"] = libProjectNode;
+                                        if (prod.Name.Contains('/'))
+                                        {
+                                            packageToProjectMap.TryAdd(prod.Name.Split('/')[^1], libProjectNode);
+                                        }
+
+                                        var packageNodeId = $"{ctx.WorkspaceId}:package:{prod.Name.ToLowerInvariant()}";
+                                        var packageNode = new PackageNode(packageNodeId, prod.Name, prod.Version, prod.Type, libProjectNode.Path);
+                                        libProjectNode.Children.Add(packageNode);
+                                        var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, subProjId));
+                                        await ctx.EnqueueUploadRelationshipsAsync([implRel]);
+                                        ctx.AddRelsCount(1);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        ctx.LogWarning($"[Layer2] Sibling library scan error in '{libRoot}': {ex.Message}", ex);
+                    }
+                }
+            }
+        }
+
         // Resolve cross-project dependencies via workspace packages/modules
         var crossProjectRels = new List<Relationship>();
         foreach (var (proj, depInfo) in projectDepList)
@@ -151,12 +243,20 @@ public class Layer2ProjectParser
             {
                 if (string.IsNullOrWhiteSpace(extPack.Name)) continue;
 
-                if (packageToProjectMap.TryGetValue(extPack.Name, out var targetProj) ||
-                    packageToProjectMap.TryGetValue($"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}", out targetProj))
+                var matched = packageToProjectMap.TryGetValue(extPack.Name, out var targetProj) ||
+                              packageToProjectMap.TryGetValue($"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}", out targetProj);
+
+                if (!matched && extPack.Name.Contains('/'))
+                {
+                    var shortName = extPack.Name.Split('/')[^1];
+                    matched = packageToProjectMap.TryGetValue(shortName, out targetProj);
+                }
+
+                if (matched && targetProj != null)
                 {
                     if (!string.Equals(proj.Id, targetProj.Id, StringComparison.OrdinalIgnoreCase))
                     {
-                        var depRel = Relationship.FromRelationship(new DependsOnRelationship(proj.Id, targetProj.Id));
+                        var depRel = Relationship.FromRelationship(new DependsOnRelationship(proj.Id, targetProj.Id, new() { ["dependency_type"] = "library" }));
                         if (!dependencies.Any(d => d.From == proj.Id && d.To == targetProj.Id && d.Kind == OntologyConstants.Relationships.DependsOn))
                         {
                             dependencies.Add(depRel);
@@ -203,7 +303,7 @@ public class Layer2ProjectParser
                     if (relativeTargetDir == ".") relativeTargetDir = "";
                     var targetProjectNodeId = $"{ctx.WorkspaceId}:project:{relativeTargetDir}:";
 
-                    var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId));
+                    var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId, new() { ["dependency_type"] = "library" }));
                     dependencies.Add(dependsOnRel);
                     ctx.AddGlobalProjectDependency(dependsOnRel);
                 }
@@ -216,7 +316,7 @@ public class Layer2ProjectParser
                         var packageNodeId = $"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
 
                         var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
-                            projectNode.Path);
+                            string.Empty);
                         projectNode.Children.Add(packageNode);
                         packages.Add(packageNode);
                     }
@@ -293,14 +393,16 @@ public class Layer2ProjectParser
         return resultName;
     }
 
-    public static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects)
+    public static ProjectNode? FindProjectForFilePath(string filePath, IEnumerable<ProjectNode> projects)
     {
+        if (string.IsNullOrEmpty(filePath)) return null;
+        var cleanPath = filePath.Replace('\\', '/').Trim('/');
         ProjectNode? bestMatch = null;
-        int bestMatchLength = -1;
+        var bestMatchLength = -1;
 
         foreach (var p in projects)
         {
-            var pPath = p.Path;
+            var pPath = p.Path.Replace('\\', '/').Trim('/');
             if (pPath == "")
             {
                 if (bestMatchLength < 0)
@@ -312,7 +414,7 @@ public class Layer2ProjectParser
             }
 
             var pPrefix = pPath + "/";
-            if (file.Path.StartsWith(pPrefix, StringComparison.OrdinalIgnoreCase))
+            if (cleanPath.StartsWith(pPrefix, StringComparison.OrdinalIgnoreCase) || cleanPath.Equals(pPath, StringComparison.OrdinalIgnoreCase))
             {
                 if (pPrefix.Length > bestMatchLength)
                 {
@@ -322,6 +424,11 @@ public class Layer2ProjectParser
             }
         }
 
-        return bestMatch?.Id == project.Id;
+        return bestMatch;
+    }
+
+    public static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects)
+    {
+        return FindProjectForFilePath(file.Path, projects)?.Id == project.Id;
     }
 }

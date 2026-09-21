@@ -1,6 +1,7 @@
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Parser.Python.Libraries;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python;
@@ -412,24 +413,30 @@ public class PythonFileVisitor : BaseParserVisitor
     private static string? ExtractPythonHttpClientTarget(Node node)
     {
         var args = node.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
-        if (args.IsValid() && args.Children.Count > 1)
+        if (args.IsValid())
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
-            if (firstArg.IsValid())
+            foreach (var child in args.Children)
             {
-                var text = firstArg.Text.Trim('\'', '"');
-                if (text.Contains("://"))
+                if (child.Is(TreeSitterSyntax.Python.KeywordArgument))
                 {
-                    try
+                    var kwName = child.Children.FirstOrDefault()?.Text;
+                    if (kwName == "url")
                     {
-                        var uri = new Uri(text);
-                        return $"{uri.Scheme}:{uri.Host}{uri.AbsolutePath}";
-                    }
-                    catch
-                    {
+                        var kwVal = child.Children.Skip(2).FirstOrDefault() ?? child.Children.LastOrDefault();
+                        var resolved = PythonAstHelper.ResolveStringOrVariable(kwVal);
+                        if (!string.IsNullOrEmpty(resolved)) return resolved;
                     }
                 }
-                return $"http:{text}";
+                else if (child.IsAny(TreeSitterSyntax.Python.String,
+                                    TreeSitterSyntax.Python.Identifier,
+                                    TreeSitterSyntax.Python.VariableName,
+                                    TreeSitterSyntax.Python.BinaryOperator,
+                                    TreeSitterSyntax.Python.Subscript,
+                                    TreeSitterSyntax.Python.Call))
+                {
+                    var resolved = PythonAstHelper.ResolveStringOrVariable(child);
+                    if (!string.IsNullOrEmpty(resolved)) return resolved;
+                }
             }
         }
         return "http:unknown-service";

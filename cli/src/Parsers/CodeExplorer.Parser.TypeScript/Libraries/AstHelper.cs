@@ -14,7 +14,19 @@ public static class AstHelper
         {
             var text = argNode.Text.Trim('\'', '"', '`');
             if (text.Contains('\n') || text.Length > 500) return null;
-            return Regex.Replace(text, @"\$\{[^}]+\}", "*");
+
+            var routeMatch = Regex.Match(text, @"getServiceDomainByRoute\s*\(\s*['""]([^'""]+)['""]");
+            if (routeMatch.Success)
+            {
+                var routeKey = routeMatch.Groups[1].Value;
+                if (RouteDictionaryRegistry.TryResolve(routeKey, out var rPath, out var rService))
+                {
+                    var cleanPath = rPath.Split('?')[0];
+                    return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
+                }
+            }
+
+            return NormalizeResolvedUrl(text);
         }
 
         if (argNode.Is(TreeSitterSyntax.TypeScript.Identifier))
@@ -23,11 +35,25 @@ public static class AstHelper
             var val = FindVariableInitializerInAst(argNode, varName);
             if (val != null)
             {
-                return Regex.Replace(val, @"\$\{[^}]+\}", "*");
+                return NormalizeResolvedUrl(val);
+            }
+        }
+
+        if (argNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        {
+            var firstArg = ExtractFirstStringArgument(argNode);
+            if (!string.IsNullOrEmpty(firstArg))
+            {
+                return NormalizeResolvedUrl(firstArg);
             }
         }
 
         return null;
+    }
+
+    public static string NormalizeResolvedUrl(string raw)
+    {
+        return RouteDictionaryRegistry.NormalizeResolvedUrl(raw);
     }
 
     public static string? ExtractFirstStringArgument(Node? callNode)
@@ -153,12 +179,31 @@ public static class AstHelper
                             if (nameNode.IsValid() && nameNode.Text == varName)
                             {
                                 var valNode = decl.GetField(TreeSitterSyntax.Fields.Value);
-                                if (valNode.IsValid() && IsStringLiteralNode(valNode))
+                                if (valNode.IsValid())
                                 {
-                                    var text = valNode.Text.Trim('\'', '"', '`');
-                                    if (!text.Contains('\n') && text.Length <= 500)
+                                    if (IsStringLiteralNode(valNode))
                                     {
-                                        return text;
+                                        var text = valNode.Text.Trim('\'', '"', '`');
+                                        if (!text.Contains('\n') && text.Length <= 500)
+                                        {
+                                            return text;
+                                        }
+                                    }
+                                    else if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                                    {
+                                        var callArg = ExtractFirstStringArgument(valNode);
+                                        if (!string.IsNullOrEmpty(callArg))
+                                        {
+                                            return callArg;
+                                        }
+                                    }
+                                    else if (valNode.Is(TreeSitterSyntax.Common.BinaryExpression))
+                                    {
+                                        var right = valNode.GetField(TreeSitterSyntax.Fields.Right);
+                                        if (right.IsValid() && IsStringLiteralNode(right))
+                                        {
+                                            return right.Text.Trim('\'', '"', '`');
+                                        }
                                     }
                                 }
                             }

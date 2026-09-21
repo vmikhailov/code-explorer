@@ -116,17 +116,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
             using var doc = System.Text.Json.JsonDocument.Parse(content);
             var root = doc.RootElement;
 
-            // Check private attribute for npm publishing
-            if (root.TryGetProperty("private", out var privateProp))
-            {
-                if (privateProp.ValueKind == System.Text.Json.JsonValueKind.True ||
-                    (privateProp.ValueKind == System.Text.Json.JsonValueKind.String &&
-                     string.Equals(privateProp.GetString(), "true", StringComparison.OrdinalIgnoreCase)))
-                {
-                    return null;
-                }
-            }
-
             if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
             {
                 var name = nameProp.GetString();
@@ -176,15 +165,26 @@ public class TypeScriptParser : IProjectParser, IFileParser
                         var packageName = prop.Name;
                         var packageVersion = prop.Value.GetString() ?? "unknown";
 
-                        // Check if it is a local workspace project reference
-                        if (packageVersion.StartsWith("file:", StringComparison.Ordinal) || packageVersion.StartsWith("workspace:", StringComparison.Ordinal))
+                        // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
+                        if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
+                            (packageVersion.StartsWith("workspace:", StringComparison.Ordinal) && (packageVersion.Contains('/') || packageVersion.Contains('\\'))))
                         {
                             var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
-                            if (!string.IsNullOrEmpty(relativePath))
+                            if (!string.IsNullOrEmpty(relativePath) && (relativePath.StartsWith('.') || relativePath.StartsWith('/') || relativePath.StartsWith('\\')))
                             {
-                                var referencedDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!, relativePath)).Replace('\\', '/');
-                                localProjectPaths.Add(referencedDir);
-                                continue;
+                                try
+                                {
+                                    var referencedDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!, relativePath)).Replace('\\', '/');
+                                    if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
+                                    {
+                                        localProjectPaths.Add(referencedDir);
+                                        continue;
+                                    }
+                                }
+                                catch
+                                {
+                                    // Fallback to external package
+                                }
                             }
                         }
 

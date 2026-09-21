@@ -8,7 +8,12 @@ export class GraphPanel {
   private readonly extensionUri: vscode.Uri;
   private disposables: vscode.Disposable[] = [];
 
-  public static createOrShow(extensionUri: vscode.Uri, wsUrl: string, workspaceRoot: string) {
+  public static createOrShow(
+    extensionUri: vscode.Uri,
+    wsUrl: string,
+    workspaceRoot: string,
+    outputChannel?: vscode.OutputChannel
+  ) {
     const column = vscode.window.activeTextEditor
       ? vscode.ViewColumn.Beside
       : vscode.ViewColumn.One;
@@ -34,14 +39,15 @@ export class GraphPanel {
       }
     );
 
-    GraphPanel.currentPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot);
+    GraphPanel.currentPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot, outputChannel);
   }
 
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
     private wsUrl: string,
-    private workspaceRoot: string
+    private workspaceRoot: string,
+    private outputChannel?: vscode.OutputChannel
   ) {
     this.panel = panel;
     this.extensionUri = extensionUri;
@@ -57,6 +63,7 @@ export class GraphPanel {
       async (message) => {
         switch (message.type) {
           case 'WEBVIEW_READY':
+            this.outputChannel?.appendLine('[GraphPanel] Webview ready received. Sending SERVER_CONFIG.');
             this.postMessage({
               type: 'SERVER_CONFIG',
               wsUrl: this.wsUrl,
@@ -64,7 +71,12 @@ export class GraphPanel {
             });
             break;
 
+          case 'LOG':
+            this.outputChannel?.appendLine(`[Webview ${message.level || 'INFO'}] ${message.message}`);
+            break;
+
           case 'OPEN_FILE':
+            this.outputChannel?.appendLine(`[GraphPanel] Open file requested: ${message.filePath}:${message.lineStart || 1}`);
             await this.handleOpenFile(message.filePath, message.lineStart, message.lineEnd);
             break;
 
@@ -72,9 +84,34 @@ export class GraphPanel {
             vscode.window.showInformationMessage(message.message);
             break;
 
-          case 'SHOW_ERROR':
-            vscode.window.showErrorMessage(message.message);
+          case 'SHOW_LOGS':
+            this.outputChannel?.show(true);
             break;
+
+          case 'COPY_TO_CLIPBOARD':
+            if (message.text) {
+              await vscode.env.clipboard.writeText(message.text);
+              vscode.window.showInformationMessage('CodeExplorer details copied to clipboard.');
+            }
+            break;
+
+          case 'SHOW_ERROR': {
+            const detailText = message.details ? `\nDetails:\n${message.details}` : '';
+            this.outputChannel?.appendLine(`[Webview ERROR] ${message.message}${detailText}`);
+            const action = await vscode.window.showErrorMessage(
+              `CodeExplorer: ${message.message}`,
+              'Show Logs',
+              'Copy Error Details'
+            );
+            if (action === 'Show Logs') {
+              this.outputChannel?.show(true);
+            } else if (action === 'Copy Error Details') {
+              const fullDetails = message.details ? `${message.message}\n\nDetails:\n${message.details}` : message.message;
+              await vscode.env.clipboard.writeText(fullDetails);
+              vscode.window.showInformationMessage('CodeExplorer error details copied to clipboard.');
+            }
+            break;
+          }
         }
       },
       null,

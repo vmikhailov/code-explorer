@@ -109,4 +109,63 @@ public class LateBindingFixTests
 
         Assert.That(InvokeIsMatch(extService, endpoint), Is.True);
     }
+
+    [Test]
+    public void MatchPaths_TrailingSuffixWithParameterVariance_Matches()
+    {
+        Assert.That(InvokeMatchPaths("/api/bundles/:bundleId/single-stages", "/:bundle_id/single-stages"), Is.True);
+        Assert.That(InvokeMatchPaths("/api/v1/timetables/negative-profit-history", "/timetables/negative-profit-history"), Is.True);
+    }
+
+    [Test]
+    public void IsMatch_TrailingSuffixWithParameterVariance_Matches()
+    {
+        var extService = new ExternalServiceNode(
+            "5:externalservice:http:bundles",
+            "bundles",
+            "http",
+            "bundles",
+            "/api/bundles/:bundleId/single-stages",
+            null);
+
+        var endpoint = new EndpointNode(
+            "5:endpoint:GET:/:bundle_id/single-stages",
+            "GET /:bundle_id/single-stages",
+            "routes/bundles.route.ts",
+            "GET",
+            "/:bundle_id/single-stages");
+
+        Assert.That(InvokeIsMatch(extService, endpoint), Is.True);
+    }
+
+    [Test]
+    public void RouteDictionaryRegistry_ScansAndResolvesServiceAndPath()
+    {
+        var code = """
+        export const API_ROUTES = {
+          BUNDLES: [
+            { route: 'SINGLE_STAGE', path: '/api/bundles/:bundleId/single-stages' },
+            { route: 'DETAILS', path: '/api/bundles/:bundleId/details' }
+          ],
+          DOMAINS_V2: [
+            { route: 'BUY_DOMAIN', path: '/api/v1/domains/buy-domain' }
+          ]
+        } as const;
+
+        export const SERVICE_DOMAINS = {
+          BUNDLES: 'bundles',
+          DOMAINS_V2: 'domain-v2'
+        };
+        """;
+
+        CodeExplorer.Core.Parser.RouteDictionaryRegistry.ScanAndRegister(code);
+
+        Assert.That(CodeExplorer.Core.Parser.RouteDictionaryRegistry.TryResolve("SINGLE_STAGE", out var path, out var service), Is.True);
+        Assert.That(path, Is.EqualTo("/api/bundles/:bundleId/single-stages"));
+        Assert.That(service, Is.EqualTo("bundles"));
+
+        Assert.That(CodeExplorer.Core.Parser.RouteDictionaryRegistry.TryResolve("BUY_DOMAIN", out var buyPath, out var buyService), Is.True);
+        Assert.That(buyPath, Is.EqualTo("/api/v1/domains/buy-domain"));
+        Assert.That(buyService, Is.EqualTo("domain-v2"));
+    }
 }

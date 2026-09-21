@@ -1,5 +1,6 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
@@ -49,8 +50,7 @@ public class Layer5AnalysisParser
         var referenceRelationships = await ResolveAndUploadGlobalReferencesAsync(ctx);
 
         // 4. Perform Late Binding
-        var workspaceNode = l4Result.Prev.Prev.Prev.Workspace;
-        var lateBoundRels = await PerformLateBindingAsync(workspaceNode, ctx);
+        var lateBoundRels = await PerformLateBindingAsync(l4Result, ctx);
 
         // 5. Run PostIndexAnalyzer
         var postAnalyzer = new PostIndexAnalyzer(ctx.DbClient);
@@ -513,13 +513,45 @@ public class Layer5AnalysisParser
 
         return referenceRelationships;
     }
-    private async Task<List<Relationship>> PerformLateBindingAsync(IOntologyNode rootNode, ParsingContext ctx)
+    private async Task<List<Relationship>> PerformLateBindingAsync(Layer4Result l4Result, ParsingContext ctx)
     {
+        var workspaceNode = l4Result.Prev.Prev.Prev.Workspace;
+        var projects = l4Result.Prev.Prev.Projects;
+
         var entryPoints = new List<EntryPointNode>();
         var endpoints = new List<EndpointNode>();
         var externalServices = new List<ExternalServiceNode>();
 
-        CollectPublicSymbols(rootNode, entryPoints, endpoints, externalServices);
+        CollectPublicSymbols(workspaceNode, entryPoints, endpoints, externalServices);
+
+        // Build mapping from symbol/node ID to containing ProjectNode
+        var nodeToProject = new Dictionary<string, ProjectNode>();
+        foreach (var pSem in l4Result.SemanticStructure.Children)
+        {
+            var matchedProj = projects.FirstOrDefault(p => p.Path == pSem.Path);
+            if (matchedProj != null)
+            {
+                MapProjectNodes(pSem, matchedProj, nodeToProject);
+            }
+        }
+
+        // Fallback mapping via file_path
+        foreach (var es in externalServices)
+        {
+            if (!nodeToProject.ContainsKey(es.Id) && es.Extensions?.TryGetValue("file_path", out var fp) == true)
+            {
+                var proj = Layer2ProjectParser.FindProjectForFilePath(fp, projects);
+                if (proj != null) nodeToProject[es.Id] = proj;
+            }
+        }
+        foreach (var ep in endpoints)
+        {
+            if (!nodeToProject.ContainsKey(ep.Id) && !string.IsNullOrEmpty(ep.Path))
+            {
+                var proj = Layer2ProjectParser.FindProjectForFilePath(ep.Path, projects);
+                if (proj != null) nodeToProject[ep.Id] = proj;
+            }
+        }
 
         var localExtIds = new HashSet<string>(externalServices.Select(e => e.Id));
         var localEndpointIds = new HashSet<string>(endpoints.Select(e => e.Id));
@@ -558,6 +590,7 @@ public class Layer5AnalysisParser
         ctx.Log($"[Layer5] [LateBinding] Found {entryPoints.Count} EntryPoints, {endpoints.Count} Endpoints, and {externalServices.Count} ExternalServices.");
 
         var lateBoundRels = new List<Relationship>();
+        var addedProjectDeps = new HashSet<(string From, string To)>();
 
         foreach (var extService in externalServices)
         {
@@ -588,6 +621,46 @@ public class Layer5AnalysisParser
                     ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Id, endpoint.Id));
                     lateBoundRels.Add(rel);
+
+                    // Synthesize Project -> Project DEPENDS_ON relationship
+                    nodeToProject.TryGetValue(extService.Id, out var callerProj);
+                    nodeToProject.TryGetValue(endpoint.Id, out var targetProj);
+
+                    if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
+                    {
+                        if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
+                        {
+                            ctx.Log($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.RouteTemplate}'");
+                            lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
+                        }
+                    }
+                }
+            }
+
+            // Also match by domain/service name if known project exists
+            if (!string.IsNullOrWhiteSpace(extService.DomainOrService) &&
+                extService.DomainOrService is not ("*" or "unknown-service"))
+            {
+                nodeToProject.TryGetValue(extService.Id, out var callerProj);
+                if (callerProj != null)
+                {
+                    var domain = extService.DomainOrService.Trim().ToLowerInvariant();
+                    foreach (var proj in projects)
+                    {
+                        if (proj.Id == callerProj.Id) continue;
+                        var pName = proj.Name.ToLowerInvariant();
+
+                        if (pName == domain ||
+                            pName.TrimEnd('s') == domain.TrimEnd('s') ||
+                            pName.Replace("-", "") == domain.Replace("-", ""))
+                        {
+                            if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
+                            {
+                                ctx.Log($"[Layer5] [LateBinding] Inferred project dependency: Project '{callerProj.Name}' -> Project '{proj.Name}' via service domain '{extService.DomainOrService}'");
+                                lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, proj.Id, new() { ["dependency_type"] = "service_call" })));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -600,6 +673,15 @@ public class Layer5AnalysisParser
         }
 
         return lateBoundRels;
+    }
+
+    private static void MapProjectNodes(IOntologyNode node, ProjectNode proj, Dictionary<string, ProjectNode> map)
+    {
+        map[node.Id] = proj;
+        foreach (var child in node.Children)
+        {
+            MapProjectNodes(child, proj, map);
+        }
     }
 
     private void CollectPublicSymbols(
@@ -632,32 +714,42 @@ public class Layer5AnalysisParser
         var partsA = pathA.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var partsB = pathB.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        if (partsA.Length != partsB.Length || partsA.Length == 0)
+        if (partsA.Length == 0 || partsB.Length == 0)
         {
             return false;
         }
 
+        var len = Math.Min(partsA.Length, partsB.Length);
         var hasExactMatch = false;
 
-        for (int i = 0; i < partsA.Length; i++)
+        for (int i = 1; i <= len; i++)
         {
-            var a = partsA[i];
-            var b = partsB[i];
+            var a = partsA[^i];
+            var b = partsB[^i];
 
             var isParamA = a == "*" || a.StartsWith(':') || (a.StartsWith('{') && a.EndsWith('}'));
             var isParamB = b == "*" || b.StartsWith(':') || (b.StartsWith('{') && b.EndsWith('}'));
 
-            if (!isParamA && !isParamB)
+            if (isParamA && isParamB)
             {
-                if (!string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-                hasExactMatch = true;
+                continue;
             }
+
+            if (isParamA != isParamB)
+            {
+                if (a == "*" || b == "*") return false;
+                continue;
+            }
+
+            if (!string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            hasExactMatch = true;
         }
 
-        return hasExactMatch || (partsA.Length == 1 && string.Equals(partsA[0], partsB[0], StringComparison.OrdinalIgnoreCase));
+        return hasExactMatch;
     }
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint)

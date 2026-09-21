@@ -204,7 +204,7 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
         {
           selector: 'edge',
           style: {
-            'width': 2,
+            'width': 1.8,
             'line-color': '#475569',
             'target-arrow-color': '#475569',
             'target-arrow-shape': 'triangle',
@@ -219,11 +219,61 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
           },
         },
         {
-          selector: 'edge:selected',
+          selector: "edge[depType = 'service_call'], edge[edgeKind = 'SERVICE_CALL']",
           style: {
-            'width': 3,
             'line-color': '#38bdf8',
             'target-arrow-color': '#38bdf8',
+            'target-arrow-shape': 'triangle-backcurve',
+            'target-arrow-fill': 'filled',
+            'arrow-scale': 1.25,
+            'line-style': 'dashed',
+            'line-dash-pattern': [6, 4],
+            'width': 2.2,
+          },
+        },
+        {
+          selector: "edge[depType = 'library'], edge[edgeKind = 'LIBRARY']",
+          style: {
+            'line-color': '#34d399',
+            'target-arrow-color': '#34d399',
+            'target-arrow-shape': 'vee',
+            'target-arrow-fill': 'hollow',
+            'arrow-scale': 1.2,
+            'line-style': 'solid',
+            'width': 1.8,
+          },
+        },
+        {
+          selector: "edge[depType = 'database'], edge[edgeKind = 'USES_DB']",
+          style: {
+            'line-color': '#c084fc',
+            'target-arrow-color': '#c084fc',
+            'target-arrow-shape': 'diamond',
+            'target-arrow-fill': 'filled',
+            'arrow-scale': 1.2,
+            'line-style': 'dotted',
+            'line-dash-pattern': [3, 4],
+            'width': 2,
+          },
+        },
+        {
+          selector: "edge[depType = 'messaging'], edge[edgeKind = 'TRIGGERS']",
+          style: {
+            'line-color': '#fbbf24',
+            'target-arrow-color': '#fbbf24',
+            'target-arrow-shape': 'chevron',
+            'arrow-scale': 1.15,
+            'line-style': 'dashed',
+            'line-dash-pattern': [8, 3, 2, 3],
+            'width': 2,
+          },
+        },
+        {
+          selector: 'edge:selected',
+          style: {
+            'width': 3.5,
+            'line-color': '#ffffff',
+            'target-arrow-color': '#ffffff',
           },
         },
       ],
@@ -395,7 +445,7 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
       }
 
       // Add Edges with Collapsed Re-routing and Aggregation
-      const edgeMap = new Map<string, { source: string; target: string; count: number; kinds: Set<string> }>();
+      const edgeMap = new Map<string, { source: string; target: string; count: number; kinds: Set<string>; depTypes: Set<string>; primaryKind: string }>();
 
       for (const e of graph.edges || []) {
         if (!validNodeIds.has(e.source) || !validNodeIds.has(e.target)) continue;
@@ -416,6 +466,11 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
           continue;
         }
 
+        const depType = (e.properties?.dependency_type || '').toLowerCase() ||
+          (e.kind === 'SERVICE_CALL' || e.kind === 'CALLS_ENDPOINT' ? 'service_call' :
+           e.kind === 'USES_DB' ? 'database' :
+           e.kind === 'TRIGGERS' ? 'messaging' : 'library');
+
         const key = `${effectiveSource}->${effectiveTarget}`;
         if (!edgeMap.has(key)) {
           edgeMap.set(key, {
@@ -423,11 +478,14 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
             target: effectiveTarget,
             count: 1,
             kinds: new Set([e.kind]),
+            depTypes: new Set([depType]),
+            primaryKind: e.kind,
           });
         } else {
           const existing = edgeMap.get(key)!;
           existing.count += 1;
           existing.kinds.add(e.kind);
+          existing.depTypes.add(depType);
         }
       }
 
@@ -437,6 +495,14 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
           ? `${agg.count} calls`
           : Array.from(agg.kinds)[0] || 'calls';
 
+        const primaryDep = agg.depTypes.has('service_call')
+          ? 'service_call'
+          : agg.depTypes.has('database')
+          ? 'database'
+          : agg.depTypes.has('messaging')
+          ? 'messaging'
+          : 'library';
+
         elements.push({
           group: 'edges',
           data: {
@@ -444,6 +510,8 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
             source: agg.source,
             target: agg.target,
             kind: label,
+            edgeKind: agg.primaryKind,
+            depType: primaryDep,
           },
         });
       }

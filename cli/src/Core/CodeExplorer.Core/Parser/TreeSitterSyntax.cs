@@ -200,6 +200,8 @@ public static class TreeSitterSyntax
         public const string Identifier = "identifier";
         public const string AliasedName = "aliased_name";
         public const string VariableName = "variable_name";
+        public const string BinaryOperator = "binary_operator";
+        public const string Subscript = "subscript";
     }
 
     public static class Java

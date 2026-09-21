@@ -29,10 +29,38 @@ public class ProjectLayerClassifierTests
 
         var layers = ProjectLayerClassifier.Classify(projects, dependencies);
 
-        Assert.That(layers["p1"].LayerId, Is.EqualTo(StandardLayers.Presentation.LayerId));
-        Assert.That(layers["p2"].LayerId, Is.EqualTo(StandardLayers.ApplicationCore.LayerId));
-        Assert.That(layers["p3"].LayerId, Is.EqualTo(StandardLayers.DomainServices.LayerId));
-        Assert.That(layers["p4"].LayerId, Is.EqualTo(StandardLayers.DomainServices.LayerId));
+        Assert.That(layers["p1"].LayerId, Is.EqualTo(StandardLayers.Ingress.LayerId));
+        Assert.That(layers["p2"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
+        Assert.That(layers["p3"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
+        Assert.That(layers["p4"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
         Assert.That(layers["p5"].LayerId, Is.EqualTo(StandardLayers.Tests.LayerId));
+    }
+
+    [Test]
+    public void Classify_CategorizesMicroservicesArchitectureIntoIngressComponentsEgressFoundation()
+    {
+        var projects = new List<ProjectClassifierItem>
+        {
+            new() { Id = "s1", Name = "bff", FilePath = "src/services/bff/package.json" },
+            new() { Id = "s2", Name = "bundle", FilePath = "src/services/bundle/package.json" },
+            new() { Id = "s3", Name = "bundle-update-adapter", FilePath = "src/services/bundle-update-adapter/package.json" },
+            new() { Id = "s4", Name = "library", FilePath = "src/services/library/package.json" },
+            new() { Id = "s5", Name = "domain-tests", FilePath = "src/services/domain-tests/package.json" },
+        };
+
+        var dependencies = new List<DependencyItem>
+        {
+            new() { SourceId = "s1", TargetId = "s2" }, // BFF -> bundle
+            new() { SourceId = "s2", TargetId = "s3" }, // bundle -> bundle-update-adapter
+            new() { SourceId = "s2", TargetId = "s4" }, // bundle -> library
+        };
+
+        var layers = ProjectLayerClassifier.Classify(projects, dependencies);
+
+        Assert.That(layers["s1"].LayerId, Is.EqualTo(StandardLayers.Ingress.LayerId));
+        Assert.That(layers["s2"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
+        Assert.That(layers["s3"].LayerId, Is.EqualTo(StandardLayers.Egress.LayerId));
+        Assert.That(layers["s4"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
+        Assert.That(layers["s5"].LayerId, Is.EqualTo(StandardLayers.Tests.LayerId));
     }
 }

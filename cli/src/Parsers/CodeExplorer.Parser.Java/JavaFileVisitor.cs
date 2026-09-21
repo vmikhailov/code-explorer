@@ -83,6 +83,15 @@ public class JavaFileVisitor : BaseParserVisitor
             return Libraries.HttpClientJavaLibraryParser.ExtractTarget(node);
         }
 
+        if (node.Is(TreeSitterSyntax.Java.InterfaceDeclaration) && HasAnnotation(node, "FeignClient"))
+        {
+            var feignAnn = GetAnnotation(node, "FeignClient");
+            if (feignAnn.IsValid())
+            {
+                return Libraries.HttpClientJavaLibraryParser.ExtractTarget(feignAnn);
+            }
+        }
+
         if (node.IsAny(TreeSitterSyntax.Java.StringLiteral, TreeSitterSyntax.Java.TextBlock))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
@@ -315,8 +324,13 @@ public class JavaFileVisitor : BaseParserVisitor
 
     private static bool HasAnnotation(Node node, string annotationName)
     {
+        return GetAnnotation(node, annotationName).IsValid();
+    }
+
+    private static Node? GetAnnotation(Node node, string annotationName)
+    {
         var modifiers = node.FindChildOfType(TreeSitterSyntax.Java.Modifiers);
-        if (!modifiers.IsValid()) return false;
+        if (!modifiers.IsValid()) return null;
 
         foreach (var child in modifiers.Children)
         {
@@ -326,11 +340,11 @@ public class JavaFileVisitor : BaseParserVisitor
                          ?? child.FindChildOfType(TreeSitterSyntax.Java.ScopedIdentifier);
                 if (id.IsValid() && id.Text.EndsWith(annotationName, StringComparison.OrdinalIgnoreCase))
                 {
-                    return true;
+                    return child;
                 }
             }
         }
-        return false;
+        return null;
     }
 
     private static bool HasModifier(Node node, string modifierText)

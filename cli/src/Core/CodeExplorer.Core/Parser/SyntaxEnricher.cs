@@ -119,6 +119,8 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                         var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
+                        var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId);
+                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesDbRel));
                         break;
 
                     case "api":
@@ -132,6 +134,8 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                         var usesApiRel = new UsesApiRelationship(fileNode.Id, apiId);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesApiRel));
+                        var projUsesApiRel = new UsesApiRelationship(projectNode.Id, apiId);
+                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesApiRel));
                         break;
 
                     case "cloud":
@@ -146,6 +150,8 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                         var usesCloudRel = new UsesCloudRelationship(fileNode.Id, cloudId);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesCloudRel));
+                        var projUsesCloudRel = new UsesCloudRelationship(projectNode.Id, cloudId);
+                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesCloudRel));
                         break;
                 }
             }
