@@ -24,9 +24,23 @@ namespace CodeExplorer.Core.Parser
             if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0))
             {
                 var firstChild = node.Children[0];
-                return firstChild.Id != IntPtr.Zero ? firstChild : null;
+                func = firstChild.Id != IntPtr.Zero ? firstChild : null;
             }
-            return func.Id != IntPtr.Zero ? func : null;
+
+            while (func.IsValid() && (func.Type is "await_expression" or "parenthesized_expression"))
+            {
+                var inner = func.Children.FirstOrDefault(c => c.IsValid() && c.Type != "await" && c.Type != "(" && c.Type != ")");
+                if (inner.IsValid())
+                {
+                    func = inner;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return func.IsValid() ? func : null;
         }
 
         public static bool Is([NotNullWhen(true)] this Node? node, string expectedType)

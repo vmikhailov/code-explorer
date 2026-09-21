@@ -22,7 +22,7 @@ public static class AstHelper
                 if (RouteDictionaryRegistry.TryResolve(routeKey, out var rPath, out var rService))
                 {
                     var cleanPath = rPath.Split('?')[0];
-                    return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
+                    return CombineServiceAndPath(rService, cleanPath);
                 }
             }
 
@@ -35,7 +35,7 @@ public static class AstHelper
             if (RouteDictionaryRegistry.TryResolve(varName, out var rPath, out var rService))
             {
                 var cleanPath = rPath.Split('?')[0];
-                return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+                return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
             }
 
             var val = FindVariableInitializerInAst(argNode, varName);
@@ -50,14 +50,14 @@ public static class AstHelper
             if (RouteDictionaryRegistry.TryResolve(argNode.Text, out var rPath, out var rService))
             {
                 var cleanPath = rPath.Split('?')[0];
-                return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+                return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
             }
 
             var prop = argNode.GetField(TreeSitterSyntax.Fields.Property);
             if (prop.IsValid() && RouteDictionaryRegistry.TryResolve(prop.Text, out rPath, out rService))
             {
                 var cleanPath = rPath.Split('?')[0];
-                return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+                return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
             }
         }
 
@@ -81,7 +81,7 @@ public static class AstHelper
                 if (RouteDictionaryRegistry.TryResolve(funcText, out var rPath, out var rService))
                 {
                     var cleanPath = rPath.Split('?')[0];
-                    return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+                    return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
                 }
 
                 if (func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
@@ -90,7 +90,7 @@ public static class AstHelper
                     if (prop.IsValid() && RouteDictionaryRegistry.TryResolve(prop.Text, out rPath, out rService))
                     {
                         var cleanPath = rPath.Split('?')[0];
-                        return NormalizeResolvedUrl(!string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath);
+                        return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
                     }
                 }
             }
@@ -262,5 +262,18 @@ public static class AstHelper
             curr = curr.Parent;
         }
         return null;
+    }
+
+    private static string CombineServiceAndPath(string? service, string cleanPath)
+    {
+        if (string.IsNullOrEmpty(service) ||
+            cleanPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            cleanPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            cleanPath.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) ||
+            cleanPath.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+        {
+            return cleanPath;
+        }
+        return $"{service}{cleanPath}";
     }
 }

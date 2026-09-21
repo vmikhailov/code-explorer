@@ -100,13 +100,31 @@ public class AngularHttpLibraryParser : ILibraryParser
                     {
                         var path = uri.AbsolutePath.TrimStart('/');
                         if (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                            uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase))
+                            uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                            uri.Host.Contains("hostname", StringComparison.OrdinalIgnoreCase))
                         {
                             var argKey = urlArg.Text.Trim('\'', '"', '`', '(', ')');
                             if (RouteDictionaryRegistry.TryResolve(argKey, out _, out var knownSvc) && !string.IsNullOrEmpty(knownSvc))
                             {
+                                if (path.StartsWith(knownSvc + "/", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    return $"{knownSvc}/{path[(knownSvc.Length + 1)..]}";
+                                }
                                 return string.IsNullOrEmpty(path) ? knownSvc : $"{knownSvc}/{path}";
                             }
+
+                            var slashIdx = path.IndexOf('/');
+                            if (slashIdx > 0)
+                            {
+                                var firstPart = path[..slashIdx].ToLowerInvariant();
+                                if (firstPart is "identity" or "player" or "tournament" or "media" or "notification" ||
+                                    RouteDictionaryRegistry.GetAllKnownServices().Any(s => string.Equals(s, firstPart, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    return $"{firstPart}/{path[slashIdx..].TrimStart('/')}";
+                                }
+                            }
+
+                            return string.IsNullOrEmpty(path) ? uri.Host : $"{uri.Host}/{path}";
                         }
                         return string.IsNullOrEmpty(path) ? uri.Host : $"{uri.Host}/{path}";
                     }

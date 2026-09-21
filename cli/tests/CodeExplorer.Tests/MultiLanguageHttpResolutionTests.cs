@@ -457,4 +457,108 @@ public class MultiLanguageHttpResolutionTests
         var isMatch = (bool)isMatchMethod.Invoke(layer5, [angularSvc, dotNetEndpoint])!;
         Assert.That(isMatch, Is.True, "Angular HttpClient external service should late-bind to .NET backend endpoint");
     }
+
+    [Test]
+    public async Task CrossLanguage_LidomaAdmin_Matches_DotNetMicroservices()
+    {
+        RouteDictionaryRegistry.Clear();
+
+        // 1. Prod environment with top-level constants and concatenation
+        var envProdCode = """
+        const apiRoot = 'https://api.HOSTNAME/api/v1';
+        const identityRoot = 'https://api.HOSTNAME/identity';
+
+        export const environment = {
+          production: true,
+          allowedUrls: [ apiRoot, identityRoot ],
+          players: apiRoot + '/profiles',
+          tournament: apiRoot + '/tournaments',
+          games: apiRoot + '/games',
+          genres: apiRoot + '/genres',
+          users: identityRoot + '/api/v1/users',
+          identity: identityRoot,
+          baseUrl: 'https://HOSTNAME'
+        };
+        """;
+        RouteDictionaryRegistry.ScanAndRegister(envProdCode);
+
+        // 2. urlConstructor getters
+        var urlConstructor = """
+        import { environment as env } from './environment';
+        export const getGamesListUrl = () => env.games;
+        export const getPlayerUrl = () => env.players;
+        export const getUsersFromIdentityUrl = () => env.users;
+        export const getIdentityUrl = () => env.identity;
+        """;
+        RouteDictionaryRegistry.ScanAndRegister(urlConstructor);
+
+        // 3. AccountsComponent (Identity)
+        var accountsCode = """
+        import { Component } from '@angular/core';
+        import { HttpClient } from '@angular/common/http';
+        import { getUsersFromIdentityUrl } from './urlConstructor';
+
+        @Component({ selector: 'app-accounts', template: '' })
+        export class AccountsComponent {
+            constructor(protected httpClient: HttpClient) {}
+            getUsers() {
+                this.httpClient.get<any>(getUsersFromIdentityUrl()).subscribe();
+            }
+        }
+        """;
+        var identityServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), accountsCode, "accounts.component.ts");
+        Assert.That(identityServices, Has.Count.EqualTo(1));
+        var identitySvc = identityServices.First();
+
+        // 4. PlayersComponent (Player)
+        var playersCode = """
+        import { Component } from '@angular/core';
+        import { HttpClient } from '@angular/common/http';
+        import { getPlayerUrl } from './urlConstructor';
+
+        @Component({ selector: 'app-players', template: '' })
+        export class PlayersComponent {
+            constructor(protected httpClient: HttpClient) {}
+            addPlayer() {
+                this.httpClient.post<any>(getPlayerUrl(), {}).subscribe();
+            }
+        }
+        """;
+        var playerServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), playersCode, "players.component.ts");
+        Assert.That(playerServices, Has.Count.EqualTo(1));
+        var playerSvc = playerServices.First();
+
+        // 5. GamesComponent (Tournament)
+        var gamesCode = """
+        import { Component } from '@angular/core';
+        import { HttpClient } from '@angular/common/http';
+        import { getGamesListUrl } from './urlConstructor';
+
+        @Component({ selector: 'app-games', template: '' })
+        export class GamesComponent {
+            constructor(private httpClient: HttpClient) {}
+            async getGames(): Promise<any> {
+                const response = await this.httpClient.get<any>(getGamesListUrl());
+                return response;
+            }
+        }
+        """;
+        var gameServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), gamesCode, "games.component.ts");
+        Assert.That(gameServices, Has.Count.EqualTo(1));
+        var gameSvc = gameServices.First();
+
+        // Verify Late-Binding to real .NET controllers (which have action names in route)
+        var layer5 = new Layer5AnalysisParser();
+        var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            [typeof(ExternalServiceNode), typeof(EndpointNode)])!;
+
+        var identityEndpoint = new EndpointNode("id:ep1", "GET:/api/v1/Users/GetUser", "UsersController.cs", "GET", "/api/v1/Users/GetUser");
+        var playerEndpoint = new EndpointNode("id:ep2", "GET:/api/v1/Profiles/GetAllProfiles", "ProfilesController.cs", "GET", "/api/v1/Profiles/GetAllProfiles");
+        var tournamentEndpoint = new EndpointNode("id:ep3", "GET:/api/v1/Games/GetGames", "GamesController.cs", "GET", "/api/v1/Games/GetGames");
+
+        Assert.That((bool)isMatchMethod.Invoke(layer5, [identitySvc, identityEndpoint])!, Is.True, "Admin AccountsComponent should match Lidoma.Services.Identity");
+        Assert.That((bool)isMatchMethod.Invoke(layer5, [playerSvc, playerEndpoint])!, Is.True, "Admin PlayersComponent should match Lidoma.Services.Player");
+        Assert.That((bool)isMatchMethod.Invoke(layer5, [gameSvc, tournamentEndpoint])!, Is.True, "Admin GamesComponent should match Lidoma.Services.Tournament");
+    }
 }

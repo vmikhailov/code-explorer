@@ -243,6 +243,22 @@ public static class RouteDictionaryRegistry
             }
         }
 
+        // 1a-1. Top-level string/URL constant declarations:
+        // const apiRoot = 'https://api.HOSTNAME/api/v1';
+        // const identityRoot = 'https://api.HOSTNAME/identity';
+        var topConstMatches = Regex.Matches(content,
+            @"(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*['""`]([^'""`\r\n]+)['""`]\s*;?",
+            RegexOptions.Multiline);
+        foreach (Match tcm in topConstMatches)
+        {
+            var cName = tcm.Groups[1].Value;
+            var cVal = tcm.Groups[2].Value.Trim();
+            if (cVal.Contains('/') || cVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || cVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                Register(cName, cVal, InferService(cName, cVal));
+            }
+        }
+
         // 1b. Environment, URL map, and configuration dictionaries:
         // export const environment = { ... }, const urlMap = { ... }, const Endpoints = { ... }
         var envDictMatches = Regex.Matches(content,
@@ -257,6 +273,8 @@ public static class RouteDictionaryRegistry
             if (!isCandidate) continue;
 
             var body = m.Groups[2].Value;
+
+            // Direct string literal entries: key: 'url'
             var entryMatches = Regex.Matches(body, @"['""]?([A-Za-z0-9_\-]+)['""]?\s*:\s*['""`]([^'""`\r\n]+)['""`]");
             foreach (Match em in entryMatches)
             {
@@ -265,13 +283,75 @@ public static class RouteDictionaryRegistry
 
                 if (val.Contains('/') || val.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || val.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 {
-                    Register(key, val, null);
-                    Register($"{varName}.{key}", val, null);
+                    var inferredSvc = InferService(key, val);
+                    Register(key, val, inferredSvc);
+                    Register($"{varName}.{key}", val, inferredSvc);
                     if (varName.StartsWith("env", StringComparison.OrdinalIgnoreCase))
                     {
-                        Register($"env.{key}", val, null);
-                        Register($"environment.{key}", val, null);
+                        Register($"env.{key}", val, inferredSvc);
+                        Register($"environment.{key}", val, inferredSvc);
                     }
+                }
+            }
+
+            // Binary concatenation entries: key: apiRoot + '/profiles' or key: 'http://foo' + port
+            var concatMatches = Regex.Matches(body, @"['""]?([A-Za-z0-9_\-]+)['""]?\s*:\s*([A-Za-z0-9_]+)\s*\+\s*['""`]([^'""`\r\n]+)['""`]");
+            foreach (Match cm in concatMatches)
+            {
+                var key = cm.Groups[1].Value;
+                var baseVar = cm.Groups[2].Value;
+                var suffix = cm.Groups[3].Value.Trim();
+
+                if (TryResolve(baseVar, out var baseVal, out var baseSvc))
+                {
+                    var combined = baseVal.TrimEnd('/') + "/" + suffix.TrimStart('/');
+                    var inferredSvc = baseSvc ?? InferService(key, combined);
+                    Register(key, combined, inferredSvc);
+                    Register($"{varName}.{key}", combined, inferredSvc);
+                    if (varName.StartsWith("env", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Register($"env.{key}", combined, inferredSvc);
+                        Register($"environment.{key}", combined, inferredSvc);
+                    }
+                }
+            }
+
+            // Identifier alias entries: identity: identityRoot or allowedUrls: ...
+            var identMatches = Regex.Matches(body, @"['""]?([A-Za-z0-9_\-]+)['""]?\s*:\s*([A-Za-z0-9_]+)(?:\s*,\s*|\s*$)");
+            foreach (Match im in identMatches)
+            {
+                var key = im.Groups[1].Value;
+                var target = im.Groups[2].Value;
+                if (!string.Equals(key, target, StringComparison.OrdinalIgnoreCase) &&
+                    !target.Equals("true", StringComparison.OrdinalIgnoreCase) &&
+                    !target.Equals("false", StringComparison.OrdinalIgnoreCase) &&
+                    !target.Equals("null", StringComparison.OrdinalIgnoreCase) &&
+                    !target.Equals("undefined", StringComparison.OrdinalIgnoreCase))
+                {
+                    RegisterAlias(key, target);
+                    RegisterAlias($"{varName}.{key}", target);
+                }
+            }
+
+            // Nested dictionary endpoints: gameList: { endpoint: env.games, ... }
+            var nestedMatches = Regex.Matches(body, @"([A-Za-z0-9_]+)\s*:\s*\{[\s\S]*?endpoint\s*:\s*(?:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)|['""`]([^'""`\r\n]+)['""`])[\s\S]*?\}");
+            foreach (Match nm in nestedMatches)
+            {
+                var secName = nm.Groups[1].Value;
+                if (nm.Groups[2].Success && nm.Groups[3].Success)
+                {
+                    var targetKey = nm.Groups[3].Value;
+                    RegisterAlias($"{varName}.{secName}.endpoint", targetKey);
+                    RegisterAlias($"{secName}.endpoint", targetKey);
+                    RegisterAlias(secName, targetKey);
+                }
+                else if (nm.Groups[4].Success)
+                {
+                    var rawVal = nm.Groups[4].Value.Trim();
+                    var inferredSvc = InferService(secName, rawVal);
+                    Register($"{varName}.{secName}.endpoint", rawVal, inferredSvc);
+                    Register($"{secName}.endpoint", rawVal, inferredSvc);
+                    Register(secName, rawVal, inferredSvc);
                 }
             }
         }
@@ -435,6 +515,34 @@ public static class RouteDictionaryRegistry
             }
             _serviceDomains[sKey] = sVal;
         }
+    }
+
+    private static string? InferService(string key, string val)
+    {
+        if (Uri.TryCreate(val, UriKind.Absolute, out var parsedUri))
+        {
+            var absPath = parsedUri.AbsolutePath.Trim('/');
+            if (absPath.StartsWith("identity", StringComparison.OrdinalIgnoreCase))
+            {
+                return "identity";
+            }
+            if (absPath.Contains("profile", StringComparison.OrdinalIgnoreCase) || key.Contains("player", StringComparison.OrdinalIgnoreCase))
+            {
+                return "player";
+            }
+            if (absPath.Contains("game", StringComparison.OrdinalIgnoreCase) || absPath.Contains("tournament", StringComparison.OrdinalIgnoreCase) ||
+                key.Contains("game", StringComparison.OrdinalIgnoreCase) || key.Contains("tournament", StringComparison.OrdinalIgnoreCase))
+            {
+                return "tournament";
+            }
+        }
+
+        var cleanKey = key.ToLowerInvariant();
+        if (cleanKey.Contains("identity") || cleanKey.Contains("user")) return "identity";
+        if (cleanKey.Contains("player") || cleanKey.Contains("profile")) return "player";
+        if (cleanKey.Contains("game") || cleanKey.Contains("tournament")) return "tournament";
+
+        return null;
     }
 
     private static string rmKey(Match m) => m.Groups[4].Value;

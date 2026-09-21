@@ -25,7 +25,9 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             relativePath.Contains("const", StringComparison.OrdinalIgnoreCase) ||
             relativePath.Contains("config", StringComparison.OrdinalIgnoreCase) ||
             relativePath.Contains("api", StringComparison.OrdinalIgnoreCase) ||
-            relativePath.Contains("endpoint", StringComparison.OrdinalIgnoreCase))
+            relativePath.Contains("endpoint", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.Contains("env", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.Contains("url", StringComparison.OrdinalIgnoreCase))
         {
             RouteDictionaryRegistry.ScanAndRegister(rootNode.Text);
         }

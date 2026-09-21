@@ -105,7 +105,10 @@ public class Layer3SyntacticParser
                 if (file.Name.Contains("route", StringComparison.OrdinalIgnoreCase) ||
                     file.Name.Contains("const", StringComparison.OrdinalIgnoreCase) ||
                     file.Name.Contains("config", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("api", StringComparison.OrdinalIgnoreCase))
+                    file.Name.Contains("api", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("env", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("url", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("endpoint", StringComparison.OrdinalIgnoreCase))
                 {
                     try
                     {

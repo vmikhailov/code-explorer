@@ -662,7 +662,10 @@ public class Layer5AnalysisParser
 
                         if (pName == domain ||
                             pName.TrimEnd('s') == domain.TrimEnd('s') ||
-                            pName.Replace("-", "") == domain.Replace("-", ""))
+                            pName.Replace("-", "") == domain.Replace("-", "") ||
+                            pName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase) ||
+                            pName.EndsWith("." + domain + "s", StringComparison.OrdinalIgnoreCase) ||
+                            pName.Split('.').Any(part => part.Equals(domain, StringComparison.OrdinalIgnoreCase) || part.TrimEnd('s').Equals(domain.TrimEnd('s'), StringComparison.OrdinalIgnoreCase)))
                         {
                             if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
                             {
@@ -825,11 +828,21 @@ public class Layer5AnalysisParser
         var cleanPathA = "/" + servicePathNorm.Trim('/') + "/";
         var cleanPathB = "/" + routeNorm.Trim('/') + "/";
 
-        if (cleanPathA != "//" && cleanPathB != "//" &&
-            (cleanPathA.EndsWith(cleanPathB, StringComparison.OrdinalIgnoreCase) ||
-             cleanPathB.EndsWith(cleanPathA, StringComparison.OrdinalIgnoreCase)))
+        if (cleanPathA != "//" && cleanPathB != "//")
         {
-            return true;
+            if (cleanPathA.EndsWith(cleanPathB, StringComparison.OrdinalIgnoreCase) ||
+                cleanPathB.EndsWith(cleanPathA, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var segsA = cleanPathA.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var segsB = cleanPathB.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if ((cleanPathB.StartsWith(cleanPathA, StringComparison.OrdinalIgnoreCase) && segsA.Length >= 2) ||
+                (cleanPathA.StartsWith(cleanPathB, StringComparison.OrdinalIgnoreCase) && segsB.Length >= 2))
+            {
+                return true;
+            }
         }
 
         if (!string.IsNullOrEmpty(serviceDomainNorm) && serviceDomainNorm != "*" && serviceDomainNorm != "unknown-service" && serviceDomainNorm.StartsWith('/'))
