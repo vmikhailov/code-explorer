@@ -70,7 +70,7 @@ public class DiagramExportTests
         var mermaid = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "architecture");
         Assert.That(mermaid, Does.StartWith("flowchart TD"));
         Assert.That(mermaid, Does.Contain("OrderService"));
-        Assert.That(mermaid, Does.Contain("Postgres"));
+        Assert.That(mermaid, Does.Contain("Postgres").IgnoreCase);
         Assert.That(mermaid, Does.Contain("Stripe"));
     }
 

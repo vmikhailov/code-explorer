@@ -40,35 +40,41 @@ interface EdgeVisuals {
 export type EdgeCategory = 'library' | 'service_call' | 'database' | 'messaging';
 
 export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeCategory => {
+  // 1. Authoritative Backend Protocol Category
+  if (edge?.category) {
+    const cat = edge.category.toLowerCase();
+    if (cat === 'service_call' || cat === 'database' || cat === 'messaging' || cat === 'library') {
+      return cat as EdgeCategory;
+    }
+  }
+
   const depType = (edge?.properties?.dependency_type || '').toLowerCase();
   const kind = (edge?.kind || '').toUpperCase();
   const targetRole = targetNode?.properties?.role;
   const targetKind = targetNode?.kind;
   const targetLayer = (targetNode?.properties?.layer || targetNode?.properties?.layerId || '').toLowerCase();
   const targetProjType = (targetNode?.properties?.project_type || '').toLowerCase();
-  const targetName = (targetNode?.name || '').toLowerCase();
-  const targetPath = (targetNode?.filePath || '').toLowerCase().replace(/\\/g, '/');
 
-  // 1. Database
+  // 2. Explicit dependency_type or kind
   if (depType === 'database' || kind === 'USES_DB' || targetKind === 'Database' || targetRole === 'database') {
     return 'database';
   }
 
-  // 2. Messaging / Event Queue
-  if (depType === 'messaging' || kind === 'TRIGGERS') {
+  if (depType === 'messaging' || kind === 'TRIGGERS' || targetKind === 'Topic' || targetRole === 'topic') {
     return 'messaging';
   }
 
-  // 3. Service Call (API, gRPC, HTTP) - Explicit service_call always takes precedence
   if (depType === 'service_call' || kind === 'SERVICE_CALL' || kind === 'CALLS_ENDPOINT') {
     return 'service_call';
   }
 
-  // 4. Library Usage
+  if (depType === 'library' || kind === 'LIBRARY') {
+    return 'library';
+  }
+
+  // 3. Inferred Fallbacks
   const isLibraryTarget =
     targetNode?.properties?.is_library === 'true' ||
-    depType === 'library' ||
-    kind === 'LIBRARY' ||
     targetLayer === 'layer_foundation' ||
     targetProjType === 'library';
 
@@ -76,13 +82,11 @@ export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeC
     return 'library';
   }
 
-  // 5. Inferred Service Call (target in ingress/components/egress layer and not a library)
   const isServiceTarget = targetLayer === 'layer_ingress' || targetLayer === 'layer_components' || targetLayer === 'layer_egress';
-  if (isServiceTarget && targetProjType !== 'library' && depType !== 'library') {
+  if (isServiceTarget && targetProjType !== 'library') {
     return 'service_call';
   }
 
-  // 6. Default: Library Usage
   return 'library';
 };
 

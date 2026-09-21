@@ -109,10 +109,21 @@ public class SyntaxEnricher : ISyntaxEnricher
                         }
 
                         var dbId = $"{projectNode.Id}db:{parser.Id}";
+                        var isOrm = IsOrmLibrary(parser.Id);
+                        var extensions = new Dictionary<string, string>
+                        {
+                            ["engine"] = dbEngine,
+                            ["provider"] = parser.Name
+                        };
+                        if (isOrm)
+                        {
+                            extensions["is_orm"] = "true";
+                        }
+
                         var semanticNodeForDb = ctx.SemanticStructure;
                         if (semanticNodeForDb != null && semanticNodeForDb.Children.All(c => c.Id != dbId))
                         {
-                            var dbNode = new DatabaseNode(dbId, dbEngine, dbId, dbType);
+                            var dbNode = new DatabaseNode(dbId, dbEngine, dbId, dbType, extensions);
                             semanticNodeForDb.Children.Add(dbNode);
                         }
 
@@ -221,5 +232,12 @@ public class SyntaxEnricher : ISyntaxEnricher
 
         parentNode.Children.Add(varNode);
         return true;
+    }
+
+    private static bool IsOrmLibrary(string parserId)
+    {
+        var lower = (parserId ?? "").ToLowerInvariant();
+        return lower is "ef-core" or "microsoft.entityframeworkcore" or "dapper" or "typeorm" or
+               "prisma" or "hibernate" or "nhibernate" or "sequelize" or "drizzle" or "sqlalchemy";
     }
 }

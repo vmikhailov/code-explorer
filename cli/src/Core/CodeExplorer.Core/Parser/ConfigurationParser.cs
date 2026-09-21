@@ -305,35 +305,37 @@ public static class ConfigurationParser
         if (lower.StartsWith("postgres://") || lower.StartsWith("postgresql://") || lower.StartsWith("jdbc:postgresql://") ||
             lower.Contains("host=") && lower.Contains("database=") && (lower.Contains("username=") || lower.Contains("user id=")))
         {
-            CreateDatabaseNode("PostgreSQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name);
+            CreateDatabaseNode("PostgreSQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.StartsWith("mongodb://") || lower.StartsWith("mongodb+srv://") || lowerName.Contains("mongo"))
         {
-            CreateDatabaseNode("MongoDB", "document", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name);
+            CreateDatabaseNode("MongoDB", "document", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.StartsWith("redis://") || lower.Contains("localhost:6379") || lowerName.Contains("redis"))
         {
-            CreateDatabaseNode("Redis", "cache", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name);
+            CreateDatabaseNode("Redis", "cache", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.StartsWith("amqp://") || lower.StartsWith("amqps://") || lowerName.Contains("rabbitmq"))
         {
-            CreateTopicNode("rabbitmq", name, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+            var ch = ExtractChannelName(connStr, name);
+            CreateTopicNode("rabbitmq", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
         }
         else if (lower.Contains(":9092") || lowerName.Contains("kafka"))
         {
-            CreateTopicNode("kafka", name, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+            var ch = ExtractChannelName(connStr, name);
+            CreateTopicNode("kafka", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
         }
         else if (lower.Contains("data source=") || lower.Contains("server=") || lower.StartsWith("jdbc:sqlserver://") || lowerName.Contains("sqlserver") || lowerName.Contains("mssql"))
         {
-            CreateDatabaseNode("SQL Server", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name);
+            CreateDatabaseNode("SQL Server", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.StartsWith("mysql://") || lower.StartsWith("jdbc:mysql://") || lowerName.Contains("mysql"))
         {
-            CreateDatabaseNode("MySQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name);
+            CreateDatabaseNode("MySQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.Contains(".db") || lower.Contains(".sqlite") || lowerName.Contains("sqlite"))
         {
-            CreateDatabaseNode("SQLite", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name);
+            CreateDatabaseNode("SQLite", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
     }
 
@@ -383,6 +385,61 @@ public static class ConfigurationParser
         }
     }
 
+    public static string? ExtractDatabaseCatalog(string connStr, string engine)
+    {
+        if (string.IsNullOrWhiteSpace(connStr)) return null;
+
+        // 1. ADO.NET / Standard Key-Value format: Database=xyz or Initial Catalog=xyz
+        var dbMatch = Regex.Match(connStr, @"(?:^|;)\s*(?:Database|Initial\s+Catalog)\s*=\s*([^;]+)", RegexOptions.IgnoreCase);
+        if (dbMatch.Success)
+        {
+            var db = dbMatch.Groups[1].Value.Trim().Trim('"', '\'');
+            if (IsValidCatalogName(db)) return db;
+        }
+
+        // 2. URI format: (postgres|postgresql|mongodb|mysql|mariadb|redis)://.../[dbname]
+        var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
+        if (uriMatch.Success)
+        {
+            var db = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
+            if (IsValidCatalogName(db)) return db;
+        }
+
+        // 3. SQLite: Data Source=xyz.db or Filename=xyz.db
+        if (engine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) || connStr.Contains(".db", StringComparison.OrdinalIgnoreCase) || connStr.Contains(".sqlite", StringComparison.OrdinalIgnoreCase))
+        {
+            var sqliteMatch = Regex.Match(connStr, @"(?:^|;)\s*(?:Data\s+Source|Filename)\s*=\s*([^;]+)", RegexOptions.IgnoreCase);
+            if (sqliteMatch.Success)
+            {
+                var fullPath = sqliteMatch.Groups[1].Value.Trim().Trim('"', '\'');
+                var fileName = Path.GetFileNameWithoutExtension(fullPath);
+                if (!string.IsNullOrWhiteSpace(fileName) && IsValidCatalogName(fileName)) return fileName;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsValidCatalogName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        // Ignore unexpanded template placeholders like {{DB_NAME}}, ${DB_NAME}, %DB_NAME%, <DB_NAME>
+        if (name.StartsWith("{{") || name.StartsWith("${") || name.StartsWith('%') || name.StartsWith('<')) return false;
+        return true;
+    }
+
+    private static string ExtractChannelName(string connStr, string defaultName)
+    {
+        if (string.IsNullOrWhiteSpace(connStr)) return defaultName;
+        var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
+        if (uriMatch.Success)
+        {
+            var ch = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
+            if (IsValidCatalogName(ch)) return ch;
+        }
+        return defaultName;
+    }
+
     private static void CreateDatabaseNode(
         string engine,
         string dbType,
@@ -392,26 +449,58 @@ public static class ConfigurationParser
         IOntologyNode containerNode,
         List<Relationship> relationships,
         ParsingContext ctx,
-        string? customName = null)
+        string? customName = null,
+        string? connStr = null)
     {
-        var isEnvOrConfigKey = !string.IsNullOrWhiteSpace(customName) &&
+        string? catalog = null;
+        if (!string.IsNullOrWhiteSpace(connStr))
+        {
+            catalog = ExtractDatabaseCatalog(connStr, engine);
+        }
+
+        var isGenericConfigKey = !string.IsNullOrWhiteSpace(customName) &&
             (customName.Contains('_') ||
              customName.Contains('.') ||
              customName.Equals("spring-datasource", StringComparison.OrdinalIgnoreCase) ||
+             customName.Equals("spring.datasource.url", StringComparison.OrdinalIgnoreCase) ||
              customName.Equals("database", StringComparison.OrdinalIgnoreCase) ||
+             customName.Equals("defaultconnection", StringComparison.OrdinalIgnoreCase) ||
+             customName.Equals("connectionstring", StringComparison.OrdinalIgnoreCase) ||
+             customName.Equals("connectionstrings", StringComparison.OrdinalIgnoreCase) ||
              customName.Equals("db", StringComparison.OrdinalIgnoreCase));
 
-        var dbName = isEnvOrConfigKey || string.IsNullOrWhiteSpace(customName) ? engine : customName;
+        string dbName;
+        if (!string.IsNullOrWhiteSpace(catalog))
+        {
+            dbName = catalog;
+        }
+        else if (!isGenericConfigKey && !string.IsNullOrWhiteSpace(customName))
+        {
+            dbName = customName;
+        }
+        else
+        {
+            dbName = engine;
+        }
+
         var dbId = $"{workspaceId}:database:{dbType}:{dbName.ToLowerInvariant()}";
 
         if (!containerNode.Children.Any(c => c.Id == dbId))
         {
-            var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType);
+            var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType, new Dictionary<string, string> { ["engine"] = engine });
             containerNode.Children.Add(dbNode);
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, dbName, dbId);
         }
 
         relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, dbId)));
+
+        var projId = containerNode is ProjectSemanticNode psn ? psn.Id : (containerNode.Id.Contains(":project:") ? containerNode.Id : null);
+        if (!string.IsNullOrEmpty(projId))
+        {
+            var usesDbRel = new UsesDbRelationship(projId, dbId);
+            relationships.Add(Relationship.FromRelationship(usesDbRel));
+            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
+        }
     }
 
     private static void CreateTopicNode(
@@ -434,6 +523,14 @@ public static class ConfigurationParser
         }
 
         relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, topicId)));
+
+        var projId = containerNode is ProjectSemanticNode psn ? psn.Id : (containerNode.Id.Contains(":project:") ? containerNode.Id : null);
+        if (!string.IsNullOrEmpty(projId))
+        {
+            var triggersRel = new TriggersRelationship(projId, topicId);
+            relationships.Add(Relationship.FromRelationship(triggersRel));
+            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(triggersRel));
+        }
     }
 
     private static void CreateCloudServiceNode(

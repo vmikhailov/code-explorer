@@ -50,7 +50,7 @@ public static class DiagramExporter
         sb.AppendLine("  end");
 
         // 2. Query Databases
-        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type";
+        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine";
         var dbJson = await client.ExecuteQueryAsync(dbQuery, null, cancellationToken);
         using var dbDoc = JsonDocument.Parse(dbJson);
 
@@ -63,7 +63,12 @@ public static class DiagramExporter
             var id = SanitizeId(row.GetProperty("id").GetString() ?? "db");
             var name = row.GetProperty("name").GetString() ?? "Database";
             var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String ? dt.GetString() : "Database";
-            dbSb.AppendLine($"    {id}[(\"{name}\\n[{dbType}]\")]");
+            var engine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String ? eg.GetString() : null;
+
+            var label = !string.IsNullOrEmpty(engine) && !engine.Equals(name, StringComparison.OrdinalIgnoreCase)
+                ? $"{name} ({engine})\\n[{dbType}]"
+                : $"{name}\\n[{dbType}]";
+            dbSb.AppendLine($"    {id}[(\"{label}\")]");
         }
         dbSb.AppendLine("  end");
         if (hasDbs) sb.Append(dbSb);
@@ -162,7 +167,7 @@ public static class DiagramExporter
         }
 
         // 2. Databases
-        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type";
+        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine";
         var dbJson = await client.ExecuteQueryAsync(dbQuery, null, cancellationToken);
         using var dbDoc = JsonDocument.Parse(dbJson);
 
@@ -171,7 +176,9 @@ public static class DiagramExporter
             var id = SanitizeId(row.GetProperty("id").GetString() ?? "db");
             var name = row.GetProperty("name").GetString() ?? "Database";
             var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String ? dt.GetString() : "Database";
-            sb.AppendLine($"  ContainerDb({id}, \"{name}\", \"{dbType}\", \"Data storage\")");
+            var engine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String ? eg.GetString() : null;
+            var tech = !string.IsNullOrEmpty(engine) ? engine : dbType;
+            sb.AppendLine($"  ContainerDb({id}, \"{name}\", \"{tech}\", \"Data storage\")");
         }
 
         // 3. Topics / Queues

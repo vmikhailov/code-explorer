@@ -65,7 +65,7 @@ public class ConfigurationMappingTests
         var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
-        Assert.That(databases.Any(d => d.DbType == "relational" && d.Name.Contains("DefaultConnection")), Is.True, "Postgres DefaultConnection should be extracted");
+        Assert.That(databases.Any(d => d.DbType == "relational" && (d.Name.Contains("DefaultConnection") || d.Name.Contains("orders_db"))), Is.True, "Postgres DefaultConnection / orders_db should be extracted");
         Assert.That(databases.Any(d => d.DbType == "cache" && d.Name.Contains("Redis")), Is.True, "Redis database should be extracted");
 
         var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();

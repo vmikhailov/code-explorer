@@ -54,12 +54,17 @@ public static class GraphDataConverter
         using var dbDoc = JsonDocument.Parse(dbJson);
         var dbIdToCanonicalId = new Dictionary<string, string>();
 
+        var rawDbList = new List<(string Id, string Name, string DbType)>();
         foreach (var row in dbDoc.RootElement.EnumerateArray())
         {
             var id = row.GetStringProp("id");
             var name = row.GetStringProp("name", id);
             var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
+            rawDbList.Add((id, name, dbType));
+        }
 
+        foreach (var (id, name, dbType) in rawDbList)
+        {
             var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
             var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
                                   id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
@@ -67,6 +72,7 @@ public static class GraphDataConverter
             var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
                 ? $"workspace:database:{cType}:{cKey}"
                 : id;
+
             dbIdToCanonicalId[id] = canonicalId;
 
             if (!nodeMap.ContainsKey(canonicalId))
@@ -114,6 +120,43 @@ public static class GraphDataConverter
                 graph.Nodes.Add(node);
             }
         }
+
+        // 3b. Topics (PubSub, Message Queues, Event Streams)
+        try
+        {
+            var topicQuery = "MATCH (t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
+            var topicJson = await client.ExecuteQueryAsync(topicQuery, null, cancellationToken);
+            using var topicDoc = JsonDocument.Parse(topicJson);
+
+            foreach (var row in topicDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
+
+                if (!nodeMap.ContainsKey(id))
+                {
+                    var node = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "Topic",
+                        Name = name,
+                        DisplayName = $"{name} [{broker}]",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["broker_type"] = broker,
+                            ["role"] = "topic",
+                            ["entity_type"] = "topic",
+                            ["is_semantic_entity"] = "true",
+                            ["is_library"] = "false"
+                        }
+                    };
+                    nodeMap[id] = node;
+                    graph.Nodes.Add(node);
+                }
+            }
+        }
+        catch { }
 
         // 4. Query Raw Project Dependencies
         var depQuery = "MATCH (p1:Project)-[r:DEPENDS_ON]->(p2:Project) RETURN p1.id AS source, p2.id AS target, r.kind AS kind, r.dependency_type AS dep_type";
@@ -216,6 +259,18 @@ public static class GraphDataConverter
                 var isMsg = st.Equals("MessageBroker", StringComparison.OrdinalIgnoreCase);
                 node.Properties["is_library"] = "false";
                 node.Properties["entity_type"] = isMsg ? "topic" : "external";
+                node.Properties["is_semantic_entity"] = "true";
+            }
+            else if (node.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase))
+            {
+                node.Properties["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId;
+                node.Properties["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId;
+                node.Properties["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName;
+                node.Properties["layerOrder"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Order.ToString();
+                node.Properties["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color;
+                node.Properties["layerIcon"] = "symbol-event";
+                node.Properties["is_library"] = "false";
+                node.Properties["entity_type"] = "topic";
                 node.Properties["is_semantic_entity"] = "true";
             }
         }
@@ -406,6 +461,139 @@ public static class GraphDataConverter
             }
         }
 
+        // 8b. Topic Links (PubSub, Message Queues)
+        try
+        {
+            var topicEdgeQuery = "MATCH (p:Project)-[r:TRIGGERS|PUBLISHES|PUBLISHES_TO|SUBSCRIBES_TO]->(t:Topic) RETURN p.id AS source, t.id AS target, r.kind AS kind";
+            var topicEdgeJson = await client.ExecuteQueryAsync(topicEdgeQuery, null, cancellationToken);
+            using var topicEdgeDoc = JsonDocument.Parse(topicEdgeJson);
+
+            foreach (var row in topicEdgeDoc.RootElement.EnumerateArray())
+            {
+                var src = row.GetStringProp("source");
+                var tgt = row.GetStringProp("target");
+                if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt))
+                {
+                    if (graph.Edges.All(e => !(e.Source == src && e.Target == tgt)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{src}->{tgt}:TRIGGERS",
+                            Source = src,
+                            Target = tgt,
+                            Kind = "TRIGGERS",
+                            Category = "messaging",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["dependency_type"] = "messaging",
+                                ["is_semantic"] = "true"
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var pubQuery = "MATCH (t:Topic)-[:PUBLISHED_BY]->(sym) RETURN t.id AS topicId, sym.id AS symId";
+            var pubJson = await client.ExecuteQueryAsync(pubQuery, null, cancellationToken);
+            using var pubDoc = JsonDocument.Parse(pubJson);
+
+            foreach (var row in pubDoc.RootElement.EnumerateArray())
+            {
+                var topicId = row.GetStringProp("topicId");
+                var symId = row.GetStringProp("symId");
+                if (string.IsNullOrEmpty(topicId) || string.IsNullOrEmpty(symId) || !nodeMap.ContainsKey(topicId)) continue;
+
+                var owningProj = FindOwningProject(symId, projectNodes);
+                if (owningProj != null && graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == topicId)))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{owningProj.Id}->{topicId}:TRIGGERS",
+                        Source = owningProj.Id,
+                        Target = topicId,
+                        Kind = "TRIGGERS",
+                        Category = "messaging",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "messaging",
+                            ["is_semantic"] = "true"
+                        }
+                    });
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var subQuery = "MATCH (t:Topic)-[:SUBSCRIBED_BY]->(sym) RETURN t.id AS topicId, sym.id AS symId";
+            var subJson = await client.ExecuteQueryAsync(subQuery, null, cancellationToken);
+            using var subDoc = JsonDocument.Parse(subJson);
+
+            foreach (var row in subDoc.RootElement.EnumerateArray())
+            {
+                var topicId = row.GetStringProp("topicId");
+                var symId = row.GetStringProp("symId");
+                if (string.IsNullOrEmpty(topicId) || string.IsNullOrEmpty(symId) || !nodeMap.ContainsKey(topicId)) continue;
+
+                var owningProj = FindOwningProject(symId, projectNodes);
+                if (owningProj != null && graph.Edges.All(e => !(e.Source == topicId && e.Target == owningProj.Id)))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{topicId}->{owningProj.Id}:TRIGGERS",
+                        Source = topicId,
+                        Target = owningProj.Id,
+                        Kind = "TRIGGERS",
+                        Category = "messaging",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "messaging",
+                            ["is_semantic"] = "true"
+                        }
+                    });
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var cfgTopicQuery = "MATCH (f:File)-[:CONFIGURES]->(t:Topic) RETURN f.id AS fileId, t.id AS topicId";
+            var cfgTopicJson = await client.ExecuteQueryAsync(cfgTopicQuery, null, cancellationToken);
+            using var cfgTopicDoc = JsonDocument.Parse(cfgTopicJson);
+
+            foreach (var row in cfgTopicDoc.RootElement.EnumerateArray())
+            {
+                var fileId = row.GetStringProp("fileId");
+                var topicId = row.GetStringProp("topicId");
+                if (string.IsNullOrEmpty(fileId) || string.IsNullOrEmpty(topicId) || !nodeMap.ContainsKey(topicId)) continue;
+
+                var owningProj = FindOwningProject(fileId, projectNodes);
+                if (owningProj != null && graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == topicId)))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{owningProj.Id}->{topicId}:TRIGGERS",
+                        Source = owningProj.Id,
+                        Target = topicId,
+                        Kind = "TRIGGERS",
+                        Category = "messaging",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "messaging",
+                            ["is_semantic"] = "true"
+                        }
+                    });
+                }
+            }
+        }
+        catch { }
+
         // 9. Lift Transitive Semantic Relations through Internal Libraries
         LiftTransitiveSemanticRelations(graph);
 
@@ -428,6 +616,8 @@ public static class GraphDataConverter
                 edge.Properties["is_semantic"] = "false";
             }
         }
+
+        NormalizeEdges(graph);
 
         graph.Metadata ??= new Dictionary<string, string>();
         graph.Metadata["graphType"] = "architecture";
@@ -799,12 +989,18 @@ public static class GraphDataConverter
             var dbJson = await client.ExecuteQueryAsync(dbQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
             using var dbDoc = JsonDocument.Parse(dbJson);
 
+            var rawList = new List<(string Id, string Name, string DbType, string Kind)>();
             foreach (var row in dbDoc.RootElement.EnumerateArray())
             {
                 var id = row.GetStringProp("id");
                 var name = row.GetStringProp("name", id);
                 var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
                 var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "USES_DB") : "USES_DB";
+                rawList.Add((id, name, dbType, kind));
+            }
+
+            foreach (var (id, name, dbType, kind) in rawList)
+            {
                 var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
                 var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
                                       id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
@@ -839,6 +1035,7 @@ public static class GraphDataConverter
                         Source = centerId,
                         Target = canonicalId,
                         Kind = kind,
+                        Category = "database",
                         Properties = new Dictionary<string, string>
                         {
                             ["dependency_type"] = "database"
@@ -896,6 +1093,7 @@ public static class GraphDataConverter
                         Source = centerId,
                         Target = canonicalId,
                         Kind = "USES_DB",
+                        Category = "database",
                         Properties = new Dictionary<string, string>
                         {
                             ["dependency_type"] = "database"
@@ -1084,22 +1282,110 @@ public static class GraphDataConverter
         }
         catch { }
 
-        ApplyLayerClassification(graph);
-
-        // Normalize edge types after layer classification has established all project layers
-        foreach (var edge in graph.Edges)
+        // 6. Outbound & Inbound Topics
+        try
         {
-            if (edge.Kind == "USES_DB" || edge.Kind == "TRIGGERS" || edge.Properties?.GetValueOrDefault("dependency_type") == "service_call" || edge.Properties?.GetValueOrDefault("dependency_type") == "database" || edge.Properties?.GetValueOrDefault("dependency_type") == "messaging") continue;
+            var topicQuery = "MATCH (p:Project {id: $centerId})-[r:TRIGGERS|PUBLISHES|PUBLISHES_TO]->(t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
+            var topicJson = await client.ExecuteQueryAsync(topicQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+            using var topicDoc = JsonDocument.Parse(topicJson);
 
-            var target = graph.Nodes.FirstOrDefault(n => n.Id == edge.Target);
-            if (target != null && IsLibraryProject(target))
+            foreach (var row in topicDoc.RootElement.EnumerateArray())
             {
-                edge.Kind = "LIBRARY";
-                edge.Properties ??= new Dictionary<string, string>();
-                edge.Properties["dependency_type"] = "library";
-                edge.Id = $"{edge.Source}->{edge.Target}:LIBRARY";
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
+
+                if (graph.Nodes.All(n => n.Id != id))
+                {
+                    var tNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "Topic",
+                        Name = name,
+                        DisplayName = $"{name} [{broker}]",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["column"] = "right",
+                            ["role"] = "topic",
+                            ["broker_type"] = broker,
+                            ["entity_type"] = "topic"
+                        }
+                    };
+                    graph.Nodes.Add(tNode);
+                }
+
+                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id)))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{centerId}->{id}:TRIGGERS",
+                        Source = centerId,
+                        Target = id,
+                        Kind = "TRIGGERS",
+                        Category = "messaging",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "messaging"
+                        }
+                    });
+                }
             }
         }
+        catch { }
+
+        try
+        {
+            var inTopicQuery = "MATCH (t:Topic)-[r:TRIGGERS|SUBSCRIBED_BY]->(p:Project {id: $centerId}) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
+            var inTopicJson = await client.ExecuteQueryAsync(inTopicQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+            using var inTopicDoc = JsonDocument.Parse(inTopicJson);
+
+            foreach (var row in inTopicDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
+
+                if (graph.Nodes.All(n => n.Id != id))
+                {
+                    var tNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "Topic",
+                        Name = name,
+                        DisplayName = $"{name} [{broker}]",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["column"] = "left",
+                            ["role"] = "topic",
+                            ["broker_type"] = broker,
+                            ["entity_type"] = "topic"
+                        }
+                    };
+                    graph.Nodes.Add(tNode);
+                }
+
+                if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId)))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{id}->{centerId}:TRIGGERS",
+                        Source = id,
+                        Target = centerId,
+                        Kind = "TRIGGERS",
+                        Category = "messaging",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "messaging"
+                        }
+                    });
+                }
+            }
+        }
+        catch { }
+
+        ApplyLayerClassification(graph);
+
+        NormalizeEdges(graph);
 
         graph.Metadata ??= new Dictionary<string, string>();
         graph.Metadata["graphType"] = "flow";
@@ -1310,6 +1596,7 @@ public static class GraphDataConverter
                                     Source = service.Id,
                                     Target = targetNode.Id,
                                     Kind = "USES_DB",
+                                    Category = "database",
                                     Properties = new Dictionary<string, string>
                                     {
                                         ["dependency_type"] = "database",
@@ -1331,6 +1618,7 @@ public static class GraphDataConverter
                                     Source = service.Id,
                                     Target = targetNode.Id,
                                     Kind = "SERVICE_CALL",
+                                    Category = "service_call",
                                     Properties = new Dictionary<string, string>
                                     {
                                         ["dependency_type"] = "service_call",
@@ -1354,6 +1642,7 @@ public static class GraphDataConverter
                                     Source = service.Id,
                                     Target = targetNode.Id,
                                     Kind = kind,
+                                    Category = depType,
                                     Properties = new Dictionary<string, string>
                                     {
                                         ["dependency_type"] = depType,
@@ -1452,6 +1741,14 @@ public static class GraphDataConverter
         {
             case "typeorm":
                 return ("TypeORM", "relational", "typeorm");
+            case "microsoft.entityframeworkcore":
+            case "entity framework core":
+            case "ef-core":
+                return ("EF Core", "relational", "ef_core");
+            case "dapper":
+                return ("Dapper", "relational", "dapper");
+            case "defaultconnection":
+                return ("Database", "relational", "database");
             case "postgres":
             case "postgresql":
                 return ("PostgreSQL", "relational", "postgresql");
@@ -1498,6 +1795,85 @@ public static class GraphDataConverter
                 var canonicalKey = System.Text.RegularExpressions.Regex.Replace(lower, @"[^a-z0-9_-]", "_").Trim('_');
                 if (string.IsNullOrEmpty(canonicalKey)) canonicalKey = "db";
                 return (trimmed, type, canonicalKey);
+        }
+    }
+
+    public static bool IsGenericOrOrmDatabase(string rawName)
+    {
+        var lower = (rawName ?? "").Trim().ToLowerInvariant();
+        return lower is "defaultconnection" or "connectionstring" or "connectionstrings" or "database" or "db" or
+               "microsoft.entityframeworkcore" or "entity framework core" or "ef-core" or "typeorm" or "dapper" or "prisma" or "sequelize";
+    }
+
+    public static void NormalizeEdges(GraphDataDto graph)
+    {
+        var nodesById = graph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var edge in graph.Edges)
+        {
+            edge.Properties ??= new Dictionary<string, string>();
+            var depType = edge.Properties.GetValueOrDefault("dependency_type");
+            var kind = edge.Kind?.ToUpperInvariant() ?? "";
+
+            nodesById.TryGetValue(edge.Target, out var targetNode);
+
+            string category;
+            if (!string.IsNullOrEmpty(edge.Category))
+            {
+                category = edge.Category.ToLowerInvariant();
+            }
+            else if (!string.IsNullOrEmpty(depType))
+            {
+                category = depType.ToLowerInvariant();
+            }
+            else if (kind == "USES_DB" || targetNode?.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                category = "database";
+            }
+            else if (kind == "TRIGGERS" || targetNode?.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                category = "messaging";
+            }
+            else if (kind == "SERVICE_CALL" || kind == "CALLS_ENDPOINT" || targetNode?.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                category = "service_call";
+            }
+            else if (targetNode != null && IsLibraryProject(targetNode))
+            {
+                category = "library";
+            }
+            else
+            {
+                category = "service_call";
+            }
+
+            category = category switch
+            {
+                "database" or "db" => "database",
+                "messaging" or "queue" or "topic" or "pubsub" => "messaging",
+                "service_call" or "service" or "api" or "http" or "grpc" => "service_call",
+                _ => "library"
+            };
+
+            edge.Category = category;
+            edge.Properties["dependency_type"] = category;
+
+            if (category == "database")
+            {
+                edge.Kind = "USES_DB";
+            }
+            else if (category == "messaging")
+            {
+                edge.Kind = "TRIGGERS";
+            }
+            else if (category == "service_call")
+            {
+                edge.Kind = edge.Kind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL";
+            }
+            else if (category == "library")
+            {
+                edge.Kind = "LIBRARY";
+            }
         }
     }
 }

@@ -106,6 +106,10 @@ public class GraphEdgeDto
     [JsonPropertyName("kind")]
     public string Kind { get; set; } = string.Empty;
 
+    [JsonPropertyName("category")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Category { get; set; }
+
     [JsonPropertyName("properties")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? Properties { get; set; }
