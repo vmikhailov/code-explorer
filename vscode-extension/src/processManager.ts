@@ -159,100 +159,54 @@ export class ProcessManager implements vscode.Disposable {
     workspaceRoot: string,
     customPath?: string
   ): { command: string; args: string[] } | null {
-    if (customPath && customPath.trim().length > 0) {
-      const resolved = path.isAbsolute(customPath)
-        ? customPath
-        : path.resolve(workspaceRoot, customPath);
-      if (fs.existsSync(resolved)) {
-        const dllFallback = resolved.replace(/\.exe$/i, '.dll');
-        if (resolved.endsWith('.exe') && fs.existsSync(dllFallback)) {
-          return { command: 'dotnet', args: [dllFallback] };
+    // 1. Explicit path from settings or ENV variable (e.g. CE_DEV_EXECUTABLE from launch.json)
+    const envPath = process.env.CE_DEV_EXECUTABLE || process.env.CE_EXECUTABLE;
+    const targetPath = customPath && customPath.trim().length > 0 ? customPath.trim() : envPath;
+
+    if (targetPath) {
+      const resolved = path.isAbsolute(targetPath)
+        ? targetPath
+        : path.resolve(workspaceRoot, targetPath);
+
+      // Support fallback between Debug and Release if one is built
+      const candidates = [resolved];
+      if (resolved.includes('bin_Debug_AnyCPU')) {
+        candidates.push(resolved.replace('bin_Debug_AnyCPU', 'bin_Release_AnyCPU'));
+      } else if (resolved.includes('bin_Release_AnyCPU')) {
+        candidates.push(resolved.replace('bin_Release_AnyCPU', 'bin_Debug_AnyCPU'));
+      }
+
+      for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+          const isDll = candidate.endsWith('.dll');
+          this.outputChannel.appendLine(
+            `[ProcessManager] Using configured executable (${customPath ? 'settings' : 'ENV'}): ${candidate}`
+          );
+          return isDll ? { command: 'dotnet', args: [candidate] } : { command: candidate, args: [] };
         }
-        return resolved.endsWith('.dll')
-          ? { command: 'dotnet', args: [resolved] }
-          : { command: resolved, args: [] };
       }
     }
 
-    // 1. Check bundled platform-specific or universal binaries
+    // 2. Bundled platform-specific binary in extension (used in installed extensions)
     const isWindows = process.platform === 'win32';
-    const isMac = process.platform === 'darwin';
-    const isLinux = process.platform === 'linux';
-    const arch = process.arch;
     const binName = isWindows ? 'ce.exe' : 'ce';
-
-    const hostRids: string[] = [];
-    if (isWindows) {
-      if (arch === 'arm64') hostRids.push('win-arm64');
-      hostRids.push('win-x64');
-    } else if (isMac) {
-      if (arch === 'arm64') hostRids.push('osx-arm64');
-      hostRids.push('osx-x64');
-    } else if (isLinux) {
-      if (arch === 'arm64') hostRids.push('linux-arm64');
-      hostRids.push('linux-x64');
-    }
-
     const extensionRoot = path.resolve(__dirname, '..');
-    const bundledCandidates: string[] = [
-      // Platform-specific package layout: bin/ce[.exe]
-      path.resolve(extensionRoot, 'bin', binName),
-    ];
+    const bundledCandidate = path.resolve(extensionRoot, 'bin', binName);
 
-    // Multi-target / universal package layout: bin/<rid>/ce[.exe]
-    for (const rid of hostRids) {
-      bundledCandidates.push(path.resolve(extensionRoot, 'bin', rid, binName));
-    }
-
-    for (const binPath of bundledCandidates) {
-      if (fs.existsSync(binPath)) {
-        if (!isWindows) {
-          try {
-            fs.chmodSync(binPath, 0o755);
-          } catch (e: any) {
-            this.outputChannel.appendLine(`[ProcessManager] Warning: failed to chmod +x on ${binPath}: ${e.message}`);
-          }
+    if (fs.existsSync(bundledCandidate)) {
+      if (!isWindows) {
+        try {
+          fs.chmodSync(bundledCandidate, 0o755);
+        } catch {
+          // Best effort
         }
-        this.outputChannel.appendLine(`[ProcessManager] Using bundled CodeExplorer binary: ${binPath}`);
-        return { command: binPath, args: [] };
       }
+      this.outputChannel.appendLine(`[ProcessManager] Using bundled CodeExplorer binary: ${bundledCandidate}`);
+      return { command: bundledCandidate, args: [] };
     }
 
-    // 2. Check monorepo standard build locations (relative to workspace or extension directory)
-    // Always prefer .dll over .exe in local build output directories because running app-host .exe
-    // directly from build folders where hostfxr.dll is present causes .NET to search for shared runtimes locally,
-    // failing with exit code 2147516566 (0x80008096). Invoking via 'dotnet <path>.dll' uses the host correctly.
-    const candidatePaths = [
-      path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.dll'),
-      path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.exe'),
-      path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.dll'),
-      path.resolve(workspaceRoot, 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.exe'),
-      path.resolve(workspaceRoot, '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.dll'),
-      path.resolve(workspaceRoot, '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.exe'),
-      path.resolve(__dirname, '..', '..', 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.dll'),
-      path.resolve(__dirname, '..', '..', 'cli', '.Build', 'bin_Release_AnyCPU', 'CodeExplorer', 'ce.exe'),
-      path.resolve(__dirname, '..', '..', 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.dll'),
-      path.resolve(__dirname, '..', '..', 'cli', '.Build', 'bin_Debug_AnyCPU', 'CodeExplorer', 'ce.exe'),
-    ];
-
-    for (const candidate of candidatePaths) {
-      if (fs.existsSync(candidate)) {
-        const dllCandidate = candidate.endsWith('.exe')
-          ? candidate.replace(/\.exe$/i, '.dll')
-          : candidate;
-        if (fs.existsSync(dllCandidate)) {
-          this.outputChannel.appendLine(`[ProcessManager] Found local binary candidate: dotnet ${dllCandidate}`);
-          return { command: 'dotnet', args: [dllCandidate] };
-        }
-        this.outputChannel.appendLine(`[ProcessManager] Found local binary candidate: ${candidate}`);
-        return candidate.endsWith('.dll')
-          ? { command: 'dotnet', args: [candidate] }
-          : { command: candidate, args: [] };
-      }
-    }
-
-    // Check system PATH
-    this.outputChannel.appendLine('[ProcessManager] No local monorepo binaries found. Using system PATH "ce".');
+    // 3. Fallback to system PATH
+    this.outputChannel.appendLine('[ProcessManager] Using system PATH "ce".');
     return { command: 'ce', args: [] };
   }
 
