@@ -60,22 +60,12 @@ export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeC
   }
 
   // 3. Library Usage
-  const targetFramework = (targetNode?.properties?.framework || '').toLowerCase();
-  const hasFramework = Boolean(targetFramework && targetFramework !== 'library');
-
   const isLibraryTarget =
-    !hasFramework &&
-    (depType === 'library' ||
-      kind === 'LIBRARY' ||
-      targetLayer === 'layer_foundation' ||
-      targetProjType === 'library' ||
-      targetName === 'library' ||
-      targetName.includes('library') ||
-      targetName.endsWith('-lib') ||
-      targetName.endsWith('.lib') ||
-      targetPath.includes('/libs/') ||
-      targetPath.includes('/lib/') ||
-      targetPath.includes('/libraries/'));
+    targetNode?.properties?.is_library === 'true' ||
+    depType === 'library' ||
+    kind === 'LIBRARY' ||
+    targetLayer === 'layer_foundation' ||
+    targetProjType === 'library';
 
   if (isLibraryTarget && depType !== 'service_call' && kind !== 'SERVICE_CALL') {
     return 'library';
@@ -345,36 +335,72 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     }
   }, [rootProjectName, nodeMap]);
 
+  const DEFAULT_CATEGORIES = useMemo(
+    () => new Set<string>(['callsOut', 'acceptsIn', 'dbOut', 'messagesOut', 'messagesIn', 'libsOut']),
+    []
+  );
+
+  const getActiveCategories = useCallback(
+    (id: string, name?: string): Set<string> => {
+      if (expandedCategories.has(id)) return expandedCategories.get(id)!;
+      if (name && expandedCategories.has(name)) return expandedCategories.get(name)!;
+      return DEFAULT_CATEGORIES;
+    },
+    [expandedCategories, DEFAULT_CATEGORIES]
+  );
+
   // Toggle specific communication category for a project
   const handleToggleCategory = useCallback(
     (projectName: string, category: string, projectId?: string) => {
       setExpandedCategories((prev) => {
         const next = new Map(prev);
-        const keys = [projectName];
-        if (projectId && projectId !== projectName) keys.push(projectId);
+        const current =
+          (projectId && prev.get(projectId)) ||
+          prev.get(projectName) ||
+          new Set(['callsOut', 'acceptsIn', 'dbOut', 'messagesOut', 'messagesIn', 'libsOut']);
 
-        let isCurrentlyActive = false;
-        for (const k of keys) {
-          if (next.get(k)?.has(category)) {
-            isCurrentlyActive = true;
-            break;
-          }
+        const updated = new Set(current);
+        if (updated.has(category)) {
+          updated.delete(category);
+        } else {
+          updated.add(category);
         }
 
-        for (const k of keys) {
-          const set = new Set(next.get(k) || []);
-          if (isCurrentlyActive) {
-            set.delete(category);
-          } else {
-            set.add(category);
-          }
-          next.set(k, set);
-        }
+        next.set(projectName, updated);
+        if (projectId) next.set(projectId, updated);
         return next;
       });
     },
     []
   );
+
+  // Set of project IDs/names whose cards are in expanded mode (showing typed connector dots)
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+
+  // Initialize root project card as expanded
+  useEffect(() => {
+    if (rootProjectName) {
+      const rootNode = nodeMap.get(rootProjectName);
+      const set = new Set<string>([rootProjectName]);
+      if (rootNode) set.add(rootNode.id);
+      setExpandedCards(set);
+    }
+  }, [rootProjectName, nodeMap]);
+
+  const handleToggleCardExpand = useCallback((projectName: string, projectId?: string) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      const isExp = next.has(projectName) || (projectId && next.has(projectId));
+      if (isExp) {
+        next.delete(projectName);
+        if (projectId) next.delete(projectId);
+      } else {
+        next.add(projectName);
+        if (projectId) next.add(projectId);
+      }
+      return next;
+    });
+  }, []);
 
   const handleResetLevels = useCallback(() => {
     if (rootProjectName) {
@@ -393,6 +419,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         nextMap.set(rootNode.id, allCats);
       }
       setExpandedCategories(nextMap);
+      const set = new Set<string>([rootProjectName]);
+      if (rootNode) set.add(rootNode.id);
+      setExpandedCards(set);
     }
   }, [rootProjectName, nodeMap]);
 
@@ -554,23 +583,46 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           return;
         }
 
+        // Check if communication category is active on source/target cards
+        const srcCats = getActiveCategories(sourceId, srcNode?.name);
+        const tgtCats = getActiveCategories(targetId, tgtNode?.name);
+
+        let outCat = 'callsOut';
+        if (category === 'database') outCat = 'dbOut';
+        else if (category === 'messaging') outCat = 'messagesOut';
+        else if (category === 'library') outCat = 'libsOut';
+
+        if (!srcCats.has(outCat)) {
+          return;
+        }
+
+        if (category === 'service_call' && !tgtCats.has('acceptsIn')) {
+          return;
+        }
+        if (category === 'messaging' && !tgtCats.has('messagesIn')) {
+          return;
+        }
+
         const visuals = getEdgeVisuals(edgeObj, tgtNode);
+
+        const isSourceExpanded =
+          expandedCards.has(sourceId) || (srcNode && (expandedCards.has(srcNode.id) || expandedCards.has(srcNode.name)));
+        const isTargetExpanded =
+          expandedCards.has(targetId) || (tgtNode && (expandedCards.has(tgtNode.id) || expandedCards.has(tgtNode.name)));
 
         let sourceHandle = 'source-default';
         let targetHandle = 'target-default';
 
-        if (category === 'service_call') {
-          sourceHandle = 'source-calls';
-          targetHandle = 'target-calls';
-        } else if (category === 'database') {
-          sourceHandle = 'source-db';
-          targetHandle = 'target-default';
-        } else if (category === 'messaging') {
-          sourceHandle = 'source-events';
-          targetHandle = 'target-events';
-        } else if (category === 'library') {
-          sourceHandle = 'source-libs';
-          targetHandle = 'target-default';
+        if (isSourceExpanded) {
+          if (category === 'service_call') sourceHandle = 'source-calls';
+          else if (category === 'database') sourceHandle = 'source-db';
+          else if (category === 'messaging') sourceHandle = 'source-events';
+          else if (category === 'library') sourceHandle = 'source-libs';
+        }
+
+        if (isTargetExpanded) {
+          if (category === 'service_call') targetHandle = 'target-calls';
+          else if (category === 'messaging') targetHandle = 'target-events';
         }
 
         generatedEdges.push({
@@ -871,8 +923,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
             isCenter,
             inCount,
             outCount,
+            isExpanded: expandedCards.has(node.id) || expandedCards.has(node.name),
+            onToggleExpand: handleToggleCardExpand,
             comms: commsMap.get(node.id) || commsMap.get(node.name),
-            activeCategories: Array.from(expandedCategories.get(node.id) || expandedCategories.get(node.name) || []),
+            activeCategories: Array.from(getActiveCategories(node.id, node.name)),
             onToggleCategory: handleToggleCategory,
             onFocusProject: onSelectProject,
             onOpenFile,
@@ -890,6 +944,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     }, 40);
   }, [
     rootProjectName,
+    expandedCards,
     expandedCategories,
     visibleEdgeTypes,
     nodeMap,
@@ -899,7 +954,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     outCountMap,
     edgeLookup,
     commsMap,
+    getActiveCategories,
     handleToggleCategory,
+    handleToggleCardExpand,
     onSelectProject,
     onOpenFile,
     fitView,

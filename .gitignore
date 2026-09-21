@@ -29,6 +29,9 @@ appsettings.Development.json
 appsettings.local.json
 .Build/
 .Packages/
+.nupkg/
+*.nupkg
+*.snupkg
 dist/
 scratch/
 .codeexplorer/

@@ -83,7 +83,7 @@ public class WebSocketServerHandler
         IHostApplicationLifetime? appLifetime = null,
         int idleTimeoutSeconds = 30,
         string? workspaceRoot = null,
-        string serverVersion = "1.3.4")
+        string serverVersion = "1.4.0")
     {
         _graphClient = graphClient;
         _repository = repository;

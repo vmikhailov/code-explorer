@@ -17,6 +17,8 @@ export interface ProjectCardData {
   isCenter: boolean;
   inCount?: number;
   outCount?: number;
+  isExpanded?: boolean;
+  onToggleExpand?: (projectName: string, projectId?: string) => void;
   comms?: NodeCommsSummary;
   activeCategories?: string[];
   onToggleCategory?: (projectName: string, category: string, projectId?: string) => void;
@@ -32,6 +34,8 @@ export const ProjectCardNode = memo((props: any) => {
     isCenter,
     inCount = 0,
     outCount = 0,
+    isExpanded,
+    onToggleExpand,
     comms,
     activeCategories = [],
     onToggleCategory,
@@ -40,9 +44,10 @@ export const ProjectCardNode = memo((props: any) => {
   } = nodeData;
 
   const [showCommsPopover, setShowCommsPopover] = useState(false);
-  const [isCardExpanded, setIsCardExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  const isCardExpanded = isExpanded ?? localExpanded;
   const activeCategoriesSet = new Set(activeCategories);
 
   const inboundCallsCount = (comms?.acceptsIn.length ?? 0) || inCount;
@@ -51,6 +56,8 @@ export const ProjectCardNode = memo((props: any) => {
   const dbOutCount = comms?.dbOut.length ?? 0;
   const messagesOutCount = comms?.messagesOut.length ?? 0;
   const libsOutCount = comms?.libsOut.length ?? 0;
+
+  const totalCommsCount = callsOutCount + inboundCallsCount + dbOutCount + libsOutCount + messagesOutCount + inboundEventsCount;
 
   // Left ports (Inbound)
   const leftPorts: Array<{ id: string; category: string; color: string; label: string; count: number; active: boolean }> = [];
@@ -137,23 +144,13 @@ export const ProjectCardNode = memo((props: any) => {
   };
 
   const projectType = (graphNode.properties?.project_type || graphNode.properties?.language || '').toLowerCase();
-
-  const nodeLayer = (graphNode.properties?.layer || graphNode.properties?.layerId || '').toLowerCase();
-  const nodeName = (graphNode.name || '').toLowerCase();
-  const nodePath = (graphNode.filePath || '').toLowerCase().replace(/\\/g, '/');
-  const frameworkLower = framework.toLowerCase();
   const isLibrary =
     !isDatabase &&
     graphNode.kind !== 'ExternalService' &&
-    (!frameworkLower || frameworkLower === 'library') &&
-    (nodeLayer === 'layer_foundation' ||
+    (graphNode.properties?.is_library === 'true' ||
       projectType === 'library' ||
-      nodeName === 'library' ||
-      nodeName.includes('library') ||
-      nodeName.endsWith('-lib') ||
-      nodePath.includes('/libs/') ||
-      nodePath.includes('/lib/') ||
-      nodePath.includes('/libraries/'));
+      graphNode.properties?.layer === 'layer_foundation' ||
+      graphNode.properties?.layerId === 'layer_foundation');
 
   let badgeColor = '#c084fc';
   let badgeLabel = 'Project';
@@ -189,20 +186,38 @@ export const ProjectCardNode = memo((props: any) => {
     badgeLabel = framework;
   }
 
+  const maxPorts = Math.max(leftPorts.length, rightPorts.length);
+  const cardMinHeight = isCardExpanded && maxPorts >= 3 ? (maxPorts >= 4 ? 96 : 84) : undefined;
+
   return (
     <div
       ref={cardRef}
-      className={`project-card ${isCenter ? 'center-hero' : ''} ${showCommsPopover ? 'has-open-popover' : ''}`}
+      className={`project-card ${isCenter ? 'center-hero' : ''} ${isCardExpanded ? 'is-expanded' : 'is-compact'} ${showCommsPopover ? 'has-open-popover' : ''}`}
+      style={{ minHeight: cardMinHeight }}
     >
-      {/* Left Inbound Handles (Color-coded by type) */}
-      {leftPorts.length === 0 ? (
+      {/* Left Inbound Handles */}
+      {!isCardExpanded || leftPorts.length === 0 ? (
         <Handle
           id="target-default"
           type="target"
           position={Position.Left}
-          className="flow-handle target-handle"
+          className="flow-handle center-handle target-handle"
           isConnectable={false}
           style={{ top: '50%' }}
+          title={
+            leftPorts.length > 0 || rightPorts.length > 0
+              ? `Inbound (${inboundCallsCount + inboundEventsCount}) — Click to expand typed ports`
+              : inboundCallsCount + inboundEventsCount > 0
+              ? `Inbound (${inboundCallsCount + inboundEventsCount})`
+              : 'Inbound'
+          }
+          onClick={(e) => {
+            e.stopPropagation();
+            if (leftPorts.length > 0 || rightPorts.length > 0) {
+              if (onToggleExpand) onToggleExpand(graphNode.name, graphNode.id);
+              else setLocalExpanded(true);
+            }
+          }}
         />
       ) : (
         leftPorts.map((p, idx) => {
@@ -213,14 +228,14 @@ export const ProjectCardNode = memo((props: any) => {
               id={p.id}
               type="target"
               position={Position.Left}
-              className={`flow-handle typed-handle handle-${p.category} ${p.active ? 'is-active' : ''}`}
+              className={`flow-handle typed-handle handle-${p.category} ${p.active ? 'is-active' : 'is-inactive'}`}
               style={{
                 top: `${topPct}%`,
-                backgroundColor: p.color,
-                borderColor: p.active ? '#ffffff' : `${p.color}aa`,
-                boxShadow: p.active ? `0 0 8px ${p.color}, 0 0 2px #fff` : `0 0 3px rgba(0,0,0,0.5)`,
+                backgroundColor: p.active ? p.color : '#1c1c24',
+                border: p.active ? `1.5px solid #ffffff` : `2px solid ${p.color}`,
+                boxShadow: p.active ? `0 0 6px ${p.color}, 0 0 2px #fff` : 'none',
               }}
-              title={`${p.label} (${p.count}) — click to ${p.active ? 'hide' : 'show'}`}
+              title={`${p.label} (${p.count}) — ${p.active ? 'Active (click to hide)' : 'Hidden (click to show)'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleCategory?.(graphNode.name, p.category, graphNode.id);
@@ -230,18 +245,30 @@ export const ProjectCardNode = memo((props: any) => {
           );
         })
       )}
-      {leftPorts.length > 0 && (
+      {/* Hidden fallback handles to preserve React Flow edge bindings */}
+      {isCardExpanded && leftPorts.length > 0 && (
         <Handle
           id="target-default"
           type="target"
           position={Position.Left}
-          className="flow-handle target-handle"
+          className="flow-handle"
           isConnectable={false}
           style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
         />
       )}
+      {!isCardExpanded && leftPorts.map((p) => (
+        <Handle
+          key={`hidden-in-${p.id}`}
+          id={p.id}
+          type="target"
+          position={Position.Left}
+          className="flow-handle"
+          isConnectable={false}
+          style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
+        />
+      ))}
 
-      {/* Top row: badge + actions (code, focus, expand) */}
+      {/* Top row: badge + actions */}
       <div className="project-card-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span
@@ -268,6 +295,18 @@ export const ProjectCardNode = memo((props: any) => {
           )}
         </div>
         <div className="card-top-actions">
+          {totalCommsCount > 0 && (
+            <button
+              className={`card-icon-link comms-btn ${showCommsPopover ? 'active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowCommsPopover((v) => !v);
+              }}
+              title={`View all communications (${totalCommsCount})`}
+            >
+              ⚡
+            </button>
+          )}
           {graphNode.filePath && (
             <button
               className="card-icon-link"
@@ -291,9 +330,13 @@ export const ProjectCardNode = memo((props: any) => {
               className={`card-icon-link expand-toggle-btn ${isCardExpanded ? 'is-expanded' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
-                setIsCardExpanded((v) => !v);
+                if (onToggleExpand) {
+                  onToggleExpand(graphNode.name, graphNode.id);
+                } else {
+                  setLocalExpanded((v) => !v);
+                }
               }}
-              title={isCardExpanded ? 'Collapse communication slots' : 'Expand communication slots'}
+              title={isCardExpanded ? 'Collapse to single center point' : 'Expand typed connector dots'}
             >
               {isCardExpanded ? '▴' : '▾'}
             </button>
@@ -312,119 +355,6 @@ export const ProjectCardNode = memo((props: any) => {
 
       {/* Framework if available */}
       {framework && <div className="project-framework">{framework}</div>}
-
-      {/* Communication Mini-Chips Bar */}
-      {(callsOutCount > 0 || inboundCallsCount > 0 || dbOutCount > 0 || libsOutCount > 0 || messagesOutCount > 0 || inboundEventsCount > 0) && (
-        <div className="card-comms-chips">
-          {callsOutCount > 0 && (
-            <span
-              className={`comm-chip comm-calls ${activeCategoriesSet.has('callsOut') ? 'is-active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCategory?.(graphNode.name, 'callsOut', graphNode.id);
-              }}
-              title={`⚡ Calls ${callsOutCount} services (click to toggle)`}
-            >
-              ⚡ {callsOutCount}
-            </span>
-          )}
-          {inboundCallsCount > 0 && (
-            <span
-              className={`comm-chip comm-accepts ${activeCategoriesSet.has('acceptsIn') ? 'is-active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCategory?.(graphNode.name, 'acceptsIn', graphNode.id);
-              }}
-              title={`📥 Accepts calls from ${inboundCallsCount} (click to toggle)`}
-            >
-              📥 {inboundCallsCount}
-            </span>
-          )}
-          {dbOutCount > 0 && (
-            <span
-              className={`comm-chip comm-db ${activeCategoriesSet.has('dbOut') ? 'is-active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCategory?.(graphNode.name, 'dbOut', graphNode.id);
-              }}
-              title={`🗄️ Uses ${dbOutCount} databases (click to toggle)`}
-            >
-              🗄️ {dbOutCount}
-            </span>
-          )}
-          {(messagesOutCount > 0 || inboundEventsCount > 0) && (
-            <span
-              className={`comm-chip comm-msg ${activeCategoriesSet.has('messagesOut') || activeCategoriesSet.has('messagesIn') ? 'is-active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (messagesOutCount > 0) onToggleCategory?.(graphNode.name, 'messagesOut', graphNode.id);
-                if (inboundEventsCount > 0) onToggleCategory?.(graphNode.name, 'messagesIn', graphNode.id);
-              }}
-              title={`📨 Events: ${messagesOutCount + inboundEventsCount} (click to toggle)`}
-            >
-              📨 {messagesOutCount + inboundEventsCount}
-            </span>
-          )}
-          {libsOutCount > 0 && (
-            <span
-              className={`comm-chip comm-libs ${activeCategoriesSet.has('libsOut') ? 'is-active' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCategory?.(graphNode.name, 'libsOut', graphNode.id);
-              }}
-              title={`📚 Uses ${libsOutCount} libraries (click to toggle)`}
-            >
-              📚 {libsOutCount}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Expanded Communication Slots */}
-      {isCardExpanded && (
-        <div className="card-expanded-slots" onClick={(e) => e.stopPropagation()}>
-          {leftPorts.map((p) => (
-            <div
-              key={`slot-left-${p.id}`}
-              className={`card-slot-row ${p.active ? 'is-active' : ''}`}
-              onClick={() => onToggleCategory?.(graphNode.name, p.category, graphNode.id)}
-              style={{ borderLeftColor: p.color }}
-              title={`Click to ${p.active ? 'hide' : 'expand'} ${p.label}`}
-            >
-              <div className="slot-row-left">
-                <span className="slot-color-dot" style={{ backgroundColor: p.color }} />
-                <span className="slot-title">{p.label}</span>
-              </div>
-              <div className="slot-row-right">
-                <span className="slot-count">{p.count}</span>
-                <span className={`slot-state-pill ${p.active ? 'active' : ''}`}>
-                  {p.active ? 'Active' : 'Show'}
-                </span>
-              </div>
-            </div>
-          ))}
-          {rightPorts.map((p) => (
-            <div
-              key={`slot-right-${p.id}`}
-              className={`card-slot-row ${p.active ? 'is-active' : ''}`}
-              onClick={() => onToggleCategory?.(graphNode.name, p.category, graphNode.id)}
-              style={{ borderRightColor: p.color }}
-              title={`Click to ${p.active ? 'hide' : 'expand'} ${p.label}`}
-            >
-              <div className="slot-row-left">
-                <span className="slot-color-dot" style={{ backgroundColor: p.color }} />
-                <span className="slot-title">{p.label}</span>
-              </div>
-              <div className="slot-row-right">
-                <span className="slot-count">{p.count}</span>
-                <span className={`slot-state-pill ${p.active ? 'active' : ''}`}>
-                  {p.active ? 'Active' : 'Show'}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Floating Interactive Comms Popover */}
       {showCommsPopover && comms && (
@@ -537,15 +467,29 @@ export const ProjectCardNode = memo((props: any) => {
         </div>
       )}
 
-      {/* Right Outbound Handles (Color-coded by type) */}
-      {rightPorts.length === 0 ? (
+      {/* Right Outbound Handles */}
+      {!isCardExpanded || rightPorts.length === 0 ? (
         <Handle
           id="source-default"
           type="source"
           position={Position.Right}
-          className="flow-handle source-handle"
+          className="flow-handle center-handle source-handle"
           isConnectable={false}
           style={{ top: '50%' }}
+          title={
+            leftPorts.length > 0 || rightPorts.length > 0
+              ? `Outbound (${callsOutCount + dbOutCount + messagesOutCount + libsOutCount}) — Click to expand typed ports`
+              : callsOutCount + dbOutCount + messagesOutCount + libsOutCount > 0
+              ? `Outbound (${callsOutCount + dbOutCount + messagesOutCount + libsOutCount})`
+              : 'Outbound'
+          }
+          onClick={(e) => {
+            e.stopPropagation();
+            if (leftPorts.length > 0 || rightPorts.length > 0) {
+              if (onToggleExpand) onToggleExpand(graphNode.name, graphNode.id);
+              else setLocalExpanded(true);
+            }
+          }}
         />
       ) : (
         rightPorts.map((p, idx) => {
@@ -556,14 +500,14 @@ export const ProjectCardNode = memo((props: any) => {
               id={p.id}
               type="source"
               position={Position.Right}
-              className={`flow-handle typed-handle handle-${p.category} ${p.active ? 'is-active' : ''}`}
+              className={`flow-handle typed-handle handle-${p.category} ${p.active ? 'is-active' : 'is-inactive'}`}
               style={{
                 top: `${topPct}%`,
-                backgroundColor: p.color,
-                borderColor: p.active ? '#ffffff' : `${p.color}aa`,
-                boxShadow: p.active ? `0 0 8px ${p.color}, 0 0 2px #fff` : `0 0 3px rgba(0,0,0,0.5)`,
+                backgroundColor: p.active ? p.color : '#1c1c24',
+                border: p.active ? `1.5px solid #ffffff` : `2px solid ${p.color}`,
+                boxShadow: p.active ? `0 0 6px ${p.color}, 0 0 2px #fff` : 'none',
               }}
-              title={`${p.label} (${p.count}) — click to ${p.active ? 'hide' : 'show'}`}
+              title={`${p.label} (${p.count}) — ${p.active ? 'Active (click to hide)' : 'Hidden (click to show)'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleCategory?.(graphNode.name, p.category, graphNode.id);
@@ -573,16 +517,28 @@ export const ProjectCardNode = memo((props: any) => {
           );
         })
       )}
-      {rightPorts.length > 0 && (
+      {/* Hidden fallback handles */}
+      {isCardExpanded && rightPorts.length > 0 && (
         <Handle
           id="source-default"
           type="source"
           position={Position.Right}
-          className="flow-handle source-handle"
+          className="flow-handle"
           isConnectable={false}
           style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
         />
       )}
+      {!isCardExpanded && rightPorts.map((p) => (
+        <Handle
+          key={`hidden-out-${p.id}`}
+          id={p.id}
+          type="source"
+          position={Position.Right}
+          className="flow-handle"
+          isConnectable={false}
+          style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
+        />
+      ))}
     </div>
   );
 });

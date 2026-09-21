@@ -191,6 +191,11 @@ public static class GraphDataConverter
                     node.Properties["layerColor"] = layer.Color;
                     node.Properties["layerIcon"] = layer.Icon;
                 }
+
+                if (IsLibraryProject(node))
+                {
+                    node.Properties["is_library"] = "true";
+                }
             }
             else if (node.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase))
             {
@@ -897,6 +902,11 @@ public static class GraphDataConverter
                     node.Properties["layerOrder"] = layer.Order.ToString();
                     node.Properties["layerColor"] = layer.Color;
                     node.Properties["layerIcon"] = layer.Icon;
+                }
+
+                if (IsLibraryProject(node))
+                {
+                    node.Properties["is_library"] = "true";
                 }
             }
             else if (node.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase))
