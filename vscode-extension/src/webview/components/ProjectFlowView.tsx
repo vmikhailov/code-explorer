@@ -59,7 +59,12 @@ export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeC
     return 'messaging';
   }
 
-  // 3. Library Usage
+  // 3. Service Call (API, gRPC, HTTP) - Explicit service_call always takes precedence
+  if (depType === 'service_call' || kind === 'SERVICE_CALL' || kind === 'CALLS_ENDPOINT') {
+    return 'service_call';
+  }
+
+  // 4. Library Usage
   const isLibraryTarget =
     targetNode?.properties?.is_library === 'true' ||
     depType === 'library' ||
@@ -67,23 +72,17 @@ export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeC
     targetLayer === 'layer_foundation' ||
     targetProjType === 'library';
 
-  if (isLibraryTarget && depType !== 'service_call' && kind !== 'SERVICE_CALL') {
+  if (isLibraryTarget) {
     return 'library';
   }
 
-  // 4. Service Call (API, gRPC, HTTP)
+  // 5. Inferred Service Call (target in ingress/components/egress layer and not a library)
   const isServiceTarget = targetLayer === 'layer_ingress' || targetLayer === 'layer_components' || targetLayer === 'layer_egress';
-  if (
-    !isLibraryTarget &&
-    (depType === 'service_call' ||
-      kind === 'SERVICE_CALL' ||
-      kind === 'CALLS_ENDPOINT' ||
-      (isServiceTarget && targetProjType !== 'library' && depType !== 'library'))
-  ) {
+  if (isServiceTarget && targetProjType !== 'library' && depType !== 'library') {
     return 'service_call';
   }
 
-  // 5. Default: Library Usage
+  // 6. Default: Library Usage
   return 'library';
 };
 

@@ -604,6 +604,8 @@ public class Layer5AnalysisParser
 
         foreach (var extService in externalServices)
         {
+            var matchedEndpoint = false;
+
             foreach (var entryPoint in entryPoints)
             {
                 if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Id) && !localEntryPointIds.Contains(entryPoint.Id))
@@ -616,6 +618,7 @@ public class Layer5AnalysisParser
                     ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsRelationship(extService.Id, entryPoint.Id));
                     lateBoundRels.Add(rel);
+                    matchedEndpoint = true;
                 }
             }
 
@@ -631,6 +634,7 @@ public class Layer5AnalysisParser
                     ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Id, endpoint.Id));
                     lateBoundRels.Add(rel);
+                    matchedEndpoint = true;
 
                     // Synthesize Project -> Project DEPENDS_ON relationship
                     nodeToProject.TryGetValue(extService.Id, out var callerProj);
@@ -647,8 +651,9 @@ public class Layer5AnalysisParser
                 }
             }
 
-            // Also match by domain/service name if known project exists
-            if (!string.IsNullOrWhiteSpace(extService.DomainOrService) &&
+            // Also match by domain/service name ONLY if no endpoint was matched and a known project exists
+            if (!matchedEndpoint &&
+                !string.IsNullOrWhiteSpace(extService.DomainOrService) &&
                 extService.DomainOrService is not ("*" or "unknown-service"))
             {
                 nodeToProject.TryGetValue(extService.Id, out var callerProj);
@@ -660,12 +665,23 @@ public class Layer5AnalysisParser
                         if (proj.Id == callerProj.Id) continue;
                         var pName = proj.Name.ToLowerInvariant();
 
+                        // Avoid matching internal class libraries or test suites
+                        if (pName.EndsWith(".tests") || pName.EndsWith(".test") ||
+                            pName.EndsWith(".data") || pName.EndsWith(".logic") ||
+                            pName.EndsWith(".contracts") || pName.EndsWith(".client") ||
+                            pName.EndsWith(".common") || pName.EndsWith(".shared"))
+                        {
+                            continue;
+                        }
+
                         if (pName == domain ||
                             pName.TrimEnd('s') == domain.TrimEnd('s') ||
                             pName.Replace("-", "") == domain.Replace("-", "") ||
                             pName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase) ||
                             pName.EndsWith("." + domain + "s", StringComparison.OrdinalIgnoreCase) ||
-                            pName.Split('.').Any(part => part.Equals(domain, StringComparison.OrdinalIgnoreCase) || part.TrimEnd('s').Equals(domain.TrimEnd('s'), StringComparison.OrdinalIgnoreCase)))
+                            pName.EndsWith("." + domain + ".api", StringComparison.OrdinalIgnoreCase) ||
+                            pName.EndsWith("." + domain + ".service", StringComparison.OrdinalIgnoreCase) ||
+                            pName.EndsWith("." + domain + "service", StringComparison.OrdinalIgnoreCase))
                         {
                             if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
                             {
