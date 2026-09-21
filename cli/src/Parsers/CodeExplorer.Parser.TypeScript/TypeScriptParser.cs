@@ -86,6 +86,41 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return false;
     }
 
+    public string GetProjectName(string directoryPath, string[] filesInDirectory)
+    {
+        var packageJsonPath = Path.Combine(directoryPath, "package.json");
+        if (File.Exists(packageJsonPath))
+        {
+            try
+            {
+                var content = File.ReadAllText(packageJsonPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(content);
+                if (doc.RootElement.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var rawName = nameProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(rawName))
+                    {
+                        var name = rawName.Trim();
+                        if (name.StartsWith('@') && name.Contains('/'))
+                        {
+                            name = name[(name.IndexOf('/') + 1)..].Trim();
+                        }
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            return name;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback to directory name
+            }
+        }
+
+        return Path.GetFileName(directoryPath);
+    }
+
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
         List<ILibraryParser> activeLibraryParsers,

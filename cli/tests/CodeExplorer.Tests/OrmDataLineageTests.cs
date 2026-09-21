@@ -188,4 +188,117 @@ export class Product {
         var tableName = array[0].GetProperty("tableName").GetString();
         Assert.That(tableName, Is.EqualTo("jpa_accounts").IgnoreCase);
     }
+
+    [Test]
+    public void Test_Database_Deduplication_And_Canonicalization()
+    {
+        var (tName1, tType1, tKey1) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("typeorm", "relational");
+        var (tName2, tType2, tKey2) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("TypeORM", "relational");
+        Assert.That(tName1, Is.EqualTo("TypeORM"));
+        Assert.That(tName2, Is.EqualTo("TypeORM"));
+        Assert.That(tKey1, Is.EqualTo("typeorm"));
+        Assert.That(tKey2, Is.EqualTo("typeorm"));
+
+        var (pName1, _, pKey1) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("postgres", null);
+        var (pName2, _, pKey2) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("PostgreSQL", "relational");
+        Assert.That(pName1, Is.EqualTo("PostgreSQL"));
+        Assert.That(pName2, Is.EqualTo("PostgreSQL"));
+        Assert.That(pKey1, Is.EqualTo("postgresql"));
+        Assert.That(pKey2, Is.EqualTo("postgresql"));
+
+        var (rName1, rType1, rKey1) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("REDIS_HOST", "cache");
+        var (rName2, rType2, rKey2) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("redis", "keyvalue");
+        Assert.That(rName1, Is.EqualTo("Redis"));
+        Assert.That(rName2, Is.EqualTo("Redis"));
+        Assert.That(rType1, Is.EqualTo("cache"));
+        Assert.That(rType2, Is.EqualTo("cache"));
+        Assert.That(rKey1, Is.EqualTo("redis"));
+        Assert.That(rKey2, Is.EqualTo("redis"));
+    }
+
+    [Test]
+    public async Task Test_ArchitectureGraph_Consolidates_TypeOrm_And_Cased_Databases()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_graph_dedup_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+
+            var nodes = new List<CodeExplorer.Core.Database.Node>
+            {
+                new("proj:svc_a", "Project", new Dictionary<string, object> { ["name"] = "ServiceA", ["path"] = "/src/a", ["project_type"] = "typescript" }),
+                new("proj:svc_b", "Project", new Dictionary<string, object> { ["name"] = "ServiceB", ["path"] = "/src/b", ["project_type"] = "typescript" }),
+                // Casing variants of TypeORM and project-scoped DBs
+                new("workspace:project:svc_a:db:typeorm", "Database", new Dictionary<string, object> { ["name"] = "typeorm", ["db_type"] = "relational" }),
+                new("workspace:project:svc_b:db:TypeORM", "Database", new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" }),
+                new("workspace:database:relational:typeorm", "Database", new Dictionary<string, object> { ["name"] = "typeorm", ["db_type"] = "relational" }),
+                // Casing variants of PostgreSQL
+                new("workspace:database:relational:PostgreSQL", "Database", new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" }),
+                new("workspace:database:relational:postgres", "Database", new Dictionary<string, object> { ["name"] = "postgres", ["db_type"] = "relational" }),
+            };
+            await db.UploadNodesAsync(nodes);
+
+            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            {
+                new("proj:svc_a", "workspace:project:svc_a:db:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new("proj:svc_b", "workspace:project:svc_b:db:TypeORM", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new("proj:svc_a", "workspace:database:relational:postgres", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new("proj:svc_b", "workspace:database:relational:PostgreSQL", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+            };
+            await db.UploadRelationshipsAsync(rels);
+
+            var graph = await CodeExplorer.Core.Protocol.GraphDataConverter.GetArchitectureGraphAsync(db);
+
+            // Exactly 1 TypeORM node
+            var typeOrmNodes = graph.Nodes.Where(n => n.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase)).ToList();
+            Assert.That(typeOrmNodes, Has.Count.EqualTo(1), "All TypeORM nodes must collapse to exactly 1 node");
+            Assert.That(typeOrmNodes[0].Name, Is.EqualTo("TypeORM"));
+            Assert.That(typeOrmNodes[0].Id, Is.EqualTo("workspace:database:relational:typeorm"));
+
+            // Exactly 1 PostgreSQL node
+            var postgresNodes = graph.Nodes.Where(n => n.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)).ToList();
+            Assert.That(postgresNodes, Has.Count.EqualTo(1), "All PostgreSQL nodes must collapse to exactly 1 node");
+            Assert.That(postgresNodes[0].Name, Is.EqualTo("PostgreSQL"));
+            Assert.That(postgresNodes[0].Id, Is.EqualTo("workspace:database:relational:postgresql"));
+
+            // Edges must point to canonical IDs
+            var aToTypeOrm = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_a" && e.Target == "workspace:database:relational:typeorm");
+            var bToTypeOrm = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_b" && e.Target == "workspace:database:relational:typeorm");
+            Assert.That(aToTypeOrm, Is.Not.Null, "Service A must connect to canonical TypeORM");
+            Assert.That(bToTypeOrm, Is.Not.Null, "Service B must connect to canonical TypeORM");
+
+            var aToPg = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_a" && e.Target == "workspace:database:relational:postgresql");
+            var bToPg = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_b" && e.Target == "workspace:database:relational:postgresql");
+            Assert.That(aToPg, Is.Not.Null, "Service A must connect to canonical PostgreSQL");
+            Assert.That(bToPg, Is.Not.Null, "Service B must connect to canonical PostgreSQL");
+        }
+        finally
+        {
+            try { Directory.Delete(tempWorkspace, true); } catch { }
+        }
+    }
+
+    [Test]
+    public void Test_TypeScriptParser_GetProjectName_UnscopesPackageJson()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ts_proj_name_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var parser = new TypeScriptParser();
+            File.WriteAllText(Path.Combine(tempDir, "package.json"), "{\"name\": \"@ats/sample-service\"}");
+            var name = parser.GetProjectName(tempDir, ["package.json"]);
+            Assert.That(name, Is.EqualTo("sample-service"));
+
+            File.WriteAllText(Path.Combine(tempDir, "package.json"), "{\"name\": \"direct-name\"}");
+            var directName = parser.GetProjectName(tempDir, ["package.json"]);
+            Assert.That(directName, Is.EqualTo("direct-name"));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
 }

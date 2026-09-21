@@ -27,7 +27,12 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
       map.set(def.layerId, []);
     }
 
+    const seenNodeIds = new Set<string>();
     for (const node of graph?.nodes || []) {
+      const lowerId = node.id.toLowerCase();
+      if (seenNodeIds.has(lowerId)) continue;
+      seenNodeIds.add(lowerId);
+
       const layerId = node.properties?.layerId || 'layer_engines';
       const list = map.get(layerId) || [];
       list.push(node);

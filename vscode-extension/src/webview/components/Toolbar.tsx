@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 
 export interface ToolbarProps {
-  viewMode: 'flow' | 'layers' | 'full';
-  onViewModeChange: (mode: 'flow' | 'layers' | 'full') => void;
+  viewMode: 'semantic' | 'flow' | 'layers' | 'full';
+  onViewModeChange: (mode: 'semantic' | 'flow' | 'layers' | 'full') => void;
   allProjects: string[];
+  projectPaths?: Record<string, string>;
   selectedProject: string;
   onSelectProject: (project: string) => void;
   connectionStatus: 'connecting' | 'connected' | 'disconnected';
@@ -26,6 +27,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   viewMode,
   onViewModeChange,
   allProjects,
+  projectPaths,
   selectedProject,
   onSelectProject,
   connectionStatus,
@@ -43,6 +45,68 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   groupLayers,
   onToggleGroupLayers,
 }) => {
+  const uniqueProjects = useMemo(() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const p of allProjects) {
+      const lower = p.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        result.push(p);
+      }
+    }
+    return result;
+  }, [allProjects]);
+
+  const getProjectFolder = (projectName: string): string => {
+    let rawPath =
+      projectPaths?.[projectName] ||
+      projectPaths?.[projectName.toLowerCase()] ||
+      '';
+
+    if (!rawPath) {
+      return 'Projects';
+    }
+
+    // Normalize slashes and trim outer slashes
+    rawPath = rawPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    const parts = rawPath.split('/').filter(Boolean);
+
+    // If last component contains a file extension (e.g. .csproj, package.json), remove it
+    if (parts.length > 1 && (parts[parts.length - 1].includes('.') || parts[parts.length - 1].endsWith('proj'))) {
+      parts.pop();
+    }
+
+    // If last folder matches the project name, take its parent directory
+    if (parts.length > 1 && parts[parts.length - 1].toLowerCase() === projectName.toLowerCase()) {
+      parts.pop();
+    }
+
+    return parts.length > 0 ? parts.join('/') : 'Root';
+  };
+
+  const groupedProjects = useMemo(() => {
+    const groups = new Map<string, string[]>();
+
+    for (const p of uniqueProjects) {
+      const folder = getProjectFolder(p);
+      const list = groups.get(folder) || [];
+      list.push(p);
+      groups.set(folder, list);
+    }
+
+    const sortedFolders = Array.from(groups.keys()).sort((a, b) => {
+      if (a === 'Root') return -1;
+      if (b === 'Root') return 1;
+      return a.localeCompare(b);
+    });
+
+    return sortedFolders.map((folder) => ({
+      folder,
+      projects: (groups.get(folder) || []).sort((a, b) => a.localeCompare(b)),
+    }));
+  }, [uniqueProjects, projectPaths]);
+
   return (
     <header className="toolbar">
       {/* Brand & Connection Badge */}
@@ -77,6 +141,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       {/* Mode Switcher Tabs */}
       <div className="view-mode-tabs">
         <button
+          className={`mode-tab-btn ${viewMode === 'semantic' ? 'active' : ''}`}
+          onClick={() => onViewModeChange('semantic')}
+          title="Semantic architecture graph: Services, Databases, Brokers, and APIs (internal libraries abstracted away)"
+        >
+          🧠 Semantic Graph
+        </button>
+        <button
           className={`mode-tab-btn ${viewMode === 'layers' ? 'active' : ''}`}
           onClick={() => onViewModeChange('layers')}
           title="Hierarchical collapsible system layers"
@@ -93,14 +164,25 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           className={`mode-tab-btn ${viewMode === 'full' ? 'active' : ''}`}
           onClick={() => onViewModeChange('full')}
-          title="Full solution architecture graph (Cytoscape)"
+          title="Full solution physical architecture graph (Cytoscape)"
         >
-          🌐 Full Architecture
+          🌐 Physical Graph
         </button>
       </div>
 
       {/* Dynamic Controls based on Mode */}
       <div className="toolbar-controls">
+        {viewMode === 'semantic' && (
+          <div className="semantic-controls button-group">
+            <button onClick={onFitView} title="Center and fit to screen">
+              Fit
+            </button>
+            <button onClick={onRefresh} title="Reload semantic architecture">
+              Refresh
+            </button>
+          </div>
+        )}
+
         {viewMode === 'layers' && (
           <div className="layers-controls">
             <button
@@ -125,12 +207,24 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 value={selectedProject}
                 onChange={(e) => onSelectProject(e.target.value)}
               >
-                {allProjects.length === 0 && <option value="">Loading projects...</option>}
-                {Array.from(new Set(allProjects)).map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
+                {uniqueProjects.length === 0 && <option value="">Loading projects...</option>}
+                {groupedProjects.length <= 1 && (groupedProjects[0]?.folder === 'Root' || groupedProjects[0]?.folder === 'Projects') ? (
+                  groupedProjects[0]?.projects.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))
+                ) : (
+                  groupedProjects.map((group) => (
+                    <optgroup key={group.folder} label={`📁 ${group.folder}`}>
+                      {group.projects.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))
+                )}
               </select>
             </label>
 

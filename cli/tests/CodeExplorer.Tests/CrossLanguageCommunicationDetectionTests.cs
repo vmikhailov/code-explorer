@@ -479,4 +479,96 @@ public class CrossLanguageCommunicationDetectionTests
             try { Directory.Delete(tempWorkspace, true); } catch { }
         }
     }
+
+    [Test]
+    public async Task Test_SemanticGraph_Lifting_And_Database_Resolution()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_semantic_lift_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+
+            // 1. Seed Nodes: Services, Libraries, Files, Databases
+            var nodes = new List<CodeExplorer.Core.Database.Node>
+            {
+                new("proj:svc_order", "Project", new Dictionary<string, object> { ["name"] = "order-service", ["path"] = "services/order-service", ["project_type"] = "typescript" }),
+                new("proj:svc_billing", "Project", new Dictionary<string, object> { ["name"] = "billing-service", ["path"] = "services/billing-service", ["project_type"] = "csharp" }),
+                new("proj:lib_data", "Project", new Dictionary<string, object> { ["name"] = "data-access-lib", ["path"] = "libs/data-access", ["project_type"] = "library" }),
+                new("proj:lib_billing_client", "Project", new Dictionary<string, object> { ["name"] = "billing-client", ["path"] = "libs/billing-client", ["project_type"] = "library" }),
+                new("workspace:file:services/order-service/src/entities/order.entity.ts", "File", new Dictionary<string, object> { ["name"] = "order.entity.ts", ["path"] = "services/order-service/src/entities/order.entity.ts" }),
+                new("db:postgres", "Database", new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" }),
+                new("workspace:project:data-access-lib:db:typeorm", "Database", new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" }),
+            };
+            await db.UploadNodesAsync(nodes);
+
+            // 2. Seed Relationships:
+            // - File-level DB: order.entity.ts -[USES_DB]-> db:postgres
+            // - Library DB: data-access-lib -[USES_DB]-> TypeORM
+            // - Svc uses Library: order-service -[DEPENDS_ON]-> data-access-lib
+            // - Svc uses Client Lib: order-service -[DEPENDS_ON]-> billing-client
+            // - Client Lib calls billing: billing-client -[DEPENDS_ON]-> billing-service
+            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            {
+                new("workspace:file:services/order-service/src/entities/order.entity.ts", "db:postgres", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new("proj:lib_data", "workspace:project:data-access-lib:db:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new("proj:svc_order", "proj:lib_data", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "library" }),
+                new("proj:svc_order", "proj:lib_billing_client", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "library" }),
+                new("proj:lib_billing_client", "proj:svc_billing", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "service_call" }),
+            };
+            await db.UploadRelationshipsAsync(rels);
+
+            // 3. Convert to Architecture Graph
+            var graph = await GraphDataConverter.GetArchitectureGraphAsync(db);
+
+            // Assert Entity Classifications
+            var orderNode = graph.Nodes.First(n => n.Id == "proj:svc_order");
+            Assert.That(orderNode.Properties?["entity_type"], Is.EqualTo("service"), "Order service must be classified as service");
+            Assert.That(orderNode.Properties?["is_semantic_entity"], Is.EqualTo("true"));
+            Assert.That(orderNode.Properties?["is_library"], Is.EqualTo("false"));
+
+            var dataLibNode = graph.Nodes.First(n => n.Id == "proj:lib_data");
+            Assert.That(dataLibNode.Properties?["entity_type"], Is.EqualTo("library"), "Data access must be classified as library");
+            Assert.That(dataLibNode.Properties?["is_semantic_entity"], Is.EqualTo("false"));
+            Assert.That(dataLibNode.Properties?["is_library"], Is.EqualTo("true"));
+
+            var pgNode = graph.Nodes.First(n => n.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase));
+            Assert.That(pgNode.Properties?["entity_type"], Is.EqualTo("database"));
+            Assert.That(pgNode.Properties?["is_semantic_entity"], Is.EqualTo("true"));
+
+            // 4. Assert Direct File-to-Project DB Resolution:
+            // order.entity.ts used db:postgres -> order-service must have USES_DB -> PostgreSQL
+            var orderToPg = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_order" && e.Target == pgNode.Id && e.Kind == "USES_DB");
+            Assert.That(orderToPg, Is.Not.Null, "File-level database usage must resolve directly to owning order-service");
+            Assert.That(orderToPg!.Properties?["is_semantic"], Is.EqualTo("true"));
+
+            // 5. Assert Transitive Database Lifting:
+            // order-service -> data-access-lib -> TypeORM => order-service -[:USES_DB]-> TypeORM
+            var typeOrmNode = graph.Nodes.First(n => n.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase));
+            var orderToTypeOrm = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_order" && e.Target == typeOrmNode.Id && e.Kind == "USES_DB");
+            Assert.That(orderToTypeOrm, Is.Not.Null, "Transitive database access via data-access-lib must be lifted to order-service");
+            Assert.That(orderToTypeOrm!.Properties?["semantic_lifted"], Is.EqualTo("true"));
+            Assert.That(orderToTypeOrm.Properties?["via_library"], Is.EqualTo("data-access-lib"));
+            Assert.That(orderToTypeOrm.Properties?["is_semantic"], Is.EqualTo("true"));
+
+            // 6. Assert Transitive Service-to-Service Lifting:
+            // order-service -> billing-client -> billing-service => order-service -[:SERVICE_CALL]-> billing-service
+            var orderToBilling = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_order" && e.Target == "proj:svc_billing" && e.Kind == "SERVICE_CALL");
+            Assert.That(orderToBilling, Is.Not.Null, "Transitive service call via billing-client must be lifted to order-service -> billing-service");
+            Assert.That(orderToBilling!.Properties?["semantic_lifted"], Is.EqualTo("true"));
+            Assert.That(orderToBilling.Properties?["via_library"], Is.EqualTo("billing-client"));
+            Assert.That(orderToBilling.Properties?["is_semantic"], Is.EqualTo("true"));
+
+            // 7. Verify Project Neighborhood (Flow View)
+            var flow = await GraphDataConverter.GetProjectNeighborhoodAsync(db, "proj:svc_order");
+            var flowDatabases = flow.Nodes.Where(n => n.Kind == "Database").ToList();
+            Assert.That(flowDatabases.Any(d => d.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include resolved PostgreSQL");
+            Assert.That(flowDatabases.Any(d => d.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include lifted TypeORM");
+        }
+        finally
+        {
+            try { Directory.Delete(tempWorkspace, true); } catch { }
+        }
+    }
 }

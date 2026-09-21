@@ -123,7 +123,7 @@ const getEdgeVisuals = (edge?: GraphEdge, targetNode?: GraphNode): EdgeVisuals =
         stroke: '#38bdf8',
         strokeDasharray: '6,4',
         strokeWidth: 2.2,
-        animated: true,
+        animated: false,
         markerColor: '#38bdf8',
         markerType: MarkerType.ArrowClosed,
         markerWidth: 16,
@@ -267,28 +267,28 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       const category = getEdgeCategory(e, tgtNode);
 
       if (category === 'service_call') {
-        if (!srcComms.callsOut.some((x) => x.id === tgtNode.id)) {
+        if (!srcComms.callsOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase())) {
           srcComms.callsOut.push({ id: tgtNode.id, name: tgtNode.name, type: tgtNode.properties?.service_type, filePath: tgtNode.filePath });
         }
-        if (!tgtComms.acceptsIn.some((x) => x.id === srcNode.id)) {
+        if (!tgtComms.acceptsIn.some((x) => x.id.toLowerCase() === srcNode.id.toLowerCase())) {
           tgtComms.acceptsIn.push({ id: srcNode.id, name: srcNode.name, type: srcNode.properties?.service_type, filePath: srcNode.filePath });
         }
       } else if (category === 'database') {
-        if (!srcComms.dbOut.some((x) => x.id === tgtNode.id)) {
+        if (!srcComms.dbOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase() || x.name.toLowerCase() === tgtNode.name.toLowerCase())) {
           srcComms.dbOut.push({ id: tgtNode.id, name: tgtNode.name, dbType: tgtNode.properties?.db_type });
         }
       } else if (category === 'messaging') {
-        if (!srcComms.messagesOut.some((x) => x.id === tgtNode.id)) {
+        if (!srcComms.messagesOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase())) {
           srcComms.messagesOut.push({ id: tgtNode.id, name: tgtNode.name });
         }
-        if (!tgtComms.messagesIn.some((x) => x.id === srcNode.id)) {
+        if (!tgtComms.messagesIn.some((x) => x.id.toLowerCase() === srcNode.id.toLowerCase())) {
           tgtComms.messagesIn.push({ id: srcNode.id, name: srcNode.name });
         }
       } else if (category === 'library') {
-        if (!srcComms.libsOut.some((x) => x.id === tgtNode.id)) {
+        if (!srcComms.libsOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase() || x.name.toLowerCase() === tgtNode.name.toLowerCase())) {
           srcComms.libsOut.push({ id: tgtNode.id, name: tgtNode.name });
         }
-        if (!tgtComms.acceptsIn.some((x) => x.id === srcNode.id)) {
+        if (!tgtComms.acceptsIn.some((x) => x.id.toLowerCase() === srcNode.id.toLowerCase())) {
           tgtComms.acceptsIn.push({ id: srcNode.id, name: srcNode.name, filePath: srcNode.filePath });
         }
       }
@@ -453,6 +453,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     // Iterative expansion for any visible node whose categories are toggled on
     const processedNodes = new Set<string>();
 
+    const isAlreadyVisible = (n: GraphNode) =>
+      visibleNodesMap.has(n.id) ||
+      Array.from(visibleNodesMap.values()).some((v) => v.id.toLowerCase() === n.id.toLowerCase());
+
     for (let round = 0; round < 10; round++) {
       let newlyAdded = false;
       const currentNodes = Array.from(visibleNodesMap.values());
@@ -473,7 +477,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         if (activeCats.has('callsOut') && comms?.callsOut) {
           for (const item of comms.callsOut) {
             const targetNode = nodeMap.get(item.id) || nodeMap.get(item.name);
-            if (targetNode && !visibleNodesMap.has(targetNode.id)) {
+            if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
               newlyAdded = true;
             }
@@ -484,7 +488,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         if (activeCats.has('dbOut') && comms?.dbOut) {
           for (const item of comms.dbOut) {
             const targetNode = nodeMap.get(item.id) || nodeMap.get(item.name);
-            if (targetNode && !visibleNodesMap.has(targetNode.id)) {
+            if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
               newlyAdded = true;
             }
@@ -495,7 +499,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         if (activeCats.has('messagesOut') && comms?.messagesOut) {
           for (const item of comms.messagesOut) {
             const targetNode = nodeMap.get(item.id) || nodeMap.get(item.name);
-            if (targetNode && !visibleNodesMap.has(targetNode.id)) {
+            if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
               newlyAdded = true;
             }
@@ -506,7 +510,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         if (activeCats.has('libsOut') && comms?.libsOut) {
           for (const item of comms.libsOut) {
             const targetNode = nodeMap.get(item.id) || nodeMap.get(item.name);
-            if (targetNode && !visibleNodesMap.has(targetNode.id)) {
+            if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
               newlyAdded = true;
             }
@@ -518,7 +522,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           if (comms?.acceptsIn && comms.acceptsIn.length > 0) {
             for (const item of comms.acceptsIn) {
               const srcNode = nodeMap.get(item.id) || nodeMap.get(item.name);
-              if (srcNode && !visibleNodesMap.has(srcNode.id)) {
+              if (srcNode && !isAlreadyVisible(srcNode)) {
                 visibleNodesMap.set(srcNode.id, srcNode);
                 newlyAdded = true;
               }
@@ -526,7 +530,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           } else {
             const parents = inboundMap.get(curr.id) || inboundMap.get(curr.name) || [];
             for (const p of parents) {
-              if (!visibleNodesMap.has(p.id)) {
+              if (!isAlreadyVisible(p)) {
                 visibleNodesMap.set(p.id, p);
                 newlyAdded = true;
               }
@@ -538,7 +542,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         if (activeCats.has('messagesIn') && comms?.messagesIn) {
           for (const item of comms.messagesIn) {
             const srcNode = nodeMap.get(item.id) || nodeMap.get(item.name);
-            if (srcNode && !visibleNodesMap.has(srcNode.id)) {
+            if (srcNode && !isAlreadyVisible(srcNode)) {
               visibleNodesMap.set(srcNode.id, srcNode);
               newlyAdded = true;
             }
@@ -621,7 +625,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         }
 
         if (isTargetExpanded) {
-          if (category === 'service_call') targetHandle = 'target-calls';
+          if (category === 'service_call' || category === 'database' || category === 'library') targetHandle = 'target-calls';
           else if (category === 'messaging') targetHandle = 'target-events';
         }
 
@@ -891,13 +895,19 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     // ----------------------------------------------------
     const activeLevels = Array.from(levelNodesMap.keys()).sort((a, b) => a - b);
     const colStep = 340;
-    const rowHeight = 130;
+    const colGap = 24;
 
-    let maxRowCount = 1;
+    const getNodeHeight = (node: GraphNode) => {
+      const isExp = expandedCards.has(node.id) || expandedCards.has(node.name);
+      return isExp ? 225 : 62;
+    };
+
+    let maxColHeight = 60;
     for (const list of levelNodesMap.values()) {
-      if (list.length > maxRowCount) maxRowCount = list.length;
+      const h = list.reduce((sum, n) => sum + getNodeHeight(n), 0) + Math.max(0, list.length - 1) * colGap;
+      if (h > maxColHeight) maxColHeight = h;
     }
-    const maxCenterY = Math.max(60, (maxRowCount * rowHeight) / 2);
+    const maxCenterY = Math.max(60, maxColHeight / 2);
 
     const generatedNodes: Node[] = [];
 
@@ -905,18 +915,23 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       const lvl = activeLevels[colIdx];
       const list = levelNodesMap.get(lvl) || [];
       const colX = 60 + colIdx * colStep;
-      const colHeight = list.length * rowHeight;
-      const startY = Math.max(60, maxCenterY - colHeight / 2);
+
+      const nodeHeights = list.map((n) => getNodeHeight(n));
+      const colTotalHeight = nodeHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, list.length - 1) * colGap;
+      const startY = Math.max(60, maxCenterY - colTotalHeight / 2);
+
+      let currentY = startY;
 
       list.forEach((node, i) => {
         const isCenter = node.id === rootNode!.id || node.name === rootNode!.name;
         const inCount = inCountMap[node.id] || inCountMap[node.name] || 0;
         const outCount = outCountMap[node.id] || outCountMap[node.name] || 0;
+        const h = nodeHeights[i];
 
         generatedNodes.push({
           id: node.id,
           type: 'projectCard',
-          position: { x: colX, y: startY + i * rowHeight },
+          position: { x: colX, y: currentY },
           data: {
             graphNode: node,
             level: lvl,
@@ -932,6 +947,8 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
             onOpenFile,
           },
         });
+
+        currentY += h + colGap;
       });
     }
 

@@ -13,6 +13,7 @@ export interface CytoscapeViewProps {
   groupLayers: boolean;
   onToggleGroupLayers: () => void;
   showTests: boolean;
+  semanticOnly?: boolean;
 }
 
 export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
@@ -22,6 +23,7 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
   groupLayers,
   onToggleGroupLayers,
   showTests,
+  semanticOnly,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -136,7 +138,12 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
           style: {
             'background-color': '#064e3b',
             'border-color': '#34d399',
+            'border-width': 2.5,
             'shape': 'barrel',
+            'width': 'label',
+            'height': 42,
+            'padding': '14px',
+            'font-weight': 'bold',
           },
         },
         {
@@ -244,16 +251,18 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
           },
         },
         {
-          selector: "edge[depType = 'database'], edge[edgeKind = 'USES_DB']",
+          selector: "edge[depType = 'database'], edge[edgeKind = 'USES_DB'], edge[kind = 'USES_DB']",
           style: {
-            'line-color': '#c084fc',
-            'target-arrow-color': '#c084fc',
-            'target-arrow-shape': 'diamond',
+            'line-color': '#34d399',
+            'target-arrow-color': '#34d399',
+            'target-arrow-shape': 'triangle',
             'target-arrow-fill': 'filled',
-            'arrow-scale': 1.2,
-            'line-style': 'dotted',
-            'line-dash-pattern': [3, 4],
-            'width': 2,
+            'arrow-scale': 1.25,
+            'line-style': 'solid',
+            'width': 2.4,
+            'label': 'uses db',
+            'color': '#34d399',
+            'font-weight': 'bold',
           },
         },
         {
@@ -328,10 +337,15 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
 
     const elements: cytoscape.ElementDefinition[] = [];
 
-    // Filter test nodes if showTests is false
+    // Filter test nodes if showTests is false, and filter libraries if semanticOnly is true
     const validNodes = (graph.nodes || []).filter((n) => {
       if (!showTests && (n.properties?.isTest === 'true' || n.properties?.layerId === 'layer_tests')) {
         return false;
+      }
+      if (semanticOnly) {
+        if (n.properties?.is_library === 'true' || n.properties?.entity_type === 'library') {
+          return false;
+        }
       }
       return true;
     });
@@ -359,6 +373,13 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
 
       for (const e of graph.edges || []) {
         if (!validNodeIds.has(e.source) || !validNodeIds.has(e.target)) continue;
+        if (semanticOnly && e.kind === 'LIBRARY') continue;
+
+        const depType = (e.properties?.dependency_type || '').toLowerCase() ||
+          (e.kind === 'SERVICE_CALL' || e.kind === 'CALLS_ENDPOINT' ? 'service_call' :
+           e.kind === 'USES_DB' ? 'database' :
+           e.kind === 'TRIGGERS' ? 'messaging' : 'library');
+
         elements.push({
           group: 'edges',
           data: {
@@ -366,6 +387,8 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
             source: e.source,
             target: e.target,
             kind: e.kind,
+            edgeKind: e.kind,
+            depType,
             properties: e.properties,
           },
         });
@@ -522,14 +545,14 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
     const layout = cy.layout({
       name: 'dagre',
       rankDir: 'TB',
-      nodeSep: 40,
-      rankSep: 60,
+      nodeSep: semanticOnly ? 60 : 40,
+      rankSep: semanticOnly ? 80 : 60,
       animate: true,
       animationDuration: 300,
     } as any);
 
     layout.run();
-  }, [graph, groupLayers, collapsedLayers, showTests, layerDefs]);
+  }, [graph, groupLayers, collapsedLayers, showTests, layerDefs, semanticOnly]);
 
   return (
     <div className="cytoscape-view-wrapper">

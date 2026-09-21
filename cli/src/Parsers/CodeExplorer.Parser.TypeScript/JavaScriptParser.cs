@@ -35,6 +35,11 @@ public class JavaScriptParser : IProjectParser, IFileParser
         return false;
     }
 
+    public string GetProjectName(string directoryPath, string[] filesInDirectory)
+    {
+        return _tsParser.GetProjectName(directoryPath, filesInDirectory);
+    }
+
 
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)

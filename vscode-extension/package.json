@@ -4,6 +4,27 @@
   "description": "Interactive code architecture and dependency graph visualizer powered by CodeExplorer (ce)",
   "version": "0.1.0",
   "publisher": "vmikhailov",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vmikhailov/code-explorer"
+  },
+  "homepage": "https://github.com/vmikhailov/code-explorer#readme",
+  "bugs": {
+    "url": "https://github.com/vmikhailov/code-explorer/issues"
+  },
+  "keywords": [
+    "architecture",
+    "dependency-graph",
+    "code-explorer",
+    "visualizer",
+    "csharp",
+    "dotnet",
+    "typescript",
+    "microservices",
+    "ast"
+  ],
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -67,9 +88,17 @@
     }
   },
   "scripts": {
-    "build": "node build.mjs",
+    "build": "node build.mjs --production",
+    "build:dev": "node build.mjs",
     "watch": "node build.mjs --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:binaries": "node scripts/build-extension-binaries.mjs",
+    "package": "node scripts/package-extension.mjs",
+    "package:all": "node scripts/package-extension.mjs --all",
+    "package:universal": "node scripts/package-extension.mjs --universal",
+    "publish:marketplace": "node scripts/publish-extension.mjs --marketplace",
+    "publish:ovsx": "node scripts/publish-extension.mjs --ovsx",
+    "publish:all": "node scripts/publish-extension.mjs"
   },
   "dependencies": {
     "@xyflow/react": "^12.11.6",
@@ -87,7 +116,9 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.24.0",
+    "ovsx": "^1.2.0",
     "typescript": "^5.5.4"
   }
 }

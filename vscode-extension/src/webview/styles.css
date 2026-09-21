@@ -224,6 +224,22 @@ html, body, #root {
   border-color: var(--accent-cyan);
 }
 
+.project-dropdown-select optgroup {
+  background: #18181f;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+.project-dropdown-select option {
+  background: var(--input-bg);
+  color: var(--input-fg);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
 .search-box {
   display: flex;
   align-items: center;
@@ -362,12 +378,21 @@ button:active {
   background: #1c1c24;
   border: 1.5px solid #5a647e;
   border-radius: 7px;
-  padding: 8px 10px;
+  padding: 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+}
+
+.card-top-box {
+  padding: 8px 10px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   box-sizing: border-box;
 }
 
@@ -594,6 +619,154 @@ button:active {
 
 .flow-handle.typed-handle:hover {
   filter: brightness(1.3) !important;
+}
+
+/* Expandable Bottom Extension Drawer */
+.card-bottom-extension {
+  background: #14141c;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 6px 6px;
+  padding: 6px 0 10px 0;
+  width: 100%;
+  box-sizing: border-box;
+  animation: drawer-fade-in 0.15s ease-out;
+}
+
+@keyframes drawer-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.conn-section {
+  margin-bottom: 5px;
+}
+
+.conn-section:last-child {
+  margin-bottom: 0;
+}
+
+.conn-section-title {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+  padding: 0 10px;
+}
+
+.conn-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 20px;
+  padding: 0 10px;
+  margin: 1px 0;
+  border-radius: 3px;
+  transition: background-color 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.conn-row.is-active {
+  cursor: pointer;
+}
+
+.conn-row.is-active:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.conn-row.is-empty {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.conn-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.conn-icon {
+  font-size: 10px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.conn-text {
+  font-size: 9.5px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.conn-count {
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 3px;
+  line-height: 1.3;
+  border: 1px solid;
+  flex-shrink: 0;
+  font-family: monospace;
+}
+
+/* Bottom Expansion Hover Trigger */
+.card-bottom-trigger {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 44px;
+  height: 14px;
+  background: #1e1e2a;
+  border: 1px solid #475569;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 25;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.project-card:hover .card-bottom-trigger,
+.card-bottom-trigger:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card-bottom-trigger:hover {
+  background: #38bdf8;
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+  transform: translateX(-50%) scale(1.15);
+}
+
+.card-bottom-trigger:hover .trigger-arrow {
+  color: #0b1120;
+}
+
+.trigger-arrow {
+  font-size: 10px;
+  font-weight: 800;
+  color: #94a3b8;
+  line-height: 1;
+  user-select: none;
 }
 
 /* Elevate parent React Flow node and card above other elements when popover is open */
@@ -1394,7 +1567,6 @@ button:active {
   stroke: #38bdf8 !important;
   stroke-dasharray: 6 4 !important;
   stroke-width: 2px !important;
-  animation: rf-dashflow 1.4s linear infinite;
 }
 
 .react-flow__edge.edge-library path.react-flow__edge-path {

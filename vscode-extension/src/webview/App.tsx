@@ -47,7 +47,7 @@ const logToExtension = (level: 'INFO' | 'WARN' | 'ERROR', message: string) => {
 };
 
 export interface HistoryItem {
-  viewMode: 'layers' | 'flow' | 'full';
+  viewMode: 'semantic' | 'layers' | 'flow' | 'full';
   selectedProject: string;
 }
 
@@ -110,9 +110,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 export const App: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'layers' | 'flow' | 'full'>('layers');
+  const [viewMode, setViewMode] = useState<'semantic' | 'layers' | 'flow' | 'full'>('semantic');
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [allProjects, setAllProjects] = useState<string[]>([]);
+  const [projectPaths, setProjectPaths] = useState<Record<string, string>>({});
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [flowGraph, setFlowGraph] = useState<GraphData | null>(null);
   const [fullGraph, setFullGraph] = useState<GraphData | null>(null);
@@ -153,7 +154,7 @@ export const App: React.FC = () => {
 
   // Navigation History Stack
   const [history, setHistory] = useState<HistoryItem[]>([
-    { viewMode: 'layers', selectedProject: '' },
+    { viewMode: 'semantic', selectedProject: '' },
   ]);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
@@ -192,7 +193,7 @@ export const App: React.FC = () => {
   }, [sendWsMessage]);
 
   const navigateTo = useCallback(
-    (mode: 'layers' | 'flow' | 'full', project?: string) => {
+    (mode: 'semantic' | 'layers' | 'flow' | 'full', project?: string) => {
       const nextProject = (project !== undefined && project !== '') ? project : selectedProject;
 
       // Avoid redundant history entry if both mode and project match current state
@@ -386,21 +387,60 @@ export const App: React.FC = () => {
                 if (metadata?.allProjects) {
                   try {
                     const parsed = JSON.parse(metadata.allProjects) as string[];
-                    const unique = Array.from(new Set(parsed.filter(Boolean)));
+                    const seen = new Set<string>();
+                    const unique: string[] = [];
+                    for (const p of parsed.filter(Boolean)) {
+                      const lower = p.toLowerCase();
+                      if (!seen.has(lower)) {
+                        seen.add(lower);
+                        unique.push(p);
+                      }
+                    }
                     setAllProjects(unique);
+                  } catch {}
+                }
+                if (metadata?.projectPaths) {
+                  try {
+                    const parsedPaths = JSON.parse(metadata.projectPaths) as Record<string, string>;
+                    setProjectPaths((prev) => ({ ...prev, ...parsedPaths }));
                   } catch {}
                 }
               } else {
                 setFullGraph(resp.graph);
+                const metadata = resp.graph.metadata;
+                if (metadata?.projectPaths) {
+                  try {
+                    const parsedPaths = JSON.parse(metadata.projectPaths) as Record<string, string>;
+                    setProjectPaths((prev) => ({ ...prev, ...parsedPaths }));
+                  } catch {}
+                }
                 // Also extract all project names from full architecture if not set
                 if (resp.graph.nodes) {
-                  const projs = Array.from(
-                    new Set(
-                      resp.graph.nodes
-                        .filter((n) => n.kind === 'Project' && Boolean(n.name))
-                        .map((n) => n.name)
-                    )
-                  ).sort((a, b) => a.localeCompare(b));
+                  const seen = new Set<string>();
+                  const projs: string[] = [];
+                  const nodePaths: Record<string, string> = {};
+                  for (const n of resp.graph.nodes) {
+                    if (n.kind === 'Project' && Boolean(n.name)) {
+                      const lower = n.name.toLowerCase();
+                      if (!seen.has(lower)) {
+                        seen.add(lower);
+                        projs.push(n.name);
+                      }
+                      const p =
+                        n.filePath ||
+                        n.properties?.path ||
+                        (n.id?.startsWith('workspace:project:')
+                          ? n.id.substring('workspace:project:'.length)
+                          : '');
+                      if (p) {
+                        nodePaths[n.name] = p;
+                      }
+                    }
+                  }
+                  if (Object.keys(nodePaths).length > 0) {
+                    setProjectPaths((prev) => ({ ...nodePaths, ...prev }));
+                  }
+                  projs.sort((a, b) => a.localeCompare(b));
                   if (projs.length > 0) {
                     setAllProjects((prev) => (prev.length === 0 ? projs : prev));
                     setSelectedProject((prev) => {
@@ -532,6 +572,7 @@ export const App: React.FC = () => {
         viewMode={viewMode}
         onViewModeChange={(m) => navigateTo(m)}
         allProjects={allProjects}
+        projectPaths={projectPaths}
         selectedProject={selectedProject}
         onSelectProject={(p) => navigateTo('flow', p)}
         connectionStatus={connectionStatus}
@@ -621,6 +662,18 @@ export const App: React.FC = () => {
 
       <main className="main-viewport">
         <ErrorBoundary onLogError={(err) => logToExtension('ERROR', `View crash: ${err.message}\n${err.stack}`)}>
+          {viewMode === 'semantic' && (
+            <CytoscapeView
+              graph={fullGraph}
+              onOpenFile={handleOpenFile}
+              onSelectNode={setSelectedDrawerNode}
+              groupLayers={false}
+              onToggleGroupLayers={() => {}}
+              showTests={showTests}
+              semanticOnly={true}
+            />
+          )}
+
           {viewMode === 'layers' && (
             <LayeredArchitectureView
               graph={fullGraph}

@@ -394,7 +394,14 @@ public static class ConfigurationParser
         ParsingContext ctx,
         string? customName = null)
     {
-        var dbName = customName ?? engine;
+        var isEnvOrConfigKey = !string.IsNullOrWhiteSpace(customName) &&
+            (customName.Contains('_') ||
+             customName.Contains('.') ||
+             customName.Equals("spring-datasource", StringComparison.OrdinalIgnoreCase) ||
+             customName.Equals("database", StringComparison.OrdinalIgnoreCase) ||
+             customName.Equals("db", StringComparison.OrdinalIgnoreCase));
+
+        var dbName = isEnvOrConfigKey || string.IsNullOrWhiteSpace(customName) ? engine : customName;
         var dbId = $"{workspaceId}:database:{dbType}:{dbName.ToLowerInvariant()}";
 
         if (!containerNode.Children.Any(c => c.Id == dbId))

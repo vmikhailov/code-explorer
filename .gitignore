@@ -40,3 +40,6 @@ scratch/
 node_modules/
 out/
 *.vsix
+dist-vsix/
+.bin-cache/
+vscode-extension/bin/

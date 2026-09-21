@@ -6,11 +6,25 @@ Interactive code architecture, dependency graph visualizer, and call-chain explo
 
 ## Features
 
+- **Batteries-Included & Zero Setup**: Pre-compiled, self-contained `ce` native binaries are bundled for each platform (Windows x64/ARM64, macOS Apple Silicon/Intel, Linux x64/ARM64). No manual .NET installation or global CLI setup required!
 - **Interactive Architecture & Dependency Graph**: Visualizes projects, classes, database tables, and API endpoints using high-performance Cytoscape.js and Dagre hierarchical layouts.
 - **Click-to-Code Navigation**: Double-click any node or click "Jump to Code" in the details drawer to immediately open the source file at the exact declaration line in the editor.
 - **Real-Time WebSocket Engine**: Communicates over low-latency WebSockets with `ce serve`, supporting live graph patching (`GRAPH_PATCH_EVENT`) and scan progress reporting (`SCAN_PROGRESS_EVENT`).
 - **Ad-Hoc Cypher Querying**: Run custom openCypher queries directly from the top search bar (e.g. `MATCH (n:Project)-[r]->(m) RETURN n,r,m`) to explore arbitrary subgraphs and blast radius.
 - **Zero Orphaned Processes**: Automatically allocates ephemeral ports and auto-shuts down background `ce` server instances when all windows are closed via idle timeout.
+
+---
+
+## Supported Platforms
+
+| Platform / Architecture | VS Code Target | Binary |
+|---|---|---|
+| **Windows x64** | `win32-x64` | `ce.exe` |
+| **Windows ARM64** | `win32-arm64` | `ce.exe` |
+| **macOS Apple Silicon** (M1/M2/M3/M4) | `darwin-arm64` | `ce` |
+| **macOS Intel** | `darwin-x64` | `ce` |
+| **Linux x64** | `linux-x64` | `ce` |
+| **Linux ARM64** | `linux-arm64` | `ce` |
 
 ---
 

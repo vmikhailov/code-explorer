@@ -83,7 +83,7 @@ public class WebSocketServerHandler
         IHostApplicationLifetime? appLifetime = null,
         int idleTimeoutSeconds = 30,
         string? workspaceRoot = null,
-        string serverVersion = "1.4.0")
+        string? serverVersion = null)
     {
         _graphClient = graphClient;
         _repository = repository;
@@ -92,7 +92,9 @@ public class WebSocketServerHandler
         _appLifetime = appLifetime;
         _idleTimeoutSeconds = idleTimeoutSeconds;
         _workspaceRoot = workspaceRoot ?? WorkspaceLocator.Find()?.RootDirectory ?? Directory.GetCurrentDirectory();
-        _serverVersion = serverVersion;
+        _serverVersion = serverVersion 
+            ?? typeof(WebSocketServerHandler).Assembly.GetName().Version?.ToString(3) 
+            ?? "1.4.1";
 
         if (_idleTimeoutSeconds > 0)
         {

@@ -174,7 +174,51 @@ export class ProcessManager implements vscode.Disposable {
       }
     }
 
-    // Check monorepo standard build locations (relative to workspace or extension directory)
+    // 1. Check bundled platform-specific or universal binaries
+    const isWindows = process.platform === 'win32';
+    const isMac = process.platform === 'darwin';
+    const isLinux = process.platform === 'linux';
+    const arch = process.arch;
+    const binName = isWindows ? 'ce.exe' : 'ce';
+
+    const hostRids: string[] = [];
+    if (isWindows) {
+      if (arch === 'arm64') hostRids.push('win-arm64');
+      hostRids.push('win-x64');
+    } else if (isMac) {
+      if (arch === 'arm64') hostRids.push('osx-arm64');
+      hostRids.push('osx-x64');
+    } else if (isLinux) {
+      if (arch === 'arm64') hostRids.push('linux-arm64');
+      hostRids.push('linux-x64');
+    }
+
+    const extensionRoot = path.resolve(__dirname, '..');
+    const bundledCandidates: string[] = [
+      // Platform-specific package layout: bin/ce[.exe]
+      path.resolve(extensionRoot, 'bin', binName),
+    ];
+
+    // Multi-target / universal package layout: bin/<rid>/ce[.exe]
+    for (const rid of hostRids) {
+      bundledCandidates.push(path.resolve(extensionRoot, 'bin', rid, binName));
+    }
+
+    for (const binPath of bundledCandidates) {
+      if (fs.existsSync(binPath)) {
+        if (!isWindows) {
+          try {
+            fs.chmodSync(binPath, 0o755);
+          } catch (e: any) {
+            this.outputChannel.appendLine(`[ProcessManager] Warning: failed to chmod +x on ${binPath}: ${e.message}`);
+          }
+        }
+        this.outputChannel.appendLine(`[ProcessManager] Using bundled CodeExplorer binary: ${binPath}`);
+        return { command: binPath, args: [] };
+      }
+    }
+
+    // 2. Check monorepo standard build locations (relative to workspace or extension directory)
     // Always prefer .dll over .exe in local build output directories because running app-host .exe
     // directly from build folders where hostfxr.dll is present causes .NET to search for shared runtimes locally,
     // failing with exit code 2147516566 (0x80008096). Invoking via 'dotnet <path>.dll' uses the host correctly.

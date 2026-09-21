@@ -60,12 +60,13 @@ public static class GraphDataConverter
             var name = row.GetStringProp("name", id);
             var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
 
-            // If ID is project-scoped (e.g. project_id:db:typeorm), consolidate by canonical name & dbType
-            var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0;
-            var canonicalId = isProjectScoped
-                ? $"workspace:database:{dbType.ToLowerInvariant()}:{name.ToLowerInvariant()}"
+            var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
+            var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
+                                  id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
+            var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
+            var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
+                ? $"workspace:database:{cType}:{cKey}"
                 : id;
-
             dbIdToCanonicalId[id] = canonicalId;
 
             if (!nodeMap.ContainsKey(canonicalId))
@@ -74,11 +75,11 @@ public static class GraphDataConverter
                 {
                     Id = canonicalId,
                     Kind = "Database",
-                    Name = name,
-                    DisplayName = $"{name} [{dbType}]",
+                    Name = cName,
+                    DisplayName = $"{cName} [{cType}]",
                     Properties = new Dictionary<string, string>
                     {
-                        ["db_type"] = dbType,
+                        ["db_type"] = cType,
                         ["role"] = "database"
                     }
                 };
@@ -192,10 +193,10 @@ public static class GraphDataConverter
                     node.Properties["layerIcon"] = layer.Icon;
                 }
 
-                if (IsLibraryProject(node))
-                {
-                    node.Properties["is_library"] = "true";
-                }
+                var isLib = IsLibraryProject(node);
+                node.Properties["is_library"] = isLib ? "true" : "false";
+                node.Properties["entity_type"] = isLib ? "library" : "service";
+                node.Properties["is_semantic_entity"] = isLib ? "false" : "true";
             }
             else if (node.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase))
             {
@@ -205,6 +206,17 @@ public static class GraphDataConverter
                 node.Properties["layerOrder"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Order.ToString();
                 node.Properties["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color;
                 node.Properties["layerIcon"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Icon;
+                node.Properties["is_library"] = "false";
+                node.Properties["entity_type"] = "database";
+                node.Properties["is_semantic_entity"] = "true";
+            }
+            else if (node.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase))
+            {
+                var st = node.Properties.GetValueOrDefault("service_type") ?? "";
+                var isMsg = st.Equals("MessageBroker", StringComparison.OrdinalIgnoreCase);
+                node.Properties["is_library"] = "false";
+                node.Properties["entity_type"] = isMsg ? "topic" : "external";
+                node.Properties["is_semantic_entity"] = "true";
             }
         }
 
@@ -265,7 +277,10 @@ public static class GraphDataConverter
             }
         }
 
-        // 7. Project -> Database
+        // 7. Project -> Database (Direct, File-Level, and Project-Scoped)
+        var projectNodes = graph.Nodes.Where(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        // 7a. Direct Project->Database
         try
         {
             var usesDbQuery = "MATCH (p:Project)-[r:USES_DB]->(d:Database) RETURN p.id AS source, d.id AS target, r.kind AS kind";
@@ -291,7 +306,8 @@ public static class GraphDataConverter
                             Kind = kind,
                             Properties = new Dictionary<string, string>
                             {
-                                ["dependency_type"] = "database"
+                                ["dependency_type"] = "database",
+                                ["is_semantic"] = "true"
                             }
                         });
                     }
@@ -300,30 +316,60 @@ public static class GraphDataConverter
         }
         catch { }
 
-        // Synthesize project -> database edges from project prefix (for workspaces where direct Project->USES_DB wasn't written)
+        // 7b. File-level Database usage: (File)-[:USES_DB]->(Database)
+        try
+        {
+            var fileDbQuery = "MATCH (f:File)-[r:USES_DB]->(d:Database) RETURN f.id AS source, d.id AS target, r.kind AS kind";
+            var fileDbJson = await client.ExecuteQueryAsync(fileDbQuery, null, cancellationToken);
+            using var fileDbDoc = JsonDocument.Parse(fileDbJson);
+
+            foreach (var row in fileDbDoc.RootElement.EnumerateArray())
+            {
+                var fileId = row.GetStringProp("source");
+                var rawTgt = row.GetStringProp("target");
+                var tgt = dbIdToCanonicalId.GetValueOrDefault(rawTgt, rawTgt);
+
+                if (!string.IsNullOrEmpty(fileId) && !string.IsNullOrEmpty(tgt) && nodeMap.ContainsKey(tgt))
+                {
+                    var owningProj = FindOwningProject(fileId, projectNodes);
+                    if (owningProj != null && graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == tgt)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{owningProj.Id}->{tgt}:USES_DB",
+                            Source = owningProj.Id,
+                            Target = tgt,
+                            Kind = "USES_DB",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["dependency_type"] = "database",
+                                ["is_semantic"] = "true"
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // 7c. Synthesize project -> database edges from project prefix (for workspaces where direct Project->USES_DB wasn't written)
         foreach (var (rawDbId, canonicalId) in dbIdToCanonicalId)
         {
-            var dbIdx = rawDbId.IndexOf("db:", StringComparison.OrdinalIgnoreCase);
-            if (dbIdx > 0)
+            var owningProj = FindOwningProject(rawDbId, projectNodes);
+            if (owningProj != null && graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == canonicalId)))
             {
-                var candidatePrefix = rawDbId.Substring(0, dbIdx);
-                var proj = graph.Nodes.FirstOrDefault(n => n.Kind == "Project" &&
-                    (n.Id == candidatePrefix || n.Id == candidatePrefix.TrimEnd(':') || n.Id.TrimEnd(':') == candidatePrefix.TrimEnd(':')));
-
-                if (proj != null && graph.Edges.All(e => !(e.Source == proj.Id && e.Target == canonicalId)))
+                graph.Edges.Add(new GraphEdgeDto
                 {
-                    graph.Edges.Add(new GraphEdgeDto
+                    Id = $"{owningProj.Id}->{canonicalId}:USES_DB",
+                    Source = owningProj.Id,
+                    Target = canonicalId,
+                    Kind = "USES_DB",
+                    Properties = new Dictionary<string, string>
                     {
-                        Id = $"{proj.Id}->{canonicalId}:USES_DB",
-                        Source = proj.Id,
-                        Target = canonicalId,
-                        Kind = "USES_DB",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "database"
-                        }
-                    });
-                }
+                        ["dependency_type"] = "database",
+                        ["is_semantic"] = "true"
+                    }
+                });
             }
         }
 
@@ -342,24 +388,86 @@ public static class GraphDataConverter
 
             if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt))
             {
-                graph.Edges.Add(new GraphEdgeDto
+                if (graph.Edges.All(e => !(e.Source == src && e.Target == tgt && e.Kind == kind)))
                 {
-                    Id = $"{src}->{tgt}:{kind}",
-                    Source = src,
-                    Target = tgt,
-                    Kind = kind,
-                    Properties = new Dictionary<string, string>
+                    graph.Edges.Add(new GraphEdgeDto
                     {
-                        ["dependency_type"] = depType
-                    }
-                });
+                        Id = $"{src}->{tgt}:{kind}",
+                        Source = src,
+                        Target = tgt,
+                        Kind = kind,
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = depType,
+                            ["is_semantic"] = "true"
+                        }
+                    });
+                }
+            }
+        }
+
+        // 9. Lift Transitive Semantic Relations through Internal Libraries
+        LiftTransitiveSemanticRelations(graph);
+
+        // 10. Tag Edge Semantic Properties
+        foreach (var edge in graph.Edges)
+        {
+            edge.Properties ??= new Dictionary<string, string>();
+            var srcNode = nodeMap.GetValueOrDefault(edge.Source);
+            var tgtNode = nodeMap.GetValueOrDefault(edge.Target);
+
+            var srcIsSemantic = srcNode?.Properties?.GetValueOrDefault("is_semantic_entity") == "true";
+            var tgtIsSemantic = tgtNode?.Properties?.GetValueOrDefault("is_semantic_entity") == "true";
+
+            if (srcIsSemantic && tgtIsSemantic && edge.Kind != "LIBRARY")
+            {
+                edge.Properties["is_semantic"] = "true";
+            }
+            else if (!edge.Properties.ContainsKey("is_semantic"))
+            {
+                edge.Properties["is_semantic"] = "false";
             }
         }
 
         graph.Metadata ??= new Dictionary<string, string>();
         graph.Metadata["graphType"] = "architecture";
+        var projectPaths = await GetProjectPathsMapAsync(client, cancellationToken);
+        graph.Metadata["projectPaths"] = JsonSerializer.Serialize(projectPaths);
 
         return graph;
+    }
+
+    public static async Task<Dictionary<string, string>> GetProjectPathsMapAsync(
+        IGraphClient client,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var query = "MATCH (p:Project) RETURN p.name AS name, p.path AS path, p.id AS id";
+            var json = await client.ExecuteQueryAsync(query, null, cancellationToken);
+            using var doc = JsonDocument.Parse(json);
+            foreach (var row in doc.RootElement.EnumerateArray())
+            {
+                var name = row.GetStringProp("name");
+                var path = row.GetStringProp("path");
+                if (string.IsNullOrEmpty(path))
+                {
+                    var id = row.GetStringProp("id");
+                    if (!string.IsNullOrEmpty(id) && id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        path = id["workspace:project:".Length..];
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path) && !result.ContainsKey(name))
+                {
+                    result[name] = path;
+                }
+            }
+        }
+        catch { }
+        return result;
     }
 
     public static async Task<List<string>> GetAllProjectsAsync(
@@ -393,6 +501,8 @@ public static class GraphDataConverter
         };
         var allProjects = await GetAllProjectsAsync(client, cancellationToken);
         graph.Metadata["allProjects"] = JsonSerializer.Serialize(allProjects);
+        var neighborhoodProjectPaths = await GetProjectPathsMapAsync(client, cancellationToken);
+        graph.Metadata["projectPaths"] = JsonSerializer.Serialize(neighborhoodProjectPaths);
 
         if (allProjects.Count == 0)
         {
@@ -695,8 +805,13 @@ public static class GraphDataConverter
                 var name = row.GetStringProp("name", id);
                 var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
                 var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "USES_DB") : "USES_DB";
-                var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0;
-                var canonicalId = isProjectScoped ? $"workspace:database:{dbType.ToLowerInvariant()}:{name.ToLowerInvariant()}" : id;
+                var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
+                var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
+                                      id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
+                var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
+                var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
+                    ? $"workspace:database:{cType}:{cKey}"
+                    : id;
 
                 if (graph.Nodes.All(n => n.Id != canonicalId))
                 {
@@ -704,13 +819,13 @@ public static class GraphDataConverter
                     {
                         Id = canonicalId,
                         Kind = "Database",
-                        Name = name,
-                        DisplayName = $"{name} [{dbType}]",
+                        Name = cName,
+                        DisplayName = $"{cName} [{cType}]",
                         Properties = new Dictionary<string, string>
                         {
                             ["column"] = "right",
                             ["role"] = "database",
-                            ["db_type"] = dbType
+                            ["db_type"] = cType
                         }
                     };
                     graph.Nodes.Add(dbNode);
@@ -747,8 +862,13 @@ public static class GraphDataConverter
                 var id = row.GetStringProp("id");
                 var name = row.GetStringProp("name", id);
                 var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
-                var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0;
-                var canonicalId = isProjectScoped ? $"workspace:database:{dbType.ToLowerInvariant()}:{name.ToLowerInvariant()}" : id;
+                var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
+                var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
+                                      id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
+                var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
+                var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
+                    ? $"workspace:database:{cType}:{cKey}"
+                    : id;
 
                 if (graph.Nodes.All(n => n.Id != canonicalId))
                 {
@@ -756,13 +876,13 @@ public static class GraphDataConverter
                     {
                         Id = canonicalId,
                         Kind = "Database",
-                        Name = name,
-                        DisplayName = $"{name} [{dbType}]",
+                        Name = cName,
+                        DisplayName = $"{cName} [{cType}]",
                         Properties = new Dictionary<string, string>
                         {
                             ["column"] = "right",
                             ["role"] = "database",
-                            ["db_type"] = dbType
+                            ["db_type"] = cType
                         }
                     };
                     graph.Nodes.Add(dbNode);
@@ -781,6 +901,132 @@ public static class GraphDataConverter
                             ["dependency_type"] = "database"
                         }
                     });
+                }
+            }
+        }
+        catch { }
+
+        // Query file-level databases belonging to center project
+        try
+        {
+            var fileDbQuery = "MATCH (f:File)-[r:USES_DB]->(d:Database) RETURN f.id AS fileId, d.id AS id, d.name AS name, d.db_type AS db_type";
+            var fileDbJson = await client.ExecuteQueryAsync(fileDbQuery, null, cancellationToken);
+            using var fileDbDoc = JsonDocument.Parse(fileDbJson);
+
+            foreach (var row in fileDbDoc.RootElement.EnumerateArray())
+            {
+                var fileId = row.GetStringProp("fileId");
+                if (string.IsNullOrEmpty(fileId)) continue;
+
+                var owning = FindOwningProject(fileId, new[] { centerNode });
+                if (owning != null)
+                {
+                    var id = row.GetStringProp("id");
+                    var name = row.GetStringProp("name", id);
+                    var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
+                    var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
+                    var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
+                                          id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
+                    var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
+                    var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
+                        ? $"workspace:database:{cType}:{cKey}"
+                        : id;
+
+                    if (graph.Nodes.All(n => n.Id != canonicalId))
+                    {
+                        graph.Nodes.Add(new GraphNodeDto
+                        {
+                            Id = canonicalId,
+                            Kind = "Database",
+                            Name = cName,
+                            DisplayName = $"{cName} [{cType}]",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["column"] = "right",
+                                ["role"] = "database",
+                                ["db_type"] = cType
+                            }
+                        });
+                    }
+
+                    if (graph.Edges.All(e => !(e.Source == centerId && e.Target == canonicalId)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{centerId}->{canonicalId}:USES_DB",
+                            Source = centerId,
+                            Target = canonicalId,
+                            Kind = "USES_DB",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["dependency_type"] = "database"
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // Query transitive databases via outbound libraries
+        try
+        {
+            var outboundLibs = graph.Nodes
+                .Where(n => n.Properties?.GetValueOrDefault("column") == "right" && IsLibraryProject(n))
+                .ToList();
+
+            foreach (var lib in outboundLibs)
+            {
+                var libDbQuery = "MATCH (p:Project {id: $libId})-[r:USES_DB]->(d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type";
+                var libDbJson = await client.ExecuteQueryAsync(libDbQuery, new Dictionary<string, object> { ["libId"] = lib.Id }, cancellationToken);
+                using var libDbDoc = JsonDocument.Parse(libDbJson);
+
+                foreach (var row in libDbDoc.RootElement.EnumerateArray())
+                {
+                    var id = row.GetStringProp("id");
+                    var name = row.GetStringProp("name", id);
+                    var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
+                    var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
+                    var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
+                                          id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
+                    var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
+                    var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
+                        ? $"workspace:database:{cType}:{cKey}"
+                        : id;
+
+                    if (graph.Nodes.All(n => n.Id != canonicalId))
+                    {
+                        graph.Nodes.Add(new GraphNodeDto
+                        {
+                            Id = canonicalId,
+                            Kind = "Database",
+                            Name = cName,
+                            DisplayName = $"{cName} [{cType}]",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["column"] = "right",
+                                ["role"] = "database",
+                                ["db_type"] = cType
+                            }
+                        });
+                    }
+
+                    if (graph.Edges.All(e => !(e.Source == centerId && e.Target == canonicalId)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{centerId}->{canonicalId}:USES_DB",
+                            Source = centerId,
+                            Target = canonicalId,
+                            Kind = "USES_DB",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["dependency_type"] = "database",
+                                ["semantic_lifted"] = "true",
+                                ["via_library"] = lib.Name
+                            }
+                        });
+                    }
                 }
             }
         }
@@ -873,13 +1119,19 @@ public static class GraphDataConverter
         if (node.Properties?.GetValueOrDefault("is_library") == "true") return true;
         if (projectType == "library") return true;
 
-        // Foundation and Components layers are code libraries/domain modules, not HTTP services
-        if (layerId == "layer_foundation" || layerId == "layer_components") return true;
-        if (layerId == "layer_ingress") return false;
+        var normPath = "/" + path.Trim('/');
 
-        // Known library/module name patterns
-        if (name == "library" || name.Contains("library") || name.EndsWith("-lib") || name.EndsWith(".lib")) return true;
-        if (name.EndsWith(".core") || name.EndsWith("-core") ||
+        // 1. Known explicit library/module directory paths
+        if (normPath.Contains("/libs/") || normPath.Contains("/lib/") || normPath.Contains("/libraries/") ||
+            normPath.Contains("/common/") || normPath.Contains("/shared/") || normPath.Contains("/contracts/") ||
+            normPath.Contains("/dto/") || normPath.Contains("/dtos/") || normPath.Contains("/packages/"))
+        {
+            return true;
+        }
+
+        // 2. Known explicit library/module name patterns
+        if (name == "library" || name.Contains("library") || name.EndsWith("-lib") || name.EndsWith(".lib") ||
+            name.EndsWith(".core") || name.EndsWith("-core") ||
             name.EndsWith(".domain") || name.EndsWith("-domain") ||
             name.EndsWith(".models") || name.EndsWith("-models") ||
             name.EndsWith(".model") || name.EndsWith("-model") ||
@@ -895,22 +1147,235 @@ public static class GraphDataConverter
             return true;
         }
 
-        // Known library/module directory paths
-        if (path.Contains("/libs/") || path.Contains("/lib/") || path.Contains("/libraries/") ||
-            path.Contains("/common/") || path.Contains("/shared/") || path.Contains("/core/") ||
-            path.Contains("/domain/") || path.Contains("/models/") || path.Contains("/entities/") ||
-            path.Contains("/contracts/") || path.Contains("/infrastructure/") || path.Contains("/infra/") ||
-            path.Contains("/data/"))
+        // 3. Service directories, service names, and service frameworks are DEFINITIVELY Services
+        var isServicePath = normPath.Contains("/services/") ||
+                            normPath.Contains("/apps/") ||
+                            normPath.Contains("/microservices/") ||
+                            normPath.Contains("/service/") ||
+                            normPath.Contains("/app/");
+
+        var isServiceName = name.EndsWith("-service") || name.EndsWith("_service") || name.EndsWith(".service") ||
+                            name.EndsWith("-app") || name.EndsWith("_app") || name.EndsWith(".app") ||
+                            name.EndsWith("-api") || name.EndsWith("_api") || name.EndsWith(".api") ||
+                            name.Contains("gateway") || name.Contains("scheduler") || name.Contains("worker");
+
+        var hasServiceFramework = !string.IsNullOrWhiteSpace(framework) &&
+                                  !framework.Equals("Library", StringComparison.OrdinalIgnoreCase);
+
+        if (isServicePath || isServiceName || hasServiceFramework || layerId == "layer_ingress")
         {
-            return true;
+            return false;
         }
 
-        if (string.IsNullOrEmpty(framework) || framework.Equals("Library", StringComparison.OrdinalIgnoreCase))
+        if (layerId == "layer_foundation") return true;
+
+        if (framework != null && framework.Equals("Library", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
         return false;
+    }
+
+    public static GraphNodeDto? FindOwningProject(string sourceId, IEnumerable<GraphNodeDto> projects)
+    {
+        if (string.IsNullOrEmpty(sourceId)) return null;
+
+        var projList = projects as IList<GraphNodeDto> ?? projects.ToList();
+
+        // 1. Direct project ID match
+        foreach (var p in projList)
+        {
+            if (p.Id.Equals(sourceId, StringComparison.OrdinalIgnoreCase)) return p;
+        }
+
+        // 2. Project ID prefix match
+        foreach (var p in projList)
+        {
+            var trimId = p.Id.TrimEnd(':');
+            if (sourceId.StartsWith(trimId + ":", StringComparison.OrdinalIgnoreCase) ||
+                sourceId.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                return p;
+            }
+        }
+
+        // 3. File path resolution (e.g. workspace:file:action-scheduler/src/...)
+        var filePath = sourceId;
+        if (filePath.StartsWith("workspace:file:", StringComparison.OrdinalIgnoreCase))
+        {
+            filePath = filePath.Substring("workspace:file:".Length);
+        }
+        else if (filePath.StartsWith("workspace:symbol:", StringComparison.OrdinalIgnoreCase))
+        {
+            filePath = filePath.Substring("workspace:symbol:".Length);
+        }
+
+        var normFilePath = filePath.Replace('\\', '/').TrimStart('/');
+
+        // Match against project FilePath (longest match first)
+        GraphNodeDto? bestMatch = null;
+        int bestLen = 0;
+        foreach (var p in projList)
+        {
+            if (!string.IsNullOrEmpty(p.FilePath))
+            {
+                var normProj = p.FilePath.Replace('\\', '/').TrimStart('/').TrimEnd('/');
+                if (!string.IsNullOrEmpty(normProj) &&
+                    (normFilePath.StartsWith(normProj + "/", StringComparison.OrdinalIgnoreCase) ||
+                     normFilePath.Equals(normProj, StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (normProj.Length > bestLen)
+                    {
+                        bestLen = normProj.Length;
+                        bestMatch = p;
+                    }
+                }
+            }
+        }
+        if (bestMatch != null) return bestMatch;
+
+        // Match by Project Name segment in path
+        foreach (var p in projList)
+        {
+            if (!string.IsNullOrEmpty(p.Name) && p.Name.Length > 2)
+            {
+                if (normFilePath.StartsWith(p.Name + "/", StringComparison.OrdinalIgnoreCase) ||
+                    normFilePath.Contains("/" + p.Name + "/"))
+                {
+                    return p;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static void LiftTransitiveSemanticRelations(GraphDataDto graph)
+    {
+        var nodesById = graph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+        var services = graph.Nodes.Where(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase) && !IsLibraryProject(n)).ToList();
+        var libraries = graph.Nodes.Where(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase) && IsLibraryProject(n)).ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+
+        // Build adjacency list for all outgoing edges
+        var outEdges = new Dictionary<string, List<GraphEdgeDto>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var edge in graph.Edges)
+        {
+            if (!outEdges.TryGetValue(edge.Source, out var list))
+            {
+                list = new List<GraphEdgeDto>();
+                outEdges[edge.Source] = list;
+            }
+            list.Add(edge);
+        }
+
+        // For each Service, traverse through Libraries up to depth 3
+        foreach (var service in services)
+        {
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { service.Id };
+            var queue = new Queue<(string CurrentId, int Depth, string ViaLib)>();
+
+            if (outEdges.TryGetValue(service.Id, out var initialEdges))
+            {
+                foreach (var edge in initialEdges)
+                {
+                    if (libraries.TryGetValue(edge.Target, out var libNode))
+                    {
+                        if (visited.Add(libNode.Id))
+                        {
+                            queue.Enqueue((libNode.Id, 1, libNode.Name));
+                        }
+                    }
+                }
+            }
+
+            while (queue.Count > 0)
+            {
+                var (currId, depth, viaLib) = queue.Dequeue();
+
+                if (outEdges.TryGetValue(currId, out var edges))
+                {
+                    foreach (var edge in edges)
+                    {
+                        if (!nodesById.TryGetValue(edge.Target, out var targetNode)) continue;
+
+                        // Case 1: Library connects to Database -> Lift direct USES_DB to Service
+                        if (targetNode.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase) || edge.Kind == "USES_DB")
+                        {
+                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id)))
+                            {
+                                graph.Edges.Add(new GraphEdgeDto
+                                {
+                                    Id = $"{service.Id}->{targetNode.Id}:USES_DB",
+                                    Source = service.Id,
+                                    Target = targetNode.Id,
+                                    Kind = "USES_DB",
+                                    Properties = new Dictionary<string, string>
+                                    {
+                                        ["dependency_type"] = "database",
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib
+                                    }
+                                });
+                            }
+                        }
+                        // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
+                        else if (targetNode.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase) && !IsLibraryProject(targetNode) && targetNode.Id != service.Id)
+                        {
+                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && (e.Kind == "SERVICE_CALL" || e.Kind == "CALLS_ENDPOINT"))))
+                            {
+                                graph.Edges.Add(new GraphEdgeDto
+                                {
+                                    Id = $"{service.Id}->{targetNode.Id}:SERVICE_CALL",
+                                    Source = service.Id,
+                                    Target = targetNode.Id,
+                                    Kind = "SERVICE_CALL",
+                                    Properties = new Dictionary<string, string>
+                                    {
+                                        ["dependency_type"] = "service_call",
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib
+                                    }
+                                });
+                            }
+                        }
+                        // Case 3: Library connects to Message Broker / External Service -> Lift to Service
+                        else if (targetNode.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase) || targetNode.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var kind = edge.Kind == "TRIGGERS" ? "TRIGGERS" : "SERVICE_CALL";
+                            var depType = edge.Kind == "TRIGGERS" ? "messaging" : "service_call";
+                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && e.Kind == kind)))
+                            {
+                                graph.Edges.Add(new GraphEdgeDto
+                                {
+                                    Id = $"{service.Id}->{targetNode.Id}:{kind}",
+                                    Source = service.Id,
+                                    Target = targetNode.Id,
+                                    Kind = kind,
+                                    Properties = new Dictionary<string, string>
+                                    {
+                                        ["dependency_type"] = depType,
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib
+                                    }
+                                });
+                            }
+                        }
+                        // Case 4: Continues transitively through another Library
+                        else if (libraries.TryGetValue(targetNode.Id, out var nextLib) && depth < 3)
+                        {
+                            if (visited.Add(nextLib.Id))
+                            {
+                                queue.Enqueue((nextLib.Id, depth + 1, viaLib));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public static void ApplyLayerClassification(GraphDataDto graph)
@@ -975,5 +1440,64 @@ public static class GraphDataConverter
         return elem.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String
             ? (v.GetString() ?? fallback)
             : fallback;
+    }
+
+    public static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeDatabase(string rawName, string? rawDbType)
+    {
+        var trimmed = (rawName ?? "").Trim();
+        var lower = trimmed.ToLowerInvariant();
+        var type = string.IsNullOrWhiteSpace(rawDbType) ? "relational" : rawDbType.Trim().ToLowerInvariant();
+
+        switch (lower)
+        {
+            case "typeorm":
+                return ("TypeORM", "relational", "typeorm");
+            case "postgres":
+            case "postgresql":
+                return ("PostgreSQL", "relational", "postgresql");
+            case "redis":
+                return ("Redis", "cache", "redis");
+            case "mysql":
+                return ("MySQL", "relational", "mysql");
+            case "mariadb":
+                return ("MariaDB", "relational", "mariadb");
+            case "sqlite":
+            case "sqlite3":
+                return ("SQLite", "relational", "sqlite");
+            case "mongodb":
+            case "mongo":
+                return ("MongoDB", "document", "mongodb");
+            case "clickhouse":
+                return ("ClickHouse", "analytics", "clickhouse");
+            case "bigquery":
+                return ("BigQuery", "analytics", "bigquery");
+            case "mssql":
+            case "sqlserver":
+            case "sql server":
+                return ("SQL Server", "relational", "sqlserver");
+            case "oracle":
+                return ("Oracle", "relational", "oracle");
+            case "cassandra":
+                return ("Cassandra", "nosql", "cassandra");
+            case "elasticsearch":
+                return ("Elasticsearch", "search", "elasticsearch");
+            case "neo4j":
+                return ("Neo4j", "graph", "neo4j");
+            case "sequelize":
+                return ("Sequelize", "relational", "sequelize");
+            case "prisma":
+                return ("Prisma", "relational", "prisma");
+            case "drizzle":
+            case "drizzle orm":
+                return ("Drizzle ORM", "relational", "drizzle");
+            default:
+                if (lower.StartsWith("redis_"))
+                {
+                    return ("Redis", "cache", "redis");
+                }
+                var canonicalKey = System.Text.RegularExpressions.Regex.Replace(lower, @"[^a-z0-9_-]", "_").Trim('_');
+                if (string.IsNullOrEmpty(canonicalKey)) canonicalKey = "db";
+                return (trimmed, type, canonicalKey);
+        }
     }
 }
