@@ -18,6 +18,11 @@ public interface IProjectParser
     bool IsProjectDirectory(string directoryPath, string[] filesInDirectory);
 
     /// <summary>
+    /// Gets a friendly project name for the project in the given directory (defaults to folder name).
+    /// </summary>
+    string GetProjectName(string directoryPath, string[] filesInDirectory) => Path.GetFileName(directoryPath);
+
+    /// <summary>
     /// Checks if the project in the given directory produces a package, and returns details if so.
     /// </summary>
     Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory);

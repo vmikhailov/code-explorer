@@ -235,4 +235,78 @@ require (
             }
         }
     }
+
+    [Test]
+    public async Task Test_DotNet_ProjectReference_DependencyType_Detected_As_Library()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "DotNetRefTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+
+            // Simulate Dedalos-like solution: API project references Core and Models
+            var nodes = new List<CodeExplorer.Core.Database.Node>
+            {
+                new CodeExplorer.Core.Database.Node("workspace:project:Dobco.PACSONWEB3.API:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "Dobco.PACSONWEB3.API",
+                    ["path"] = "Dobco.PACSONWEB3.API",
+                    ["project_type"] = "csharp",
+                    ["framework"] = "ASP.NET Core"
+                }),
+                new CodeExplorer.Core.Database.Node("workspace:project:Dobco.PACSONWEB3.Core:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "Dobco.PACSONWEB3.Core",
+                    ["path"] = "Dobco.PACSONWEB3.Core",
+                    ["project_type"] = "csharp",
+                    ["framework"] = "ASP.NET Core" // even with legacy misassigned framework
+                }),
+                new CodeExplorer.Core.Database.Node("workspace:project:Dobco.PACSONWEB3.Models:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "Dobco.PACSONWEB3.Models",
+                    ["path"] = "Dobco.PACSONWEB3.Models",
+                    ["project_type"] = "csharp"
+                }),
+            };
+            await db.UploadNodesAsync(nodes);
+
+            // Seed direct project references (even without dependency_type specified, simulating older scans)
+            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            {
+                new CodeExplorer.Core.Database.Relationship(
+                    "workspace:project:Dobco.PACSONWEB3.API:",
+                    "workspace:project:Dobco.PACSONWEB3.Core:",
+                    "DEPENDS_ON",
+                    new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
+                new CodeExplorer.Core.Database.Relationship(
+                    "workspace:project:Dobco.PACSONWEB3.API:",
+                    "workspace:project:Dobco.PACSONWEB3.Models:",
+                    "DEPENDS_ON",
+                    new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
+            };
+            await db.UploadRelationshipsAsync(rels);
+
+            // Test Project Flow / Neighborhood Graph for API project
+            var flowGraph = await GraphDataConverter.GetProjectNeighborhoodAsync(db, "workspace:project:Dobco.PACSONWEB3.API:");
+
+            var coreEdge = flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Core:");
+            Assert.That(coreEdge, Is.Not.Null, "Edge to Dobco.PACSONWEB3.Core should exist");
+            Assert.That(coreEdge!.Kind, Is.EqualTo("LIBRARY"), "Edge to Core must be classified as LIBRARY, not SERVICE_CALL");
+            Assert.That(coreEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+
+            var modelsEdge = flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Models:");
+            Assert.That(modelsEdge, Is.Not.Null, "Edge to Dobco.PACSONWEB3.Models should exist");
+            Assert.That(modelsEdge!.Kind, Is.EqualTo("LIBRARY"), "Edge to Models must be classified as LIBRARY, not SERVICE_CALL");
+            Assert.That(modelsEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                try { Directory.Delete(tempWorkspace, true); } catch { }
+            }
+        }
+    }
 }

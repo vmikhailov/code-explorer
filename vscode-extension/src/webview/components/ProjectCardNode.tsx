@@ -270,10 +270,11 @@ export const ProjectCardNode = memo((props: any) => {
 
       {/* Top row: badge + actions */}
       <div className="project-card-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="project-card-badges">
           <span
             className="project-badge"
             style={{ backgroundColor: `${badgeColor}18`, color: badgeColor, borderColor: `${badgeColor}44` }}
+            title={badgeLabel}
           >
             {badgeLabel}
           </span>
@@ -281,6 +282,7 @@ export const ProjectCardNode = memo((props: any) => {
             <span
               className="project-badge"
               style={{ backgroundColor: '#34d39918', color: '#34d399', borderColor: '#34d39944' }}
+              title="Library"
             >
               Library
             </span>
@@ -289,6 +291,7 @@ export const ProjectCardNode = memo((props: any) => {
             <span
               className="project-badge"
               style={{ backgroundColor: '#64748b18', color: '#94a3b8', borderColor: '#64748b33', fontSize: '10px' }}
+              title={framework}
             >
               {framework}
             </span>
@@ -352,9 +355,6 @@ export const ProjectCardNode = memo((props: any) => {
       >
         {graphNode.name}
       </div>
-
-      {/* Framework if available */}
-      {framework && <div className="project-framework">{framework}</div>}
 
       {/* Floating Interactive Comms Popover */}
       {showCommsPopover && comms && (

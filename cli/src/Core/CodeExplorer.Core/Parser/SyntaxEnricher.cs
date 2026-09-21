@@ -59,20 +59,9 @@ public class SyntaxEnricher : ISyntaxEnricher
                 if (match is { Type: OntologyConstants.LibraryTypes.Framework } && frameworkParser == null)
                 {
                     frameworkParser = match;
+                    break;
                 }
             }
-
-            // Fallback to built-in frameworks if no match found
-            frameworkParser ??= _libraryParsers.FirstOrDefault(lp => lp.IsBuiltIn && lp.Type == OntologyConstants.LibraryTypes.Framework);
-        }
-        else
-        {
-            frameworkParser = _libraryParsers.FirstOrDefault(lp => lp.Type == OntologyConstants.LibraryTypes.Framework);
-        }
-
-        if (frameworkParser != null)
-        {
-            projectNode.SetExtension(OntologyConstants.LibraryTypes.Framework, frameworkParser.Name);
         }
 
         var fileNode = _syntaxTree.FileNode;
@@ -93,6 +82,16 @@ public class SyntaxEnricher : ISyntaxEnricher
                 {
                     matchedParsers.Add(match);
                 }
+
+                if (match is { Type: OntologyConstants.LibraryTypes.Framework } && frameworkParser == null)
+                {
+                    frameworkParser = match;
+                }
+            }
+
+            if (frameworkParser != null)
+            {
+                projectNode.SetExtension(OntologyConstants.LibraryTypes.Framework, frameworkParser.Name);
             }
 
             foreach (var parser in matchedParsers)

@@ -117,7 +117,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
             -- Promote workspace package dependencies to direct project DEPENDS_ON links
             INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-            SELECT DISTINCT d.from_id, i.to_id, 'DEPENDS_ON', '{}'
+            SELECT DISTINCT d.from_id, i.to_id, 'DEPENDS_ON', '{"dependency_type":"library"}'
             FROM edges d
             JOIN edges i ON d.to_id = i.from_id
             WHERE d.kind = 'DEPENDS_ON'

@@ -891,7 +891,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     // ----------------------------------------------------
     const activeLevels = Array.from(levelNodesMap.keys()).sort((a, b) => a - b);
     const colStep = 340;
-    const rowHeight = 120;
+    const rowHeight = 130;
 
     let maxRowCount = 1;
     for (const list of levelNodesMap.values()) {

@@ -292,6 +292,18 @@ public static class ProjectLayerClassifier
             lowerName.EndsWith(".infra") ||
             lowerName.EndsWith(".data") ||
             lowerName.EndsWith(".db") ||
+            lowerName.EndsWith(".models") ||
+            lowerName.EndsWith("-models") ||
+            lowerName.EndsWith(".model") ||
+            lowerName.EndsWith("-model") ||
+            lowerName.EndsWith(".entities") ||
+            lowerName.EndsWith("-entities") ||
+            lowerName.EndsWith(".contracts") ||
+            lowerName.EndsWith("-contracts") ||
+            lowerName.EndsWith(".dto") ||
+            lowerName.EndsWith(".dtos") ||
+            lowerName.EndsWith(".types") ||
+            lowerName.EndsWith("-types") ||
             lowerName.Equals("library", StringComparison.OrdinalIgnoreCase) ||
             lowerName.Contains("library") ||
             lowerName.Contains("-lib") ||

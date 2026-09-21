@@ -77,6 +77,20 @@ public class CSharpParser : IProjectParser, IFileParser
         return false;
     }
 
+    public string GetProjectName(string directoryPath, string[] filesInDirectory)
+    {
+        var csprojFile = filesInDirectory.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
+        if (csprojFile != null)
+        {
+            var name = Path.GetFileNameWithoutExtension(csprojFile);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+        }
+        return Path.GetFileName(directoryPath);
+    }
+
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
         List<ILibraryParser> activeLibraryParsers,
@@ -178,6 +192,18 @@ public class CSharpParser : IProjectParser, IFileParser
                     if (string.IsNullOrEmpty(name)) continue;
 
                     externalPackages.Add(new ProducedPackageInfo(name, version, "nuget"));
+                }
+
+                // Check Web SDK or FrameworkReference
+                var sdkAttr = doc.Root?.Attribute("Sdk")?.Value ?? "";
+                var hasWebSdk = sdkAttr.Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase) ||
+                                doc.Descendants("Import").Any(i => (i.Attribute("Sdk")?.Value ?? "").Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase));
+                var hasAspNetCoreFrameworkRef = doc.Descendants("FrameworkReference")
+                    .Any(fr => string.Equals(fr.Attribute("Include")?.Value, "Microsoft.AspNetCore.App", StringComparison.OrdinalIgnoreCase));
+
+                if (hasWebSdk || hasAspNetCoreFrameworkRef)
+                {
+                    externalPackages.Add(new ProducedPackageInfo("Microsoft.AspNetCore.App", "implicit", "nuget"));
                 }
             }
             catch

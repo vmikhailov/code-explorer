@@ -126,7 +126,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 onChange={(e) => onSelectProject(e.target.value)}
               >
                 {allProjects.length === 0 && <option value="">Loading projects...</option>}
-                {allProjects.map((p) => (
+                {Array.from(new Set(allProjects)).map((p) => (
                   <option key={p} value={p}>
                     {p}
                   </option>

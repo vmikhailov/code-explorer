@@ -386,17 +386,21 @@ export const App: React.FC = () => {
                 if (metadata?.allProjects) {
                   try {
                     const parsed = JSON.parse(metadata.allProjects) as string[];
-                    setAllProjects(parsed);
+                    const unique = Array.from(new Set(parsed.filter(Boolean)));
+                    setAllProjects(unique);
                   } catch {}
                 }
               } else {
                 setFullGraph(resp.graph);
                 // Also extract all project names from full architecture if not set
                 if (resp.graph.nodes) {
-                  const projs = resp.graph.nodes
-                    .filter((n) => n.kind === 'Project')
-                    .map((n) => n.name)
-                    .sort();
+                  const projs = Array.from(
+                    new Set(
+                      resp.graph.nodes
+                        .filter((n) => n.kind === 'Project' && Boolean(n.name))
+                        .map((n) => n.name)
+                    )
+                  ).sort((a, b) => a.localeCompare(b));
                   if (projs.length > 0) {
                     setAllProjects((prev) => (prev.length === 0 ? projs : prev));
                     setSelectedProject((prev) => {

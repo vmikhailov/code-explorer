@@ -366,14 +366,15 @@ public static class GraphDataConverter
         IGraphClient client,
         CancellationToken cancellationToken = default)
     {
-        var query = "MATCH (p:Project) RETURN p.name AS name ORDER BY p.name";
+        var query = "MATCH (p:Project) RETURN DISTINCT p.name AS name ORDER BY p.name";
         var json = await client.ExecuteQueryAsync(query, null, cancellationToken);
         using var doc = JsonDocument.Parse(json);
         var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in doc.RootElement.EnumerateArray())
         {
             var name = row.GetStringProp("name");
-            if (!string.IsNullOrEmpty(name))
+            if (!string.IsNullOrEmpty(name) && seen.Add(name))
             {
                 result.Add(name);
             }
@@ -839,6 +840,21 @@ public static class GraphDataConverter
 
         ApplyLayerClassification(graph);
 
+        // Normalize edge types after layer classification has established all project layers
+        foreach (var edge in graph.Edges)
+        {
+            if (edge.Kind == "USES_DB" || edge.Kind == "TRIGGERS" || edge.Properties?.GetValueOrDefault("dependency_type") == "service_call" || edge.Properties?.GetValueOrDefault("dependency_type") == "database" || edge.Properties?.GetValueOrDefault("dependency_type") == "messaging") continue;
+
+            var target = graph.Nodes.FirstOrDefault(n => n.Id == edge.Target);
+            if (target != null && IsLibraryProject(target))
+            {
+                edge.Kind = "LIBRARY";
+                edge.Properties ??= new Dictionary<string, string>();
+                edge.Properties["dependency_type"] = "library";
+                edge.Id = $"{edge.Source}->{edge.Target}:LIBRARY";
+            }
+        }
+
         graph.Metadata ??= new Dictionary<string, string>();
         graph.Metadata["graphType"] = "flow";
 
@@ -847,22 +863,52 @@ public static class GraphDataConverter
 
     public static bool IsLibraryProject(GraphNodeDto? node)
     {
-        if (node == null) return false;
+        if (node == null || !node.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase)) return false;
         var name = (node.Name ?? "").ToLowerInvariant();
         var path = (node.FilePath ?? "").Replace('\\', '/').ToLowerInvariant();
         var layerId = node.Properties?.GetValueOrDefault("layerId") ?? node.Properties?.GetValueOrDefault("layer");
         var projectType = node.Properties?.GetValueOrDefault("project_type")?.ToLowerInvariant();
         var framework = node.Properties?.GetValueOrDefault("framework");
 
-        if (!string.IsNullOrEmpty(framework) && !framework.Equals("Library", StringComparison.OrdinalIgnoreCase))
+        if (node.Properties?.GetValueOrDefault("is_library") == "true") return true;
+        if (projectType == "library") return true;
+
+        // Foundation and Components layers are code libraries/domain modules, not HTTP services
+        if (layerId == "layer_foundation" || layerId == "layer_components") return true;
+        if (layerId == "layer_ingress") return false;
+
+        // Known library/module name patterns
+        if (name == "library" || name.Contains("library") || name.EndsWith("-lib") || name.EndsWith(".lib")) return true;
+        if (name.EndsWith(".core") || name.EndsWith("-core") ||
+            name.EndsWith(".domain") || name.EndsWith("-domain") ||
+            name.EndsWith(".models") || name.EndsWith("-models") ||
+            name.EndsWith(".model") || name.EndsWith("-model") ||
+            name.EndsWith(".entities") || name.EndsWith("-entities") ||
+            name.EndsWith(".contracts") || name.EndsWith("-contracts") ||
+            name.EndsWith(".dto") || name.EndsWith(".dtos") ||
+            name.EndsWith(".types") || name.EndsWith("-types") ||
+            name.EndsWith(".common") || name.EndsWith("-common") ||
+            name.EndsWith(".shared") || name.EndsWith("-shared") ||
+            name.EndsWith(".infra") || name.EndsWith(".infrastructure") ||
+            name.EndsWith(".data") || name.EndsWith(".db"))
         {
-            return false;
+            return true;
         }
 
-        if (layerId == "layer_foundation") return true;
-        if (projectType == "library") return true;
-        if (name == "library" || name.Contains("library") || name.EndsWith("-lib") || name.EndsWith(".lib")) return true;
-        if (path.Contains("/libs/") || path.Contains("/lib/") || path.Contains("/libraries/") || path.Contains("/common/") || path.Contains("/shared/")) return true;
+        // Known library/module directory paths
+        if (path.Contains("/libs/") || path.Contains("/lib/") || path.Contains("/libraries/") ||
+            path.Contains("/common/") || path.Contains("/shared/") || path.Contains("/core/") ||
+            path.Contains("/domain/") || path.Contains("/models/") || path.Contains("/entities/") ||
+            path.Contains("/contracts/") || path.Contains("/infrastructure/") || path.Contains("/infra/") ||
+            path.Contains("/data/"))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(framework) || framework.Equals("Library", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
 
         return false;
     }
