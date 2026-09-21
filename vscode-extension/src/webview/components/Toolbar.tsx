@@ -21,6 +21,10 @@ export interface ToolbarProps {
   onGoForward: () => void;
   groupLayers: boolean;
   onToggleGroupLayers: () => void;
+  isScanning?: boolean;
+  scanProgress?: { phase: string; percentage: number; currentFile?: string; totalFiles?: number; processedFiles?: number } | null;
+  onTriggerScan?: (clear?: boolean) => void;
+  graphStats?: { totalNodes: number; totalEdges: number } | null;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -44,6 +48,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onGoForward,
   groupLayers,
   onToggleGroupLayers,
+  isScanning,
+  scanProgress,
+  onTriggerScan,
+  graphStats,
 }) => {
   const uniqueProjects = useMemo(() => {
     const seen = new Set<string>();
@@ -116,6 +124,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <span className={`status-badge ${connectionStatus}`}>
           {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting...' : 'Offline'}
         </span>
+        {graphStats && graphStats.totalNodes > 0 && (
+          <span
+            className="graph-stats-badge"
+            title={`${graphStats.totalNodes.toLocaleString()} nodes, ${graphStats.totalEdges.toLocaleString()} relationships`}
+          >
+            📊 {graphStats.totalNodes >= 1000 ? `${(graphStats.totalNodes / 1000).toFixed(1)}k` : graphStats.totalNodes} nodes
+          </span>
+        )}
       </div>
 
       {/* History Navigation (Back / Forward) */}
@@ -263,6 +279,50 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button onClick={onFitView} title="Fit to view">Fit</button>
               <button onClick={onRefresh} title="Reload full architecture">Refresh</button>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Graph Management: Rescan / Progress / Full Re-index */}
+      <div className="graph-manage-group">
+        {isScanning ? (
+          <div className="scan-progress-container" title={scanProgress?.currentFile || 'Scanning workspace...'}>
+            <div className="scan-progress-header">
+              <span>
+                <span className="scan-spinner">🔄</span>
+                {scanProgress?.phase || 'Scanning'}
+              </span>
+              <span>{Math.round(scanProgress?.percentage || 0)}%</span>
+            </div>
+            <div className="scan-progress-bar-bg">
+              <div
+                className="scan-progress-bar-fill"
+                style={{ width: `${Math.max(5, Math.min(100, scanProgress?.percentage || 0))}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="button-group">
+            <button
+              className="scan-btn"
+              onClick={() => onTriggerScan?.(false)}
+              disabled={connectionStatus !== 'connected'}
+              title="Rescan Workspace: Incremental scan of workspace files"
+            >
+              🔄 Rescan
+            </button>
+            <button
+              className="scan-btn danger"
+              onClick={() => {
+                if (window.confirm('Clear graph database and re-index the entire workspace from scratch?')) {
+                  onTriggerScan?.(true);
+                }
+              }}
+              disabled={connectionStatus !== 'connected'}
+              title="Full Re-index: Clears the graph database and re-indexes everything from scratch"
+            >
+              🧹 Rebuild
+            </button>
           </div>
         )}
       </div>

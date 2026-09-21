@@ -6,6 +6,8 @@ import {
   GetArchitectureRequest,
   GetDependenciesRequest,
   ExecuteCypherRequest,
+  TriggerScanRequest,
+  ScanProgressEvent,
   QueryResponse,
   ErrorResponse,
   GraphData,
@@ -121,6 +123,12 @@ export const App: React.FC = () => {
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
   const [showTests, setShowTests] = useState<boolean>(true);
   const [groupLayers, setGroupLayers] = useState<boolean>(true);
+
+  // Graph Management & Scan State
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
+  const [scanNotification, setScanNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [graphStats, setGraphStats] = useState<{ totalNodes: number; totalEdges: number } | null>(null);
 
   // Active error and diagnostics state
   const [activeError, setActiveError] = useState<ErrorInfo | null>(null);
@@ -337,7 +345,37 @@ export const App: React.FC = () => {
           case 'HANDSHAKE_RESPONSE': {
             const resp = msg.payload as HandshakeResponse;
             logToExtension('INFO', `Handshake successful: server v${resp.serverVersion}, nodes=${resp.totalNodes}, edges=${resp.totalEdges}`);
+            setGraphStats({ totalNodes: resp.totalNodes, totalEdges: resp.totalEdges });
             console.log(`Connected to CodeExplorer ${resp.serverVersion}`);
+            break;
+          }
+
+          case 'SCAN_PROGRESS_EVENT': {
+            const scanEv = msg.payload as ScanProgressEvent;
+            logToExtension('INFO', `Scan progress: phase=${scanEv.phase}, percent=${scanEv.percentage}%`);
+            setScanProgress(scanEv);
+            if (scanEv.phase === 'Starting' || scanEv.phase === 'Indexing') {
+              setIsScanning(true);
+            } else if (scanEv.phase === 'Completed') {
+              setIsScanning(false);
+              const countInfo = scanEv.currentFile || `Completed (${scanEv.totalFiles || 0} nodes)`;
+              setScanNotification({ type: 'success', text: countInfo });
+              if (scanEv.totalFiles) {
+                setGraphStats((prev) => ({ totalNodes: scanEv.totalFiles || prev?.totalNodes || 0, totalEdges: prev?.totalEdges || 0 }));
+              }
+              setTimeout(() => setScanNotification(null), 5000);
+              // Auto-refresh active views
+              requestArchitecture();
+              if (selectedProject) {
+                requestDependencies(selectedProject);
+              } else {
+                requestDependencies();
+              }
+            } else if (scanEv.phase === 'Failed') {
+              setIsScanning(false);
+              setScanNotification({ type: 'error', text: scanEv.currentFile || 'Scan failed' });
+              setTimeout(() => setScanNotification(null), 7000);
+            }
             break;
           }
 
@@ -518,6 +556,11 @@ export const App: React.FC = () => {
           workspaceRootRef.current = msg.workspaceRoot;
           connectWebSocket(msg.wsUrl);
           break;
+
+        case 'TRIGGER_SCAN':
+          logToExtension('INFO', `Received TRIGGER_SCAN from extension (clear=${Boolean(msg.clear)})`);
+          handleTriggerScan(Boolean(msg.clear));
+          break;
       }
     };
 
@@ -566,6 +609,28 @@ export const App: React.FC = () => {
     }
   }, [connectWebSocket]);
 
+  const handleTriggerScan = useCallback((clear: boolean = false) => {
+    if (connectionStatus !== 'connected') {
+      logToExtension('WARN', 'Cannot trigger scan: not connected to server');
+      return;
+    }
+    if (isScanning) {
+      logToExtension('WARN', 'Scan already in progress');
+      return;
+    }
+    setIsScanning(true);
+    setScanProgress({ phase: 'Starting', percentage: 5, currentFile: clear ? 'Full re-index...' : 'Scanning workspace...' });
+    setScanNotification(null);
+    sendWsMessage({
+      type: 'TRIGGER_SCAN_REQUEST',
+      requestId: `req_scan_${Date.now()}`,
+      payload: {
+        targetPath: workspaceRootRef.current,
+        clear,
+      },
+    });
+  }, [connectionStatus, isScanning, sendWsMessage]);
+
   return (
     <div id="app">
       <Toolbar
@@ -601,7 +666,18 @@ export const App: React.FC = () => {
         onGoForward={handleGoForward}
         groupLayers={groupLayers}
         onToggleGroupLayers={() => setGroupLayers((prev) => !prev)}
+        isScanning={isScanning}
+        scanProgress={scanProgress}
+        onTriggerScan={handleTriggerScan}
+        graphStats={graphStats}
       />
+
+      {scanNotification && (
+        <div className={`scan-toast ${scanNotification.type}`}>
+          <span className="toast-icon">{scanNotification.type === 'success' ? '✅' : '❌'}</span>
+          <span className="toast-text">{scanNotification.text}</span>
+        </div>
+      )}
 
       {activeError && (
         <div className="error-banner" role="alert">

@@ -260,6 +260,51 @@ public class WebSocketServerTests
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
+    [Test]
+    public async Task Test_WebSocket_TriggerScanRequest_ReturnsSuccessAndBroadcastsProgress()
+    {
+        using var ws = new ClientWebSocket();
+        await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{TestPort}/ws"), CancellationToken.None);
+
+        // 1. Handshake
+        var hsReq = new WsEnvelope<HandshakeRequestDto>
+        {
+            Type = WsMessageTypes.HandshakeRequest,
+            RequestId = "hs-scan-1",
+            Payload = new HandshakeRequestDto { ClientVersion = "1.0.0" }
+        };
+        await SendJsonAsync(ws, hsReq);
+        var hsResp = await ReceiveJsonAsync<HandshakeResponseDto>(ws);
+        Assert.That(hsResp.Type, Is.EqualTo(WsMessageTypes.HandshakeResponse));
+
+        // 2. Trigger Scan Request
+        var scanReq = new WsEnvelope<TriggerScanRequestDto>
+        {
+            Type = WsMessageTypes.TriggerScanRequest,
+            RequestId = "scan-req-1",
+            Payload = new TriggerScanRequestDto
+            {
+                TargetPath = _tempWorkspace,
+                Clear = false
+            }
+        };
+        await SendJsonAsync(ws, scanReq);
+
+        // 3. Receive QueryResponse acknowledging scan started
+        var ackResp = await ReceiveJsonAsync<QueryResponseDto>(ws);
+        Assert.That(ackResp.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
+        Assert.That(ackResp.Payload?.Success, Is.True);
+        Assert.That(ackResp.Payload?.RawJson, Does.Contain("scanning_started"));
+
+        // 4. Receive at least one ScanProgressEvent broadcast
+        var progressEnvelope = await ReceiveJsonAsync<ScanProgressEventDto>(ws);
+        Assert.That(progressEnvelope.Type, Is.EqualTo(WsMessageTypes.ScanProgressEvent));
+        Assert.That(progressEnvelope.Payload, Is.Not.Null);
+        Assert.That(progressEnvelope.Payload!.Phase, Is.Not.Empty);
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+    }
+
     private static async Task SendJsonAsync<T>(ClientWebSocket ws, T data)
     {
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });

@@ -74,6 +74,7 @@ public class WebSocketServerHandler
 
     private CancellationTokenSource? _idleCts;
     private readonly object _idleLock = new();
+    private int _isScanning = 0;
 
     public WebSocketServerHandler(
         IGraphClient graphClient,
@@ -284,6 +285,12 @@ public class WebSocketServerHandler
 
                 case WsMessageTypes.TriggerScanRequest:
                 case "TRIGGER_SCAN":
+                    if (Interlocked.CompareExchange(ref _isScanning, 1, 0) != 0)
+                    {
+                        await SendErrorAsync(session, reqId, "SCAN_IN_PROGRESS", "A workspace scan is already in progress.", cancellationToken);
+                        break;
+                    }
+
                     var scanReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<TriggerScanRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
@@ -296,24 +303,51 @@ public class WebSocketServerHandler
                             await BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
                             {
                                 Phase = "Starting",
-                                Percentage = 0,
+                                Percentage = 5,
                                 CurrentFile = target
                             }, CancellationToken.None);
 
-                            var (nodesCount, relsCount, _) = await _indexer.IndexAsync(target, _workspaceRoot, scanReq?.Clear ?? false);
+                            var progress = new Progress<IndexingProgress>(p =>
+                            {
+                                var percent = p.NodesCount > 0
+                                    ? (int)Math.Min(95, Math.Max(10, (double)p.NodesPersisted / p.NodesCount * 100))
+                                    : 50;
+                                _ = BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
+                                {
+                                    Phase = "Indexing",
+                                    Percentage = percent,
+                                    CurrentFile = $"Saved {p.NodesPersisted} nodes, {p.RelationshipsPersisted} relationships...",
+                                    TotalFiles = p.NodesCount,
+                                    ProcessedFiles = p.NodesPersisted
+                                }, CancellationToken.None);
+                            });
+
+                            var (nodesCount, relsCount, _) = await _indexer.IndexAsync(target, _workspaceRoot, scanReq?.Clear ?? false, CancellationToken.None, progress);
 
                             await BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
                             {
                                 Phase = "Completed",
                                 Percentage = 100,
-                                TotalFiles = (int)nodesCount
+                                TotalFiles = (int)nodesCount,
+                                ProcessedFiles = (int)nodesCount,
+                                CurrentFile = $"Indexed {nodesCount} nodes, {relsCount} relationships."
                             }, CancellationToken.None);
                         }
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "[WS] Background scan failed");
+                            await BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
+                            {
+                                Phase = "Failed",
+                                Percentage = 0,
+                                CurrentFile = ex.Message
+                            }, CancellationToken.None);
                         }
-                    }, cancellationToken);
+                        finally
+                        {
+                            Interlocked.Exchange(ref _isScanning, 0);
+                        }
+                    });
 
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {

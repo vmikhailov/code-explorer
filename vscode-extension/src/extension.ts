@@ -63,20 +63,44 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Command: Reindex Workspace
+  const triggerScan = async (clear: boolean) => {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      vscode.window.showWarningMessage('Please open a workspace folder to reindex.');
+      return;
+    }
+
+    if (!GraphPanel.currentPanel) {
+      await vscode.commands.executeCommand('codeExplorer.showGraph');
+      setTimeout(() => {
+        if (GraphPanel.currentPanel) {
+          GraphPanel.currentPanel.postMessage({ type: 'TRIGGER_SCAN', clear });
+        }
+      }, 1000);
+    } else {
+      GraphPanel.currentPanel.postMessage({ type: 'TRIGGER_SCAN', clear });
+    }
+  };
+
+  // Command: Rescan Workspace (Incremental)
   const reindexCommand = vscode.commands.registerCommand(
     'codeExplorer.reindex',
     async () => {
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      if (!workspaceFolders || workspaceFolders.length === 0) {
-        vscode.window.showWarningMessage('Please open a workspace folder to reindex.');
-        return;
-      }
+      await triggerScan(false);
+    }
+  );
 
-      vscode.window.showInformationMessage('Triggering CodeExplorer workspace reindexing...');
-      // If GraphPanel is open, we can send trigger scan request over WS
-      if (GraphPanel.currentPanel) {
-        GraphPanel.currentPanel.postMessage({ type: 'TRIGGER_SCAN' });
+  // Command: Full Re-index (Clear & Rescan)
+  const reindexFullCommand = vscode.commands.registerCommand(
+    'codeExplorer.reindexFull',
+    async () => {
+      const confirm = await vscode.window.showWarningMessage(
+        'Are you sure you want to clear the graph database and run a full re-index?',
+        { modal: true },
+        'Clear & Rebuild'
+      );
+      if (confirm === 'Clear & Rebuild') {
+        await triggerScan(true);
       }
     }
   );
@@ -89,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(showGraphCommand, reindexCommand, showLogsCommand);
+  context.subscriptions.push(showGraphCommand, reindexCommand, reindexFullCommand, showLogsCommand);
   outputChannel.appendLine('CodeExplorer extension activated.');
 }
 

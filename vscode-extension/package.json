@@ -36,7 +36,8 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onCommand:codeExplorer.showGraph",
-    "onCommand:codeExplorer.reindex"
+    "onCommand:codeExplorer.reindex",
+    "onCommand:codeExplorer.reindexFull"
   ],
   "contributes": {
     "commands": [
@@ -47,8 +48,13 @@
       },
       {
         "command": "codeExplorer.reindex",
-        "title": "CodeExplorer: Reindex Workspace",
-        "icon": "$(refresh)"
+        "title": "CodeExplorer: Rescan Workspace",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "codeExplorer.reindexFull",
+        "title": "CodeExplorer: Full Re-index (Clear & Rescan)",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -62,6 +68,10 @@
       "explorer/context": [
         {
           "command": "codeExplorer.showGraph",
+          "group": "7_modification"
+        },
+        {
+          "command": "codeExplorer.reindex",
           "group": "7_modification"
         }
       ]
