@@ -297,17 +297,29 @@ export const App: React.FC = () => {
   );
 
   const handleToggleFlowCategory = useCallback(
-    (projectName: string, category: string, projectId?: string) => {
+    (projectName: string, category: string, projectId?: string, currentlyActive?: boolean) => {
       const prevCategories = new Map(flowExpandedCategories);
       const nextCategories = new Map(flowExpandedCategories);
 
-      const currentActive =
+      const isRoot =
+        selectedProject &&
+        (projectName.toLowerCase() === selectedProject.toLowerCase() ||
+          (projectId && projectId.toLowerCase().includes(selectedProject.toLowerCase())));
+
+      const existingActive =
         nextCategories.get(projectName) ||
-        (projectId ? nextCategories.get(projectId) : undefined) ||
-        new Set<string>(['callsOut', 'acceptsIn', 'libsOut', 'libsIn', 'dbOut', 'messagesOut', 'messagesIn']);
+        nextCategories.get(projectName.toLowerCase()) ||
+        (projectId ? nextCategories.get(projectId) || nextCategories.get(projectId.toLowerCase()) : undefined);
+
+      const currentActive =
+        existingActive !== undefined
+          ? existingActive
+          : isRoot
+          ? new Set<string>(['callsOut', 'acceptsIn', 'libsOut', 'libsIn', 'dbOut', 'messagesOut', 'messagesIn'])
+          : new Set<string>();
 
       const updated = new Set(currentActive);
-      const isExpanding = !updated.has(category);
+      const isExpanding = currentlyActive !== undefined ? !currentlyActive : !updated.has(category);
       if (isExpanding) {
         updated.add(category);
       } else {
@@ -339,7 +351,7 @@ export const App: React.FC = () => {
       );
       commandManager.executeCommand(cmd);
     },
-    [flowExpandedCategories, flowExpandedCards, commandManager]
+    [flowExpandedCategories, flowExpandedCards, selectedProject, commandManager]
   );
 
   const handleToggleFlowCardExpand = useCallback(

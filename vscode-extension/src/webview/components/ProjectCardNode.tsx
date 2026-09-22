@@ -23,7 +23,7 @@ export interface ProjectCardData {
   onToggleExpand?: (projectName: string, projectId?: string) => void;
   comms?: NodeCommsSummary;
   activeCategories?: string[];
-  onToggleCategory?: (projectName: string, category: string, projectId?: string) => void;
+  onToggleCategory?: (projectName: string, category: string, projectId?: string, currentlyActive?: boolean) => void;
   onFocusProject?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
   visibleEdgeTypes?: Record<EdgeCategory, boolean>;
@@ -544,7 +544,7 @@ export const ProjectCardNode = memo((props: any) => {
                   onClick={(e) => {
                     e.stopPropagation();
                     if (row.left.count > 0 && onToggleCategory) {
-                      onToggleCategory(graphNode.name, row.left.category, graphNode.id);
+                      onToggleCategory(graphNode.name, row.left.category, graphNode.id, row.left.active);
                     }
                   }}
                   onMouseDown={(e) => {
@@ -573,7 +573,7 @@ export const ProjectCardNode = memo((props: any) => {
                 onClick={(e) => {
                   e.stopPropagation();
                   if (row.left.hasHandle && row.left.count > 0 && onToggleCategory) {
-                    onToggleCategory(graphNode.name, row.left.category, graphNode.id);
+                    onToggleCategory(graphNode.name, row.left.category, graphNode.id, row.left.active);
                   }
                 }}
                 title={
@@ -615,7 +615,7 @@ export const ProjectCardNode = memo((props: any) => {
                 onClick={(e) => {
                   e.stopPropagation();
                   if (row.right.hasHandle && row.right.count > 0 && onToggleCategory) {
-                    onToggleCategory(graphNode.name, row.right.category, graphNode.id);
+                    onToggleCategory(graphNode.name, row.right.category, graphNode.id, row.right.active);
                   }
                 }}
                 title={
@@ -652,7 +652,7 @@ export const ProjectCardNode = memo((props: any) => {
                   onClick={(e) => {
                     e.stopPropagation();
                     if (row.right.count > 0 && onToggleCategory) {
-                      onToggleCategory(graphNode.name, row.right.category, graphNode.id);
+                      onToggleCategory(graphNode.name, row.right.category, graphNode.id, row.right.active);
                     }
                   }}
                   onMouseDown={(e) => {

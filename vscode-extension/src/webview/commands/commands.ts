@@ -187,6 +187,27 @@ export class ToggleFlowEdgeTypeCommand implements ICommand {
   }
 }
 
+function formatCategoryLabel(category: string): string {
+  switch (category) {
+    case 'libsOut':
+      return 'Libraries (uses)';
+    case 'libsIn':
+      return 'Libraries (used by)';
+    case 'callsOut':
+      return 'Service Calls (calls)';
+    case 'acceptsIn':
+      return 'Service Calls (serves)';
+    case 'dbOut':
+      return 'Database';
+    case 'messagesOut':
+      return 'Messages (sends)';
+    case 'messagesIn':
+      return 'Messages (receives)';
+    default:
+      return category;
+  }
+}
+
 /**
  * Command for toggling a communication category on a card in Project Flow.
  */
@@ -206,7 +227,7 @@ export class ToggleFlowCategoryCommand implements ICommand {
   ) {}
 
   public get description(): string {
-    return `${this.isExpanding ? 'Expand' : 'Collapse'} ${this.category} for ${this.projectName}`;
+    return `${this.isExpanding ? 'Expand' : 'Collapse'} ${formatCategoryLabel(this.category)} for ${this.projectName}`;
   }
 
   public execute(): void {

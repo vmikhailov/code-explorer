@@ -22,7 +22,7 @@ export interface ProjectFlowViewProps {
   onSelectProject: (name: string) => void;
   onOpenFile: (filePath: string, lineStart?: number) => void;
   expandedCategories?: Map<string, Set<string>>;
-  onToggleCategory?: (projectName: string, category: string, projectId?: string) => void;
+  onToggleCategory?: (projectName: string, category: string, projectId?: string, currentlyActive?: boolean) => void;
   expandedCards?: Set<string>;
   onToggleCardExpand?: (projectName: string, projectId?: string) => void;
   visibleEdgeTypes?: Record<EdgeCategory, boolean>;
@@ -448,16 +448,17 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
   // Toggle specific communication category for a project
   const localToggleCategory = useCallback(
-    (projectName: string, category: string, projectId?: string) => {
+    (projectName: string, category: string, projectId?: string, currentlyActive?: boolean) => {
       setLocalExpandedCategories((prev) => {
         const next = new Map(prev);
         const current = getActiveCategories(projectId || '', projectName);
         const updated = new Set(current);
 
-        if (updated.has(category)) {
-          updated.delete(category);
-        } else {
+        const isExpanding = currentlyActive !== undefined ? !currentlyActive : !updated.has(category);
+        if (isExpanding) {
           updated.add(category);
+        } else {
+          updated.delete(category);
         }
 
         next.set(projectName, updated);
