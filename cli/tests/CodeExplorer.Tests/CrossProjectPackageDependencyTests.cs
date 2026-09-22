@@ -309,4 +309,98 @@ require (
             }
         }
     }
+
+    [Test]
+    public async Task Test_ExternalPackages_AreSurfacedInNeighborhoodAndArchGraph()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_ext_pkg_test_" + Guid.NewGuid()).Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
+            using var db = new CodeExplorer.Core.Database.SqliteGraphClient(dbPath);
+
+            var nodes = new List<CodeExplorer.Core.Database.Node>
+            {
+                new CodeExplorer.Core.Database.Node(
+                    "workspace:project:Admin:",
+                    "Project",
+                    new Dictionary<string, object>
+                    {
+                        ["name"] = "lidoma-admin-application",
+                        ["path"] = "Admin",
+                        ["project_type"] = "typescript"
+                    }),
+                new CodeExplorer.Core.Database.Node(
+                    "workspace:package:@angular/core",
+                    "Package",
+                    new Dictionary<string, object>
+                    {
+                        ["name"] = "@angular/core",
+                        ["version"] = "^13.0.1",
+                        ["type"] = "npm"
+                    }),
+                new CodeExplorer.Core.Database.Node(
+                    "workspace:package:rxjs",
+                    "Package",
+                    new Dictionary<string, object>
+                    {
+                        ["name"] = "rxjs",
+                        ["version"] = "^7.5.5",
+                        ["type"] = "npm"
+                    })
+            };
+            await db.UploadNodesAsync(nodes);
+
+            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            {
+                new CodeExplorer.Core.Database.Relationship(
+                    "workspace:project:Admin:",
+                    "workspace:package:@angular/core",
+                    "DEPENDS_ON",
+                    new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
+                new CodeExplorer.Core.Database.Relationship(
+                    "workspace:project:Admin:",
+                    "workspace:package:rxjs",
+                    "DEPENDS_ON",
+                    new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" })
+            };
+            await db.UploadRelationshipsAsync(rels);
+
+            // 1. Verify Neighborhood Graph contains external packages
+            var hood = await GraphDataConverter.GetProjectNeighborhoodAsync(db, "lidoma-admin-application");
+            Assert.That(hood.Nodes.Count, Is.EqualTo(3), "Should have center project + 2 packages");
+
+            var angularNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:package:@angular/core");
+            Assert.That(angularNode, Is.Not.Null, "@angular/core should exist in neighborhood nodes");
+            Assert.That(angularNode!.Kind, Is.EqualTo("Package"));
+            Assert.That(angularNode.DisplayName, Is.EqualTo("@angular/core@^13.0.1"));
+            Assert.That(angularNode.Properties?.GetValueOrDefault("column"), Is.EqualTo("right"));
+            Assert.That(angularNode.Properties?.GetValueOrDefault("is_library"), Is.EqualTo("true"));
+            Assert.That(angularNode.Properties?.GetValueOrDefault("package_type"), Is.EqualTo("npm"));
+
+            var angularEdge = hood.Edges.FirstOrDefault(e => e.Target == "workspace:package:@angular/core");
+            Assert.That(angularEdge, Is.Not.Null, "Edge to @angular/core should exist");
+            Assert.That(angularEdge!.Kind, Is.EqualTo("LIBRARY"));
+            Assert.That(angularEdge.Category, Is.EqualTo("library"));
+
+            var centerNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
+            Assert.That(centerNode?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
+
+            // 2. Verify Architecture Graph contains package_count on project and package nodes/edges
+            var arch = await GraphDataConverter.GetArchitectureGraphAsync(db);
+            var archProj = arch.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
+            Assert.That(archProj?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
+            Assert.That(arch.Nodes.Any(n => n.Kind == "Package"), Is.True, "Architecture graph should contain package nodes");
+            Assert.That(arch.Edges.Any(e => e.Target == "workspace:package:@angular/core" && e.Kind == "LIBRARY"), Is.True, "Architecture graph should contain LIBRARY edge to package");
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                try { Directory.Delete(tempWorkspace, true); } catch { }
+            }
+        }
+    }
 }

@@ -111,9 +111,11 @@
     "publish:all": "node scripts/publish-extension.mjs"
   },
   "dependencies": {
+    "@types/d3-force": "^3.0.10",
     "@xyflow/react": "^12.11.6",
     "cytoscape": "^3.30.4",
     "cytoscape-dagre": "^2.5.0",
+    "d3-force": "^3.0.0",
     "dagre": "^0.8.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

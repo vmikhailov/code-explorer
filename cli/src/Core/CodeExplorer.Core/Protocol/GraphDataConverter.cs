@@ -48,6 +48,25 @@ public static class GraphDataConverter
             graph.Nodes.Add(node);
         }
 
+        // 1b. Query Package Dependency Counts per Project
+        try
+        {
+            var pkgCountQuery = "MATCH (p:Project)-[:DEPENDS_ON]->(pkg:Package) RETURN p.id AS projId, count(pkg) AS pkgCount";
+            var pkgCountJson = await client.ExecuteQueryAsync(pkgCountQuery, null, cancellationToken);
+            using var pkgCountDoc = JsonDocument.Parse(pkgCountJson);
+            foreach (var row in pkgCountDoc.RootElement.EnumerateArray())
+            {
+                var projId = row.GetStringProp("projId");
+                var count = row.TryGetProperty("pkgCount", out var pc) && pc.ValueKind == JsonValueKind.Number ? pc.GetInt64() : 0;
+                if (!string.IsNullOrEmpty(projId) && nodeMap.TryGetValue(projId, out var pNode) && pNode != null)
+                {
+                    pNode.Properties ??= new Dictionary<string, string>();
+                    pNode.Properties["package_count"] = count.ToString();
+                }
+            }
+        }
+        catch { }
+
         // 2. Databases (Consolidate project-scoped DB nodes into canonical data stores to prevent duplication)
         var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type";
         var dbJson = await client.ExecuteQueryAsync(dbQuery, null, cancellationToken);
@@ -331,6 +350,65 @@ public static class GraphDataConverter
                 }
             }
         }
+
+        // 6c. Project -> External Package Dependencies (npm, NuGet, etc. not implemented by workspace projects)
+        try
+        {
+            var extPkgQuery = "MATCH (p:Project)-[r:DEPENDS_ON]->(pkg:Package) WHERE NOT (pkg)<-[:IMPLEMENTED_BY]-(:Project) RETURN p.id AS source, pkg.id AS id, pkg.name AS name, pkg.version AS version, pkg.type AS pkg_type";
+            var extPkgJson = await client.ExecuteQueryAsync(extPkgQuery, null, cancellationToken);
+            using var extPkgDoc = JsonDocument.Parse(extPkgJson);
+            foreach (var row in extPkgDoc.RootElement.EnumerateArray())
+            {
+                var src = row.GetStringProp("source");
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var version = row.TryGetProperty("version", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+                var pkgType = row.TryGetProperty("pkg_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : "package";
+
+                var displayName = string.IsNullOrEmpty(version) ? name : $"{name}@{version}";
+
+                if (!nodeMap.ContainsKey(id))
+                {
+                    var pkgNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "Package",
+                        Name = name,
+                        DisplayName = displayName,
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["is_library"] = "true",
+                            ["entity_type"] = "library",
+                            ["package_type"] = pkgType ?? "package",
+                            ["version"] = version ?? "",
+                            ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
+                            ["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
+                            ["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName,
+                            ["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color
+                        }
+                    };
+                    nodeMap[id] = pkgNode;
+                    graph.Nodes.Add(pkgNode);
+                }
+
+                if (nodeMap.ContainsKey(src) && !graph.Edges.Any(e => e.Source == src && e.Target == id && e.Kind == "LIBRARY"))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{src}->{id}:LIBRARY",
+                        Source = src,
+                        Target = id,
+                        Kind = "LIBRARY",
+                        Category = "library",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "library"
+                        }
+                    });
+                }
+            }
+        }
+        catch { }
 
         // 7. Project -> Database (Direct, File-Level, and Project-Scoped)
         var projectNodes = graph.Nodes.Where(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase)).ToList();
@@ -743,6 +821,20 @@ public static class GraphDataConverter
         if (!string.IsNullOrEmpty(centerPath)) centerNode.Properties["path"] = centerPath;
         if (!string.IsNullOrEmpty(centerProjectType)) centerNode.Properties["project_type"] = centerProjectType;
 
+        try
+        {
+            var centerPkgCountQuery = "MATCH (p:Project {id: $centerId})-[:DEPENDS_ON]->(pkg:Package) RETURN count(pkg) AS pkgCount";
+            var centerPkgCountJson = await client.ExecuteQueryAsync(centerPkgCountQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+            using var centerPkgCountDoc = JsonDocument.Parse(centerPkgCountJson);
+            if (centerPkgCountDoc.RootElement.GetArrayLength() > 0)
+            {
+                var row = centerPkgCountDoc.RootElement[0];
+                var count = row.TryGetProperty("pkgCount", out var pc) && pc.ValueKind == JsonValueKind.Number ? pc.GetInt64() : 0;
+                centerNode.Properties["package_count"] = count.ToString();
+            }
+        }
+        catch { }
+
         graph.Nodes.Add(centerNode);
         graph.Metadata["selectedProject"] = centerProjName;
 
@@ -972,6 +1064,65 @@ public static class GraphDataConverter
                         Source = centerId,
                         Target = id,
                         Kind = "LIBRARY",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "library"
+                        }
+                    });
+                }
+            }
+        }
+        catch { }
+
+        // 3c. Outbound external packages (npm, NuGet, etc. not implemented by an internal workspace project)
+        try
+        {
+            var extPkgQuery = "MATCH (p:Project {id: $centerId})-[r:DEPENDS_ON]->(pkg:Package) WHERE NOT (pkg)<-[:IMPLEMENTED_BY]-(:Project) RETURN pkg.id AS id, pkg.name AS name, pkg.version AS version, pkg.type AS pkg_type";
+            var extPkgJson = await client.ExecuteQueryAsync(extPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+            using var extPkgDoc = JsonDocument.Parse(extPkgJson);
+            foreach (var row in extPkgDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var version = row.TryGetProperty("version", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+                var pkgType = row.TryGetProperty("pkg_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : "package";
+
+                var displayName = string.IsNullOrEmpty(version) ? name : $"{name}@{version}";
+
+                if (graph.Nodes.All(n => n.Id != id))
+                {
+                    var pkgNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "Package",
+                        Name = name,
+                        DisplayName = displayName,
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["column"] = "right",
+                            ["role"] = "outbound",
+                            ["is_library"] = "true",
+                            ["entity_type"] = "library",
+                            ["package_type"] = pkgType ?? "package",
+                            ["version"] = version ?? "",
+                            ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
+                            ["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
+                            ["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName,
+                            ["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color
+                        }
+                    };
+                    graph.Nodes.Add(pkgNode);
+                }
+
+                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id && e.Kind == "LIBRARY")))
+                {
+                    graph.Edges.Add(new GraphEdgeDto
+                    {
+                        Id = $"{centerId}->{id}:LIBRARY",
+                        Source = centerId,
+                        Target = id,
+                        Kind = "LIBRARY",
+                        Category = "library",
                         Properties = new Dictionary<string, string>
                         {
                             ["dependency_type"] = "library"

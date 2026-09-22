@@ -1,14 +1,16 @@
-import React, { memo, useState, useRef, useEffect } from 'react';
+import React, { memo, useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { Handle, Position, useUpdateNodeInternals } from '@xyflow/react';
 import { GraphNode } from '../../../../proto/types';
+import type { EdgeCategory } from './ProjectFlowView';
 
 export interface NodeCommsSummary {
   callsOut: Array<{ id: string; name: string; type?: string; filePath?: string }>;
   acceptsIn: Array<{ id: string; name: string; type?: string; filePath?: string }>;
+  libsOut: Array<{ id: string; name: string }>;
+  libsIn?: Array<{ id: string; name: string; filePath?: string }>;
   dbOut: Array<{ id: string; name: string; dbType?: string }>;
   messagesOut: Array<{ id: string; name: string }>;
   messagesIn: Array<{ id: string; name: string }>;
-  libsOut: Array<{ id: string; name: string }>;
 }
 
 export interface ProjectCardData {
@@ -24,6 +26,7 @@ export interface ProjectCardData {
   onToggleCategory?: (projectName: string, category: string, projectId?: string) => void;
   onFocusProject?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
+  visibleEdgeTypes?: Record<EdgeCategory, boolean>;
 }
 
 export const ProjectCardNode = memo((props: any) => {
@@ -41,92 +44,168 @@ export const ProjectCardNode = memo((props: any) => {
     onToggleCategory,
     onFocusProject,
     onOpenFile,
+    visibleEdgeTypes,
   } = nodeData;
 
   const [showCommsPopover, setShowCommsPopover] = useState(false);
   const [localExpanded, setLocalExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const isCardExpanded = isExpanded ?? localExpanded;
+  const isDatabase = graphNode.kind === 'Database';
+  const isPackage = graphNode.kind === 'Package';
+
+  const isCardExpanded = !isDatabase && !isPackage && (isExpanded ?? localExpanded);
   const activeCategoriesSet = new Set(activeCategories);
 
-  const inboundCallsCount = (comms?.acceptsIn.length ?? 0) || inCount;
+  const inboundCallsCount = comms?.acceptsIn.length ?? 0;
+  const inboundLibsCount = comms?.libsIn?.length ?? 0;
   const inboundEventsCount = comms?.messagesIn.length ?? 0;
-  const callsOutCount = comms?.callsOut.length ?? 0;
-  const dbOutCount = comms?.dbOut.length ?? 0;
-  const messagesOutCount = comms?.messagesOut.length ?? 0;
-  const libsOutCount = comms?.libsOut.length ?? 0;
 
-  const totalCommsCount = callsOutCount + inboundCallsCount + dbOutCount + libsOutCount + messagesOutCount + inboundEventsCount;
+  const callsOutCount = comms?.callsOut.length ?? 0;
+  const rawPkgCount = parseInt(graphNode.properties?.package_count || '0', 10) || 0;
+  const libsOutCount = Math.max(comms?.libsOut.length ?? 0, rawPkgCount);
+  const messagesOutCount = comms?.messagesOut.length ?? 0;
+  const dbOutCount = comms?.dbOut.length ?? 0;
+
+  const totalCommsCount =
+    callsOutCount +
+    inboundCallsCount +
+    libsOutCount +
+    inboundLibsCount +
+    messagesOutCount +
+    inboundEventsCount +
+    dbOutCount;
+
+  // Protocol Rows Definition matching:
+  // (*) serves -- API -- calls (*)
+  // (*) used by -- Libraries -- uses (*)
+  // (*) receives -- Messages -- sends (*)
+  // ( )         -- DB -- uses (*)
+  const commRows = useMemo(() => [
+    {
+      id: 'row-api',
+      categoryType: 'service_call' as EdgeCategory,
+      protocol: 'API',
+      icon: '⚡',
+      left: {
+        hasHandle: true,
+        handleId: 'target-calls',
+        category: 'acceptsIn',
+        verb: 'serves',
+        count: inboundCallsCount,
+        color: '#38bdf8',
+        active: activeCategoriesSet.has('acceptsIn'),
+      },
+      right: {
+        hasHandle: true,
+        handleId: 'source-calls',
+        category: 'callsOut',
+        verb: 'calls',
+        count: callsOutCount,
+        color: '#38bdf8',
+        active: activeCategoriesSet.has('callsOut'),
+      },
+    },
+    {
+      id: 'row-libraries',
+      categoryType: 'library' as EdgeCategory,
+      protocol: 'Libraries',
+      icon: '📚',
+      left: {
+        hasHandle: true,
+        handleId: 'target-libs',
+        category: 'libsIn',
+        verb: 'used by',
+        count: inboundLibsCount,
+        color: '#34d399',
+        active: activeCategoriesSet.has('libsIn'),
+      },
+      right: {
+        hasHandle: true,
+        handleId: 'source-libs',
+        category: 'libsOut',
+        verb: 'uses',
+        count: libsOutCount,
+        color: '#34d399',
+        active: activeCategoriesSet.has('libsOut'),
+      },
+    },
+    {
+      id: 'row-messages',
+      categoryType: 'messaging' as EdgeCategory,
+      protocol: 'Messages',
+      icon: '📨',
+      left: {
+        hasHandle: true,
+        handleId: 'target-events',
+        category: 'messagesIn',
+        verb: 'receives',
+        count: inboundEventsCount,
+        color: '#fbbf24',
+        active: activeCategoriesSet.has('messagesIn'),
+      },
+      right: {
+        hasHandle: true,
+        handleId: 'source-events',
+        category: 'messagesOut',
+        verb: 'sends',
+        count: messagesOutCount,
+        color: '#fbbf24',
+        active: activeCategoriesSet.has('messagesOut'),
+      },
+    },
+    {
+      id: 'row-db',
+      categoryType: 'database' as EdgeCategory,
+      protocol: 'DB',
+      icon: '🗄️',
+      left: {
+        hasHandle: false,
+        handleId: 'target-none',
+        category: 'none',
+        verb: '',
+        count: 0,
+        color: '#64748b',
+        active: false,
+      },
+      right: {
+        hasHandle: true,
+        handleId: 'source-db',
+        category: 'dbOut',
+        verb: 'uses',
+        count: dbOutCount,
+        color: '#c084fc',
+        active: activeCategoriesSet.has('dbOut'),
+      },
+    },
+  ], [
+    inboundCallsCount,
+    callsOutCount,
+    inboundLibsCount,
+    libsOutCount,
+    inboundEventsCount,
+    messagesOutCount,
+    dbOutCount,
+    activeCategoriesSet,
+  ]);
+
+  // Generic filtering: when a connection type is hidden in the legend, omit its row from all cards
+  const visibleCommRows = useMemo(() => {
+    return commRows.filter((row) => {
+      if (!visibleEdgeTypes) return true;
+      return visibleEdgeTypes[row.categoryType] !== false;
+    });
+  }, [commRows, visibleEdgeTypes]);
 
   const updateNodeInternals = useUpdateNodeInternals();
-  useEffect(() => {
-    if (props.id) {
+  useLayoutEffect(() => {
+    if (!props.id) return;
+    updateNodeInternals(props.id);
+    const raf = requestAnimationFrame(() => {
       updateNodeInternals(props.id);
-    }
-  }, [isCardExpanded, props.id, updateNodeInternals]);
-
-  // All Inbound connection points (always defined with text & count)
-  const inboundPorts = [
-    {
-      id: 'target-calls',
-      category: 'acceptsIn',
-      color: '#38bdf8',
-      label: 'Accepts Calls',
-      icon: '📥',
-      count: inboundCallsCount,
-      active: activeCategoriesSet.has('acceptsIn'),
-    },
-    {
-      id: 'target-events',
-      category: 'messagesIn',
-      color: '#fbbf24',
-      label: 'Receives Events',
-      icon: '🔔',
-      count: inboundEventsCount,
-      active: activeCategoriesSet.has('messagesIn'),
-    },
-  ];
-
-  // All Outbound connection points (always defined with text & count)
-  const outboundPorts = [
-    {
-      id: 'source-calls',
-      category: 'callsOut',
-      color: '#38bdf8',
-      label: 'Calls Services',
-      icon: '⚡',
-      count: callsOutCount,
-      active: activeCategoriesSet.has('callsOut'),
-    },
-    {
-      id: 'source-db',
-      category: 'dbOut',
-      color: '#c084fc',
-      label: 'Databases',
-      icon: '🗄️',
-      count: dbOutCount,
-      active: activeCategoriesSet.has('dbOut'),
-    },
-    {
-      id: 'source-events',
-      category: 'messagesOut',
-      color: '#fbbf24',
-      label: 'Publishes Events',
-      icon: '📨',
-      count: messagesOutCount,
-      active: activeCategoriesSet.has('messagesOut'),
-    },
-    {
-      id: 'source-libs',
-      category: 'libsOut',
-      color: '#34d399',
-      label: 'Libraries',
-      icon: '📚',
-      count: libsOutCount,
-      active: activeCategoriesSet.has('libsOut'),
-    },
-  ];
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [isCardExpanded, props.id, updateNodeInternals, visibleCommRows.length]);
 
   const handleOpenClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -137,11 +216,10 @@ export const ProjectCardNode = memo((props: any) => {
 
   const rawFramework = graphNode.properties?.framework || graphNode.properties?.frameworks || '';
   const framework = Array.isArray(rawFramework) ? rawFramework.join(', ') : String(rawFramework || '');
-  const isDatabase = graphNode.kind === 'Database';
 
   const handleTitleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isCenter && !isDatabase && onFocusProject) {
+    if (!isCenter && !isDatabase && !isPackage && onFocusProject) {
       onFocusProject(graphNode.name);
     }
   };
@@ -149,6 +227,7 @@ export const ProjectCardNode = memo((props: any) => {
   const projectType = (graphNode.properties?.project_type || graphNode.properties?.language || '').toLowerCase();
   const isLibrary =
     !isDatabase &&
+    !isPackage &&
     graphNode.kind !== 'ExternalService' &&
     (graphNode.properties?.is_library === 'true' ||
       projectType === 'library' ||
@@ -164,6 +243,10 @@ export const ProjectCardNode = memo((props: any) => {
   } else if (graphNode.kind === 'ExternalService') {
     badgeColor = '#fbbf24';
     badgeLabel = 'Service';
+  } else if (isPackage) {
+    badgeColor = '#10b981';
+    const pkgType = (graphNode.properties?.package_type || 'Package').toLowerCase();
+    badgeLabel = pkgType === 'npm' ? 'npm' : (pkgType === 'nuget' ? 'NuGet' : pkgType.toUpperCase());
   } else if (projectType === 'go' || projectType === 'golang') {
     badgeColor = '#00add8';
     badgeLabel = 'Go';
@@ -218,10 +301,10 @@ export const ProjectCardNode = memo((props: any) => {
               title={callsOutCount + dbOutCount + messagesOutCount + libsOutCount > 0 ? `Outbound (${callsOutCount + dbOutCount + messagesOutCount + libsOutCount})` : 'Outbound'}
             />
             {/* Hidden fallback handles so any typed edge routes to top-center when collapsed */}
-            {inboundPorts.map((p) => (
+            {['target-calls', 'target-libs', 'target-events'].map((id) => (
               <Handle
-                key={`hidden-in-${p.id}`}
-                id={p.id}
+                key={`hidden-in-${id}`}
+                id={id}
                 type="target"
                 position={Position.Left}
                 className="flow-handle"
@@ -229,10 +312,10 @@ export const ProjectCardNode = memo((props: any) => {
                 style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
               />
             ))}
-            {outboundPorts.map((p) => (
+            {['source-calls', 'source-libs', 'source-events', 'source-db'].map((id) => (
               <Handle
-                key={`hidden-out-${p.id}`}
-                id={p.id}
+                key={`hidden-out-${id}`}
+                id={id}
                 type="source"
                 position={Position.Right}
                 className="flow-handle"
@@ -273,7 +356,23 @@ export const ProjectCardNode = memo((props: any) => {
           )}
         </div>
         <div className="card-top-actions">
-          {totalCommsCount > 0 && (
+          {!isDatabase && !isPackage && (
+            <button
+              className="card-icon-link toggle-expand-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onToggleExpand) {
+                  onToggleExpand(graphNode.name, graphNode.id);
+                } else {
+                  setLocalExpanded((v) => !v);
+                }
+              }}
+              title={isCardExpanded ? 'Collapse protocols matrix' : 'Expand protocols matrix'}
+            >
+              {isCardExpanded ? '▴' : '▾'}
+            </button>
+          )}
+          {totalCommsCount > 0 && !isDatabase && !isPackage && (
             <button
               className={`card-icon-link comms-btn ${showCommsPopover ? 'active' : ''}`}
               onClick={(e) => {
@@ -294,7 +393,7 @@ export const ProjectCardNode = memo((props: any) => {
               📄
             </button>
           )}
-          {!isCenter && !isDatabase && (
+          {!isCenter && !isDatabase && !isPackage && (
             <button
               className="card-icon-link"
               onClick={handleTitleClick}
@@ -308,11 +407,11 @@ export const ProjectCardNode = memo((props: any) => {
 
       {/* Project Title */}
       <div
-        className={`project-card-title ${!isCenter && !isDatabase ? 'clickable-title' : ''}`}
+        className={`project-card-title ${!isCenter && !isDatabase && !isPackage ? 'clickable-title' : ''}`}
         onClick={handleTitleClick}
-        title={!isCenter && !isDatabase ? `Click to center focus on ${graphNode.name}` : graphNode.name}
+        title={!isCenter && !isDatabase && !isPackage ? `Click to center focus on ${graphNode.name}` : (graphNode.displayName || graphNode.name)}
       >
-        {graphNode.name}
+        {graphNode.displayName || graphNode.name}
       </div>
     </div>
 
@@ -340,48 +439,70 @@ export const ProjectCardNode = memo((props: any) => {
                       className="comms-item-badge"
                       onClick={() => {
                         onFocusProject?.(c.name);
-                        setShowCommsPopover(false);
                       }}
-                      title={`Focus on ${c.name}`}
+                      title={c.name}
                     >
-                      {c.name} {c.type ? `[${c.type}]` : ''}
+                      {c.name}
                     </span>
                   ))}
                 </div>
               </div>
             )}
-
+            {comms.acceptsIn.length > 0 && (
+              <div className="comms-section">
+                <div className="comms-section-label accepts">📥 Accepts Inbound ({comms.acceptsIn.length})</div>
+                <div className="comms-chips-wrap">
+                  {comms.acceptsIn.map((c) => (
+                    <span
+                      key={c.id}
+                      className="comms-item-badge"
+                      onClick={() => {
+                        onFocusProject?.(c.name);
+                      }}
+                      title={c.name}
+                    >
+                      {c.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             {comms.dbOut.length > 0 && (
               <div className="comms-section">
                 <div className="comms-section-label db">🗄️ Databases ({comms.dbOut.length})</div>
                 <div className="comms-chips-wrap">
                   {comms.dbOut.map((d) => (
-                    <span key={d.id} className="comms-item-badge">
-                      {d.name} {d.dbType ? `[${d.dbType}]` : ''}
+                    <span key={d.id} className="comms-item-badge db" title={`${d.name} (${d.dbType || 'Database'})`}>
+                      {d.name}
                     </span>
                   ))}
                 </div>
               </div>
             )}
-
-            {comms.messagesOut.length + comms.messagesIn.length > 0 && (
+            {comms.messagesOut.length > 0 && (
               <div className="comms-section">
-                <div className="comms-section-label msg">📨 Messaging & Events</div>
+                <div className="comms-section-label msg">📨 Sends Messages ({comms.messagesOut.length})</div>
                 <div className="comms-chips-wrap">
                   {comms.messagesOut.map((m) => (
-                    <span key={`out-${m.id}`} className="comms-item-badge">
-                      publishes: {m.name}
-                    </span>
-                  ))}
-                  {comms.messagesIn.map((m) => (
-                    <span key={`in-${m.id}`} className="comms-item-badge">
-                      subscribes: {m.name}
+                    <span key={m.id} className="comms-item-badge msg" title={m.name}>
+                      {m.name}
                     </span>
                   ))}
                 </div>
               </div>
             )}
-
+            {comms.messagesIn.length > 0 && (
+              <div className="comms-section">
+                <div className="comms-section-label msg">📬 Receives Messages ({comms.messagesIn.length})</div>
+                <div className="comms-chips-wrap">
+                  {comms.messagesIn.map((m) => (
+                    <span key={m.id} className="comms-item-badge msg" title={m.name}>
+                      {m.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             {comms.libsOut.length > 0 && (
               <div className="comms-section">
                 <div className="comms-section-label lib">📚 Libraries Used ({comms.libsOut.length})</div>
@@ -389,12 +510,13 @@ export const ProjectCardNode = memo((props: any) => {
                   {comms.libsOut.map((l) => (
                     <span
                       key={l.id}
-                      className="comms-item-badge"
+                      className="comms-item-badge lib"
                       onClick={() => {
-                        onFocusProject?.(l.name);
-                        setShowCommsPopover(false);
+                        if (!l.id.startsWith('workspace:package:')) {
+                          onFocusProject?.(l.name);
+                        }
                       }}
-                      title={`Focus on ${l.name}`}
+                      title={l.name}
                     >
                       {l.name}
                     </span>
@@ -402,161 +524,178 @@ export const ProjectCardNode = memo((props: any) => {
                 </div>
               </div>
             )}
-
-            {comms.acceptsIn.length > 0 && (
-              <div className="comms-section">
-                <div className="comms-section-label accepts">📥 Accepts Calls / Used By ({comms.acceptsIn.length})</div>
-                <div className="comms-chips-wrap">
-                  {comms.acceptsIn.map((a) => (
-                    <span
-                      key={a.id}
-                      className="comms-item-badge"
-                      onClick={() => {
-                        onFocusProject?.(a.name);
-                        setShowCommsPopover(false);
-                      }}
-                      title={`Focus on ${a.name}`}
-                    >
-                      {a.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* Expandable Bottom Extension (all connection points with text & counts) */}
-      {isCardExpanded && (
-        <div className="card-bottom-extension">
-          {/* Default fallback handles placed at top center */}
-          <Handle
-            id="target-default"
-            type="target"
-            position={Position.Left}
-            className="flow-handle"
-            isConnectable={false}
-            style={{ top: '24px', opacity: 0, pointerEvents: 'none' }}
-          />
-          <Handle
-            id="source-default"
-            type="source"
-            position={Position.Right}
-            className="flow-handle"
-            isConnectable={false}
-            style={{ top: '24px', opacity: 0, pointerEvents: 'none' }}
-          />
-
-          {/* Inbound Connection Points */}
-          <div className="conn-section">
-            <div className="conn-section-title">Inbound</div>
-            {inboundPorts.map((p) => (
-              <div
-                key={p.id}
-                className={`conn-row conn-inbound ${p.count === 0 ? 'is-empty' : ''} ${p.active ? 'is-active' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (p.count > 0 && onToggleCategory) {
-                    onToggleCategory(graphNode.name, p.category, graphNode.id);
-                  }
-                }}
-                title={p.count > 0 ? `${p.label} (${p.count}) — Click to toggle category` : `${p.label} (0)`}
-              >
+      {/* Expandable Bottom Extension (Symmetric Protocol Matrix) */}
+      {isCardExpanded && visibleCommRows.length > 0 && (
+        <div className="card-bottom-extension card-protocol-matrix">
+          {visibleCommRows.map((row) => (
+            <div key={row.id} className="protocol-row">
+              {/* Left Handle attached directly to row at exact card edge */}
+              {row.left.hasHandle && (
                 <Handle
-                  id={p.id}
+                  id={row.left.handleId}
                   type="target"
                   position={Position.Left}
-                  className={`flow-handle typed-handle handle-${p.category}`}
+                  className={`flow-handle typed-handle handle-${row.left.category} ${row.left.count === 0 ? 'is-empty' : ''}`}
                   isConnectable={false}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (row.left.count > 0 && onToggleCategory) {
+                      onToggleCategory(graphNode.name, row.left.category, graphNode.id);
+                    }
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  title={
+                    row.left.count > 0
+                      ? `${row.left.verb} (${row.left.count}) — Click to toggle category`
+                      : ''
+                  }
                   style={{
                     top: '50%',
-                    backgroundColor: p.count === 0 ? '#334155' : p.active ? p.color : '#1c1c24',
-                    border: p.count === 0 ? '1.5px solid #475569' : p.active ? '1.5px solid #ffffff' : `2px solid ${p.color}`,
-                    boxShadow: p.count > 0 && p.active ? `0 0 6px ${p.color}, 0 0 2px #fff` : 'none',
+                    left: 0,
+                    backgroundColor: row.left.count === 0 ? '#334155' : row.left.active ? row.left.color : '#1c1c24',
+                    border: row.left.count === 0 ? '1.5px solid #475569' : row.left.active ? '1.5px solid #ffffff' : `2px solid ${row.left.color}`,
+                    boxShadow: row.left.count > 0 && row.left.active ? `0 0 6px ${row.left.color}, 0 0 2px #fff` : 'none',
+                    cursor: row.left.count > 0 ? 'pointer' : 'default',
+                    pointerEvents: row.left.count > 0 ? 'auto' : 'none',
                   }}
                 />
-                <div className="conn-label">
-                  <span className="conn-icon">{p.icon}</span>
-                  <span className="conn-text">{p.label}</span>
-                </div>
-                <span
-                  className="conn-count"
-                  style={{
-                    color: p.count === 0 ? '#64748b' : p.color,
-                    backgroundColor: p.count === 0 ? 'transparent' : `${p.color}1c`,
-                    borderColor: p.count === 0 ? '#334155' : `${p.color}44`,
-                  }}
-                >
-                  {p.count}
-                </span>
-              </div>
-            ))}
-          </div>
+              )}
 
-          {/* Outbound Connection Points */}
-          <div className="conn-section">
-            <div className="conn-section-title">Outbound</div>
-            {outboundPorts.map((p) => (
+              {/* Left Cell: (*) serves [count] */}
               <div
-                key={p.id}
-                className={`conn-row conn-outbound ${p.count === 0 ? 'is-empty' : ''} ${p.active ? 'is-active' : ''}`}
+                className={`protocol-cell cell-left ${!row.left.hasHandle ? 'is-placeholder' : ''} ${row.left.count === 0 ? 'is-empty' : ''} ${row.left.active ? 'is-active' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (p.count > 0 && onToggleCategory) {
-                    onToggleCategory(graphNode.name, p.category, graphNode.id);
+                  if (row.left.hasHandle && row.left.count > 0 && onToggleCategory) {
+                    onToggleCategory(graphNode.name, row.left.category, graphNode.id);
                   }
                 }}
-                title={p.count > 0 ? `${p.label} (${p.count}) — Click to toggle category` : `${p.label} (0)`}
+                title={
+                  row.left.hasHandle
+                    ? `${row.left.verb} (${row.left.count}) — Click to toggle category`
+                    : ''
+                }
               >
-                <div className="conn-label">
-                  <span className="conn-icon">{p.icon}</span>
-                  <span className="conn-text">{p.label}</span>
-                </div>
-                <span
-                  className="conn-count"
-                  style={{
-                    color: p.count === 0 ? '#64748b' : p.color,
-                    backgroundColor: p.count === 0 ? 'transparent' : `${p.color}1c`,
-                    borderColor: p.count === 0 ? '#334155' : `${p.color}44`,
-                  }}
-                >
-                  {p.count}
+                {row.left.hasHandle ? (
+                  <>
+                    <span className="protocol-verb">{row.left.verb}</span>
+                    <span
+                      className="protocol-count"
+                      style={{
+                        color: row.left.count === 0 ? '#64748b' : row.left.color,
+                        backgroundColor: row.left.count === 0 ? 'transparent' : `${row.left.color}1c`,
+                        borderColor: row.left.count === 0 ? '#334155' : `${row.left.color}44`,
+                      }}
+                    >
+                      {row.left.count}
+                    </span>
+                  </>
+                ) : (
+                  <span className="protocol-placeholder">( )</span>
+                )}
+              </div>
+
+              {/* Center Protocol Badge without minuses */}
+              <div className="protocol-center">
+                <span className="protocol-tag">
+                  <span className="protocol-icon">{row.icon}</span>
+                  <span className="protocol-name">{row.protocol}</span>
                 </span>
+              </div>
+
+              {/* Right Cell: [count] calls (*) */}
+              <div
+                className={`protocol-cell cell-right ${!row.right.hasHandle ? 'is-placeholder' : ''} ${row.right.count === 0 ? 'is-empty' : ''} ${row.right.active ? 'is-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (row.right.hasHandle && row.right.count > 0 && onToggleCategory) {
+                    onToggleCategory(graphNode.name, row.right.category, graphNode.id);
+                  }
+                }}
+                title={
+                  row.right.hasHandle
+                    ? `${row.right.verb} (${row.right.count}) — Click to toggle category`
+                    : ''
+                }
+              >
+                {row.right.hasHandle && (
+                  <>
+                    <span
+                      className="protocol-count"
+                      style={{
+                        color: row.right.count === 0 ? '#64748b' : row.right.color,
+                        backgroundColor: row.right.count === 0 ? 'transparent' : `${row.right.color}1c`,
+                        borderColor: row.right.count === 0 ? '#334155' : `${row.right.color}44`,
+                      }}
+                    >
+                      {row.right.count}
+                    </span>
+                    <span className="protocol-verb">{row.right.verb}</span>
+                  </>
+                )}
+              </div>
+
+              {/* Right Handle attached directly to row at exact card edge */}
+              {row.right.hasHandle && (
                 <Handle
-                  id={p.id}
+                  id={row.right.handleId}
                   type="source"
                   position={Position.Right}
-                  className={`flow-handle typed-handle handle-${p.category}`}
+                  className={`flow-handle typed-handle handle-${row.right.category} ${row.right.count === 0 ? 'is-empty' : ''}`}
                   isConnectable={false}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (row.right.count > 0 && onToggleCategory) {
+                      onToggleCategory(graphNode.name, row.right.category, graphNode.id);
+                    }
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  title={
+                    row.right.count > 0
+                      ? `${row.right.verb} (${row.right.count}) — Click to toggle category`
+                      : ''
+                  }
                   style={{
                     top: '50%',
-                    backgroundColor: p.count === 0 ? '#334155' : p.active ? p.color : '#1c1c24',
-                    border: p.count === 0 ? '1.5px solid #475569' : p.active ? '1.5px solid #ffffff' : `2px solid ${p.color}`,
-                    boxShadow: p.count > 0 && p.active ? `0 0 6px ${p.color}, 0 0 2px #fff` : 'none',
+                    right: 0,
+                    backgroundColor: row.right.count === 0 ? '#334155' : row.right.active ? row.right.color : '#1c1c24',
+                    border: row.right.count === 0 ? '1.5px solid #475569' : row.right.active ? '1.5px solid #ffffff' : `2px solid ${row.right.color}`,
+                    boxShadow: row.right.count > 0 && row.right.active ? `0 0 6px ${row.right.color}, 0 0 2px #fff` : 'none',
+                    cursor: row.right.count > 0 ? 'pointer' : 'default',
+                    pointerEvents: row.right.count > 0 ? 'auto' : 'none',
                   }}
                 />
-              </div>
-            ))}
-          </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Bottom Side Hover Expansion Trigger */}
-      <div
-        className={`card-bottom-trigger ${isCardExpanded ? 'is-expanded' : ''}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (onToggleExpand) {
-            onToggleExpand(graphNode.name, graphNode.id);
-          } else {
-            setLocalExpanded((v) => !v);
-          }
-        }}
-        title={isCardExpanded ? 'Click to collapse connection points' : 'Click to expand all connection points'}
-      >
-        <span className="trigger-arrow">{isCardExpanded ? '▴' : '▾'}</span>
-      </div>
+      {/* Bottom Side Hover Expansion Trigger (only for actual services) */}
+      {!isDatabase && !isPackage && (
+        <div
+          className={`card-bottom-trigger ${isCardExpanded ? 'is-expanded' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onToggleExpand) {
+              onToggleExpand(graphNode.name, graphNode.id);
+            } else {
+              setLocalExpanded((v) => !v);
+            }
+          }}
+          title={isCardExpanded ? 'Click to collapse connection points' : 'Click to expand all connection points'}
+        >
+          <span className="trigger-arrow">{isCardExpanded ? '▴' : '▾'}</span>
+        </div>
+      )}
     </div>
   );
 });

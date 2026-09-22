@@ -36,4 +36,8 @@ public interface IGraphClient : IAsyncDisposable
             new List<EntryPointNode>(),
             new List<ExternalServiceNode>()
         ));
+
+    int SchemaVersion => 0;
+    bool IsSchemaOutdated => false;
+    Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
 }

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 
 export interface ToolbarProps {
   viewMode: 'semantic' | 'flow' | 'layers' | 'full';
@@ -8,7 +8,7 @@ export interface ToolbarProps {
   selectedProject: string;
   onSelectProject: (project: string) => void;
   connectionStatus: 'connecting' | 'connected' | 'disconnected';
-  onFitView: () => void;
+  onFitView?: () => void;
   onRefresh: () => void;
   cypherQuery: string;
   onCypherQueryChange: (query: string) => void;
@@ -24,7 +24,7 @@ export interface ToolbarProps {
   isScanning?: boolean;
   scanProgress?: { phase: string; percentage: number; currentFile?: string; totalFiles?: number; processedFiles?: number } | null;
   onTriggerScan?: (clear?: boolean) => void;
-  graphStats?: { totalNodes: number; totalEdges: number } | null;
+  graphStats?: { totalNodes: number; totalEdges: number; serverVersion?: string } | null;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -35,7 +35,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   selectedProject,
   onSelectProject,
   connectionStatus,
-  onFitView,
   onRefresh,
   cypherQuery,
   onCypherQueryChange,
@@ -115,21 +114,111 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }));
   }, [uniqueProjects, projectPaths]);
 
+  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close status dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
+        setIsStatusMenuOpen(false);
+      }
+    };
+    if (isStatusMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isStatusMenuOpen]);
+
   return (
     <header className="toolbar">
-      {/* Brand & Connection Badge */}
+      {/* Connection Badge & Actions */}
       <div className="toolbar-brand">
-        <span className="brand-icon">⚡</span>
-        <span className="brand-title">CodeExplorer</span>
-        <span className={`status-badge ${connectionStatus}`}>
-          {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting...' : 'Offline'}
-        </span>
+        <div className="status-dropdown-wrapper" ref={statusMenuRef}>
+          <button
+            type="button"
+            className={`status-badge-btn ${connectionStatus} ${isStatusMenuOpen ? 'menu-open' : ''}`}
+            onClick={() => setIsStatusMenuOpen((prev) => !prev)}
+            title="Connection Status — Click to Rescan or Rebuild Graph"
+            aria-haspopup="true"
+            aria-expanded={isStatusMenuOpen}
+          >
+            <span className="status-dot" />
+            <span className="status-text">
+              {isScanning
+                ? `Scanning ${Math.round(scanProgress?.percentage || 0)}%`
+                : connectionStatus === 'connected'
+                ? 'Connected'
+                : connectionStatus === 'connecting'
+                ? 'Connecting...'
+                : 'Offline'}
+            </span>
+            <span className="status-chevron">{isStatusMenuOpen ? '▴' : '▾'}</span>
+          </button>
+
+          {isStatusMenuOpen && (
+            <div className="status-dropdown-menu">
+              <div className="status-menu-header">
+                <div className="status-menu-title-row">
+                  <span className="status-menu-title">CodeExplorer Engine</span>
+                  {graphStats?.serverVersion && (
+                    <span className="status-menu-version">v{graphStats.serverVersion}</span>
+                  )}
+                </div>
+                {graphStats && graphStats.totalNodes > 0 && (
+                  <span className="status-menu-stats">
+                    {graphStats.totalNodes.toLocaleString()} nodes · {graphStats.totalEdges.toLocaleString()} relationships
+                  </span>
+                )}
+              </div>
+              <div className="status-menu-divider" />
+              <button
+                type="button"
+                className="status-menu-item"
+                disabled={connectionStatus !== 'connected' || isScanning}
+                onClick={() => {
+                  setIsStatusMenuOpen(false);
+                  onTriggerScan?.(false);
+                }}
+                title="Incremental scan: update graph with modified files"
+              >
+                <span className="menu-item-icon">🔄</span>
+                <div className="menu-item-content">
+                  <span className="menu-item-label">Rescan Workspace</span>
+                  <span className="menu-item-desc">Fast incremental index of changed files</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="status-menu-item danger"
+                disabled={connectionStatus !== 'connected' || isScanning}
+                onClick={() => {
+                  setIsStatusMenuOpen(false);
+                  if (window.confirm('Clear graph database and re-index the entire workspace from scratch?')) {
+                    onTriggerScan?.(true);
+                  }
+                }}
+                title="Full Re-index: Clears the graph database and re-indexes everything from scratch"
+              >
+                <span className="menu-item-icon">🧹</span>
+                <div className="menu-item-content">
+                  <span className="menu-item-label">Rebuild Graph</span>
+                  <span className="menu-item-desc">Clear database & full re-index from scratch</span>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+
         {graphStats && graphStats.totalNodes > 0 && (
           <span
             className="graph-stats-badge"
             title={`${graphStats.totalNodes.toLocaleString()} nodes, ${graphStats.totalEdges.toLocaleString()} relationships`}
           >
-            📊 {graphStats.totalNodes >= 1000 ? `${(graphStats.totalNodes / 1000).toFixed(1)}k` : graphStats.totalNodes} nodes
+            📊 {graphStats.totalNodes >= 1000 ? `${(graphStats.totalNodes / 1000).toFixed(1)}k` : graphStats.totalNodes}
+            <span className="stats-label-suffix"> nodes</span>
           </span>
         )}
       </div>
@@ -142,7 +231,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={onGoBack}
           title="Go back (Alt+Left)"
         >
-          ◀ Back
+          ◀
         </button>
         <button
           className="history-nav-btn forward"
@@ -154,70 +243,55 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
       </div>
 
-      {/* Mode Switcher Tabs */}
-      <div className="view-mode-tabs">
-        <button
-          className={`mode-tab-btn ${viewMode === 'semantic' ? 'active' : ''}`}
-          onClick={() => onViewModeChange('semantic')}
-          title="Semantic architecture graph: Services, Databases, Brokers, and APIs (internal libraries abstracted away)"
-        >
-          🧠 Semantic Graph
-        </button>
-        <button
-          className={`mode-tab-btn ${viewMode === 'layers' ? 'active' : ''}`}
-          onClick={() => onViewModeChange('layers')}
-          title="Hierarchical collapsible system layers"
-        >
-          🏛️ System Layers
-        </button>
-        <button
-          className={`mode-tab-btn ${viewMode === 'flow' ? 'active' : ''}`}
-          onClick={() => onViewModeChange('flow')}
-          title="Focused 3-column project dependency flow (React Flow)"
-        >
-          🔀 Project Flow
-        </button>
-        <button
-          className={`mode-tab-btn ${viewMode === 'full' ? 'active' : ''}`}
-          onClick={() => onViewModeChange('full')}
-          title="Full solution physical architecture graph (Cytoscape)"
-        >
-          🌐 Physical Graph
-        </button>
+      {/* View Mode Dropdown */}
+      <div className="view-mode-dropdown-wrap">
+        <label className="view-mode-dropdown-label" title="Switch View Mode">
+          <span className="view-label-prefix">View:</span>
+          <select
+            className="view-mode-select"
+            value={viewMode}
+            onChange={(e) => onViewModeChange(e.target.value as 'semantic' | 'flow' | 'layers' | 'full')}
+          >
+            <option value="layers">🏛️ System Layers</option>
+            <option value="flow">🔀 Project Flow</option>
+            <option value="semantic">🧠 Domain Microservice Map</option>
+            <option value="full">🌐 Physical Graph</option>
+          </select>
+        </label>
       </div>
 
       {/* Dynamic Controls based on Mode */}
       <div className="toolbar-controls">
         {viewMode === 'semantic' && (
           <div className="semantic-controls button-group">
-            <button onClick={onFitView} title="Center and fit to screen">
-              Fit
-            </button>
-            <button onClick={onRefresh} title="Reload semantic architecture">
-              Refresh
+            <button onClick={onRefresh} title="Reload semantic architecture" className="ctrl-btn icon-btn">
+              <span className="btn-icon">🔄</span>
+              <span className="btn-text">Refresh</span>
             </button>
           </div>
         )}
 
         {viewMode === 'layers' && (
-          <div className="layers-controls">
+          <div className="layers-controls button-group">
             <button
-              className={`test-toggle-btn ${showTests ? 'active' : ''}`}
+              className={`test-toggle-btn ctrl-btn icon-btn ${showTests ? 'active' : ''}`}
               onClick={onToggleShowTests}
               title={showTests ? 'Hide test projects' : 'Show test projects'}
             >
-              🧪 {showTests ? 'Hide Tests' : 'Show Tests'}
+              <span className="btn-icon">🧪</span>
+              <span className="btn-text">{showTests ? 'Hide Tests' : 'Show Tests'}</span>
             </button>
-            <button onClick={onRefresh} title="Reload layers">
-              Refresh
+            <button onClick={onRefresh} title="Reload layers" className="ctrl-btn icon-btn">
+              <span className="btn-icon">🔄</span>
+              <span className="btn-text">Refresh</span>
             </button>
           </div>
         )}
 
         {viewMode === 'flow' && (
           <div className="flow-controls">
-            <label className="project-dropdown-label">
-              <span className="label-text">Target Project:</span>
+            <label className="project-dropdown-label" title="Target Project for Flow Analysis">
+              <span className="label-text">Target:</span>
               <select
                 className="project-dropdown-select"
                 value={selectedProject}
@@ -245,11 +319,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </label>
 
             <div className="button-group">
-              <button onClick={onFitView} title="Center and fit to screen">
-                Fit
-              </button>
-              <button onClick={onRefresh} title="Reload project dependencies">
-                Refresh
+              <button onClick={onRefresh} title="Reload project dependencies" className="ctrl-btn icon-btn">
+                <span className="btn-icon">🔄</span>
+                <span className="btn-text">Refresh</span>
               </button>
             </div>
           </div>
@@ -258,39 +330,42 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {viewMode === 'full' && (
           <div className="search-box">
             <button
-              className={`group-layers-btn ${groupLayers ? 'active' : ''}`}
+              className={`group-layers-btn ctrl-btn icon-btn ${groupLayers ? 'active' : ''}`}
               onClick={onToggleGroupLayers}
               title={groupLayers ? 'Disable layer grouping (show flat graph)' : 'Group projects into system layers'}
             >
-              📁 {groupLayers ? 'Ungroup' : 'Group Layers'}
+              <span className="btn-icon">📁</span>
+              <span className="btn-text">{groupLayers ? 'Ungroup' : 'Group'}</span>
             </button>
             <input
               type="text"
-              placeholder="Search or run Cypher: MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 50"
+              placeholder="Search or Cypher: MATCH (n)..."
               spellCheck={false}
               value={cypherQuery}
               onChange={(e) => onCypherQueryChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onRunCypher()}
             />
-            <button onClick={onRunCypher} title="Execute query">
+            <button onClick={onRunCypher} title="Execute query" className="ctrl-btn run-btn">
               Run
             </button>
             <div className="button-group">
-              <button onClick={onFitView} title="Fit to view">Fit</button>
-              <button onClick={onRefresh} title="Reload full architecture">Refresh</button>
+              <button onClick={onRefresh} title="Reload full architecture" className="ctrl-btn icon-btn">
+                <span className="btn-icon">🔄</span>
+                <span className="btn-text">Refresh</span>
+              </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Graph Management: Rescan / Progress / Full Re-index */}
-      <div className="graph-manage-group">
-        {isScanning ? (
+      {/* Live Scan Progress (active during indexing) */}
+      {isScanning && (
+        <div className="graph-manage-group">
           <div className="scan-progress-container" title={scanProgress?.currentFile || 'Scanning workspace...'}>
             <div className="scan-progress-header">
               <span>
                 <span className="scan-spinner">🔄</span>
-                {scanProgress?.phase || 'Scanning'}
+                <span className="scan-phase-text">{scanProgress?.phase || 'Scanning'}</span>
               </span>
               <span>{Math.round(scanProgress?.percentage || 0)}%</span>
             </div>
@@ -301,31 +376,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               />
             </div>
           </div>
-        ) : (
-          <div className="button-group">
-            <button
-              className="scan-btn"
-              onClick={() => onTriggerScan?.(false)}
-              disabled={connectionStatus !== 'connected'}
-              title="Rescan Workspace: Incremental scan of workspace files"
-            >
-              🔄 Rescan
-            </button>
-            <button
-              className="scan-btn danger"
-              onClick={() => {
-                if (window.confirm('Clear graph database and re-index the entire workspace from scratch?')) {
-                  onTriggerScan?.(true);
-                }
-              }}
-              disabled={connectionStatus !== 'connected'}
-              title="Full Re-index: Clears the graph database and re-indexes everything from scratch"
-            >
-              🧹 Rebuild
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </header>
   );
 };

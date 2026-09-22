@@ -301,4 +301,60 @@ export class Product {
             try { Directory.Delete(tempDir, true); } catch { }
         }
     }
+
+    [Test]
+    public async Task Test_TypeScriptParser_Creates_UsesDb_For_TypeOrm_Import()
+    {
+        var qDb = "MATCH (d:Database) WHERE d.name = 'TypeORM' RETURN d.name AS name, d.id AS id";
+        var resDb = await _client.ExecuteQueryAsync(qDb);
+        using var docDb = JsonDocument.Parse(resDb);
+        var dbList = docDb.RootElement.EnumerateArray().ToList();
+        Assert.That(dbList, Is.Not.Empty, "Database node for TypeORM should exist in graph");
+
+        var qRel = "MATCH (p:Project)-[:USES_DB]->(d:Database) WHERE d.name = 'TypeORM' RETURN p.name AS projName, d.name AS dbName";
+        var resRel = await _client.ExecuteQueryAsync(qRel);
+        using var docRel = JsonDocument.Parse(resRel);
+        var relList = docRel.RootElement.EnumerateArray().ToList();
+        Assert.That(relList, Is.Not.Empty, "USES_DB relationship from project to TypeORM should exist");
+    }
+
+
+    [Test]
+    public async Task Test_GraphDataConverter_Does_Not_Convert_Project_To_Database()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "proj_not_db_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+
+            var nodes = new List<CodeExplorer.Core.Database.Node>
+            {
+                new("proj:svc_a", "Project", new Dictionary<string, object> { ["name"] = "ServiceA", ["path"] = "/src/a", ["project_type"] = "typescript", ["db_type"] = "relational" }),
+                new("workspace:database:relational:typeorm", "Database", new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" })
+            };
+            await db.UploadNodesAsync(nodes);
+
+            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            {
+                new("proj:svc_a", "workspace:database:relational:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" })
+            };
+            await db.UploadRelationshipsAsync(rels);
+
+            var graph = await CodeExplorer.Core.Protocol.GraphDataConverter.GetArchitectureGraphAsync(db);
+
+            var projNode = graph.Nodes.FirstOrDefault(n => n.Id == "proj:svc_a");
+            Assert.That(projNode, Is.Not.Null);
+            Assert.That(projNode.Kind, Is.EqualTo("Project"), "Project node with db_type property must not be converted to Kind 'Database'!");
+
+            var dbNode = graph.Nodes.FirstOrDefault(n => n.Id == "workspace:database:relational:typeorm");
+            Assert.That(dbNode, Is.Not.Null);
+            Assert.That(dbNode.Kind, Is.EqualTo("Database"));
+        }
+        finally
+        {
+            try { Directory.Delete(tempWorkspace, true); } catch { }
+        }
+    }
 }

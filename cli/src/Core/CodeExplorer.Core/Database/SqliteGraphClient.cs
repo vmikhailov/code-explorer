@@ -28,6 +28,10 @@ public class SqliteGraphClient : IGraphClient, IDisposable
     public int CommandTimeoutSeconds { get; set; } = 15;
     public string DbPath => _conn.DataSource;
 
+    public const int CurrentSchemaVersion = 2;
+    public int SchemaVersion { get; private set; }
+    public bool IsSchemaOutdated => SchemaVersion < CurrentSchemaVersion;
+
     public SqliteGraphClient(string connectionStringOrPath, ILogger<SqliteGraphClient>? logger = null)
     {
         _logger = (ILogger?)logger ?? NullLogger.Instance;
@@ -36,6 +40,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         _conn.Open();
 
         InitializePragmas();
+        CheckSchemaVersion();
         SqliteCypherFunctions.Register(_conn);
         CreateIndices();
     }
@@ -74,6 +79,61 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             PRAGMA mmap_size = 268435456;
             """;
         cmd.ExecuteNonQuery();
+    }
+
+    private void CheckSchemaVersion()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "PRAGMA user_version;";
+        var result = cmd.ExecuteScalar();
+        var ver = result is long l ? (int)l : (result is int i ? i : 0);
+
+        if (ver == 0)
+        {
+            cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='nodes';";
+            var tableExists = Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+            if (tableExists)
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM nodes LIMIT 1;";
+                try
+                {
+                    var count = Convert.ToInt32(cmd.ExecuteScalar());
+                    if (count > 0)
+                    {
+                        SchemaVersion = 1;
+                        return;
+                    }
+                }
+                catch
+                {
+                    // Ignore
+                }
+            }
+
+            cmd.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
+            cmd.ExecuteNonQuery();
+            SchemaVersion = CurrentSchemaVersion;
+        }
+        else
+        {
+            SchemaVersion = ver;
+        }
+    }
+
+    public async Task SetSchemaVersionAsync(int version)
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = $"PRAGMA user_version = {version};";
+            await cmd.ExecuteNonQueryAsync();
+            SchemaVersion = version;
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     private void CreateIndices()

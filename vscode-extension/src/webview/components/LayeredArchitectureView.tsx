@@ -30,7 +30,7 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
     const seenNodeIds = new Set<string>();
     for (const node of graph?.nodes || []) {
       const lowerId = node.id.toLowerCase();
-      if (seenNodeIds.has(lowerId)) continue;
+      if (seenNodeIds.has(lowerId) || node.kind === 'Package') continue;
       seenNodeIds.add(lowerId);
 
       const layerId = node.properties?.layerId || 'layer_engines';

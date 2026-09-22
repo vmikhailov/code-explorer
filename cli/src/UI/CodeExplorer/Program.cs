@@ -808,8 +808,15 @@ public class Program
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
 
+            var shouldClear = (opts.Clear && !opts.ClearAll) || client.IsSchemaOutdated;
+            if (client.IsSchemaOutdated)
+            {
+                logger.LogWarning("Database schema version is outdated (v{Version} < v{Current}). Automatically performing clean rescan...",
+                    client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
+            }
+
             var (nodesCount, relsCount, nodesByKind) =
-                await indexer.IndexAsync(opts.Dir, opts.Dir, opts.Clear && !opts.ClearAll);
+                await indexer.IndexAsync(opts.Dir, opts.Dir, shouldClear);
 
             logger.LogInformation("Parsed and uploaded {NodesCount} nodes and {RelationshipsCount} relationships successfully!", nodesCount, relsCount);
             logger.LogInformation("Nodes breakdown by kind:");
@@ -1004,6 +1011,18 @@ public class Program
 
         var app = CreateWebApplication(opts, wsRoot, client);
         App = app;
+
+        if (client.IsSchemaOutdated)
+        {
+            if (!opts.Quiet)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"[Database] Database schema version is outdated (v{client.SchemaVersion} < v{SqliteGraphClient.CurrentSchemaVersion}). Automatically performing clean rescan...");
+                Console.ResetColor();
+            }
+            var indexer = app.Services.GetRequiredService<WorkspaceIndexer>();
+            await indexer.IndexAsync(wsRoot, wsRoot, clear: true);
+        }
 
         await app.StartAsync();
 

@@ -322,7 +322,8 @@ public class WebSocketServerHandler
                                 }, CancellationToken.None);
                             });
 
-                            var (nodesCount, relsCount, _) = await _indexer.IndexAsync(target, _workspaceRoot, scanReq?.Clear ?? false, CancellationToken.None, progress);
+                            var clear = (scanReq?.Clear ?? false) || (_graphClient is SqliteGraphClient sqlite && sqlite.IsSchemaOutdated);
+                            var (nodesCount, relsCount, _) = await _indexer.IndexAsync(target, _workspaceRoot, clear, CancellationToken.None, progress);
 
                             await BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
                             {

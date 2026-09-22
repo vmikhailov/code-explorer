@@ -17,6 +17,7 @@ import { Toolbar } from './components/Toolbar';
 import { ProjectFlowView } from './components/ProjectFlowView';
 import { CytoscapeView } from './components/CytoscapeView';
 import { LayeredArchitectureView } from './components/LayeredArchitectureView';
+import { DomainArchitectureView } from './components/DomainArchitectureView';
 
 declare function acquireVsCodeApi(): {
   postMessage(message: any): void;
@@ -128,7 +129,7 @@ export const App: React.FC = () => {
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
   const [scanNotification, setScanNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [graphStats, setGraphStats] = useState<{ totalNodes: number; totalEdges: number } | null>(null);
+  const [graphStats, setGraphStats] = useState<{ totalNodes: number; totalEdges: number; serverVersion?: string } | null>(null);
 
   // Active error and diagnostics state
   const [activeError, setActiveError] = useState<ErrorInfo | null>(null);
@@ -345,7 +346,7 @@ export const App: React.FC = () => {
           case 'HANDSHAKE_RESPONSE': {
             const resp = msg.payload as HandshakeResponse;
             logToExtension('INFO', `Handshake successful: server v${resp.serverVersion}, nodes=${resp.totalNodes}, edges=${resp.totalEdges}`);
-            setGraphStats({ totalNodes: resp.totalNodes, totalEdges: resp.totalEdges });
+            setGraphStats({ totalNodes: resp.totalNodes, totalEdges: resp.totalEdges, serverVersion: resp.serverVersion });
             console.log(`Connected to CodeExplorer ${resp.serverVersion}`);
             break;
           }
@@ -361,7 +362,7 @@ export const App: React.FC = () => {
               const countInfo = scanEv.currentFile || `Completed (${scanEv.totalFiles || 0} nodes)`;
               setScanNotification({ type: 'success', text: countInfo });
               if (scanEv.totalFiles) {
-                setGraphStats((prev) => ({ totalNodes: scanEv.totalFiles || prev?.totalNodes || 0, totalEdges: prev?.totalEdges || 0 }));
+                setGraphStats((prev) => ({ totalNodes: scanEv.totalFiles || prev?.totalNodes || 0, totalEdges: prev?.totalEdges || 0, serverVersion: prev?.serverVersion }));
               }
               setTimeout(() => setScanNotification(null), 5000);
               // Auto-refresh active views
@@ -737,16 +738,37 @@ export const App: React.FC = () => {
       )}
 
       <main className="main-viewport">
+        {isScanning && (
+          <div className="floating-scan-progress">
+            <div className="scan-progress-content">
+              <span className="scan-spinner">⚡</span>
+              <span className="scan-phase-label">
+                {scanProgress?.phase === 'Indexing' ? 'Indexing Workspace...' : 'Scanning...'}
+              </span>
+              {scanProgress?.currentFile && (
+                <span className="scan-file-label" title={scanProgress.currentFile}>
+                  {scanProgress.currentFile}
+                </span>
+              )}
+              <span className="scan-percent-badge">
+                {Math.round(scanProgress?.percentage || 0)}%
+              </span>
+            </div>
+            <div className="scan-progress-track">
+              <div
+                className="scan-progress-bar"
+                style={{ width: `${Math.min(100, Math.max(0, scanProgress?.percentage || 0))}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <ErrorBoundary onLogError={(err) => logToExtension('ERROR', `View crash: ${err.message}\n${err.stack}`)}>
           {viewMode === 'semantic' && (
-            <CytoscapeView
+            <DomainArchitectureView
               graph={fullGraph}
               onOpenFile={handleOpenFile}
-              onSelectNode={setSelectedDrawerNode}
-              groupLayers={false}
-              onToggleGroupLayers={() => {}}
-              showTests={showTests}
-              semanticOnly={true}
+              onFocusInFlow={(p) => navigateTo('flow', p)}
             />
           )}
 

@@ -146,6 +146,7 @@ public class WorkspaceIndexer
         }
 
         LogPersistenceSummary(ctx);
+        await _dbClient.SetSchemaVersionAsync(SqliteGraphClient.CurrentSchemaVersion);
     }
 
     private async Task PrepareDatabaseAsync(ParsingContext ctx)

@@ -112,7 +112,7 @@ const getEdgeVisuals = (edge?: GraphEdge, targetNode?: GraphNode): EdgeVisuals =
         stroke: '#fbbf24',
         strokeDasharray: '8,3,2,3',
         strokeWidth: 2,
-        animated: true,
+        animated: false,
         markerColor: '#fbbf24',
         markerType: MarkerType.Arrow,
         markerWidth: 16,
@@ -188,6 +188,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     messaging: true,
   });
 
+  // Legend collapse/expand state (positioned in top-left panel)
+  const [isLegendOpen, setIsLegendOpen] = useState(true);
+
   const handleToggleEdgeType = useCallback((cat: EdgeCategory) => {
     setVisibleEdgeTypes((prev) => ({
       ...prev,
@@ -206,28 +209,44 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     const outc: Record<string, number> = {};
     const cMap = new Map<string, NodeCommsSummary>();
 
-    const getOrCreateComms = (id: string): NodeCommsSummary => {
-      let c = cMap.get(id);
+    const registerNode = (n: GraphNode) => {
+      nMap.set(n.id, n);
+      nMap.set(n.name, n);
+      nMap.set(n.id.toLowerCase(), n);
+      nMap.set(n.name.toLowerCase(), n);
+      if (!outMap.has(n.id)) outMap.set(n.id, []);
+      if (!outMap.has(n.name)) outMap.set(n.name, []);
+      if (!outMap.has(n.id.toLowerCase())) outMap.set(n.id.toLowerCase(), []);
+      if (!outMap.has(n.name.toLowerCase())) outMap.set(n.name.toLowerCase(), []);
+      if (!inMap.has(n.id)) inMap.set(n.id, []);
+      if (!inMap.has(n.name)) inMap.set(n.name, []);
+      if (!inMap.has(n.id.toLowerCase())) inMap.set(n.id.toLowerCase(), []);
+      if (!inMap.has(n.name.toLowerCase())) inMap.set(n.name.toLowerCase(), []);
+    };
+
+    const getOrCreateComms = (node: GraphNode): NodeCommsSummary => {
+      let c =
+        cMap.get(node.id) ||
+        cMap.get(node.name) ||
+        cMap.get(node.id.toLowerCase()) ||
+        cMap.get(node.name.toLowerCase());
       if (!c) {
-        c = { callsOut: [], acceptsIn: [], dbOut: [], messagesOut: [], messagesIn: [], libsOut: [] };
-        cMap.set(id, c);
+        c = { callsOut: [], acceptsIn: [], libsOut: [], libsIn: [], dbOut: [], messagesOut: [], messagesIn: [] };
+        cMap.set(node.id, c);
+        cMap.set(node.name, c);
+        cMap.set(node.id.toLowerCase(), c);
+        cMap.set(node.name.toLowerCase(), c);
       }
       return c;
     };
 
     for (const n of dataSource?.nodes || []) {
-      nMap.set(n.id, n);
-      if (!nMap.has(n.name)) nMap.set(n.name, n);
-      outMap.set(n.id, []);
-      inMap.set(n.id, []);
+      registerNode(n);
     }
 
     // Also include any nodes from graph (if neighborhood had extra info)
     for (const n of graph?.nodes || []) {
-      if (!nMap.has(n.id)) nMap.set(n.id, n);
-      if (!nMap.has(n.name)) nMap.set(n.name, n);
-      if (!outMap.has(n.id)) outMap.set(n.id, []);
-      if (!inMap.has(n.id)) inMap.set(n.id, []);
+      registerNode(n);
     }
 
     // Combine all edges from dataSource and graph
@@ -243,18 +262,26 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     const edgeMap = new Map<string, GraphEdge>();
 
     for (const e of allEdges) {
-      const srcNode = nMap.get(e.source);
-      const tgtNode = nMap.get(e.target);
+      const srcNode = nMap.get(e.source) || nMap.get(e.source.toLowerCase());
+      const tgtNode = nMap.get(e.target) || nMap.get(e.target.toLowerCase());
       if (!srcNode || !tgtNode) continue;
 
       edgeMap.set(`${e.source}->${e.target}`, e);
       edgeMap.set(`${srcNode.id}->${tgtNode.id}`, e);
+      edgeMap.set(`${srcNode.name}->${tgtNode.name}`, e);
+      edgeMap.set(`${srcNode.id}->${tgtNode.name}`, e);
+      edgeMap.set(`${srcNode.name}->${tgtNode.id}`, e);
+      edgeMap.set(`${srcNode.id.toLowerCase()}->${tgtNode.id.toLowerCase()}`, e);
+      edgeMap.set(`${srcNode.name.toLowerCase()}->${tgtNode.name.toLowerCase()}`, e);
 
       // Outbound (srcNode is using tgtNode)
       const curOut = outMap.get(srcNode.id) || [];
       if (!curOut.some((x) => x.id === tgtNode.id)) {
         curOut.push(tgtNode);
         outMap.set(srcNode.id, curOut);
+        outMap.set(srcNode.name, curOut);
+        outMap.set(srcNode.id.toLowerCase(), curOut);
+        outMap.set(srcNode.name.toLowerCase(), curOut);
       }
 
       // Inbound (tgtNode is used by srcNode)
@@ -262,11 +289,14 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       if (!curIn.some((x) => x.id === srcNode.id)) {
         curIn.push(srcNode);
         inMap.set(tgtNode.id, curIn);
+        inMap.set(tgtNode.name, curIn);
+        inMap.set(tgtNode.id.toLowerCase(), curIn);
+        inMap.set(tgtNode.name.toLowerCase(), curIn);
       }
 
       // Communications breakdown
-      const srcComms = getOrCreateComms(srcNode.id);
-      const tgtComms = getOrCreateComms(tgtNode.id);
+      const srcComms = getOrCreateComms(srcNode);
+      const tgtComms = getOrCreateComms(tgtNode);
       const category = getEdgeCategory(e, tgtNode);
 
       if (category === 'service_call') {
@@ -291,8 +321,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         if (!srcComms.libsOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase() || x.name.toLowerCase() === tgtNode.name.toLowerCase())) {
           srcComms.libsOut.push({ id: tgtNode.id, name: tgtNode.name });
         }
-        if (!tgtComms.acceptsIn.some((x) => x.id.toLowerCase() === srcNode.id.toLowerCase())) {
-          tgtComms.acceptsIn.push({ id: srcNode.id, name: srcNode.name, filePath: srcNode.filePath });
+        if (!tgtComms.libsIn) tgtComms.libsIn = [];
+        if (!tgtComms.libsIn.some((x) => x.id.toLowerCase() === srcNode.id.toLowerCase() || x.name.toLowerCase() === srcNode.name.toLowerCase())) {
+          tgtComms.libsIn.push({ id: srcNode.id, name: srcNode.name, filePath: srcNode.filePath });
         }
       }
     }
@@ -302,6 +333,8 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       const inList = inMap.get(n.id) || [];
       outc[n.id] = outList.length;
       inc[n.id] = inList.length;
+      outc[n.name] = outList.length;
+      inc[n.name] = inList.length;
     }
 
     return {
@@ -315,54 +348,93 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     };
   }, [fullGraph, graph]);
 
+  // Root project node lookup
+  const rootNode = useMemo(() => {
+    if (!rootProjectName) return undefined;
+    let node = nodeMap.get(rootProjectName) || nodeMap.get(rootProjectName.toLowerCase());
+    if (!node) {
+      const lower = rootProjectName.toLowerCase();
+      for (const [key, n] of nodeMap.entries()) {
+        if (key.toLowerCase() === lower || n.name.toLowerCase() === lower) {
+          node = n;
+          break;
+        }
+      }
+    }
+    return node;
+  }, [rootProjectName, nodeMap]);
+
+  const DEFAULT_ROOT_CATEGORIES = useMemo(
+    () => new Set<string>(['callsOut', 'acceptsIn', 'libsOut', 'libsIn', 'dbOut', 'messagesOut', 'messagesIn']),
+    []
+  );
+
+  const EMPTY_CATEGORIES = useMemo(() => new Set<string>(), []);
+
+  const isRootNode = useCallback(
+    (id: string, name?: string): boolean => {
+      if (!rootProjectName && !rootNode) return false;
+      const lowerRootName = rootProjectName.toLowerCase();
+      const lowerRootId = rootNode?.id.toLowerCase();
+
+      if (name && name.toLowerCase() === lowerRootName) return true;
+      if (id && id.toLowerCase() === lowerRootName) return true;
+      if (lowerRootId && id && id.toLowerCase() === lowerRootId) return true;
+      if (lowerRootId && name && name.toLowerCase() === lowerRootId) return true;
+      return false;
+    },
+    [rootProjectName, rootNode]
+  );
+
+  const getActiveCategories = useCallback(
+    (id: string, name?: string): Set<string> => {
+      if (id && expandedCategories.has(id)) return expandedCategories.get(id)!;
+      if (name && expandedCategories.has(name)) return expandedCategories.get(name)!;
+      if (id && expandedCategories.has(id.toLowerCase())) return expandedCategories.get(id.toLowerCase())!;
+      if (name && expandedCategories.has(name.toLowerCase())) return expandedCategories.get(name.toLowerCase())!;
+
+      if (isRootNode(id, name)) {
+        return DEFAULT_ROOT_CATEGORIES;
+      }
+
+      return EMPTY_CATEGORIES;
+    },
+    [expandedCategories, isRootNode, DEFAULT_ROOT_CATEGORIES, EMPTY_CATEGORIES]
+  );
+
   // Whenever the root target project changes, initialize its direct categories as expanded
   const lastRootRef = useRef<string>('');
   useEffect(() => {
     if (rootProjectName && rootProjectName !== lastRootRef.current) {
       lastRootRef.current = rootProjectName;
-      const rootNode = nodeMap.get(rootProjectName);
       const allCats = new Set<string>([
         'callsOut',
         'acceptsIn',
+        'libsOut',
+        'libsIn',
         'dbOut',
         'messagesOut',
         'messagesIn',
-        'libsOut',
       ]);
       const nextMap = new Map<string, Set<string>>();
       nextMap.set(rootProjectName, allCats);
+      nextMap.set(rootProjectName.toLowerCase(), allCats);
       if (rootNode) {
         nextMap.set(rootNode.id, allCats);
+        nextMap.set(rootNode.id.toLowerCase(), allCats);
       }
       setExpandedCategories(nextMap);
     }
-  }, [rootProjectName, nodeMap]);
-
-  const DEFAULT_CATEGORIES = useMemo(
-    () => new Set<string>(['callsOut', 'acceptsIn', 'dbOut', 'messagesOut', 'messagesIn', 'libsOut']),
-    []
-  );
-
-  const getActiveCategories = useCallback(
-    (id: string, name?: string): Set<string> => {
-      if (expandedCategories.has(id)) return expandedCategories.get(id)!;
-      if (name && expandedCategories.has(name)) return expandedCategories.get(name)!;
-      return DEFAULT_CATEGORIES;
-    },
-    [expandedCategories, DEFAULT_CATEGORIES]
-  );
+  }, [rootProjectName, rootNode]);
 
   // Toggle specific communication category for a project
   const handleToggleCategory = useCallback(
     (projectName: string, category: string, projectId?: string) => {
       setExpandedCategories((prev) => {
         const next = new Map(prev);
-        const current =
-          (projectId && prev.get(projectId)) ||
-          prev.get(projectName) ||
-          new Set(['callsOut', 'acceptsIn', 'dbOut', 'messagesOut', 'messagesIn', 'libsOut']);
-
+        const current = getActiveCategories(projectId || '', projectName);
         const updated = new Set(current);
+
         if (updated.has(category)) {
           updated.delete(category);
         } else {
@@ -370,11 +442,23 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         }
 
         next.set(projectName, updated);
-        if (projectId) next.set(projectId, updated);
+        next.set(projectName.toLowerCase(), updated);
+        if (projectId) {
+          next.set(projectId, updated);
+          next.set(projectId.toLowerCase(), updated);
+        }
+        return next;
+      });
+
+      // Keep this card in expandedCards so its protocol matrix remains open
+      setExpandedCards((prev) => {
+        const next = new Set(prev);
+        next.add(projectName);
+        if (projectId) next.add(projectId);
         return next;
       });
     },
-    []
+    [getActiveCategories]
   );
 
   // Set of project IDs/names whose cards are in expanded mode (showing typed connector dots)
@@ -383,12 +467,11 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
   // Initialize root project card as expanded
   useEffect(() => {
     if (rootProjectName) {
-      const rootNode = nodeMap.get(rootProjectName);
       const set = new Set<string>([rootProjectName]);
       if (rootNode) set.add(rootNode.id);
       setExpandedCards(set);
     }
-  }, [rootProjectName, nodeMap]);
+  }, [rootProjectName, rootNode]);
 
   const handleToggleCardExpand = useCallback((projectName: string, projectId?: string) => {
     setExpandedCards((prev) => {
@@ -407,40 +490,31 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
   const handleResetLevels = useCallback(() => {
     if (rootProjectName) {
-      const rootNode = nodeMap.get(rootProjectName);
       const allCats = new Set<string>([
         'callsOut',
         'acceptsIn',
+        'libsOut',
+        'libsIn',
         'dbOut',
         'messagesOut',
         'messagesIn',
-        'libsOut',
       ]);
       const nextMap = new Map<string, Set<string>>();
       nextMap.set(rootProjectName, allCats);
+      nextMap.set(rootProjectName.toLowerCase(), allCats);
       if (rootNode) {
         nextMap.set(rootNode.id, allCats);
+        nextMap.set(rootNode.id.toLowerCase(), allCats);
       }
       setExpandedCategories(nextMap);
       const set = new Set<string>([rootProjectName]);
       if (rootNode) set.add(rootNode.id);
       setExpandedCards(set);
     }
-  }, [rootProjectName, nodeMap]);
+  }, [rootProjectName, rootNode]);
 
   // Multi-Level Progressive Layout Construction (Bidirectional)
   useEffect(() => {
-    let rootNode = nodeMap.get(rootProjectName);
-    if (!rootNode && rootProjectName) {
-      const lower = rootProjectName.toLowerCase();
-      for (const [key, n] of nodeMap.entries()) {
-        if (key.toLowerCase() === lower || n.name.toLowerCase() === lower) {
-          rootNode = n;
-          break;
-        }
-      }
-    }
-
     if (!rootNode) {
       setNodes([]);
       setEdges([]);
@@ -458,28 +532,38 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
     const isAlreadyVisible = (n: GraphNode) =>
       visibleNodesMap.has(n.id) ||
-      Array.from(visibleNodesMap.values()).some((v) => v.id.toLowerCase() === n.id.toLowerCase());
+      visibleNodesMap.has(n.name) ||
+      Array.from(visibleNodesMap.values()).some(
+        (v) => v.id.toLowerCase() === n.id.toLowerCase() || v.name.toLowerCase() === n.name.toLowerCase()
+      );
+
+    const findTargetNode = (id: string, name: string): GraphNode | undefined =>
+      nodeMap.get(id) ||
+      nodeMap.get(name) ||
+      nodeMap.get(id.toLowerCase()) ||
+      nodeMap.get(name.toLowerCase());
 
     for (let round = 0; round < 10; round++) {
       let newlyAdded = false;
       const currentNodes = Array.from(visibleNodesMap.values());
 
       for (const curr of currentNodes) {
-        const activeCats =
-          expandedCategories.get(curr.id) ||
-          expandedCategories.get(curr.name) ||
-          new Set<string>();
+        const activeCats = getActiveCategories(curr.id, curr.name);
 
         const cacheKey = `${curr.id}:${Array.from(activeCats).sort().join(',')}`;
         if (processedNodes.has(cacheKey)) continue;
         processedNodes.add(cacheKey);
 
-        const comms = commsMap.get(curr.id) || commsMap.get(curr.name);
+        const comms =
+          commsMap.get(curr.id) ||
+          commsMap.get(curr.name) ||
+          commsMap.get(curr.id.toLowerCase()) ||
+          commsMap.get(curr.name.toLowerCase());
 
         // Outbound calls
-        if (activeCats.has('callsOut') && comms?.callsOut) {
+        if (visibleEdgeTypes.service_call && activeCats.has('callsOut') && comms?.callsOut) {
           for (const item of comms.callsOut) {
-            const targetNode = nodeMap.get(item.id) || nodeMap.get(item.name);
+            const targetNode = findTargetNode(item.id, item.name);
             if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
               newlyAdded = true;
@@ -488,9 +572,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         }
 
         // Databases out
-        if (activeCats.has('dbOut') && comms?.dbOut) {
+        if (visibleEdgeTypes.database && activeCats.has('dbOut') && comms?.dbOut) {
           for (const item of comms.dbOut) {
-            const targetNode = nodeMap.get(item.id) || nodeMap.get(item.name);
+            const targetNode = findTargetNode(item.id, item.name);
             if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
               newlyAdded = true;
@@ -499,9 +583,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         }
 
         // Messages out
-        if (activeCats.has('messagesOut') && comms?.messagesOut) {
+        if (visibleEdgeTypes.messaging && activeCats.has('messagesOut') && comms?.messagesOut) {
           for (const item of comms.messagesOut) {
-            const targetNode = nodeMap.get(item.id) || nodeMap.get(item.name);
+            const targetNode = findTargetNode(item.id, item.name);
             if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
               newlyAdded = true;
@@ -510,9 +594,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         }
 
         // Libraries out
-        if (activeCats.has('libsOut') && comms?.libsOut) {
+        if (visibleEdgeTypes.library && activeCats.has('libsOut') && comms?.libsOut) {
           for (const item of comms.libsOut) {
-            const targetNode = nodeMap.get(item.id) || nodeMap.get(item.name);
+            const targetNode = findTargetNode(item.id, item.name);
             if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
               newlyAdded = true;
@@ -521,30 +605,31 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         }
 
         // Inbound accepts calls
-        if (activeCats.has('acceptsIn')) {
-          if (comms?.acceptsIn && comms.acceptsIn.length > 0) {
-            for (const item of comms.acceptsIn) {
-              const srcNode = nodeMap.get(item.id) || nodeMap.get(item.name);
-              if (srcNode && !isAlreadyVisible(srcNode)) {
-                visibleNodesMap.set(srcNode.id, srcNode);
-                newlyAdded = true;
-              }
-            }
-          } else {
-            const parents = inboundMap.get(curr.id) || inboundMap.get(curr.name) || [];
-            for (const p of parents) {
-              if (!isAlreadyVisible(p)) {
-                visibleNodesMap.set(p.id, p);
-                newlyAdded = true;
-              }
+        if (visibleEdgeTypes.service_call && activeCats.has('acceptsIn') && comms?.acceptsIn) {
+          for (const item of comms.acceptsIn) {
+            const srcNode = findTargetNode(item.id, item.name);
+            if (srcNode && !isAlreadyVisible(srcNode)) {
+              visibleNodesMap.set(srcNode.id, srcNode);
+              newlyAdded = true;
             }
           }
         }
 
         // Inbound messages
-        if (activeCats.has('messagesIn') && comms?.messagesIn) {
+        if (visibleEdgeTypes.messaging && activeCats.has('messagesIn') && comms?.messagesIn) {
           for (const item of comms.messagesIn) {
-            const srcNode = nodeMap.get(item.id) || nodeMap.get(item.name);
+            const srcNode = findTargetNode(item.id, item.name);
+            if (srcNode && !isAlreadyVisible(srcNode)) {
+              visibleNodesMap.set(srcNode.id, srcNode);
+              newlyAdded = true;
+            }
+          }
+        }
+
+        // Inbound libraries (used by)
+        if (visibleEdgeTypes.library && activeCats.has('libsIn') && comms?.libsIn) {
+          for (const item of comms.libsIn) {
+            const srcNode = findTargetNode(item.id, item.name);
             if (srcNode && !isAlreadyVisible(srcNode)) {
               visibleNodesMap.set(srcNode.id, srcNode);
               newlyAdded = true;
@@ -573,8 +658,8 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       if (!edgeKeySet.has(key)) {
         edgeKeySet.add(key);
 
-        const srcNode = nodeMap.get(sourceId);
-        const tgtNode = nodeMap.get(targetId);
+        const srcNode = nodeMap.get(sourceId) || nodeMap.get(sourceId.toLowerCase());
+        const tgtNode = nodeMap.get(targetId) || nodeMap.get(targetId.toLowerCase());
 
         const edgeObj =
           edgeLookup.get(key) ||
@@ -582,7 +667,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
             ? edgeLookup.get(`${srcNode.id}->${tgtNode.id}`) ||
               edgeLookup.get(`${srcNode.name}->${tgtNode.name}`) ||
               edgeLookup.get(`${srcNode.id}->${tgtNode.name}`) ||
-              edgeLookup.get(`${srcNode.name}->${tgtNode.id}`)
+              edgeLookup.get(`${srcNode.name}->${tgtNode.id}`) ||
+              edgeLookup.get(`${srcNode.id.toLowerCase()}->${tgtNode.id.toLowerCase()}`) ||
+              edgeLookup.get(`${srcNode.name.toLowerCase()}->${tgtNode.name.toLowerCase()}`)
             : undefined);
 
         const category = getEdgeCategory(edgeObj, tgtNode);
@@ -595,18 +682,23 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         const tgtCats = getActiveCategories(targetId, tgtNode?.name);
 
         let outCat = 'callsOut';
-        if (category === 'database') outCat = 'dbOut';
-        else if (category === 'messaging') outCat = 'messagesOut';
-        else if (category === 'library') outCat = 'libsOut';
-
-        if (!srcCats.has(outCat)) {
-          return;
+        let inCat: string | null = 'acceptsIn';
+        if (category === 'database') {
+          outCat = 'dbOut';
+          inCat = null;
+        } else if (category === 'messaging') {
+          outCat = 'messagesOut';
+          inCat = 'messagesIn';
+        } else if (category === 'library') {
+          outCat = 'libsOut';
+          inCat = 'libsIn';
         }
 
-        if (category === 'service_call' && !tgtCats.has('acceptsIn')) {
-          return;
-        }
-        if (category === 'messaging' && !tgtCats.has('messagesIn')) {
+        const isOutActive = srcCats.has(outCat);
+        const isInActive = inCat ? tgtCats.has(inCat) : false;
+
+        // An edge is visible if the source actively requests outbound OR target actively requests inbound
+        if (!isOutActive && !isInActive) {
           return;
         }
 
@@ -628,8 +720,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         }
 
         if (isTargetExpanded) {
-          if (category === 'service_call' || category === 'database' || category === 'library') targetHandle = 'target-calls';
+          if (category === 'service_call') targetHandle = 'target-calls';
+          else if (category === 'library') targetHandle = 'target-libs';
           else if (category === 'messaging') targetHandle = 'target-events';
+          else if (category === 'database') targetHandle = 'target-default';
         }
 
         generatedEdges.push({
@@ -900,9 +994,11 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     const colStep = 340;
     const colGap = 24;
 
+    const visibleCategoryCount = Object.values(visibleEdgeTypes).filter(Boolean).length;
     const getNodeHeight = (node: GraphNode) => {
       const isExp = expandedCards.has(node.id) || expandedCards.has(node.name);
-      return isExp ? 225 : 62;
+      if (!isExp || visibleCategoryCount === 0) return 62;
+      return 62 + 14 + visibleCategoryCount * 24;
     };
 
     let maxColHeight = 60;
@@ -948,6 +1044,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
             onToggleCategory: handleToggleCategory,
             onFocusProject: onSelectProject,
             onOpenFile,
+            visibleEdgeTypes,
           },
         });
 
@@ -964,6 +1061,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     }, 40);
   }, [
     rootProjectName,
+    rootNode,
     expandedCards,
     expandedCategories,
     visibleEdgeTypes,
@@ -994,88 +1092,76 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         </div>
       ) : (
         <>
-          {/* Floating Progressive Levels Controls Overlay */}
-          <div className="flow-levels-hud">
-            <div className="hud-title-badge">
-              <span className="hud-label">Project Dependency Flow</span>
-              <span className="hud-target-name">{rootProjectName}</span>
-            </div>
-            <div className="hud-actions">
-              <button
-                className="hud-action-btn"
-                onClick={handleResetLevels}
-                title="Reset to direct 1-hop callers and dependencies"
+          {/* Top-Left Floating Legend Panel */}
+          <div className="flow-top-left-panel">
+            {/* Floating Connection Types Legend */}
+            <div className="flow-edge-legend">
+              <div
+                className="edge-legend-header"
+                onClick={() => setIsLegendOpen((prev) => !prev)}
+                title={isLegendOpen ? 'Collapse Legend' : 'Expand Legend'}
               >
-                Reset 1-Hop
-              </button>
-              <button
-                className="hud-action-btn"
-                onClick={() => fitView({ padding: 0.25, duration: 300 })}
-                title="Center and fit diagram to view"
-              >
-                Fit
-              </button>
+                <span className="edge-legend-title">Connection Types</span>
+                <span className="edge-legend-toggle">{isLegendOpen ? '▾' : '▸'}</span>
+              </div>
+              {isLegendOpen && (
+                <div className="edge-legend-items">
+                  <label className={`edge-legend-item ${!visibleEdgeTypes.library ? 'is-dimmed' : ''}`} title="Toggle Library connections">
+                    <input
+                      type="checkbox"
+                      className="edge-legend-checkbox"
+                      checked={visibleEdgeTypes.library}
+                      onChange={() => handleToggleEdgeType('library')}
+                    />
+                    <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
+                      <line x1="0" y1="6" x2="24" y2="6" stroke="#34d399" strokeWidth="1" />
+                      <polyline points="22 3, 29 6, 22 9" fill="none" stroke="#34d399" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="edge-legend-label">Library (Open Chevron)</span>
+                  </label>
+                  <label className={`edge-legend-item ${!visibleEdgeTypes.service_call ? 'is-dimmed' : ''}`} title="Toggle Service Call connections">
+                    <input
+                      type="checkbox"
+                      className="edge-legend-checkbox"
+                      checked={visibleEdgeTypes.service_call}
+                      onChange={() => handleToggleEdgeType('service_call')}
+                    />
+                    <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
+                      <line x1="0" y1="6" x2="22" y2="6" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4,3" />
+                      <polygon points="21 2, 32 6, 21 10" fill="#38bdf8" />
+                    </svg>
+                    <span className="edge-legend-label">Service Call (Solid Arrow)</span>
+                  </label>
+                  <label className={`edge-legend-item ${!visibleEdgeTypes.database ? 'is-dimmed' : ''}`} title="Toggle Database connections">
+                    <input
+                      type="checkbox"
+                      className="edge-legend-checkbox"
+                      checked={visibleEdgeTypes.database}
+                      onChange={() => handleToggleEdgeType('database')}
+                    />
+                    <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
+                      <line x1="0" y1="6" x2="24" y2="6" stroke="#c084fc" strokeWidth="2" strokeDasharray="2,3" />
+                      <polygon points="23 6, 27 2, 31 6, 27 10" fill="#c084fc" />
+                    </svg>
+                    <span className="edge-legend-label">Database</span>
+                  </label>
+                  <label className={`edge-legend-item ${!visibleEdgeTypes.messaging ? 'is-dimmed' : ''}`} title="Toggle Event/Queue connections">
+                    <input
+                      type="checkbox"
+                      className="edge-legend-checkbox"
+                      checked={visibleEdgeTypes.messaging}
+                      onChange={() => handleToggleEdgeType('messaging')}
+                    />
+                    <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
+                      <line x1="0" y1="6" x2="24" y2="6" stroke="#fbbf24" strokeWidth="2" strokeDasharray="6,2,2,2" />
+                      <polyline points="22 2, 30 6, 22 10" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="edge-legend-label">Event / Queue</span>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Floating Connection Types Legend */}
-          <div className="flow-edge-legend">
-        <div className="edge-legend-title">Connection Types</div>
-        <div className="edge-legend-items">
-          <label className={`edge-legend-item ${!visibleEdgeTypes.library ? 'is-dimmed' : ''}`} title="Toggle Library connections">
-            <input
-              type="checkbox"
-              className="edge-legend-checkbox"
-              checked={visibleEdgeTypes.library}
-              onChange={() => handleToggleEdgeType('library')}
-            />
-            <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-              <line x1="0" y1="6" x2="24" y2="6" stroke="#34d399" strokeWidth="1" />
-              <polyline points="22 3, 29 6, 22 9" fill="none" stroke="#34d399" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="edge-legend-label">Library (Open Chevron)</span>
-          </label>
-          <label className={`edge-legend-item ${!visibleEdgeTypes.service_call ? 'is-dimmed' : ''}`} title="Toggle Service Call connections">
-            <input
-              type="checkbox"
-              className="edge-legend-checkbox"
-              checked={visibleEdgeTypes.service_call}
-              onChange={() => handleToggleEdgeType('service_call')}
-            />
-            <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-              <line x1="0" y1="6" x2="22" y2="6" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4,3" />
-              <polygon points="21 2, 32 6, 21 10" fill="#38bdf8" />
-            </svg>
-            <span className="edge-legend-label">Service Call (Solid Arrow)</span>
-          </label>
-          <label className={`edge-legend-item ${!visibleEdgeTypes.database ? 'is-dimmed' : ''}`} title="Toggle Database connections">
-            <input
-              type="checkbox"
-              className="edge-legend-checkbox"
-              checked={visibleEdgeTypes.database}
-              onChange={() => handleToggleEdgeType('database')}
-            />
-            <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-              <line x1="0" y1="6" x2="24" y2="6" stroke="#c084fc" strokeWidth="2" strokeDasharray="2,3" />
-              <polygon points="23 6, 27 2, 31 6, 27 10" fill="#c084fc" />
-            </svg>
-            <span className="edge-legend-label">Database</span>
-          </label>
-          <label className={`edge-legend-item ${!visibleEdgeTypes.messaging ? 'is-dimmed' : ''}`} title="Toggle Event/Queue connections">
-            <input
-              type="checkbox"
-              className="edge-legend-checkbox"
-              checked={visibleEdgeTypes.messaging}
-              onChange={() => handleToggleEdgeType('messaging')}
-            />
-            <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-              <line x1="0" y1="6" x2="24" y2="6" stroke="#fbbf24" strokeWidth="2" strokeDasharray="6,2,2,2" />
-              <polyline points="22 2, 30 6, 22 10" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="edge-legend-label">Event / Queue</span>
-          </label>
-        </div>
-      </div>
 
       <ReactFlow
         nodes={nodes}
