@@ -102,6 +102,7 @@
     "build:dev": "node build.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
+    "test": "esbuild src/webview/commands/CommandManager.test.ts --bundle --platform=node --outfile=dist/test.js && node dist/test.js",
     "build:binaries": "node scripts/build-extension-binaries.mjs",
     "package": "node scripts/package-extension.mjs",
     "package:all": "node scripts/package-extension.mjs --all",

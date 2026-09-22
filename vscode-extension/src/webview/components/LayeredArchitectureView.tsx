@@ -7,6 +7,8 @@ export interface LayeredArchitectureViewProps {
   onOpenFile: (filePath: string, lineStart?: number) => void;
   onFocusInFlow: (projectName: string) => void;
   showTests: boolean;
+  collapsedLayers?: Set<string>;
+  onToggleLayer?: (layerId: string) => void;
 }
 
 export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = ({
@@ -14,8 +16,11 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
   onOpenFile,
   onFocusInFlow,
   showTests,
+  collapsedLayers: collapsedLayersProp,
+  onToggleLayer: onToggleLayerProp,
 }) => {
-  const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
+  const [localCollapsedLayers, setLocalCollapsedLayers] = useState<Set<string>>(new Set());
+  const collapsedLayers = collapsedLayersProp !== undefined ? collapsedLayersProp : localCollapsedLayers;
 
   // Parse layers from metadata or use default
   const layerDefs = useMemo(() => getLayersFromGraph(graph), [graph]);
@@ -67,8 +72,8 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
     return node.properties?.framework || 'Project';
   };
 
-  const toggleLayer = (layerId: string) => {
-    setCollapsedLayers((prev) => {
+  const localToggleLayer = (layerId: string) => {
+    setLocalCollapsedLayers((prev) => {
       const next = new Set(prev);
       if (next.has(layerId)) {
         next.delete(layerId);
@@ -79,12 +84,30 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
     });
   };
 
+  const toggleLayer = onToggleLayerProp || localToggleLayer;
+
   const collapseAll = () => {
-    setCollapsedLayers(new Set(layerDefs.map((l) => l.layerId)));
+    if (onToggleLayerProp) {
+      for (const l of layerDefs) {
+        if (!collapsedLayers.has(l.layerId)) {
+          onToggleLayerProp(l.layerId);
+        }
+      }
+    } else {
+      setLocalCollapsedLayers(new Set(layerDefs.map((l) => l.layerId)));
+    }
   };
 
   const expandAll = () => {
-    setCollapsedLayers(new Set());
+    if (onToggleLayerProp) {
+      for (const l of layerDefs) {
+        if (collapsedLayers.has(l.layerId)) {
+          onToggleLayerProp(l.layerId);
+        }
+      }
+    } else {
+      setLocalCollapsedLayers(new Set());
+    }
   };
 
   const visibleLayers = layerDefs.filter((l) => showTests || l.layerId !== 'layer_tests');

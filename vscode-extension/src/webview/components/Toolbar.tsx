@@ -19,6 +19,8 @@ export interface ToolbarProps {
   canGoForward: boolean;
   onGoBack: () => void;
   onGoForward: () => void;
+  undoDescription?: string | null;
+  redoDescription?: string | null;
   groupLayers: boolean;
   onToggleGroupLayers: () => void;
   isScanning?: boolean;
@@ -45,6 +47,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   canGoForward,
   onGoBack,
   onGoForward,
+  undoDescription,
+  redoDescription,
   groupLayers,
   onToggleGroupLayers,
   isScanning,
@@ -223,13 +227,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         )}
       </div>
 
-      {/* History Navigation (Back / Forward) */}
+      {/* History Navigation (Undo / Redo) */}
       <div className="history-nav-group">
         <button
           className="history-nav-btn"
           disabled={!canGoBack}
           onClick={onGoBack}
-          title="Go back (Alt+Left)"
+          title={
+            canGoBack
+              ? `Undo: ${undoDescription || 'action'} (Ctrl+Z / Alt+Left)`
+              : 'Nothing to undo (Alt+Left)'
+          }
         >
           ◀
         </button>
@@ -237,7 +245,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className="history-nav-btn forward"
           disabled={!canGoForward}
           onClick={onGoForward}
-          title="Go forward (Alt+Right)"
+          title={
+            canGoForward
+              ? `Redo: ${redoDescription || 'action'} (Ctrl+Y / Alt+Right)`
+              : 'Nothing to redo (Alt+Right)'
+          }
         >
           ▶
         </button>

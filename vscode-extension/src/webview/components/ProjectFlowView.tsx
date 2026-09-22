@@ -21,6 +21,13 @@ export interface ProjectFlowViewProps {
   fullGraph?: GraphData | null;
   onSelectProject: (name: string) => void;
   onOpenFile: (filePath: string, lineStart?: number) => void;
+  expandedCategories?: Map<string, Set<string>>;
+  onToggleCategory?: (projectName: string, category: string, projectId?: string) => void;
+  expandedCards?: Set<string>;
+  onToggleCardExpand?: (projectName: string, projectId?: string) => void;
+  visibleEdgeTypes?: Record<EdgeCategory, boolean>;
+  onToggleEdgeType?: (cat: EdgeCategory) => void;
+  onResetLevels?: () => void;
 }
 
 interface EdgeVisuals {
@@ -161,6 +168,13 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
   fullGraph,
   onSelectProject,
   onOpenFile,
+  expandedCategories: expandedCategoriesProp,
+  onToggleCategory: onToggleCategoryProp,
+  expandedCards: expandedCardsProp,
+  onToggleCardExpand: onToggleCardExpandProp,
+  visibleEdgeTypes: visibleEdgeTypesProp,
+  onToggleEdgeType: onToggleEdgeTypeProp,
+  onResetLevels: onResetLevelsProp,
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -178,25 +192,28 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
   // Track granular expanded categories for each project:
   // Key: project id or name. Value: Set of category strings:
   // 'callsOut' | 'acceptsIn' | 'dbOut' | 'messagesOut' | 'messagesIn' | 'libsOut'
-  const [expandedCategories, setExpandedCategories] = useState<Map<string, Set<string>>>(new Map());
+  const [localExpandedCategories, setLocalExpandedCategories] = useState<Map<string, Set<string>>>(new Map());
+  const expandedCategories = expandedCategoriesProp !== undefined ? expandedCategoriesProp : localExpandedCategories;
 
   // Connection types visibility toggle (Library, Service Call, Database, Event/Queue)
-  const [visibleEdgeTypes, setVisibleEdgeTypes] = useState<Record<EdgeCategory, boolean>>({
+  const [localVisibleEdgeTypes, setLocalVisibleEdgeTypes] = useState<Record<EdgeCategory, boolean>>({
     library: true,
     service_call: true,
     database: true,
     messaging: true,
   });
+  const visibleEdgeTypes = visibleEdgeTypesProp !== undefined ? visibleEdgeTypesProp : localVisibleEdgeTypes;
 
   // Legend collapse/expand state (positioned in top-left panel)
   const [isLegendOpen, setIsLegendOpen] = useState(true);
 
-  const handleToggleEdgeType = useCallback((cat: EdgeCategory) => {
-    setVisibleEdgeTypes((prev) => ({
+  const localToggleEdgeType = useCallback((cat: EdgeCategory) => {
+    setLocalVisibleEdgeTypes((prev) => ({
       ...prev,
       [cat]: !prev[cat],
     }));
   }, []);
+  const handleToggleEdgeType = onToggleEdgeTypeProp || localToggleEdgeType;
 
   // Build comprehensive graph lookup and communications breakdown from fullGraph (fallback to graph)
   const { nodeMap, outboundMap, inboundMap, inCountMap, outCountMap, edgeLookup, commsMap } = useMemo(() => {
@@ -423,14 +440,16 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         nextMap.set(rootNode.id, allCats);
         nextMap.set(rootNode.id.toLowerCase(), allCats);
       }
-      setExpandedCategories(nextMap);
+      if (expandedCategoriesProp === undefined) {
+        setLocalExpandedCategories(nextMap);
+      }
     }
-  }, [rootProjectName, rootNode]);
+  }, [rootProjectName, rootNode, expandedCategoriesProp]);
 
   // Toggle specific communication category for a project
-  const handleToggleCategory = useCallback(
+  const localToggleCategory = useCallback(
     (projectName: string, category: string, projectId?: string) => {
-      setExpandedCategories((prev) => {
+      setLocalExpandedCategories((prev) => {
         const next = new Map(prev);
         const current = getActiveCategories(projectId || '', projectName);
         const updated = new Set(current);
@@ -451,7 +470,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       });
 
       // Keep this card in expandedCards so its protocol matrix remains open
-      setExpandedCards((prev) => {
+      setLocalExpandedCards((prev) => {
         const next = new Set(prev);
         next.add(projectName);
         if (projectId) next.add(projectId);
@@ -460,21 +479,23 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     },
     [getActiveCategories]
   );
+  const handleToggleCategory = onToggleCategoryProp || localToggleCategory;
 
   // Set of project IDs/names whose cards are in expanded mode (showing typed connector dots)
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [localExpandedCards, setLocalExpandedCards] = useState<Set<string>>(new Set());
+  const expandedCards = expandedCardsProp !== undefined ? expandedCardsProp : localExpandedCards;
 
   // Initialize root project card as expanded
   useEffect(() => {
-    if (rootProjectName) {
+    if (rootProjectName && expandedCardsProp === undefined) {
       const set = new Set<string>([rootProjectName]);
       if (rootNode) set.add(rootNode.id);
-      setExpandedCards(set);
+      setLocalExpandedCards(set);
     }
-  }, [rootProjectName, rootNode]);
+  }, [rootProjectName, rootNode, expandedCardsProp]);
 
-  const handleToggleCardExpand = useCallback((projectName: string, projectId?: string) => {
-    setExpandedCards((prev) => {
+  const localToggleCardExpand = useCallback((projectName: string, projectId?: string) => {
+    setLocalExpandedCards((prev) => {
       const next = new Set(prev);
       const isExp = next.has(projectName) || (projectId && next.has(projectId));
       if (isExp) {
@@ -487,8 +508,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       return next;
     });
   }, []);
+  const handleToggleCardExpand = onToggleCardExpandProp || localToggleCardExpand;
 
-  const handleResetLevels = useCallback(() => {
+  const localResetLevels = useCallback(() => {
     if (rootProjectName) {
       const allCats = new Set<string>([
         'callsOut',
@@ -506,12 +528,13 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         nextMap.set(rootNode.id, allCats);
         nextMap.set(rootNode.id.toLowerCase(), allCats);
       }
-      setExpandedCategories(nextMap);
+      setLocalExpandedCategories(nextMap);
       const set = new Set<string>([rootProjectName]);
       if (rootNode) set.add(rootNode.id);
-      setExpandedCards(set);
+      setLocalExpandedCards(set);
     }
   }, [rootProjectName, rootNode]);
+  const handleResetLevels = onResetLevelsProp || localResetLevels;
 
   // Multi-Level Progressive Layout Construction (Bidirectional)
   useEffect(() => {

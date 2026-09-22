@@ -14,6 +14,8 @@ export interface CytoscapeViewProps {
   onToggleGroupLayers: () => void;
   showTests: boolean;
   semanticOnly?: boolean;
+  collapsedLayers?: Set<string>;
+  onToggleLayerCollapse?: (layerId: string) => void;
 }
 
 export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
@@ -24,11 +26,14 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
   onToggleGroupLayers,
   showTests,
   semanticOnly,
+  collapsedLayers: collapsedLayersProp,
+  onToggleLayerCollapse: onToggleLayerCollapseProp,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
-  const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
+  const [localCollapsedLayers, setLocalCollapsedLayers] = useState<Set<string>>(new Set());
+  const collapsedLayers = collapsedLayersProp !== undefined ? collapsedLayersProp : localCollapsedLayers;
 
   const onSelectNodeRef = useRef(onSelectNode);
   onSelectNodeRef.current = onSelectNode;
@@ -39,8 +44,8 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
   // Extract layer definitions from graph metadata or standard defaults
   const layerDefs = useMemo(() => getLayersFromGraph(graph), [graph]);
 
-  const toggleLayerCollapse = useCallback((layerId: string) => {
-    setCollapsedLayers((prev) => {
+  const localToggleLayerCollapse = useCallback((layerId: string) => {
+    setLocalCollapsedLayers((prev) => {
       const next = new Set(prev);
       if (next.has(layerId)) {
         next.delete(layerId);
@@ -51,16 +56,34 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
     });
   }, []);
 
+  const toggleLayerCollapse = onToggleLayerCollapseProp || localToggleLayerCollapse;
+
   const toggleLayerCollapseRef = useRef(toggleLayerCollapse);
   toggleLayerCollapseRef.current = toggleLayerCollapse;
 
   const collapseAllLayers = useCallback(() => {
-    setCollapsedLayers(new Set(layerDefs.map((l) => l.layerId)));
-  }, [layerDefs]);
+    if (onToggleLayerCollapseProp) {
+      for (const l of layerDefs) {
+        if (!collapsedLayers.has(l.layerId)) {
+          onToggleLayerCollapseProp(l.layerId);
+        }
+      }
+    } else {
+      setLocalCollapsedLayers(new Set(layerDefs.map((l) => l.layerId)));
+    }
+  }, [layerDefs, onToggleLayerCollapseProp, collapsedLayers]);
 
   const expandAllLayers = useCallback(() => {
-    setCollapsedLayers(new Set());
-  }, []);
+    if (onToggleLayerCollapseProp) {
+      for (const l of layerDefs) {
+        if (collapsedLayers.has(l.layerId)) {
+          onToggleLayerCollapseProp(l.layerId);
+        }
+      }
+    } else {
+      setLocalCollapsedLayers(new Set());
+    }
+  }, [layerDefs, onToggleLayerCollapseProp, collapsedLayers]);
 
   const handleFit = useCallback(() => {
     if (cyRef.current) {

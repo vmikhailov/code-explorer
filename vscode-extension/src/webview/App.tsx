@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, useSyncExternalStore } from 'react';
 import {
   WebSocketMessage,
   HandshakeRequest,
@@ -14,10 +14,25 @@ import {
   GraphNode,
 } from '../../../proto/types';
 import { Toolbar } from './components/Toolbar';
-import { ProjectFlowView } from './components/ProjectFlowView';
+import { ProjectFlowView, EdgeCategory } from './components/ProjectFlowView';
 import { CytoscapeView } from './components/CytoscapeView';
 import { LayeredArchitectureView } from './components/LayeredArchitectureView';
 import { DomainArchitectureView } from './components/DomainArchitectureView';
+import {
+  CommandManager,
+  CommandProvider,
+  ViewMode,
+  ChangeViewModeCommand,
+  SelectProjectCommand,
+  ToggleShowTestsCommand,
+  ToggleGroupLayersCommand,
+  ToggleFlowEdgeTypeCommand,
+  ToggleFlowCategoryCommand,
+  ToggleFlowCardExpandCommand,
+  ResetFlowLevelsCommand,
+  ToggleLayerCollapseCommand,
+  SelectDrawerNodeCommand,
+} from './commands';
 
 declare function acquireVsCodeApi(): {
   postMessage(message: any): void;
@@ -161,11 +176,23 @@ export const App: React.FC = () => {
     return { projectInCounts: inMap, projectOutCounts: outMap };
   }, [fullGraph]);
 
-  // Navigation History Stack
-  const [history, setHistory] = useState<HistoryItem[]>([
-    { viewMode: 'semantic', selectedProject: '' },
-  ]);
-  const [historyIndex, setHistoryIndex] = useState<number>(0);
+  // Command Manager for Universal Undo / Redo
+  const commandManager = useMemo(() => new CommandManager(100), []);
+  const commandSnapshot = useSyncExternalStore(
+    (onStoreChange) => commandManager.subscribe(onStoreChange),
+    () => commandManager.getSnapshot()
+  );
+
+  // Lifted UI interaction states for cross-view persistence & undoability
+  const [flowExpandedCategories, setFlowExpandedCategories] = useState<Map<string, Set<string>>>(new Map());
+  const [flowExpandedCards, setFlowExpandedCards] = useState<Set<string>>(new Set());
+  const [flowVisibleEdgeTypes, setFlowVisibleEdgeTypes] = useState<Record<EdgeCategory, boolean>>({
+    library: true,
+    service_call: true,
+    database: true,
+    messaging: true,
+  });
+  const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
 
   const wsRef = useRef<WebSocket | null>(null);
   const workspaceRootRef = useRef<string>('');
@@ -201,86 +228,247 @@ export const App: React.FC = () => {
     sendWsMessage(req);
   }, [sendWsMessage]);
 
-  const navigateTo = useCallback(
-    (mode: 'semantic' | 'layers' | 'flow' | 'full', project?: string) => {
-      const nextProject = (project !== undefined && project !== '') ? project : selectedProject;
-
-      // Avoid redundant history entry if both mode and project match current state
-      if (viewMode === mode && nextProject === selectedProject) {
-        return;
-      }
-
-      setViewMode(mode);
-      if (nextProject !== selectedProject) {
-        setSelectedProject(nextProject);
-        if (nextProject) {
-          requestDependencies(nextProject);
+  // Command Action Handlers
+  const handleViewModeChange = useCallback(
+    (targetMode: ViewMode) => {
+      if (viewMode === targetMode) return;
+      const cmd = new ChangeViewModeCommand(
+        viewMode,
+        targetMode,
+        selectedProject,
+        selectedProject,
+        setViewMode,
+        setSelectedProject,
+        (m, p) => {
+          if (m === 'flow' && p) {
+            requestDependencies(p);
+          } else if (m !== 'flow') {
+            requestArchitecture();
+          }
         }
-      } else if (mode === 'flow' && nextProject) {
-        requestDependencies(nextProject);
-      }
-
-      setHistory((prev) => {
-        const currentSlice = prev.slice(0, historyIndex + 1);
-        const lastItem = currentSlice[currentSlice.length - 1];
-        if (lastItem && lastItem.viewMode === mode && lastItem.selectedProject === nextProject) {
-          return currentSlice;
-        }
-        const updated = [...currentSlice, { viewMode: mode, selectedProject: nextProject }];
-        setHistoryIndex(updated.length - 1);
-        return updated;
-      });
+      );
+      commandManager.executeCommand(cmd);
     },
-    [viewMode, selectedProject, historyIndex, requestDependencies]
+    [viewMode, selectedProject, commandManager, requestDependencies, requestArchitecture]
   );
 
-  const handleGoBack = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const targetIndex = historyIndex - 1;
-    const target = history[targetIndex];
-    if (!target) return;
+  const handleSelectProject = useCallback(
+    (targetProject: string, targetMode: ViewMode = 'flow') => {
+      if (selectedProject === targetProject && viewMode === targetMode) return;
+      const cmd = new SelectProjectCommand(
+        selectedProject,
+        targetProject,
+        viewMode,
+        targetMode,
+        setViewMode,
+        setSelectedProject,
+        (p) => requestDependencies(p)
+      );
+      commandManager.executeCommand(cmd);
+    },
+    [selectedProject, viewMode, commandManager, requestDependencies]
+  );
 
-    setHistoryIndex(targetIndex);
-    setViewMode(target.viewMode);
-    if (target.selectedProject) {
-      setSelectedProject(target.selectedProject);
-      if (target.viewMode === 'flow') {
-        requestDependencies(target.selectedProject);
+  const handleToggleShowTests = useCallback(() => {
+    const cmd = new ToggleShowTestsCommand(showTests, !showTests, setShowTests);
+    commandManager.executeCommand(cmd);
+  }, [showTests, commandManager]);
+
+  const handleToggleGroupLayers = useCallback(() => {
+    const cmd = new ToggleGroupLayersCommand(groupLayers, !groupLayers, setGroupLayers);
+    commandManager.executeCommand(cmd);
+  }, [groupLayers, commandManager]);
+
+  const handleToggleFlowEdgeType = useCallback(
+    (cat: EdgeCategory) => {
+      const nextTypes = {
+        ...flowVisibleEdgeTypes,
+        [cat]: !flowVisibleEdgeTypes[cat],
+      };
+      const cmd = new ToggleFlowEdgeTypeCommand(
+        cat,
+        flowVisibleEdgeTypes,
+        nextTypes,
+        setFlowVisibleEdgeTypes
+      );
+      commandManager.executeCommand(cmd);
+    },
+    [flowVisibleEdgeTypes, commandManager]
+  );
+
+  const handleToggleFlowCategory = useCallback(
+    (projectName: string, category: string, projectId?: string) => {
+      const prevCategories = new Map(flowExpandedCategories);
+      const nextCategories = new Map(flowExpandedCategories);
+
+      const currentActive =
+        nextCategories.get(projectName) ||
+        (projectId ? nextCategories.get(projectId) : undefined) ||
+        new Set<string>(['callsOut', 'acceptsIn', 'libsOut', 'libsIn', 'dbOut', 'messagesOut', 'messagesIn']);
+
+      const updated = new Set(currentActive);
+      const isExpanding = !updated.has(category);
+      if (isExpanding) {
+        updated.add(category);
+      } else {
+        updated.delete(category);
       }
-    }
-  }, [historyIndex, history, requestDependencies]);
 
-  const handleGoForward = useCallback(() => {
-    if (historyIndex >= history.length - 1) return;
-    const targetIndex = historyIndex + 1;
-    const target = history[targetIndex];
-    if (!target) return;
-
-    setHistoryIndex(targetIndex);
-    setViewMode(target.viewMode);
-    if (target.selectedProject) {
-      setSelectedProject(target.selectedProject);
-      if (target.viewMode === 'flow') {
-        requestDependencies(target.selectedProject);
+      nextCategories.set(projectName, updated);
+      nextCategories.set(projectName.toLowerCase(), updated);
+      if (projectId) {
+        nextCategories.set(projectId, updated);
+        nextCategories.set(projectId.toLowerCase(), updated);
       }
-    }
-  }, [historyIndex, history, requestDependencies]);
 
-  // Keyboard shortcut listener for Back / Forward (Alt+Left / Alt+Right)
+      const prevCards = new Set(flowExpandedCards);
+      const nextCards = new Set(flowExpandedCards);
+      nextCards.add(projectName);
+      if (projectId) nextCards.add(projectId);
+
+      const cmd = new ToggleFlowCategoryCommand(
+        projectName,
+        category,
+        isExpanding,
+        prevCategories,
+        nextCategories,
+        prevCards,
+        nextCards,
+        setFlowExpandedCategories,
+        setFlowExpandedCards
+      );
+      commandManager.executeCommand(cmd);
+    },
+    [flowExpandedCategories, flowExpandedCards, commandManager]
+  );
+
+  const handleToggleFlowCardExpand = useCallback(
+    (projectName: string, projectId?: string) => {
+      const prevCards = new Set(flowExpandedCards);
+      const nextCards = new Set(flowExpandedCards);
+      const isExp = nextCards.has(projectName) || (projectId ? nextCards.has(projectId) : false);
+
+      if (isExp) {
+        nextCards.delete(projectName);
+        if (projectId) nextCards.delete(projectId);
+      } else {
+        nextCards.add(projectName);
+        if (projectId) nextCards.add(projectId);
+      }
+
+      const cmd = new ToggleFlowCardExpandCommand(
+        projectName,
+        !isExp,
+        prevCards,
+        nextCards,
+        setFlowExpandedCards
+      );
+      commandManager.executeCommand(cmd);
+    },
+    [flowExpandedCards, commandManager]
+  );
+
+  const handleResetFlowLevels = useCallback(() => {
+    if (!selectedProject) return;
+    const allCats = new Set<string>([
+      'callsOut',
+      'acceptsIn',
+      'libsOut',
+      'libsIn',
+      'dbOut',
+      'messagesOut',
+      'messagesIn',
+    ]);
+    const prevCats = new Map(flowExpandedCategories);
+    const nextCats = new Map<string, Set<string>>();
+    nextCats.set(selectedProject, allCats);
+    nextCats.set(selectedProject.toLowerCase(), allCats);
+
+    const prevCards = new Set(flowExpandedCards);
+    const nextCards = new Set<string>([selectedProject]);
+
+    const cmd = new ResetFlowLevelsCommand(
+      prevCats,
+      nextCats,
+      prevCards,
+      nextCards,
+      setFlowExpandedCategories,
+      setFlowExpandedCards
+    );
+    commandManager.executeCommand(cmd);
+  }, [selectedProject, flowExpandedCategories, flowExpandedCards, commandManager]);
+
+  const handleToggleLayerCollapse = useCallback(
+    (layerId: string) => {
+      const prevCollapsed = new Set(collapsedLayers);
+      const nextCollapsed = new Set(collapsedLayers);
+      const isCollapsing = !nextCollapsed.has(layerId);
+      if (isCollapsing) {
+        nextCollapsed.add(layerId);
+      } else {
+        nextCollapsed.delete(layerId);
+      }
+
+      const cmd = new ToggleLayerCollapseCommand(
+        layerId,
+        layerId,
+        isCollapsing,
+        prevCollapsed,
+        nextCollapsed,
+        setCollapsedLayers
+      );
+      commandManager.executeCommand(cmd);
+    },
+    [collapsedLayers, commandManager]
+  );
+
+  const handleSelectDrawerNode = useCallback(
+    (node: GraphNode | null) => {
+      if (selectedDrawerNode === node) return;
+      const cmd = new SelectDrawerNodeCommand(
+        selectedDrawerNode,
+        node,
+        setSelectedDrawerNode
+      );
+      commandManager.executeCommand(cmd);
+    },
+    [selectedDrawerNode, commandManager]
+  );
+
+  // Keyboard shortcut listener for Undo / Redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Alt+Left, Alt+Right)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && e.key === 'ArrowLeft') {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (isInput) return; // Allow native undo inside input/textarea
         e.preventDefault();
-        handleGoBack();
+        if (e.shiftKey) {
+          commandManager.redo();
+        } else {
+          commandManager.undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        if (isInput) return;
+        e.preventDefault();
+        commandManager.redo();
+      } else if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        commandManager.undo();
       } else if (e.altKey && e.key === 'ArrowRight') {
         e.preventDefault();
-        handleGoForward();
+        commandManager.redo();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleGoBack, handleGoForward]);
+  }, [commandManager]);
 
   const handleOpenFile = useCallback((filePath: string, lineStart?: number) => {
     if (vscodeApi) {
@@ -416,12 +604,6 @@ export const App: React.FC = () => {
                 if (metadata?.selectedProject) {
                   const sp = metadata.selectedProject;
                   setSelectedProject(sp);
-                  setHistory((prev) => {
-                    if (prev.length === 1 && !prev[0].selectedProject) {
-                      return [{ ...prev[0], selectedProject: sp }];
-                    }
-                    return prev;
-                  });
                 }
                 if (metadata?.allProjects) {
                   try {
@@ -482,16 +664,7 @@ export const App: React.FC = () => {
                   projs.sort((a, b) => a.localeCompare(b));
                   if (projs.length > 0) {
                     setAllProjects((prev) => (prev.length === 0 ? projs : prev));
-                    setSelectedProject((prev) => {
-                      const chosen = prev ? prev : projs[0];
-                      setHistory((prevHist) => {
-                        if (prevHist.length === 1 && !prevHist[0].selectedProject) {
-                          return [{ ...prevHist[0], selectedProject: chosen }];
-                        }
-                        return prevHist;
-                      });
-                      return chosen;
-                    });
+                    setSelectedProject((prev) => (prev ? prev : projs[0]));
                   }
                 }
               }
@@ -633,213 +806,228 @@ export const App: React.FC = () => {
   }, [connectionStatus, isScanning, sendWsMessage]);
 
   return (
-    <div id="app">
-      <Toolbar
-        viewMode={viewMode}
-        onViewModeChange={(m) => navigateTo(m)}
-        allProjects={allProjects}
-        projectPaths={projectPaths}
-        selectedProject={selectedProject}
-        onSelectProject={(p) => navigateTo('flow', p)}
-        connectionStatus={connectionStatus}
-        onFitView={() => {
-          if (viewMode === 'flow') {
-            requestDependencies(selectedProject);
-          } else {
-            requestArchitecture();
-          }
-        }}
-        onRefresh={() => {
-          if (viewMode === 'flow') {
-            requestDependencies(selectedProject);
-          } else {
-            requestArchitecture();
-          }
-        }}
-        cypherQuery={cypherQuery}
-        onCypherQueryChange={setCypherQuery}
-        onRunCypher={handleRunCypher}
-        showTests={showTests}
-        onToggleShowTests={() => setShowTests((prev) => !prev)}
-        canGoBack={historyIndex > 0}
-        canGoForward={historyIndex < history.length - 1}
-        onGoBack={handleGoBack}
-        onGoForward={handleGoForward}
-        groupLayers={groupLayers}
-        onToggleGroupLayers={() => setGroupLayers((prev) => !prev)}
-        isScanning={isScanning}
-        scanProgress={scanProgress}
-        onTriggerScan={handleTriggerScan}
-        graphStats={graphStats}
-      />
+    <CommandProvider manager={commandManager}>
+      <div id="app">
+        <Toolbar
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          allProjects={allProjects}
+          projectPaths={projectPaths}
+          selectedProject={selectedProject}
+          onSelectProject={(p) => handleSelectProject(p, 'flow')}
+          connectionStatus={connectionStatus}
+          onFitView={() => {
+            if (viewMode === 'flow') {
+              requestDependencies(selectedProject);
+            } else {
+              requestArchitecture();
+            }
+          }}
+          onRefresh={() => {
+            if (viewMode === 'flow') {
+              requestDependencies(selectedProject);
+            } else {
+              requestArchitecture();
+            }
+          }}
+          cypherQuery={cypherQuery}
+          onCypherQueryChange={setCypherQuery}
+          onRunCypher={handleRunCypher}
+          showTests={showTests}
+          onToggleShowTests={handleToggleShowTests}
+          canGoBack={commandSnapshot.canUndo}
+          canGoForward={commandSnapshot.canRedo}
+          onGoBack={() => commandManager.undo()}
+          onGoForward={() => commandManager.redo()}
+          undoDescription={commandSnapshot.undoDescription}
+          redoDescription={commandSnapshot.redoDescription}
+          groupLayers={groupLayers}
+          onToggleGroupLayers={handleToggleGroupLayers}
+          isScanning={isScanning}
+          scanProgress={scanProgress}
+          onTriggerScan={handleTriggerScan}
+          graphStats={graphStats}
+        />
 
-      {scanNotification && (
-        <div className={`scan-toast ${scanNotification.type}`}>
-          <span className="toast-icon">{scanNotification.type === 'success' ? '✅' : '❌'}</span>
-          <span className="toast-text">{scanNotification.text}</span>
-        </div>
-      )}
+        {scanNotification && (
+          <div className={`scan-toast ${scanNotification.type}`}>
+            <span className="toast-icon">{scanNotification.type === 'success' ? '✅' : '❌'}</span>
+            <span className="toast-text">{scanNotification.text}</span>
+          </div>
+        )}
 
-      {activeError && (
-        <div className="error-banner" role="alert">
-          <div className="error-banner-main">
-            <div className="error-badge-icon">⚠️</div>
-            <div className="error-content">
-              <div className="error-header">
-                {activeError.code && <span className="error-code-badge">{activeError.code}</span>}
-                <span className="error-title">{activeError.message}</span>
+        {activeError && (
+          <div className="error-banner" role="alert">
+            <div className="error-banner-main">
+              <div className="error-badge-icon">⚠️</div>
+              <div className="error-content">
+                <div className="error-header">
+                  {activeError.code && <span className="error-code-badge">{activeError.code}</span>}
+                  <span className="error-title">{activeError.message}</span>
+                </div>
+                {showErrorDetails && activeError.details && (
+                  <pre className="error-details-view">{activeError.details}</pre>
+                )}
               </div>
-              {showErrorDetails && activeError.details && (
-                <pre className="error-details-view">{activeError.details}</pre>
-              )}
-            </div>
-            <div className="error-actions">
-              {activeError.details && (
+              <div className="error-actions">
+                {activeError.details && (
+                  <button
+                    className="error-action-btn secondary"
+                    onClick={() => setShowErrorDetails((prev) => !prev)}
+                  >
+                    {showErrorDetails ? 'Hide Details' : 'View Details'}
+                  </button>
+                )}
                 <button
                   className="error-action-btn secondary"
-                  onClick={() => setShowErrorDetails((prev) => !prev)}
+                  onClick={handleCopyError}
+                  title="Copy error details to clipboard"
                 >
-                  {showErrorDetails ? 'Hide Details' : 'View Details'}
+                  {copiedError ? '✓ Copied' : 'Copy'}
                 </button>
-              )}
-              <button
-                className="error-action-btn secondary"
-                onClick={handleCopyError}
-                title="Copy error details to clipboard"
-              >
-                {copiedError ? '✓ Copied' : 'Copy'}
-              </button>
-              <button
-                className="error-action-btn secondary"
-                onClick={handleShowLogs}
-                title="Open VS Code Output Channel"
-              >
-                Show Logs
-              </button>
-              {connectionStatus === 'disconnected' && (
                 <button
-                  className="error-action-btn primary"
-                  onClick={handleReconnect}
-                  title="Reconnect to server"
+                  className="error-action-btn secondary"
+                  onClick={handleShowLogs}
+                  title="Open VS Code Output Channel"
                 >
-                  Reconnect
+                  Show Logs
                 </button>
-              )}
-              <button
-                className="error-action-btn close"
-                onClick={() => setActiveError(null)}
-                title="Dismiss error"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <main className="main-viewport">
-        {isScanning && (
-          <div className="floating-scan-progress">
-            <div className="scan-progress-content">
-              <span className="scan-spinner">⚡</span>
-              <span className="scan-phase-label">
-                {scanProgress?.phase === 'Indexing' ? 'Indexing Workspace...' : 'Scanning...'}
-              </span>
-              {scanProgress?.currentFile && (
-                <span className="scan-file-label" title={scanProgress.currentFile}>
-                  {scanProgress.currentFile}
-                </span>
-              )}
-              <span className="scan-percent-badge">
-                {Math.round(scanProgress?.percentage || 0)}%
-              </span>
-            </div>
-            <div className="scan-progress-track">
-              <div
-                className="scan-progress-bar"
-                style={{ width: `${Math.min(100, Math.max(0, scanProgress?.percentage || 0))}%` }}
-              />
+                {connectionStatus === 'disconnected' && (
+                  <button
+                    className="error-action-btn primary"
+                    onClick={handleReconnect}
+                    title="Reconnect to server"
+                  >
+                    Reconnect
+                  </button>
+                )}
+                <button
+                  className="error-action-btn close"
+                  onClick={() => setActiveError(null)}
+                  title="Dismiss error"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        <ErrorBoundary onLogError={(err) => logToExtension('ERROR', `View crash: ${err.message}\n${err.stack}`)}>
-          {viewMode === 'semantic' && (
-            <DomainArchitectureView
-              graph={fullGraph}
-              onOpenFile={handleOpenFile}
-              onFocusInFlow={(p) => navigateTo('flow', p)}
-            />
-          )}
-
-          {viewMode === 'layers' && (
-            <LayeredArchitectureView
-              graph={fullGraph}
-              onOpenFile={handleOpenFile}
-              onFocusInFlow={(p) => navigateTo('flow', p)}
-              showTests={showTests}
-            />
-          )}
-
-          {viewMode === 'flow' && (
-            <ProjectFlowView
-              graph={flowGraph}
-              fullGraph={fullGraph}
-              onSelectProject={(p) => navigateTo('flow', p)}
-              onOpenFile={handleOpenFile}
-            />
-          )}
-
-          {viewMode === 'full' && (
-            <CytoscapeView
-              graph={fullGraph}
-              onOpenFile={handleOpenFile}
-              onSelectNode={setSelectedDrawerNode}
-              groupLayers={groupLayers}
-              onToggleGroupLayers={() => setGroupLayers((prev) => !prev)}
-              showTests={showTests}
-            />
-          )}
-        </ErrorBoundary>
-      </main>
-
-      {/* Slide-out drawer for Cytoscape node inspection */}
-      {selectedDrawerNode && (
-        <aside className="drawer">
-          <div className="drawer-header">
-            <span className="badge">{selectedDrawerNode.kind}</span>
-            <h3>{selectedDrawerNode.displayName || selectedDrawerNode.name}</h3>
-            <button className="close-btn" onClick={() => setSelectedDrawerNode(null)}>
-              &times;
-            </button>
-          </div>
-          <div className="drawer-content">
-            {selectedDrawerNode.filePath && (
-              <div className="drawer-field">
-                <label>Location</label>
-                <div
-                  className="clickable-code-link"
-                  onClick={() => handleOpenFile(selectedDrawerNode.filePath!, selectedDrawerNode.lineStart)}
-                >
-                  {selectedDrawerNode.filePath}
-                </div>
+        <main className="main-viewport">
+          {isScanning && (
+            <div className="floating-scan-progress">
+              <div className="scan-progress-content">
+                <span className="scan-spinner">⚡</span>
+                <span className="scan-phase-label">
+                  {scanProgress?.phase === 'Indexing' ? 'Indexing Workspace...' : 'Scanning...'}
+                </span>
+                {scanProgress?.currentFile && (
+                  <span className="scan-file-label" title={scanProgress.currentFile}>
+                    {scanProgress.currentFile}
+                  </span>
+                )}
+                <span className="scan-percent-badge">
+                  {Math.round(scanProgress?.percentage || 0)}%
+                </span>
               </div>
-            )}
-            <div className="drawer-field">
-              <label>Properties</label>
-              <div className="property-list">
-                {selectedDrawerNode.properties &&
-                  Object.entries(selectedDrawerNode.properties).map(([k, v]) => (
-                    <div key={k} className="prop-item">
-                      <span className="prop-key">{k}</span>
-                      <span className="prop-val">{v}</span>
-                    </div>
-                  ))}
+              <div className="scan-progress-track">
+                <div
+                  className="scan-progress-bar"
+                  style={{ width: `${Math.min(100, Math.max(0, scanProgress?.percentage || 0))}%` }}
+                />
               </div>
             </div>
-          </div>
-        </aside>
-      )}
-    </div>
+          )}
+
+          <ErrorBoundary onLogError={(err) => logToExtension('ERROR', `View crash: ${err.message}\n${err.stack}`)}>
+            {viewMode === 'semantic' && (
+              <DomainArchitectureView
+                graph={fullGraph}
+                onOpenFile={handleOpenFile}
+                onFocusInFlow={(p) => handleSelectProject(p, 'flow')}
+              />
+            )}
+
+            {viewMode === 'layers' && (
+              <LayeredArchitectureView
+                graph={fullGraph}
+                onOpenFile={handleOpenFile}
+                onFocusInFlow={(p) => handleSelectProject(p, 'flow')}
+                showTests={showTests}
+                collapsedLayers={collapsedLayers}
+                onToggleLayer={handleToggleLayerCollapse}
+              />
+            )}
+
+            {viewMode === 'flow' && (
+              <ProjectFlowView
+                graph={flowGraph}
+                fullGraph={fullGraph}
+                onSelectProject={(p) => handleSelectProject(p, 'flow')}
+                onOpenFile={handleOpenFile}
+                expandedCategories={flowExpandedCategories}
+                onToggleCategory={handleToggleFlowCategory}
+                expandedCards={flowExpandedCards}
+                onToggleCardExpand={handleToggleFlowCardExpand}
+                visibleEdgeTypes={flowVisibleEdgeTypes}
+                onToggleEdgeType={handleToggleFlowEdgeType}
+                onResetLevels={handleResetFlowLevels}
+              />
+            )}
+
+            {viewMode === 'full' && (
+              <CytoscapeView
+                graph={fullGraph}
+                onOpenFile={handleOpenFile}
+                onSelectNode={handleSelectDrawerNode}
+                groupLayers={groupLayers}
+                onToggleGroupLayers={handleToggleGroupLayers}
+                showTests={showTests}
+                collapsedLayers={collapsedLayers}
+                onToggleLayerCollapse={handleToggleLayerCollapse}
+              />
+            )}
+          </ErrorBoundary>
+        </main>
+
+        {/* Slide-out drawer for Cytoscape node inspection */}
+        {selectedDrawerNode && (
+          <aside className="drawer">
+            <div className="drawer-header">
+              <span className="badge">{selectedDrawerNode.kind}</span>
+              <h3>{selectedDrawerNode.displayName || selectedDrawerNode.name}</h3>
+              <button className="close-btn" onClick={() => handleSelectDrawerNode(null)}>
+                &times;
+              </button>
+            </div>
+            <div className="drawer-content">
+              {selectedDrawerNode.filePath && (
+                <div className="drawer-field">
+                  <label>Location</label>
+                  <div
+                    className="clickable-code-link"
+                    onClick={() => handleOpenFile(selectedDrawerNode.filePath!, selectedDrawerNode.lineStart)}
+                  >
+                    {selectedDrawerNode.filePath}
+                  </div>
+                </div>
+              )}
+              <div className="drawer-field">
+                <label>Properties</label>
+                <div className="property-list">
+                  {selectedDrawerNode.properties &&
+                    Object.entries(selectedDrawerNode.properties).map(([k, v]) => (
+                      <div key={k} className="prop-item">
+                        <span className="prop-key">{k}</span>
+                        <span className="prop-val">{v}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
+      </div>
+    </CommandProvider>
   );
 };
