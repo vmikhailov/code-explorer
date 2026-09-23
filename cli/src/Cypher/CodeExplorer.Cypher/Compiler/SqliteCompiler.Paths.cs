@@ -14,15 +14,19 @@ public partial class SqliteCompiler
         var joinKeyword = isOptional ? "LEFT JOIN" : "JOIN";
         List<string> optionalWhereExtra = [];
 
-        if (match.Where != null)
+        if (isOptional && match.Where != null)
         {
-            var targetConditions = isOptional ? optionalWhereExtra : mainWhereConditions;
-            targetConditions.Add(VisitExpression(match.Where.Predicate));
+            optionalWhereExtra.Add(VisitExpression(match.Where.Predicate));
         }
 
         foreach (var path in match.Paths)
         {
             ProcessPathPattern(path, isOptional, joinKeyword, fromAndJoins, mainWhereConditions, optionalWhereExtra);
+        }
+
+        if (!isOptional && match.Where != null)
+        {
+            mainWhereConditions.Add(VisitExpression(match.Where.Predicate));
         }
     }
 

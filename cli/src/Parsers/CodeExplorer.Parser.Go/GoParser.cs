@@ -31,8 +31,8 @@ public class GoParser : IProjectParser, IFileParser
         new GenericLibraryParser("bigquery", "BigQuery", "db:analytics", ["cloud.google.com/go/bigquery"]),
 
         // Additional Cloud & Message Services
-        new GenericLibraryParser("pubsub", "PubSub", "cloud", ["cloud.google.com/go/pubsub"]),
-        new GenericLibraryParser("rabbitmq", "RabbitMQ", "cloud", ["github.com/rabbitmq/amqp091-go"]),
+        new Libraries.PubSubGoLibraryParser(),
+        new Libraries.RabbitMqGoLibraryParser(),
 
         // Generic Cloud Services
         new GenericLibraryParser("stripe", "Stripe", "cloud", ["github.com/stripe/stripe-go"]),

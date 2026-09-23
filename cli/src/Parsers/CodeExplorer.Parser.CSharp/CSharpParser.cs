@@ -121,16 +121,21 @@ public class CSharpParser : IProjectParser, IFileParser
             var content = await File.ReadAllTextAsync(csprojFile);
             var doc = System.Xml.Linq.XDocument.Parse(content);
 
+            var propChildren = doc.Root?.Elements()
+                .Where(e => e.Name.LocalName == "PropertyGroup")
+                .SelectMany(g => g.Elements())
+                .ToList();
+
             // Check IsPackable
-            var isPackableStr = doc.Descendants("IsPackable").FirstOrDefault()?.Value;
+            var isPackableStr = propChildren?.FirstOrDefault(e => e.Name.LocalName == "IsPackable")?.Value;
             if (!string.IsNullOrEmpty(isPackableStr) && bool.TryParse(isPackableStr, out var isPackable) && !isPackable)
             {
                 return null;
             }
 
             // Check OutputType (if Exe and not packable, return null)
-            var outputType = doc.Descendants("OutputType").FirstOrDefault()?.Value;
-            var hasGeneratePackageOnBuild = doc.Descendants("GeneratePackageOnBuild").FirstOrDefault()?.Value;
+            var outputType = propChildren?.FirstOrDefault(e => e.Name.LocalName == "OutputType")?.Value;
+            var hasGeneratePackageOnBuild = propChildren?.FirstOrDefault(e => e.Name.LocalName == "GeneratePackageOnBuild")?.Value;
             var generateOnBuild = !string.IsNullOrEmpty(hasGeneratePackageOnBuild) &&
                                   bool.TryParse(hasGeneratePackageOnBuild, out var gen) && gen;
 
@@ -142,12 +147,12 @@ public class CSharpParser : IProjectParser, IFileParser
                 return null;
             }
 
-            var packageId = doc.Descendants("PackageId").FirstOrDefault()?.Value
-                         ?? doc.Descendants("AssemblyName").FirstOrDefault()?.Value
+            var packageId = propChildren?.FirstOrDefault(e => e.Name.LocalName == "PackageId" && !string.IsNullOrWhiteSpace(e.Value))?.Value
+                         ?? propChildren?.FirstOrDefault(e => e.Name.LocalName == "AssemblyName" && !string.IsNullOrWhiteSpace(e.Value))?.Value
                          ?? Path.GetFileNameWithoutExtension(csprojFile);
 
-            var version = doc.Descendants("Version").FirstOrDefault()?.Value
-                       ?? doc.Descendants("PackageVersion").FirstOrDefault()?.Value
+            var version = propChildren?.FirstOrDefault(e => e.Name.LocalName == "Version" && !string.IsNullOrWhiteSpace(e.Value))?.Value
+                       ?? propChildren?.FirstOrDefault(e => e.Name.LocalName == "PackageVersion" && !string.IsNullOrWhiteSpace(e.Value))?.Value
                        ?? "1.0.0";
 
             return new ProducedPackageInfo(packageId, version, "nuget");

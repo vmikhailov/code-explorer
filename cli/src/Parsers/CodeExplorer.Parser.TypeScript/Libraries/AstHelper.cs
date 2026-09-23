@@ -43,6 +43,19 @@ public static class AstHelper
             {
                 return NormalizeResolvedUrl(val);
             }
+
+            if (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$") ||
+                varName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("TopicName", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("QueueName", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("Sub", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("SubName", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("SubscriptionName", StringComparison.OrdinalIgnoreCase))
+            {
+                return varName;
+            }
         }
 
         if (argNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
@@ -54,10 +67,45 @@ public static class AstHelper
             }
 
             var prop = argNode.GetField(TreeSitterSyntax.Fields.Property);
-            if (prop.IsValid() && RouteDictionaryRegistry.TryResolve(prop.Text, out rPath, out rService))
+            if (prop.IsValid())
             {
-                var cleanPath = rPath.Split('?')[0];
-                return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
+                if (RouteDictionaryRegistry.TryResolve(prop.Text, out rPath, out rService))
+                {
+                    var cleanPath = rPath.Split('?')[0];
+                    return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
+                }
+
+                var propText = prop.Text;
+                var val = FindVariableInitializerInAst(argNode, propText);
+                if (val != null)
+                {
+                    return NormalizeResolvedUrl(val);
+                }
+
+                if (Regex.IsMatch(propText, @"^[A-Z0-9_]{3,}$") ||
+                    propText.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                    propText.EndsWith("TopicName", StringComparison.OrdinalIgnoreCase) ||
+                    propText.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                    propText.EndsWith("QueueName", StringComparison.OrdinalIgnoreCase) ||
+                    propText.EndsWith("Sub", StringComparison.OrdinalIgnoreCase) ||
+                    propText.EndsWith("SubName", StringComparison.OrdinalIgnoreCase) ||
+                    propText.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
+                    propText.EndsWith("SubscriptionName", StringComparison.OrdinalIgnoreCase))
+                {
+                    return propText;
+                }
+            }
+        }
+
+        if (argNode.Is(TreeSitterSyntax.TypeScript.Object) || argNode.Type == "object")
+        {
+            if (TryGetObjectProperty(argNode, "topicName", out var tp) ||
+                TryGetObjectProperty(argNode, "topic", out tp) ||
+                TryGetObjectProperty(argNode, "queue", out tp) ||
+                TryGetObjectProperty(argNode, "queueName", out tp))
+            {
+                var resolved = ResolveStringOrTemplate(tp);
+                if (!string.IsNullOrEmpty(resolved)) return resolved;
             }
         }
 

@@ -287,6 +287,7 @@ graph TD
 | `Version` | `string` | The package version. |
 | `Type` | `string` | The package type or entity type. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `IsExternal` | `bool` | Whether this package is an external third-party dependency. |
 
 ---
 

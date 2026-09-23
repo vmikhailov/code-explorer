@@ -32,36 +32,43 @@ public class LibraryTrieRegistry
             current = child;
         }
 
-        current.Parser = parser;
-        current.Pattern = pattern;
+        current.Parsers.Add((parser, pattern));
     }
 
     public ILibraryParser? Match(string import)
     {
-        if (string.IsNullOrEmpty(import)) return null;
+        return MatchAll(import).FirstOrDefault();
+    }
+
+    public List<ILibraryParser> MatchAll(string import)
+    {
+        if (string.IsNullOrEmpty(import)) return [];
 
         var importSegments = import.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var results = new List<MatchResult>();
 
         MatchRecursive(_root, importSegments, 0, results);
 
-        if (results.Count == 0) return null;
+        if (results.Count == 0) return [];
 
-        // Best match wins: longest pattern length first, then alphabetical tie-breaker.
         return results
             .OrderByDescending(r => r.Pattern.Length)
             .ThenBy(r => r.Pattern, StringComparer.Ordinal)
-            .First()
-            .Parser;
+            .Select(r => r.Parser)
+            .Distinct()
+            .ToList();
     }
 
     private void MatchRecursive(TrieNode node, string[] importSegments, int index, List<MatchResult> results)
     {
-        // 1. If we have reached a terminal node with a parser
-        if (node.Parser != null)
+        // 1. If we have reached a terminal node with parsers
+        if (node.Parsers.Count > 0)
         {
             // A registered parser matches its own package root AND any deeper subpaths (e.g. "mysql2" matches "mysql2/promise")
-            results.Add(new MatchResult(node.Pattern!, node.Parser));
+            foreach (var (p, pat) in node.Parsers)
+            {
+                results.Add(new MatchResult(pat, p));
+            }
         }
 
         // 2. If we still have segments left to match in the import
@@ -82,37 +89,39 @@ public class LibraryTrieRegistry
                     var prefix = childKey[..^1];
                     if (segment.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     {
-                        // If this child represents a terminal node, it can match this segment and consume the rest
-                        if (childNode.Parser != null)
+                        if (childNode.Parsers.Count > 0)
                         {
-                            results.Add(new MatchResult(childNode.Pattern!, childNode.Parser));
+                            foreach (var (p, pat) in childNode.Parsers)
+                            {
+                                results.Add(new MatchResult(pat, p));
+                            }
                         }
-                        // Also recurse to match deeper segments
                         MatchRecursive(childNode, importSegments, index + 1, results);
                     }
                 }
                 // Wildcard segment (e.g. *)
                 else if (childKey == "*")
                 {
-                    // Matches current segment, recurse
                     MatchRecursive(childNode, importSegments, index + 1, results);
 
-                    // If the wildcard is terminal (e.g., @nestjs/* matching @nestjs/common/core),
-                    // it matches all remaining segments.
-                    if (childNode.Parser != null)
+                    if (childNode.Parsers.Count > 0)
                     {
-                        results.Add(new MatchResult(childNode.Pattern!, childNode.Parser));
+                        foreach (var (p, pat) in childNode.Parsers)
+                        {
+                            results.Add(new MatchResult(pat, p));
+                        }
                     }
                 }
                 // Fallback namespace match (using IsLibraryMatch)
                 else if (ILibraryParser.IsLibraryMatch(segment, childKey))
                 {
-                    // If the child is a terminal node, it can match
-                    if (childNode.Parser != null && index == importSegments.Length - 1)
+                    if (childNode.Parsers.Count > 0 && index == importSegments.Length - 1)
                     {
-                        results.Add(new MatchResult(childNode.Pattern!, childNode.Parser));
+                        foreach (var (p, pat) in childNode.Parsers)
+                        {
+                            results.Add(new MatchResult(pat, p));
+                        }
                     }
-                    // Also recurse
                     MatchRecursive(childNode, importSegments, index + 1, results);
                 }
             }
@@ -122,9 +131,12 @@ public class LibraryTrieRegistry
             // If the import is fully consumed, but the pattern had a wildcard segment at the end (e.g., @nestjs/* matches @nestjs)
             foreach (var (childKey, childNode) in node.Children)
             {
-                if (childKey == "*" && childNode.Parser != null)
+                if (childKey == "*" && childNode.Parsers.Count > 0)
                 {
-                    results.Add(new MatchResult(childNode.Pattern!, childNode.Parser));
+                    foreach (var (p, pat) in childNode.Parsers)
+                    {
+                        results.Add(new MatchResult(pat, p));
+                    }
                 }
             }
         }
@@ -133,8 +145,7 @@ public class LibraryTrieRegistry
     private class TrieNode
     {
         public Dictionary<string, TrieNode> Children { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public ILibraryParser? Parser { get; set; }
-        public string? Pattern { get; set; }
+        public List<(ILibraryParser Parser, string Pattern)> Parsers { get; } = [];
     }
 
     private record struct MatchResult(string Pattern, ILibraryParser Parser);

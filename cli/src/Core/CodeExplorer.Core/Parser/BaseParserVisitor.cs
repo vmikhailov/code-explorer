@@ -19,23 +19,42 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         var type = FileParser.ResolveImportType(importPath, RelativePath, AbsoluteWorkspacePath);
         if (type == ImportType.External)
         {
-            var match = LibraryRegistry.Match(importPath);
-            if (match != null)
+            var matches = LibraryRegistry.MatchAll(importPath);
+            foreach (var match in matches)
             {
-                if (match.IsImplemented)
+                if (match.IsImplemented && !LibraryParsers.Contains(match))
                 {
-                    if (!LibraryParsers.Contains(match))
+                    LibraryParsers.Add(match);
+                }
+            }
+        }
+        else
+        {
+            // For local imports referencing messaging/queue helpers (e.g. ./rabbit/rabbit, ../util/pubsub/GoogleCloudPublisher)
+            if (importPath.Contains("rabbit", StringComparison.OrdinalIgnoreCase))
+            {
+                var matches = LibraryRegistry.MatchAll("amqplib");
+                if (matches.Count == 0) matches = LibraryRegistry.MatchAll("github.com/rabbitmq/amqp091-go");
+                foreach (var match in matches)
+                {
+                    if (match.IsImplemented && !LibraryParsers.Contains(match))
                     {
                         LibraryParsers.Add(match);
                     }
                 }
-                else
+            }
+            if (importPath.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
+                importPath.Contains("pub-sub", StringComparison.OrdinalIgnoreCase))
+            {
+                var matches = LibraryRegistry.MatchAll("@google-cloud/pubsub");
+                if (matches.Count == 0) matches = LibraryRegistry.MatchAll("cloud.google.com/go/pubsub");
+                foreach (var match in matches)
                 {
-                    // Library detected but parser is not implemented yet.
+                    if (match.IsImplemented && !LibraryParsers.Contains(match))
+                    {
+                        LibraryParsers.Add(match);
+                    }
                 }
-
-                // Library detected but parser is not implemented yet.
-
             }
         }
     }

@@ -6,6 +6,8 @@ using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
+using CodeExplorer.Parser.Go;
+using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;
 using NUnit.Framework;
 
@@ -236,6 +238,234 @@ public class OrderDirectiveHandler : IMessageHandler<OrderDirectiveMessage>
             // Verify SubscribesTo relationship to OrderDirectiveMessage
             var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "kafka:OrderDirectiveMessage");
             Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for OrderDirectiveMessage");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_GoRabbitMqParser_PublishAndConsume()
+    {
+        var parser = new GoParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_gorabbit_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "rabbit_service.go");
+
+        var code = @"
+package main
+
+import (
+    ""context""
+    amqp ""github.com/rabbitmq/amqp091-go""
+)
+
+func RunRabbit(ctx context.Context, ch *amqp.Channel) {
+    ch.Publish("""", ""orders_queue"", false, false, amqp.Publishing{})
+    ch.Consume(""orders_queue"", """", true, false, false, false, nil)
+    consumeRabbit(ctx, ch, ""impression_queue"", nil)
+}
+
+func consumeRabbit(ctx context.Context, ch *amqp.Channel, q string, h any) {}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var refs = FindReferences(fileNode.Children);
+            var pubRel = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:orders_queue");
+            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for rabbitmq:orders_queue");
+
+            var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:orders_queue");
+            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for rabbitmq:orders_queue");
+
+            var helperSub = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:impression_queue");
+            Assert.That(helperSub, Is.Not.Null, "Expected SUBSCRIBES_TO reference for rabbitmq:impression_queue via consumeRabbit helper");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_GoPubSubParser_PublishAndSubscribe()
+    {
+        var parser = new GoParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_gopubsub_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "pubsub_service.go");
+
+        var code = @"
+package main
+
+import (
+    ""context""
+    ""cloud.google.com/go/pubsub""
+)
+
+type WorkerDef struct {
+    TopicID string
+    SubID   string
+}
+
+func RunPubSub(ctx context.Context, client *pubsub.Client) {
+    topic := client.Topic(""events_topic"")
+    topic.Publish(ctx, &pubsub.Message{Data: []byte(""hello"")})
+    sub := client.Subscription(""events_sub"")
+    _ = sub
+
+    worker := WorkerDef{
+        TopicID: ""streaming_topic"",
+        SubID:   ""streaming_sub"",
+    }
+    _ = worker
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var refs = FindReferences(fileNode.Children);
+            var pubRel = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "gcp:events_topic");
+            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for gcp:events_topic");
+
+            var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:events_sub");
+            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for gcp:events_sub");
+
+            var workerSub = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:streaming_topic");
+            Assert.That(workerSub, Is.Not.Null, "Expected SUBSCRIBES_TO reference for gcp:streaming_topic from WorkerDef");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_TypeScriptRabbitMq_WrapperAndSendListen()
+    {
+        var parser = new TypeScriptParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_tsrabbit_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "rabbit-controller.ts");
+
+        var code = @"
+import { Rabbit } from './rabbit/rabbit';
+import { RabbitQueue } from './rabbit/queue.rabbit';
+
+const PA_PARTNER_QUEUE = 'PA_PARTNER_QUEUE';
+let paPartnerQueue: RabbitQueue;
+
+export async function rabbitKeepAlive() {
+    const rabbit = await Rabbit.connect();
+    paPartnerQueue = await rabbit.createQueue(PA_PARTNER_QUEUE);
+    paPartnerQueue.listen((msg: string) => {});
+}
+
+export async function sendPartner() {
+    await paPartnerQueue.send('hello');
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var refs = FindReferences(fileNode.Children);
+            var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:PA_PARTNER_QUEUE");
+            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for rabbitmq:PA_PARTNER_QUEUE");
+
+            var pubRel = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:PA_PARTNER_QUEUE");
+            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for rabbitmq:PA_PARTNER_QUEUE via send");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_TypeScriptGcpPubSub_PublishAndSubscribe()
+    {
+        var parser = new TypeScriptParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_tsgcp_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "pubsub-service.ts");
+
+        var code = @"
+import { PubSubService } from '@atsorganization/internal-commons-library/pubsub';
+import { Message } from '@google-cloud/pubsub';
+
+export const EVENT_BUS_TOPIC_NAME = 'event-bus-topic';
+
+export class AppService {
+    constructor(private pubSubService: PubSubService) {}
+
+    async start() {
+        await this.pubSubService.publishMessage({
+            topicName: EVENT_BUS_TOPIC_NAME,
+            data: { test: true }
+        });
+
+        this.pubSubService.subscribeToMessages('event-bus-topic-SUB', (msg: Message) => {});
+        this.pubSubService.listenSubscription('CHANGE_DOMAIN_SUBSCRIPTION_NAME', (msg: any) => {});
+    }
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var refs = FindReferences(fileNode.Children);
+            var pubRel = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:event-bus-topic" || r.TargetName == "gcp:EVENT_BUS_TOPIC_NAME"));
+            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for gcp:event-bus-topic");
+
+            var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:event-bus-topic-SUB");
+            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for gcp:event-bus-topic-SUB");
+
+            var listenSub = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:CHANGE_DOMAIN_SUBSCRIPTION_NAME");
+            Assert.That(listenSub, Is.Not.Null, "Expected SUBSCRIBES_TO reference for gcp:CHANGE_DOMAIN_SUBSCRIPTION_NAME via listenSubscription");
         }
         finally
         {

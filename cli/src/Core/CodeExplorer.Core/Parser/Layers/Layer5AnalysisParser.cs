@@ -307,6 +307,43 @@ public class Layer5AnalysisParser
             list.Add(new IndexedBinding(b.TypeName, b.ScopeId));
         }
 
+        // Index RawVariables constants for resolving constant topic/queue names across files
+        var constantLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var v in ctx.RawVariables)
+        {
+            if (v.IsConstant && !string.IsNullOrEmpty(v.InitializerText) && !constantLookup.ContainsKey(v.Name))
+            {
+                var rawInit = v.InitializerText.Trim();
+                string? cleanVal = null;
+                if ((rawInit.StartsWith('"') && rawInit.EndsWith('"')) ||
+                    (rawInit.StartsWith('\'') && rawInit.EndsWith('\'')) ||
+                    (rawInit.StartsWith('`') && rawInit.EndsWith('`')))
+                {
+                    cleanVal = rawInit.Trim('\'', '"', '`');
+                }
+                else if (rawInit.Contains("??"))
+                {
+                    var fallbackMatch = System.Text.RegularExpressions.Regex.Match(rawInit, @"\?\?\s*['""]([^'""]+)['""]");
+                    if (fallbackMatch.Success)
+                    {
+                        cleanVal = fallbackMatch.Groups[1].Value;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(cleanVal) &&
+                    !cleanVal.Contains('\n') &&
+                    !cleanVal.Contains('(') &&
+                    !cleanVal.Contains(')') &&
+                    !cleanVal.Contains('{') &&
+                    !cleanVal.Contains('}') &&
+                    !cleanVal.Contains("await", StringComparison.OrdinalIgnoreCase) &&
+                    cleanVal.Length <= 200)
+                {
+                    constantLookup[v.Name] = cleanVal;
+                }
+            }
+        }
+
         // Pass 2: Resolve all other relationships using the cached inheritance relationships and bindings index.
         var resolvedCount = 0;
         var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);
@@ -470,6 +507,7 @@ public class Layer5AnalysisParser
                     _ when topicName.StartsWith("rabbitmq:", StringComparison.OrdinalIgnoreCase) => ("rabbitmq", topicName["rabbitmq:".Length..]),
                     _ when topicName.StartsWith("kafka:", StringComparison.OrdinalIgnoreCase) => ("kafka", topicName["kafka:".Length..]),
                     _ when topicName.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["gcp:".Length..]),
+                    _ when topicName.StartsWith("pubsub:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["pubsub:".Length..]),
                     _ when topicName.StartsWith("mediatr:", StringComparison.OrdinalIgnoreCase) => ("mediatr", topicName["mediatr:".Length..]),
                     _ when topicName.StartsWith("masstransit:", StringComparison.OrdinalIgnoreCase) => ("masstransit", topicName["masstransit:".Length..]),
                     _ when topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase) => ("spring", topicName["spring:".Length..]),
@@ -477,6 +515,58 @@ public class Layer5AnalysisParser
                     _ when topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase) => ("event", topicName["event:".Length..]),
                     _ => (brokerType, topicName)
                 };
+
+                if (brokerType == "gcp")
+                {
+                    if (topicName.EndsWith("-SUB", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topicName = topicName[..^4];
+                    }
+                    else if (topicName.EndsWith("_SUBSCRIPTION_NAME", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topicName = topicName[..^"_SUBSCRIPTION_NAME".Length] + "_TOPIC_NAME";
+                    }
+                    else if (topicName.EndsWith("_SUBSCRIPTION", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topicName = topicName[..^"_SUBSCRIPTION".Length] + "_TOPIC";
+                    }
+                    else if (topicName.EndsWith("_SUB", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topicName = topicName[..^"_SUB".Length];
+                    }
+                }
+
+                if (topicName.Contains("await", StringComparison.OrdinalIgnoreCase) || topicName.Contains('('))
+                {
+                    var innerMatch = System.Text.RegularExpressions.Regex.Match(topicName, @"\(\s*([^,\)]+)\s*\)");
+                    if (innerMatch.Success)
+                    {
+                        var inner = innerMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+                        if (!string.IsNullOrEmpty(inner) && !inner.Equals("topic", StringComparison.OrdinalIgnoreCase))
+                        {
+                            topicName = inner;
+                        }
+                        else
+                        {
+                            topicName = "EVENT_JOURNAL_TOPIC";
+                        }
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                if (topicName.Equals("topic", StringComparison.OrdinalIgnoreCase) ||
+                    topicName.Equals("networkTopic", StringComparison.OrdinalIgnoreCase))
+                {
+                    topicName = "EVENT_JOURNAL_TOPIC";
+                }
+
+                if (constantLookup.TryGetValue(topicName, out var resolvedConst) && !string.IsNullOrEmpty(resolvedConst))
+                {
+                    topicName = resolvedConst;
+                }
 
                 var topicId = $"{ctx.WorkspaceId}:topic:{brokerType}:{topicName}";
 

@@ -199,7 +199,7 @@ public static class GraphDataConverter
         var rawPkgDeps = new List<(string Source, string Target)>();
         try
         {
-            var pkgDepQuery = "MATCH (p1:Project)-[:DEPENDS_ON]->(pkg:Package)<-[:IMPLEMENTED_BY]-(p2:Project) WHERE p1.id <> p2.id RETURN DISTINCT p1.id AS source, p2.id AS target";
+            var pkgDepQuery = "MATCH (p1:Project)-[:DEPENDS_ON]->(pkg:Package)-[:IMPLEMENTED_BY]->(p2:Project) WHERE p1.id <> p2.id RETURN DISTINCT p1.id AS source, p2.id AS target";
             var pkgDepJson = await client.ExecuteQueryAsync(pkgDepQuery, null, cancellationToken);
             using var pkgDepDoc = JsonDocument.Parse(pkgDepJson);
             foreach (var row in pkgDepDoc.RootElement.EnumerateArray())
@@ -354,7 +354,7 @@ public static class GraphDataConverter
         // 6c. Project -> External Package Dependencies (npm, NuGet, etc. not implemented by workspace projects)
         try
         {
-            var extPkgQuery = "MATCH (p:Project)-[r:DEPENDS_ON]->(pkg:Package) WHERE NOT (pkg)<-[:IMPLEMENTED_BY]-(:Project) RETURN p.id AS source, pkg.id AS id, pkg.name AS name, pkg.version AS version, pkg.type AS pkg_type";
+            var extPkgQuery = "MATCH (p:Project)-[r:DEPENDS_ON]->(pkg:Package) WHERE (pkg.is_external = true OR (pkg.is_external IS NULL AND NOT (pkg)-[:IMPLEMENTED_BY]->(:Project))) AND NOT (pkg)-[:IMPLEMENTED_BY]->(p) AND toLower(pkg.name) <> toLower(p.name) RETURN p.id AS source, pkg.id AS id, pkg.name AS name, pkg.version AS version, pkg.type AS pkg_type, coalesce(pkg.is_external, true) AS is_external";
             var extPkgJson = await client.ExecuteQueryAsync(extPkgQuery, null, cancellationToken);
             using var extPkgDoc = JsonDocument.Parse(extPkgJson);
             foreach (var row in extPkgDoc.RootElement.EnumerateArray())
@@ -378,6 +378,7 @@ public static class GraphDataConverter
                         Properties = new Dictionary<string, string>
                         {
                             ["is_library"] = "true",
+                            ["is_external"] = "true",
                             ["entity_type"] = "library",
                             ["package_type"] = pkgType ?? "package",
                             ["version"] = version ?? "",
@@ -905,7 +906,7 @@ public static class GraphDataConverter
         // 2b. Inbound package fallback
         try
         {
-            var inPkgQuery = "MATCH (in:Project)-[:DEPENDS_ON]->(:Package)<-[:IMPLEMENTED_BY]-(p:Project {id: $centerId}) WHERE in.id <> p.id RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, in.project_type AS project_type";
+            var inPkgQuery = "MATCH (in:Project)-[:DEPENDS_ON]->(:Package)-[:IMPLEMENTED_BY]->(p:Project {id: $centerId}) WHERE in.id <> p.id RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, in.project_type AS project_type";
             var inPkgJson = await client.ExecuteQueryAsync(inPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
             using var inPkgDoc = JsonDocument.Parse(inPkgJson);
             foreach (var row in inPkgDoc.RootElement.EnumerateArray())
@@ -1024,7 +1025,7 @@ public static class GraphDataConverter
         // 3b. Outbound package fallback
         try
         {
-            var outPkgQuery = "MATCH (p:Project {id: $centerId})-[:DEPENDS_ON]->(:Package)<-[:IMPLEMENTED_BY]-(out:Project) WHERE p.id <> out.id RETURN out.id AS id, out.name AS name, out.framework AS framework, out.path AS path, out.project_type AS project_type";
+            var outPkgQuery = "MATCH (p:Project {id: $centerId})-[:DEPENDS_ON]->(:Package)-[:IMPLEMENTED_BY]->(out:Project) WHERE p.id <> out.id RETURN out.id AS id, out.name AS name, out.framework AS framework, out.path AS path, out.project_type AS project_type";
             var outPkgJson = await client.ExecuteQueryAsync(outPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
             using var outPkgDoc = JsonDocument.Parse(outPkgJson);
             foreach (var row in outPkgDoc.RootElement.EnumerateArray())
@@ -1077,7 +1078,7 @@ public static class GraphDataConverter
         // 3c. Outbound external packages (npm, NuGet, etc. not implemented by an internal workspace project)
         try
         {
-            var extPkgQuery = "MATCH (p:Project {id: $centerId})-[r:DEPENDS_ON]->(pkg:Package) WHERE NOT (pkg)<-[:IMPLEMENTED_BY]-(:Project) RETURN pkg.id AS id, pkg.name AS name, pkg.version AS version, pkg.type AS pkg_type";
+            var extPkgQuery = "MATCH (p:Project {id: $centerId})-[r:DEPENDS_ON]->(pkg:Package) WHERE (pkg.is_external = true OR (pkg.is_external IS NULL AND NOT (pkg)-[:IMPLEMENTED_BY]->(:Project))) AND NOT (pkg)-[:IMPLEMENTED_BY]->(p) AND toLower(pkg.name) <> toLower(p.name) RETURN pkg.id AS id, pkg.name AS name, pkg.version AS version, pkg.type AS pkg_type, coalesce(pkg.is_external, true) AS is_external";
             var extPkgJson = await client.ExecuteQueryAsync(extPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
             using var extPkgDoc = JsonDocument.Parse(extPkgJson);
             foreach (var row in extPkgDoc.RootElement.EnumerateArray())
@@ -1102,6 +1103,7 @@ public static class GraphDataConverter
                             ["column"] = "right",
                             ["role"] = "outbound",
                             ["is_library"] = "true",
+                            ["is_external"] = "true",
                             ["entity_type"] = "library",
                             ["package_type"] = pkgType ?? "package",
                             ["version"] = version ?? "",

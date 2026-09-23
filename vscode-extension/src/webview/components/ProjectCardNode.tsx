@@ -51,10 +51,34 @@ export const ProjectCardNode = memo((props: any) => {
   const [localExpanded, setLocalExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  const isExternalRefs = graphNode.kind === 'ExternalReferences';
   const isDatabase = graphNode.kind === 'Database';
   const isPackage = graphNode.kind === 'Package';
+  const isTopic = graphNode.kind === 'Topic' || graphNode.properties?.role === 'topic';
 
-  const isCardExpanded = !isDatabase && !isPackage && (isExpanded ?? localExpanded);
+  const isCardExpanded = isExternalRefs
+    ? (isExpanded ?? localExpanded)
+    : !isDatabase && !isPackage && !isTopic && (isExpanded ?? localExpanded);
+
+  const packageList: Array<{ id?: string; name: string; version?: string; type?: string }> = useMemo(() => {
+    if (!isExternalRefs || !graphNode.properties?.packages) return [];
+    try {
+      return JSON.parse(graphNode.properties.packages);
+    } catch {
+      return [];
+    }
+  }, [isExternalRefs, graphNode.properties?.packages]);
+
+  const [filterQuery, setFilterQuery] = useState('');
+
+  const filteredPackages = useMemo(() => {
+    if (!filterQuery) return packageList;
+    const q = filterQuery.toLowerCase();
+    return packageList.filter(
+      (p) => p.name.toLowerCase().includes(q) || (p.version && p.version.toLowerCase().includes(q))
+    );
+  }, [packageList, filterQuery]);
+
   const activeCategoriesSet = new Set(activeCategories);
 
   const inboundCallsCount = comms?.acceptsIn.length ?? 0;
@@ -77,10 +101,11 @@ export const ProjectCardNode = memo((props: any) => {
     dbOutCount;
 
   // Protocol Rows Definition matching:
-  // (*) serves -- API -- calls (*)
-  // (*) used by -- Libraries -- uses (*)
-  // (*) receives -- Messages -- sends (*)
-  // ( )         -- DB -- uses (*)
+  // Protocol Rows Definition matching:
+  // (*) serves   -- API       -- calls (*)
+  // (*) receives -- Messages  -- sends (*)
+  // ( )          -- DB        -- uses (*)
+  // (*) used by  -- Libraries -- uses (*)
   const commRows = useMemo(() => [
     {
       id: 'row-api',
@@ -104,30 +129,6 @@ export const ProjectCardNode = memo((props: any) => {
         count: callsOutCount,
         color: '#38bdf8',
         active: activeCategoriesSet.has('callsOut'),
-      },
-    },
-    {
-      id: 'row-libraries',
-      categoryType: 'library' as EdgeCategory,
-      protocol: 'Libraries',
-      icon: '📚',
-      left: {
-        hasHandle: true,
-        handleId: 'target-libs',
-        category: 'libsIn',
-        verb: 'used by',
-        count: inboundLibsCount,
-        color: '#34d399',
-        active: activeCategoriesSet.has('libsIn'),
-      },
-      right: {
-        hasHandle: true,
-        handleId: 'source-libs',
-        category: 'libsOut',
-        verb: 'uses',
-        count: libsOutCount,
-        color: '#34d399',
-        active: activeCategoriesSet.has('libsOut'),
       },
     },
     {
@@ -178,14 +179,38 @@ export const ProjectCardNode = memo((props: any) => {
         active: activeCategoriesSet.has('dbOut'),
       },
     },
+    {
+      id: 'row-libraries',
+      categoryType: 'library' as EdgeCategory,
+      protocol: 'Libraries',
+      icon: '📚',
+      left: {
+        hasHandle: true,
+        handleId: 'target-libs',
+        category: 'libsIn',
+        verb: 'used by',
+        count: inboundLibsCount,
+        color: '#34d399',
+        active: activeCategoriesSet.has('libsIn'),
+      },
+      right: {
+        hasHandle: true,
+        handleId: 'source-libs',
+        category: 'libsOut',
+        verb: 'uses',
+        count: libsOutCount,
+        color: '#34d399',
+        active: activeCategoriesSet.has('libsOut'),
+      },
+    },
   ], [
     inboundCallsCount,
     callsOutCount,
-    inboundLibsCount,
-    libsOutCount,
     inboundEventsCount,
     messagesOutCount,
     dbOutCount,
+    inboundLibsCount,
+    libsOutCount,
     activeCategoriesSet,
   ]);
 
@@ -228,6 +253,7 @@ export const ProjectCardNode = memo((props: any) => {
   const isLibrary =
     !isDatabase &&
     !isPackage &&
+    !isTopic &&
     graphNode.kind !== 'ExternalService' &&
     (graphNode.properties?.is_library === 'true' ||
       projectType === 'library' ||
@@ -240,6 +266,10 @@ export const ProjectCardNode = memo((props: any) => {
   if (isDatabase) {
     badgeColor = '#34d399';
     badgeLabel = graphNode.properties?.db_type || 'Database';
+  } else if (isTopic) {
+    badgeColor = '#fbbf24';
+    const broker = (graphNode.properties?.broker_type || '').toLowerCase();
+    badgeLabel = broker === 'rabbitmq' ? 'RabbitMQ' : (broker === 'gcp' ? 'Pub/Sub' : (broker === 'kafka' ? 'Kafka' : 'Topic'));
   } else if (graphNode.kind === 'ExternalService') {
     badgeColor = '#fbbf24';
     badgeLabel = 'Service';
@@ -272,6 +302,107 @@ export const ProjectCardNode = memo((props: any) => {
     badgeLabel = framework;
   }
 
+  if (isExternalRefs) {
+    return (
+      <div
+        ref={cardRef}
+        className={`project-card external-refs-card ${isCardExpanded ? 'is-expanded' : 'is-compact'}`}
+      >
+        <Handle
+          id="target-default"
+          type="target"
+          position={Position.Left}
+          className="flow-handle center-handle target-handle"
+          isConnectable={false}
+          style={{ top: isCardExpanded ? '28px' : '50%' }}
+          title={`Inbound (${packageList.length} external references)`}
+        />
+        <Handle
+          id="target-libs"
+          type="target"
+          position={Position.Left}
+          className="flow-handle"
+          isConnectable={false}
+          style={{ top: isCardExpanded ? '28px' : '50%', opacity: 0, pointerEvents: 'none' }}
+        />
+        <div className="card-top-box">
+          <div className="project-card-header">
+            <div className="project-card-badges">
+              <span
+                className="project-badge"
+                style={{ backgroundColor: '#10b98118', color: '#10b981', borderColor: '#10b98144' }}
+                title="External References"
+              >
+                External
+              </span>
+              <span
+                className="project-badge"
+                style={{ backgroundColor: '#64748b18', color: '#94a3b8', borderColor: '#64748b33', fontSize: '10px' }}
+                title={`${packageList.length} packages`}
+              >
+                {packageList.length} pkgs
+              </span>
+            </div>
+            <div className="card-top-actions">
+              <button
+                className="card-icon-link toggle-expand-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onToggleExpand) {
+                    onToggleExpand(graphNode.name, graphNode.id);
+                  } else {
+                    setLocalExpanded((v) => !v);
+                  }
+                }}
+                title={isCardExpanded ? 'Collapse packages list' : 'Expand packages list'}
+              >
+                {isCardExpanded ? '▴' : '▾'}
+              </button>
+            </div>
+          </div>
+          <div className="project-card-title">
+            📦 {graphNode.name}
+          </div>
+          {!isCardExpanded && packageList.length > 0 && (
+            <div className="ext-refs-preview" title={packageList.map((p) => p.name).join(', ')}>
+              {packageList.slice(0, 3).map((p) => p.name).join(', ')}
+              {packageList.length > 3 ? ` +${packageList.length - 3} more` : ''}
+            </div>
+          )}
+        </div>
+
+        {isCardExpanded && (
+          <div className="ext-refs-body">
+            {packageList.length > 6 && (
+              <div className="ext-refs-search-box">
+                <input
+                  type="text"
+                  className="ext-refs-search-input"
+                  placeholder="Filter references..."
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            )}
+            <div className="ext-refs-list">
+              {filteredPackages.map((pkg, idx) => (
+                <div key={pkg.id || `${pkg.name}-${idx}`} className="ext-refs-item" title={pkg.name}>
+                  <span className="ext-refs-name">{pkg.name}</span>
+                  {pkg.version && <span className="ext-refs-version">{pkg.version}</span>}
+                  {pkg.type && <span className="ext-refs-type">{pkg.type}</span>}
+                </div>
+              ))}
+              {filteredPackages.length === 0 && (
+                <div className="ext-refs-empty">No matching packages</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       ref={cardRef}
@@ -301,7 +432,7 @@ export const ProjectCardNode = memo((props: any) => {
               title={callsOutCount + dbOutCount + messagesOutCount + libsOutCount > 0 ? `Outbound (${callsOutCount + dbOutCount + messagesOutCount + libsOutCount})` : 'Outbound'}
             />
             {/* Hidden fallback handles so any typed edge routes to top-center when collapsed */}
-            {['target-calls', 'target-libs', 'target-events'].map((id) => (
+            {['target-calls', 'target-events', 'target-libs'].map((id) => (
               <Handle
                 key={`hidden-in-${id}`}
                 id={id}
@@ -312,7 +443,7 @@ export const ProjectCardNode = memo((props: any) => {
                 style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
               />
             ))}
-            {['source-calls', 'source-libs', 'source-events', 'source-db'].map((id) => (
+            {['source-calls', 'source-events', 'source-db', 'source-libs'].map((id) => (
               <Handle
                 key={`hidden-out-${id}`}
                 id={id}
@@ -356,7 +487,7 @@ export const ProjectCardNode = memo((props: any) => {
           )}
         </div>
         <div className="card-top-actions">
-          {!isDatabase && !isPackage && (
+          {!isDatabase && !isPackage && !isTopic && (
             <button
               className="card-icon-link toggle-expand-btn"
               onClick={(e) => {
@@ -372,7 +503,7 @@ export const ProjectCardNode = memo((props: any) => {
               {isCardExpanded ? '▴' : '▾'}
             </button>
           )}
-          {totalCommsCount > 0 && !isDatabase && !isPackage && (
+          {totalCommsCount > 0 && !isDatabase && !isPackage && !isTopic && (
             <button
               className={`card-icon-link comms-btn ${showCommsPopover ? 'active' : ''}`}
               onClick={(e) => {
@@ -393,7 +524,7 @@ export const ProjectCardNode = memo((props: any) => {
               📄
             </button>
           )}
-          {!isCenter && !isDatabase && !isPackage && (
+          {!isCenter && !isDatabase && !isPackage && !isTopic && (
             <button
               className="card-icon-link"
               onClick={handleTitleClick}
@@ -407,11 +538,11 @@ export const ProjectCardNode = memo((props: any) => {
 
       {/* Project Title */}
       <div
-        className={`project-card-title ${!isCenter && !isDatabase && !isPackage ? 'clickable-title' : ''}`}
+        className={`project-card-title ${!isCenter && !isDatabase && !isPackage && !isTopic ? 'clickable-title' : ''}`}
         onClick={handleTitleClick}
-        title={!isCenter && !isDatabase && !isPackage ? `Click to center focus on ${graphNode.name}` : (graphNode.displayName || graphNode.name)}
+        title={!isCenter && !isDatabase && !isPackage && !isTopic ? `Click to center focus on ${graphNode.name}` : (graphNode.displayName || graphNode.name)}
       >
-        {graphNode.displayName || graphNode.name}
+        {isTopic ? '📨 ' : ''}{graphNode.displayName || graphNode.name}
       </div>
     </div>
 
@@ -680,7 +811,7 @@ export const ProjectCardNode = memo((props: any) => {
       )}
 
       {/* Bottom Side Hover Expansion Trigger (only for actual services) */}
-      {!isDatabase && !isPackage && (
+      {!isDatabase && !isPackage && !isTopic && (
         <div
           className={`card-bottom-trigger ${isCardExpanded ? 'is-expanded' : ''}`}
           onClick={(e) => {

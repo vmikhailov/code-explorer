@@ -341,5 +341,26 @@ public class SqliteCompilerTests
         var compiled = SqliteCompiler.Compile(CypherQueryParser.Parse(cypher));
         Assert.That(compiled.Sql, Does.StartWith("SELECT DISTINCT"));
     }
+
+    [Test]
+    public void Test_PatternExpression_WithOuterTargetNode()
+    {
+        InsertNode("proj:1", "Project", new() { ["name"] = "MyProject" });
+        InsertNode("pkg:1", "Package", new() { ["name"] = "MyPkg" });
+        InsertNode("pkg:2", "Package", new() { ["name"] = "OtherPkg" });
+        InsertEdge("proj:1", "pkg:1", "DEPENDS_ON");
+        InsertEdge("proj:1", "pkg:2", "DEPENDS_ON");
+        InsertEdge("pkg:1", "proj:1", "IMPLEMENTED_BY");
+
+        var cypher = @"
+            MATCH (p:Project {id: 'proj:1'})-[:DEPENDS_ON]->(pkg:Package)
+            WHERE NOT (pkg)-[:IMPLEMENTED_BY]->(p)
+            RETURN pkg.id AS id
+        ";
+
+        var rows = ExecuteCypher(cypher);
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["id"], Is.EqualTo("pkg:2"));
+    }
 }
 

@@ -1139,4 +1139,37 @@ public interface IUsersApi
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task CSharpParser_GetProducedPackageAsync_IgnoresPackageReferenceVersion()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_cs_pkg_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var csproj = @"<Project Sdk=""Microsoft.NET.Sdk"">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include=""EntityFramework"">
+      <Version>6.5.2</Version>
+    </PackageReference>
+  </ItemGroup>
+</Project>";
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "MyLib.csproj"), csproj);
+
+            var parser = new CodeExplorer.Parser.CSharp.CSharpParser();
+            var prod = await parser.GetProducedPackageAsync(tempDir);
+
+            Assert.That(prod, Is.Not.Null);
+            Assert.That(prod!.Name, Is.EqualTo("MyLib"));
+            // Must default to 1.0.0 because project has no <Version>, NOT 6.5.2 from EntityFramework!
+            Assert.That(prod.Version, Is.EqualTo("1.0.0"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

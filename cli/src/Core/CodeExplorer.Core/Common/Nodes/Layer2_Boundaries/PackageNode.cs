@@ -15,6 +15,7 @@ public record PackageNode(
     [property: OntologyProperty("The package version.")] string Version,
     [property: OntologyProperty("The package type or entity type.")] string Type,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
+    [property: OntologyProperty("Whether this package is an external third-party dependency.")] bool IsExternal = false,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {

@@ -47,6 +47,10 @@ interface EdgeVisuals {
 export type EdgeCategory = 'library' | 'service_call' | 'database' | 'messaging';
 
 export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeCategory => {
+  if (targetNode?.kind === 'ExternalReferences') {
+    return 'library';
+  }
+
   // 1. Authoritative Backend Protocol Category
   if (edge?.category) {
     const cat = edge.category.toLowerCase();
@@ -104,40 +108,42 @@ const getEdgeVisuals = (edge?: GraphEdge, targetNode?: GraphNode): EdgeVisuals =
     case 'database':
       return {
         stroke: '#c084fc',
-        strokeDasharray: '3,4',
-        strokeWidth: 2,
+        strokeDasharray: undefined,
+        strokeWidth: 1.2,
         animated: false,
         markerColor: '#c084fc',
         markerType: MarkerType.ArrowClosed,
         markerWidth: 12,
         markerHeight: 12,
+        markerStrokeWidth: 1.2,
         label: 'Database',
         className: 'edge-database',
       };
     case 'messaging':
       return {
         stroke: '#fbbf24',
-        strokeDasharray: '8,3,2,3',
-        strokeWidth: 2,
+        strokeDasharray: undefined,
+        strokeWidth: 1.2,
         animated: false,
         markerColor: '#fbbf24',
         markerType: MarkerType.Arrow,
-        markerWidth: 16,
-        markerHeight: 16,
-        markerStrokeWidth: 2.2,
+        markerWidth: 12,
+        markerHeight: 12,
+        markerStrokeWidth: 1.2,
         label: 'Event / Queue',
         className: 'edge-messaging',
       };
     case 'service_call':
       return {
         stroke: '#38bdf8',
-        strokeDasharray: '6,4',
-        strokeWidth: 2.2,
+        strokeDasharray: undefined,
+        strokeWidth: 1.2,
         animated: false,
         markerColor: '#38bdf8',
         markerType: MarkerType.ArrowClosed,
-        markerWidth: 16,
-        markerHeight: 16,
+        markerWidth: 12,
+        markerHeight: 12,
+        markerStrokeWidth: 1.2,
         label: 'Service Call',
         className: 'edge-service-call',
       };
@@ -146,13 +152,13 @@ const getEdgeVisuals = (edge?: GraphEdge, targetNode?: GraphNode): EdgeVisuals =
       return {
         stroke: '#34d399',
         strokeDasharray: undefined,
-        strokeWidth: 1,
+        strokeWidth: 1.2,
         animated: false,
         markerColor: '#34d399',
         markerType: MarkerType.Arrow,
         markerWidth: 12,
         markerHeight: 12,
-        markerStrokeWidth: 1.4,
+        markerStrokeWidth: 1.2,
         label: 'Library',
         className: 'edge-library',
       };
@@ -619,10 +625,49 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
         // Libraries out
         if (visibleEdgeTypes.library && activeCats.has('libsOut') && comms?.libsOut) {
+          const extPkgs: Array<{ id?: string; name: string; version?: string; type?: string }> = [];
+
           for (const item of comms.libsOut) {
             const targetNode = findTargetNode(item.id, item.name);
-            if (targetNode && !isAlreadyVisible(targetNode)) {
+            if (!targetNode) continue;
+
+            const isExternal =
+              targetNode.kind === 'Package' ||
+              targetNode.properties?.is_external === 'true' ||
+              (targetNode.properties as any)?.is_external === true;
+
+            if (isExternal) {
+              if (!extPkgs.some((p) => p.name.toLowerCase() === targetNode.name.toLowerCase())) {
+                extPkgs.push({
+                  id: targetNode.id,
+                  name: targetNode.name,
+                  version: targetNode.properties?.version,
+                  type: targetNode.properties?.package_type || targetNode.properties?.type,
+                });
+              }
+            } else if (!isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
+              newlyAdded = true;
+            }
+          }
+
+          if (extPkgs.length > 0) {
+            const bundleId = `${curr.id}__ext_refs`;
+            if (!visibleNodesMap.has(bundleId)) {
+              visibleNodesMap.set(bundleId, {
+                id: bundleId,
+                name: 'External References',
+                displayName: `External References (${extPkgs.length})`,
+                kind: 'ExternalReferences',
+                properties: {
+                  column: 'right',
+                  role: 'outbound',
+                  parent_project_id: curr.id,
+                  parent_project_name: curr.name,
+                  package_count: String(extPkgs.length),
+                  packages: JSON.stringify(extPkgs),
+                },
+              });
               newlyAdded = true;
             }
           }
@@ -683,7 +728,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         edgeKeySet.add(key);
 
         const srcNode = nodeMap.get(sourceId) || nodeMap.get(sourceId.toLowerCase());
-        const tgtNode = nodeMap.get(targetId) || nodeMap.get(targetId.toLowerCase());
+        const tgtNode =
+          nodeMap.get(targetId) ||
+          nodeMap.get(targetId.toLowerCase()) ||
+          visibleNodesMap.get(targetId);
 
         const edgeObj =
           edgeLookup.get(key) ||
@@ -782,6 +830,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         if (visibleIdSet.has(child.id) || visibleIdSet.has(child.name)) {
           addEdge(u.id, child.id);
         }
+      }
+      const bundleId = `${u.id}__ext_refs`;
+      if (visibleIdSet.has(bundleId)) {
+        addEdge(u.id, bundleId);
       }
     }
 
@@ -919,11 +971,34 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     }
 
     // ----------------------------------------------------
-    // Phase 4: Barycentric Crossing Minimization & Centering
+    // Phase 4: Category-Based Vertical Sorting & Centering
+    // Orders nodes by category priority to eliminate edge crossings:
+    // 1: Service Calls -> 2: Messages -> 3: Databases -> 4: Libraries
     // ----------------------------------------------------
     const sortedLevels = Array.from(levelNodesMap.keys()).sort((a, b) => a - b);
 
-    // Forward sweep: order nodes in each column by average position of their incoming sources
+    const getNodeCategoryPriority = (node: GraphNode): number => {
+      // 1. Check generated edges targeting this node:
+      const inEdges = generatedEdges.filter((e) => e.target === node.id || e.target === node.name);
+      if (inEdges.some((e) => e.className === 'edge-service-call')) return 1;
+      if (inEdges.some((e) => e.className === 'edge-messaging')) return 2;
+      if (inEdges.some((e) => e.className === 'edge-database')) return 3;
+      if (inEdges.some((e) => e.className === 'edge-library')) return 4;
+
+      // 2. Check node kind and properties:
+      if (node.kind === 'ExternalReferences' || node.kind === 'Package' || node.properties?.is_library === 'true' || node.properties?.project_type === 'library') {
+        return 4;
+      }
+      if (node.kind === 'Database' || node.properties?.role === 'database') {
+        return 3;
+      }
+      if (node.kind === 'Topic' || node.properties?.role === 'topic') {
+        return 2;
+      }
+      return 1;
+    };
+
+    // Forward sweep: order nodes in each column primarily by category priority, then by incoming barycenter
     for (let c = 1; c < sortedLevels.length; c++) {
       const lvl = sortedLevels[c];
       const list = levelNodesMap.get(lvl) || [];
@@ -952,15 +1027,19 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       }
 
       list.sort((a, b) => {
+        const catA = getNodeCategoryPriority(a);
+        const catB = getNodeCategoryPriority(b);
+        if (catA !== catB) return catA - catB;
+
         const bA = bary.get(a.id) ?? 999;
         const bB = bary.get(b.id) ?? 999;
         if (bA !== bB) return bA - bB;
-        return (a?.name || '').localeCompare(b?.name || '');
+        return (a?.displayName || a?.name || '').localeCompare(b?.displayName || b?.name || '');
       });
       levelNodesMap.set(lvl, list);
     }
 
-    // Backward sweep: order nodes in each column by average position of their outgoing targets
+    // Backward sweep: order nodes in each column primarily by category priority, then by outgoing barycenter
     for (let c = sortedLevels.length - 2; c >= 0; c--) {
       const lvl = sortedLevels[c];
       const list = levelNodesMap.get(lvl) || [];
@@ -989,10 +1068,14 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       }
 
       list.sort((a, b) => {
+        const catA = getNodeCategoryPriority(a);
+        const catB = getNodeCategoryPriority(b);
+        if (catA !== catB) return catA - catB;
+
         const bA = bary.get(a.id) ?? 999;
         const bB = bary.get(b.id) ?? 999;
         if (bA !== bB) return bA - bB;
-        return (a?.name || '').localeCompare(b?.name || '');
+        return (a?.displayName || a?.name || '').localeCompare(b?.displayName || b?.name || '');
       });
       levelNodesMap.set(lvl, list);
     }
@@ -1020,6 +1103,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
     const visibleCategoryCount = Object.values(visibleEdgeTypes).filter(Boolean).length;
     const getNodeHeight = (node: GraphNode) => {
+      if (node.kind === 'ExternalReferences') {
+        const isExp = expandedCards.has(node.id) || expandedCards.has(node.name);
+        return isExp ? 240 : 76;
+      }
       const isExp = expandedCards.has(node.id) || expandedCards.has(node.name);
       if (!isExp || visibleCategoryCount === 0) return 62;
       return 62 + 14 + visibleCategoryCount * 24;
@@ -1130,19 +1217,6 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
               </div>
               {isLegendOpen && (
                 <div className="edge-legend-items">
-                  <label className={`edge-legend-item ${!visibleEdgeTypes.library ? 'is-dimmed' : ''}`} title="Toggle Library connections">
-                    <input
-                      type="checkbox"
-                      className="edge-legend-checkbox"
-                      checked={visibleEdgeTypes.library}
-                      onChange={() => handleToggleEdgeType('library')}
-                    />
-                    <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-                      <line x1="0" y1="6" x2="24" y2="6" stroke="#34d399" strokeWidth="1" />
-                      <polyline points="22 3, 29 6, 22 9" fill="none" stroke="#34d399" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span className="edge-legend-label">Library (Open Chevron)</span>
-                  </label>
                   <label className={`edge-legend-item ${!visibleEdgeTypes.service_call ? 'is-dimmed' : ''}`} title="Toggle Service Call connections">
                     <input
                       type="checkbox"
@@ -1151,23 +1225,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
                       onChange={() => handleToggleEdgeType('service_call')}
                     />
                     <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-                      <line x1="0" y1="6" x2="22" y2="6" stroke="#38bdf8" strokeWidth="2" strokeDasharray="4,3" />
+                      <line x1="0" y1="6" x2="22" y2="6" stroke="#38bdf8" strokeWidth="1.2" />
                       <polygon points="21 2, 32 6, 21 10" fill="#38bdf8" />
                     </svg>
-                    <span className="edge-legend-label">Service Call (Solid Arrow)</span>
-                  </label>
-                  <label className={`edge-legend-item ${!visibleEdgeTypes.database ? 'is-dimmed' : ''}`} title="Toggle Database connections">
-                    <input
-                      type="checkbox"
-                      className="edge-legend-checkbox"
-                      checked={visibleEdgeTypes.database}
-                      onChange={() => handleToggleEdgeType('database')}
-                    />
-                    <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-                      <line x1="0" y1="6" x2="24" y2="6" stroke="#c084fc" strokeWidth="2" strokeDasharray="2,3" />
-                      <polygon points="23 6, 27 2, 31 6, 27 10" fill="#c084fc" />
-                    </svg>
-                    <span className="edge-legend-label">Database</span>
+                    <span className="edge-legend-label">Service Call</span>
                   </label>
                   <label className={`edge-legend-item ${!visibleEdgeTypes.messaging ? 'is-dimmed' : ''}`} title="Toggle Event/Queue connections">
                     <input
@@ -1177,10 +1238,36 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
                       onChange={() => handleToggleEdgeType('messaging')}
                     />
                     <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-                      <line x1="0" y1="6" x2="24" y2="6" stroke="#fbbf24" strokeWidth="2" strokeDasharray="6,2,2,2" />
-                      <polyline points="22 2, 30 6, 22 10" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="0" y1="6" x2="24" y2="6" stroke="#fbbf24" strokeWidth="1.2" />
+                      <polyline points="22 2, 30 6, 22 10" fill="none" stroke="#fbbf24" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <span className="edge-legend-label">Event / Queue</span>
+                  </label>
+                  <label className={`edge-legend-item ${!visibleEdgeTypes.database ? 'is-dimmed' : ''}`} title="Toggle Database connections">
+                    <input
+                      type="checkbox"
+                      className="edge-legend-checkbox"
+                      checked={visibleEdgeTypes.database}
+                      onChange={() => handleToggleEdgeType('database')}
+                    />
+                    <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
+                      <line x1="0" y1="6" x2="24" y2="6" stroke="#c084fc" strokeWidth="1.2" />
+                      <polygon points="23 6, 27 2, 31 6, 27 10" fill="#c084fc" />
+                    </svg>
+                    <span className="edge-legend-label">Database</span>
+                  </label>
+                  <label className={`edge-legend-item ${!visibleEdgeTypes.library ? 'is-dimmed' : ''}`} title="Toggle Library connections">
+                    <input
+                      type="checkbox"
+                      className="edge-legend-checkbox"
+                      checked={visibleEdgeTypes.library}
+                      onChange={() => handleToggleEdgeType('library')}
+                    />
+                    <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
+                      <line x1="0" y1="6" x2="24" y2="6" stroke="#34d399" strokeWidth="1.2" />
+                      <polyline points="22 3, 29 6, 22 9" fill="none" stroke="#34d399" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="edge-legend-label">Library</span>
                   </label>
                 </div>
               )}

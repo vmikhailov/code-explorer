@@ -43,12 +43,62 @@ public static class GoAstHelper
             {
                 return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
             }
+
+            if (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$") ||
+                varName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("Sub", StringComparison.OrdinalIgnoreCase) ||
+                varName.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase))
+            {
+                return varName;
+            }
+        }
+
+        // 2b. Selector expression (e.g. r.config.impressionQueue, p.base.pc.ImpressionTopic, s.cfg.PubSubSubscription)
+        if (argNode.Is(TreeSitterSyntax.Go.SelectorExpression))
+        {
+            var field = argNode.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (field.IsValid())
+            {
+                var fieldText = field.Text;
+                var val = FindVariableInitializerInScope(argNode, fieldText);
+                if (val != null)
+                {
+                    return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
+                }
+
+                if (Regex.IsMatch(fieldText, @"^[A-Z0-9_]{3,}$") ||
+                    fieldText.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                    fieldText.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                    fieldText.EndsWith("Sub", StringComparison.OrdinalIgnoreCase) ||
+                    fieldText.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
+                    fieldText.EndsWith("TopicID", StringComparison.OrdinalIgnoreCase) ||
+                    fieldText.EndsWith("SubID", StringComparison.OrdinalIgnoreCase))
+                {
+                    return fieldText;
+                }
+            }
         }
 
         // 3. fmt.Sprintf call or helper call
         if (argNode.Is(TreeSitterSyntax.Go.CallExpression))
         {
             var func = argNode.GetFunctionNode();
+            if (func.IsValid() && (func.Text.Contains("getEnv", StringComparison.OrdinalIgnoreCase) || func.Text.EndsWith("Getenv")))
+            {
+                var args = GetCallArguments(argNode);
+                if (args.Count > 1)
+                {
+                    var defaultVal = ResolveStringOrVariable(args[1]);
+                    if (!string.IsNullOrEmpty(defaultVal)) return defaultVal;
+                }
+                if (args.Count > 0)
+                {
+                    var envKey = ResolveStringOrVariable(args[0]);
+                    if (!string.IsNullOrEmpty(envKey)) return envKey;
+                }
+            }
+
             if (func.IsValid() && func.Text.Contains("Sprintf"))
             {
                 var args = GetCallArguments(argNode);

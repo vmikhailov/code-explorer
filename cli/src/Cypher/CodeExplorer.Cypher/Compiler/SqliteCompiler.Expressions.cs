@@ -802,12 +802,22 @@ public partial class SqliteCompiler
             var rel = element.Relationship;
             var targetNode = element.Target;
             var relVar = $"{prefix}_r{_varIndex++}";
-            var targetVar = targetNode.Variable ?? $"{prefix}_t{_varIndex++}";
+            var targetVar = targetNode.Variable;
+            var targetIsOuter = targetVar != null && _declaredNodes.Contains(targetVar);
+            var actualTargetVar = targetIsOuter ? targetVar! : (targetVar ?? $"{prefix}_t{_varIndex++}");
 
-            fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar} CROSS JOIN nodes {targetVar}" : $" CROSS JOIN edges {relVar} CROSS JOIN nodes {targetVar}");
+            if (!targetIsOuter)
+            {
+                fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar} CROSS JOIN nodes {actualTargetVar}" : $" CROSS JOIN edges {relVar} CROSS JOIN nodes {actualTargetVar}");
+                AddNodeFiltersToConditions(targetNode, actualTargetVar, conditions);
+            }
+            else
+            {
+                fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar}" : $" CROSS JOIN edges {relVar}");
+            }
 
             var prevIdSrc = _nodeIdSource.TryGetValue(prevVar, out var pSrc) ? pSrc : $"{prevVar}.id";
-            var targetIdSrc = _nodeIdSource.TryGetValue(targetVar, out var tSrc) ? tSrc : $"{targetVar}.id";
+            var targetIdSrc = _nodeIdSource.TryGetValue(actualTargetVar, out var tSrc) ? tSrc : $"{actualTargetVar}.id";
 
             switch (rel.Direction)
             {
@@ -826,8 +836,7 @@ public partial class SqliteCompiler
             }
 
             AddRelKindConditions(rel, relVar, conditions);
-            AddNodeFiltersToConditions(targetNode, targetVar, conditions);
-            prevVar = targetVar;
+            prevVar = actualTargetVar;
         }
 
         return (fromJoins, conditions);

@@ -17,6 +17,7 @@
   --accent-emerald: #34d399;
   --accent-amber: #fbbf24;
   --accent-rose: #fb7185;
+  --flow-card-width: 240px;
 }
 
 * {
@@ -660,7 +661,9 @@ button:active {
 
 /* Compact Project Card Node */
 .project-card {
-  width: 236px;
+  width: var(--flow-card-width, 240px);
+  min-width: var(--flow-card-width, 240px);
+  max-width: var(--flow-card-width, 240px);
   background: #1c1c24;
   border: 1.5px solid #5a647e;
   border-radius: 7px;
@@ -688,7 +691,6 @@ button:active {
 }
 
 .project-card.center-hero {
-  width: 248px;
   border: 2px solid #c084fc;
   box-shadow: 0 0 18px rgba(192, 132, 252, 0.35);
   background: linear-gradient(145deg, #2a1a38, #1c1c24);
@@ -1893,17 +1895,25 @@ button:active {
    Edge Line Styles & Legend for Project Flow View
    ============================================================================ */
 
-/* ReactFlow Edge Type Customizations */
+/* ReactFlow Edge Type Customizations - thin & solid for all edge types */
 .react-flow__edge.edge-service-call path.react-flow__edge-path {
   stroke: #38bdf8 !important;
-  stroke-dasharray: 6 4 !important;
-  stroke-width: 2px !important;
+  stroke-dasharray: none !important;
+  stroke-width: 1.2px !important;
+  opacity: 0.85;
+  transition: stroke-width 0.15s ease, opacity 0.15s ease;
+}
+
+.react-flow__edge.edge-service-call:hover path.react-flow__edge-path {
+  opacity: 1;
+  stroke-width: 1.8px !important;
 }
 
 .react-flow__edge.edge-library path.react-flow__edge-path {
   stroke: #34d399 !important;
-  stroke-width: 1px !important;
-  opacity: 0.82;
+  stroke-dasharray: none !important;
+  stroke-width: 1.2px !important;
+  opacity: 0.85;
   transition: stroke-width 0.15s ease, opacity 0.15s ease;
 }
 
@@ -1914,15 +1924,29 @@ button:active {
 
 .react-flow__edge.edge-database path.react-flow__edge-path {
   stroke: #c084fc !important;
-  stroke-dasharray: 2 4 !important;
-  stroke-width: 2px !important;
+  stroke-dasharray: none !important;
+  stroke-width: 1.2px !important;
+  opacity: 0.85;
+  transition: stroke-width 0.15s ease, opacity 0.15s ease;
+}
+
+.react-flow__edge.edge-database:hover path.react-flow__edge-path {
+  opacity: 1;
+  stroke-width: 1.8px !important;
 }
 
 .react-flow__edge.edge-messaging path.react-flow__edge-path {
   stroke: #fbbf24 !important;
-  stroke-dasharray: 8 3 2 3 !important;
-  stroke-width: 2px !important;
+  stroke-dasharray: none !important;
+  stroke-width: 1.2px !important;
+  opacity: 0.85;
+  transition: stroke-width 0.15s ease, opacity 0.15s ease;
   animation: none !important;
+}
+
+.react-flow__edge.edge-messaging:hover path.react-flow__edge-path {
+  opacity: 1;
+  stroke-width: 1.8px !important;
 }
 
 /* Ensure no animated dashed lines anywhere */
@@ -2132,20 +2156,20 @@ button:active {
   height: 0px;
 }
 
-.flow-edge-legend .edge-legend-library {
-  border-top: 2px solid #34d399;
-}
-
 .flow-edge-legend .edge-legend-service {
-  border-top: 2px dashed #38bdf8;
-}
-
-.flow-edge-legend .edge-legend-database {
-  border-top: 2px dotted #c084fc;
+  border-top: 2px solid #38bdf8;
 }
 
 .flow-edge-legend .edge-legend-messaging {
-  border-top: 2px dashed #fbbf24;
+  border-top: 2px solid #fbbf24;
+}
+
+.flow-edge-legend .edge-legend-database {
+  border-top: 2px solid #c084fc;
+}
+
+.flow-edge-legend .edge-legend-library {
+  border-top: 2px solid #34d399;
 }
 
 .flow-edge-legend .edge-legend-label {
@@ -3012,6 +3036,128 @@ button:active {
 
 .flow-arrow-icon {
   font-size: 9px;
+}
+
+/* External References Bundle Card */
+.project-card.external-refs-card {
+  border: 1.5px solid #10b981;
+  background: #141f1c;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
+}
+
+.project-card.external-refs-card:hover {
+  border-color: #34d399;
+  box-shadow: 0 4px 18px rgba(52, 211, 153, 0.25);
+}
+
+.ext-refs-preview {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ext-refs-body {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+.ext-refs-search-box {
+  padding: 5px 8px;
+  border-bottom: 1px solid #1e293b;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.ext-refs-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #091210;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-size: 10.5px;
+  padding: 3px 6px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.ext-refs-search-input:focus {
+  border-color: #34d399;
+}
+
+.ext-refs-list {
+  max-height: 165px;
+  overflow-y: auto;
+  padding: 5px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ext-refs-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ext-refs-list::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+.ext-refs-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 11px;
+  gap: 6px;
+  transition: background 0.15s ease;
+}
+
+.ext-refs-item:hover {
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.ext-refs-name {
+  font-weight: 500;
+  color: #f1f5f9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.ext-refs-version {
+  font-size: 9px;
+  background: #0f766e40;
+  color: #5eead4;
+  border: 1px solid #0f766e80;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.ext-refs-type {
+  font-size: 8.5px;
+  background: #33415560;
+  color: #94a3b8;
+  padding: 1px 3px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.ext-refs-empty {
+  font-size: 11px;
+  color: #64748b;
+  text-align: center;
+  padding: 12px 0;
+  font-style: italic;
 }
 
 

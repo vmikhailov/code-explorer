@@ -334,7 +334,7 @@ public class Layer2ProjectParser
                         var packageNodeId = $"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
 
                         var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
-                            string.Empty);
+                            string.Empty, IsExternal: true);
                         projectNode.Children.Add(packageNode);
                         packages.Add(packageNode);
                     }

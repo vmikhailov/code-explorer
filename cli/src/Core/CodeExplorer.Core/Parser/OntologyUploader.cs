@@ -148,7 +148,7 @@ public static class OntologyUploader
 
         if (child.Kind == OntologyConstants.NodeLabels.Package)
         {
-            if (child is PackageNode pn && !string.IsNullOrEmpty(pn.Path) && parentId.Contains(":project:"))
+            if (child is PackageNode pn && (!pn.IsExternal || !string.IsNullOrEmpty(pn.Path)) && parentId.Contains(":project:"))
             {
                 return new ImplementedByRelationship(child.Id, parentId);
             }

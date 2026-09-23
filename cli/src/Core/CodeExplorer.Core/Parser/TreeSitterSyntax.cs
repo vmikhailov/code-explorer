@@ -177,6 +177,7 @@ public static class TreeSitterSyntax
         public const string ExpressionList = "expression_list";
         public const string Block = "block";
         public const string VariableName = "variable_name";
+        public const string CompositeLiteral = "composite_literal";
     }
 
     public static class Python
