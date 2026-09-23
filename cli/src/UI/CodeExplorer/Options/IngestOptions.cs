@@ -3,7 +3,7 @@ using CommandLine;
 namespace CodeExplorer.Options;
 
 [Verb("ingest", HelpText = "Recursively parses a directory and loads structural nodes into the SQLite graph database.")]
-class IngestOptions
+public class IngestOptions
 {
     [Option("dir", Required = true, HelpText = "The codebase directory to scan and parse.")]
     public string Dir { get; set; } = "";

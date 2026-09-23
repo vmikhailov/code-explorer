@@ -82,7 +82,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   const initialWorkspace = getWorkspaceRoot();
   if (initialWorkspace) {
-    checkAndInitWorkspace(initialWorkspace);
+    setTimeout(() => {
+      checkAndInitWorkspace(initialWorkspace);
+    }, 500);
   }
 
   context.subscriptions.push(
