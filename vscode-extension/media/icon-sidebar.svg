@@ -1,18 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <style>
+    .ce-boundary { stroke: #E2E8F0; opacity: 0.45; }
+    .ce-spoke { stroke: #E2E8F0; opacity: 0.65; }
+    .ce-vertex { fill: #FFFFFF; }
+    .ce-core-ring { stroke: #FFFFFF; }
+    .ce-core-dot { fill: #FFFFFF; }
+
+    @media (prefers-color-scheme: light) {
+      .ce-boundary { stroke: #334155; opacity: 0.55; }
+      .ce-spoke { stroke: #334155; opacity: 0.80; }
+      .ce-vertex { fill: #0F172A; }
+      .ce-core-ring { stroke: #0F172A; }
+      .ce-core-dot { fill: #0F172A; }
+    }
+  </style>
+
   <!-- Outer graph/ontology nodes and edges fitted inside the 16x16 visual boundary (centered in 24x24) -->
-  <g stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <g stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <!-- Graph Connections -->
-    <path d="M12 4.5 L18.5 8.25 V15.75 L12 19.5 L5.5 15.75 V8.25 Z" opacity="0.45" />
-    <path d="M12 4.5 V9" opacity="0.6" />
-    <path d="M12 15 V19.5" opacity="0.6" />
-    <path d="M5.5 8.25 L9.5 10.5" opacity="0.6" />
-    <path d="M18.5 8.25 L14.5 10.5" opacity="0.6" />
-    <path d="M5.5 15.75 L9.5 13.5" opacity="0.6" />
-    <path d="M18.5 15.75 L14.5 13.5" opacity="0.6" />
+    <path class="ce-boundary" d="M12 4.5 L18.5 8.25 V15.75 L12 19.5 L5.5 15.75 V8.25 Z" />
+    <path class="ce-spoke" d="M12 4.5 V9" />
+    <path class="ce-spoke" d="M12 15 V19.5" />
+    <path class="ce-spoke" d="M5.5 8.25 L9.5 10.5" />
+    <path class="ce-spoke" d="M18.5 8.25 L14.5 10.5" />
+    <path class="ce-spoke" d="M5.5 15.75 L9.5 13.5" />
+    <path class="ce-spoke" d="M18.5 15.75 L14.5 13.5" />
   </g>
 
   <!-- Peripheral graph vertices -->
-  <g fill="currentColor">
+  <g class="ce-vertex">
     <circle cx="12" cy="4.5" r="1.25" />
     <circle cx="18.5" cy="8.25" r="1.25" />
     <circle cx="18.5" cy="15.75" r="1.25" />
@@ -22,6 +38,6 @@
   </g>
 
   <!-- Central core: Lens / Ontology / Target hub -->
-  <circle cx="12" cy="12" r="3.25" stroke="currentColor" stroke-width="1.5" fill="none" />
-  <circle cx="12" cy="12" r="1.25" fill="currentColor" />
+  <circle class="ce-core-ring" cx="12" cy="12" r="3.25" stroke-width="1.5" fill="none" />
+  <circle class="ce-core-dot" cx="12" cy="12" r="1.25" />
 </svg>
