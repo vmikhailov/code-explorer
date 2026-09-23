@@ -8,6 +8,7 @@
     <Project Path="src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj" />
   </Folder>
   <Folder Name="/Parsers/">
+    <Project Path="src/Parsers/CodeExplorer.Parser.ColdFusion/CodeExplorer.Parser.ColdFusion.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj" />
     <Project Path="src/Parsers/CodeExplorer.Parser.Java/CodeExplorer.Parser.Java.csproj" />

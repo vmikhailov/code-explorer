@@ -12,6 +12,7 @@
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Python\CodeExplorer.Parser.Python.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.TypeScript\CodeExplorer.Parser.TypeScript.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.SQL\CodeExplorer.Parser.SQL.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.ColdFusion\CodeExplorer.Parser.ColdFusion.csproj" />
   </ItemGroup>
 
   <ItemGroup>

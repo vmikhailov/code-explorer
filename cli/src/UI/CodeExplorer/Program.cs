@@ -8,6 +8,7 @@ using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
+using CodeExplorer.Parser.ColdFusion;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Java;
@@ -46,6 +47,8 @@ public class Program
         WorkspaceIndexer.Register(new TypeScriptParser());
         WorkspaceIndexer.Register(new JavaScriptParser());
         WorkspaceIndexer.Register(new SqlParser());
+        WorkspaceIndexer.Register(new ColdFusionProjectParser());
+        WorkspaceIndexer.Register(new ColdFusionFileParser());
 
         return await CommandLineParser.Default
             .ParseArguments<
