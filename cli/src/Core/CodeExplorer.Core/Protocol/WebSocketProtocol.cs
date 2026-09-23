@@ -10,6 +10,7 @@ public static class WsMessageTypes
     public const string PingRequest = "PING_REQUEST";
     public const string GetArchitectureRequest = "GET_ARCHITECTURE_REQUEST";
     public const string GetDependenciesRequest = "GET_DEPENDENCIES_REQUEST";
+    public const string GetViewRequest = "GET_VIEW_REQUEST";
     public const string GetSymbolNeighborhoodRequest = "GET_SYMBOL_NEIGHBORHOOD_REQUEST";
     public const string GetCallChainRequest = "GET_CALL_CHAIN_REQUEST";
     public const string GetImpactRequest = "GET_IMPACT_REQUEST";
@@ -20,6 +21,7 @@ public static class WsMessageTypes
     public const string HandshakeResponse = "HANDSHAKE_RESPONSE";
     public const string PongResponse = "PONG_RESPONSE";
     public const string QueryResponse = "QUERY_RESPONSE";
+    public const string GetViewResponse = "GET_VIEW_RESPONSE";
     public const string ErrorResponse = "ERROR_RESPONSE";
 
     // Server -> Client broadcast events
@@ -157,6 +159,18 @@ public class GetArchitectureRequestDto
 
     [JsonPropertyName("format")]
     public string? Format { get; set; } // "graph", "mermaid", "c4"
+}
+
+public class GetViewRequestDto
+{
+    [JsonPropertyName("view")]
+    public string View { get; set; } = "SystemContext"; // "SystemContext", "ServiceFlow", "Component"
+
+    [JsonPropertyName("scope")]
+    public string? Scope { get; set; }
+
+    [JsonPropertyName("includeLibraries")]
+    public bool IncludeLibraries { get; set; } = false;
 }
 
 public class GetDependenciesRequestDto

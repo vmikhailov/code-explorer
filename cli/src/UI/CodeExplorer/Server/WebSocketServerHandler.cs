@@ -213,6 +213,31 @@ public class WebSocketServerHandler
                     }, cancellationToken);
                     break;
 
+                case WsMessageTypes.GetViewRequest:
+                case "GET_VIEW":
+                    var viewReq = envelope.Payload.ValueKind == JsonValueKind.Object
+                        ? JsonSerializer.Deserialize<GetViewRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
+                        : null;
+                    var viewEngine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(_graphClient);
+                    var viewType = (viewReq?.View?.ToLowerInvariant()) switch
+                    {
+                        "serviceflow" or "flow" or "c2" => CodeExplorer.Core.Analysis.ArchitectureViewType.ServiceFlow,
+                        "component" or "c3" => CodeExplorer.Core.Analysis.ArchitectureViewType.Component,
+                        _ => CodeExplorer.Core.Analysis.ArchitectureViewType.SystemContext
+                    };
+                    var viewGraph = await viewEngine.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
+                    {
+                        ViewType = viewType,
+                        Scope = viewReq?.Scope,
+                        IncludeLibraries = viewReq?.IncludeLibraries ?? false
+                    }, cancellationToken);
+                    await SendResponseAsync(session, WsMessageTypes.GetViewResponse, reqId, new QueryResponseDto
+                    {
+                        Success = true,
+                        Graph = viewGraph
+                    }, cancellationToken);
+                    break;
+
                 case WsMessageTypes.GetArchitectureRequest:
                 case "GET_ARCHITECTURE":
                     var archReq = envelope.Payload.ValueKind == JsonValueKind.Object

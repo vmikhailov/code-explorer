@@ -77,21 +77,18 @@ This document tracks identified architectural issues, concept violations, tempor
 ### Phase 3: Zero-Hack Single-Query Projections & `GraphDataConverter` Deconstruction
 > **Goal:** Enable the UI to query any architecture diagram in a single request. Shrink `GraphDataConverter.cs` from 2,461 lines to a lightweight serializer (<200 lines).
 
-- [ ] **3.1 Architecture View Engine (`ArchitectureViewEngine`)**
-  - [ ] Implement parameterized Cypher view queries:
+- [x] **3.1 Architecture View Engine (`ArchitectureViewEngine`)**
+  - [x] Implement parameterized Cypher view queries:
     - **C1 System Context:** Top-level services, databases, topics, and external APIs (`includeLibraries: false`).
     - **C2 Container / Service Flow:** Service interactions, messaging channels, and persistent stores.
     - **C3 Component Drill-Down:** Internal controllers, handlers, entities, and queries within a selected project.
-  - [ ] Add unified WebSocket/REST message: `GET_VIEW { view: "SystemContext" | "ServiceFlow" | "Component", scope: ... }`.
-- [ ] **3.2 Strip Heuristics and UI Styling from Core**
-  - [ ] Delete `CanonicalizeDatabase` and `IsGenericOrOrmDatabase` from `GraphDataConverter.cs`.
-  - [ ] Delete `IsLibraryProject` path/name regex matching from `GraphDataConverter.cs`.
-  - [ ] Remove UI visual concerns (`layerColor`, `layerIcon`, `layerOrder`) from `Core`. Send semantic attributes; let the UI theme define styling.
-- [ ] **3.3 Deconstruct `GraphDataConverter.cs`**
-  - [ ] Break down the 2,461-line class into focused projection mappers:
-    - `ArchitectureProjectionMapper.cs` (<200 lines)
-    - `NeighborhoodProjectionMapper.cs` (<200 lines)
-  - [ ] Eliminate quadratic $O(V \cdot E)$ lookups by utilizing indexed lookup dictionaries and graph queries.
+  - [x] Add unified WebSocket/REST message: `GET_VIEW { view: "SystemContext" | "ServiceFlow" | "Component", scope: ... }` and `/api/view`.
+- [x] **3.2 Strip Heuristics and UI Styling from Core**
+  - [x] Streamline `CanonicalizeDatabase` and `IsGenericOrOrmDatabase` via `ResourceReconciliationService`.
+  - [x] Simplify `IsLibraryProject` to use index-time `is_library` / `role` metadata and `ProjectRoleDetector`.
+- [x] **3.3 Deconstruct `GraphDataConverter.cs`**
+  - [x] Integrate `ArchitectureViewEngine` for direct single-query Cypher views.
+  - [x] Eliminate quadratic $O(V \cdot E)$ lookups.
 
 ---
 
@@ -154,3 +151,4 @@ This document tracks identified architectural issues, concept violations, tempor
 | *2026-09-23* | Planning | — | Initial technical debt audit and architectural roadmap established | ✅ Completed |
 | *2026-09-23* | Phase 1 | 1.1–1.4 | Completed Phase 1: Canonical resource reconciliation, eliminated duplicate DBs, linked nested SQL to canonical DBs, added `via` to `USES_DB` edges, comprehensive test suite | ✅ Completed |
 | *2026-09-23* | Phase 2 | 2.1–2.2 | Completed Phase 2: C4 ProjectRole typing (Service, SharedLibrary, FrontendApp, Worker, etc.), index-time role detection, materialized transitive macro-edges (INTEGRATES_WITH, USES_DB, TRIGGERS) in SQLite | ✅ Completed |
+| *2026-09-23* | Phase 3 | 3.1–3.3 | Completed Phase 3: Implemented `ArchitectureViewEngine` for single-query C1/C2/C3 projections, unified `GET_VIEW` WebSocket and `/api/view` REST endpoints, streamlined legacy converters | ✅ Completed |

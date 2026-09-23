@@ -1149,6 +1149,32 @@ public class Program
             }
         });
 
+        app.MapGet("/api/view", async (IGraphClient graphClient, string? view, string? scope, bool? includeLibraries) =>
+        {
+            try
+            {
+                var viewEngine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(graphClient);
+                var viewType = (view?.ToLowerInvariant()) switch
+                {
+                    "serviceflow" or "flow" or "c2" => CodeExplorer.Core.Analysis.ArchitectureViewType.ServiceFlow,
+                    "component" or "c3" => CodeExplorer.Core.Analysis.ArchitectureViewType.Component,
+                    _ => CodeExplorer.Core.Analysis.ArchitectureViewType.SystemContext
+                };
+                var graph = await viewEngine.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
+                {
+                    ViewType = viewType,
+                    Scope = scope,
+                    IncludeLibraries = includeLibraries ?? false
+                });
+                return Results.Ok(graph);
+            }
+            catch (Exception ex)
+            {
+                serverLogger.LogError(ex, "[REST] Failed /api/view");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         app.MapGet("/api/architecture", async (IGraphClient graphClient, string? project) =>
         {
             try

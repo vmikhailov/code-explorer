@@ -1750,71 +1750,26 @@ public static class GraphDataConverter
     public static bool IsLibraryProject(GraphNodeDto? node)
     {
         if (node == null || !node.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase)) return false;
-        var name = (node.Name ?? "").ToLowerInvariant();
-        var path = (node.FilePath ?? "").Replace('\\', '/').ToLowerInvariant();
-        var layerId = node.Properties?.GetValueOrDefault("layerId") ?? node.Properties?.GetValueOrDefault("layer");
-        var projectType = node.Properties?.GetValueOrDefault("project_type")?.ToLowerInvariant();
-        var framework = node.Properties?.GetValueOrDefault("framework");
 
-        if (node.Properties?.GetValueOrDefault("is_library") == "true") return true;
+        var isLibProp = node.Properties?.GetValueOrDefault("is_library");
+        if (isLibProp == "true") return true;
+        if (isLibProp == "false") return false;
+
+        var projectType = node.Properties?.GetValueOrDefault("project_type")?.ToLowerInvariant();
         if (projectType == "library") return true;
 
-        var normPath = "/" + path.Trim('/');
+        var role = node.Properties?.GetValueOrDefault("role");
+        if (role is "SharedLibrary" or "Test") return true;
+        if (role is "Service" or "FrontendApp" or "Worker" or "CliTool") return false;
 
-        // 1. Known explicit library/module directory paths
-        if (normPath.Contains("/libs/") || normPath.Contains("/lib/") || normPath.Contains("/libraries/") ||
-            normPath.Contains("/common/") || normPath.Contains("/shared/") || normPath.Contains("/contracts/") ||
-            normPath.Contains("/dto/") || normPath.Contains("/dtos/") || normPath.Contains("/packages/"))
-        {
-            return true;
-        }
-
-        // 2. Known explicit library/module name patterns
-        if (name == "library" || name.Contains("library") || name.EndsWith("-lib") || name.EndsWith(".lib") ||
-            name.EndsWith(".core") || name.EndsWith("-core") ||
-            name.EndsWith(".domain") || name.EndsWith("-domain") ||
-            name.EndsWith(".models") || name.EndsWith("-models") ||
-            name.EndsWith(".model") || name.EndsWith("-model") ||
-            name.EndsWith(".entities") || name.EndsWith("-entities") ||
-            name.EndsWith(".contracts") || name.EndsWith("-contracts") ||
-            name.EndsWith(".dto") || name.EndsWith(".dtos") ||
-            name.EndsWith(".types") || name.EndsWith("-types") ||
-            name.EndsWith(".common") || name.EndsWith("-common") ||
-            name.EndsWith(".shared") || name.EndsWith("-shared") ||
-            name.EndsWith(".infra") || name.EndsWith(".infrastructure") ||
-            name.EndsWith(".data") || name.EndsWith(".db"))
-        {
-            return true;
-        }
-
-        // 3. Service directories, service names, and service frameworks are DEFINITIVELY Services
-        var isServicePath = normPath.Contains("/services/") ||
-                            normPath.Contains("/apps/") ||
-                            normPath.Contains("/microservices/") ||
-                            normPath.Contains("/service/") ||
-                            normPath.Contains("/app/");
-
-        var isServiceName = name.EndsWith("-service") || name.EndsWith("_service") || name.EndsWith(".service") ||
-                            name.EndsWith("-app") || name.EndsWith("_app") || name.EndsWith(".app") ||
-                            name.EndsWith("-api") || name.EndsWith("_api") || name.EndsWith(".api") ||
-                            name.Contains("gateway") || name.Contains("scheduler") || name.Contains("worker");
-
-        var hasServiceFramework = !string.IsNullOrWhiteSpace(framework) &&
-                                  !framework.Equals("Library", StringComparison.OrdinalIgnoreCase);
-
-        if (isServicePath || isServiceName || hasServiceFramework || layerId == "layer_ingress")
-        {
-            return false;
-        }
-
-        if (layerId == "layer_foundation") return true;
-
-        if (framework != null && framework.Equals("Library", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        var (_, isLib) = CodeExplorer.Core.Analysis.ProjectRoleDetector.DetectRole(
+            "",
+            [],
+            node.FilePath ?? "",
+            node.Name ?? "",
+            node.Properties?.GetValueOrDefault("project_type") ?? ""
+        );
+        return isLib;
     }
 
     public static GraphNodeDto? FindOwningProject(string sourceId, IEnumerable<GraphNodeDto> projects)
@@ -2202,17 +2157,16 @@ public static class GraphDataConverter
                 {
                     return ("Redis", "cache", "redis");
                 }
-                var canonicalKey = System.Text.RegularExpressions.Regex.Replace(lower, @"[^a-z0-9_-]", "_").Trim('_');
+                var normName = CodeExplorer.Core.Analysis.ResourceReconciliationService.NormalizeResourceName(trimmed, type);
+                var canonicalKey = System.Text.RegularExpressions.Regex.Replace(normName.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
                 if (string.IsNullOrEmpty(canonicalKey)) canonicalKey = "db";
-                return (trimmed, type, canonicalKey);
+                return (normName, type, canonicalKey);
         }
     }
 
     public static bool IsGenericOrOrmDatabase(string rawName)
     {
-        var lower = (rawName ?? "").Trim().ToLowerInvariant();
-        return lower is "defaultconnection" or "connectionstring" or "connectionstrings" or "database" or "db" or
-               "microsoft.entityframeworkcore" or "entity framework core" or "ef-core" or "typeorm" or "dapper" or "prisma" or "sequelize";
+        return CodeExplorer.Core.Analysis.ResourceReconciliationService.IsGenericConfigKey(rawName);
     }
 
     public static void NormalizeEdges(GraphDataDto graph)
