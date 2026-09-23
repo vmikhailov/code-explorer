@@ -485,6 +485,24 @@ public static class ConfigurationParser
 
         var dbId = $"{workspaceId}:database:{dbType}:{dbName.ToLowerInvariant()}";
 
+        var aliases = new List<string>();
+        if (!string.IsNullOrWhiteSpace(customName)) aliases.Add(customName);
+        if (!string.IsNullOrWhiteSpace(catalog)) aliases.Add(catalog);
+        if (!string.IsNullOrWhiteSpace(engine)) aliases.Add(engine);
+
+        var projId = containerNode is ProjectSemanticNode psn ? psn.Id : (containerNode.Id.Contains(":project:") ? containerNode.Id : null);
+
+        ctx.ResourceRegistry.RegisterResource(
+            workspaceId,
+            dbName,
+            engine,
+            dbType,
+            OntologyConstants.NodeLabels.Database,
+            relativePath,
+            projId,
+            aliases
+        );
+
         if (!containerNode.Children.Any(c => c.Id == dbId))
         {
             var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType, new Dictionary<string, string> { ["engine"] = engine });
@@ -494,7 +512,6 @@ public static class ConfigurationParser
 
         relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, dbId)));
 
-        var projId = containerNode is ProjectSemanticNode psn ? psn.Id : (containerNode.Id.Contains(":project:") ? containerNode.Id : null);
         if (!string.IsNullOrEmpty(projId))
         {
             var usesDbRel = new UsesDbRelationship(projId, dbId);

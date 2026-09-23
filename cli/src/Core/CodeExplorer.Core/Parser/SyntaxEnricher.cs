@@ -108,11 +108,47 @@ public class SyntaxEnricher : ISyntaxEnricher
                             dbType = parts[1];
                         }
 
-                        var dbId = $"{projectNode.Id}db:{parser.Id}";
                         var isOrm = IsOrmLibrary(parser.Id);
+                        
+                        // If it's an ORM, record API usage
+                        if (isOrm)
+                        {
+                            var ormApiId = $"{projectNode.Id}orm:{parser.Id}";
+                            var semanticNode = ctx.SemanticStructure;
+                            if (semanticNode != null && !semanticNode.Children.Any(c => c.Id == ormApiId))
+                            {
+                                var ormNode = new ApiInUseNode(ormApiId, parser.Name, fileNode.Path);
+                                semanticNode.Children.Add(ormNode);
+                            }
+                            var usesOrmRel = new UsesApiRelationship(fileNode.Id, ormApiId);
+                            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesOrmRel));
+                        }
+
+                        // Resolve or register canonical database resource
+                        var canonicalRes = ctx.ResourceRegistry.ResolveResource(parser.Id, expectedDbType: dbType, expectedEngine: dbEngine)
+                                           ?? ctx.ResourceRegistry.ResolveResource(parser.Name, expectedDbType: dbType, expectedEngine: dbEngine)
+                                           ?? ctx.ResourceRegistry.ResolveResource(null, expectedDbType: dbType, expectedEngine: dbEngine);
+
+                        if (canonicalRes == null)
+                        {
+                            canonicalRes = ctx.ResourceRegistry.RegisterResource(
+                                ctx.WorkspaceId,
+                                dbEngine,
+                                dbEngine,
+                                dbType,
+                                OntologyConstants.NodeLabels.Database,
+                                fileNode.Path,
+                                projectNode.Id,
+                                [parser.Id, parser.Name]
+                            );
+                        }
+
+                        var dbId = canonicalRes.Id;
+                        var canonicalDbName = canonicalRes.Name;
+
                         var extensions = new Dictionary<string, string>
                         {
-                            ["engine"] = dbEngine,
+                            ["engine"] = canonicalRes.Engine,
                             ["provider"] = parser.Name
                         };
                         if (isOrm)
@@ -121,10 +157,11 @@ public class SyntaxEnricher : ISyntaxEnricher
                         }
 
                         var semanticNodeForDb = ctx.SemanticStructure;
-                        if (semanticNodeForDb != null && semanticNodeForDb.Children.All(c => c.Id != dbId))
+                        if (semanticNodeForDb != null && !semanticNodeForDb.Children.Any(c => c.Id == dbId))
                         {
-                            var dbNode = new DatabaseNode(dbId, dbEngine, dbId, dbType, extensions);
+                            var dbNode = new DatabaseNode(dbId, canonicalDbName, fileNode.Path, dbType, extensions);
                             semanticNodeForDb.Children.Add(dbNode);
+                            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, canonicalDbName, dbId);
                         }
 
                         var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId);

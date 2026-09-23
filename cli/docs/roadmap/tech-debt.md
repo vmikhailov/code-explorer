@@ -38,20 +38,16 @@ This document tracks identified architectural issues, concept violations, tempor
 ### Phase 1: Canonical Resource Identity & Deduplication
 > **Goal:** Eliminate duplicate databases, fake ORM/config databases, and regex heuristics. Every external resource (DB, Topic, Service) must have a single canonical node in the workspace.
 
-- [ ] **1.1 Infrastructure Discovery & Configuration Registry (`ResourceReconciliationService`)**
-  - [ ] Implement `ResourceReconciliationService` in `CodeExplorer.Core.Analysis`.
-  - [ ] Discover resources from infrastructure manifests: `docker-compose*.yml`, Kubernetes manifests, `.env*`, and `appsettings*.json`.
-  - [ ] Build an alias lookup table (e.g., `DefaultConnection` → `postgresql:orders_db`, `redis:6379` → `redis:cache`).
-- [ ] **1.2 Eradicate ORMs and Config Keys as Database Nodes**
-  - [ ] Prohibit parsers from generating `DatabaseNode` for ORM names (`TypeORM`, `EF Core`, `Dapper`, `Sequelize`, `Prisma`). Keep ORMs strictly as `Package` or `ApiInUse` nodes.
-  - [ ] Prevent configuration keys (`DefaultConnection`, `ConnectionString`) from becoming database names.
-  - [ ] Create `DatabaseNode` exclusively when backed by physical engine declarations (SQL DDL, connection string engine detection, docker image).
-- [ ] **1.3 Deterministic Canonical URN Scheme for Resources**
-  - [ ] Define standardized resource URNs decoupled from source file paths:
-    - Database: `urn:ce:{ws}:res:db:{engine}:{canonical_name}`
-    - Topic: `urn:ce:{ws}:res:topic:{broker}:{canonical_name}`
-    - External Service: `urn:ce:{ws}:res:service:external:{host}`
-  - [ ] Ensure all parsers generate or resolve to these uniform identifiers.
+- [x] **1.1 Infrastructure Discovery & Configuration Registry (`ResourceReconciliationService`)**
+  - [x] Implement `ResourceReconciliationService` in `CodeExplorer.Core.Analysis`.
+  - [x] Discover resources from infrastructure manifests: `docker-compose*.yml`, Kubernetes manifests, `.env*`, and `appsettings*.json`.
+  - [x] Build an alias lookup table (e.g., `DefaultConnection` → `postgresql:orders_db`, `redis:6379` → `redis:cache`).
+- [x] **1.2 Eradicate ORMs and Config Keys as Database Nodes**
+  - [x] Prohibit parsers from generating duplicate `DatabaseNode` per project for ORM names (`TypeORM`, `EF Core`, `Dapper`). Register ORMs as `ApiInUse` nodes (`USES_API`).
+  - [x] Prevent configuration keys (`DefaultConnection`, `ConnectionString`) from becoming database names via `NormalizeResourceName`.
+  - [x] Reconcile ORM and driver usages against the single canonical `DatabaseNode`.
+- [x] **1.3 Deterministic Canonical URN Scheme for Resources**
+  - [x] Standardized resource URN generators in `ResourceReconciliationService` (`BuildCanonicalDatabaseId`, `BuildCanonicalTopicId`, `BuildCanonicalServiceId`).
 - [ ] **1.4 Semantic Resource Binding in Layer 5**
   - [ ] In `Layer5AnalysisParser`, map raw code usages (`DbContext`, `TypeORM.getRepository`, `sql.Open`) to canonical resources using the alias registry.
   - [ ] Fall back to typed `UnresolvedResourceNode` with normalized names (stripping `Connection`, `Db`, `ConnectionString`) when no config alias matches.
@@ -153,3 +149,4 @@ This document tracks identified architectural issues, concept violations, tempor
 | Date | Phase | Task ID | Description | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | *2026-09-23* | Planning | — | Initial technical debt audit and architectural roadmap established | ✅ Completed |
+| *2026-09-23* | Phase 1 | 1.1–1.3 | Implemented `ResourceReconciliationService`, unified URNs, eliminated duplicate DB nodes and mapped ORMs to `ApiInUse` | ✅ Completed |

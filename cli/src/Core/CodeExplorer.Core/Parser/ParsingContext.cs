@@ -23,6 +23,7 @@ public class ParsingContext
     public ProjectsStructureNode? ProjectsStructure { get; set; }
     public SyntaxStructureNode? SyntaxStructure { get; set; }
     public SemanticStructureNode? SemanticStructure { get; set; }
+    public CodeExplorer.Core.Analysis.ResourceReconciliationService ResourceRegistry { get; } = new();
 
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();
