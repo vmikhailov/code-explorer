@@ -239,6 +239,22 @@ public class HandshakeResponseDto
 
     [JsonPropertyName("capabilities")]
     public List<string> Capabilities { get; set; } = [];
+
+    [JsonPropertyName("isSchemaOutdated")]
+    public bool IsSchemaOutdated { get; set; }
+
+    [JsonPropertyName("schemaVersion")]
+    public int SchemaVersion { get; set; }
+
+    [JsonPropertyName("currentSchemaVersion")]
+    public int CurrentSchemaVersion { get; set; }
+
+    [JsonPropertyName("isScanning")]
+    public bool IsScanning { get; set; }
+
+    [JsonPropertyName("scanProgress")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScanProgressEventDto? ScanProgress { get; set; }
 }
 
 public class PongResponseDto

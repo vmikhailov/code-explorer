@@ -115,6 +115,11 @@ export interface HandshakeResponse {
   totalNodes: number;
   totalEdges: number;
   capabilities: string[];
+  isSchemaOutdated?: boolean;
+  schemaVersion?: number;
+  currentSchemaVersion?: number;
+  isScanning?: boolean;
+  scanProgress?: ScanProgressEvent;
 }
 
 export interface PongResponse {

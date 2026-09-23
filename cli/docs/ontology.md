@@ -318,7 +318,6 @@ graph TD
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
 

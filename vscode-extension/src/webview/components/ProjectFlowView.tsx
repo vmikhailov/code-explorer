@@ -234,31 +234,21 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
     const registerNode = (n: GraphNode) => {
       nMap.set(n.id, n);
-      nMap.set(n.name, n);
       nMap.set(n.id.toLowerCase(), n);
-      nMap.set(n.name.toLowerCase(), n);
+      if (!nMap.has(n.name)) nMap.set(n.name, n);
+      if (!nMap.has(n.name.toLowerCase())) nMap.set(n.name.toLowerCase(), n);
       if (!outMap.has(n.id)) outMap.set(n.id, []);
-      if (!outMap.has(n.name)) outMap.set(n.name, []);
       if (!outMap.has(n.id.toLowerCase())) outMap.set(n.id.toLowerCase(), []);
-      if (!outMap.has(n.name.toLowerCase())) outMap.set(n.name.toLowerCase(), []);
       if (!inMap.has(n.id)) inMap.set(n.id, []);
-      if (!inMap.has(n.name)) inMap.set(n.name, []);
       if (!inMap.has(n.id.toLowerCase())) inMap.set(n.id.toLowerCase(), []);
-      if (!inMap.has(n.name.toLowerCase())) inMap.set(n.name.toLowerCase(), []);
     };
 
     const getOrCreateComms = (node: GraphNode): NodeCommsSummary => {
-      let c =
-        cMap.get(node.id) ||
-        cMap.get(node.name) ||
-        cMap.get(node.id.toLowerCase()) ||
-        cMap.get(node.name.toLowerCase());
+      let c = cMap.get(node.id) || cMap.get(node.id.toLowerCase());
       if (!c) {
         c = { callsOut: [], acceptsIn: [], libsOut: [], libsIn: [], dbOut: [], messagesOut: [], messagesIn: [] };
         cMap.set(node.id, c);
-        cMap.set(node.name, c);
         cMap.set(node.id.toLowerCase(), c);
-        cMap.set(node.name.toLowerCase(), c);
       }
       return c;
     };
@@ -302,9 +292,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       if (!curOut.some((x) => x.id === tgtNode.id)) {
         curOut.push(tgtNode);
         outMap.set(srcNode.id, curOut);
-        outMap.set(srcNode.name, curOut);
         outMap.set(srcNode.id.toLowerCase(), curOut);
-        outMap.set(srcNode.name.toLowerCase(), curOut);
       }
 
       // Inbound (tgtNode is used by srcNode)
@@ -312,9 +300,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       if (!curIn.some((x) => x.id === srcNode.id)) {
         curIn.push(srcNode);
         inMap.set(tgtNode.id, curIn);
-        inMap.set(tgtNode.name, curIn);
         inMap.set(tgtNode.id.toLowerCase(), curIn);
-        inMap.set(tgtNode.name.toLowerCase(), curIn);
       }
 
       // Communications breakdown
@@ -373,6 +359,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
   // Root project node lookup
   const rootNode = useMemo(() => {
+    const centerFromGraph = graph?.nodes?.find((n) => n.properties?.column === 'center');
+    if (centerFromGraph) {
+      return nodeMap.get(centerFromGraph.id) || centerFromGraph;
+    }
     if (!rootProjectName) return undefined;
     let node = nodeMap.get(rootProjectName) || nodeMap.get(rootProjectName.toLowerCase());
     if (!node) {
@@ -385,7 +375,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       }
     }
     return node;
-  }, [rootProjectName, nodeMap]);
+  }, [graph, rootProjectName, nodeMap]);
 
   const DEFAULT_ROOT_CATEGORIES = useMemo(
     () => new Set<string>(['callsOut', 'acceptsIn', 'libsOut', 'libsIn', 'dbOut', 'messagesOut', 'messagesIn']),
@@ -1133,7 +1123,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       let currentY = startY;
 
       list.forEach((node, i) => {
-        const isCenter = node.id === rootNode!.id || node.name === rootNode!.name;
+        const isCenter = node.id === rootNode!.id;
         const inCount = inCountMap[node.id] || inCountMap[node.name] || 0;
         const outCount = outCountMap[node.id] || outCountMap[node.name] || 0;
         const h = nodeHeights[i];
@@ -1150,7 +1140,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
             outCount,
             isExpanded: expandedCards.has(node.id) || expandedCards.has(node.name),
             onToggleExpand: handleToggleCardExpand,
-            comms: commsMap.get(node.id) || commsMap.get(node.name),
+            comms: commsMap.get(node.id) || commsMap.get(node.id.toLowerCase()) || commsMap.get(node.name),
             activeCategories: Array.from(getActiveCategories(node.id, node.name)),
             onToggleCategory: handleToggleCategory,
             onFocusProject: onSelectProject,

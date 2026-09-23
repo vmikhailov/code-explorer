@@ -15,12 +15,15 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
 public record ProjectNode(
     string Id,
-    [property: OntologyProperty("The name of the entity.")] string Name,
+    string Name,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     [property: OntologyProperty("The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript').")] string ProjectType,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    [OntologyProperty("The name of the entity.")]
+    public string Name { get; set; } = Name;
+
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.Project;
 }

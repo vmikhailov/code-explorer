@@ -1012,16 +1012,11 @@ public class Program
         var app = CreateWebApplication(opts, wsRoot, client);
         App = app;
 
-        if (client.IsSchemaOutdated)
+        if (client.IsSchemaOutdated && !opts.Quiet)
         {
-            if (!opts.Quiet)
-            {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"[Database] Database schema version is outdated (v{client.SchemaVersion} < v{SqliteGraphClient.CurrentSchemaVersion}). Automatically performing clean rescan...");
-                Console.ResetColor();
-            }
-            var indexer = app.Services.GetRequiredService<WorkspaceIndexer>();
-            await indexer.IndexAsync(wsRoot, wsRoot, clear: true);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[Database] Database schema version is outdated (v{client.SchemaVersion} < v{SqliteGraphClient.CurrentSchemaVersion}). Server starting; graph rebuild will occur asynchronously.");
+            Console.ResetColor();
         }
 
         await app.StartAsync();
@@ -1035,6 +1030,12 @@ public class Program
 
         // Machine-readable stdout line
         Console.WriteLine($"{{\"status\":\"ready\",\"port\":{actualPort},\"wsUrl\":\"{wsUrl}\",\"httpUrl\":\"{boundAddress}\",\"workspace\":\"{wsRoot.Replace("\\", "/")}\"}}");
+
+        if (client.IsSchemaOutdated)
+        {
+            var wsHandler = app.Services.GetRequiredService<WebSocketServerHandler>();
+            wsHandler.TriggerScan(wsRoot, clear: true);
+        }
 
         if (!opts.Quiet)
         {

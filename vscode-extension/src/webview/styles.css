@@ -2567,6 +2567,12 @@ button:active {
   border: 1px solid rgba(251, 113, 133, 0.5);
 }
 
+.scan-toast.info {
+  background: #1e3a8a;
+  color: #93c5fd;
+  border: 1px solid rgba(147, 197, 253, 0.5);
+}
+
 @keyframes slideInUp {
   from {
     transform: translateY(16px);

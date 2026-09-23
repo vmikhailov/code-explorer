@@ -781,7 +781,7 @@ public static class GraphDataConverter
         var targetName = string.IsNullOrWhiteSpace(projectName) ? allProjects[0] : projectName;
 
         // 1. Target Center Project
-        var centerQuery = "MATCH (p:Project) WHERE p.name = $name OR p.id = $name RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path, p.project_type AS project_type LIMIT 1";
+        var centerQuery = "MATCH (p:Project) WHERE p.name = $name OR p.id = $name OR p.path = $name OR p.id = ('workspace:project:' + $name + ':') RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path, p.project_type AS project_type LIMIT 1";
         var centerJson = await client.ExecuteQueryAsync(centerQuery, new Dictionary<string, object> { ["name"] = targetName }, cancellationToken);
         using var centerDoc = JsonDocument.Parse(centerJson);
 
@@ -1438,11 +1438,114 @@ public static class GraphDataConverter
         // 6. Outbound & Inbound Topics
         try
         {
-            var topicQuery = "MATCH (p:Project {id: $centerId})-[r:TRIGGERS|PUBLISHES|PUBLISHES_TO]->(t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
-            var topicJson = await client.ExecuteQueryAsync(topicQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-            using var topicDoc = JsonDocument.Parse(topicJson);
+            // 6a. Outbound Topics (Center project publishes to Topic via symbol or config)
+            var pubQuery = "MATCH (t:Topic)-[:PUBLISHED_BY]->(sym) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type, sym.id AS symId";
+            var pubJson = await client.ExecuteQueryAsync(pubQuery, null, cancellationToken);
+            using var pubDoc = JsonDocument.Parse(pubJson);
 
-            foreach (var row in topicDoc.RootElement.EnumerateArray())
+            foreach (var row in pubDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
+                var symId = row.GetStringProp("symId");
+
+                var owning = FindOwningProject(symId, new[] { centerNode });
+                if (owning != null)
+                {
+                    if (graph.Nodes.All(n => n.Id != id))
+                    {
+                        graph.Nodes.Add(new GraphNodeDto
+                        {
+                            Id = id,
+                            Kind = "Topic",
+                            Name = name,
+                            DisplayName = $"{name} [{broker}]",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["column"] = "right",
+                                ["role"] = "topic",
+                                ["broker_type"] = broker,
+                                ["entity_type"] = "topic"
+                            }
+                        });
+                    }
+
+                    if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{centerId}->{id}:TRIGGERS",
+                            Source = centerId,
+                            Target = id,
+                            Kind = "TRIGGERS",
+                            Category = "messaging",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["dependency_type"] = "messaging"
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Also check CONFIGURES edges from File to Topic
+            var cfgQuery = "MATCH (f:File)-[:CONFIGURES]->(t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type, f.id AS fileId";
+            var cfgJson = await client.ExecuteQueryAsync(cfgQuery, null, cancellationToken);
+            using var cfgDoc = JsonDocument.Parse(cfgJson);
+
+            foreach (var row in cfgDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
+                var fileId = row.GetStringProp("fileId");
+
+                var owning = FindOwningProject(fileId, new[] { centerNode });
+                if (owning != null)
+                {
+                    if (graph.Nodes.All(n => n.Id != id))
+                    {
+                        graph.Nodes.Add(new GraphNodeDto
+                        {
+                            Id = id,
+                            Kind = "Topic",
+                            Name = name,
+                            DisplayName = $"{name} [{broker}]",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["column"] = "right",
+                                ["role"] = "topic",
+                                ["broker_type"] = broker,
+                                ["entity_type"] = "topic"
+                            }
+                        });
+                    }
+
+                    if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{centerId}->{id}:TRIGGERS",
+                            Source = centerId,
+                            Target = id,
+                            Kind = "TRIGGERS",
+                            Category = "messaging",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["dependency_type"] = "messaging"
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Direct project-to-topic outbound fallback
+            var directTopicQuery = "MATCH (p:Project {id: $centerId})-[r:TRIGGERS|PUBLISHES|PUBLISHES_TO]->(t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
+            var directTopicJson = await client.ExecuteQueryAsync(directTopicQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
+            using var directTopicDoc = JsonDocument.Parse(directTopicJson);
+
+            foreach (var row in directTopicDoc.RootElement.EnumerateArray())
             {
                 var id = row.GetStringProp("id");
                 var name = row.GetStringProp("name", id);
@@ -1450,7 +1553,7 @@ public static class GraphDataConverter
 
                 if (graph.Nodes.All(n => n.Id != id))
                 {
-                    var tNode = new GraphNodeDto
+                    graph.Nodes.Add(new GraphNodeDto
                     {
                         Id = id,
                         Kind = "Topic",
@@ -1463,8 +1566,7 @@ public static class GraphDataConverter
                             ["broker_type"] = broker,
                             ["entity_type"] = "topic"
                         }
-                    };
-                    graph.Nodes.Add(tNode);
+                    });
                 }
 
                 if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id)))
@@ -1488,6 +1590,58 @@ public static class GraphDataConverter
 
         try
         {
+            // 6b. Inbound Topics (Center project subscribes to Topic via symbol)
+            var subQuery = "MATCH (t:Topic)-[:SUBSCRIBED_BY]->(sym) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type, sym.id AS symId";
+            var subJson = await client.ExecuteQueryAsync(subQuery, null, cancellationToken);
+            using var subDoc = JsonDocument.Parse(subJson);
+
+            foreach (var row in subDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
+                var symId = row.GetStringProp("symId");
+
+                var owning = FindOwningProject(symId, new[] { centerNode });
+                if (owning != null)
+                {
+                    if (graph.Nodes.All(n => n.Id != id))
+                    {
+                        graph.Nodes.Add(new GraphNodeDto
+                        {
+                            Id = id,
+                            Kind = "Topic",
+                            Name = name,
+                            DisplayName = $"{name} [{broker}]",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["column"] = "left",
+                                ["role"] = "topic",
+                                ["broker_type"] = broker,
+                                ["entity_type"] = "topic"
+                            }
+                        });
+                    }
+
+                    if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{id}->{centerId}:TRIGGERS",
+                            Source = id,
+                            Target = centerId,
+                            Kind = "TRIGGERS",
+                            Category = "messaging",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["dependency_type"] = "messaging"
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Direct topic-to-project inbound fallback
             var inTopicQuery = "MATCH (t:Topic)-[r:TRIGGERS|SUBSCRIBED_BY]->(p:Project {id: $centerId}) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
             var inTopicJson = await client.ExecuteQueryAsync(inTopicQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
             using var inTopicDoc = JsonDocument.Parse(inTopicJson);
@@ -1500,7 +1654,7 @@ public static class GraphDataConverter
 
                 if (graph.Nodes.All(n => n.Id != id))
                 {
-                    var tNode = new GraphNodeDto
+                    graph.Nodes.Add(new GraphNodeDto
                     {
                         Id = id,
                         Kind = "Topic",
@@ -1513,8 +1667,7 @@ public static class GraphDataConverter
                             ["broker_type"] = broker,
                             ["entity_type"] = "topic"
                         }
-                    };
-                    graph.Nodes.Add(tNode);
+                    });
                 }
 
                 if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId)))

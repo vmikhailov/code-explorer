@@ -174,6 +174,21 @@ public class Layer2ProjectParser
             }
         }
 
+        // Disambiguate duplicate project names if multiple projects share the exact same Name (e.g. copied package.json)
+        var duplicateGroups = projects.GroupBy(p => p.Name, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).ToList();
+        foreach (var group in duplicateGroups)
+        {
+            foreach (var proj in group)
+            {
+                var folderName = Path.GetFileName(proj.Path.TrimEnd('/', '\\'));
+                if (!string.IsNullOrEmpty(folderName) && !string.Equals(folderName, proj.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    proj.Name = folderName;
+                    packageToProjectMap[folderName] = proj;
+                }
+            }
+        }
+
         // Check for sibling or parent library directories if there are unresolved external packages
         var unresolvedPackages = projectDepList
             .SelectMany(p => p.DepInfo.ExternalPackages)

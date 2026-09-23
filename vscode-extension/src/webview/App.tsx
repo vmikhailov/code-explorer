@@ -128,7 +128,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 export const App: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'semantic' | 'layers' | 'flow' | 'full'>('semantic');
+  const [viewMode, setViewMode] = useState<'semantic' | 'layers' | 'flow' | 'full'>('layers');
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [allProjects, setAllProjects] = useState<string[]>([]);
   const [projectPaths, setProjectPaths] = useState<Record<string, string>>({});
@@ -143,7 +143,7 @@ export const App: React.FC = () => {
   // Graph Management & Scan State
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
-  const [scanNotification, setScanNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [scanNotification, setScanNotification] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [graphStats, setGraphStats] = useState<{ totalNodes: number; totalEdges: number; serverVersion?: string } | null>(null);
 
   // Active error and diagnostics state
@@ -532,11 +532,6 @@ export const App: React.FC = () => {
       };
       ws.send(JSON.stringify(handshake));
 
-      // 2. Fetch full architecture (with layer classifications)
-      requestArchitecture();
-
-      // 3. Fetch dependencies for default/first project
-      requestDependencies();
     };
 
     ws.onmessage = (event) => {
@@ -545,9 +540,39 @@ export const App: React.FC = () => {
         switch (msg.type) {
           case 'HANDSHAKE_RESPONSE': {
             const resp = msg.payload as HandshakeResponse;
-            logToExtension('INFO', `Handshake successful: server v${resp.serverVersion}, nodes=${resp.totalNodes}, edges=${resp.totalEdges}`);
+            logToExtension(
+              'INFO',
+              `Handshake successful: server v${resp.serverVersion}, nodes=${resp.totalNodes}, edges=${resp.totalEdges}, schemaOutdated=${resp.isSchemaOutdated}, isScanning=${resp.isScanning}`
+            );
             setGraphStats({ totalNodes: resp.totalNodes, totalEdges: resp.totalEdges, serverVersion: resp.serverVersion });
             console.log(`Connected to CodeExplorer ${resp.serverVersion}`);
+
+            if (resp.isScanning) {
+              setIsScanning(true);
+              if (resp.scanProgress) {
+                setScanProgress(resp.scanProgress);
+              }
+              setScanNotification({ type: 'info', text: 'Workspace indexing is currently in progress...' });
+            } else if (resp.isSchemaOutdated) {
+              logToExtension(
+                'WARN',
+                `Database schema is outdated (v${resp.schemaVersion ?? 1} < v${resp.currentSchemaVersion ?? 2}). Triggering background re-index...`
+              );
+              setIsScanning(true);
+              setScanProgress({ phase: 'Starting', percentage: 5, currentFile: 'Upgrading database schema...' });
+              setScanNotification({ type: 'info', text: 'Database schema is outdated. Rebuilding graph in background...' });
+              sendWsMessage({
+                type: 'TRIGGER_SCAN_REQUEST',
+                requestId: `req_scan_schema_${Date.now()}`,
+                payload: { clear: true },
+              });
+            } else {
+              // Fetch full architecture (with layer classifications)
+              requestArchitecture();
+
+              // Fetch dependencies for default/first project
+              requestDependencies();
+            }
             break;
           }
 
@@ -863,7 +888,9 @@ export const App: React.FC = () => {
 
         {scanNotification && (
           <div className={`scan-toast ${scanNotification.type}`}>
-            <span className="toast-icon">{scanNotification.type === 'success' ? '✅' : '❌'}</span>
+            <span className="toast-icon">
+              {scanNotification.type === 'success' ? '✅' : scanNotification.type === 'info' ? 'ℹ️' : '❌'}
+            </span>
             <span className="toast-text">{scanNotification.text}</span>
           </div>
         )}

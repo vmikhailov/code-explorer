@@ -75,6 +75,7 @@ public class WebSocketServerHandler
     private CancellationTokenSource? _idleCts;
     private readonly object _idleLock = new();
     private int _isScanning = 0;
+    private volatile ScanProgressEventDto? _lastProgress;
 
     public WebSocketServerHandler(
         IGraphClient graphClient,
@@ -285,70 +286,15 @@ public class WebSocketServerHandler
 
                 case WsMessageTypes.TriggerScanRequest:
                 case "TRIGGER_SCAN":
-                    if (Interlocked.CompareExchange(ref _isScanning, 1, 0) != 0)
+                    var scanReq = envelope.Payload.ValueKind == JsonValueKind.Object
+                        ? JsonSerializer.Deserialize<TriggerScanRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
+                        : null;
+
+                    if (!TriggerScan(scanReq?.TargetPath, scanReq?.Clear ?? false))
                     {
                         await SendErrorAsync(session, reqId, "SCAN_IN_PROGRESS", "A workspace scan is already in progress.", cancellationToken);
                         break;
                     }
-
-                    var scanReq = envelope.Payload.ValueKind == JsonValueKind.Object
-                        ? JsonSerializer.Deserialize<TriggerScanRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
-                        : null;
-                    var target = string.IsNullOrWhiteSpace(scanReq?.TargetPath) ? _workspaceRoot : scanReq.TargetPath;
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
-                            {
-                                Phase = "Starting",
-                                Percentage = 5,
-                                CurrentFile = target
-                            }, CancellationToken.None);
-
-                            var progress = new Progress<IndexingProgress>(p =>
-                            {
-                                var percent = p.NodesCount > 0
-                                    ? (int)Math.Min(95, Math.Max(10, (double)p.NodesPersisted / p.NodesCount * 100))
-                                    : 50;
-                                _ = BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
-                                {
-                                    Phase = "Indexing",
-                                    Percentage = percent,
-                                    CurrentFile = $"Saved {p.NodesPersisted} nodes, {p.RelationshipsPersisted} relationships...",
-                                    TotalFiles = p.NodesCount,
-                                    ProcessedFiles = p.NodesPersisted
-                                }, CancellationToken.None);
-                            });
-
-                            var clear = (scanReq?.Clear ?? false) || (_graphClient is SqliteGraphClient sqlite && sqlite.IsSchemaOutdated);
-                            var (nodesCount, relsCount, _) = await _indexer.IndexAsync(target, _workspaceRoot, clear, CancellationToken.None, progress);
-
-                            await BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
-                            {
-                                Phase = "Completed",
-                                Percentage = 100,
-                                TotalFiles = (int)nodesCount,
-                                ProcessedFiles = (int)nodesCount,
-                                CurrentFile = $"Indexed {nodesCount} nodes, {relsCount} relationships."
-                            }, CancellationToken.None);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "[WS] Background scan failed");
-                            await BroadcastAsync(WsMessageTypes.ScanProgressEvent, new ScanProgressEventDto
-                            {
-                                Phase = "Failed",
-                                Percentage = 0,
-                                CurrentFile = ex.Message
-                            }, CancellationToken.None);
-                        }
-                        finally
-                        {
-                            Interlocked.Exchange(ref _isScanning, 0);
-                        }
-                    });
 
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
@@ -367,6 +313,80 @@ public class WebSocketServerHandler
             _logger.LogError(ex, "[WS] Failed processing message {Type} (reqId: {ReqId})", envelope.Type, reqId);
             await SendErrorAsync(session, reqId, "EXECUTION_ERROR", ex.Message, cancellationToken, ex.ToString());
         }
+    }
+
+    public bool TriggerScan(string? targetPath = null, bool clear = false)
+    {
+        if (Interlocked.CompareExchange(ref _isScanning, 1, 0) != 0)
+        {
+            return false;
+        }
+
+        var target = string.IsNullOrWhiteSpace(targetPath) ? _workspaceRoot : targetPath;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var startEv = new ScanProgressEventDto
+                {
+                    Phase = "Starting",
+                    Percentage = 5,
+                    CurrentFile = target
+                };
+                _lastProgress = startEv;
+                await BroadcastAsync(WsMessageTypes.ScanProgressEvent, startEv, CancellationToken.None);
+
+                var progress = new Progress<IndexingProgress>(p =>
+                {
+                    var percent = p.NodesCount > 0
+                        ? (int)Math.Min(95, Math.Max(10, (double)p.NodesPersisted / p.NodesCount * 100))
+                        : 50;
+                    var progEv = new ScanProgressEventDto
+                    {
+                        Phase = "Indexing",
+                        Percentage = percent,
+                        CurrentFile = $"Saved {p.NodesPersisted} nodes, {p.RelationshipsPersisted} relationships...",
+                        TotalFiles = p.NodesCount,
+                        ProcessedFiles = p.NodesPersisted
+                    };
+                    _lastProgress = progEv;
+                    _ = BroadcastAsync(WsMessageTypes.ScanProgressEvent, progEv, CancellationToken.None);
+                });
+
+                var shouldClear = clear || (_graphClient is SqliteGraphClient sqlite && sqlite.IsSchemaOutdated);
+                var (nodesCount, relsCount, _) = await _indexer.IndexAsync(target, _workspaceRoot, shouldClear, CancellationToken.None, progress);
+
+                var compEv = new ScanProgressEventDto
+                {
+                    Phase = "Completed",
+                    Percentage = 100,
+                    TotalFiles = (int)nodesCount,
+                    ProcessedFiles = (int)nodesCount,
+                    CurrentFile = $"Indexed {nodesCount} nodes, {relsCount} relationships."
+                };
+                _lastProgress = null;
+                await BroadcastAsync(WsMessageTypes.ScanProgressEvent, compEv, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[WS] Background scan failed");
+                var failEv = new ScanProgressEventDto
+                {
+                    Phase = "Failed",
+                    Percentage = 0,
+                    CurrentFile = ex.Message
+                };
+                _lastProgress = null;
+                await BroadcastAsync(WsMessageTypes.ScanProgressEvent, failEv, CancellationToken.None);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _isScanning, 0);
+            }
+        });
+
+        return true;
     }
 
     private async Task HandleHandshakeAsync(ClientSession session, string reqId, JsonElement payload, CancellationToken cancellationToken)
@@ -394,14 +414,22 @@ public class WebSocketServerHandler
             // Ignore if empty/new database
         }
 
+        var sqliteClient = _graphClient as SqliteGraphClient;
+        var isScanning = Volatile.Read(ref _isScanning) == 1;
+
         var response = new HandshakeResponseDto
         {
             ServerVersion = _serverVersion,
             WorkspaceRoot = _workspaceRoot,
-            DbPath = (_graphClient as SqliteGraphClient)?.DbPath ?? "",
+            DbPath = sqliteClient?.DbPath ?? "",
             TotalNodes = nodesCount,
             TotalEdges = edgesCount,
-            Capabilities = ["architecture", "dependencies", "call_chain", "impact", "cypher", "scan", "graph_patch"]
+            Capabilities = ["architecture", "dependencies", "call_chain", "impact", "cypher", "scan", "graph_patch"],
+            IsSchemaOutdated = sqliteClient?.IsSchemaOutdated ?? false,
+            SchemaVersion = sqliteClient?.SchemaVersion ?? 0,
+            CurrentSchemaVersion = SqliteGraphClient.CurrentSchemaVersion,
+            IsScanning = isScanning,
+            ScanProgress = isScanning ? _lastProgress : null
         };
 
         await SendResponseAsync(session, WsMessageTypes.HandshakeResponse, reqId, response, cancellationToken);
