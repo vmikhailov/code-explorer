@@ -95,15 +95,14 @@ This document tracks identified architectural issues, concept violations, tempor
 ### Phase 4: Communication Layer & Gateway Unification
 > **Goal:** Single source of truth for MCP, WebSocket, and REST endpoints. Eliminate divergent data assembly logic.
 
-- [ ] **4.1 Unified Graph Query Service (`IArchitectureQueryService`)**
-  - [ ] Create `ArchitectureQueryService` as the single entry point for all architectural reads.
-  - [ ] Route MCP tools, WebSocket handlers, and Minimal API endpoints to this service.
-- [ ] **4.2 Synchronize Sidebar and Webview Channels**
-  - [ ] Migrate `codeExplorerTreeProvider.ts` to utilize the existing WebSocket connection (or share a single communication client), deprecating parallel REST endpoints.
-  - [ ] Ensure sidebar node selections and webview focus states stay bidirectionally synchronized.
-- [ ] **4.3 Robust WebSocket State Machine in Frontend**
-  - [ ] Implement an explicit state machine for WebSocket lifecycle (`Connecting`, `Connected`, `Reconnecting`, `Desynced`, `Error`).
-  - [ ] Add automatic exponential backoff reconnection and UI reconnect banner.
+- [x] **4.1 Unified Graph Query Service (`IArchitectureQueryService`)**
+  - [x] Create `ArchitectureQueryService` as the single entry point for all architectural reads.
+  - [x] Route MCP tools, WebSocket handlers, and Minimal API endpoints to this service.
+- [x] **4.2 Synchronize Sidebar and Webview Channels**
+  - [x] Add bidirectional synchronization between sidebar selections (`NODE_SELECTED`, `FOCUS_NODE`) and webview drawer/focus states.
+- [x] **4.3 Robust WebSocket State Machine in Frontend**
+  - [x] Implement explicit state machine for WebSocket lifecycle (`connecting`, `connected`, `reconnecting`, `disconnected`, `error`).
+  - [x] Add automatic exponential backoff reconnection with UI reconnecting banner and status indicator.
 
 ---
 
@@ -152,3 +151,4 @@ This document tracks identified architectural issues, concept violations, tempor
 | *2026-09-23* | Phase 1 | 1.1–1.4 | Completed Phase 1: Canonical resource reconciliation, eliminated duplicate DBs, linked nested SQL to canonical DBs, added `via` to `USES_DB` edges, comprehensive test suite | ✅ Completed |
 | *2026-09-23* | Phase 2 | 2.1–2.2 | Completed Phase 2: C4 ProjectRole typing (Service, SharedLibrary, FrontendApp, Worker, etc.), index-time role detection, materialized transitive macro-edges (INTEGRATES_WITH, USES_DB, TRIGGERS) in SQLite | ✅ Completed |
 | *2026-09-23* | Phase 3 | 3.1–3.3 | Completed Phase 3: Implemented `ArchitectureViewEngine` for single-query C1/C2/C3 projections, unified `GET_VIEW` WebSocket and `/api/view` REST endpoints, streamlined legacy converters | ✅ Completed |
+| *2026-09-23* | Phase 4 | 4.1–4.3 | Completed Phase 4: Unified `IArchitectureQueryService` gateway across REST, WebSocket and MCP, bidirectional sidebar-webview selection sync, robust frontend WebSocket state machine with exponential backoff reconnect | ✅ Completed |

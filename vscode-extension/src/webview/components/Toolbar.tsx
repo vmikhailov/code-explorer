@@ -7,7 +7,7 @@ export interface ToolbarProps {
   projectPaths?: Record<string, string>;
   selectedProject: string;
   onSelectProject: (project: string) => void;
-  connectionStatus: 'connecting' | 'connected' | 'disconnected';
+  connectionStatus: 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
   onFitView?: () => void;
   onRefresh: () => void;
   cypherQuery: string;
@@ -157,6 +157,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 ? 'Connected'
                 : connectionStatus === 'connecting'
                 ? 'Connecting...'
+                : connectionStatus === 'reconnecting'
+                ? 'Reconnecting...'
+                : connectionStatus === 'error'
+                ? 'Error'
                 : 'Offline'}
             </span>
             <span className="status-chevron">{isStatusMenuOpen ? '▴' : '▾'}</span>

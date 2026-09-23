@@ -130,7 +130,9 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
 export const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('c1');
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [connectionStatus, setConnectionStatus] = useState<
+    'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
+  >('connecting');
   const [allProjects, setAllProjects] = useState<string[]>([]);
   const [projectPaths, setProjectPaths] = useState<Record<string, string>>({});
   const [selectedProject, setSelectedProject] = useState<string>('');
@@ -152,6 +154,9 @@ export const App: React.FC = () => {
   const [showErrorDetails, setShowErrorDetails] = useState<boolean>(false);
   const [copiedError, setCopiedError] = useState<boolean>(false);
   const lastWsUrlRef = useRef<string>('');
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef<number>(0);
+  const isManuallyClosedRef = useRef<boolean>(false);
 
   // Global dependency counts derived from full architecture graph
   const { projectInCounts, projectOutCounts } = useMemo(() => {
@@ -444,6 +449,15 @@ export const App: React.FC = () => {
         setSelectedDrawerNode
       );
       commandManager.executeCommand(cmd);
+
+      if (vscodeApi && node) {
+        vscodeApi.postMessage({
+          type: 'NODE_SELECTED',
+          nodeId: node.id,
+          name: node.name,
+          kind: node.kind,
+        });
+      }
     },
     [selectedDrawerNode, commandManager]
   );
@@ -504,22 +518,30 @@ export const App: React.FC = () => {
   }, [cypherQuery, sendWsMessage]);
 
   const connectWebSocket = useCallback((url: string) => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
     if (wsRef.current) {
       try {
+        isManuallyClosedRef.current = true;
         wsRef.current.close();
       } catch {}
       wsRef.current = null;
     }
+    isManuallyClosedRef.current = false;
 
     lastWsUrlRef.current = url;
     logToExtension('INFO', `Connecting to backend WebSocket at ${url}...`);
-    setConnectionStatus('connecting');
+    setConnectionStatus(reconnectAttemptRef.current > 0 ? 'reconnecting' : 'connecting');
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
       logToExtension('INFO', `Connected to backend WebSocket at ${url}`);
       setConnectionStatus('connected');
+      reconnectAttemptRef.current = 0;
       setActiveError(null);
       // 1. Handshake
       const handshake: WebSocketMessage<HandshakeRequest> = {
@@ -736,7 +758,7 @@ export const App: React.FC = () => {
 
     ws.onerror = () => {
       logToExtension('ERROR', `WebSocket connection error at ${url}`);
-      setConnectionStatus('disconnected');
+      setConnectionStatus('error');
       setActiveError((prev) => prev ?? {
         code: 'CONNECTION_FAILED',
         message: `Failed to connect to CodeExplorer server at ${url}`,
@@ -747,15 +769,23 @@ export const App: React.FC = () => {
 
     ws.onclose = (ev) => {
       logToExtension('WARN', `WebSocket closed (code: ${ev.code}, reason: ${ev.reason || 'none'})`);
-      setConnectionStatus('disconnected');
-      if (ev.code !== 1000 && ev.code !== 1001) {
-        setActiveError({
-          code: `WS_DISCONNECTED_${ev.code}`,
-          message: `Lost connection to CodeExplorer server (code: ${ev.code})`,
-          details: `Reason: ${ev.reason || 'No specific close reason'}\nServer URL: ${url}`,
-          timestamp: Date.now(),
-        });
+      if (isManuallyClosedRef.current || ev.code === 1000) {
+        setConnectionStatus('disconnected');
+        return;
       }
+
+      const attempt = reconnectAttemptRef.current + 1;
+      reconnectAttemptRef.current = attempt;
+      const delay = Math.min(1000 * Math.pow(1.5, Math.min(attempt, 8)), 10000);
+
+      setConnectionStatus('reconnecting');
+      logToExtension('WARN', `Scheduling reconnect attempt #${attempt} in ${Math.round(delay)}ms...`);
+
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (lastWsUrlRef.current) {
+          connectWebSocket(lastWsUrlRef.current);
+        }
+      }, delay);
     };
   }, [requestDependencies, requestArchitecture]);
 
@@ -784,6 +814,13 @@ export const App: React.FC = () => {
         case 'FOCUS_NODE':
           logToExtension('INFO', `Received FOCUS_NODE from extension: ${msg.nodeId} (${msg.kind})`);
           if (msg.nodeId) {
+            const currentGraph = viewMode === 'flow' ? flowGraph : fullGraph;
+            const targetNode = currentGraph?.nodes?.find(
+              (n) => n.id === msg.nodeId || n.name === msg.nodeId || (msg.nodeId && n.id.includes(msg.nodeId))
+            );
+            if (targetNode) {
+              setSelectedDrawerNode(targetNode);
+            }
             const p = allProjects.find((name) => msg.nodeId.toLowerCase().includes(name.toLowerCase()));
             if (p) {
               handleSelectProject(p, viewMode === 'flow' ? 'flow' : 'c1');
@@ -802,8 +839,14 @@ export const App: React.FC = () => {
 
     return () => {
       window.removeEventListener('message', handleMessage);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       if (wsRef.current) {
-        wsRef.current.close();
+        isManuallyClosedRef.current = true;
+        try {
+          wsRef.current.close();
+        } catch {}
       }
     };
   }, [connectWebSocket]);
@@ -828,6 +871,11 @@ export const App: React.FC = () => {
 
   const handleReconnect = useCallback(() => {
     setActiveError(null);
+    reconnectAttemptRef.current = 0;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     if (wsRef.current) {
       try {
         wsRef.current.close();
@@ -949,13 +997,13 @@ export const App: React.FC = () => {
                 >
                   Show Logs
                 </button>
-                {connectionStatus === 'disconnected' && (
+                {(connectionStatus === 'disconnected' || connectionStatus === 'error' || connectionStatus === 'reconnecting') && (
                   <button
                     className="error-action-btn primary"
                     onClick={handleReconnect}
                     title="Reconnect to server"
                   >
-                    Reconnect
+                    {connectionStatus === 'reconnecting' ? 'Reconnecting now...' : 'Reconnect'}
                   </button>
                 )}
                 <button

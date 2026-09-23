@@ -952,6 +952,8 @@ public class Program
     private static void RegisterCommonServices(IServiceCollection services, SqliteGraphClient client, string? workspaceRoot = null)
     {
         services.AddSingleton<IGraphClient>(client);
+        services.AddSingleton<CodeExplorer.Core.Analysis.IArchitectureQueryService>(sp =>
+            new CodeExplorer.Core.Analysis.ArchitectureQueryService(sp.GetRequiredService<IGraphClient>()));
         services.AddSingleton<ProjectQueryManager>();
         services.AddSingleton(sp => new CodeExplorerRepository(
             sp.GetRequiredService<IGraphClient>(),
@@ -1077,7 +1079,8 @@ public class Program
             sp.GetService<IHostApplicationLifetime>(),
             opts.IdleTimeoutSeconds,
             wsRoot,
-            GetAppVersion()
+            GetAppVersion(),
+            sp.GetRequiredService<CodeExplorer.Core.Analysis.IArchitectureQueryService>()
         ));
 
         builder.WebHost.ConfigureKestrel(serverOptions =>
@@ -1149,18 +1152,17 @@ public class Program
             }
         });
 
-        app.MapGet("/api/view", async (IGraphClient graphClient, string? view, string? scope, bool? includeLibraries) =>
+        app.MapGet("/api/view", async (CodeExplorer.Core.Analysis.IArchitectureQueryService archQueryService, string? view, string? scope, bool? includeLibraries) =>
         {
             try
             {
-                var viewEngine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(graphClient);
                 var viewType = (view?.ToLowerInvariant()) switch
                 {
                     "serviceflow" or "flow" or "c2" => CodeExplorer.Core.Analysis.ArchitectureViewType.ServiceFlow,
                     "component" or "c3" => CodeExplorer.Core.Analysis.ArchitectureViewType.Component,
                     _ => CodeExplorer.Core.Analysis.ArchitectureViewType.SystemContext
                 };
-                var graph = await viewEngine.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
+                var graph = await archQueryService.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
                 {
                     ViewType = viewType,
                     Scope = scope,
@@ -1175,12 +1177,12 @@ public class Program
             }
         });
 
-        app.MapGet("/api/architecture", async (IGraphClient graphClient, string? project) =>
+        app.MapGet("/api/architecture", async (CodeExplorer.Core.Analysis.IArchitectureQueryService archQueryService, string? project) =>
         {
             try
             {
                 serverLogger.LogInformation("[REST] GET /api/architecture (project: {Project})", project ?? "all");
-                var graph = await GraphDataConverter.GetArchitectureGraphAsync(graphClient, project);
+                var graph = await archQueryService.GetArchitectureGraphAsync(project);
                 return Results.Ok(graph);
             }
             catch (Exception ex)
@@ -1190,12 +1192,12 @@ public class Program
             }
         });
 
-        app.MapGet("/api/projects", async (IGraphClient graphClient) =>
+        app.MapGet("/api/projects", async (CodeExplorer.Core.Analysis.IArchitectureQueryService archQueryService) =>
         {
             try
             {
                 serverLogger.LogInformation("[REST] GET /api/projects");
-                var projects = await GraphDataConverter.GetAllProjectsAsync(graphClient);
+                var projects = await archQueryService.GetAllProjectsAsync();
                 return Results.Ok(projects);
             }
             catch (Exception ex)
@@ -1205,12 +1207,12 @@ public class Program
             }
         });
 
-        app.MapGet("/api/dependencies", async (IGraphClient graphClient, string? project) =>
+        app.MapGet("/api/dependencies", async (CodeExplorer.Core.Analysis.IArchitectureQueryService archQueryService, string? project) =>
         {
             try
             {
                 serverLogger.LogInformation("[REST] GET /api/dependencies (project: {Project})", project ?? "default");
-                var graph = await GraphDataConverter.GetProjectNeighborhoodAsync(graphClient, project);
+                var graph = await archQueryService.GetProjectNeighborhoodAsync(project);
                 return Results.Ok(graph);
             }
             catch (Exception ex)
@@ -1220,12 +1222,12 @@ public class Program
             }
         });
 
-        app.MapGet("/api/metadata", async (IGraphClient graphClient) =>
+        app.MapGet("/api/metadata", async (CodeExplorer.Core.Analysis.IArchitectureQueryService archQueryService) =>
         {
             try
             {
                 serverLogger.LogInformation("[REST] GET /api/metadata");
-                var metadata = await GraphDataConverter.GetMetadataAsync(graphClient);
+                var metadata = await archQueryService.GetMetadataAsync();
                 return Results.Ok(metadata);
             }
             catch (Exception ex)
@@ -1235,12 +1237,12 @@ public class Program
             }
         });
 
-        app.MapGet("/api/nodes", async (IGraphClient graphClient, string? kind, int? offset, int? limit, string? search) =>
+        app.MapGet("/api/nodes", async (CodeExplorer.Core.Analysis.IArchitectureQueryService archQueryService, string? kind, int? offset, int? limit, string? search) =>
         {
             try
             {
                 serverLogger.LogInformation("[REST] GET /api/nodes (kind: {Kind}, offset: {Offset}, limit: {Limit})", kind ?? "all", offset ?? 0, limit ?? 50);
-                var nodes = await GraphDataConverter.GetNodesAsync(graphClient, kind, offset ?? 0, limit ?? 50, search);
+                var nodes = await archQueryService.GetNodesAsync(kind, offset ?? 0, limit ?? 50, search);
                 return Results.Ok(nodes);
             }
             catch (Exception ex)

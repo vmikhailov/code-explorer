@@ -64,6 +64,7 @@ public class WebSocketServerHandler
     public int ActiveSessionsCount => _sessions.Count;
 
     private readonly IGraphClient _graphClient;
+    private readonly CodeExplorer.Core.Analysis.IArchitectureQueryService _archQueryService;
     private readonly CodeExplorerRepository _repository;
     private readonly WorkspaceIndexer _indexer;
     private readonly IHostApplicationLifetime? _appLifetime;
@@ -85,9 +86,11 @@ public class WebSocketServerHandler
         IHostApplicationLifetime? appLifetime = null,
         int idleTimeoutSeconds = 30,
         string? workspaceRoot = null,
-        string? serverVersion = null)
+        string? serverVersion = null,
+        CodeExplorer.Core.Analysis.IArchitectureQueryService? archQueryService = null)
     {
         _graphClient = graphClient;
+        _archQueryService = archQueryService ?? new CodeExplorer.Core.Analysis.ArchitectureQueryService(graphClient);
         _repository = repository;
         _indexer = indexer;
         _logger = logger;
@@ -218,14 +221,13 @@ public class WebSocketServerHandler
                     var viewReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<GetViewRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    var viewEngine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(_graphClient);
                     var viewType = (viewReq?.View?.ToLowerInvariant()) switch
                     {
                         "serviceflow" or "flow" or "c2" => CodeExplorer.Core.Analysis.ArchitectureViewType.ServiceFlow,
                         "component" or "c3" => CodeExplorer.Core.Analysis.ArchitectureViewType.Component,
                         _ => CodeExplorer.Core.Analysis.ArchitectureViewType.SystemContext
                     };
-                    var viewGraph = await viewEngine.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
+                    var viewGraph = await _archQueryService.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
                     {
                         ViewType = viewType,
                         Scope = viewReq?.Scope,
@@ -243,7 +245,7 @@ public class WebSocketServerHandler
                     var archReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<GetArchitectureRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    var archGraph = await GraphDataConverter.GetArchitectureGraphAsync(_graphClient, archReq?.ProjectFilter, cancellationToken);
+                    var archGraph = await _archQueryService.GetArchitectureGraphAsync(archReq?.ProjectFilter, cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
@@ -256,7 +258,7 @@ public class WebSocketServerHandler
                     var depReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<GetDependenciesRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    var depGraph = await GraphDataConverter.GetProjectNeighborhoodAsync(_graphClient, depReq?.ProjectName, cancellationToken);
+                    var depGraph = await _archQueryService.GetProjectNeighborhoodAsync(depReq?.ProjectName, cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,
