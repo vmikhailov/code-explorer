@@ -59,17 +59,18 @@ This document tracks identified architectural issues, concept violations, tempor
 ### Phase 2: First-Class Semantic Application Model (C4 Level Typing)
 > **Goal:** Teach the server what projects and components represent architecturally. Move classification out of runtime DTO converters into index-time graph properties.
 
-- [ ] **2.1 Explicit Project Roles in Layer 2**
-  - [ ] Introduce `ProjectRole` enum on `ProjectNode` (`Service`, `SharedLibrary`, `FrontendApp`, `Worker`, `DatabaseMigration`, `CliTool`, `Test`).
-  - [ ] Implement heuristic role detection in `Layer2ProjectParser` (entry point detection, web frameworks, SDK type, package dependencies).
-  - [ ] Persist `role` and boolean `is_library` directly into the SQLite `nodes.properties` column during initial scan.
-- [ ] **2.2 Materialize Transitive Macro-Edges in Layer 5 (`PostIndexAnalyzer`)**
-  - [ ] Migrate the transitive lifting algorithm (`LiftTransitiveSemanticRelations`) out of `GraphDataConverter.cs` into `PostIndexAnalyzer`.
-  - [ ] Materialize direct architectural relationships in SQLite:
-    - `(Service)-[:INTEGRATES_WITH { protocol, via }]->(Service)`
-    - `(Service)-[:WRITES_TO | :READS_FROM { via }]->(Database)`
-    - `(Service)-[:PUBLISHES | :SUBSCRIBES { via }]->(Topic)`
-  - [ ] Index these relationship kinds in SQLite for sub-millisecond retrieval.
+- [x] **2.1 Explicit Project Roles in Layer 2**
+  - [x] Introduce `ProjectRole` enum on `ProjectNode` (`Service`, `SharedLibrary`, `FrontendApp`, `Worker`, `DatabaseMigration`, `CliTool`, `Test`).
+  - [x] Implement heuristic role detection in `Layer2ProjectParser` / `ProjectRoleDetector` (entry point detection, web frameworks, SDK type, package dependencies).
+  - [x] Persist `role` and boolean `is_library` directly into the SQLite `nodes.properties` column during initial scan.
+- [x] **2.2 Materialize Transitive Macro-Edges in Layer 5 (`PostIndexAnalyzer`)**
+  - [x] Migrate the transitive lifting algorithm (`LiftTransitiveSemanticRelations`) into `PostIndexAnalyzer`.
+  - [x] Materialize direct architectural relationships in SQLite:
+    - `(Service)-[:INTEGRATES_WITH { via, call_chain }]->(Service)`
+    - `(Service)-[:USES_DB { via, call_chain }]->(Database)`
+    - `(Topic)-[:TRIGGERS { via, call_chain }]->(Service)`
+    - `(Service)-[:INTEGRATES_WITH { via, call_chain }]->(ExternalService)`
+  - [x] Index these relationship kinds in SQLite for sub-millisecond retrieval.
 
 ---
 
@@ -152,3 +153,4 @@ This document tracks identified architectural issues, concept violations, tempor
 | :--- | :--- | :--- | :--- | :--- |
 | *2026-09-23* | Planning | — | Initial technical debt audit and architectural roadmap established | ✅ Completed |
 | *2026-09-23* | Phase 1 | 1.1–1.4 | Completed Phase 1: Canonical resource reconciliation, eliminated duplicate DBs, linked nested SQL to canonical DBs, added `via` to `USES_DB` edges, comprehensive test suite | ✅ Completed |
+| *2026-09-23* | Phase 2 | 2.1–2.2 | Completed Phase 2: C4 ProjectRole typing (Service, SharedLibrary, FrontendApp, Worker, etc.), index-time role detection, materialized transitive macro-edges (INTEGRATES_WITH, USES_DB, TRIGGERS) in SQLite | ✅ Completed |

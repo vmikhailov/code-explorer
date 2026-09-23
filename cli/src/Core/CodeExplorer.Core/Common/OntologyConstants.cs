@@ -65,6 +65,11 @@ public static class OntologyConstants
         public const string Defines = "DEFINES";
         public const string Declares = "DECLARES";
 
+        // Transitive architectural macro-relationships (C4 Level)
+        public const string IntegratesWith = "INTEGRATES_WITH";
+        public const string WritesTo = "WRITES_TO";
+        public const string ReadsFrom = "READS_FROM";
+
         // New 5-layers ontology relationships
         public const string DeclaredIn = "DECLARED_IN";
         public const string DeclaresType = "DECLARES_TYPE";
@@ -99,6 +104,17 @@ public static class OntologyConstants
         public const string Cloud = "cloud";
         public const string Queue = "queue";
         public const string Http = "http";
+    }
+
+    public static class ProjectRoles
+    {
+        public const string Service = "Service";
+        public const string SharedLibrary = "SharedLibrary";
+        public const string FrontendApp = "FrontendApp";
+        public const string Worker = "Worker";
+        public const string DatabaseMigration = "DatabaseMigration";
+        public const string CliTool = "CliTool";
+        public const string Test = "Test";
     }
 }
 

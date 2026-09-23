@@ -235,7 +235,226 @@ public class PostIndexAnalyzer(IGraphClient db)
             if (attrRels.Count > 0) await db.UploadRelationshipsAsync(attrRels);
         }
 
-        ctx.Log($"[PostIndexAnalyzer] In-memory analysis complete: {result.TransitivelyCalls.Count} TRANSITIVELY_CALLS, {result.AttributedTo.Count} ATTRIBUTED_TO, {result.ProjectExternalApis.Count} project external_apis.");
+        // Materialize direct architectural relationships (C4 Macro-Edges)
+        var allCombinedRels = new List<Relationship>();
+        allCombinedRels.AddRange(ctx.GlobalProjectDependencies);
+        allCombinedRels.AddRange(referenceRelationships);
+        allCombinedRels.AddRange(lateBoundRels);
+        allCombinedRels.AddRange(ctx.TreeRelationships);
+
+        var liftedSemanticRels = LiftTransitiveSemanticRelations(l4Result.Prev.Prev.Projects, allCombinedRels);
+        if (liftedSemanticRels.Count > 0)
+        {
+            ctx.Log($"[PostIndexAnalyzer] Materializing {liftedSemanticRels.Count} transitive semantic relationships into SQLite graph...");
+            await ctx.DbClient.UploadRelationshipsAsync(liftedSemanticRels);
+            ctx.AddRelsCount(liftedSemanticRels.Count);
+        }
+
+        ctx.Log($"[PostIndexAnalyzer] In-memory analysis complete: {result.TransitivelyCalls.Count} TRANSITIVELY_CALLS, {result.AttributedTo.Count} ATTRIBUTED_TO, {liftedSemanticRels.Count} lifted semantic edges, {result.ProjectExternalApis.Count} project external_apis.");
+    }
+
+    public static List<Relationship> LiftTransitiveSemanticRelations(
+        IReadOnlyList<ProjectNode> projects,
+        IReadOnlyList<Relationship> allRelationships,
+        IReadOnlyDictionary<string, string>? nodeKindsById = null)
+    {
+        var liftedRels = new List<Relationship>();
+        var services = projects.Where(p => !p.IsLibrary).ToList();
+        var libraries = projects.Where(p => p.IsLibrary).ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
+
+        // Build adjacency
+        var outEdges = new Dictionary<string, List<Relationship>>(StringComparer.OrdinalIgnoreCase);
+        var inEdges = new Dictionary<string, List<Relationship>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rel in allRelationships)
+        {
+            if (!outEdges.TryGetValue(rel.From, out var outList))
+            {
+                outList = [];
+                outEdges[rel.From] = outList;
+            }
+            outList.Add(rel);
+
+            if (!inEdges.TryGetValue(rel.To, out var inList))
+            {
+                inList = [];
+                inEdges[rel.To] = inList;
+            }
+            inList.Add(rel);
+        }
+
+        var existingEdges = new HashSet<(string From, string To, string Kind)>(
+            allRelationships.Select(r => (r.From, r.To, r.Kind))
+        );
+
+        foreach (var service in services)
+        {
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { service.Id };
+            var queue = new Queue<(string CurrentId, int Depth, List<string> Chain)>();
+
+            if (outEdges.TryGetValue(service.Id, out var initialEdges))
+            {
+                foreach (var edge in initialEdges)
+                {
+                    if (libraries.TryGetValue(edge.To, out var libNode))
+                    {
+                        if (visited.Add(libNode.Id))
+                        {
+                            queue.Enqueue((libNode.Id, 1, [libNode.Name]));
+                        }
+                    }
+                }
+            }
+
+            while (queue.Count > 0)
+            {
+                var (currId, depth, chain) = queue.Dequeue();
+                var viaLib = chain[0];
+                var chainStr = string.Join(" -> ", chain);
+
+                // Inbound Case: Message Broker / Topic subscribes into Library -> Lift to Service
+                if (inEdges.TryGetValue(currId, out var incomingToLib))
+                {
+                    foreach (var inEdge in incomingToLib)
+                    {
+                        var srcKind = nodeKindsById?.GetValueOrDefault(inEdge.From);
+                        var isTopic = (srcKind != null && srcKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
+                                      || inEdge.From.Contains(":topic:")
+                                      || inEdge.Kind == OntologyConstants.Relationships.Triggers;
+
+                        if (isTopic)
+                        {
+                            if (existingEdges.Add((inEdge.From, service.Id, OntologyConstants.Relationships.Triggers)))
+                            {
+                                liftedRels.Add(new Relationship(
+                                    inEdge.From,
+                                    service.Id,
+                                    OntologyConstants.Relationships.Triggers,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "messaging",
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib,
+                                        ["call_chain"] = chainStr
+                                    }
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                if (outEdges.TryGetValue(currId, out var edges))
+                {
+                    foreach (var edge in edges)
+                    {
+                        var tgtKind = nodeKindsById?.GetValueOrDefault(edge.To);
+
+                        // Case 1: Library connects to Database -> Lift direct USES_DB to Service
+                        var isDb = (tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.Database, StringComparison.OrdinalIgnoreCase))
+                                   || edge.To.Contains(":db:")
+                                   || edge.To.Contains(":res:db:")
+                                   || edge.To.Contains(":database:")
+                                   || edge.Kind == OntologyConstants.Relationships.UsesDb;
+
+                        if (isDb)
+                        {
+                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.UsesDb)))
+                            {
+                                liftedRels.Add(new Relationship(
+                                    service.Id,
+                                    edge.To,
+                                    OntologyConstants.Relationships.UsesDb,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "database",
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib,
+                                        ["call_chain"] = chainStr
+                                    }
+                                ));
+                            }
+                        }
+                        // Case 2: Library calls another Service -> Lift direct INTEGRATES_WITH to Service
+                        else if (projects.Any(p => p.Id == edge.To && !p.IsLibrary && p.Id != service.Id))
+                        {
+                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.IntegratesWith)))
+                            {
+                                liftedRels.Add(new Relationship(
+                                    service.Id,
+                                    edge.To,
+                                    OntologyConstants.Relationships.IntegratesWith,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "service_call",
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib,
+                                        ["call_chain"] = chainStr
+                                    }
+                                ));
+                            }
+                        }
+                        // Case 3: Library connects to External Service
+                        else if ((tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.ExternalService, StringComparison.OrdinalIgnoreCase))
+                                 || edge.To.Contains(":externalservice:")
+                                 || edge.To.Contains(":res:service:external:"))
+                        {
+                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.IntegratesWith)))
+                            {
+                                liftedRels.Add(new Relationship(
+                                    service.Id,
+                                    edge.To,
+                                    OntologyConstants.Relationships.IntegratesWith,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "service_call",
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib,
+                                        ["call_chain"] = chainStr
+                                    }
+                                ));
+                            }
+                        }
+                        // Case 4: Library publishes to Topic
+                        else if ((tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
+                                 || edge.To.Contains(":topic:")
+                                 || edge.To.Contains(":res:topic:"))
+                        {
+                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.PublishesTo)))
+                            {
+                                liftedRels.Add(new Relationship(
+                                    service.Id,
+                                    edge.To,
+                                    OntologyConstants.Relationships.PublishesTo,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "messaging",
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib,
+                                        ["call_chain"] = chainStr
+                                    }
+                                ));
+                            }
+                        }
+                        // Case 5: Library depends on another Library -> continue BFS traversal up to depth 3
+                        else if (libraries.TryGetValue(edge.To, out var nextLib) && depth < 3)
+                        {
+                            if (visited.Add(nextLib.Id))
+                            {
+                                var nextChain = new List<string>(chain) { nextLib.Name };
+                                queue.Enqueue((nextLib.Id, depth + 1, nextChain));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return liftedRels;
     }
 
     public static PostIndexAnalysisResult Analyze(PostIndexGraphData data, string widPrefix = "")

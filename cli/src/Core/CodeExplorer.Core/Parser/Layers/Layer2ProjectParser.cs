@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -78,6 +79,8 @@ public class Layer2ProjectParser
                     projectDepList.Add((projectNode, depInfo));
                 }
 
+                ApplyProjectRole(projectNode, dir, filesInDir, relativeProjectDir, projectName, projectParser.ProjectType, depInfo);
+
                 var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
                 if (!string.IsNullOrEmpty(prodPkg))
                 {
@@ -141,6 +144,8 @@ public class Layer2ProjectParser
                             {
                                 projectDepList.Add((projectNode, depInfo));
                             }
+
+                            ApplyProjectRole(projectNode, dir, filesInDir, relativeProjectDir, projectName, projectParser.ProjectType, depInfo);
 
                             var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
                             if (!string.IsNullOrEmpty(prodPkg))
@@ -235,6 +240,7 @@ public class Layer2ProjectParser
                                     if (!projects.Any(p => p.Id == subProjId))
                                     {
                                         var libProjectNode = new ProjectNode(subProjId, folderName, relDir, subParser.ProjectType);
+                                        ApplyProjectRole(libProjectNode, subDir, Directory.GetFiles(subDir), relDir, folderName, subParser.ProjectType);
                                         projectsStructureNode.Children.Add(libProjectNode);
                                         projects.Add(libProjectNode);
 
@@ -463,5 +469,24 @@ public class Layer2ProjectParser
     public static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects)
     {
         return FindProjectForFilePath(file.Path, projects)?.Id == project.Id;
+    }
+
+    private static void ApplyProjectRole(
+        ProjectNode projectNode,
+        string dir,
+        string[] filesInDir,
+        string relativeProjectDir,
+        string projectName,
+        string projectType,
+        ProjectDependencyInfo? depInfo = null)
+    {
+        var externalPackages = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
+        var (role, isLibrary) = ProjectRoleDetector.DetectRole(dir, filesInDir, relativeProjectDir, projectName, projectType, externalPackages);
+        projectNode.Role = role.ToString();
+        projectNode.IsLibrary = isLibrary;
+        projectNode.Extensions ??= new Dictionary<string, string>();
+        projectNode.Extensions["role"] = role.ToString();
+        projectNode.Extensions["is_library"] = isLibrary ? "true" : "false";
+        projectNode.Extensions["entity_type"] = isLibrary ? "library" : "service";
     }
 }
