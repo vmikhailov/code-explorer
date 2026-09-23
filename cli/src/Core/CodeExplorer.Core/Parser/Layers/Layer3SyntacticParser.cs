@@ -148,7 +148,7 @@ public class Layer3SyntacticParser
                     var syntaxTree = await fileParser.ParseAsync(file.FullPath, parentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
                     if (syntaxTree.Tree != null)
                     {
-                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);
                         syntaxTree.Dispose(); // Free native TreeSitter memory immediately
                     }
 
@@ -235,7 +235,7 @@ public class Layer3SyntacticParser
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<IFileParser, (List<ILibraryParser> Active, LibraryTrieRegistry Registry)> _parserRegistryCache = new();
 
-    public static void ProcessVisitor(SyntaxTree syntaxTree, string workspaceId, string absoluteWorkspacePath)
+    public static void ProcessVisitor(SyntaxTree syntaxTree, string workspaceId, string absoluteWorkspacePath, ParsingContext? ctx = null)
     {
         if (syntaxTree.Tree == null) return;
 
@@ -259,7 +259,7 @@ public class Layer3SyntacticParser
         foreach (var childSyntactic in mainVisitor.RootSymbol.Children)
         {
             var childNode = MapSyntacticSymbolToOntology(childSyntactic, Path.GetFileName(syntaxTree.FilePath),
-                relativePath, workspaceId, syntaxTree.FileNode.Id);
+                relativePath, workspaceId, syntaxTree.FileNode.Id, ctx);
             syntaxTree.FileNode.Children.Add(childNode);
         }
 
@@ -287,7 +287,8 @@ public class Layer3SyntacticParser
         string fileName,
         string relativePath,
         string workspaceId,
-        string parentScopeId)
+        string parentScopeId,
+        ParsingContext? ctx = null)
     {
         var node = syntactic.Node;
         var kind = syntactic.Kind;
@@ -315,7 +316,7 @@ public class Layer3SyntacticParser
         }
         else if (kind == OntologyConstants.NodeLabels.Query)
         {
-            typedNode = NestedSqlParser.ParseNestedSql(syntactic.Text ?? node.Text, symbolId, relativePath) ??
+            typedNode = NestedSqlParser.ParseNestedSql(syntactic.Text ?? node.Text, symbolId, relativePath, ctx) ??
                         new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(syntactic.Text ?? node.Text), relativePath);
         }
         else if (kind == OntologyConstants.NodeLabels.EntryPoint)
@@ -357,7 +358,7 @@ public class Layer3SyntacticParser
 
         foreach (var childSyntactic in syntactic.Children)
         {
-            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId);
+            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx);
             typedNode.Children.Add(childNode);
         }
 

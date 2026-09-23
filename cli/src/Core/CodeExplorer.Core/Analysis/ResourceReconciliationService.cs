@@ -214,48 +214,57 @@ public class ResourceReconciliationService
     /// </summary>
     public CanonicalResource? ResolveResource(string? aliasOrName, string? expectedDbType = null, string? expectedEngine = null)
     {
-        if (string.IsNullOrWhiteSpace(aliasOrName)) return null;
-
-        var norm = NormalizeAlias(aliasOrName);
-        if (_aliasToResourceId.TryGetValue(norm, out var id) && _resourcesById.TryGetValue(id, out var found))
+        if (!string.IsNullOrWhiteSpace(aliasOrName))
         {
-            return found;
-        }
-
-        // Check if alias contains database path segment (e.g. host:5432/dbname)
-        if (norm.Contains('/'))
-        {
-            var slashIdx = norm.LastIndexOf('/');
-            if (slashIdx >= 0 && slashIdx < norm.Length - 1)
+            var norm = NormalizeAlias(aliasOrName);
+            if (_aliasToResourceId.TryGetValue(norm, out var id) && _resourcesById.TryGetValue(id, out var found))
             {
-                var dbSegment = norm[(slashIdx + 1)..];
-                var qIdx = dbSegment.IndexOf('?');
-                if (qIdx > 0) dbSegment = dbSegment[..qIdx];
-                if (!string.IsNullOrEmpty(dbSegment) && _aliasToResourceId.TryGetValue(dbSegment, out var dbId) && _resourcesById.TryGetValue(dbId, out var dbFound))
+                return found;
+            }
+
+            // Check if alias contains database path segment (e.g. host:5432/dbname)
+            if (norm.Contains('/'))
+            {
+                var slashIdx = norm.LastIndexOf('/');
+                if (slashIdx >= 0 && slashIdx < norm.Length - 1)
                 {
-                    return dbFound;
+                    var dbSegment = norm[(slashIdx + 1)..];
+                    var qIdx = dbSegment.IndexOf('?');
+                    if (qIdx > 0) dbSegment = dbSegment[..qIdx];
+                    if (!string.IsNullOrEmpty(dbSegment) && _aliasToResourceId.TryGetValue(dbSegment, out var dbId) && _resourcesById.TryGetValue(dbId, out var dbFound))
+                    {
+                        return dbFound;
+                    }
+                }
+            }
+
+            // Direct scan by alias or name
+            foreach (var res in _resourcesById.Values)
+            {
+                if (res.Aliases.Contains(norm) ||
+                    string.Equals(res.Name, aliasOrName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(res.Engine, aliasOrName, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (expectedDbType != null && !string.Equals(res.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    return res;
                 }
             }
         }
 
-        // Direct scan by alias or name
-        foreach (var res in _resourcesById.Values)
-        {
-            if (res.Aliases.Contains(norm) ||
-                string.Equals(res.Name, aliasOrName, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(res.Engine, aliasOrName, StringComparison.OrdinalIgnoreCase))
-            {
-                if (expectedDbType != null && !string.Equals(res.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                return res;
-            }
-        }
-
-        // If only 1 resource matches the engine, resolve to it
+        // Fallback by engine
         if (!string.IsNullOrWhiteSpace(expectedEngine))
         {
             var matchingEngine = _resourcesById.Values.Where(r => string.Equals(r.Engine, expectedEngine, StringComparison.OrdinalIgnoreCase)).ToList();
             if (matchingEngine.Count == 1) return matchingEngine[0];
+            return null; // expectedEngine was specified but not matched; do not guess
+        }
+
+        // If no engine was specified (e.g. raw anonymous SQL), and only 1 resource matches dbType
+        if (string.IsNullOrWhiteSpace(aliasOrName) && !string.IsNullOrWhiteSpace(expectedDbType))
+        {
+            var matchingType = _resourcesById.Values.Where(r => string.Equals(r.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (matchingType.Count == 1) return matchingType[0];
         }
 
         return null;
@@ -277,9 +286,32 @@ public class ResourceReconciliationService
             return string.IsNullOrWhiteSpace(engine) ? "Database" : engine;
         }
 
-        // Common cleanups
-        if (lower.EndsWith("_db")) return trimmed;
-        if (lower.EndsWith("db") && trimmed.Length > 2) return trimmed;
+        // Strip known technical suffixes like ConnectionString, Connection, DbContext, Context
+        if (lower.EndsWith("connectionstrings") && trimmed.Length > 17)
+        {
+            trimmed = trimmed[..^17].TrimEnd('_', '-');
+        }
+        else if (lower.EndsWith("connectionstring") && trimmed.Length > 16)
+        {
+            trimmed = trimmed[..^16].TrimEnd('_', '-');
+        }
+        else if (lower.EndsWith("dbcontext") && trimmed.Length > 9)
+        {
+            trimmed = trimmed[..^9].TrimEnd('_', '-');
+        }
+        else if (lower.EndsWith("connection") && trimmed.Length > 10)
+        {
+            trimmed = trimmed[..^10].TrimEnd('_', '-');
+        }
+        else if (lower.EndsWith("context") && trimmed.Length > 7)
+        {
+            trimmed = trimmed[..^7].TrimEnd('_', '-');
+        }
+
+        if (string.IsNullOrWhiteSpace(trimmed) || IsGenericConfigKey(trimmed.ToLowerInvariant()))
+        {
+            return string.IsNullOrWhiteSpace(engine) ? "Database" : engine;
+        }
 
         return trimmed;
     }

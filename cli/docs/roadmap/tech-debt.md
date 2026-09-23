@@ -48,9 +48,11 @@ This document tracks identified architectural issues, concept violations, tempor
   - [x] Reconcile ORM and driver usages against the single canonical `DatabaseNode`.
 - [x] **1.3 Deterministic Canonical URN Scheme for Resources**
   - [x] Standardized resource URN generators in `ResourceReconciliationService` (`BuildCanonicalDatabaseId`, `BuildCanonicalTopicId`, `BuildCanonicalServiceId`).
-- [ ] **1.4 Semantic Resource Binding in Layer 5**
-  - [ ] In `Layer5AnalysisParser`, map raw code usages (`DbContext`, `TypeORM.getRepository`, `sql.Open`) to canonical resources using the alias registry.
-  - [ ] Fall back to typed `UnresolvedResourceNode` with normalized names (stripping `Connection`, `Db`, `ConnectionString`) when no config alias matches.
+- [x] **1.4 Semantic Resource Binding in Layer 5**
+  - [x] Connect extracted SQL tables (`TableNode`, `DataSetNode`) and embedded SQL queries directly to the project's canonical `DatabaseNode`, eliminating phantom `:db:default` nodes.
+  - [x] Add `via` property on `USES_DB` edges (e.g. `via: "TypeORM"`, `via: "EF Core"`, `via: "Dapper"`).
+  - [x] In `SyntaxEnricher` and `ResourceReconciliationService`, map raw code usages to canonical resources using the alias and engine registry.
+  - [x] Fall back to typed databases with normalized names (stripping `Connection`, `Db`, `ConnectionString`, `DbContext`) when no config alias matches.
 
 ---
 
@@ -149,4 +151,4 @@ This document tracks identified architectural issues, concept violations, tempor
 | Date | Phase | Task ID | Description | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | *2026-09-23* | Planning | — | Initial technical debt audit and architectural roadmap established | ✅ Completed |
-| *2026-09-23* | Phase 1 | 1.1–1.3 | Implemented `ResourceReconciliationService`, unified URNs, eliminated duplicate DB nodes and mapped ORMs to `ApiInUse` | ✅ Completed |
+| *2026-09-23* | Phase 1 | 1.1–1.4 | Completed Phase 1: Canonical resource reconciliation, eliminated duplicate DBs, linked nested SQL to canonical DBs, added `via` to `USES_DB` edges, comprehensive test suite | ✅ Completed |

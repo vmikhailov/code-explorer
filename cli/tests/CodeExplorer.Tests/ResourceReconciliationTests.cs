@@ -1,5 +1,9 @@
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Parser;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -49,6 +53,9 @@ public class ResourceReconciliationTests
 
         Assert.That(ResourceReconciliationService.NormalizeResourceName("orders_db", "PostgreSQL"), Is.EqualTo("orders_db"));
         Assert.That(ResourceReconciliationService.NormalizeResourceName("PaymentServiceDb", "SQL Server"), Is.EqualTo("PaymentServiceDb"));
+        Assert.That(ResourceReconciliationService.NormalizeResourceName("BillingConnectionString", "PostgreSQL"), Is.EqualTo("Billing"));
+        Assert.That(ResourceReconciliationService.NormalizeResourceName("OrdersDbContext", "SQL Server"), Is.EqualTo("Orders"));
+        Assert.That(ResourceReconciliationService.NormalizeResourceName("CatalogConnection", "MySQL"), Is.EqualTo("Catalog"));
     }
 
     [Test]
@@ -111,5 +118,48 @@ public class ResourceReconciliationTests
         var resolved = _service.ResolveResource("redis_client", expectedEngine: "Redis");
         Assert.That(resolved, Is.Not.Null);
         Assert.That(resolved!.Name, Is.EqualTo("redis_cache"));
+    }
+
+    [Test]
+    public void NestedSqlParser_ResolvesCanonicalDatabase_InsteadOfDefault()
+    {
+        _service.RegisterResource(
+            "ws1",
+            "orders_db",
+            "PostgreSQL",
+            "relational",
+            OntologyConstants.NodeLabels.Database,
+            "docker-compose.yml",
+            aliases: ["orders_db"]
+        );
+
+        var ctx = new ParsingContext("ws1", "ws1", _service);
+
+        var queryNode = NestedSqlParser.ParseNestedSql("SELECT id, name FROM customers WHERE active = 1", "ws1:query:1", "repo/query.sql", ctx);
+        Assert.That(queryNode, Is.Not.Null);
+
+        var dbNode = queryNode!.Children.OfType<DatabaseNode>().FirstOrDefault();
+        Assert.That(dbNode, Is.Not.Null);
+        Assert.That(dbNode!.Name, Is.EqualTo("orders_db"), "SQL query without explicit DB prefix must bind to canonical relational DB");
+    }
+
+    [Test]
+    public void UsesDbRelationship_RetainsViaAndProviderProperties()
+    {
+        var relExt = new Dictionary<string, string>
+        {
+            ["via"] = "TypeORM",
+            ["provider"] = "typeorm",
+            ["is_orm"] = "true"
+        };
+
+        var rel = new UsesDbRelationship("from:1", "to:1", relExt);
+        var dbRel = Relationship.FromRelationship(rel);
+
+        Assert.That(dbRel.Kind, Is.EqualTo(OntologyConstants.Relationships.UsesDb));
+        Assert.That(dbRel.Properties, Is.Not.Null);
+        Assert.That(dbRel.Properties!["via"]?.ToString(), Is.EqualTo("TypeORM"));
+        Assert.That(dbRel.Properties!["provider"]?.ToString(), Is.EqualTo("typeorm"));
+        Assert.That(dbRel.Properties!["is_orm"]?.ToString(), Is.EqualTo("true"));
     }
 }

@@ -121,7 +121,7 @@ public static class NestedSqlParser
         return cleaned;
     }
 
-    public static QueryNode? ParseNestedSql(string rawText, string id, string filePath)
+    public static QueryNode? ParseNestedSql(string rawText, string id, string filePath, ParsingContext? ctx = null)
     {
         if (!TryParseSql(rawText, out var firstWord, out var cleanedSql))
         {
@@ -136,7 +136,7 @@ public static class NestedSqlParser
             filePath
         );
 
-        BuildSqlHierarchy(cleanedSql, rawText, queryNode, filePath);
+        BuildSqlHierarchy(cleanedSql, rawText, queryNode, filePath, ctx);
 
         return queryNode;
     }
@@ -254,7 +254,7 @@ public static class NestedSqlParser
         }
     }
 
-    private static void BuildSqlHierarchy(string cleanedSql, string rawText, QueryNode queryNode, string filePath)
+    private static void BuildSqlHierarchy(string cleanedSql, string rawText, QueryNode queryNode, string filePath, ParsingContext? ctx = null)
     {
         var tables = new HashSet<(string? Db, string? Schema, string Table)>();
         var procedures = new HashSet<(string? Db, string? Schema, string Procedure)>();
@@ -271,7 +271,12 @@ public static class NestedSqlParser
         // Process Tables
         foreach (var tableRef in tables)
         {
-            var dbName = tableRef.Db ?? "default";
+            var dbName = tableRef.Db;
+            if (string.IsNullOrEmpty(dbName) || dbName.Equals("default", StringComparison.OrdinalIgnoreCase))
+            {
+                var canonical = ctx?.ResourceRegistry.ResolveResource(null, expectedDbType: "relational");
+                dbName = canonical != null ? canonical.Name : "default";
+            }
             var schemaName = tableRef.Schema ?? "dbo";
             var tableName = tableRef.Table;
 
@@ -304,7 +309,12 @@ public static class NestedSqlParser
         // Process Procedures
         foreach (var procRef in procedures)
         {
-            var dbName = procRef.Db ?? "default";
+            var dbName = procRef.Db;
+            if (string.IsNullOrEmpty(dbName) || dbName.Equals("default", StringComparison.OrdinalIgnoreCase))
+            {
+                var canonical = ctx?.ResourceRegistry.ResolveResource(null, expectedDbType: "relational");
+                dbName = canonical != null ? canonical.Name : "default";
+            }
             var schemaName = procRef.Schema ?? "dbo";
             var procName = procRef.Procedure;
 

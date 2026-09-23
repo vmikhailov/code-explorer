@@ -164,9 +164,19 @@ public class SyntaxEnricher : ISyntaxEnricher
                             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, canonicalDbName, dbId);
                         }
 
-                        var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId);
+                        var relExt = new Dictionary<string, string>
+                        {
+                            ["via"] = parser.Name,
+                            ["provider"] = parser.Id
+                        };
+                        if (isOrm)
+                        {
+                            relExt["is_orm"] = "true";
+                        }
+
+                        var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId, relExt);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
-                        var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId);
+                        var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId, relExt);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesDbRel));
                         break;
 

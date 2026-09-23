@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -217,6 +218,18 @@ public class ParsingContext
             return Task.CompletedTask;
         });
         await tcs.Task;
+    }
+
+    public ParsingContext(
+        string absoluteWorkspacePath,
+        string hostWorkspacePath,
+        ResourceReconciliationService? resourceRegistry = null)
+        : this(absoluteWorkspacePath, hostWorkspacePath, null!, System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>())
+    {
+        if (resourceRegistry != null)
+        {
+            ResourceRegistry = resourceRegistry;
+        }
     }
 
     public ParsingContext(
