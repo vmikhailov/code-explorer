@@ -25,6 +25,13 @@ public class ArchitectureViewRequest
 /// </summary>
 public class ArchitectureViewEngine(IGraphClient db)
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, GraphDataDto> SystemContextCache = new();
+
+    public static void InvalidateCache()
+    {
+        SystemContextCache.Clear();
+    }
+
     public async Task<GraphDataDto> GetViewAsync(ArchitectureViewRequest request, CancellationToken ct = default)
     {
         return request.ViewType switch
@@ -42,6 +49,12 @@ public class ArchitectureViewEngine(IGraphClient db)
     /// </summary>
     public async Task<GraphDataDto> GetSystemContextViewAsync(bool includeLibraries = false, CancellationToken ct = default)
     {
+        var cacheKey = $"c1:libs={includeLibraries}";
+        if (SystemContextCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
         var graph = new GraphDataDto
         {
             Metadata = new Dictionary<string, string>
@@ -129,6 +142,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             });
         }
 
+        SystemContextCache[cacheKey] = graph;
         return graph;
     }
 

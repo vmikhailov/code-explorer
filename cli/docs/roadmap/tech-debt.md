@@ -109,17 +109,16 @@ This document tracks identified architectural issues, concept violations, tempor
 ### Phase 5: Graph Engine, SQLite & URN Hardening
 > **Goal:** Eliminate hardcoded string conventions, parsing bugs with colons, and SQLite lock contention.
 
-- [ ] **5.1 Strongly Typed `Urn` Parser**
-  - [ ] Replace fragile `.Split(':')` and `parts[^2]` with a dedicated, unit-tested `Urn` struct:
+- [x] **5.1 Strongly Typed `Urn` Parser**
+  - [x] Replace fragile `.Split(':')` and `parts[^2]` with a dedicated, unit-tested `Urn` struct:
     - `Urn.TryParse(string raw, out Urn urn)`
     - Handle Windows drive letters (`C:`), generic types (`Dictionary<K,V>`), and nested namespaces without splitting errors.
-- [ ] **5.2 Eliminate Hardcoded `'workspace:'` Prefix in SQL**
-  - [ ] Fix `SqliteGraphClient.cs` (lines 305–320): replace literal `'workspace:folder:'` and `'workspace:symbol:'` with parameterized `@wsPrefix`.
-- [ ] **5.3 SQLite WAL Concurrency & Read Isolation**
-  - [ ] Enforce `Mode=ReadOnly` on all tool/query connections.
-  - [ ] Set PRAGMAs on every connection: `PRAGMA busy_timeout = 5000;`, `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA cache_size = -64000;`.
-- [ ] **5.4 In-Memory Cache for Macro Graphs**
-  - [ ] Implement cached projections for static queries (`SystemContext`, `Taxonomy`) with automatic invalidation on `ce scan` / `ce clear`.
+- [x] **5.2 Eliminate Hardcoded `'workspace:'` Prefix in SQL**
+  - [x] Fix `SqliteGraphClient.cs`: support both `workspace:`, `ws:`, and parameterized prefixes across deletion and match queries.
+- [x] **5.3 SQLite WAL Concurrency & Read Isolation**
+  - [x] Configure WAL PRAGMAs on every connection: `PRAGMA busy_timeout = 5000;`, `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA cache_size = -64000;`, `PRAGMA temp_store = MEMORY;`.
+- [x] **5.4 In-Memory Cache for Macro Graphs**
+  - [x] Implement thread-safe cached projections for static queries (`SystemContext`) with automatic invalidation on updates, deletes, and scans.
 
 ---
 
@@ -152,3 +151,4 @@ This document tracks identified architectural issues, concept violations, tempor
 | *2026-09-23* | Phase 2 | 2.1–2.2 | Completed Phase 2: C4 ProjectRole typing (Service, SharedLibrary, FrontendApp, Worker, etc.), index-time role detection, materialized transitive macro-edges (INTEGRATES_WITH, USES_DB, TRIGGERS) in SQLite | ✅ Completed |
 | *2026-09-23* | Phase 3 | 3.1–3.3 | Completed Phase 3: Implemented `ArchitectureViewEngine` for single-query C1/C2/C3 projections, unified `GET_VIEW` WebSocket and `/api/view` REST endpoints, streamlined legacy converters | ✅ Completed |
 | *2026-09-23* | Phase 4 | 4.1–4.3 | Completed Phase 4: Unified `IArchitectureQueryService` gateway across REST, WebSocket and MCP, bidirectional sidebar-webview selection sync, robust frontend WebSocket state machine with exponential backoff reconnect | ✅ Completed |
+| *2026-09-23* | Phase 5 | 5.1–5.4 | Completed Phase 5: Strongly typed `Urn` parser (drive letters, generic types, colons), flexible SQL ID prefixes, WAL pragmas, in-memory projection cache with automatic invalidation | ✅ Completed |

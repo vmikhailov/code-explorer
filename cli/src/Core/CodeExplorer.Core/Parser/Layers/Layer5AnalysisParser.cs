@@ -108,6 +108,10 @@ public class Layer5AnalysisParser
 
     private static string? ExtractSymbolNameFromId(string symbolId)
     {
+        if (Urn.TryParse(symbolId, out var urn) && !string.IsNullOrEmpty(urn.Name))
+        {
+            return urn.Name;
+        }
         // Format: {workspaceId}:symbol:{relativePath}:{mappedKind}:{name}:{row}
         var parts = symbolId.Split(':');
         return parts.Length >= 2 ? parts[^2] : null;

@@ -217,6 +217,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 walCmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
                 await walCmd.ExecuteNonQueryAsync();
             }
+
+            CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
         {
@@ -299,18 +301,26 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             CREATE TEMP TABLE IF NOT EXISTS temp_ws_del(id TEXT PRIMARY KEY);
             DELETE FROM temp_ws_del;
 
-            -- 1. Match nodes directly by ID prefix
+            -- 1. Match nodes directly by ID prefix (supporting workspace:, ws:, and custom URN prefixes)
             INSERT OR IGNORE INTO temp_ws_del(id)
             SELECT id FROM nodes
             WHERE lower(replace(id, '\', '/')) LIKE 'workspace:folder:' || @normPath || '/%'
                OR lower(replace(id, '\', '/')) = 'workspace:folder:' || @normPath
+               OR lower(replace(id, '\', '/')) LIKE 'ws:folder:' || @normPath || '/%'
+               OR lower(replace(id, '\', '/')) = 'ws:folder:' || @normPath
                OR (@hasRel = 1 AND (
                    lower(replace(id, '\', '/')) LIKE 'workspace:file:' || @relPath || '/%'
                    OR lower(replace(id, '\', '/')) = 'workspace:file:' || @relPath
+                   OR lower(replace(id, '\', '/')) LIKE 'ws:file:' || @relPath || '/%'
+                   OR lower(replace(id, '\', '/')) = 'ws:file:' || @relPath
                    OR lower(replace(id, '\', '/')) LIKE 'workspace:project:' || @relPath || ':%'
                    OR lower(replace(id, '\', '/')) = 'workspace:project:' || @relPath || ':'
+                   OR lower(replace(id, '\', '/')) LIKE 'ws:project:' || @relPath || ':%'
+                   OR lower(replace(id, '\', '/')) = 'ws:project:' || @relPath || ':'
                    OR lower(replace(id, '\', '/')) LIKE 'workspace:symbol:' || @relPath || '/%'
                    OR lower(replace(id, '\', '/')) = 'workspace:symbol:' || @relPath
+                   OR lower(replace(id, '\', '/')) LIKE 'ws:symbol:' || @relPath || '/%'
+                   OR lower(replace(id, '\', '/')) = 'ws:symbol:' || @relPath
                ));
 
             -- 2. Match File nodes by full_path or relative path
@@ -444,6 +454,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             DROP TABLE IF EXISTS temp_ws_del;
             """;
         await cmd.ExecuteNonQueryAsync();
+        CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
     public async Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath)
@@ -529,6 +540,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await tx.CommitAsync();
             sw.Stop();
             _logger.LogDebug("[DB:Nodes] Uploaded {Count} nodes in {ElapsedMs:F1}ms", nodes.Count, sw.Elapsed.TotalMilliseconds);
+            CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
         {
@@ -578,6 +590,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await tx.CommitAsync();
             sw.Stop();
             _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count, sw.Elapsed.TotalMilliseconds);
+            CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
         {
