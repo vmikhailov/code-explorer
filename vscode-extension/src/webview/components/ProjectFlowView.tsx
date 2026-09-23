@@ -46,8 +46,12 @@ interface EdgeVisuals {
 
 export type EdgeCategory = 'library' | 'service_call' | 'database' | 'messaging';
 
-export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeCategory => {
-  if (targetNode?.kind === 'ExternalReferences') {
+export const getEdgeCategory = (
+  edge?: GraphEdge,
+  targetNode?: GraphNode,
+  sourceNode?: GraphNode
+): EdgeCategory => {
+  if (targetNode?.kind === 'ExternalReferences' || sourceNode?.kind === 'ExternalReferences') {
     return 'library';
   }
 
@@ -63,15 +67,35 @@ export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeC
   const kind = (edge?.kind || '').toUpperCase();
   const targetRole = targetNode?.properties?.role;
   const targetKind = targetNode?.kind;
+  const sourceRole = sourceNode?.properties?.role;
+  const sourceKind = sourceNode?.kind;
   const targetLayer = (targetNode?.properties?.layer || targetNode?.properties?.layerId || '').toLowerCase();
   const targetProjType = (targetNode?.properties?.project_type || '').toLowerCase();
 
   // 2. Explicit dependency_type or kind
-  if (depType === 'database' || kind === 'USES_DB' || targetKind === 'Database' || targetRole === 'database') {
+  if (
+    depType === 'database' ||
+    kind === 'USES_DB' ||
+    targetKind === 'Database' ||
+    targetRole === 'database' ||
+    sourceKind === 'Database' ||
+    sourceRole === 'database'
+  ) {
     return 'database';
   }
 
-  if (depType === 'messaging' || kind === 'TRIGGERS' || targetKind === 'Topic' || targetRole === 'topic') {
+  if (
+    depType === 'messaging' ||
+    kind === 'TRIGGERS' ||
+    kind === 'PUBLISHES' ||
+    kind === 'PUBLISHES_TO' ||
+    kind === 'SUBSCRIBES_TO' ||
+    kind === 'SUBSCRIBED_BY' ||
+    targetKind === 'Topic' ||
+    targetRole === 'topic' ||
+    sourceKind === 'Topic' ||
+    sourceRole === 'topic'
+  ) {
     return 'messaging';
   }
 
@@ -101,8 +125,8 @@ export const getEdgeCategory = (edge?: GraphEdge, targetNode?: GraphNode): EdgeC
   return 'library';
 };
 
-const getEdgeVisuals = (edge?: GraphEdge, targetNode?: GraphNode): EdgeVisuals => {
-  const category = getEdgeCategory(edge, targetNode);
+const getEdgeVisuals = (edge?: GraphEdge, targetNode?: GraphNode, sourceNode?: GraphNode): EdgeVisuals => {
+  const category = getEdgeCategory(edge, targetNode, sourceNode);
 
   switch (category) {
     case 'database':
@@ -235,20 +259,32 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     const registerNode = (n: GraphNode) => {
       nMap.set(n.id, n);
       nMap.set(n.id.toLowerCase(), n);
-      if (!nMap.has(n.name)) nMap.set(n.name, n);
-      if (!nMap.has(n.name.toLowerCase())) nMap.set(n.name.toLowerCase(), n);
+      if (n.name) {
+        nMap.set(n.name, n);
+        nMap.set(n.name.toLowerCase(), n);
+      }
       if (!outMap.has(n.id)) outMap.set(n.id, []);
       if (!outMap.has(n.id.toLowerCase())) outMap.set(n.id.toLowerCase(), []);
+      if (n.name && !outMap.has(n.name)) outMap.set(n.name, []);
+      if (n.name && !outMap.has(n.name.toLowerCase())) outMap.set(n.name.toLowerCase(), []);
       if (!inMap.has(n.id)) inMap.set(n.id, []);
       if (!inMap.has(n.id.toLowerCase())) inMap.set(n.id.toLowerCase(), []);
+      if (n.name && !inMap.has(n.name)) inMap.set(n.name, []);
+      if (n.name && !inMap.has(n.name.toLowerCase())) inMap.set(n.name.toLowerCase(), []);
     };
 
     const getOrCreateComms = (node: GraphNode): NodeCommsSummary => {
-      let c = cMap.get(node.id) || cMap.get(node.id.toLowerCase());
+      let c =
+        cMap.get(node.id) ||
+        cMap.get(node.name) ||
+        cMap.get(node.id.toLowerCase()) ||
+        cMap.get(node.name.toLowerCase());
       if (!c) {
         c = { callsOut: [], acceptsIn: [], libsOut: [], libsIn: [], dbOut: [], messagesOut: [], messagesIn: [] };
         cMap.set(node.id, c);
+        cMap.set(node.name, c);
         cMap.set(node.id.toLowerCase(), c);
+        cMap.set(node.name.toLowerCase(), c);
       }
       return c;
     };
@@ -292,7 +328,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       if (!curOut.some((x) => x.id === tgtNode.id)) {
         curOut.push(tgtNode);
         outMap.set(srcNode.id, curOut);
+        outMap.set(srcNode.name, curOut);
         outMap.set(srcNode.id.toLowerCase(), curOut);
+        outMap.set(srcNode.name.toLowerCase(), curOut);
       }
 
       // Inbound (tgtNode is used by srcNode)
@@ -300,13 +338,15 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       if (!curIn.some((x) => x.id === srcNode.id)) {
         curIn.push(srcNode);
         inMap.set(tgtNode.id, curIn);
+        inMap.set(tgtNode.name, curIn);
         inMap.set(tgtNode.id.toLowerCase(), curIn);
+        inMap.set(tgtNode.name.toLowerCase(), curIn);
       }
 
       // Communications breakdown
       const srcComms = getOrCreateComms(srcNode);
       const tgtComms = getOrCreateComms(tgtNode);
-      const category = getEdgeCategory(e, tgtNode);
+      const category = getEdgeCategory(e, tgtNode, srcNode);
 
       if (category === 'service_call') {
         if (!srcComms.callsOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase())) {
@@ -734,7 +774,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
               edgeLookup.get(`${srcNode.name.toLowerCase()}->${tgtNode.name.toLowerCase()}`)
             : undefined);
 
-        const category = getEdgeCategory(edgeObj, tgtNode);
+        const category = getEdgeCategory(edgeObj, tgtNode, srcNode);
         if (!visibleEdgeTypes[category]) {
           return;
         }
@@ -764,7 +804,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           return;
         }
 
-        const visuals = getEdgeVisuals(edgeObj, tgtNode);
+        const visuals = getEdgeVisuals(edgeObj, tgtNode, srcNode);
 
         const isSourceExpanded =
           expandedCards.has(sourceId) || (srcNode && (expandedCards.has(srcNode.id) || expandedCards.has(srcNode.name)));
@@ -815,9 +855,19 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
     // Any edge between two visible nodes in the solution graph is an active visible edge
     for (const u of uniqueVisible) {
-      const children = outboundMap.get(u.id) || outboundMap.get(u.name) || [];
+      const children =
+        outboundMap.get(u.id) ||
+        outboundMap.get(u.name) ||
+        outboundMap.get(u.id.toLowerCase()) ||
+        (u.name ? outboundMap.get(u.name.toLowerCase()) : undefined) ||
+        [];
       for (const child of children) {
-        if (visibleIdSet.has(child.id) || visibleIdSet.has(child.name)) {
+        if (
+          visibleIdSet.has(child.id) ||
+          visibleIdSet.has(child.name) ||
+          visibleIdSet.has(child.id.toLowerCase()) ||
+          (child.name && visibleIdSet.has(child.name.toLowerCase()))
+        ) {
           addEdge(u.id, child.id);
         }
       }

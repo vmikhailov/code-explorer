@@ -543,7 +543,13 @@ public static class GraphDataConverter
         // 8b. Topic Links (PubSub, Message Queues)
         try
         {
-            var topicEdgeQuery = "MATCH (p:Project)-[r:TRIGGERS|PUBLISHES|PUBLISHES_TO|SUBSCRIBES_TO]->(t:Topic) RETURN p.id AS source, t.id AS target, r.kind AS kind";
+            var topicEdgeQuery = @"
+                MATCH (p:Project)-[:TRIGGERS|PUBLISHES|PUBLISHES_TO]->(t:Topic) RETURN p.id AS source, t.id AS target
+                UNION
+                MATCH (t:Topic)-[:TRIGGERS|SUBSCRIBED_BY]->(p:Project) RETURN t.id AS source, p.id AS target
+                UNION
+                MATCH (p:Project)-[:SUBSCRIBES_TO]->(t:Topic) RETURN t.id AS source, p.id AS target";
+
             var topicEdgeJson = await client.ExecuteQueryAsync(topicEdgeQuery, null, cancellationToken);
             using var topicEdgeDoc = JsonDocument.Parse(topicEdgeJson);
 
@@ -838,6 +844,27 @@ public static class GraphDataConverter
 
         graph.Nodes.Add(centerNode);
         graph.Metadata["selectedProject"] = centerProjName;
+
+        var allProjectsQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
+        var allProjectsJson = await client.ExecuteQueryAsync(allProjectsQuery, null, cancellationToken);
+        using var allProjectsDoc = JsonDocument.Parse(allProjectsJson);
+        var allProjectNodes = new List<GraphNodeDto>();
+        foreach (var pRow in allProjectsDoc.RootElement.EnumerateArray())
+        {
+            var pId = pRow.GetStringProp("id");
+            var pName = pRow.GetStringProp("name", pId);
+            var pPath = pRow.TryGetProperty("path", out var pp) && pp.ValueKind == JsonValueKind.String ? pp.GetString() : null;
+            allProjectNodes.Add(new GraphNodeDto
+            {
+                Id = pId,
+                Name = pName,
+                FilePath = pPath
+            });
+        }
+        if (allProjectNodes.All(p => p.Id != centerId))
+        {
+            allProjectNodes.Add(centerNode);
+        }
 
         // 2. Inbound Project Dependencies (Left Column)
         var inQuery = "MATCH (in:Project)-[r:DEPENDS_ON]->(p:Project {id: $centerId}) RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, in.project_type AS project_type, r.kind AS kind, r.dependency_type AS dep_type";
@@ -1450,8 +1477,14 @@ public static class GraphDataConverter
                 var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
                 var symId = row.GetStringProp("symId");
 
-                var owning = FindOwningProject(symId, new[] { centerNode });
-                if (owning != null)
+                var owning = FindOwningProject(symId, allProjectNodes);
+                var isOwnedOrViaLibrary = owning != null && (
+                    owning.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase) ||
+                    owning.Name.Equals(centerProjName, StringComparison.OrdinalIgnoreCase) ||
+                    graph.Edges.Any(e => e.Source == centerId && e.Target == owning.Id && e.Kind == "LIBRARY")
+                );
+
+                if (isOwnedOrViaLibrary)
                 {
                     if (graph.Nodes.All(n => n.Id != id))
                     {
@@ -1501,8 +1534,14 @@ public static class GraphDataConverter
                 var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
                 var fileId = row.GetStringProp("fileId");
 
-                var owning = FindOwningProject(fileId, new[] { centerNode });
-                if (owning != null)
+                var owning = FindOwningProject(fileId, allProjectNodes);
+                var isOwnedOrViaLibrary = owning != null && (
+                    owning.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase) ||
+                    owning.Name.Equals(centerProjName, StringComparison.OrdinalIgnoreCase) ||
+                    graph.Edges.Any(e => e.Source == centerId && e.Target == owning.Id && e.Kind == "LIBRARY")
+                );
+
+                if (isOwnedOrViaLibrary)
                 {
                     if (graph.Nodes.All(n => n.Id != id))
                     {
@@ -1602,8 +1641,14 @@ public static class GraphDataConverter
                 var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
                 var symId = row.GetStringProp("symId");
 
-                var owning = FindOwningProject(symId, new[] { centerNode });
-                if (owning != null)
+                var owning = FindOwningProject(symId, allProjectNodes);
+                var isOwnedOrViaLibrary = owning != null && (
+                    owning.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase) ||
+                    owning.Name.Equals(centerProjName, StringComparison.OrdinalIgnoreCase) ||
+                    graph.Edges.Any(e => e.Source == centerId && e.Target == owning.Id && e.Kind == "LIBRARY")
+                );
+
+                if (isOwnedOrViaLibrary)
                 {
                     if (graph.Nodes.All(n => n.Id != id))
                     {
@@ -1642,7 +1687,10 @@ public static class GraphDataConverter
             }
 
             // Direct topic-to-project inbound fallback
-            var inTopicQuery = "MATCH (t:Topic)-[r:TRIGGERS|SUBSCRIBED_BY]->(p:Project {id: $centerId}) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
+            var inTopicQuery = @"
+                MATCH (t:Topic)-[:TRIGGERS|SUBSCRIBED_BY]->(p:Project {id: $centerId}) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type
+                UNION
+                MATCH (p:Project {id: $centerId})-[:SUBSCRIBES_TO]->(t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
             var inTopicJson = await client.ExecuteQueryAsync(inTopicQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
             using var inTopicDoc = JsonDocument.Parse(inTopicJson);
 
@@ -1774,6 +1822,7 @@ public static class GraphDataConverter
         if (string.IsNullOrEmpty(sourceId)) return null;
 
         var projList = projects as IList<GraphNodeDto> ?? projects.ToList();
+        if (projList.Count == 0) return null;
 
         // 1. Direct project ID match
         foreach (var p in projList)
@@ -1792,40 +1841,52 @@ public static class GraphDataConverter
             }
         }
 
-        // 3. File path resolution (e.g. workspace:file:action-scheduler/src/...)
+        // 3. File path resolution (e.g. workspace:file:action-scheduler/src/... or ws:symbol:action-scheduler/...)
         var filePath = sourceId;
-        if (filePath.StartsWith("workspace:file:", StringComparison.OrdinalIgnoreCase))
+        var fileIdx = filePath.IndexOf(":file:", StringComparison.OrdinalIgnoreCase);
+        if (fileIdx >= 0)
         {
-            filePath = filePath.Substring("workspace:file:".Length);
+            filePath = filePath.Substring(fileIdx + ":file:".Length);
         }
-        else if (filePath.StartsWith("workspace:symbol:", StringComparison.OrdinalIgnoreCase))
+        else
         {
-            filePath = filePath.Substring("workspace:symbol:".Length);
+            var symIdx = filePath.IndexOf(":symbol:", StringComparison.OrdinalIgnoreCase);
+            if (symIdx >= 0)
+            {
+                filePath = filePath.Substring(symIdx + ":symbol:".Length);
+            }
         }
 
         var normFilePath = filePath.Replace('\\', '/').TrimStart('/');
 
         // Match against project FilePath (longest match first)
         GraphNodeDto? bestMatch = null;
-        int bestLen = 0;
+        int bestLen = -1;
         foreach (var p in projList)
         {
-            if (!string.IsNullOrEmpty(p.FilePath))
+            var normProj = (p.FilePath ?? "").Replace('\\', '/').TrimStart('/').TrimEnd('/');
+            if (normProj == "" || normProj == ".")
             {
-                var normProj = p.FilePath.Replace('\\', '/').TrimStart('/').TrimEnd('/');
-                if (!string.IsNullOrEmpty(normProj) &&
-                    (normFilePath.StartsWith(normProj + "/", StringComparison.OrdinalIgnoreCase) ||
-                     normFilePath.Equals(normProj, StringComparison.OrdinalIgnoreCase)))
+                // Root project matches everything with length 0 as fallback
+                if (bestLen < 0)
                 {
-                    if (normProj.Length > bestLen)
-                    {
-                        bestLen = normProj.Length;
-                        bestMatch = p;
-                    }
+                    bestMatch = p;
+                    bestLen = 0;
+                }
+                continue;
+            }
+
+            if (normFilePath.StartsWith(normProj + "/", StringComparison.OrdinalIgnoreCase) ||
+                normFilePath.Equals(normProj, StringComparison.OrdinalIgnoreCase))
+            {
+                if (normProj.Length > bestLen)
+                {
+                    bestLen = normProj.Length;
+                    bestMatch = p;
                 }
             }
         }
-        if (bestMatch != null) return bestMatch;
+        if (bestMatch != null && bestLen > 0) return bestMatch;
 
         // Match by Project Name segment in path
         foreach (var p in projList)
@@ -1840,6 +1901,11 @@ public static class GraphDataConverter
             }
         }
 
+        if (bestMatch != null) return bestMatch;
+
+        // Fallback: If only 1 project in projList, return it
+        if (projList.Count == 1) return projList[0];
+
         return null;
     }
 
@@ -1849,16 +1915,24 @@ public static class GraphDataConverter
         var services = graph.Nodes.Where(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase) && !IsLibraryProject(n)).ToList();
         var libraries = graph.Nodes.Where(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase) && IsLibraryProject(n)).ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
 
-        // Build adjacency list for all outgoing edges
+        // Build adjacency list for all outgoing and incoming edges
         var outEdges = new Dictionary<string, List<GraphEdgeDto>>(StringComparer.OrdinalIgnoreCase);
+        var inEdges = new Dictionary<string, List<GraphEdgeDto>>(StringComparer.OrdinalIgnoreCase);
         foreach (var edge in graph.Edges)
         {
-            if (!outEdges.TryGetValue(edge.Source, out var list))
+            if (!outEdges.TryGetValue(edge.Source, out var outList))
             {
-                list = new List<GraphEdgeDto>();
-                outEdges[edge.Source] = list;
+                outList = new List<GraphEdgeDto>();
+                outEdges[edge.Source] = outList;
             }
-            list.Add(edge);
+            outList.Add(edge);
+
+            if (!inEdges.TryGetValue(edge.Target, out var inList))
+            {
+                inList = new List<GraphEdgeDto>();
+                inEdges[edge.Target] = inList;
+            }
+            inList.Add(edge);
         }
 
         // For each Service, traverse through Libraries up to depth 3
@@ -1884,6 +1958,36 @@ public static class GraphDataConverter
             while (queue.Count > 0)
             {
                 var (currId, depth, viaLib) = queue.Dequeue();
+
+                // Inbound Case: Message Broker / Topic subscribes into Library -> Lift to Service
+                if (inEdges.TryGetValue(currId, out var incomingToLib))
+                {
+                    foreach (var inEdge in incomingToLib)
+                    {
+                        if (!nodesById.TryGetValue(inEdge.Source, out var srcNode)) continue;
+                        if (srcNode.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) || inEdge.Kind == "TRIGGERS")
+                        {
+                            if (graph.Edges.All(e => !(e.Source == srcNode.Id && e.Target == service.Id && e.Kind == "TRIGGERS")))
+                            {
+                                graph.Edges.Add(new GraphEdgeDto
+                                {
+                                    Id = $"{srcNode.Id}->{service.Id}:TRIGGERS",
+                                    Source = srcNode.Id,
+                                    Target = service.Id,
+                                    Kind = "TRIGGERS",
+                                    Category = "messaging",
+                                    Properties = new Dictionary<string, string>
+                                    {
+                                        ["dependency_type"] = "messaging",
+                                        ["is_semantic"] = "true",
+                                        ["semantic_lifted"] = "true",
+                                        ["via_library"] = viaLib
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
 
                 if (outEdges.TryGetValue(currId, out var edges))
                 {
@@ -2121,6 +2225,7 @@ public static class GraphDataConverter
             var depType = edge.Properties.GetValueOrDefault("dependency_type");
             var kind = edge.Kind?.ToUpperInvariant() ?? "";
 
+            nodesById.TryGetValue(edge.Source, out var sourceNode);
             nodesById.TryGetValue(edge.Target, out var targetNode);
 
             string category;
@@ -2132,15 +2237,21 @@ public static class GraphDataConverter
             {
                 category = depType.ToLowerInvariant();
             }
-            else if (kind == "USES_DB" || targetNode?.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase) == true)
+            else if (kind == "USES_DB" ||
+                     targetNode?.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase) == true ||
+                     sourceNode?.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase) == true)
             {
                 category = "database";
             }
-            else if (kind == "TRIGGERS" || targetNode?.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) == true)
+            else if (kind is "TRIGGERS" or "PUBLISHES" or "PUBLISHES_TO" or "SUBSCRIBES_TO" or "SUBSCRIBED_BY" ||
+                     targetNode?.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) == true ||
+                     sourceNode?.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) == true)
             {
                 category = "messaging";
             }
-            else if (kind == "SERVICE_CALL" || kind == "CALLS_ENDPOINT" || targetNode?.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase) == true)
+            else if (kind is "SERVICE_CALL" or "CALLS_ENDPOINT" ||
+                     targetNode?.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase) == true ||
+                     sourceNode?.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase) == true)
             {
                 category = "service_call";
             }
