@@ -23,6 +23,7 @@ docs/
 │
 ├── roadmap/                                  # Engineering Milestones & Task Tracking
 │   ├── improvements.md                       # Architectural Milestones & Engineering Roadmap
+│   ├── tech-debt.md                          # Technical Debt & Semantic Architecture Roadmap
 │   └── todo.md                               # Actionable Backlog & Progress Checklist
 │
 └── archive/                                  # Completed Historical Plans & Task Specs
@@ -43,6 +44,7 @@ docs/
 | [**`proposals/cross-service-detection.md`**](proposals/cross-service-detection.md) | Proposals | **Active Design** | Parser Contributors | Design for dynamic HTTP templates, suffix matching, GCP Pub/Sub, and WebSocket event tracing. |
 | [**`proposals/vscode-extension-design.md`**](proposals/vscode-extension-design.md) | Proposals | **Active Design** | Extension Developers | Architecture for interactive Cytoscape.js webview extension and live LSP bridge. |
 | [**`roadmap/improvements.md`**](roadmap/improvements.md) | Roadmap | **Active Roadmap** | All Contributors | Delivered milestones (SQLite, Cypher compiler, CLI, timeout bounding) and active 4-phase roadmap. |
+| [**`roadmap/tech-debt.md`**](roadmap/tech-debt.md) | Roadmap | **Active Checklist** | Architects / Core Developers | Actionable checklist for technical debt remediation, canonical resources, and C4 model. |
 | [**`roadmap/todo.md`**](roadmap/todo.md) | Roadmap | **Active Backlog** | Contributors / AI Agents | Actionable checklist of completed items, active implementations, and future ideas. |
 | [**`archive/library-parser-extraction.md`**](archive/library-parser-extraction.md) | Archive | **Completed Historical** | Historical Reference | Step-by-step extraction plan for NestJS, Express, Fetch, AspNetCore, and HttpClient parsers. |
 | [**`archive/self-descriptive-ontology-plan.md`**](archive/self-descriptive-ontology-plan.md) | Archive | **Completed Historical** | Historical Reference | Initial design plan for the Roslyn-based `OntologyGen` build tool. |
