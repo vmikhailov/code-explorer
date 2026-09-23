@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Central Architecture Hexagon -->
+  <polygon points="12,6 18,9 18,15 12,18 6,15 6,9" />
+  <!-- Code brackets inside hexagon -->
+  <polyline points="10,10.5 8.5,12 10,13.5" />
+  <polyline points="14,10.5 15.5,12 14,13.5" />
+  <!-- 4 Corner Distributed Graph Nodes -->
+  <line x1="6" y1="9" x2="3.5" y2="5.5" />
+  <circle cx="3" cy="5" r="1.5" fill="currentColor" />
+  <line x1="6" y1="15" x2="3.5" y2="18.5" />
+  <circle cx="3" cy="19" r="1.5" fill="currentColor" />
+  <line x1="18" y1="9" x2="20.5" y2="5.5" />
+  <circle cx="21" cy="5" r="1.5" fill="currentColor" />
+  <line x1="18" y1="15" x2="20.5" y2="18.5" />
+  <circle cx="21" cy="19" r="1.5" fill="currentColor" />
+</svg>

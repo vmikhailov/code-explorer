@@ -338,3 +338,37 @@ public class ScanProgressEventDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ProcessedFiles { get; set; }
 }
+
+public class MetadataResponseDto
+{
+    [JsonPropertyName("nodeCounts")]
+    public Dictionary<string, long> NodeCounts { get; set; } = [];
+
+    [JsonPropertyName("relationshipCounts")]
+    public Dictionary<string, long> RelationshipCounts { get; set; } = [];
+
+    [JsonPropertyName("totalNodes")]
+    public long TotalNodes { get; set; }
+
+    [JsonPropertyName("totalEdges")]
+    public long TotalEdges { get; set; }
+}
+
+public class NodesResponseDto
+{
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    [JsonPropertyName("nodes")]
+    public List<GraphNodeDto> Nodes { get; set; } = [];
+
+    [JsonPropertyName("total")]
+    public long Total { get; set; }
+
+    [JsonPropertyName("offset")]
+    public int Offset { get; set; }
+
+    [JsonPropertyName("limit")]
+    public int Limit { get; set; }
+}
+

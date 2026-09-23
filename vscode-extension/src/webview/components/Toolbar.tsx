@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 
 export interface ToolbarProps {
-  viewMode: 'semantic' | 'flow' | 'layers' | 'full';
-  onViewModeChange: (mode: 'semantic' | 'flow' | 'layers' | 'full') => void;
+  viewMode: 'c1' | 'semantic' | 'flow' | 'layers' | 'full';
+  onViewModeChange: (mode: 'c1' | 'semantic' | 'flow' | 'layers' | 'full') => void;
   allProjects: string[];
   projectPaths?: Record<string, string>;
   selectedProject: string;
@@ -262,8 +262,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <select
             className="view-mode-select"
             value={viewMode}
-            onChange={(e) => onViewModeChange(e.target.value as 'semantic' | 'flow' | 'layers' | 'full')}
+            onChange={(e) => onViewModeChange(e.target.value as 'c1' | 'semantic' | 'flow' | 'layers' | 'full')}
           >
+            <option value="c1">🌐 C1: System Context & Boundaries</option>
             <option value="layers">🏛️ System Layers</option>
             <option value="flow">🔀 Project Flow</option>
             <option value="semantic">🧠 Domain Microservice Map</option>
@@ -274,6 +275,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Dynamic Controls based on Mode */}
       <div className="toolbar-controls">
+        {viewMode === 'c1' && (
+          <div className="c1-controls button-group">
+            <button onClick={onRefresh} title="Reload C1 system context" className="ctrl-btn icon-btn">
+              <span className="btn-icon">🔄</span>
+              <span className="btn-text">Refresh</span>
+            </button>
+          </div>
+        )}
+
         {viewMode === 'semantic' && (
           <div className="semantic-controls button-group">
             <button onClick={onRefresh} title="Reload semantic architecture" className="ctrl-btn icon-btn">

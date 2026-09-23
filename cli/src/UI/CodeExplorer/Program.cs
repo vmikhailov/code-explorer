@@ -1194,6 +1194,36 @@ public class Program
             }
         });
 
+        app.MapGet("/api/metadata", async (IGraphClient graphClient) =>
+        {
+            try
+            {
+                serverLogger.LogInformation("[REST] GET /api/metadata");
+                var metadata = await GraphDataConverter.GetMetadataAsync(graphClient);
+                return Results.Ok(metadata);
+            }
+            catch (Exception ex)
+            {
+                serverLogger.LogError(ex, "[REST] Failed /api/metadata");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        app.MapGet("/api/nodes", async (IGraphClient graphClient, string? kind, int? offset, int? limit, string? search) =>
+        {
+            try
+            {
+                serverLogger.LogInformation("[REST] GET /api/nodes (kind: {Kind}, offset: {Offset}, limit: {Limit})", kind ?? "all", offset ?? 0, limit ?? 50);
+                var nodes = await GraphDataConverter.GetNodesAsync(graphClient, kind, offset ?? 0, limit ?? 50, search);
+                return Results.Ok(nodes);
+            }
+            catch (Exception ex)
+            {
+                serverLogger.LogError(ex, "[REST] Failed /api/nodes");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         return app;
     }
 

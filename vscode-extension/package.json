@@ -35,12 +35,38 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onView:codeExplorerView",
     "onCommand:codeExplorer.showGraph",
     "onCommand:codeExplorer.reindex",
-    "onCommand:codeExplorer.reindexFull"
+    "onCommand:codeExplorer.reindexFull",
+    "onCommand:codeExplorer.initAndScan"
   ],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "code-explorer-sidebar",
+          "title": "CodeExplorer",
+          "icon": "media/icon-sidebar.svg"
+        }
+      ]
+    },
+    "views": {
+      "code-explorer-sidebar": [
+        {
+          "id": "codeExplorerView",
+          "name": "CodeExplorer Graph",
+          "type": "tree",
+          "when": "workspaceFolderCount != 0"
+        }
+      ]
+    },
     "commands": [
+      {
+        "command": "codeExplorer.initAndScan",
+        "title": "CodeExplorer: Initialize & Scan Workspace",
+        "icon": "$(rocket)"
+      },
       {
         "command": "codeExplorer.showGraph",
         "title": "CodeExplorer: Show Architecture Graph",
@@ -55,9 +81,61 @@
         "command": "codeExplorer.reindexFull",
         "title": "CodeExplorer: Full Re-index (Clear & Rescan)",
         "icon": "$(trash)"
+      },
+      {
+        "command": "codeExplorer.refreshTree",
+        "title": "CodeExplorer: Refresh Explorer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "codeExplorer.openView",
+        "title": "CodeExplorer: Open View"
+      },
+      {
+        "command": "codeExplorer.focusNode",
+        "title": "CodeExplorer: Focus Node in Graph",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "codeExplorer.openSource",
+        "title": "CodeExplorer: Go to Source",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "codeExplorer.loadMoreNodes",
+        "title": "CodeExplorer: Load More Nodes"
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "codeExplorer.refreshTree",
+          "when": "view == codeExplorerView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "codeExplorer.showGraph",
+          "when": "view == codeExplorerView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "codeExplorer.reindex",
+          "when": "view == codeExplorerView",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "codeExplorer.openSource",
+          "when": "viewItem == node-with-source",
+          "group": "inline"
+        },
+        {
+          "command": "codeExplorer.focusNode",
+          "when": "viewItem == node || viewItem == node-with-source",
+          "group": "inline"
+        }
+      ],
       "editor/title": [
         {
           "command": "codeExplorer.showGraph",

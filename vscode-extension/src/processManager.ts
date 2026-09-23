@@ -18,14 +18,108 @@ export class ProcessManager implements vscode.Disposable {
   private startPromise: Promise<ServerInfo> | null = null;
   private outputChannel: vscode.OutputChannel;
 
+  private _onDidServerStart = new vscode.EventEmitter<ServerInfo>();
+  public readonly onDidServerStart = this._onDidServerStart.event;
+
+  private _onDidServerStop = new vscode.EventEmitter<void>();
+  public readonly onDidServerStop = this._onDidServerStop.event;
+
   constructor(outputChannel: vscode.OutputChannel) {
     this.outputChannel = outputChannel;
+  }
+
+  public getServerInfo(): ServerInfo | null {
+    if (this.serverInfo && this.serverProcess && !this.serverProcess.killed) {
+      return this.serverInfo;
+    }
+    return null;
+  }
+
+  public isStarting(): boolean {
+    return this.startPromise !== null;
+  }
+
+  /**
+   * Checks if .codeexplorer directory and database exists in the workspace.
+   */
+  hasWorkspace(workspaceRoot?: string): boolean {
+    if (!workspaceRoot) return false;
+    try {
+      const ceDir = path.join(workspaceRoot, '.codeexplorer');
+      return fs.existsSync(ceDir);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Executes a one-off CLI command like `ce init` or `ce index`.
+   */
+  async runCliCommand(
+    workspaceRoot: string,
+    cliArgs: string[],
+    onLine?: (line: string) => void
+  ): Promise<void> {
+    if (!workspaceRoot) {
+      throw new Error('No workspace folder is currently open.');
+    }
+    const config = vscode.workspace.getConfiguration('codeExplorer');
+    const customPath = config.get<string>('executablePath', '');
+    const executable = this.findExecutable(workspaceRoot, customPath);
+    if (!executable) {
+      throw new Error(
+        'CodeExplorer (ce) executable not found. Please build the CLI or install "ce" to PATH.'
+      );
+    }
+
+    const fullArgs = [...executable.args, ...cliArgs];
+    this.outputChannel.appendLine(`[CLI] Running: ${executable.command} ${fullArgs.join(' ')}`);
+
+    return new Promise<void>((resolve, reject) => {
+      const child = cp.spawn(executable.command, fullArgs, {
+        cwd: workspaceRoot,
+        env: { ...process.env, ASPNETCORE_ENVIRONMENT: 'Production' },
+        windowsHide: true,
+      });
+
+      if (child.stdout) {
+        const rl = readline.createInterface({ input: child.stdout });
+        rl.on('line', (line) => {
+          this.outputChannel.appendLine(`[ce stdout] ${line}`);
+          onLine?.(line);
+        });
+      }
+
+      if (child.stderr) {
+        const rl = readline.createInterface({ input: child.stderr });
+        rl.on('line', (line) => {
+          this.outputChannel.appendLine(`[ce stderr] ${line}`);
+        });
+      }
+
+      child.on('error', (err) => {
+        this.outputChannel.appendLine(`[CLI Error] ${err.message}`);
+        reject(err);
+      });
+
+      child.on('exit', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Command exited with code ${code}`));
+        }
+      });
+    });
   }
 
   /**
    * Returns existing or newly started server info for the given workspace.
    */
-  async ensureServerStarted(workspaceRoot: string): Promise<ServerInfo> {
+  async ensureServerStarted(workspaceRoot?: string): Promise<ServerInfo> {
+    if (!workspaceRoot) {
+      throw new Error('No workspace folder is currently open.');
+    }
+
     if (this.serverInfo && this.serverProcess && !this.serverProcess.killed) {
       return this.serverInfo;
     }
@@ -105,6 +199,7 @@ export class ProcessManager implements vscode.Disposable {
                 clearTimeout(timeout);
                 this.serverInfo = data as ServerInfo;
                 this.outputChannel.appendLine(`[Server] Ready at ${data.wsUrl} (HTTP ${data.httpUrl})`);
+                this._onDidServerStart.fire(this.serverInfo);
                 resolve(this.serverInfo);
               }
             } catch {
@@ -139,6 +234,7 @@ export class ProcessManager implements vscode.Disposable {
         this.outputChannel.appendLine(`[Server] Process exited with code ${code}, signal ${signal}`);
         this.serverProcess = null;
         this.serverInfo = null;
+        this._onDidServerStop.fire();
         if (!isReady) {
           clearTimeout(timeout);
           const rawStderr = stderrChunks.join('');
@@ -156,7 +252,7 @@ export class ProcessManager implements vscode.Disposable {
    * Resolves the executable command and arguments to launch CodeExplorer.
    */
   private findExecutable(
-    workspaceRoot: string,
+    workspaceRoot?: string,
     customPath?: string
   ): { command: string; args: string[] } | null {
     // 1. Explicit path from settings or ENV variable (e.g. CE_DEV_EXECUTABLE from launch.json)
@@ -166,7 +262,7 @@ export class ProcessManager implements vscode.Disposable {
     if (targetPath) {
       const resolved = path.isAbsolute(targetPath)
         ? targetPath
-        : path.resolve(workspaceRoot, targetPath);
+        : (workspaceRoot ? path.resolve(workspaceRoot, targetPath) : path.resolve(targetPath));
 
       // Support fallback between Debug and Release if one is built
       const candidates = [resolved];
@@ -217,6 +313,8 @@ export class ProcessManager implements vscode.Disposable {
       this.serverProcess = null;
       this.serverInfo = null;
     }
+    this._onDidServerStart.dispose();
+    this._onDidServerStop.dispose();
   }
 }
 

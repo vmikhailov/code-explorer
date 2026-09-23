@@ -2293,4 +2293,169 @@ public static class GraphDataConverter
             }
         }
     }
+
+    public static async Task<MetadataResponseDto> GetMetadataAsync(
+        IGraphClient client,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new MetadataResponseDto();
+
+        // 1. Node counts by label
+        try
+        {
+            var nodeQuery = "MATCH (n) RETURN labels(n) AS lbl, count(n) AS cnt";
+            var nodeJson = await client.ExecuteQueryAsync(nodeQuery, null, cancellationToken);
+            using var nodeDoc = JsonDocument.Parse(nodeJson);
+            long totalNodes = 0;
+            foreach (var row in nodeDoc.RootElement.EnumerateArray())
+            {
+                if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
+                {
+                    var firstLbl = lblProp.EnumerateArray().FirstOrDefault().GetString();
+                    if (!string.IsNullOrEmpty(firstLbl))
+                    {
+                        var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
+                        result.NodeCounts[firstLbl] = cnt;
+                        totalNodes += cnt;
+                    }
+                }
+            }
+            result.TotalNodes = totalNodes;
+        }
+        catch { }
+
+        // 2. Relationship counts by type
+        try
+        {
+            var relQuery = "MATCH ()-[r]->() RETURN type(r) AS rel, count(r) AS cnt";
+            var relJson = await client.ExecuteQueryAsync(relQuery, null, cancellationToken);
+            using var relDoc = JsonDocument.Parse(relJson);
+            long totalEdges = 0;
+            foreach (var row in relDoc.RootElement.EnumerateArray())
+            {
+                var rel = row.GetStringProp("rel");
+                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
+                if (!string.IsNullOrEmpty(rel))
+                {
+                    result.RelationshipCounts[rel] = cnt;
+                    totalEdges += cnt;
+                }
+            }
+            result.TotalEdges = totalEdges;
+        }
+        catch { }
+
+        return result;
+    }
+
+    public static async Task<NodesResponseDto> GetNodesAsync(
+        IGraphClient client,
+        string? kind = null,
+        int offset = 0,
+        int limit = 50,
+        string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (offset < 0) offset = 0;
+        if (limit <= 0) limit = 50;
+        if (limit > 500) limit = 500;
+
+        var result = new NodesResponseDto
+        {
+            Kind = kind ?? "",
+            Offset = offset,
+            Limit = limit
+        };
+
+        // Validate kind (must be alphanumeric/underscore only to prevent injection)
+        var safeKind = !string.IsNullOrWhiteSpace(kind) && System.Text.RegularExpressions.Regex.IsMatch(kind, "^[A-Za-z0-9_]+$")
+            ? kind
+            : null;
+
+        var matchClause = safeKind != null ? $"MATCH (n:{safeKind})" : "MATCH (n)";
+
+        // Total count query
+        var countQuery = string.IsNullOrWhiteSpace(search)
+            ? $"{matchClause} RETURN count(n) AS total"
+            : $"{matchClause} WHERE toLower(n.name) CONTAINS toLower('{search.Replace("'", "''")}') RETURN count(n) AS total";
+
+        try
+        {
+            var countJson = await client.ExecuteQueryAsync(countQuery, null, cancellationToken);
+            using var countDoc = JsonDocument.Parse(countJson);
+            var firstRow = countDoc.RootElement.EnumerateArray().FirstOrDefault();
+            if (firstRow.ValueKind == JsonValueKind.Object && firstRow.TryGetProperty("total", out var totProp) && totProp.ValueKind == JsonValueKind.Number)
+            {
+                result.Total = totProp.GetInt64();
+            }
+        }
+        catch { }
+
+        // Paged items query
+        var whereClause = string.IsNullOrWhiteSpace(search)
+            ? ""
+            : $"WHERE toLower(n.name) CONTAINS toLower('{search.Replace("'", "''")}') ";
+
+        var dataQuery = $"{matchClause} {whereClause}RETURN n.id AS id, n.name AS name, n.file_path AS file_path, n.path AS path, n.line AS line, labels(n) AS lbl, n.framework AS framework, n.method AS method, n.route AS route ORDER BY n.name ASC SKIP {offset} LIMIT {limit}";
+
+        try
+        {
+            var dataJson = await client.ExecuteQueryAsync(dataQuery, null, cancellationToken);
+            using var dataDoc = JsonDocument.Parse(dataJson);
+            foreach (var row in dataDoc.RootElement.EnumerateArray())
+            {
+                var id = row.GetStringProp("id");
+                var name = row.GetStringProp("name", id);
+                var filePath = row.GetStringProp("file_path");
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    filePath = row.GetStringProp("path");
+                }
+
+                int? line = null;
+                if (row.TryGetProperty("line", out var lp))
+                {
+                    if (lp.ValueKind == JsonValueKind.Number)
+                    {
+                        line = lp.GetInt32();
+                    }
+                    else if (lp.ValueKind == JsonValueKind.String && int.TryParse(lp.GetString(), out var parsedLine))
+                    {
+                        line = parsedLine;
+                    }
+                }
+
+                string nodeKind = safeKind ?? "";
+                if (string.IsNullOrEmpty(nodeKind) && row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
+                {
+                    nodeKind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "";
+                }
+
+                var nodeDto = new GraphNodeDto
+                {
+                    Id = id,
+                    Name = name,
+                    Kind = nodeKind,
+                    FilePath = string.IsNullOrEmpty(filePath) ? null : filePath,
+                    LineStart = line,
+                    Properties = new Dictionary<string, string>()
+                };
+
+                var framework = row.GetStringProp("framework");
+                if (!string.IsNullOrEmpty(framework)) nodeDto.Properties["framework"] = framework;
+
+                var method = row.GetStringProp("method");
+                if (!string.IsNullOrEmpty(method)) nodeDto.Properties["method"] = method;
+
+                var route = row.GetStringProp("route");
+                if (!string.IsNullOrEmpty(route)) nodeDto.Properties["route"] = route;
+
+                result.Nodes.Add(nodeDto);
+            }
+        }
+        catch { }
+
+        return result;
+    }
 }
+

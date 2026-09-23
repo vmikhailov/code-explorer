@@ -18,6 +18,7 @@ import { ProjectFlowView, EdgeCategory } from './components/ProjectFlowView';
 import { CytoscapeView } from './components/CytoscapeView';
 import { LayeredArchitectureView } from './components/LayeredArchitectureView';
 import { DomainArchitectureView } from './components/DomainArchitectureView';
+import { C1SystemContextView } from './components/C1SystemContextView';
 import {
   CommandManager,
   CommandProvider,
@@ -65,7 +66,7 @@ const logToExtension = (level: 'INFO' | 'WARN' | 'ERROR', message: string) => {
 };
 
 export interface HistoryItem {
-  viewMode: 'semantic' | 'layers' | 'flow' | 'full';
+  viewMode: ViewMode;
   selectedProject: string;
 }
 
@@ -128,7 +129,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 export const App: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'semantic' | 'layers' | 'flow' | 'full'>('layers');
+  const [viewMode, setViewMode] = useState<ViewMode>('c1');
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [allProjects, setAllProjects] = useState<string[]>([]);
   const [projectPaths, setProjectPaths] = useState<Record<string, string>>({});
@@ -772,6 +773,23 @@ export const App: React.FC = () => {
           logToExtension('INFO', `Received TRIGGER_SCAN from extension (clear=${Boolean(msg.clear)})`);
           handleTriggerScan(Boolean(msg.clear));
           break;
+
+        case 'SET_VIEW_MODE':
+          logToExtension('INFO', `Received SET_VIEW_MODE from extension: ${msg.viewMode}`);
+          if (msg.viewMode) {
+            handleViewModeChange(msg.viewMode as ViewMode);
+          }
+          break;
+
+        case 'FOCUS_NODE':
+          logToExtension('INFO', `Received FOCUS_NODE from extension: ${msg.nodeId} (${msg.kind})`);
+          if (msg.nodeId) {
+            const p = allProjects.find((name) => msg.nodeId.toLowerCase().includes(name.toLowerCase()));
+            if (p) {
+              handleSelectProject(p, viewMode === 'flow' ? 'flow' : 'c1');
+            }
+          }
+          break;
       }
     };
 
@@ -979,6 +997,14 @@ export const App: React.FC = () => {
           )}
 
           <ErrorBoundary onLogError={(err) => logToExtension('ERROR', `View crash: ${err.message}\n${err.stack}`)}>
+            {viewMode === 'c1' && (
+              <C1SystemContextView
+                graph={fullGraph}
+                onOpenFile={handleOpenFile}
+                onDrillDownToC2={(p) => handleSelectProject(p, 'flow')}
+              />
+            )}
+
             {viewMode === 'semantic' && (
               <DomainArchitectureView
                 graph={fullGraph}

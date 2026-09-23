@@ -2,10 +2,12 @@ import { ICommand } from './types';
 import { GraphNode } from '../../../../proto/types';
 import { EdgeCategory } from '../components/ProjectFlowView';
 
-export type ViewMode = 'semantic' | 'layers' | 'flow' | 'full';
+export type ViewMode = 'c1' | 'semantic' | 'layers' | 'flow' | 'full';
 
 function getViewModeLabel(mode: ViewMode): string {
   switch (mode) {
+    case 'c1':
+      return 'C1: System Context & Boundaries';
     case 'layers':
       return 'System Layers';
     case 'flow':
