@@ -34,6 +34,16 @@ function copyStyles() {
     combinedCss += resolveImports(customCssPath);
   }
 
+  // Validate brace balance in custom CSS
+  let open = 0;
+  for (let i = 0; i < combinedCss.length; i++) {
+    if (combinedCss[i] === '{') open++;
+    else if (combinedCss[i] === '}') open--;
+  }
+  if (open !== 0) {
+    console.error(`[build] WARNING: CSS brace imbalance detected (${open}) in combined stylesheet!`);
+  }
+
   fs.writeFileSync(path.resolve('dist', 'styles.css'), combinedCss);
   console.log('[build] Combined React Flow CSS + modular styles.css -> dist/styles.css');
 }

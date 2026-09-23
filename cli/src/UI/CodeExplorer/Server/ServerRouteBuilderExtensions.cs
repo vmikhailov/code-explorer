@@ -1,6 +1,7 @@
 using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Diagrams;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -161,6 +162,23 @@ public static class ServerRouteBuilderExtensions
             catch (Exception ex)
             {
                 logger.LogError(ex, "[REST] Failed /api/nodes");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/diagram", async (IGraphClient graphClient, string? type, string? format, string? project, CancellationToken ct) =>
+        {
+            try
+            {
+                var diagramType = type ?? "architecture";
+                var diagramFormat = format ?? "mermaid";
+                logger.LogInformation("[REST] GET /api/diagram (type: {Type}, format: {Format}, project: {Project})", diagramType, diagramFormat, project ?? "all");
+                var diagram = await DiagramExporter.ExportAsync(graphClient, diagramFormat, diagramType, project, ct);
+                return Results.Text(diagram, "text/plain");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/diagram");
                 return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
             }
         });

@@ -160,12 +160,42 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Command: Load More Nodes
-  const loadMoreNodesCommand = vscode.commands.registerCommand(
-    'codeExplorer.loadMoreNodes',
-    (kind: string) => {
-      if (kind) {
-        treeDataProvider.loadMore(kind);
+  // Command: Open Node Grid in Central Panel
+  const openNodeGridCommand = vscode.commands.registerCommand(
+    'codeExplorer.openNodeGrid',
+    async (kind: string, layerName?: string) => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a project workspace folder first.');
+        return;
+      }
+
+      if (!processManager!.hasWorkspace(workspaceRoot)) {
+        const choice = await vscode.window.showInformationMessage(
+          'CodeExplorer: No architecture graph found for this workspace. Initialize and scan now?',
+          'Initialize & Scan',
+          'Cancel'
+        );
+        if (choice === 'Initialize & Scan') {
+          vscode.commands.executeCommand('codeExplorer.initAndScan');
+        }
+        return;
+      }
+
+      try {
+        const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
+        GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel);
+        setTimeout(() => {
+          if (GraphPanel.currentPanel) {
+            GraphPanel.currentPanel.postMessage({
+              type: 'OPEN_NODE_GRID',
+              kind,
+              layerName,
+            });
+          }
+        }, 300);
+      } catch (err: any) {
+        outputChannel.appendLine(`[openNodeGrid Error] ${err.message}`);
       }
     }
   );
@@ -324,6 +354,28 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: Restart Server
+  const restartServerCommand = vscode.commands.registerCommand(
+    'codeExplorer.restartServer',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a project workspace folder first.');
+        return;
+      }
+
+      processManager!.stopServer();
+      vscode.window.showInformationMessage('CodeExplorer: Restarting graph server...');
+      try {
+        await processManager!.ensureServerStarted(workspaceRoot);
+        treeDataProvider.refresh();
+        vscode.window.showInformationMessage('CodeExplorer: Server restarted successfully.');
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Failed to restart CodeExplorer server: ${err.message}`);
+      }
+    }
+  );
+
   // Command: Show Logs
   const showLogsCommand = vscode.commands.registerCommand(
     'codeExplorer.showLogs',
@@ -399,7 +451,7 @@ export function activate(context: vscode.ExtensionContext) {
     initAndScanCommand,
     showGraphCommand,
     refreshTreeCommand,
-    loadMoreNodesCommand,
+    openNodeGridCommand,
     openViewCommand,
     focusNodeCommand,
     openSourceCommand,

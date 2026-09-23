@@ -88,6 +88,11 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "codeExplorer.restartServer",
+        "title": "CodeExplorer: Restart Graph Server",
+        "icon": "$(debug-restart)"
+      },
+      {
         "command": "codeExplorer.openView",
         "title": "CodeExplorer: Open View"
       },
@@ -102,8 +107,8 @@
         "icon": "$(go-to-file)"
       },
       {
-        "command": "codeExplorer.loadMoreNodes",
-        "title": "CodeExplorer: Load More Nodes"
+        "command": "codeExplorer.openNodeGrid",
+        "title": "CodeExplorer: Open Node Grid"
       }
     ],
     "menus": {
@@ -196,6 +201,7 @@
     "cytoscape-dagre": "^2.5.0",
     "d3-force": "^3.0.0",
     "dagre": "^0.8.5",
+    "mermaid": "^12.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

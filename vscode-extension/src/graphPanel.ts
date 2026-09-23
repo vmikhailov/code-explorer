@@ -14,12 +14,10 @@ export class GraphPanel {
     workspaceRoot: string,
     outputChannel?: vscode.OutputChannel
   ) {
-    const column = vscode.window.activeTextEditor
-      ? vscode.ViewColumn.Beside
-      : vscode.ViewColumn.One;
+    const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.Active;
 
     if (GraphPanel.currentPanel) {
-      GraphPanel.currentPanel.panel.reveal(column);
+      GraphPanel.currentPanel.panel.reveal(GraphPanel.currentPanel.panel.viewColumn ?? column);
       GraphPanel.currentPanel.postMessage({
         type: 'SERVER_CONFIG',
         wsUrl,

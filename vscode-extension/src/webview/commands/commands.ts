@@ -2,7 +2,7 @@ import { ICommand } from './types';
 import { GraphNode } from '../../../../proto/types';
 import { EdgeCategory } from '../components/ProjectFlowView';
 
-export type ViewMode = 'c1' | 'semantic' | 'layers' | 'flow' | 'full';
+export type ViewMode = 'c1' | 'semantic' | 'layers' | 'flow' | 'full' | 'grid' | 'mermaid';
 
 function getViewModeLabel(mode: ViewMode): string {
   switch (mode) {
@@ -16,6 +16,10 @@ function getViewModeLabel(mode: ViewMode): string {
       return 'Domain Microservice Map';
     case 'full':
       return 'Physical Graph';
+    case 'grid':
+      return 'Node Grid';
+    case 'mermaid':
+      return 'Mermaid Architecture Diagram';
     default:
       return mode;
   }

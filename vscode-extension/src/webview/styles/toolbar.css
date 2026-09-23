@@ -94,11 +94,11 @@
 
 .graph-stats-badge {
   font-size: 11px;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 2px 6px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--vscode-descriptionForeground, #999999);
+  background: var(--vscode-badge-background, rgba(128, 128, 128, 0.08));
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.15));
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -108,10 +108,10 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 2px;
+  background: rgba(128, 128, 128, 0.08);
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.15));
+  border-radius: 4px;
+  padding: 1px;
   flex-shrink: 0;
 }
 
@@ -120,23 +120,22 @@
   align-items: center;
   justify-content: center;
   background: transparent;
-  color: var(--fg-primary);
-  border: 1px solid transparent;
-  border-radius: 4px;
-  width: 24px;
-  height: 22px;
+  color: var(--vscode-foreground, #cccccc);
+  border: none;
+  border-radius: 3px;
+  width: 22px;
+  height: 20px;
   padding: 0;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
 }
 
 .history-nav-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+  color: var(--vscode-foreground, #ffffff);
 }
 
 .history-nav-btn:active:not(:disabled) {
@@ -144,7 +143,7 @@
 }
 
 .history-nav-btn:disabled {
-  opacity: 0.25;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
@@ -164,40 +163,38 @@
 }
 
 .view-label-prefix {
-  color: #94a3b8;
+  color: var(--vscode-descriptionForeground, #999999);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .view-mode-select {
-  background: var(--input-bg);
-  color: #f1f5f9;
-  border: 1px solid var(--input-border);
+  background: var(--vscode-input-background, #252526);
+  color: var(--vscode-input-foreground, #cccccc);
+  border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.2));
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   outline: none;
   cursor: pointer;
-  min-width: 155px;
+  min-width: 165px;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .view-mode-select:hover {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--vscode-focusBorder, #007fd4);
 }
 
 .view-mode-select:focus {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 0 1px var(--accent-cyan);
+  border-color: var(--vscode-focusBorder, #007fd4);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007fd4);
 }
 
 .view-mode-select option {
-  background: #18181f;
-  color: var(--fg-primary);
-  font-weight: 500;
+  background: var(--vscode-dropdown-background, #252526);
+  color: var(--vscode-dropdown-foreground, #cccccc);
+  font-weight: 400;
   font-size: 12px;
   padding: 4px 8px;
 }
@@ -283,16 +280,16 @@
 }
 
 /* Common Control Buttons */
-.ctrl-btn {
+.toolbar .ctrl-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  background: var(--btn-bg);
-  color: var(--btn-fg);
-  border: none;
+  gap: 5px;
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #ffffff);
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.2));
   border-radius: 4px;
-  padding: 4px 9px;
+  padding: 4px 10px;
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -301,21 +298,21 @@
   flex-shrink: 0;
 }
 
-.ctrl-btn:hover {
-  background: var(--btn-hover);
+.toolbar .ctrl-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
-.ctrl-btn.active {
-  background: rgba(56, 189, 248, 0.25);
-  border: 1px solid var(--accent-cyan);
-  color: #ffffff;
+.toolbar .ctrl-btn.active {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #ffffff);
+  border-color: var(--vscode-focusBorder, #007fd4);
 }
 
-.ctrl-btn.run-btn {
+.toolbar .ctrl-btn.run-btn {
   background: #059669;
 }
 
-.ctrl-btn.run-btn:hover {
+.toolbar .ctrl-btn.run-btn:hover {
   background: #10b981;
 }
 
@@ -342,12 +339,12 @@
   border-color: var(--accent-cyan);
 }
 
-.button-group {
+.toolbar .button-group {
   display: flex;
   gap: 6px;
 }
 
-button {
+.toolbar button {
   background: var(--btn-bg);
   color: var(--btn-fg);
   border: none;
@@ -360,11 +357,11 @@ button {
   white-space: nowrap;
 }
 
-button:hover {
+.toolbar button:hover {
   background: var(--btn-hover);
 }
 
-button:active {
+.toolbar button:active {
   opacity: 0.8;
 }
 
@@ -376,8 +373,6 @@ button:active {
   min-height: 0;
   position: relative;
   overflow: hidden;
-}
-
 }
 
 /* ==========================================================================

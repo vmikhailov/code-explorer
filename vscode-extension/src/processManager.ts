@@ -306,13 +306,18 @@ export class ProcessManager implements vscode.Disposable {
     return { command: 'ce', args: [] };
   }
 
-  dispose() {
+  stopServer(): void {
     if (this.serverProcess && !this.serverProcess.killed) {
       this.outputChannel.appendLine('[Server] Stopping CodeExplorer server process...');
       this.serverProcess.kill();
       this.serverProcess = null;
       this.serverInfo = null;
+      this._onDidServerStop.fire();
     }
+  }
+
+  dispose() {
+    this.stopServer();
     this._onDidServerStart.dispose();
     this._onDidServerStop.dispose();
   }

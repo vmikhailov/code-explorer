@@ -1,13 +1,14 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo } from 'react';
+import { ViewMode } from '../commands';
 
 export interface ToolbarProps {
-  viewMode: 'c1' | 'semantic' | 'flow' | 'layers' | 'full';
-  onViewModeChange: (mode: 'c1' | 'semantic' | 'flow' | 'layers' | 'full') => void;
+  viewMode: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
   allProjects: string[];
   projectPaths?: Record<string, string>;
   selectedProject: string;
   onSelectProject: (project: string) => void;
-  connectionStatus: 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
+  connectionStatus?: 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
   onFitView?: () => void;
   onRefresh: () => void;
   cypherQuery: string;
@@ -118,120 +119,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }));
   }, [uniqueProjects, projectPaths]);
 
-  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
-  const statusMenuRef = useRef<HTMLDivElement>(null);
-
-  // Close status dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
-        setIsStatusMenuOpen(false);
-      }
-    };
-    if (isStatusMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isStatusMenuOpen]);
-
   return (
     <header className="toolbar">
-      {/* Connection Badge & Actions */}
-      <div className="toolbar-brand">
-        <div className="status-dropdown-wrapper" ref={statusMenuRef}>
-          <button
-            type="button"
-            className={`status-badge-btn ${connectionStatus} ${isStatusMenuOpen ? 'menu-open' : ''}`}
-            onClick={() => setIsStatusMenuOpen((prev) => !prev)}
-            title="Connection Status — Click to Rescan or Rebuild Graph"
-            aria-haspopup="true"
-            aria-expanded={isStatusMenuOpen}
-          >
-            <span className="status-dot" />
-            <span className="status-text">
-              {isScanning
-                ? `Scanning ${Math.round(scanProgress?.percentage || 0)}%`
-                : connectionStatus === 'connected'
-                ? 'Connected'
-                : connectionStatus === 'connecting'
-                ? 'Connecting...'
-                : connectionStatus === 'reconnecting'
-                ? 'Reconnecting...'
-                : connectionStatus === 'error'
-                ? 'Error'
-                : 'Offline'}
-            </span>
-            <span className="status-chevron">{isStatusMenuOpen ? '▴' : '▾'}</span>
-          </button>
-
-          {isStatusMenuOpen && (
-            <div className="status-dropdown-menu">
-              <div className="status-menu-header">
-                <div className="status-menu-title-row">
-                  <span className="status-menu-title">CodeExplorer Engine</span>
-                  {graphStats?.serverVersion && (
-                    <span className="status-menu-version">v{graphStats.serverVersion}</span>
-                  )}
-                </div>
-                {graphStats && graphStats.totalNodes > 0 && (
-                  <span className="status-menu-stats">
-                    {graphStats.totalNodes.toLocaleString()} nodes · {graphStats.totalEdges.toLocaleString()} relationships
-                  </span>
-                )}
-              </div>
-              <div className="status-menu-divider" />
-              <button
-                type="button"
-                className="status-menu-item"
-                disabled={connectionStatus !== 'connected' || isScanning}
-                onClick={() => {
-                  setIsStatusMenuOpen(false);
-                  onTriggerScan?.(false);
-                }}
-                title="Incremental scan: update graph with modified files"
-              >
-                <span className="menu-item-icon">🔄</span>
-                <div className="menu-item-content">
-                  <span className="menu-item-label">Rescan Workspace</span>
-                  <span className="menu-item-desc">Fast incremental index of changed files</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                className="status-menu-item danger"
-                disabled={connectionStatus !== 'connected' || isScanning}
-                onClick={() => {
-                  setIsStatusMenuOpen(false);
-                  if (window.confirm('Clear graph database and re-index the entire workspace from scratch?')) {
-                    onTriggerScan?.(true);
-                  }
-                }}
-                title="Full Re-index: Clears the graph database and re-indexes everything from scratch"
-              >
-                <span className="menu-item-icon">🧹</span>
-                <div className="menu-item-content">
-                  <span className="menu-item-label">Rebuild Graph</span>
-                  <span className="menu-item-desc">Clear database & full re-index from scratch</span>
-                </div>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {graphStats && graphStats.totalNodes > 0 && (
-          <span
-            className="graph-stats-badge"
-            title={`${graphStats.totalNodes.toLocaleString()} nodes, ${graphStats.totalEdges.toLocaleString()} relationships`}
-          >
-            📊 {graphStats.totalNodes >= 1000 ? `${(graphStats.totalNodes / 1000).toFixed(1)}k` : graphStats.totalNodes}
-            <span className="stats-label-suffix"> nodes</span>
-          </span>
-        )}
-      </div>
-
-      {/* History Navigation (Undo / Redo) */}
+      {/* History Navigation (Back / Forward) */}
       <div className="history-nav-group">
         <button
           className="history-nav-btn"
@@ -239,8 +129,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={onGoBack}
           title={
             canGoBack
-              ? `Undo: ${undoDescription || 'action'} (Ctrl+Z / Alt+Left)`
-              : 'Nothing to undo (Alt+Left)'
+              ? `Back: ${undoDescription || 'action'} (Ctrl+Z / Alt+Left)`
+              : 'Nothing to go back (Alt+Left)'
           }
         >
           ◀
@@ -251,30 +141,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           onClick={onGoForward}
           title={
             canGoForward
-              ? `Redo: ${redoDescription || 'action'} (Ctrl+Y / Alt+Right)`
-              : 'Nothing to redo (Alt+Right)'
+              ? `Forward: ${redoDescription || 'action'} (Ctrl+Y / Alt+Right)`
+              : 'Nothing to go forward (Alt+Right)'
           }
         >
           ▶
         </button>
-      </div>
-
-      {/* View Mode Dropdown */}
-      <div className="view-mode-dropdown-wrap">
-        <label className="view-mode-dropdown-label" title="Switch View Mode">
-          <span className="view-label-prefix">View:</span>
-          <select
-            className="view-mode-select"
-            value={viewMode}
-            onChange={(e) => onViewModeChange(e.target.value as 'c1' | 'semantic' | 'flow' | 'layers' | 'full')}
-          >
-            <option value="c1">🌐 C1: System Context & Boundaries</option>
-            <option value="layers">🏛️ System Layers</option>
-            <option value="flow">🔀 Project Flow</option>
-            <option value="semantic">🧠 Domain Microservice Map</option>
-            <option value="full">🌐 Physical Graph</option>
-          </select>
-        </label>
       </div>
 
       {/* Dynamic Controls based on Mode */}

@@ -19,6 +19,8 @@ import { CytoscapeView } from './components/CytoscapeView';
 import { LayeredArchitectureView } from './components/LayeredArchitectureView';
 import { DomainArchitectureView } from './components/DomainArchitectureView';
 import { C1SystemContextView } from './components/C1SystemContextView';
+import { NodeGridView, NodeCategorySelection } from './components/NodeGridView';
+import { MermaidDiagramView } from './components/MermaidDiagramView';
 import {
   CommandManager,
   CommandProvider,
@@ -129,7 +131,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 export const App: React.FC = () => {
-  const [viewMode, setViewMode] = useState<ViewMode>('c1');
+  const [viewMode, setViewMode] = useState<ViewMode>('layers');
   const [connectionStatus, setConnectionStatus] = useState<
     'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
   >('connecting');
@@ -148,6 +150,8 @@ export const App: React.FC = () => {
   const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
   const [scanNotification, setScanNotification] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [graphStats, setGraphStats] = useState<{ totalNodes: number; totalEdges: number; serverVersion?: string } | null>(null);
+  const [gridCategory, setGridCategory] = useState<NodeCategorySelection | null>(null);
+  const [serverHttpUrl, setServerHttpUrl] = useState<string>('');
 
   // Active error and diagnostics state
   const [activeError, setActiveError] = useState<ErrorInfo | null>(null);
@@ -533,7 +537,9 @@ export const App: React.FC = () => {
     isManuallyClosedRef.current = false;
 
     lastWsUrlRef.current = url;
-    logToExtension('INFO', `Connecting to backend WebSocket at ${url}...`);
+    const httpUrl = url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
+    setServerHttpUrl(httpUrl);
+    logToExtension('INFO', `Connecting to backend WebSocket at ${url} (HTTP: ${httpUrl})...`);
     setConnectionStatus(reconnectAttemptRef.current > 0 ? 'reconnecting' : 'connecting');
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -809,6 +815,12 @@ export const App: React.FC = () => {
           if (msg.viewMode) {
             handleViewModeChange(msg.viewMode as ViewMode);
           }
+          break;
+
+        case 'OPEN_NODE_GRID':
+          logToExtension('INFO', `Received OPEN_NODE_GRID from extension: kind=${msg.kind}, layer=${msg.layerName}`);
+          setGridCategory({ kind: msg.kind, layerTitle: msg.layerName });
+          handleViewModeChange('grid');
           break;
 
         case 'FOCUS_NODE':
@@ -1098,6 +1110,41 @@ export const App: React.FC = () => {
                 showTests={showTests}
                 collapsedLayers={collapsedLayers}
                 onToggleLayerCollapse={handleToggleLayerCollapse}
+              />
+            )}
+
+            {viewMode === 'grid' && (
+              <NodeGridView
+                category={gridCategory}
+                graph={fullGraph}
+                serverHttpUrl={serverHttpUrl}
+                onOpenFile={handleOpenFile}
+                onFocusInDiagram={(nodeId, kind) => {
+                  const p = allProjects.find((name) => nodeId.toLowerCase().includes(name.toLowerCase()));
+                  if (p) {
+                    handleSelectProject(p, 'flow');
+                  } else {
+                    handleViewModeChange('c1');
+                  }
+                }}
+                onSelectNode={handleSelectDrawerNode}
+                onSwitchView={(m) => handleViewModeChange(m)}
+              />
+            )}
+
+            {viewMode === 'mermaid' && (
+              <MermaidDiagramView
+                graph={fullGraph}
+                serverHttpUrl={serverHttpUrl}
+                onOpenFile={handleOpenFile}
+                onFocusNode={(nodeId, kind) => {
+                  const p = allProjects.find((name) => nodeId.toLowerCase().includes(name.toLowerCase()));
+                  if (p) {
+                    handleSelectProject(p, 'flow');
+                  } else {
+                    handleViewModeChange('c1');
+                  }
+                }}
               />
             )}
           </ErrorBoundary>

@@ -5,3 +5,5 @@
 @import "./styles/cytoscapeView.css";
 @import "./styles/domainArchitecture.css";
 @import "./styles/c1SystemContext.css";
+@import "./styles/nodeGrid.css";
+@import "./styles/mermaidView.css";

@@ -423,48 +423,16 @@ function C1Canvas({
 
   return (
     <div className="c1-system-context-wrapper">
-      {/* C1 Heads Up Display (HUD) */}
-      <div className="c1-hud-container">
-        <div className="c1-hud-header">
-          <div className="c1-hud-title-wrap">
-            <span className="c1-hud-tag">C1 MODEL</span>
-            <span className="c1-hud-title">System Context & Boundaries</span>
-          </div>
-
-          <div className="c1-hud-stats">
-            <span className="c1-hud-pill c1-pill-ingress" title="Ingress entry points">
-              ⚡ {ingressNodes.length} Ingress
-            </span>
-            <span className="c1-hud-pill c1-pill-system" title="Core system projects">
-              🏢 {internalProjects.length} Projects
-            </span>
-            <span className="c1-hud-pill c1-pill-egress" title="Databases & External APIs">
-              🗄️ {egressNodes.length} Egress
-            </span>
-          </div>
-
-          <div className="c1-hud-search-wrap">
-            <input
-              type="text"
-              className="c1-hud-search-input"
-              placeholder="Search components..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button className="c1-search-clear" onClick={() => setSearchQuery('')}>
-                ✕
-              </button>
-            )}
-          </div>
-
+      {/* Compact Floating Controls */}
+      <div className="c1-floating-controls">
+        <div className="c1-controls-pill">
           <div className="c1-hud-filters">
             <button
               className={`c1-filter-btn ${showEndpoints ? 'active' : ''}`}
               onClick={() => setShowEndpoints((prev) => !prev)}
               title="Toggle Endpoints"
             >
-              Endpoints
+              Endpoints ({ingressNodes.length})
             </button>
             <button
               className={`c1-filter-btn ${showDatabases ? 'active' : ''}`}
@@ -480,6 +448,23 @@ function C1Canvas({
             >
               External APIs
             </button>
+          </div>
+
+          <div className="c1-controls-divider" />
+
+          <div className="c1-hud-search-wrap">
+            <input
+              type="text"
+              className="c1-hud-search-input"
+              placeholder="Filter components..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="c1-search-clear" onClick={() => setSearchQuery('')}>
+                ✕
+              </button>
+            )}
           </div>
 
           <button
@@ -504,7 +489,7 @@ function C1Canvas({
           maxZoom={2.5}
           proOptions={{ hideAttribution: true }}
         >
-          <Background color="#1e222d" gap={20} size={1} />
+          <Background color="var(--vscode-panel-border, rgba(128, 128, 128, 0.15))" gap={24} size={1} />
           <Controls position="bottom-right" showInteractive={false} />
           <MiniMap
             position="bottom-left"

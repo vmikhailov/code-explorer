@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
-import * as path from 'path';
 import { ProcessManager, ServerInfo } from './processManager';
 
 export interface MetadataDto {
@@ -14,6 +13,7 @@ export interface NodeDto {
   id: string;
   name: string;
   kind: string;
+  displayName?: string;
   filePath?: string;
   lineStart?: number;
   lineEnd?: number;
@@ -29,16 +29,16 @@ export interface NodesResponseDto {
 }
 
 export type TreeItemType =
-  | 'root-views'
+  | 'root-diagrams'
+  | 'root-layers'
   | 'root-metadata'
-  | 'root-nodes'
-  | 'view-item'
-  | 'metadata-stat'
-  | 'metadata-rels-group'
-  | 'metadata-rel-item'
+  | 'root-management'
+  | 'diagram-item'
+  | 'layer-group'
   | 'node-category'
-  | 'node-item'
-  | 'load-more-item'
+  | 'rel-category'
+  | 'metadata-stat'
+  | 'management-item'
   | 'empty-notice'
   | 'init-action';
 
@@ -87,15 +87,11 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   readonly onDidChangeTreeData: vscode.Event<CodeExplorerTreeItem | undefined | null | void> =
     this._onDidChangeTreeData.event;
 
-  private categoryLimits = new Map<string, number>();
-  private defaultPageSize = 50;
-
   constructor(
     private readonly processManager: ProcessManager,
     private readonly getWorkspaceRoot: () => string | undefined,
     private readonly outputChannel: vscode.OutputChannel
   ) {
-    // Automatically re-render tree when server becomes ready or stops
     this.processManager.onDidServerStart(() => {
       this.refresh();
     });
@@ -108,18 +104,11 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     this._onDidChangeTreeData.fire();
   }
 
-  loadMore(kind: string): void {
-    const current = this.categoryLimits.get(kind) || this.defaultPageSize;
-    this.categoryLimits.set(kind, current + this.defaultPageSize);
-    this.refresh();
-  }
-
   private async getServerInfo(): Promise<ServerInfo | null> {
     const root = this.getWorkspaceRoot();
     if (!root) return null;
     if (!this.processManager.hasWorkspace(root)) return null;
 
-    // Check if server is already running and ready
     const existing = this.processManager.getServerInfo();
     if (existing) return existing;
 
@@ -136,12 +125,12 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   }
 
   async getChildren(element?: CodeExplorerTreeItem): Promise<CodeExplorerTreeItem[]> {
-    if (!element) {
-      const root = this.getWorkspaceRoot();
-      if (!root) {
-        return [];
-      }
+    const root = this.getWorkspaceRoot();
+    if (!root) {
+      return [];
+    }
 
+    if (!element) {
       if (!this.processManager.hasWorkspace(root)) {
         const initItem = new CodeExplorerTreeItem(
           'init-action',
@@ -168,201 +157,390 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         return [initItem, noticeItem];
       }
 
-      // Root level when .codeexplorer exists
-      const viewsRoot = new CodeExplorerTreeItem(
-        'root-views',
-        'Views',
+      // Root level sections:
+      // 1. Architecture Diagrams
+      const diagramsRoot = new CodeExplorerTreeItem(
+        'root-diagrams',
+        'Architecture Diagrams',
         vscode.TreeItemCollapsibleState.Expanded
       );
-      viewsRoot.iconPath = new vscode.ThemeIcon('layout');
-      viewsRoot.tooltip = 'Architecture and dependency diagram views';
+      diagramsRoot.iconPath = new vscode.ThemeIcon('layout');
+      diagramsRoot.tooltip = 'High-level C1 & C2 architectural visualizers and Mermaid diagrams';
+
+      // 2. Graph Layers (Ontology Layers 1 - 5)
+      const layersRoot = new CodeExplorerTreeItem(
+        'root-layers',
+        'Graph Layers (Ontology 1 - 5)',
+        vscode.TreeItemCollapsibleState.Expanded
+      );
+      layersRoot.iconPath = new vscode.ThemeIcon('layers');
+      layersRoot.tooltip = 'Decoupled 5-layer ontology graph model';
+
+      // 3. Metadata & Health
+      const serverInfo = this.processManager.getServerInfo();
+      const isStarting = this.processManager.isStarting();
 
       const metadataRoot = new CodeExplorerTreeItem(
         'root-metadata',
-        'Metadata',
+        'Metadata & Statistics',
         vscode.TreeItemCollapsibleState.Collapsed
       );
       metadataRoot.iconPath = new vscode.ThemeIcon('graph');
-      metadataRoot.tooltip = 'Graph statistics and entity counts';
+      metadataRoot.description = serverInfo ? 'Connected' : isStarting ? 'Connecting...' : 'Offline';
+      metadataRoot.tooltip = 'Graph statistics, connection status, and database summary';
 
-      const nodesRoot = new CodeExplorerTreeItem(
-        'root-nodes',
-        'Nodes',
-        vscode.TreeItemCollapsibleState.Collapsed
+      // 4. Management (Rescan, Rebuild, Server control)
+      const managementRoot = new CodeExplorerTreeItem(
+        'root-management',
+        'Management',
+        vscode.TreeItemCollapsibleState.Expanded
       );
-      nodesRoot.iconPath = new vscode.ThemeIcon('symbol-structure');
-      nodesRoot.tooltip = 'Browse nodes by kind with paging';
+      managementRoot.iconPath = new vscode.ThemeIcon('tools');
+      managementRoot.tooltip = 'Workspace scanning and graph lifecycle management';
 
-      return [viewsRoot, metadataRoot, nodesRoot];
+      return [diagramsRoot, layersRoot, metadataRoot, managementRoot];
     }
 
-    if (element.itemType === 'root-views') {
-      return this.getViewItems();
+    if (element.itemType === 'root-diagrams') {
+      return this.getDiagramItems();
+    }
+
+    if (element.itemType === 'root-layers') {
+      return this.getGraphLayerGroups();
+    }
+
+    if (element.itemType === 'layer-group') {
+      return this.getLayerCategoryItems(element.data?.layerId, element.data?.title);
     }
 
     if (element.itemType === 'root-metadata') {
       return this.getMetadataItems();
     }
 
-    if (element.itemType === 'metadata-rels-group') {
-      return this.getRelationshipDetails(element.data?.relationshipCounts);
-    }
-
-    if (element.itemType === 'root-nodes') {
-      return this.getNodeCategories();
-    }
-
-    if (element.itemType === 'node-category') {
-      return this.getNodesForCategory(element.data?.kind);
+    if (element.itemType === 'root-management') {
+      return this.getManagementItems();
     }
 
     return [];
   }
 
-  private getViewItems(): CodeExplorerTreeItem[] {
-    const views: { mode: string; label: string; desc: string; icon: string }[] = [
+  private getDiagramItems(): CodeExplorerTreeItem[] {
+    const diagrams = [
+      {
+        mode: 'layers',
+        label: 'Project Architecture Diagram',
+        desc: 'Tiered projects & databases',
+        icon: 'layers',
+        tooltip: 'Project Architecture Diagram — Tiered system view (Presentation, Application, Domain, Infrastructure)',
+      },
       {
         mode: 'c1',
-        label: 'C1: System Context & Boundaries',
-        desc: 'Ingress, System Boundary, Egress',
+        label: 'C1: System Context',
+        desc: 'Semantic boundaries & external APIs',
         icon: 'globe',
+        tooltip: 'C1: System Context — Ingress endpoints, system boundary, databases, and egress topics',
       },
       {
         mode: 'flow',
-        label: 'C2: Project Flow & Dependencies',
-        desc: 'Project interaction flows',
+        label: 'C2: Project Flow',
+        desc: 'Focused dependency & call flow',
         icon: 'git-compare',
-      },
-      {
-        mode: 'layers',
-        label: 'C3: System Layers & Tiers',
-        desc: 'Domain, App, Infra, Presentation',
-        icon: 'layers',
-      },
-      {
-        mode: 'semantic',
-        label: 'Domain Bounded Contexts',
-        desc: 'Microservices & Domain Map',
-        icon: 'symbol-namespace',
+        tooltip: 'C2: Project Flow — Topological dependency columns, call chains, and message flows',
       },
       {
         mode: 'full',
-        label: 'Physical Dependency Graph',
-        desc: 'All projects & physical edges',
+        label: 'Project Dependency Graph',
+        desc: 'Interactive full project graph',
         icon: 'type-hierarchy-sub',
+        tooltip: 'Physical Dependency Graph — Complete workspace graph of all projects and dependencies',
+      },
+      {
+        mode: 'semantic',
+        label: 'Domain Microservice Map',
+        desc: 'Bounded contexts & clusters',
+        icon: 'symbol-namespace',
+        tooltip: 'Domain Architecture — Microservice domains and bounded contexts',
+      },
+      {
+        mode: 'mermaid',
+        label: 'Mermaid Architecture Diagram',
+        desc: 'Mermaid flowchart renderer',
+        icon: 'graph',
+        tooltip: 'Mermaid Architecture Diagram — Interactive SVG diagram with exportable Markdown',
       },
     ];
 
-    return views.map((v) => {
+    return diagrams.map((d) => {
       const item = new CodeExplorerTreeItem(
-        'view-item',
-        v.label,
+        'diagram-item',
+        d.label,
         vscode.TreeItemCollapsibleState.None,
-        { viewMode: v.mode }
+        { viewMode: d.mode }
       );
-      item.description = v.desc;
-      item.iconPath = new vscode.ThemeIcon(v.icon);
+      item.description = d.desc;
+      item.iconPath = new vscode.ThemeIcon(d.icon);
+      item.tooltip = d.tooltip;
       item.command = {
         command: 'codeExplorer.openView',
-        title: `Open ${v.label}`,
-        arguments: [v.mode],
+        title: `Open ${d.label}`,
+        arguments: [d.mode],
       };
       return item;
     });
   }
 
-  private async getMetadataItems(): Promise<CodeExplorerTreeItem[]> {
-    const root = this.getWorkspaceRoot();
-    if (!root) {
-      const item = new CodeExplorerTreeItem('metadata-stat', 'No folder open', vscode.TreeItemCollapsibleState.None);
-      item.iconPath = new vscode.ThemeIcon('info');
-      item.tooltip = 'Open a workspace folder to view architecture graph';
-      return [item];
+  private async getGraphLayerGroups(): Promise<CodeExplorerTreeItem[]> {
+    const serverInfo = await this.getServerInfo();
+    let meta: MetadataDto | null = null;
+    if (serverInfo) {
+      try {
+        meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
+      } catch {}
     }
 
-    if (!this.processManager.hasWorkspace(root)) {
+    const counts = meta?.nodeCounts || {};
+    const relCounts = meta?.relationshipCounts || {};
+
+    // Sum nodes per layer
+    const l1Count = (counts['File'] || 0) + (counts['Folder'] || 0) + (counts['GitSettings'] || 0);
+    const l2Count = (counts['Project'] || 0) + (counts['Package'] || 0);
+    const l3Count = (counts['Type'] || 0) + (counts['Function'] || 0) + (counts['Member'] || 0);
+    const l4Count =
+      (counts['Endpoint'] || 0) +
+      (counts['Database'] || 0) +
+      (counts['Table'] || 0) +
+      (counts['Topic'] || 0) +
+      (counts['EntryPoint'] || 0) +
+      (counts['ExternalService'] || 0) +
+      (counts['CloudService'] || 0) +
+      (counts['ApiInUse'] || 0) +
+      (counts['Query'] || 0);
+    const l5Count = meta?.totalEdges || Object.values(relCounts).reduce((acc, c) => acc + c, 0);
+
+    const layers = [
+      {
+        layerId: 1,
+        title: 'Layer 1: Physical Topology',
+        desc: `${l1Count.toLocaleString()} nodes`,
+        icon: 'folder-library',
+        tooltip: 'Layer 1: Files, Folders, and Git configuration',
+      },
+      {
+        layerId: 2,
+        title: 'Layer 2: Project Boundary',
+        desc: `${l2Count.toLocaleString()} nodes`,
+        icon: 'project',
+        tooltip: 'Layer 2: Logical compilation scopes, projects, and external packages',
+      },
+      {
+        layerId: 3,
+        title: 'Layer 3: Syntactic AST',
+        desc: `${l3Count.toLocaleString()} nodes`,
+        icon: 'symbol-structure',
+        tooltip: 'Layer 3: Abstract Syntax Tree declarations (Types, Methods, Fields)',
+      },
+      {
+        layerId: 4,
+        title: 'Layer 4: Semantic Runtime',
+        desc: `${l4Count.toLocaleString()} nodes`,
+        icon: 'radio-tower',
+        tooltip: 'Layer 4: Runtime architecture (Endpoints, Databases, Topics, EntryPoints, External Services)',
+      },
+      {
+        layerId: 5,
+        title: 'Layer 5: System Bindings',
+        desc: `${l5Count.toLocaleString()} edges`,
+        icon: 'references',
+        tooltip: 'Layer 5: Cross-project late-bound relationships (CALLS, IMPLEMENTS, USES_DB, INTEGRATES_WITH)',
+      },
+    ];
+
+    return layers.map((l) => {
       const item = new CodeExplorerTreeItem(
-        'metadata-stat',
-        'Initialize & Scan Workspace',
-        vscode.TreeItemCollapsibleState.None
+        'layer-group',
+        l.title,
+        vscode.TreeItemCollapsibleState.Collapsed,
+        { layerId: l.layerId, title: l.title }
       );
-      item.description = '.codeexplorer not found';
-      item.iconPath = new vscode.ThemeIcon('rocket');
-      item.tooltip = 'Click to initialize .codeexplorer and scan codebase';
-      item.command = {
-        command: 'codeExplorer.initAndScan',
-        title: 'Initialize & Scan Workspace',
-      };
-      return [item];
+      item.description = l.desc;
+      item.iconPath = new vscode.ThemeIcon(l.icon);
+      item.tooltip = l.tooltip;
+      return item;
+    });
+  }
+
+  private async getLayerCategoryItems(layerId?: number, layerTitle?: string): Promise<CodeExplorerTreeItem[]> {
+    if (!layerId) return [];
+
+    const serverInfo = await this.getServerInfo();
+    let meta: MetadataDto | null = null;
+    if (serverInfo) {
+      try {
+        meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
+      } catch {}
     }
 
+    const counts = meta?.nodeCounts || {};
+    const relCounts = meta?.relationshipCounts || {};
+
+    const items: CodeExplorerTreeItem[] = [];
+
+    const createNodeCatItem = (kind: string, label: string, icon: string) => {
+      const count = counts[kind] || 0;
+      const item = new CodeExplorerTreeItem(
+        'node-category',
+        label,
+        vscode.TreeItemCollapsibleState.None,
+        { kind, layerTitle: layerTitle || `Layer ${layerId}` }
+      );
+      item.description = `${count.toLocaleString()}`;
+      item.iconPath = new vscode.ThemeIcon(icon);
+      item.tooltip = `Click to browse all ${count.toLocaleString()} ${label} in central grid`;
+      item.command = {
+        command: 'codeExplorer.openNodeGrid',
+        title: `Browse ${label} in Grid`,
+        arguments: [kind, layerTitle || `Layer ${layerId}`],
+      };
+      return item;
+    };
+
+    switch (layerId) {
+      case 1:
+        items.push(createNodeCatItem('File', 'Files', 'file-code'));
+        items.push(createNodeCatItem('Folder', 'Folders', 'folder'));
+        items.push(createNodeCatItem('GitSettings', 'Git Settings', 'git-commit'));
+        break;
+
+      case 2:
+        items.push(createNodeCatItem('Project', 'Projects', 'project'));
+        items.push(createNodeCatItem('Package', 'Packages', 'package'));
+        break;
+
+      case 3:
+        items.push(createNodeCatItem('Type', 'Types (Classes, Interfaces)', 'symbol-class'));
+        items.push(createNodeCatItem('Function', 'Functions & Methods', 'symbol-method'));
+        items.push(createNodeCatItem('Member', 'Members & Fields', 'symbol-field'));
+        break;
+
+      case 4:
+        items.push(createNodeCatItem('Endpoint', 'HTTP Endpoints', 'radio-tower'));
+        items.push(createNodeCatItem('Database', 'Databases', 'database'));
+        items.push(createNodeCatItem('Table', 'Database Tables', 'table'));
+        items.push(createNodeCatItem('Topic', 'Message Topics & Queues', 'mail'));
+        items.push(createNodeCatItem('EntryPoint', 'Execution EntryPoints', 'sign-in'));
+        items.push(createNodeCatItem('ExternalService', 'External Services (Egress)', 'cloud'));
+        items.push(createNodeCatItem('CloudService', 'Cloud Services', 'server'));
+        items.push(createNodeCatItem('ApiInUse', 'APIs in Use', 'plug'));
+        items.push(createNodeCatItem('Query', 'SQL Queries', 'search'));
+        break;
+
+      case 5: {
+        const topRels = [
+          'CALLS',
+          'DEPENDS_ON',
+          'EXPOSED_BY',
+          'TRIGGERS',
+          'QUERIED_BY',
+          'PUBLISHED_BY',
+          'SUBSCRIBED_BY',
+          'INTEGRATES_WITH',
+          'USES_DB',
+          'IMPLEMENTS',
+          'INHERITS_FROM',
+          'USES_TYPE',
+        ];
+
+        for (const rel of topRels) {
+          const count = relCounts[rel] || 0;
+          if (count > 0 || ['CALLS', 'DEPENDS_ON', 'INTEGRATES_WITH', 'USES_DB'].includes(rel)) {
+            const item = new CodeExplorerTreeItem(
+              'rel-category',
+              rel,
+              vscode.TreeItemCollapsibleState.None,
+              { rel, layerTitle: layerTitle || 'Layer 5: System Bindings' }
+            );
+            item.description = `${count.toLocaleString()}`;
+            item.iconPath = new vscode.ThemeIcon('arrow-right');
+            item.tooltip = `${count.toLocaleString()} ${rel} relationships`;
+            item.command = {
+              command: 'codeExplorer.openNodeGrid',
+              title: `Browse ${rel} in Grid`,
+              arguments: [rel, 'Layer 5: System Bindings'],
+            };
+            items.push(item);
+          }
+        }
+        break;
+      }
+    }
+
+    return items;
+  }
+
+  private async getMetadataItems(): Promise<CodeExplorerTreeItem[]> {
     const serverInfo = await this.getServerInfo();
     if (!serverInfo) {
       const isStarting = this.processManager.isStarting();
-      const item = new CodeExplorerTreeItem(
+      const statusItem = new CodeExplorerTreeItem(
         'metadata-stat',
-        isStarting ? 'Starting server...' : 'Start Server',
+        'Connection Status',
         vscode.TreeItemCollapsibleState.None
       );
-      item.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'play');
-      item.description = isStarting ? 'warming up' : 'click to run';
-      item.tooltip = isStarting
-        ? 'CodeExplorer server is starting in the background...'
-        : 'Click to start CodeExplorer server';
-      item.command = {
+      statusItem.description = isStarting ? 'Connecting...' : 'Offline (Click to Start)';
+      statusItem.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'circle-slash');
+      statusItem.command = {
         command: 'codeExplorer.showGraph',
         title: 'Start Server',
       };
-      return [item];
+      return [statusItem];
     }
 
     try {
       const meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
-      const counts = meta.nodeCounts || {};
-      const relCounts = meta.relationshipCounts || {};
 
       const items: CodeExplorerTreeItem[] = [];
 
-      const kindSpecs: { kind: string; label: string; icon: string }[] = [
-        { kind: 'Project', label: 'Projects', icon: 'project' },
-        { kind: 'Endpoint', label: 'Endpoints', icon: 'radio-tower' },
-        { kind: 'Database', label: 'Databases', icon: 'database' },
-        { kind: 'ExternalService', label: 'External Services', icon: 'cloud' },
-        { kind: 'Table', label: 'Tables', icon: 'table' },
-        { kind: 'Type', label: 'Types', icon: 'symbol-class' },
-        { kind: 'Function', label: 'Functions', icon: 'symbol-method' },
-        { kind: 'Query', label: 'Queries', icon: 'search' },
-        { kind: 'Package', label: 'Packages', icon: 'package' },
-        { kind: 'File', label: 'Files', icon: 'file-code' },
-      ];
-
-      for (const spec of kindSpecs) {
-        const count = counts[spec.kind] || 0;
-        if (count > 0 || ['Project', 'Endpoint', 'Database', 'ExternalService', 'Table'].includes(spec.kind)) {
-          const item = new CodeExplorerTreeItem(
-            'metadata-stat',
-            spec.label,
-            vscode.TreeItemCollapsibleState.None,
-            { kind: spec.kind, count }
-          );
-          item.description = `${count.toLocaleString()}`;
-          item.iconPath = new vscode.ThemeIcon(spec.icon);
-          item.tooltip = `${count.toLocaleString()} ${spec.label} indexed in graph`;
-          items.push(item);
-        }
-      }
-
-      // Relationships Group
-      const relItem = new CodeExplorerTreeItem(
-        'metadata-rels-group',
-        'Relationships',
-        vscode.TreeItemCollapsibleState.Collapsed,
-        { relationshipCounts: relCounts, totalEdges: meta.totalEdges }
+      // 1. Connection Status
+      const statusItem = new CodeExplorerTreeItem(
+        'metadata-stat',
+        'Connection Status',
+        vscode.TreeItemCollapsibleState.None
       );
-      relItem.description = `${(meta.totalEdges || 0).toLocaleString()}`;
-      relItem.iconPath = new vscode.ThemeIcon('references');
-      relItem.tooltip = `${(meta.totalEdges || 0).toLocaleString()} total relationships`;
-      items.push(relItem);
+      statusItem.description = `Online (Port ${serverInfo.port})`;
+      statusItem.iconPath = new vscode.ThemeIcon('pass');
+      statusItem.tooltip = `Connected to CodeExplorer Server at ${serverInfo.httpUrl}`;
+      items.push(statusItem);
+
+      // 2. Total Nodes
+      const totalNodesItem = new CodeExplorerTreeItem(
+        'metadata-stat',
+        'Total Nodes',
+        vscode.TreeItemCollapsibleState.None
+      );
+      totalNodesItem.description = `${(meta.totalNodes || 0).toLocaleString()}`;
+      totalNodesItem.iconPath = new vscode.ThemeIcon('symbol-structure');
+      items.push(totalNodesItem);
+
+      // 3. Total Relationships
+      const totalEdgesItem = new CodeExplorerTreeItem(
+        'metadata-stat',
+        'Total Relationships',
+        vscode.TreeItemCollapsibleState.None
+      );
+      totalEdgesItem.description = `${(meta.totalEdges || 0).toLocaleString()}`;
+      totalEdgesItem.iconPath = new vscode.ThemeIcon('references');
+      items.push(totalEdgesItem);
+
+      // 4. Storage Engine
+      const storageItem = new CodeExplorerTreeItem(
+        'metadata-stat',
+        'Storage Engine',
+        vscode.TreeItemCollapsibleState.None
+      );
+      storageItem.description = 'SQLite WAL (.codeexplorer/graph.db)';
+      storageItem.iconPath = new vscode.ThemeIcon('database');
+      storageItem.tooltip = 'High-performance ACID graph store with Write-Ahead Logging';
+      items.push(storageItem);
 
       return items;
     } catch (err: any) {
@@ -372,195 +550,73 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     }
   }
 
-  private getRelationshipDetails(relCounts?: Record<string, number>): CodeExplorerTreeItem[] {
-    if (!relCounts) return [];
-    return Object.entries(relCounts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([relType, count]) => {
-        const item = new CodeExplorerTreeItem(
-          'metadata-rel-item',
-          relType,
-          vscode.TreeItemCollapsibleState.None
-        );
-        item.description = `${count.toLocaleString()}`;
-        item.iconPath = new vscode.ThemeIcon('arrow-right');
-        return item;
-      });
-  }
+  private getManagementItems(): CodeExplorerTreeItem[] {
+    const serverInfo = this.processManager.getServerInfo();
+    const isStarting = this.processManager.isStarting();
 
-  private async getNodeCategories(): Promise<CodeExplorerTreeItem[]> {
-    const serverInfo = await this.getServerInfo();
-    let counts: Record<string, number> = {};
+    const items: CodeExplorerTreeItem[] = [];
+
+    // 1. Rescan Workspace (Incremental)
+    const rescanItem = new CodeExplorerTreeItem(
+      'management-item',
+      'Rescan Workspace',
+      vscode.TreeItemCollapsibleState.None
+    );
+    rescanItem.description = 'Incremental';
+    rescanItem.iconPath = new vscode.ThemeIcon('sync');
+    rescanItem.tooltip = 'Scan workspace for modified files and update graph incrementally';
+    rescanItem.command = {
+      command: 'codeExplorer.reindex',
+      title: 'Rescan Workspace',
+    };
+    items.push(rescanItem);
+
+    // 2. Rebuild Graph (Full Re-index)
+    const rebuildItem = new CodeExplorerTreeItem(
+      'management-item',
+      'Rebuild Graph',
+      vscode.TreeItemCollapsibleState.None
+    );
+    rebuildItem.description = 'Clear & re-index';
+    rebuildItem.iconPath = new vscode.ThemeIcon('clear-all');
+    rebuildItem.tooltip = 'Clear graph database and re-scan the entire workspace from scratch';
+    rebuildItem.command = {
+      command: 'codeExplorer.reindexFull',
+      title: 'Rebuild Graph',
+    };
+    items.push(rebuildItem);
+
+    // 3. Restart Server or Start Server
     if (serverInfo) {
-      try {
-        const meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
-        counts = meta.nodeCounts || {};
-      } catch {}
-    }
-
-    const categories: { kind: string; label: string; icon: string }[] = [
-      { kind: 'Project', label: 'Projects', icon: 'project' },
-      { kind: 'Endpoint', label: 'Endpoints', icon: 'radio-tower' },
-      { kind: 'Database', label: 'Databases', icon: 'database' },
-      { kind: 'ExternalService', label: 'External Services', icon: 'cloud' },
-      { kind: 'Table', label: 'Tables', icon: 'table' },
-      { kind: 'Type', label: 'Types', icon: 'symbol-class' },
-      { kind: 'Function', label: 'Functions', icon: 'symbol-method' },
-      { kind: 'Query', label: 'Queries', icon: 'search' },
-      { kind: 'Package', label: 'Packages', icon: 'package' },
-    ];
-
-    return categories.map((cat) => {
-      const count = counts[cat.kind];
-      const item = new CodeExplorerTreeItem(
-        'node-category',
-        cat.label,
-        vscode.TreeItemCollapsibleState.Collapsed,
-        { kind: cat.kind }
-      );
-      item.description = count !== undefined ? `${count.toLocaleString()}` : '';
-      item.iconPath = new vscode.ThemeIcon(cat.icon);
-      item.tooltip = `Browse ${cat.label}`;
-      return item;
-    });
-  }
-
-  private async getNodesForCategory(kind?: string): Promise<CodeExplorerTreeItem[]> {
-    if (!kind) return [];
-
-    const root = this.getWorkspaceRoot();
-    if (!root || !this.processManager.hasWorkspace(root)) {
-      const item = new CodeExplorerTreeItem(
-        'node-item',
-        'Initialize & Scan Workspace',
+      const restartItem = new CodeExplorerTreeItem(
+        'management-item',
+        'Restart Server',
         vscode.TreeItemCollapsibleState.None
       );
-      item.description = '.codeexplorer not found';
-      item.iconPath = new vscode.ThemeIcon('rocket');
-      item.command = {
-        command: 'codeExplorer.initAndScan',
-        title: 'Initialize & Scan Workspace',
+      restartItem.description = `Port ${serverInfo.port}`;
+      restartItem.iconPath = new vscode.ThemeIcon('debug-restart');
+      restartItem.tooltip = `Restart the CodeExplorer daemon (${serverInfo.httpUrl})`;
+      restartItem.command = {
+        command: 'codeExplorer.restartServer',
+        title: 'Restart Server',
       };
-      return [item];
-    }
-
-    const serverInfo = await this.getServerInfo();
-    if (!serverInfo) {
-      const isStarting = this.processManager.isStarting();
-      const item = new CodeExplorerTreeItem(
-        'node-item',
-        isStarting ? 'Starting server...' : 'Start Server',
+      items.push(restartItem);
+    } else {
+      const startItem = new CodeExplorerTreeItem(
+        'management-item',
+        isStarting ? 'Starting Server...' : 'Start Server',
         vscode.TreeItemCollapsibleState.None
       );
-      item.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'play');
-      item.description = isStarting ? 'warming up' : 'click to run';
-      item.command = {
+      startItem.description = isStarting ? 'Launching daemon' : 'Offline';
+      startItem.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'play');
+      startItem.tooltip = 'Start the CodeExplorer background server process';
+      startItem.command = {
         command: 'codeExplorer.showGraph',
         title: 'Start Server',
       };
-      return [item];
+      items.push(startItem);
     }
 
-    const limit = this.categoryLimits.get(kind) || this.defaultPageSize;
-
-    try {
-      const res = await fetchJson<NodesResponseDto>(
-        `${serverInfo.httpUrl}/api/nodes?kind=${encodeURIComponent(kind)}&offset=0&limit=${limit}`
-      );
-
-      const items: CodeExplorerTreeItem[] = [];
-
-      for (const node of res.nodes) {
-        const item = new CodeExplorerTreeItem(
-          'node-item',
-          node.name || node.id,
-          vscode.TreeItemCollapsibleState.None,
-          node
-        );
-
-        item.tooltip = `ID: ${node.id}\nKind: ${node.kind}${node.filePath ? `\nFile: ${node.filePath}` : ''}${node.lineStart ? `:${node.lineStart}` : ''}`;
-
-        // Description
-        if (node.properties?.method) {
-          item.description = node.properties.method;
-        } else if (node.properties?.framework) {
-          item.description = node.properties.framework;
-        } else if (node.filePath) {
-          const baseName = path.basename(node.filePath);
-          item.description = node.lineStart ? `${baseName}:${node.lineStart}` : baseName;
-        }
-
-        // Icon
-        item.iconPath = this.getIconForKind(node.kind);
-
-        // Click command: focus node in graph
-        item.command = {
-          command: 'codeExplorer.focusNode',
-          title: 'Focus in Graph',
-          arguments: [node.id, node.kind],
-        };
-
-        // If file exists, allow context menu or inline action to open source
-        if (node.filePath) {
-          item.contextValue = 'node-with-source';
-        } else {
-          item.contextValue = 'node';
-        }
-
-        items.push(item);
-      }
-
-      // Check if more items exist
-      if (res.total > res.nodes.length) {
-        const moreItem = new CodeExplorerTreeItem(
-          'load-more-item',
-          `▶ Load ${Math.min(this.defaultPageSize, res.total - res.nodes.length)} more...`,
-          vscode.TreeItemCollapsibleState.None,
-          { kind }
-        );
-        moreItem.description = `Showing ${res.nodes.length} of ${res.total}`;
-        moreItem.iconPath = new vscode.ThemeIcon('chevron-down');
-        moreItem.tooltip = `Click to load the next ${this.defaultPageSize} items`;
-        moreItem.command = {
-          command: 'codeExplorer.loadMoreNodes',
-          title: 'Load More Nodes',
-          arguments: [kind],
-        };
-        items.push(moreItem);
-      }
-
-      return items;
-    } catch (err: any) {
-      const errItem = new CodeExplorerTreeItem('node-item', `Error: ${err.message}`, vscode.TreeItemCollapsibleState.None);
-      errItem.iconPath = new vscode.ThemeIcon('error');
-      return [errItem];
-    }
-  }
-
-  private getIconForKind(kind: string): vscode.ThemeIcon {
-    switch (kind) {
-      case 'Project':
-        return new vscode.ThemeIcon('project');
-      case 'Endpoint':
-        return new vscode.ThemeIcon('radio-tower');
-      case 'Database':
-        return new vscode.ThemeIcon('database');
-      case 'ExternalService':
-        return new vscode.ThemeIcon('cloud');
-      case 'Table':
-        return new vscode.ThemeIcon('table');
-      case 'Type':
-        return new vscode.ThemeIcon('symbol-class');
-      case 'Function':
-        return new vscode.ThemeIcon('symbol-method');
-      case 'Query':
-        return new vscode.ThemeIcon('search');
-      case 'Package':
-        return new vscode.ThemeIcon('package');
-      case 'File':
-        return new vscode.ThemeIcon('file-code');
-      default:
-        return new vscode.ThemeIcon('circle-outline');
-    }
+    return items;
   }
 }
