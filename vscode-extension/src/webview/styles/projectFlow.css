@@ -1,0 +1,1055 @@
+/* ==========================================================================
+   React Flow: 3-Column Project Flow Canvas
+   ========================================================================== */
+
+.flow-canvas-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: var(--bg-primary);
+}
+
+/* Top-Left Floating Panel for Project Flow */
+.flow-top-left-panel {
+  position: absolute;
+  top: 10px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* Project Flow Levels HUD */
+.flow-levels-hud {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(20, 20, 26, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+}
+
+.hud-title-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.hud-title-badge .hud-label {
+  color: #888888;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+}
+
+.hud-title-badge .hud-target-name {
+  color: var(--accent-purple);
+  font-weight: 700;
+}
+
+.flow-levels-hud .hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.flow-levels-hud .hud-action-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cccccc;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.flow-levels-hud .hud-action-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+/* Compact Project Card Node */
+.project-card {
+  width: var(--flow-card-width, 240px);
+  min-width: var(--flow-card-width, 240px);
+  max-width: var(--flow-card-width, 240px);
+  background: #1c1c24;
+  border: 1.5px solid #5a647e;
+  border-radius: 7px;
+  padding: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.card-top-box {
+  padding: 8px 10px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.project-card:hover {
+  border-color: #38bdf8;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.3);
+}
+
+.project-card.center-hero {
+  border: 2px solid #c084fc;
+  box-shadow: 0 0 18px rgba(192, 132, 252, 0.35);
+  background: linear-gradient(145deg, #2a1a38, #1c1c24);
+}
+
+.project-card.center-hero:hover {
+  border-color: #e9d5ff;
+  box-shadow: 0 0 22px rgba(192, 132, 252, 0.5);
+}
+
+.project-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 5px;
+  width: 100%;
+}
+
+.project-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.project-badge {
+  display: inline-block;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+.card-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: auto;
+  align-self: flex-start;
+  padding-top: 1px;
+}
+
+.card-icon-link {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.65;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.card-icon-link:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.project-card-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-card-title.clickable-title {
+  cursor: pointer;
+}
+
+.project-card-title.clickable-title:hover {
+  color: var(--accent-cyan);
+  text-decoration: underline;
+}
+
+.project-framework {
+  font-size: 9px;
+  color: #a855f7;
+  margin-top: 2px;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Communication Mini-Chips Bar */
+.card-comms-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  cursor: pointer;
+  padding: 1px 0;
+  flex-wrap: wrap;
+}
+
+.card-comms-chips:hover .comm-chip {
+  filter: brightness(1.2);
+}
+
+.comm-chip {
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1.2;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.comm-chip.is-active {
+  filter: brightness(1.35) !important;
+  box-shadow: 0 0 8px currentColor !important;
+  border-color: currentColor !important;
+}
+
+.card-icon-link.expand-toggle-btn {
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.card-icon-link.expand-toggle-btn:hover {
+  color: #ffffff;
+  transform: scale(1.2);
+}
+
+.card-icon-link.expand-toggle-btn.is-expanded {
+  color: var(--accent-cyan);
+}
+
+.comm-chip.comm-calls {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.comm-chip.comm-accepts {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.comm-chip.comm-db {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.comm-chip.comm-msg {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.comm-chip.comm-libs {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+/* React Flow Base Handles */
+.flow-handle {
+  min-width: unset !important;
+  min-height: unset !important;
+}
+
+/* Center Handle (Compact Mode) */
+.flow-handle.center-handle {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  background-color: #94a3b8 !important;
+  border: 1.5px solid #cbd5e1 !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  z-index: 10 !important;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6) !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.flow-handle.center-handle:hover {
+  background-color: #38bdf8 !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 8px #38bdf8, 0 0 2px #fff !important;
+}
+
+/* Typed Multi-Connector Handles (Expanded Mode) */
+.flow-handle.typed-handle {
+  width: 10px !important;
+  height: 10px !important;
+  box-sizing: border-box !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  z-index: 10 !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important;
+}
+
+/* Enlarge hit area for clicking directly on the circle */
+.flow-handle.typed-handle::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+.flow-handle.typed-handle.is-empty {
+  cursor: default !important;
+  pointer-events: none !important;
+}
+
+.flow-handle.typed-handle.is-empty::after {
+  pointer-events: none;
+}
+
+.flow-handle.typed-handle:hover {
+  filter: brightness(1.3) !important;
+}
+
+/* Expandable Bottom Extension Drawer */
+.card-bottom-extension {
+  background: #14141c;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 0 6px 6px;
+  padding: 6px 0 10px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Protocol Matrix in Expanded Card matching:
+   (*) serves -- API -- calls (*)
+   (*) used by -- Libraries -- uses (*)
+   (*) receives -- Messages -- sends (*)
+   ( )         -- DB -- uses (*)
+*/
+.card-protocol-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 6px 0;
+}
+
+.protocol-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+  position: relative;
+  width: 100%;
+}
+
+.protocol-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.protocol-cell.cell-left {
+  justify-content: flex-start;
+  padding-left: 12px;
+}
+
+.protocol-cell.cell-right {
+  justify-content: flex-end;
+  padding-right: 12px;
+}
+
+.protocol-cell:hover:not(.is-empty):not(.is-placeholder) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.protocol-cell.is-empty {
+  opacity: 0.38;
+}
+
+.protocol-cell.is-placeholder {
+  cursor: default;
+  opacity: 0.18;
+}
+
+.protocol-placeholder {
+  font-size: 8.5px;
+  color: #64748b;
+  font-family: monospace;
+}
+
+.protocol-verb {
+  font-size: 8.5px;
+  color: #cbd5e1;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.protocol-count {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 0 3px;
+  border-radius: 3px;
+  line-height: 1.2;
+  border: 1px solid;
+  font-family: monospace;
+}
+
+.protocol-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+
+.protocol-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 8px;
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.protocol-icon {
+  font-size: 7.5px;
+  line-height: 1;
+}
+
+.protocol-name {
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Bottom Expansion Hover Trigger */
+.card-bottom-trigger {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 44px;
+  height: 14px;
+  background: #1e1e2a;
+  border: 1px solid #475569;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 25;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.project-card:hover .card-bottom-trigger,
+.card-bottom-trigger:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card-bottom-trigger:hover {
+  background: #38bdf8;
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+  transform: translateX(-50%) scale(1.15);
+}
+
+.card-bottom-trigger:hover .trigger-arrow {
+  color: #0b1120;
+}
+
+.trigger-arrow {
+  font-size: 10px;
+  font-weight: 800;
+  color: #94a3b8;
+  line-height: 1;
+  user-select: none;
+}
+
+/* Elevate parent React Flow node and card above other elements when popover is open */
+.react-flow__node:has(.card-comms-popover),
+.react-flow__node:has(.has-open-popover) {
+  z-index: 99999 !important;
+}
+
+.project-card.has-open-popover {
+  z-index: 99999 !important;
+}
+
+/* Floating Interactive Comms Popover */
+.card-comms-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 260px;
+  background: #16161c;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.75), 0 6px 12px -2px rgba(0, 0, 0, 0.5);
+  z-index: 100000;
+  padding: 8px 10px;
+  font-size: 11px;
+  animation: popover-fade 0.15s ease-out;
+  pointer-events: auto;
+}
+
+@keyframes popover-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.comms-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.comms-popover-title {
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comms-popover-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.comms-popover-close:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.comms-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.comms-section-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.comms-section-label.calls { color: #38bdf8; }
+.comms-section-label.accepts { color: #c084fc; }
+.comms-section-label.db { color: #34d399; }
+.comms-section-label.msg { color: #fbbf24; }
+.comms-section-label.lib { color: #94a3b8; }
+
+.comms-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.comms-item-badge {
+  font-size: 9.5px;
+  font-family: monospace;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  word-break: break-all;
+}
+
+.comms-item-badge:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+/* Expanded Communication Slots */
+.card-expanded-slots {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: slots-fade-in 0.15s ease-out;
+}
+
+@keyframes slots-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left-width: 3px;
+  border-right-width: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.card-slot-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.card-slot-row.is-active {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.2);
+}
+
+.slot-row-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.slot-color-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.slot-title {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: #cbd5e1;
+}
+
+.slot-row-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.slot-count {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.slot-state-pill {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #64748b;
+  letter-spacing: 0.3px;
+}
+
+.slot-state-pill.active {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+
+/* ============================================================================
+   Edge Line Styles & Legend for Project Flow View
+   ============================================================================ */
+
+/* ReactFlow Edge Type Customizations - thin & solid for all edge types */
+.react-flow__edge.edge-service-call path.react-flow__edge-path {
+  stroke: #38bdf8 !important;
+  stroke-dasharray: none !important;
+  stroke-width: 1.2px !important;
+  opacity: 0.85;
+  transition: stroke-width 0.15s ease, opacity 0.15s ease;
+}
+
+.react-flow__edge.edge-service-call:hover path.react-flow__edge-path {
+  opacity: 1;
+  stroke-width: 1.8px !important;
+}
+
+.react-flow__edge.edge-library path.react-flow__edge-path {
+  stroke: #34d399 !important;
+  stroke-dasharray: none !important;
+  stroke-width: 1.2px !important;
+  opacity: 0.85;
+  transition: stroke-width 0.15s ease, opacity 0.15s ease;
+}
+
+.react-flow__edge.edge-library:hover path.react-flow__edge-path {
+  opacity: 1;
+  stroke-width: 1.8px !important;
+}
+
+.react-flow__edge.edge-database path.react-flow__edge-path {
+  stroke: #c084fc !important;
+  stroke-dasharray: none !important;
+  stroke-width: 1.2px !important;
+  opacity: 0.85;
+  transition: stroke-width 0.15s ease, opacity 0.15s ease;
+}
+
+.react-flow__edge.edge-database:hover path.react-flow__edge-path {
+  opacity: 1;
+  stroke-width: 1.8px !important;
+}
+
+.react-flow__edge.edge-messaging path.react-flow__edge-path {
+  stroke: #fbbf24 !important;
+  stroke-dasharray: none !important;
+  stroke-width: 1.2px !important;
+  opacity: 0.85;
+  transition: stroke-width 0.15s ease, opacity 0.15s ease;
+  animation: none !important;
+}
+
+.react-flow__edge.edge-messaging:hover path.react-flow__edge-path {
+  opacity: 1;
+  stroke-width: 1.8px !important;
+}
+
+/* Ensure no animated dashed lines anywhere */
+.react-flow__edge path.react-flow__edge-path {
+  animation: none !important;
+}
+
+/* Floating Scan Progress in Viewport under Top Bar */
+.floating-scan-progress {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: rgba(22, 22, 30, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  border-radius: 12px;
+  padding: 6px 14px 8px 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), 0 0 14px rgba(56, 189, 248, 0.2);
+  min-width: 290px;
+  max-width: 480px;
+  pointer-events: auto;
+  animation: scan-banner-in 0.2s ease-out;
+}
+
+@keyframes scan-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.scan-progress-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+.scan-spinner {
+  font-size: 13px;
+  color: #38bdf8;
+  line-height: 1;
+}
+
+.scan-phase-label {
+  font-weight: 600;
+  color: #38bdf8;
+  white-space: nowrap;
+}
+
+.scan-file-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.scan-percent-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-family: monospace;
+}
+
+.scan-progress-track {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.scan-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  border-radius: 2px;
+  transition: width 0.15s ease;
+}
+
+/* Floating Edge Types Legend HUD */
+.flow-edge-legend {
+  position: static;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(20, 20, 26, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  font-size: 11px;
+}
+
+.flow-edge-legend .edge-legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.flow-edge-legend .edge-legend-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #888888;
+  margin-bottom: 0;
+  transition: color 0.15s ease;
+}
+
+.flow-edge-legend .edge-legend-header:hover .edge-legend-title {
+  color: #cccccc;
+}
+
+.flow-edge-legend .edge-legend-toggle {
+  font-size: 9px;
+  color: #888888;
+  line-height: 1;
+}
+
+.flow-edge-legend .edge-legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.flow-edge-legend .edge-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #cccccc;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.flow-edge-legend .edge-legend-item:hover {
+  color: #ffffff;
+}
+
+.flow-edge-legend .edge-legend-item.is-dimmed {
+  opacity: 0.4;
+}
+
+.flow-edge-legend .edge-legend-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border: 1px solid #4a4d52;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  outline: none;
+  display: grid;
+  place-content: center;
+  transition: all 0.15s ease;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.flow-edge-legend .edge-legend-checkbox:hover {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.flow-edge-legend .edge-legend-checkbox:checked {
+  background: #38bdf8;
+  border-color: #38bdf8;
+}
+
+.flow-edge-legend .edge-legend-checkbox:checked::before {
+  content: "";
+  width: 7px;
+  height: 4px;
+  border-left: 1.6px solid #0f172a;
+  border-bottom: 1.6px solid #0f172a;
+  transform: rotate(-45deg) translate(0.5px, -0.5px);
+}
+
+.flow-edge-legend .edge-legend-line {
+  display: inline-block;
+  width: 26px;
+  height: 0px;
+}
+
+.flow-edge-legend .edge-legend-service {
+  border-top: 2px solid #38bdf8;
+}
+
+.flow-edge-legend .edge-legend-messaging {
+  border-top: 2px solid #fbbf24;
+}
+
+.flow-edge-legend .edge-legend-database {
+  border-top: 2px solid #c084fc;
+}
+
+.flow-edge-legend .edge-legend-library {
+  border-top: 2px solid #34d399;
+}
+
+.flow-edge-legend .edge-legend-label {
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* React Flow Controls (Zoom, Fit, Interactive) in Bottom-Left */
+.react-flow__controls {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45) !important;
+  border-radius: 6px !important;
+  overflow: hidden !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.react-flow__controls-button {
+  background: rgba(20, 20, 26, 0.9) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  fill: #cccccc !important;
+  color: #cccccc !important;
+  width: 26px !important;
+  height: 26px !important;
+  transition: all 0.15s ease !important;
+}
+
+.react-flow__controls-button:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  fill: #ffffff !important;
+  color: #ffffff !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}

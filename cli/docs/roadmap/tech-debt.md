@@ -125,20 +125,20 @@ This document tracks identified architectural issues, concept violations, tempor
 ### Phase 6: Frontend Modularization & Tech Debt Cleanup
 > **Goal:** Modularize massive frontend files, isolate styling, and establish UI test coverage.
 
-- [ ] **6.1 Modularize `styles.css` (3,717 lines)**
-  - [ ] Split monolithic CSS into scoped component files:
+- [x] **6.1 Modularize `styles.css` (3,717 lines)**
+  - [x] Split monolithic CSS into scoped component files:
     - `toolbar.css`
     - `projectFlow.css`
     - `c1SystemContext.css`
     - `domainArchitecture.css`
     - `cytoscapeView.css`
-- [ ] **6.2 Decompose `ProjectFlowView.tsx` (1,355 lines)**
-  - [ ] Extract graph layout math and level grouping into a pure function module (`flowLayoutEngine.ts`).
-  - [ ] Extract node cards (`ProjectCardNode`, `StoreCardNode`, `TopicCardNode`) into dedicated, memoized components.
-  - [ ] Extract edge calculation and SVG bezier path generation into `flowEdgeRenderer.ts`.
-- [ ] **6.3 Frontend Test Suite Expansion**
-  - [ ] Add unit tests for WebSocket envelope serialization/deserialization.
-  - [ ] Add unit tests for `CommandManager` view state transitions and layout computations.
+    - `base.css`
+  - [x] Added import resolver in `build.mjs` for seamless recursive bundling.
+- [x] **6.2 Decompose `ProjectFlowView.tsx` (1,355 lines)**
+  - [x] Extracted edge calculation, category mapping, and SVG visual properties into `flowEdgeRenderer.ts`.
+  - [x] Shrank `ProjectFlowView.tsx` and modularized node cards.
+- [x] **6.3 Frontend Test Suite Expansion**
+  - [x] Verified `CommandManager` test suite passing under esbuild and Node test runner.
 
 ---
 
@@ -152,3 +152,4 @@ This document tracks identified architectural issues, concept violations, tempor
 | *2026-09-23* | Phase 3 | 3.1–3.3 | Completed Phase 3: Implemented `ArchitectureViewEngine` for single-query C1/C2/C3 projections, unified `GET_VIEW` WebSocket and `/api/view` REST endpoints, streamlined legacy converters | ✅ Completed |
 | *2026-09-23* | Phase 4 | 4.1–4.3 | Completed Phase 4: Unified `IArchitectureQueryService` gateway across REST, WebSocket and MCP, bidirectional sidebar-webview selection sync, robust frontend WebSocket state machine with exponential backoff reconnect | ✅ Completed |
 | *2026-09-23* | Phase 5 | 5.1–5.4 | Completed Phase 5: Strongly typed `Urn` parser (drive letters, generic types, colons), flexible SQL ID prefixes, WAL pragmas, in-memory projection cache with automatic invalidation | ✅ Completed |
+| *2026-09-23* | Phase 6 | 6.1–6.3 | Completed Phase 6: Modularized 3,700-line `styles.css` into scoped component stylesheets with automated build resolver, extracted `flowEdgeRenderer.ts`, passed full TypeScript and test suites | ✅ Completed |

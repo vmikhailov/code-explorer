@@ -1,0 +1,473 @@
+
+.status-menu-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.status-menu-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+}
+
+.status-menu-version {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  font-family: var(--font-mono, monospace);
+  line-height: 1.4;
+}
+
+.status-menu-stats {
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.status-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 3px 0;
+}
+
+.status-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-primary);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.status-menu-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.status-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.status-menu-item.danger:hover:not(:disabled) {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fda4af;
+}
+
+.status-menu-item .menu-item-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.status-menu-item .menu-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.status-menu-item .menu-item-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-menu-item .menu-item-desc {
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.status-menu-item.danger .menu-item-desc {
+  color: #fca5a5;
+}
+
+.graph-stats-badge {
+  font-size: 11px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* History Navigation (Back / Forward) */
+.history-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.history-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--fg-primary);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.history-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.history-nav-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.history-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+/* View Mode Dropdown */
+.view-mode-dropdown-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.view-mode-dropdown-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.view-label-prefix {
+  color: #94a3b8;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.view-mode-select {
+  background: var(--input-bg);
+  color: #f1f5f9;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  min-width: 155px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.view-mode-select:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.view-mode-select:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 1px var(--accent-cyan);
+}
+
+.view-mode-select option {
+  background: #18181f;
+  color: var(--fg-primary);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+/* Controls */
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.flow-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.project-dropdown-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.label-text {
+  color: #94a3b8;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.project-dropdown-select {
+  background: var(--input-bg);
+  color: var(--input-fg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  min-width: 120px;
+  max-width: 220px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: border-color 0.2s;
+}
+
+.project-dropdown-select:focus {
+  border-color: var(--accent-cyan);
+}
+
+.project-dropdown-select optgroup {
+  background: #18181f;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+.project-dropdown-select option {
+  background: var(--input-bg);
+  color: var(--input-fg);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  min-width: 120px;
+  max-width: 440px;
+  flex: 1;
+  gap: 5px;
+}
+
+/* Common Control Buttons */
+.ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: none;
+  border-radius: 4px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ctrl-btn:hover {
+  background: var(--btn-hover);
+}
+
+.ctrl-btn.active {
+  background: rgba(56, 189, 248, 0.25);
+  border: 1px solid var(--accent-cyan);
+  color: #ffffff;
+}
+
+.ctrl-btn.run-btn {
+  background: #059669;
+}
+
+.ctrl-btn.run-btn:hover {
+  background: #10b981;
+}
+
+.graph-manage-group {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.search-box input {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--input-fg);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-box input:focus {
+  border-color: var(--accent-cyan);
+}
+
+.button-group {
+  display: flex;
+  gap: 6px;
+}
+
+button {
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+button:hover {
+  background: var(--btn-hover);
+}
+
+button:active {
+  opacity: 0.8;
+}
+
+/* Main Viewport */
+.main-viewport {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+}
+
+/* ==========================================================================
+   Responsive Toolbar Adaptations
+   ========================================================================== */
+
+/* 1. Large Laptops / Split Views (< 1300px) */
+@media (max-width: 1300px) {
+  .stats-label-suffix {
+    display: none;
+  }
+  .toolbar {
+    gap: 10px;
+    padding: 6px 12px;
+  }
+}
+
+/* 2. Medium Screens (< 1120px) */
+@media (max-width: 1120px) {
+  .brand-title {
+    display: none;
+  }
+  .label-text {
+    display: none;
+  }
+  .view-label-prefix {
+    display: none;
+  }
+  .graph-stats-badge {
+    display: none;
+  }
+  .project-dropdown-select {
+    min-width: 110px;
+    max-width: 180px;
+  }
+  .view-mode-select {
+    min-width: 140px;
+  }
+  .search-box {
+    max-width: 320px;
+  }
+}
+
+/* 3. Compact Views (< 960px) */
+@media (max-width: 960px) {
+  .ctrl-btn .btn-text,
+  .scan-btn .btn-text {
+    display: none;
+  }
+  .ctrl-btn,
+  .scan-btn {
+    padding: 5px 8px;
+    min-width: 28px;
+  }
+  .scan-progress-container {
+    min-width: 100px;
+    max-width: 140px;
+  }
+  .scan-phase-text {
+    display: none;
+  }
+}
+
+/* 4. Small Split Panels (< 820px) - Auto 2-Row Wrap */
+@media (max-width: 820px) {
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 10px;
+  }
+  .toolbar-controls {
+    order: 10;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .flow-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .project-dropdown-label {
+    flex: 1;
+  }
+  .project-dropdown-select {
+    max-width: 100%;
+    width: 100%;
+  }
+  .search-box {
+    max-width: 100%;
+    width: 100%;
+  }
+}

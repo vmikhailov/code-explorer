@@ -10,7 +10,18 @@ if (!fs.existsSync('dist')) {
   fs.mkdirSync('dist', { recursive: true });
 }
 
-// Combine React Flow CSS + Custom CSS to dist/styles.css
+// Helper to recursively bundle imported CSS files
+function resolveImports(cssFilePath) {
+  if (!fs.existsSync(cssFilePath)) return '';
+  let content = fs.readFileSync(cssFilePath, 'utf8');
+  const dir = path.dirname(cssFilePath);
+  return content.replace(/@import\s+['"]([^'"]+)['"];?/g, (match, relPath) => {
+    const fullImportPath = path.resolve(dir, relPath);
+    return resolveImports(fullImportPath);
+  });
+}
+
+// Combine React Flow CSS + Custom Modular CSS to dist/styles.css
 function copyStyles() {
   let combinedCss = '';
   const reactFlowCssPath = path.resolve('node_modules', '@xyflow', 'react', 'dist', 'style.css');
@@ -20,11 +31,11 @@ function copyStyles() {
 
   const customCssPath = path.resolve('src', 'webview', 'styles.css');
   if (fs.existsSync(customCssPath)) {
-    combinedCss += fs.readFileSync(customCssPath, 'utf8');
+    combinedCss += resolveImports(customCssPath);
   }
 
   fs.writeFileSync(path.resolve('dist', 'styles.css'), combinedCss);
-  console.log('[build] Combined React Flow CSS + styles.css -> dist/styles.css');
+  console.log('[build] Combined React Flow CSS + modular styles.css -> dist/styles.css');
 }
 
 copyStyles();
