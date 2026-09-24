@@ -95,8 +95,8 @@ public static class OntologyUploader
             }
         }
 
-        // Special: If Project, link it to GitSettings via USES_GIT and Folder/Workspace via LOCATED_IN
-        if (node.Kind == OntologyConstants.NodeLabels.Project)
+        // Special: If Project (or subtype Service/App/Library/Worker/CliTool), link it to GitSettings via USES_GIT and Folder/Workspace via LOCATED_IN
+        if (node is ProjectNode)
         {
             var gitDir = Path.Combine(ctx.AbsoluteWorkspacePath, ".git");
             if (Directory.Exists(gitDir))
@@ -154,7 +154,7 @@ public static class OntologyUploader
             }
             return new DependsOnRelationship(parentId, child.Id);
         }
-        if (child.Kind == OntologyConstants.NodeLabels.Project)
+        if (child is ProjectNode)
         {
             if (parentId.Contains(":package:"))
             {

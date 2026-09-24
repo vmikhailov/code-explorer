@@ -25,9 +25,9 @@ This document tracks active epics, immediate architectural refactoring plans, an
 ### 2. Пошаговый план реализации
 
 #### Этап 1. Модель данных и C#-классы нод (`CodeExplorer.Core`)
-- [ ] **1.1 Базовый `ProjectNode`**:
+- [x] **1.1 Базовый `ProjectNode`**:
   - Сохранить общие поля: `Id`, `Name`, `Path`, `ProjectType` (язык: csharp, typescript и т.д.), `Extensions`.
-- [ ] **1.2 Новые классы узлов в `Common/Nodes/Layer2_Boundaries/`**:
+- [x] **1.2 Новые классы узлов в `Common/Nodes/Layer2_Boundaries/`**:
   - `ServiceNode.cs` (`[OntologyNode(label: "Service")]`):
     - Связи: `SERVICE_CALL`, `PUBLISHES_TO`, `SUBSCRIBES_TO`, `USES_DB`, `CONTAINS (Endpoint, EntryPoint, ApiInUse, CloudService)`.
   - `AppNode.cs` (`[OntologyNode(label: "App")]`):
@@ -38,34 +38,34 @@ This document tracks active epics, immediate architectural refactoring plans, an
     - Связи: `SUBSCRIBES_TO`, `PUBLISHES_TO`, `USES_DB`.
   - `CliToolNode.cs` (`[OntologyNode(label: "CliTool")]`):
     - Связи: `USES_DB`, `DEPENDS_ON`.
-- [ ] **1.3 Константы**:
+- [x] **1.3 Константы**:
   - Зафиксировать имена в `OntologyConstants.NodeLabels`.
 
 #### Этап 2. Фабрика и классификация при сканировании (`Layer2` & `PostIndexAnalyzer`)
-- [ ] **2.1 Фабрика проектов `ProjectNodeFactory`**:
+- [x] **2.1 Фабрика проектов `ProjectNodeFactory`**:
   - В `Layer2ProjectParser` при обнаружении проекта определять роль (через `ProjectRoleDetector`) и сразу инстанциировать конкретный тип (`ServiceNode`, `AppNode`, `LibraryNode`, `WorkerNode`, `CliToolNode`).
-- [ ] **2.2 Запись в SQLite (`kind`)**:
+- [x] **2.2 Запись в SQLite (`kind`)**:
   - В таблицу `nodes` в колонку `kind` физически писать реальный тип (`Service`, `App`, `Library`, `Worker`, `CliTool`).
   - Поиск по типу становится нативным по B-Tree индексу SQLite (`CREATE INDEX idx_nodes_kind ON nodes(kind)`).
 
 #### Этап 3. Полиморфизм в Cypher-компиляторе (`CodeExplorer.Cypher`)
-- [ ] **3.1 Прямой быстрый поиск**:
+- [x] **3.1 Прямой быстрый поиск**:
   - Запрос `MATCH (s:Service)` транслировать в чистый SQL: `WHERE s.kind = 'Service'` (без вызовов `json_extract(properties, '$.role')`).
-- [ ] **3.2 Иерархический полиморфизм для `Project`**:
+- [x] **3.2 Иерархический полиморфизм для `Project`**:
   - Запрос `MATCH (p:Project)` транслировать в:
     `WHERE p.kind IN ('Project', 'Service', 'App', 'Library', 'Worker', 'CliTool')`.
-- [ ] **3.3 Функция `labels(n)`**:
+- [x] **3.3 Функция `labels(n)`**:
   - Если `n.kind IN ('Service', 'App', 'Library', 'Worker', 'CliTool')`, возвращать `json_array(n.kind, 'Project')`.
 
 #### Этап 4. Движок проекций и запросы (`ArchitectureViewEngine`)
-- [ ] **4.1 Упрощение C1 / C2 / C3 запросов**:
+- [x] **4.1 Упрощение C1 / C2 / C3 запросов**:
   - Заменить составные проверки `WHERE p.kind = 'Project' AND json_extract(...)` на прямое сопоставление по типам: `MATCH (s:Service)`, `MATCH (l:Library)`.
   - В C1 System Context отображать только `Service`, `App`, `Worker`, `Database`, `Topic` (исключая `Library` без костылей).
 
 #### Этап 5. Авто-генерация онтологии (`OntologyGen`) и тесты
-- [ ] **5.1 Регенерация `ontology.md`**:
+- [x] **5.1 Регенерация `ontology.md`**:
   - Запустить `OntologyGen`. Он автоматически сгенерирует для `Service`, `App`, `Library`, `Worker`, `CliTool` отдельные разделы с диаграммами и свойствами.
-- [ ] **5.2 Тесты**:
+- [x] **5.2 Тесты**:
   - Набор тестов в `CodeExplorer.Cypher.Tests`:
     - `MATCH (s:Service)` выбирает только сервисы.
     - `MATCH (p:Project)` полиморфно выбирает все проекты.
@@ -146,11 +146,11 @@ This document tracks active epics, immediate architectural refactoring plans, an
 
 | ID | Область | Задача | Приоритет | Статус |
 | :--- | :--- | :--- | :--- | :--- |
-| **0.1** | Core/Entities | Создать `ServiceNode`, `AppNode`, `LibraryNode`, `WorkerNode`, `CliToolNode` | 🚨 Urgent | ⏳ Pending |
-| **0.2** | Scanner | Фабрика `ProjectNodeFactory` и запись реального `kind` в SQLite | 🚨 Urgent | ⏳ Pending |
-| **0.3** | Cypher | Полиморфизм: `MATCH (p:Project)` -> `kind IN (...)`, `MATCH (s:Service)` -> `kind = 'Service'` | 🚨 Urgent | ⏳ Pending |
-| **0.4** | ViewEngine | Очистка Cypher-запросов C1/C2/C3 под новые типы нод | 🚨 Urgent | ⏳ Pending |
-| **0.5** | OntologyGen | Регенерация `ontology.md` с отдельными секциями для Service/App/Library | 🚨 Urgent | ⏳ Pending |
+| **0.1** | Core/Entities | Создать `ServiceNode`, `AppNode`, `LibraryNode`, `WorkerNode`, `CliToolNode` | 🚨 Urgent | ✅ Completed |
+| **0.2** | Scanner | Фабрика `ProjectNodeFactory` и запись реального `kind` в SQLite | 🚨 Urgent | ✅ Completed |
+| **0.3** | Cypher | Полиморфизм: `MATCH (p:Project)` -> `kind IN (...)`, `MATCH (s:Service)` -> `kind = 'Service'` | 🚨 Urgent | ✅ Completed |
+| **0.4** | ViewEngine | Очистка Cypher-запросов C1/C2/C3 под новые типы нод | 🚨 Urgent | ✅ Completed |
+| **0.5** | OntologyGen | Регенерация `ontology.md` с отдельными секциями для Service/App/Library | 🚨 Urgent | ✅ Completed |
 | **1.1** | Agent/MCP | Реализовать MCP-тул `get_architecture_view` через `ArchitectureViewEngine` | High | ⏳ Pending |
 | **1.2** | Agent/MCP | Добавить фильтр `--type runtime\|build\|all` в `get_project_dependencies` | High | ⏳ Pending |
 | **1.3** | Agent/MCP | Реализовать MCP-тул `get_service_contracts` (ingress / egress) | High | ⏳ Pending |

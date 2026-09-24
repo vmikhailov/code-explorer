@@ -72,10 +72,10 @@ public class ArchitectureViewEngine(IGraphClient db)
         var nodeMap = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
         var dbIdToCanonicalId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // Query macro nodes: Services, Databases, Topics, ExternalServices, Packages
+        // Query macro nodes: Services, Apps, Libraries, Workers, CliTools, Databases, Topics, ExternalServices, Packages
         var nodesQuery = includeLibraries
-            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Database', 'Topic', 'ExternalService'] OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
-            : "MATCH (n) WHERE labels(n)[0] IN ['Database', 'Topic', 'ExternalService'] OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' AND n.role <> 'Test' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
+            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'Database', 'Topic', 'ExternalService'] OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
+            : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'Database', 'Topic', 'ExternalService'] OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' AND n.role <> 'Test' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
 
         var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
         using var nodesDoc = JsonDocument.Parse(nodesJson);
@@ -88,7 +88,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             if (string.IsNullOrEmpty(id)) continue;
 
-            if (!string.IsNullOrWhiteSpace(projectFilter) && kind == "Project" && !name.Contains(projectFilter, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(projectFilter) && IsProjectNodeKind(kind) && !name.Contains(projectFilter, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -291,7 +291,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var projNode = new GraphNodeDto
                 {
                     Id = id,
-                    Kind = "Project",
+                    Kind = !string.IsNullOrEmpty(kind) ? kind : "Project",
                     Name = name,
                     DisplayName = dispName,
                     FilePath = string.IsNullOrEmpty(path) ? null : path,
@@ -312,7 +312,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
 
         // Fallback package count query if needed
-        var needsPkgCount = graph.Nodes.Any(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase) && (n.Properties == null || !n.Properties.ContainsKey("package_count")));
+        var needsPkgCount = graph.Nodes.Any(n => IsProjectNodeKind(n.Kind) && (n.Properties == null || !n.Properties.ContainsKey("package_count")));
         if (needsPkgCount)
         {
             try
@@ -333,7 +333,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             catch { }
         }
 
-        var projectNodes = graph.Nodes.Where(n => n.Kind.Equals(OntologyConstants.NodeLabels.Project, StringComparison.OrdinalIgnoreCase)).ToList();
+        var projectNodes = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
 
         // Query macro relationships: INTEGRATES_WITH, USES_DB, TRIGGERS, PUBLISHES_TO, DEPENDS_ON, SERVICE_CALL, CALLS_ENDPOINT, LIBRARY
         var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
@@ -480,7 +480,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         var archGraph = await GetSystemContextViewAsync(includeLibraries: true, projectFilter: null, ct);
 
         var centerNode = archGraph.Nodes.FirstOrDefault(n =>
-            n.Kind.Equals(OntologyConstants.NodeLabels.Project, StringComparison.OrdinalIgnoreCase) &&
+            IsProjectNodeKind(n.Kind) &&
             (n.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase) ||
              n.Id.Equals(targetName, StringComparison.OrdinalIgnoreCase) ||
              (n.FilePath != null && n.FilePath.Equals(targetName, StringComparison.OrdinalIgnoreCase)) ||
@@ -490,7 +490,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             targetName = allProjects[0];
             centerNode = archGraph.Nodes.FirstOrDefault(n =>
-                n.Kind.Equals(OntologyConstants.NodeLabels.Project, StringComparison.OrdinalIgnoreCase) &&
+                IsProjectNodeKind(n.Kind) &&
                 (n.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase) ||
                  n.Id.Equals(targetName, StringComparison.OrdinalIgnoreCase)));
         }
@@ -907,9 +907,26 @@ public class ArchitectureViewEngine(IGraphClient db)
         return result;
     }
 
+    public static bool IsProjectNodeKind(string? kind) =>
+        kind != null && (
+            kind.Equals("Project", StringComparison.OrdinalIgnoreCase) ||
+            kind.Equals("Service", StringComparison.OrdinalIgnoreCase) ||
+            kind.Equals("App", StringComparison.OrdinalIgnoreCase) ||
+            kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+            kind.Equals("Library", StringComparison.OrdinalIgnoreCase) ||
+            kind.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
+            kind.Equals("Worker", StringComparison.OrdinalIgnoreCase) ||
+            kind.Equals("CliTool", StringComparison.OrdinalIgnoreCase));
+
     public static bool IsLibraryProject(GraphNodeDto? node)
     {
-        if (node == null || !node.Kind.Equals(OntologyConstants.NodeLabels.Project, StringComparison.OrdinalIgnoreCase)) return false;
+        if (node == null) return false;
+        if (node.Kind.Equals("Library", StringComparison.OrdinalIgnoreCase) ||
+            node.Kind.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        if (!IsProjectNodeKind(node.Kind)) return false;
 
         var isLibProp = node.Properties?.GetValueOrDefault("is_library");
         if (isLibProp == "true") return true;
@@ -1032,8 +1049,8 @@ public class ArchitectureViewEngine(IGraphClient db)
     public static void LiftTransitiveSemanticRelations(GraphDataDto graph)
     {
         var nodesById = graph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
-        var services = graph.Nodes.Where(n => n.Kind.Equals(OntologyConstants.NodeLabels.Project, StringComparison.OrdinalIgnoreCase) && !IsLibraryProject(n)).ToList();
-        var libraries = graph.Nodes.Where(n => n.Kind.Equals(OntologyConstants.NodeLabels.Project, StringComparison.OrdinalIgnoreCase) && IsLibraryProject(n)).ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+        var services = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind) && !IsLibraryProject(n)).ToList();
+        var libraries = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind) && IsLibraryProject(n)).ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
 
         var outEdges = new Dictionary<string, List<GraphEdgeDto>>(StringComparer.OrdinalIgnoreCase);
         var inEdges = new Dictionary<string, List<GraphEdgeDto>>(StringComparer.OrdinalIgnoreCase);
@@ -1136,7 +1153,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                             }
                         }
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
-                        else if (targetNode.Kind.Equals(OntologyConstants.NodeLabels.Project, StringComparison.OrdinalIgnoreCase) && !IsLibraryProject(targetNode) && targetNode.Id != service.Id)
+                        else if (IsProjectNodeKind(targetNode.Kind) && !IsLibraryProject(targetNode) && targetNode.Id != service.Id)
                         {
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && (e.Kind == "SERVICE_CALL" || e.Kind == "CALLS_ENDPOINT"))))
                             {

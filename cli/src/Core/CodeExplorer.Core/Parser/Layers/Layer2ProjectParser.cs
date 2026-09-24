@@ -62,7 +62,19 @@ public class Layer2ProjectParser
                 if (relativeProjectDir == ".") relativeProjectDir = "";
 
                 var projectNodeId = $"{ctx.WorkspaceId}:project:{relativeProjectDir}:";
-                var projectNode = new ProjectNode(projectNodeId, projectName, relativeProjectDir, projectParser.ProjectType);
+
+                // Parse project dependencies to supply externalPackages for role classification
+                var depInfo = await ParseProjectDependenciesAsync(projectParser, dir, ctx);
+                var extPkgNames = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
+
+                var projectNode = ProjectNodeFactory.Create(
+                    projectNodeId,
+                    projectName,
+                    relativeProjectDir,
+                    projectParser.ProjectType,
+                    dir,
+                    filesInDir,
+                    extPkgNames);
 
                 projectsStructureNode.Children.Add(projectNode);
                 projects.Add(projectNode);
@@ -72,14 +84,11 @@ public class Layer2ProjectParser
                     packageToProjectMap[folderName] = projectNode;
                 }
 
-                // Parse project dependencies and packages
-                var depInfo = await ParseDependenciesAsync(projectNode, projectNodeId, projectParser, dir, dependencies, packages, ctx);
                 if (depInfo != null)
                 {
+                    AttachDependencies(projectNode, projectNodeId, depInfo, dir, dependencies, packages, ctx);
                     projectDepList.Add((projectNode, depInfo));
                 }
-
-                ApplyProjectRole(projectNode, dir, filesInDir, relativeProjectDir, projectName, projectParser.ProjectType, depInfo);
 
                 var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
                 if (!string.IsNullOrEmpty(prodPkg))
@@ -129,7 +138,17 @@ public class Layer2ProjectParser
                             var folderName = Path.GetFileName(dir);
                             if (string.IsNullOrEmpty(folderName)) folderName = projectName;
 
-                            var projectNode = new ProjectNode(projectNodeId, projectName, relativeProjectDir, projectParser.ProjectType);
+                            var depInfo = await ParseProjectDependenciesAsync(projectParser, dir, ctx);
+                            var extPkgNames = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
+
+                            var projectNode = ProjectNodeFactory.Create(
+                                projectNodeId,
+                                projectName,
+                                relativeProjectDir,
+                                projectParser.ProjectType,
+                                dir,
+                                filesInDir,
+                                extPkgNames);
 
                             projectsStructureNode.Children.Add(projectNode);
                             projects.Add(projectNode);
@@ -139,13 +158,11 @@ public class Layer2ProjectParser
                                 packageToProjectMap[folderName] = projectNode;
                             }
 
-                            var depInfo = await ParseDependenciesAsync(projectNode, projectNodeId, projectParser, dir, dependencies, packages, ctx);
                             if (depInfo != null)
                             {
+                                AttachDependencies(projectNode, projectNodeId, depInfo, dir, dependencies, packages, ctx);
                                 projectDepList.Add((projectNode, depInfo));
                             }
-
-                            ApplyProjectRole(projectNode, dir, filesInDir, relativeProjectDir, projectName, projectParser.ProjectType, depInfo);
 
                             var prodPkg = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
                             if (!string.IsNullOrEmpty(prodPkg))
@@ -239,8 +256,13 @@ public class Layer2ProjectParser
 
                                     if (!projects.Any(p => p.Id == subProjId))
                                     {
-                                        var libProjectNode = new ProjectNode(subProjId, folderName, relDir, subParser.ProjectType);
-                                        ApplyProjectRole(libProjectNode, subDir, Directory.GetFiles(subDir), relDir, folderName, subParser.ProjectType);
+                                        var libProjectNode = ProjectNodeFactory.Create(
+                                            subProjId,
+                                            folderName,
+                                            relDir,
+                                            subParser.ProjectType,
+                                            subDir,
+                                            filesInSubDir);
                                         projectsStructureNode.Children.Add(libProjectNode);
                                         projects.Add(libProjectNode);
 
@@ -315,61 +337,61 @@ public class Layer2ProjectParser
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }
 
-    private async Task<ProjectDependencyInfo?> ParseDependenciesAsync(
+    private static async Task<ProjectDependencyInfo?> ParseProjectDependenciesAsync(
+        IProjectParser projectParser,
+        string projectDir,
+        ParsingContext ctx)
+    {
+        try
+        {
+            return await projectParser.ParseDependenciesAsync(projectDir);
+        }
+        catch (Exception ex)
+        {
+            ctx.LogWarning($"[Layer2] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
+            return null;
+        }
+    }
+
+    private static void AttachDependencies(
         ProjectNode projectNode,
         string projectNodeId,
-        IProjectParser projectParser,
+        ProjectDependencyInfo depInfo,
         string projectDir,
         List<Relationship> dependencies,
         List<PackageNode> packages,
         ParsingContext ctx)
     {
-        try
+        // A. Process local project dependencies (DependsOn relationships)
+        foreach (var localPath in depInfo.LocalProjectPaths)
         {
-            var depInfo = await projectParser.ParseDependenciesAsync(projectDir);
+            var targetDir = Path.GetFullPath(Path.Combine(projectDir, localPath)).Replace('\\', '/');
 
-            if (depInfo != null)
+            var relativeTargetDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, targetDir).Replace('\\', '/');
+            if (relativeTargetDir == ".") relativeTargetDir = "";
+            var targetProjectNodeId = $"{ctx.WorkspaceId}:project:{relativeTargetDir}:";
+
+            var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId, new() { ["dependency_type"] = "library" }));
+            if (!dependencies.Any(d => d.From == projectNodeId && d.To == targetProjectNodeId && d.Kind == OntologyConstants.Relationships.DependsOn))
             {
-                // A. Process local project dependencies (DependsOn relationships)
-                foreach (var localPath in depInfo.LocalProjectPaths)
-                {
-                    var targetDir = Path.GetFullPath(Path.Combine(projectDir, localPath)).Replace('\\', '/');
-
-                    var relativeTargetDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, targetDir).Replace('\\', '/');
-                    if (relativeTargetDir == ".") relativeTargetDir = "";
-                    var targetProjectNodeId = $"{ctx.WorkspaceId}:project:{relativeTargetDir}:";
-
-                    var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId, new() { ["dependency_type"] = "library" }));
-                    if (!dependencies.Any(d => d.From == projectNodeId && d.To == targetProjectNodeId && d.Kind == OntologyConstants.Relationships.DependsOn))
-                    {
-                        dependencies.Add(dependsOnRel);
-                        ctx.AddGlobalProjectDependency(dependsOnRel);
-                    }
-                }
-
-                // B. Process external package dependencies
-                if (depInfo.ExternalPackages.Count > 0)
-                {
-                    foreach (var extPack in depInfo.ExternalPackages)
-                    {
-                        var packageNodeId = $"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
-
-                        var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
-                            string.Empty, IsExternal: true);
-                        projectNode.Children.Add(packageNode);
-                        packages.Add(packageNode);
-                    }
-                }
-
-                return depInfo;
+                dependencies.Add(dependsOnRel);
+                ctx.AddGlobalProjectDependency(dependsOnRel);
             }
         }
-        catch (Exception ex)
-        {
-            ctx.LogWarning($"[Layer2] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
-        }
 
-        return null;
+        // B. Process external package dependencies
+        if (depInfo.ExternalPackages.Count > 0)
+        {
+            foreach (var extPack in depInfo.ExternalPackages)
+            {
+                var packageNodeId = $"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
+
+                var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
+                    string.Empty, IsExternal: true);
+                projectNode.Children.Add(packageNode);
+                packages.Add(packageNode);
+            }
+        }
     }
 
     private async Task<string?> LinkProducedPackageAsync(
@@ -471,22 +493,5 @@ public class Layer2ProjectParser
         return FindProjectForFilePath(file.Path, projects)?.Id == project.Id;
     }
 
-    private static void ApplyProjectRole(
-        ProjectNode projectNode,
-        string dir,
-        string[] filesInDir,
-        string relativeProjectDir,
-        string projectName,
-        string projectType,
-        ProjectDependencyInfo? depInfo = null)
-    {
-        var externalPackages = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
-        var (role, isLibrary) = ProjectRoleDetector.DetectRole(dir, filesInDir, relativeProjectDir, projectName, projectType, externalPackages);
-        projectNode.Role = role.ToString();
-        projectNode.IsLibrary = isLibrary;
-        projectNode.Extensions ??= new Dictionary<string, string>();
-        projectNode.Extensions["role"] = role.ToString();
-        projectNode.Extensions["is_library"] = isLibrary ? "true" : "false";
-        projectNode.Extensions["entity_type"] = isLibrary ? "library" : "service";
-    }
+
 }

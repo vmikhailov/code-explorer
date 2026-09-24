@@ -413,5 +413,59 @@ public class SqliteCompilerTests
         Assert.That(lbls, Does.Contain("Project"));
         Assert.That(lbls, Does.Contain("Service"));
     }
+
+    [Test]
+    public void Test_FirstClass_SemanticNodeTypes_Polymorphism()
+    {
+        InsertNode("sem:svc", "Service", new() { ["name"] = "BillingService", ["role"] = "Service" });
+        InsertNode("sem:app", "App", new() { ["name"] = "PortalApp", ["role"] = "FrontendApp" });
+        InsertNode("sem:lib", "Library", new() { ["name"] = "DomainCommon", ["role"] = "SharedLibrary", ["is_library"] = true });
+        InsertNode("sem:worker", "Worker", new() { ["name"] = "AuditWorker", ["role"] = "Worker" });
+        InsertNode("sem:cli", "CliTool", new() { ["name"] = "AdminCli", ["role"] = "CliTool" });
+        InsertNode("sem:proj", "Project", new() { ["name"] = "LegacyProject", ["role"] = "Service" });
+
+        // 1. MATCH (s:Service) matches native Service
+        var svcRows = ExecuteCypher("MATCH (s:Service) WHERE s.name = 'BillingService' RETURN s.name AS name");
+        Assert.That(svcRows, Has.Count.EqualTo(1));
+        Assert.That(svcRows[0]["name"], Is.EqualTo("BillingService"));
+
+        // 2. MATCH (a:App) matches native App
+        var appRows = ExecuteCypher("MATCH (a:App) WHERE a.name = 'PortalApp' RETURN a.name AS name");
+        Assert.That(appRows, Has.Count.EqualTo(1));
+        Assert.That(appRows[0]["name"], Is.EqualTo("PortalApp"));
+
+        // 3. MATCH (l:Library) matches native Library
+        var libRows = ExecuteCypher("MATCH (l:Library) WHERE l.name = 'DomainCommon' RETURN l.name AS name");
+        Assert.That(libRows, Has.Count.EqualTo(1));
+        Assert.That(libRows[0]["name"], Is.EqualTo("DomainCommon"));
+
+        // 4. MATCH (w:Worker) matches native Worker
+        var workerRows = ExecuteCypher("MATCH (w:Worker) WHERE w.name = 'AuditWorker' RETURN w.name AS name");
+        Assert.That(workerRows, Has.Count.EqualTo(1));
+        Assert.That(workerRows[0]["name"], Is.EqualTo("AuditWorker"));
+
+        // 5. MATCH (c:CliTool) matches native CliTool
+        var cliRows = ExecuteCypher("MATCH (c:CliTool) WHERE c.name = 'AdminCli' RETURN c.name AS name");
+        Assert.That(cliRows, Has.Count.EqualTo(1));
+        Assert.That(cliRows[0]["name"], Is.EqualTo("AdminCli"));
+
+        // 6. MATCH (p:Project) polymorphically matches ALL first-class semantic entities + Project
+        var projRows = ExecuteCypher("MATCH (p:Project) WHERE p.name IN ['BillingService', 'PortalApp', 'DomainCommon', 'AuditWorker', 'AdminCli', 'LegacyProject'] RETURN p.name AS name");
+        Assert.That(projRows, Has.Count.EqualTo(6));
+
+        // 7. labels(s) on native Service includes both Service and Project
+        var labelsRows = ExecuteCypher("MATCH (s:Service) WHERE s.name = 'BillingService' RETURN labels(s) AS lbls");
+        Assert.That(labelsRows, Has.Count.EqualTo(1));
+        var lbls = (string)labelsRows[0]["lbls"]!;
+        Assert.That(lbls, Does.Contain("Project"));
+        Assert.That(lbls, Does.Contain("Service"));
+
+        // 8. labels(l) on native Library includes both Library and Project
+        var libLabelsRows = ExecuteCypher("MATCH (l:Library) WHERE l.name = 'DomainCommon' RETURN labels(l) AS lbls");
+        Assert.That(libLabelsRows, Has.Count.EqualTo(1));
+        var libLbls = (string)libLabelsRows[0]["lbls"]!;
+        Assert.That(libLbls, Does.Contain("Project"));
+        Assert.That(libLbls, Does.Contain("Library"));
+    }
 }
 

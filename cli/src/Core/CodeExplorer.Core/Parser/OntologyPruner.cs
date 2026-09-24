@@ -1,5 +1,6 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -12,7 +13,7 @@ public static class OntologyPruner
         {
             var child = node.Children[i];
             if (child.Kind == OntologyConstants.NodeLabels.Folder ||
-                child.Kind == OntologyConstants.NodeLabels.Project ||
+                child is ProjectNode ||
                 child.Kind == OntologyConstants.NodeLabels.FilesStructure ||
                 child.Kind == OntologyConstants.NodeLabels.ProjectsStructure ||
                 child.Kind == OntologyConstants.NodeLabels.SyntaxStructure ||

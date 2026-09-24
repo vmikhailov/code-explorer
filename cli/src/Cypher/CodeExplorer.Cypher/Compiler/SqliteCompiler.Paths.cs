@@ -668,6 +668,7 @@ public partial class SqliteCompiler
     }
 
     internal static bool IsSemanticRoleLabel(string label) =>
+        label.Equals("Project", StringComparison.OrdinalIgnoreCase) ||
         label.Equals("Service", StringComparison.OrdinalIgnoreCase) ||
         label.Equals("App", StringComparison.OrdinalIgnoreCase) ||
         label.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
@@ -678,14 +679,16 @@ public partial class SqliteCompiler
 
     internal static string CompileNodeLabelPredicate(string nVar, string label)
     {
+        if (label.Equals("Project", StringComparison.OrdinalIgnoreCase))
+            return $"{nVar}.kind IN ('Project', 'Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool')";
         if (label.Equals("Service", StringComparison.OrdinalIgnoreCase))
             return $"({nVar}.kind = 'Service' OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') = 'Service'))";
         if (label.Equals("App", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'App' OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') IN ('App', 'FrontendApp')))";
+            return $"({nVar}.kind IN ('App', 'FrontendApp') OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') IN ('App', 'FrontendApp')))";
         if (label.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
             return $"({nVar}.kind = 'FrontendApp' OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') = 'FrontendApp'))";
         if (label.Equals("Library", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Library' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.role') IN ('Library', 'SharedLibrary') OR json_extract({nVar}.properties, '$.is_library') = 1)))";
+            return $"({nVar}.kind IN ('Library', 'SharedLibrary') OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.role') IN ('Library', 'SharedLibrary') OR json_extract({nVar}.properties, '$.is_library') = 1)))";
         if (label.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
             return $"({nVar}.kind = 'SharedLibrary' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.role') = 'SharedLibrary' OR json_extract({nVar}.properties, '$.is_library') = 1)))";
         if (label.Equals("Worker", StringComparison.OrdinalIgnoreCase))

@@ -14,6 +14,7 @@ public sealed class OntologyExtractor
     {
         InitializeConstantsForFiles(filePaths);
         var results = new List<NodeInfo>();
+        var recordInheritance = new Dictionary<string, string>();
 
         foreach (var filePath in filePaths)
         {
@@ -25,7 +26,26 @@ public sealed class OntologyExtractor
             {
                 var info = TryExtractNode(record);
                 if (info is not null)
+                {
                     results.Add(info);
+                    var baseType = record.BaseList?.Types.FirstOrDefault()?.Type.ToString();
+                    if (!string.IsNullOrEmpty(baseType))
+                    {
+                        recordInheritance[info.ClassName] = baseType;
+                    }
+                }
+            }
+        }
+
+        // Inherit properties from base record if current node has none
+        var nodeByClassName = results.ToDictionary(n => n.ClassName, n => n);
+        foreach (var (className, baseTypeName) in recordInheritance)
+        {
+            if (nodeByClassName.TryGetValue(className, out var derivedNode) &&
+                derivedNode.Properties.Count == 0 &&
+                nodeByClassName.TryGetValue(baseTypeName, out var baseNode))
+            {
+                derivedNode.Properties.AddRange(baseNode.Properties);
             }
         }
 
@@ -102,7 +122,7 @@ public sealed class OntologyExtractor
             })
             .ToList();
 
-        // Properties: constructor params with [OntologyProperty("desc")]
+        // Properties: constructor params or member properties with [OntologyProperty("desc")]
         var props = (record.ParameterList?.Parameters ?? [])
             .Select(p =>
             {
@@ -117,6 +137,23 @@ public sealed class OntologyExtractor
             })
             .OfType<PropertyInfo>()
             .ToList();
+
+        var bodyProps = record.Members
+            .OfType<PropertyDeclarationSyntax>()
+            .Select(p =>
+            {
+                var propAttr = p.AttributeLists
+                    .SelectMany(al => al.Attributes)
+                    .FirstOrDefault(a => GetSimpleName(a.Name) == "OntologyProperty");
+
+                if (propAttr is null) return null;
+
+                var desc = Unquote(propAttr.ArgumentList!.Arguments[0].Expression);
+                return new PropertyInfo(p.Identifier.Text, p.Type.ToString(), desc);
+            })
+            .OfType<PropertyInfo>();
+
+        props.AddRange(bodyProps);
 
         return new NodeInfo(record.Identifier.Text, label, idScheme, purpose, layer, outEdges, props);
     }

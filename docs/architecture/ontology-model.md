@@ -120,13 +120,23 @@ Tracks logical compilation units and module scopes (`.csproj`, `package.json`, `
 
 ### Nodes
 *   **`ProjectsStructure`**: Structural root representing all projects registered in the workspace.
-*   **`Project`**: Logical compilation scope or package boundary with project type / language.
+*   **`Project`**: Base logical compilation scope or package boundary with project type / language. Polymorphically matches all project entity subtypes.
+*   **`Service`**: Executable backend microservice, API daemon, or web application.
+*   **`App`**: Single-page application, web frontend, mobile client, or desktop GUI app.
+*   **`Library`**: Reusable shared library, utility module, DTO package, or domain contract.
+*   **`Worker`**: Background job processor, queue consumer, or scheduled worker service.
+*   **`CliTool`**: Command-line tool, developer script, or administrative CLI utility.
 *   **`Package`**: Third-party package dependencies (e.g., NuGet, npm, Go modules) referenced by projects.
 
 ### Relationships
-*   `ProjectsStructure -[CONTAINS]-> Project`
+*   `ProjectsStructure -[CONTAINS]-> Project | Service | App | Library | Worker | CliTool`
 *   `Project -[DEPENDS_ON]-> Package`
 *   `Project -[DEPENDS_ON]-> Project` (Project-to-project reference)
+*   `Service -[SERVICE_CALL]-> Service | ExternalService`
+*   `App -[SERVICE_CALL]-> Service | ExternalService`
+*   `Service | Worker | CliTool -[USES_DB]-> Database`
+*   `Service | Worker -[PUBLISHES_TO]-> Topic`
+*   `Service | Worker -[SUBSCRIBES_TO]-> Topic`
 
 ---
 

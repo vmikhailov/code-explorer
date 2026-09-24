@@ -22,9 +22,14 @@ graph TD
     end
 
     subgraph Layer2 ["Layer 2: Project Boundary"]
+        App["App"]
+        CliTool["CliTool"]
+        Library["Library"]
         Package["Package"]
         Project["Project"]
         ProjectsStructure["ProjectsStructure"]
+        Service["Service"]
+        Worker["Worker"]
     end
 
     subgraph Layer3 ["Layer 3: Syntactic Structure"]
@@ -50,6 +55,23 @@ graph TD
         Topic["Topic"]
     end
 
+    App -->|LOCATED_IN| Folder
+    App -->|LOCATED_IN| Workspace
+    App -->|DEPENDS_ON| Project
+    App -->|DEPENDS_ON| Package
+    App -->|SERVICE_CALL| Service
+    App -->|SERVICE_CALL| ExternalService
+    App -->|CONTAINS| EntryPoint
+    App -->|CONTAINS| Endpoint
+    App -->|CONTAINS| ApiInUse
+    CliTool -->|LOCATED_IN| Folder
+    CliTool -->|LOCATED_IN| Workspace
+    CliTool -->|DEPENDS_ON| Project
+    CliTool -->|DEPENDS_ON| Package
+    CliTool -->|SERVICE_CALL| Service
+    CliTool -->|SERVICE_CALL| ExternalService
+    CliTool -->|USES_DB| Database
+    CliTool -->|CONTAINS| EntryPoint
     Database -->|QUERIED_BY| Function
     Database -->|QUERIED_BY| Query
     DataSet -->|CONTAINS| Table
@@ -68,6 +90,12 @@ graph TD
     Function -->|DECLARED_IN| File
     Function -->|CALLS| Function
     Function -->|USES_TYPE| Type
+    Library -->|LOCATED_IN| Folder
+    Library -->|LOCATED_IN| Workspace
+    Library -->|DEPENDS_ON| Project
+    Library -->|DEPENDS_ON| Package
+    Library -->|CONTAINS| Type
+    Library -->|CONTAINS| Function
     Member -->|DECLARED_IN| File
     Member -->|OF_TYPE| Type
     Package -->|IMPLEMENTED_BY| Project
@@ -76,6 +104,7 @@ graph TD
     Project -->|LOCATED_IN| Workspace
     Project -->|DEPENDS_ON| Project
     Project -->|SERVICE_CALL| Project
+    Project -->|SERVICE_CALL| Service
     Project -->|SERVICE_CALL| ExternalService
     Project -->|USES_DB| Database
     Project -->|PUBLISHES_TO| Topic
@@ -93,6 +122,19 @@ graph TD
     SemanticStructure -->|CONTAINS| Database
     SemanticStructure -->|CONTAINS| Topic
     SemanticStructure -->|CONTAINS| CloudService
+    Service -->|LOCATED_IN| Folder
+    Service -->|LOCATED_IN| Workspace
+    Service -->|DEPENDS_ON| Project
+    Service -->|DEPENDS_ON| Package
+    Service -->|SERVICE_CALL| Service
+    Service -->|SERVICE_CALL| ExternalService
+    Service -->|USES_DB| Database
+    Service -->|PUBLISHES_TO| Topic
+    Service -->|SUBSCRIBES_TO| Topic
+    Service -->|CONTAINS| EntryPoint
+    Service -->|CONTAINS| Endpoint
+    Service -->|CONTAINS| CloudService
+    Service -->|CONTAINS| ApiInUse
     SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|QUERIED_BY| Function
     Table -->|QUERIED_BY| Query
@@ -109,6 +151,16 @@ graph TD
     Type -->|HAS_METHOD| Function
     Type -->|HAS_MEMBER| Member
     Type -->|PERSISTED_IN| Table
+    Worker -->|LOCATED_IN| Folder
+    Worker -->|LOCATED_IN| Workspace
+    Worker -->|DEPENDS_ON| Project
+    Worker -->|DEPENDS_ON| Package
+    Worker -->|SERVICE_CALL| Service
+    Worker -->|SERVICE_CALL| ExternalService
+    Worker -->|USES_DB| Database
+    Worker -->|PUBLISHES_TO| Topic
+    Worker -->|SUBSCRIBES_TO| Topic
+    Worker -->|CONTAINS| EntryPoint
     Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| ProjectsStructure
     Workspace -->|CONTAINS| SyntaxStructure
@@ -138,7 +190,12 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `LOCATED_IN` |
+| `CliTool` | `LOCATED_IN` |
+| `Library` | `LOCATED_IN` |
 | `Project` | `LOCATED_IN` |
+| `Service` | `LOCATED_IN` |
+| `Worker` | `LOCATED_IN` |
 
 **Properties:**
 
@@ -230,15 +287,21 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `LOCATED_IN` |
+| `CliTool` | `LOCATED_IN` |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
+| `Library` | `LOCATED_IN` |
 | `Project` | `LOCATED_IN` |
+| `Service` | `LOCATED_IN` |
+| `Worker` | `LOCATED_IN` |
 
 **Properties:**
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the folder. |
+| `Path` | `string` | The path to the folder. |
 
 ---
 
@@ -267,6 +330,92 @@ graph TD
 
 ### 📂 Layer 2: Project Boundary
 
+#### `App`
+
+> Represents a single-page application, web frontend, mobile client, or desktop app (e.g. React, Next.js, Vue, Angular).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `LOCATED_IN` | `Folder` |
+| `LOCATED_IN` | `Workspace` |
+| `DEPENDS_ON` | `Project` |
+| `DEPENDS_ON` | `Package` |
+| `SERVICE_CALL` | `Service` |
+| `SERVICE_CALL` | `ExternalService` |
+| `CONTAINS` | `EntryPoint` |
+| `CONTAINS` | `Endpoint` |
+| `CONTAINS` | `ApiInUse` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
+| `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
+
+---
+
+#### `CliTool`
+
+> Represents a command-line tool, developer script, or administrative CLI utility.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `LOCATED_IN` | `Folder` |
+| `LOCATED_IN` | `Workspace` |
+| `DEPENDS_ON` | `Project` |
+| `DEPENDS_ON` | `Package` |
+| `SERVICE_CALL` | `Service` |
+| `SERVICE_CALL` | `ExternalService` |
+| `USES_DB` | `Database` |
+| `CONTAINS` | `EntryPoint` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
+| `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
+
+---
+
+#### `Library`
+
+> Represents a shared library, utility module, DTO package, or domain contract reused across services.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `LOCATED_IN` | `Folder` |
+| `LOCATED_IN` | `Workspace` |
+| `DEPENDS_ON` | `Project` |
+| `DEPENDS_ON` | `Package` |
+| `CONTAINS` | `Type` |
+| `CONTAINS` | `Function` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
+| `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
+
+---
+
 #### `Package`
 
 > Represents an external dependency package or workspace package referenced or produced by projects.
@@ -281,7 +430,12 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `DEPENDS_ON` |
+| `CliTool` | `DEPENDS_ON` |
+| `Library` | `DEPENDS_ON` |
 | `Project` | `DEPENDS_ON` |
+| `Service` | `DEPENDS_ON` |
+| `Worker` | `DEPENDS_ON` |
 
 **Properties:**
 
@@ -307,6 +461,7 @@ graph TD
 | `LOCATED_IN` | `Workspace` |
 | `DEPENDS_ON` | `Project` |
 | `SERVICE_CALL` | `Project` |
+| `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
 | `USES_DB` | `Database` |
 | `PUBLISHES_TO` | `Topic` |
@@ -321,13 +476,28 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `DEPENDS_ON` |
+| `CliTool` | `DEPENDS_ON` |
+| `Library` | `DEPENDS_ON` |
 | `Package` | `IMPLEMENTED_BY` |
 | `Project` | `DEPENDS_ON` |
 | `Project` | `SERVICE_CALL` |
 | `ProjectsStructure` | `CONTAINS` |
 | `ProjectSyntax` | `BELONGS_TO` |
+| `Service` | `DEPENDS_ON` |
 | `Topic` | `TRIGGERS` |
 | `Topic` | `SUBSCRIBED_BY` |
+| `Worker` | `DEPENDS_ON` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
+| `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
 
 ---
 
@@ -356,6 +526,81 @@ graph TD
 
 ---
 
+#### `Service`
+
+> Represents an executable backend service, microservice, or API daemon (e.g. ASP.NET Core Web API, NestJS, Express, Go HTTP server).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `LOCATED_IN` | `Folder` |
+| `LOCATED_IN` | `Workspace` |
+| `DEPENDS_ON` | `Project` |
+| `DEPENDS_ON` | `Package` |
+| `SERVICE_CALL` | `Service` |
+| `SERVICE_CALL` | `ExternalService` |
+| `USES_DB` | `Database` |
+| `PUBLISHES_TO` | `Topic` |
+| `SUBSCRIBES_TO` | `Topic` |
+| `CONTAINS` | `EntryPoint` |
+| `CONTAINS` | `Endpoint` |
+| `CONTAINS` | `CloudService` |
+| `CONTAINS` | `ApiInUse` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `App` | `SERVICE_CALL` |
+| `CliTool` | `SERVICE_CALL` |
+| `Project` | `SERVICE_CALL` |
+| `Service` | `SERVICE_CALL` |
+| `Worker` | `SERVICE_CALL` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
+| `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
+
+---
+
+#### `Worker`
+
+> Represents a background job processor, queue consumer, or scheduled task (e.g. Hangfire, Celery, Worker Service).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `LOCATED_IN` | `Folder` |
+| `LOCATED_IN` | `Workspace` |
+| `DEPENDS_ON` | `Project` |
+| `DEPENDS_ON` | `Package` |
+| `SERVICE_CALL` | `Service` |
+| `SERVICE_CALL` | `ExternalService` |
+| `USES_DB` | `Database` |
+| `PUBLISHES_TO` | `Topic` |
+| `SUBSCRIBES_TO` | `Topic` |
+| `CONTAINS` | `EntryPoint` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
+| `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
+
+---
+
 ### 📂 Layer 3: Syntactic Structure
 
 #### `Function`
@@ -380,6 +625,7 @@ graph TD
 | `EntryPoint` | `TRIGGERS` |
 | `ExternalService` | `CALLED_BY` |
 | `Function` | `CALLS` |
+| `Library` | `CONTAINS` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Table` | `QUERIED_BY` |
 | `Topic` | `PUBLISHED_BY` |
@@ -510,6 +756,7 @@ graph TD
 | `Endpoint` | `EXPOSED_BY` |
 | `EntryPoint` | `EXPOSED_BY` |
 | `Function` | `USES_TYPE` |
+| `Library` | `CONTAINS` |
 | `Member` | `OF_TYPE` |
 | `ProjectSyntax` | `CONTAINS` |
 | `Table` | `PERSISTED_IN` |
@@ -544,7 +791,9 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `CONTAINS` |
 | `Project` | `CONTAINS` |
+| `Service` | `CONTAINS` |
 
 **Properties:**
 
@@ -565,6 +814,7 @@ graph TD
 | :--- | :--- |
 | `Project` | `CONTAINS` |
 | `SemanticStructure` | `CONTAINS` |
+| `Service` | `CONTAINS` |
 
 **Properties:**
 
@@ -591,8 +841,11 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `CliTool` | `USES_DB` |
 | `Project` | `USES_DB` |
 | `SemanticStructure` | `CONTAINS` |
+| `Service` | `USES_DB` |
+| `Worker` | `USES_DB` |
 
 **Properties:**
 
@@ -632,8 +885,10 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `CONTAINS` |
 | `ExternalService` | `CALLS_ENDPOINT` |
 | `Project` | `CONTAINS` |
+| `Service` | `CONTAINS` |
 
 **Properties:**
 
@@ -668,7 +923,11 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `CONTAINS` |
+| `CliTool` | `CONTAINS` |
 | `Project` | `CONTAINS` |
+| `Service` | `CONTAINS` |
+| `Worker` | `CONTAINS` |
 
 **Properties:**
 
@@ -695,7 +954,11 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `SERVICE_CALL` |
+| `CliTool` | `SERVICE_CALL` |
 | `Project` | `SERVICE_CALL` |
+| `Service` | `SERVICE_CALL` |
+| `Worker` | `SERVICE_CALL` |
 
 ---
 
@@ -800,6 +1063,10 @@ graph TD
 | `Project` | `PUBLISHES_TO` |
 | `Project` | `SUBSCRIBES_TO` |
 | `SemanticStructure` | `CONTAINS` |
+| `Service` | `PUBLISHES_TO` |
+| `Service` | `SUBSCRIBES_TO` |
+| `Worker` | `PUBLISHES_TO` |
+| `Worker` | `SUBSCRIBES_TO` |
 
 **Properties:**
 
@@ -867,9 +1134,14 @@ graph TD
 | Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:files_structure` |
 | Layer 1: Physical Topology | `Folder` | `{workspaceId}:folder:{relativeDirectoryPath}` |
 | Layer 1: Physical Topology | `GitSettings` | `{workspaceId}:gitsettings` |
+| Layer 2: Project Boundary | `App` | `{workspaceId}:project:{relativeProjectDir}:` |
+| Layer 2: Project Boundary | `CliTool` | `{workspaceId}:project:{relativeProjectDir}:` |
+| Layer 2: Project Boundary | `Library` | `{workspaceId}:project:{relativeProjectDir}:` |
 | Layer 2: Project Boundary | `Package` | `{workspaceId}:package:{packageName}` |
 | Layer 2: Project Boundary | `Project` | `{workspaceId}:project:{relativeProjectDir}:` |
 | Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:projects_structure` |
+| Layer 2: Project Boundary | `Service` | `{workspaceId}:project:{relativeProjectDir}:` |
+| Layer 2: Project Boundary | `Worker` | `{workspaceId}:project:{relativeProjectDir}:` |
 | Layer 3: Syntactic Structure | `Function` | `{workspaceId}:symbol:{filePath}:Function:{name}:{line}` |
 | Layer 3: Syntactic Structure | `Member` | `{workspaceId}:symbol:{filePath}:Member:{name}:{line}` |
 | Layer 3: Syntactic Structure | `ProjectSyntax` | `{workspaceId}:project:{relativeProjectDir}:project_syntax` |
