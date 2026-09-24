@@ -51,6 +51,20 @@ public class MessagingConnectionsTests
     }
 
     [Test]
+    public void Test_FindOwningProject_DoesNotFalselyMatchForeignFilesWhenSingleProjectPassed()
+    {
+        var singleProject = new List<GraphNodeDto>
+        {
+            new() { Id = "ws:project:adhub/adhub-cf-worker:", Name = "adhub-cf-worker", FilePath = "adhub/adhub-cf-worker" }
+        };
+
+        var foreignFileId = "ws:file:cpm-streaming-aggregator/internal/repository/clickhouse_analytics.go";
+        var owner = GraphDataConverter.FindOwningProject(foreignFileId, singleProject);
+
+        Assert.That(owner, Is.Null, "Foreign files outside project directory must not match just because single project was passed");
+    }
+
+    [Test]
     public void Test_NormalizeEdges_PreservesIncomingAndOutgoingMessaging()
     {
         var graph = new GraphDataDto

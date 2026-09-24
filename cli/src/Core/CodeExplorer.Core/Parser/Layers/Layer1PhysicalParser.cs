@@ -217,10 +217,19 @@ public class Layer1PhysicalParser
         if (fileName.EndsWith(".test.ts") || fileName.EndsWith(".spec.ts") || fileName.EndsWith(".test.js") ||
             fileName.EndsWith(".spec.js")) return true;
 
-        // 2. TypeScript Ambient Declaration files (no executable code/endpoints/calls)
+        // 2. Scratch, temporary, playground, and debug scratch files
+        if (fileName.StartsWith("scratch") || fileName.Contains(".scratch.") || fileName.Contains("_scratch.") ||
+            fileName.StartsWith("temp_") || fileName.StartsWith("tmp_") ||
+            fileName.EndsWith("_debug.ts") || fileName.EndsWith("_debug.js") ||
+            fileName.StartsWith("debug_") || fileName.Contains("playground") || fileName.Contains("scratchpad"))
+        {
+            return true;
+        }
+
+        // 3. TypeScript Ambient Declaration files (no executable code/endpoints/calls)
         if (fileName.EndsWith(".d.ts")) return true;
 
-        // 3. Minified, bundle, and vendor file conventions
+        // 4. Minified, bundle, and vendor file conventions
         if (fileName.EndsWith(".min.js") || fileName.EndsWith(".min.mjs") || fileName.EndsWith(".min.cjs") ||
             fileName.EndsWith(".min.css") || fileName.EndsWith(".bundle.js") || fileName.EndsWith(".bundle.min.js")) return true;
         if (fileName.Contains(".min.")) return true;

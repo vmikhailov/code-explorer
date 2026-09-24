@@ -1296,8 +1296,14 @@ public static class GraphDataConverter
                 var fileId = row.GetStringProp("fileId");
                 if (string.IsNullOrEmpty(fileId)) continue;
 
-                var owning = FindOwningProject(fileId, new[] { centerNode });
-                if (owning != null)
+                var owning = FindOwningProject(fileId, allProjectNodes);
+                var isOwnedOrViaLibrary = owning != null && (
+                    owning.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase) ||
+                    owning.Name.Equals(centerProjName, StringComparison.OrdinalIgnoreCase) ||
+                    graph.Edges.Any(e => e.Source == centerId && e.Target == owning.Id && e.Kind == "LIBRARY")
+                );
+
+                if (isOwnedOrViaLibrary)
                 {
                     var id = row.GetStringProp("id");
                     var name = row.GetStringProp("name", id);
@@ -1857,9 +1863,6 @@ public static class GraphDataConverter
         }
 
         if (bestMatch != null) return bestMatch;
-
-        // Fallback: If only 1 project in projList, return it
-        if (projList.Count == 1) return projList[0];
 
         return null;
     }

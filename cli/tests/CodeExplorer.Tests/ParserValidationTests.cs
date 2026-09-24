@@ -789,7 +789,7 @@ public class ParserValidationTests
 
         using var syntaxTreeAxios = await tsParser.ParseAsync(axiosFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         Layer3SyntacticParser.ProcessVisitor(syntaxTreeAxios, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-        var axiosEs = FindExternalServiceNode(syntaxTreeAxios.FileNode.Children, "*");
+        var axiosEs = FindExternalServiceNode(syntaxTreeAxios.FileNode.Children, "payment-service");
         Assert.That(axiosEs, Is.Not.Null, "Should resolve variable initializer in Axios call");
         Assert.That(axiosEs.Path, Is.EqualTo("/api/payments/charge-card"), "Should resolve variable initializer path");
 

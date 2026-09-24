@@ -14,6 +14,14 @@ public static class RouteDictionaryRegistry
     private static readonly ConcurrentDictionary<string, string> _aliases =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly HashSet<string> _genericVariableNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "url", "uri", "path", "href", "link", "endpoint", "endpoints", "req", "res", "request", "response",
+        "data", "body", "query", "params", "param", "header", "headers", "options", "config", "result",
+        "item", "file", "dir", "str", "text", "val", "value", "key", "cmd", "args", "output", "input",
+        "err", "error", "msg", "message", "event", "evt", "target", "src", "dest", "base", "temp", "tmp"
+    };
+
     public static void RegisterServiceDomain(string key, string domain)
     {
         if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(domain))
@@ -36,7 +44,7 @@ public static class RouteDictionaryRegistry
 
     public static void Register(string key, string path, string? service)
     {
-        if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(path))
+        if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(path) && !_genericVariableNames.Contains(key.Trim()))
         {
             _routes[key] = (path, service);
             if (!string.IsNullOrEmpty(service))
@@ -56,7 +64,7 @@ public static class RouteDictionaryRegistry
 
     public static bool TryResolve(string key, out string path, out string? service)
     {
-        if (string.IsNullOrWhiteSpace(key))
+        if (string.IsNullOrWhiteSpace(key) || _genericVariableNames.Contains(key.Trim()))
         {
             path = null!;
             service = null;
@@ -252,6 +260,7 @@ public static class RouteDictionaryRegistry
         foreach (Match tcm in topConstMatches)
         {
             var cName = tcm.Groups[1].Value;
+            if (_genericVariableNames.Contains(cName)) continue;
             var cVal = tcm.Groups[2].Value.Trim();
             if (cVal.Contains('/') || cVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || cVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {

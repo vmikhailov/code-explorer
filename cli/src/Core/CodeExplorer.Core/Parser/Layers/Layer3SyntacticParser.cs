@@ -557,9 +557,13 @@ public class Layer3SyntacticParser
             }
         }
 
-        var extServiceId = string.IsNullOrEmpty(relativePath)
-            ? $"{workspaceId}:externalservice:{protocol}:{domainOrService}"
-            : $"{workspaceId}:externalservice:{protocol}:{domainOrService}:{relativePath}:{node.StartPosition.Row}";
+        var colonPortIdx = domainOrService.LastIndexOf(':');
+        if (colonPortIdx > 0 && int.TryParse(domainOrService[(colonPortIdx + 1)..], out _))
+        {
+            domainOrService = domainOrService[..colonPortIdx];
+        }
+
+        var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";
 
         var ext = new Dictionary<string, string>
         {

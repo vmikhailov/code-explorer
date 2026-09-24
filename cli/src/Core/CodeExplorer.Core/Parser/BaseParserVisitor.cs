@@ -287,6 +287,15 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         var syntacticNode = new SyntacticSymbol(kind, name, node) { Text = node.Text };
 
         parent.Children.Add(syntacticNode);
+
+        if (kind == OntologyConstants.NodeLabels.ExternalService)
+        {
+            // External services represent target endpoints/hosts (leaf nodes).
+            // Any inner calls or expressions within the call arguments belong to the enclosing function/scope (parent).
+            baseVisit();
+            return;
+        }
+
         SymbolStack.Push(syntacticNode);
         PushedNodeIds.Push(node.Id);
 

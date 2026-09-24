@@ -49,9 +49,8 @@ public class FetchLibraryParser : ILibraryParser
             if (firstArg.IsValid())
             {
                 var resolved = AstHelper.ResolveStringOrTemplate(firstArg);
-                if (resolved != null)
+                if (!string.IsNullOrWhiteSpace(resolved))
                 {
-                    if (Uri.TryCreate(resolved, UriKind.Absolute, out var uri)) return uri.Host;
                     return resolved;
                 }
             }

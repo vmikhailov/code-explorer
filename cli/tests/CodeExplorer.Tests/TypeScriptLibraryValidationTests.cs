@@ -877,4 +877,106 @@ const client = new ApolloClient({
         var gqlSvc = extServices.First();
         Assert.That(gqlSvc.Path, Is.EqualTo("/graphql"));
     }
+
+    [Test]
+    public async Task Test_TypeScript_TemplateString_VariableTrace_And_CanonicalIds()
+    {
+        RouteDictionaryRegistry.Clear();
+        var code = @"
+export const CLOUDFLARE_API_BASE_URL = 'https://api.cloudflare.com/client/v4';
+
+export class CloudflareApiClient {
+  private readonly baseUrl = CLOUDFLARE_API_BASE_URL;
+
+  async executeQuery(id: string) {
+    const url = `${this.baseUrl}/accounts/12345/d1/database/${id}/query`;
+    await fetch(url);
+  }
+
+  async putKv(key: string) {
+    const url = `${this.baseUrl}/accounts/12345/storage/kv/values/${key}`;
+    await fetch(url);
+  }
+}
+
+export class TelemetryReporter {
+  public static DEFAULT_HUB_URL = 'https://hub.at-systems.biz';
+  public static getHubUrl(env?: any): string {
+    return env?.HUB_INGEST_URL || TelemetryReporter.DEFAULT_HUB_URL;
+  }
+
+  static async report(env?: any) {
+    const hubUrl = TelemetryReporter.getHubUrl(env);
+    await fetch(`${hubUrl}/impression/push`);
+  }
+}
+
+export async function executeImport(options: any = {}) {
+  const domain = options.domain || 'at-systems.pro';
+  const apiUrl = options.apiUrl || `https://bundles.${domain}`;
+  await fetchTrafficBacks(apiUrl);
+}
+
+export async function fetchTrafficBacks(baseUrl: string) {
+  const url = `${baseUrl.replace(/\/+$/, '')}/api/trafficbacks/`;
+  await fetch(url);
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(code, "cfApi.ts");
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+
+        // Verify that ExternalService IDs are canonical (no :line:col row suffix)
+        foreach (var es in extServices)
+        {
+            Assert.That(es.Id, Does.Not.Match(@":\d+$"), "ExternalService ID should be canonical and not end with row number");
+        }
+
+        // Verify CF API resolution: both executeQuery and putKv should resolve to api.cloudflare.com
+        var cfSvc = extServices.FirstOrDefault(s => s.DomainOrService == "api.cloudflare.com");
+        Assert.That(cfSvc, Is.Not.Null, "Should resolve this.baseUrl to api.cloudflare.com");
+        Assert.That(cfSvc!.Protocol, Is.EqualTo("https"));
+
+        // Verify Hub Ingest resolution: should resolve to hub.at-systems.biz
+        var hubSvc = extServices.FirstOrDefault(s => s.DomainOrService == "hub.at-systems.biz");
+        Assert.That(hubSvc, Is.Not.Null, "Should resolve getHubUrl() to hub.at-systems.biz");
+        Assert.That(hubSvc!.Protocol, Is.EqualTo("https"));
+
+        // Verify Bundles resolution: should resolve options.apiUrl || https://bundles.${domain} to bundles
+        var bundlesSvc = extServices.FirstOrDefault(s => s.DomainOrService == "bundles");
+        Assert.That(bundlesSvc, Is.Not.Null, "Should resolve baseUrl to bundles");
+        Assert.That(bundlesSvc!.Protocol, Is.EqualTo("https"));
+    }
+
+    [Test]
+    public async Task Test_PhysicalParser_SkipsScratchAndDebugFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_scratch_test_" + Guid.NewGuid().ToString("N")).Replace('\\', '/');
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "scratch_debug.ts"), "export const x = 1;");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "temp_worker.ts"), "export const y = 2;");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "feature_debug.ts"), "export const z = 3;");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "worker.scratch.ts"), "export const w = 4;");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "main.ts"), "export const real = 5;");
+
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            var l1Result = await new CodeExplorer.Core.Parser.Layers.Layer1PhysicalParser().ParseAsync(ctx);
+            var files = l1Result.Files;
+
+            var fileNames = files.Select(f => f.Name).ToList();
+            Assert.That(fileNames, Does.Contain("main.ts"));
+            Assert.That(fileNames, Does.Not.Contain("scratch_debug.ts"));
+            Assert.That(fileNames, Does.Not.Contain("temp_worker.ts"));
+            Assert.That(fileNames, Does.Not.Contain("feature_debug.ts"));
+            Assert.That(fileNames, Does.Not.Contain("worker.scratch.ts"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }
