@@ -1121,8 +1121,8 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
                       onChange={() => handleToggleEdgeType('messaging')}
                     />
                     <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-                      <line x1="0" y1="6" x2="24" y2="6" stroke="#fbbf24" strokeWidth="1.2" />
-                      <polyline points="22 2, 30 6, 22 10" fill="none" stroke="#fbbf24" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="0" y1="6" x2="22" y2="6" stroke="#fbbf24" strokeWidth="1.2" />
+                      <polygon points="21 2, 32 6, 21 10" fill="#fbbf24" />
                     </svg>
                     <span className="edge-legend-label">Event / Queue</span>
                   </label>
@@ -1134,8 +1134,8 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
                       onChange={() => handleToggleEdgeType('database')}
                     />
                     <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-                      <line x1="0" y1="6" x2="24" y2="6" stroke="#c084fc" strokeWidth="1.2" />
-                      <polygon points="23 6, 27 2, 31 6, 27 10" fill="#c084fc" />
+                      <line x1="0" y1="6" x2="22" y2="6" stroke="#c084fc" strokeWidth="1.2" />
+                      <polygon points="21 2, 32 6, 21 10" fill="#c084fc" />
                     </svg>
                     <span className="edge-legend-label">Database</span>
                   </label>
@@ -1147,8 +1147,8 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
                       onChange={() => handleToggleEdgeType('library')}
                     />
                     <svg width="34" height="12" viewBox="0 0 34 12" style={{ flexShrink: 0 }}>
-                      <line x1="0" y1="6" x2="24" y2="6" stroke="#34d399" strokeWidth="1.2" />
-                      <polyline points="22 3, 29 6, 22 9" fill="none" stroke="#34d399" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="0" y1="6" x2="22" y2="6" stroke="#34d399" strokeWidth="1.2" />
+                      <polygon points="21 2, 32 6, 21 10" fill="#34d399" />
                     </svg>
                     <span className="edge-legend-label">Library</span>
                   </label>

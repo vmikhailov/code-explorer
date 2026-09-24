@@ -131,25 +131,13 @@ public class ArchitectureViewEngine(IGraphClient db)
                 {
                     canonicalId = id;
                 }
-                else if (cKey == "typeorm" || name.Equals("typeorm", StringComparison.OrdinalIgnoreCase))
-                {
-                    canonicalId = "workspace:database:relational:typeorm";
-                }
                 else if (isStandaloneDb)
                 {
                     canonicalId = id;
                 }
-                else if (id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase) ||
-                         id.StartsWith("ws:database:", StringComparison.OrdinalIgnoreCase) ||
-                         id.Contains(":project:", StringComparison.OrdinalIgnoreCase) ||
-                         id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase) ||
-                         id.StartsWith("ws:project:", StringComparison.OrdinalIgnoreCase))
-                {
-                    canonicalId = $"workspace:database:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
-                }
                 else
                 {
-                    canonicalId = id;
+                    canonicalId = $"workspace:database:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
                 }
                 dbIdToCanonicalId[id] = canonicalId;
 

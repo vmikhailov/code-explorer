@@ -406,9 +406,9 @@ public class CrossLanguageCommunicationDetectionTests
                 new("proj:auth", "Project", new Dictionary<string, object> { ["name"] = "AuthService", ["path"] = "/src/auth", ["project_type"] = "csharp" }),
                 new("proj:order", "Project", new Dictionary<string, object> { ["name"] = "OrderService", ["path"] = "/src/order", ["project_type"] = "go" }),
                 new("proj:common_lib", "Project", new Dictionary<string, object> { ["name"] = "CommonLib", ["path"] = "/src/libs/common", ["project_type"] = "library" }),
-                // Two projects using the same project-scoped TypeORM DB
-                new("proj:gatewaydb:typeorm", "Database", new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" }),
-                new("proj:authdb:typeorm", "Database", new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" }),
+                // Two projects using the same project-scoped Database
+                new("proj:gatewaydb:typeorm", "Database", new Dictionary<string, object> { ["name"] = "Database", ["db_type"] = "relational" }),
+                new("proj:authdb:typeorm", "Database", new Dictionary<string, object> { ["name"] = "Database", ["db_type"] = "relational" }),
                 // Standalone Redis DB
                 new("db:redis_cache", "Database", new Dictionary<string, object> { ["name"] = "Redis", ["db_type"] = "keyvalue" }),
                 // External Service (Messaging)
@@ -439,11 +439,11 @@ public class CrossLanguageCommunicationDetectionTests
             // Execute ArchitectureViewEngine
             var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
-            // 1. Verify Database Consolidation (Only 1 canonical TypeORM node instead of 2!)
-            var typeOrmNodes = graph.Nodes.Where(n => n.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase)).ToList();
-            Assert.That(typeOrmNodes, Has.Count.EqualTo(1), "Duplicate TypeORM database nodes MUST be collapsed into 1 canonical node");
-            var canonicalTypeOrm = typeOrmNodes.First();
-            Assert.That(canonicalTypeOrm.Id, Is.EqualTo("workspace:database:relational:typeorm"));
+            // 1. Verify Database Consolidation (Only 1 canonical Database node instead of 2!)
+            var dbNodes = graph.Nodes.Where(n => n.Name.Equals("Database", StringComparison.OrdinalIgnoreCase)).ToList();
+            Assert.That(dbNodes, Has.Count.EqualTo(1), "Duplicate database nodes MUST be collapsed into 1 canonical node");
+            var canonicalDb = dbNodes.First();
+            Assert.That(canonicalDb.Id, Is.EqualTo("workspace:database:relational:database"));
 
             // 2. Verify Standalone Redis DB node preserved
             var redisNode = graph.Nodes.FirstOrDefault(n => n.Id == "db:redis_cache");
@@ -461,12 +461,12 @@ public class CrossLanguageCommunicationDetectionTests
             Assert.That(libEdge!.Properties?["dependency_type"], Is.EqualTo("library"));
 
             // Consolidated Database edges
-            var gwDbEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:gateway" && e.Target == canonicalTypeOrm.Id);
-            Assert.That(gwDbEdge, Is.Not.Null, "Gateway should connect to canonical TypeORM node");
+            var gwDbEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:gateway" && e.Target == canonicalDb.Id);
+            Assert.That(gwDbEdge, Is.Not.Null, "Gateway should connect to canonical Database node");
             Assert.That(gwDbEdge!.Properties?["dependency_type"], Is.EqualTo("database"));
 
-            var authDbEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:auth" && e.Target == canonicalTypeOrm.Id);
-            Assert.That(authDbEdge, Is.Not.Null, "Auth should connect to canonical TypeORM node");
+            var authDbEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:auth" && e.Target == canonicalDb.Id);
+            Assert.That(authDbEdge, Is.Not.Null, "Auth should connect to canonical Database node");
             Assert.That(authDbEdge!.Properties?["dependency_type"], Is.EqualTo("database"));
 
             // Messaging edge
@@ -499,7 +499,7 @@ public class CrossLanguageCommunicationDetectionTests
                 new("proj:lib_billing_client", "Project", new Dictionary<string, object> { ["name"] = "billing-client", ["path"] = "libs/billing-client", ["project_type"] = "library" }),
                 new("workspace:file:services/order-service/src/entities/order.entity.ts", "File", new Dictionary<string, object> { ["name"] = "order.entity.ts", ["path"] = "services/order-service/src/entities/order.entity.ts" }),
                 new("db:postgres", "Database", new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" }),
-                new("workspace:project:data-access-lib:db:typeorm", "Database", new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" }),
+                new("workspace:project:data-access-lib:db:mysql", "Database", new Dictionary<string, object> { ["name"] = "MySQL", ["db_type"] = "relational" }),
             };
             await db.UploadNodesAsync(nodes);
 
@@ -512,7 +512,7 @@ public class CrossLanguageCommunicationDetectionTests
             var rels = new List<CodeExplorer.Core.Database.Relationship>
             {
                 new("workspace:file:services/order-service/src/entities/order.entity.ts", "db:postgres", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
-                new("proj:lib_data", "workspace:project:data-access-lib:db:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new("proj:lib_data", "workspace:project:data-access-lib:db:mysql", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
                 new("proj:svc_order", "proj:lib_data", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "library" }),
                 new("proj:svc_order", "proj:lib_billing_client", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "library" }),
                 new("proj:lib_billing_client", "proj:svc_billing", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "service_call" }),
@@ -544,13 +544,13 @@ public class CrossLanguageCommunicationDetectionTests
             Assert.That(orderToPg!.Properties?["is_semantic"], Is.EqualTo("true"));
 
             // 5. Assert Transitive Database Lifting:
-            // order-service -> data-access-lib -> TypeORM => order-service -[:USES_DB]-> TypeORM
-            var typeOrmNode = graph.Nodes.First(n => n.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase));
-            var orderToTypeOrm = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_order" && e.Target == typeOrmNode.Id && e.Kind == "USES_DB");
-            Assert.That(orderToTypeOrm, Is.Not.Null, "Transitive database access via data-access-lib must be lifted to order-service");
-            Assert.That(orderToTypeOrm!.Properties?["semantic_lifted"], Is.EqualTo("true"));
-            Assert.That(orderToTypeOrm.Properties?["via_library"], Is.EqualTo("data-access-lib"));
-            Assert.That(orderToTypeOrm.Properties?["is_semantic"], Is.EqualTo("true"));
+            // order-service -> data-access-lib -> MySQL => order-service -[:USES_DB]-> MySQL
+            var mysqlNode = graph.Nodes.First(n => n.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase));
+            var orderToMysql = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_order" && e.Target == mysqlNode.Id && e.Kind == "USES_DB");
+            Assert.That(orderToMysql, Is.Not.Null, "Transitive database access via data-access-lib must be lifted to order-service");
+            Assert.That(orderToMysql!.Properties?["semantic_lifted"], Is.EqualTo("true"));
+            Assert.That(orderToMysql.Properties?["via_library"], Is.EqualTo("data-access-lib"));
+            Assert.That(orderToMysql.Properties?["is_semantic"], Is.EqualTo("true"));
 
             // 6. Assert Transitive Service-to-Service Lifting:
             // order-service -> billing-client -> billing-service => order-service -[:SERVICE_CALL]-> billing-service
@@ -564,7 +564,7 @@ public class CrossLanguageCommunicationDetectionTests
             var flow = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:svc_order", includeLibraries: true);
             var flowDatabases = flow.Nodes.Where(n => n.Kind == "Database").ToList();
             Assert.That(flowDatabases.Any(d => d.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include resolved PostgreSQL");
-            Assert.That(flowDatabases.Any(d => d.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include lifted TypeORM");
+            Assert.That(flowDatabases.Any(d => d.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include lifted MySQL");
         }
         finally
         {

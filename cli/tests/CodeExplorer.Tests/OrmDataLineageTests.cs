@@ -195,10 +195,10 @@ export class Product {
     {
         var (tName1, tType1, tKey1) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("typeorm", "relational");
         var (tName2, tType2, tKey2) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("TypeORM", "relational");
-        Assert.That(tName1, Is.EqualTo("TypeORM"));
-        Assert.That(tName2, Is.EqualTo("TypeORM"));
-        Assert.That(tKey1, Is.EqualTo("typeorm"));
-        Assert.That(tKey2, Is.EqualTo("typeorm"));
+        Assert.That(tName1, Is.EqualTo("Database"));
+        Assert.That(tName2, Is.EqualTo("Database"));
+        Assert.That(tKey1, Is.EqualTo("database"));
+        Assert.That(tKey2, Is.EqualTo("database"));
 
         var (pName1, _, pKey1) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("postgres", null);
         var (pName2, _, pKey2) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("PostgreSQL", "relational");
@@ -252,11 +252,11 @@ export class Product {
 
             var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
-            // Exactly 1 TypeORM node
-            var typeOrmNodes = graph.Nodes.Where(n => n.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase)).ToList();
-            Assert.That(typeOrmNodes, Has.Count.EqualTo(1), "All TypeORM nodes must collapse to exactly 1 node");
-            Assert.That(typeOrmNodes[0].Name, Is.EqualTo("TypeORM"));
-            Assert.That(typeOrmNodes[0].Id, Is.EqualTo("workspace:database:relational:typeorm"));
+            // TypeORM nodes collapse to canonical Database node
+            var dbNodes = graph.Nodes.Where(n => n.Name.Equals("Database", StringComparison.OrdinalIgnoreCase)).ToList();
+            Assert.That(dbNodes, Has.Count.EqualTo(1), "All TypeORM nodes must collapse to canonical Database node");
+            Assert.That(dbNodes[0].Name, Is.EqualTo("Database"));
+            Assert.That(dbNodes[0].Id, Is.EqualTo("workspace:database:relational:database"));
 
             // Exactly 1 PostgreSQL node
             var postgresNodes = graph.Nodes.Where(n => n.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)).ToList();
@@ -265,10 +265,10 @@ export class Product {
             Assert.That(postgresNodes[0].Id, Is.EqualTo("workspace:database:relational:postgresql"));
 
             // Edges must point to canonical IDs
-            var aToTypeOrm = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_a" && e.Target == "workspace:database:relational:typeorm");
-            var bToTypeOrm = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_b" && e.Target == "workspace:database:relational:typeorm");
-            Assert.That(aToTypeOrm, Is.Not.Null, "Service A must connect to canonical TypeORM");
-            Assert.That(bToTypeOrm, Is.Not.Null, "Service B must connect to canonical TypeORM");
+            var aToDb = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_a" && e.Target == "workspace:database:relational:database");
+            var bToDb = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_b" && e.Target == "workspace:database:relational:database");
+            Assert.That(aToDb, Is.Not.Null, "Service A must connect to canonical Database");
+            Assert.That(bToDb, Is.Not.Null, "Service B must connect to canonical Database");
 
             var aToPg = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_a" && e.Target == "workspace:database:relational:postgresql");
             var bToPg = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_b" && e.Target == "workspace:database:relational:postgresql");
@@ -306,17 +306,25 @@ export class Product {
     [Test]
     public async Task Test_TypeScriptParser_Creates_UsesDb_For_TypeOrm_Import()
     {
-        var qDb = "MATCH (d:Database) WHERE d.name = 'TypeORM' RETURN d.name AS name, d.id AS id";
+        // TypeORM is an ORM, so the database node must NOT be named 'TypeORM', but 'Database'
+        var qTypeOrmDb = "MATCH (d:Database) WHERE d.name = 'TypeORM' RETURN d.name AS name";
+        var resTypeOrm = await _client.ExecuteQueryAsync(qTypeOrmDb);
+        using var docTypeOrm = JsonDocument.Parse(resTypeOrm);
+        Assert.That(docTypeOrm.RootElement.EnumerateArray().ToList(), Is.Empty, "TypeORM must NOT be a Database node!");
+
+        var qDb = "MATCH (d:Database) WHERE d.name = 'Database' RETURN d.name AS name, d.id AS id";
         var resDb = await _client.ExecuteQueryAsync(qDb);
         using var docDb = JsonDocument.Parse(resDb);
         var dbList = docDb.RootElement.EnumerateArray().ToList();
-        Assert.That(dbList, Is.Not.Empty, "Database node for TypeORM should exist in graph");
+        Assert.That(dbList, Is.Not.Empty, "Canonical relational Database node should exist in graph");
 
-        var qRel = "MATCH (p:Project)-[:USES_DB]->(d:Database) WHERE d.name = 'TypeORM' RETURN p.name AS projName, d.name AS dbName";
+        var qRel = "MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE d.name = 'Database' RETURN p.name AS projName, d.name AS dbName, r.properties AS props";
         var resRel = await _client.ExecuteQueryAsync(qRel);
         using var docRel = JsonDocument.Parse(resRel);
         var relList = docRel.RootElement.EnumerateArray().ToList();
-        Assert.That(relList, Is.Not.Empty, "USES_DB relationship from project to TypeORM should exist");
+        Assert.That(relList, Is.Not.Empty, "USES_DB relationship from project to Database should exist");
+        var tsRel = relList.FirstOrDefault(r => r.GetProperty("props").GetRawText().Contains("TypeORM"));
+        Assert.That(tsRel.ValueKind, Is.Not.EqualTo(JsonValueKind.Undefined), "USES_DB edge for TsOrmApp must retain via: TypeORM attribute");
     }
 
 
@@ -333,13 +341,13 @@ export class Product {
             var nodes = new List<CodeExplorer.Core.Database.Node>
             {
                 new("proj:svc_a", "Project", new Dictionary<string, object> { ["name"] = "ServiceA", ["path"] = "/src/a", ["project_type"] = "typescript", ["db_type"] = "relational" }),
-                new("workspace:database:relational:typeorm", "Database", new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" })
+                new("workspace:database:relational:postgresql", "Database", new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" })
             };
             await db.UploadNodesAsync(nodes);
 
             var rels = new List<CodeExplorer.Core.Database.Relationship>
             {
-                new("proj:svc_a", "workspace:database:relational:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" })
+                new("proj:svc_a", "workspace:database:relational:postgresql", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" })
             };
             await db.UploadRelationshipsAsync(rels);
 
@@ -349,7 +357,7 @@ export class Product {
             Assert.That(projNode, Is.Not.Null);
             Assert.That(projNode.Kind, Is.EqualTo("Project"), "Project node with db_type property must not be converted to Kind 'Database'!");
 
-            var dbNode = graph.Nodes.FirstOrDefault(n => n.Id == "workspace:database:relational:typeorm");
+            var dbNode = graph.Nodes.FirstOrDefault(n => n.Id == "workspace:database:relational:postgresql");
             Assert.That(dbNode, Is.Not.Null);
             Assert.That(dbNode.Kind, Is.EqualTo("Database"));
         }
@@ -394,12 +402,12 @@ export class Product {
             await analyzer.RunAsync("workspace");
 
             // 1. Verify canonical database nodes exist in the graph
-            var typeOrmDb = await db.ExecuteQueryAsync("MATCH (d:Database) WHERE d.id = 'workspace:database:relational:typeorm' RETURN d.id AS id, d.name AS name, d.is_canonical AS is_canonical");
+            var typeOrmDb = await db.ExecuteQueryAsync("MATCH (d:Database) WHERE d.id = 'workspace:database:relational:database' RETURN d.id AS id, d.name AS name, d.is_canonical AS is_canonical");
             using (var doc = JsonDocument.Parse(typeOrmDb))
             {
                 var rows = doc.RootElement.EnumerateArray().ToList();
                 Assert.That(rows, Has.Count.EqualTo(1));
-                Assert.That(rows[0].GetProperty("name").GetString(), Is.EqualTo("TypeORM"));
+                Assert.That(rows[0].GetProperty("name").GetString(), Is.EqualTo("Database"));
                 Assert.That(rows[0].GetProperty("is_canonical").GetString(), Is.EqualTo("true"));
             }
 
@@ -424,7 +432,7 @@ export class Product {
             {
                 var rows = doc.RootElement.EnumerateArray().ToList();
                 Assert.That(rows, Has.Count.EqualTo(1));
-                Assert.That(rows[0].GetProperty("dbId").GetString(), Is.EqualTo("workspace:database:relational:typeorm"));
+                Assert.That(rows[0].GetProperty("dbId").GetString(), Is.EqualTo("workspace:database:relational:database"));
                 Assert.That(rows[0].GetProperty("isCanonical").GetString(), Is.EqualTo("true"));
             }
 

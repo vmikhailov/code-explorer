@@ -22,6 +22,8 @@ docs/
 │   └── vscode-extension-design.md            # Interactive VS Code & Antigravity Cockpit
 │
 ├── roadmap/                                  # Engineering Milestones & Task Tracking
+│   ├── README.md                             # Roadmap Directory Index & Strategic Focus
+│   ├── agent-mcp-and-cli-architecture.md     # Active Spec: Semantic & Project Architecture for MCP/CLI
 │   ├── improvements.md                       # Architectural Milestones & Engineering Roadmap
 │   ├── tech-debt.md                          # Technical Debt & Semantic Architecture Roadmap
 │   └── todo.md                               # Actionable Backlog & Progress Checklist
@@ -43,6 +45,7 @@ docs/
 | [**`architecture/query-engine.md`**](architecture/query-engine.md) | Architecture | **Active Standard** | Graph Developers | SQLite schema (`nodes`, `edges`), B-Tree indexing, Cypher-to-SQL compiler, and timeout bounds. |
 | [**`proposals/cross-service-detection.md`**](proposals/cross-service-detection.md) | Proposals | **Active Design** | Parser Contributors | Design for dynamic HTTP templates, suffix matching, GCP Pub/Sub, and WebSocket event tracing. |
 | [**`proposals/vscode-extension-design.md`**](proposals/vscode-extension-design.md) | Proposals | **Active Design** | Extension Developers | Architecture for interactive Cytoscape.js webview extension and live LSP bridge. |
+| [**`roadmap/agent-mcp-and-cli-architecture.md`**](roadmap/agent-mcp-and-cli-architecture.md) | Roadmap | **Active Spec** | AI Agents / Core Developers | Exposing unified Semantic (Runtime) & Project (Build) architecture views to AI Agents via MCP and CLI. |
 | [**`roadmap/improvements.md`**](roadmap/improvements.md) | Roadmap | **Active Roadmap** | All Contributors | Delivered milestones (SQLite, Cypher compiler, CLI, timeout bounding) and active 4-phase roadmap. |
 | [**`roadmap/tech-debt.md`**](roadmap/tech-debt.md) | Roadmap | **Active Checklist** | Architects / Core Developers | Actionable checklist for technical debt remediation, canonical resources, and C4 model. |
 | [**`roadmap/todo.md`**](roadmap/todo.md) | Roadmap | **Active Backlog** | Contributors / AI Agents | Actionable checklist of completed items, active implementations, and future ideas. |

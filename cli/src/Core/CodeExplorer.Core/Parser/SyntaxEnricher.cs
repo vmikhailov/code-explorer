@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using CodeExplorer.Core.Analysis;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -124,23 +126,59 @@ public class SyntaxEnricher : ISyntaxEnricher
                             ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesOrmRel));
                         }
 
-                        // Resolve or register canonical database resource
-                        var canonicalRes = ctx.ResourceRegistry.ResolveResource(parser.Id, expectedDbType: dbType, expectedEngine: dbEngine)
+                        CanonicalResource? canonicalRes = null;
+
+                        if (isOrm)
+                        {
+                            // For an ORM, parser.Name (e.g. "TypeORM") is an abstraction library, NOT a physical database server.
+                            // Attempt to detect the actual database driver / engine for the project (e.g., PostgreSQL from 'pg' package or config).
+                            var (detectedEngine, detectedType) = DetectProjectDatabaseDriver(projectNode, ctx);
+                            if (!string.IsNullOrEmpty(detectedEngine))
+                            {
+                                dbEngine = detectedEngine;
+                                if (!string.IsNullOrEmpty(detectedType)) dbType = detectedType;
+                                canonicalRes = ctx.ResourceRegistry.ResolveResource(dbEngine, expectedDbType: dbType, expectedEngine: dbEngine)
+                                               ?? ctx.ResourceRegistry.ResolveResource(null, expectedDbType: dbType, expectedEngine: dbEngine);
+                            }
+
+                            // If driver not detected, check if workspace/project already has an existing relational database
+                            canonicalRes ??= ctx.ResourceRegistry.ResolveResource(null, expectedDbType: dbType, expectedEngine: null);
+
+                            if (canonicalRes == null)
+                            {
+                                var targetEngine = !string.IsNullOrEmpty(detectedEngine) ? detectedEngine : "Database";
+                                canonicalRes = ctx.ResourceRegistry.RegisterResource(
+                                    ctx.WorkspaceId,
+                                    targetEngine,
+                                    targetEngine,
+                                    dbType,
+                                    OntologyConstants.NodeLabels.Database,
+                                    fileNode.Path,
+                                    projectNode.Id,
+                                    [!string.IsNullOrEmpty(detectedEngine) ? detectedEngine.ToLowerInvariant() : "database", "relational", parser.Id.ToLowerInvariant()]
+                                );
+                            }
+                        }
+                        else
+                        {
+                            // Direct database driver (e.g. pg, mysql2, sqlite3, redis)
+                            canonicalRes = ctx.ResourceRegistry.ResolveResource(parser.Id, expectedDbType: dbType, expectedEngine: dbEngine)
                                            ?? ctx.ResourceRegistry.ResolveResource(parser.Name, expectedDbType: dbType, expectedEngine: dbEngine)
                                            ?? ctx.ResourceRegistry.ResolveResource(null, expectedDbType: dbType, expectedEngine: dbEngine);
 
-                        if (canonicalRes == null)
-                        {
-                            canonicalRes = ctx.ResourceRegistry.RegisterResource(
-                                ctx.WorkspaceId,
-                                dbEngine,
-                                dbEngine,
-                                dbType,
-                                OntologyConstants.NodeLabels.Database,
-                                fileNode.Path,
-                                projectNode.Id,
-                                [parser.Id, parser.Name]
-                            );
+                            if (canonicalRes == null)
+                            {
+                                canonicalRes = ctx.ResourceRegistry.RegisterResource(
+                                    ctx.WorkspaceId,
+                                    dbEngine,
+                                    dbEngine,
+                                    dbType,
+                                    OntologyConstants.NodeLabels.Database,
+                                    fileNode.Path,
+                                    projectNode.Id,
+                                    [parser.Id, parser.Name]
+                                );
+                            }
                         }
 
                         var dbId = canonicalRes.Id;
@@ -281,10 +319,185 @@ public class SyntaxEnricher : ISyntaxEnricher
         return true;
     }
 
-    private static bool IsOrmLibrary(string parserId)
+    public static bool IsOrmLibrary(string parserId)
     {
         var lower = (parserId ?? "").ToLowerInvariant();
         return lower is "ef-core" or "microsoft.entityframeworkcore" or "dapper" or "typeorm" or
-               "prisma" or "hibernate" or "nhibernate" or "sequelize" or "drizzle" or "sqlalchemy";
+               "prisma" or "hibernate" or "nhibernate" or "sequelize" or "drizzle" or "sqlalchemy" or
+               "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex";
+    }
+
+    private static readonly ConcurrentDictionary<string, (string? Engine, string? DbType)> _projectDriverCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static (string? Engine, string? DbType) DetectProjectDatabaseDriver(ProjectNode projectNode, ParsingContext ctx)
+    {
+        if (projectNode == null) return (null, null);
+        if (_projectDriverCache.TryGetValue(projectNode.Id, out var cached)) return cached;
+
+        try
+        {
+            var projectAbsDir = Path.IsPathRooted(projectNode.Path)
+                ? projectNode.Path
+                : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, projectNode.Path)).Replace('\\', '/');
+
+            if (!Directory.Exists(projectAbsDir))
+            {
+                _projectDriverCache[projectNode.Id] = (null, null);
+                return (null, null);
+            }
+
+            // 1. TypeScript / JavaScript: package.json
+            var pkgJsonPath = Path.Combine(projectAbsDir, "package.json");
+            if (File.Exists(pkgJsonPath))
+            {
+                var content = File.ReadAllText(pkgJsonPath);
+                var lower = content.ToLowerInvariant();
+                if (lower.Contains("\"pg\"") || lower.Contains("\"pg-promise\"") || lower.Contains("\"@types/pg\"") || lower.Contains("\"postgres\""))
+                {
+                    var res = ("PostgreSQL", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (lower.Contains("\"mysql\"") || lower.Contains("\"mysql2\""))
+                {
+                    var res = ("MySQL", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (lower.Contains("\"sqlite3\"") || lower.Contains("\"better-sqlite3\""))
+                {
+                    var res = ("SQLite", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (lower.Contains("\"mssql\"") || lower.Contains("\"tedious\""))
+                {
+                    var res = ("SQL Server", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (lower.Contains("\"oracledb\""))
+                {
+                    var res = ("Oracle", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (lower.Contains("\"mongodb\""))
+                {
+                    var res = ("MongoDB", "document");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (lower.Contains("\"redis\"") || lower.Contains("\"ioredis\""))
+                {
+                    var res = ("Redis", "cache");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+            }
+
+            // 2. C# (.csproj files)
+            var csprojFiles = Directory.GetFiles(projectAbsDir, "*.csproj", SearchOption.TopDirectoryOnly);
+            if (csprojFiles.Length > 0)
+            {
+                foreach (var csproj in csprojFiles)
+                {
+                    var content = File.ReadAllText(csproj);
+                    var lower = content.ToLowerInvariant();
+                    if (lower.Contains("npgsql"))
+                    {
+                        var res = ("PostgreSQL", "relational");
+                        _projectDriverCache[projectNode.Id] = res;
+                        return res;
+                    }
+                    if (lower.Contains("sqlclient") || lower.Contains("entityframeworkcore.sqlserver"))
+                    {
+                        var res = ("SQL Server", "relational");
+                        _projectDriverCache[projectNode.Id] = res;
+                        return res;
+                    }
+                    if (lower.Contains("mysql") || lower.Contains("pomelo"))
+                    {
+                        var res = ("MySQL", "relational");
+                        _projectDriverCache[projectNode.Id] = res;
+                        return res;
+                    }
+                    if (lower.Contains("sqlite"))
+                    {
+                        var res = ("SQLite", "relational");
+                        _projectDriverCache[projectNode.Id] = res;
+                        return res;
+                    }
+                    if (lower.Contains("oracle"))
+                    {
+                        var res = ("Oracle", "relational");
+                        _projectDriverCache[projectNode.Id] = res;
+                        return res;
+                    }
+                }
+            }
+
+            // 3. Python (requirements.txt, pyproject.toml)
+            var reqTxt = Path.Combine(projectAbsDir, "requirements.txt");
+            if (File.Exists(reqTxt))
+            {
+                var lower = File.ReadAllText(reqTxt).ToLowerInvariant();
+                if (lower.Contains("psycopg") || lower.Contains("asyncpg"))
+                {
+                    var res = ("PostgreSQL", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (lower.Contains("pymysql") || lower.Contains("mysql"))
+                {
+                    var res = ("MySQL", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (lower.Contains("sqlite"))
+                {
+                    var res = ("SQLite", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+            }
+
+            // 4. Also scan files in config folder for db.config.ts / data-source.ts / etc.
+            var configFiles = Directory.GetFiles(projectAbsDir, "*config*.ts", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(projectAbsDir, "*datasource*.ts", SearchOption.AllDirectories))
+                .Take(10);
+            foreach (var cfg in configFiles)
+            {
+                var text = File.ReadAllText(cfg).ToLowerInvariant();
+                if (text.Contains("type: 'postgres'") || text.Contains("type: \"postgres\"") ||
+                    text.Contains("dialect: 'postgres'") || text.Contains("dialect: \"postgres\""))
+                {
+                    var res = ("PostgreSQL", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (text.Contains("type: 'mysql'") || text.Contains("type: \"mysql\"") ||
+                    text.Contains("dialect: 'mysql'") || text.Contains("dialect: \"mysql\""))
+                {
+                    var res = ("MySQL", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+                if (text.Contains("type: 'sqlite'") || text.Contains("type: \"sqlite\"") ||
+                    text.Contains("dialect: 'sqlite'") || text.Contains("dialect: \"sqlite\""))
+                {
+                    var res = ("SQLite", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ctx.LogWarning($"[SyntaxEnricher] Driver detection failed for {projectNode.Id}: {ex.Message}");
+        }
+
+        _projectDriverCache[projectNode.Id] = (null, null);
+        return (null, null);
     }
 }

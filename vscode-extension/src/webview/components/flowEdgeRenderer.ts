@@ -145,11 +145,11 @@ export const getEdgeVisuals = (edge?: GraphEdge, targetNode?: GraphNode, sourceN
     case 'library':
     default:
       return {
-        stroke: '#64748b',
+        stroke: '#34d399',
         strokeDasharray: undefined,
         strokeWidth: 1.2,
         animated: false,
-        markerColor: '#64748b',
+        markerColor: '#34d399',
         markerType: MarkerType.ArrowClosed,
         markerWidth: 12,
         markerHeight: 12,

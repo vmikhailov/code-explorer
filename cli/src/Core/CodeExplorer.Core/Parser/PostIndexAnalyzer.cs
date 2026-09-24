@@ -1079,14 +1079,17 @@ public class PostIndexAnalyzer(IGraphClient db)
 
         switch (lower)
         {
+            case "database":
+            case "db":
             case "typeorm":
-                return ("TypeORM", "relational", "typeorm");
             case "microsoft.entityframeworkcore":
             case "entity framework core":
             case "ef-core":
-                return ("EF Core", "relational", "ef_core");
             case "dapper":
-                return ("Dapper", "relational", "dapper");
+            case "sequelize":
+            case "prisma":
+            case "drizzle":
+            case "drizzle orm":
             case "defaultconnection":
                 return ("Database", "relational", "database");
             case "postgres":
@@ -1120,13 +1123,6 @@ public class PostIndexAnalyzer(IGraphClient db)
                 return ("Elasticsearch", "search", "elasticsearch");
             case "neo4j":
                 return ("Neo4j", "graph", "neo4j");
-            case "sequelize":
-                return ("Sequelize", "relational", "sequelize");
-            case "prisma":
-                return ("Prisma", "relational", "prisma");
-            case "drizzle":
-            case "drizzle orm":
-                return ("Drizzle ORM", "relational", "drizzle");
             default:
                 if (lower.StartsWith("redis_"))
                 {
@@ -1350,17 +1346,42 @@ public class PostIndexAnalyzer(IGraphClient db)
                 {
                     if (seen.Add((owner.Id, canonicalTarget)))
                     {
+                        var props = new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "database",
+                            ["is_semantic"] = "true",
+                            ["is_canonical"] = "true"
+                        };
+                        if (rel.Properties != null)
+                        {
+                            foreach (var (k, v) in rel.Properties)
+                            {
+                                if (v != null && !props.ContainsKey(k))
+                                {
+                                    props[k] = v;
+                                }
+                            }
+                        }
                         canonicalRels.Add(new Relationship(
                             owner.Id,
                             canonicalTarget,
                             OntologyConstants.Relationships.UsesDb,
-                            new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "database",
-                                ["is_semantic"] = "true",
-                                ["is_canonical"] = "true"
-                            }
+                            props
                         ));
+                    }
+                    else if (rel.Properties != null)
+                    {
+                        var existing = canonicalRels.FirstOrDefault(r => r.From == owner.Id && r.To == canonicalTarget);
+                        if (existing?.Properties != null)
+                        {
+                            foreach (var (k, v) in rel.Properties)
+                            {
+                                if (v != null && !existing.Properties.ContainsKey(k))
+                                {
+                                    existing.Properties[k] = v;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1477,7 +1498,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
 
         // 4. Query relationships targeting any database
-        var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind";
+        var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
         var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, cancellationToken);
         using var edgesDoc = JsonDocument.Parse(edgesJson);
 
@@ -1510,16 +1531,27 @@ public class PostIndexAnalyzer(IGraphClient db)
                 {
                     if (seen.Add((projId, canonicalId)))
                     {
+                        var props = new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "database",
+                            ["is_semantic"] = "true",
+                            ["is_canonical"] = "true"
+                        };
+                        if (row.TryGetProperty("properties", out var pElem) && pElem.ValueKind == JsonValueKind.Object)
+                        {
+                            foreach (var jp in pElem.EnumerateObject())
+                            {
+                                if (!props.ContainsKey(jp.Name))
+                                {
+                                    props[jp.Name] = jp.Value.ToString();
+                                }
+                            }
+                        }
                         relationshipsToUpload.Add(new Relationship(
                             projId,
                             canonicalId,
                             OntologyConstants.Relationships.UsesDb,
-                            new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "database",
-                                ["is_semantic"] = "true",
-                                ["is_canonical"] = "true"
-                            }
+                            props
                         ));
                     }
                 }

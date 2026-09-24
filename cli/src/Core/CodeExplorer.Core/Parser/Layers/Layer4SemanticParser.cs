@@ -22,6 +22,16 @@ public class Layer4SemanticParser
         var semanticRelationships = new List<Relationship>();
         var nProject = 0;
 
+        // 1. Parse workspace-level configuration and infrastructure files (e.g. docker-compose.yml, root .env) first
+        var workspaceRootFiles = l3Result.Prev.Prev.Files.Where(f => !l3Result.Prev.Projects.Any(p => IsEnclosedInProject(f, p, l3Result.Prev.Projects))).ToList();
+        foreach (var wfile in workspaceRootFiles)
+        {
+            if (ConfigurationParser.IsConfigurationFile(wfile.Name))
+            {
+                ConfigurationParser.ParseAndEnrich(wfile.FullPath, wfile.Path, ctx.WorkspaceId, semanticStructureNode, semanticRelationships, ctx);
+            }
+        }
+
         foreach (var project in l3Result.Prev.Projects)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
@@ -36,7 +46,17 @@ public class Layer4SemanticParser
 
             if (projectParser == null) continue;
 
-            // Get syntax trees belonging to this project
+            // 2. Parse project-level configuration files before syntax enrichment so resources are available in registry
+            var projectFiles = l3Result.Prev.Prev.Files.Where(f => IsEnclosedInProject(f, project, l3Result.Prev.Projects)).ToList();
+            foreach (var pfile in projectFiles)
+            {
+                if (ConfigurationParser.IsConfigurationFile(pfile.Name))
+                {
+                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, project, semanticRelationships, ctx);
+                }
+            }
+
+            // 3. Get syntax trees belonging to this project and run semantic enrichers
             var projectTrees = l3Result.SyntaxTrees.Where(st => IsEnclosedInProject(st.FileNode, project, l3Result.Prev.Projects)).ToList();
 
             foreach (var syntaxTree in projectTrees)
@@ -67,26 +87,6 @@ public class Layer4SemanticParser
 
             // Group EntryPoints
             GroupEntryPoints(project, projectTrees, ctx);
-
-            // Parse project-level configuration files
-            var projectFiles = l3Result.Prev.Prev.Files.Where(f => IsEnclosedInProject(f, project, l3Result.Prev.Projects)).ToList();
-            foreach (var pfile in projectFiles)
-            {
-                if (ConfigurationParser.IsConfigurationFile(pfile.Name))
-                {
-                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, project, semanticRelationships, ctx);
-                }
-            }
-        }
-
-        // Parse workspace-level configuration and infrastructure files (e.g. docker-compose.yml, root .env)
-        var workspaceRootFiles = l3Result.Prev.Prev.Files.Where(f => !l3Result.Prev.Projects.Any(p => IsEnclosedInProject(f, p, l3Result.Prev.Projects))).ToList();
-        foreach (var wfile in workspaceRootFiles)
-        {
-            if (ConfigurationParser.IsConfigurationFile(wfile.Name))
-            {
-                ConfigurationParser.ParseAndEnrich(wfile.FullPath, wfile.Path, ctx.WorkspaceId, semanticStructureNode, semanticRelationships, ctx);
-            }
         }
 
         // Collect all semantic nodes from projects and semanticStructureNode

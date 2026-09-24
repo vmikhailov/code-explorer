@@ -276,14 +276,25 @@ public class ResourceReconciliationService
     /// </summary>
     public static string NormalizeResourceName(string rawName, string engine)
     {
-        if (string.IsNullOrWhiteSpace(rawName)) return string.IsNullOrWhiteSpace(engine) ? "Database" : engine;
+        var isEngineGeneric = string.IsNullOrWhiteSpace(engine) ||
+                              IsGenericConfigKey(engine) ||
+                              engine.Equals("relational", StringComparison.OrdinalIgnoreCase) ||
+                              engine.Equals("keyvalue", StringComparison.OrdinalIgnoreCase) ||
+                              engine.Equals("document", StringComparison.OrdinalIgnoreCase) ||
+                              engine.Equals("search", StringComparison.OrdinalIgnoreCase) ||
+                              engine.Equals("graph", StringComparison.OrdinalIgnoreCase) ||
+                              engine.Equals("analytics", StringComparison.OrdinalIgnoreCase) ||
+                              engine.Equals("nosql", StringComparison.OrdinalIgnoreCase);
+
+        var safeEngine = isEngineGeneric ? "Database" : engine;
+        if (string.IsNullOrWhiteSpace(rawName)) return safeEngine;
 
         var trimmed = rawName.Trim();
         var lower = trimmed.ToLowerInvariant();
 
         if (IsGenericConfigKey(lower))
         {
-            return string.IsNullOrWhiteSpace(engine) ? "Database" : engine;
+            return safeEngine;
         }
 
         // Strip known technical suffixes like ConnectionString, Connection, DbContext, Context
@@ -310,7 +321,7 @@ public class ResourceReconciliationService
 
         if (string.IsNullOrWhiteSpace(trimmed) || IsGenericConfigKey(trimmed.ToLowerInvariant()))
         {
-            return string.IsNullOrWhiteSpace(engine) ? "Database" : engine;
+            return safeEngine;
         }
 
         return trimmed;
@@ -321,7 +332,11 @@ public class ResourceReconciliationService
         var lower = (key ?? "").Trim().ToLowerInvariant();
         return lower is "defaultconnection" or "connectionstring" or "connectionstrings" or
                "database" or "db" or "datasource" or "main" or "default" or
-               "spring.datasource.url" or "spring-datasource" or "database_url";
+               "relational" or "keyvalue" or "document" or
+               "spring.datasource.url" or "spring-datasource" or "database_url" or
+               "typeorm" or "ef-core" or "microsoft.entityframeworkcore" or "dapper" or
+               "prisma" or "sequelize" or "drizzle" or "hibernate" or "sqlalchemy" or
+               "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex";
     }
 
     public static string NormalizeAlias(string raw)

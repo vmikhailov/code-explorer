@@ -433,7 +433,7 @@ public class ParserValidationTests
         // Check if DatabaseNode child was added at the project level (under SemanticStructureNode)
         var dbNode = semanticNode.Children.OfType<DatabaseNode>().FirstOrDefault();
         Assert.That(dbNode, Is.Not.Null);
-        Assert.That(dbNode.Name, Is.EqualTo("Dapper"));
+        Assert.That(dbNode.Name, Is.EqualTo("Database"));
         Assert.That(dbNode.DbType, Is.EqualTo("relational"));
 
         // Check if CloudServiceNode child was added at the project level (under SemanticStructureNode)
@@ -581,9 +581,9 @@ public class ParserValidationTests
 
             var csDbGroup = ctx.SemanticStructure;
             Assert.That(csDbGroup, Is.Not.Null);
-            var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Microsoft.EntityFrameworkCore");
+            var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.DbType == "relational");
             Assert.That(csDbNode, Is.Not.Null);
-            Assert.That(csDbNode.Name, Is.EqualTo("Microsoft.EntityFrameworkCore"));
+            Assert.That(csDbNode.Name, Is.EqualTo("Database"));
             Assert.That(csDbNode.DbType, Is.EqualTo("relational"));
 
             Assert.That(
