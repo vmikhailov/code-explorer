@@ -303,14 +303,25 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
     // Sum nodes per layer
     const l1Count = (counts['File'] || 0) + (counts['Folder'] || 0) + (counts['GitSettings'] || 0);
-    const l2Count = (counts['Project'] || 0) + (counts['Package'] || 0);
+    const l2Count =
+      (counts['Project'] || 0) +
+      (counts['Library'] || 0) +
+      (counts['SharedLibrary'] || 0) +
+      (counts['Package'] || 0);
     const l3Count = (counts['Type'] || 0) + (counts['Function'] || 0) + (counts['Member'] || 0);
     const l4Count =
+      (counts['Service'] || 0) +
+      (counts['App'] || 0) +
+      (counts['FrontendApp'] || 0) +
+      (counts['Worker'] || 0) +
+      (counts['CliTool'] || 0) +
+      (counts['EntryPoint'] || 0) +
       (counts['Endpoint'] || 0) +
+      (counts['Procedure'] || 0) +
       (counts['Database'] || 0) +
       (counts['Table'] || 0) +
+      (counts['DataSet'] || 0) +
       (counts['Topic'] || 0) +
-      (counts['EntryPoint'] || 0) +
       (counts['ExternalService'] || 0) +
       (counts['CloudService'] || 0) +
       (counts['ApiInUse'] || 0) +
@@ -413,6 +424,9 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
       case 2:
         items.push(createNodeCatItem('Project', 'Projects', 'project'));
+        if ((counts['Library'] || 0) > 0 || (counts['SharedLibrary'] || 0) > 0) {
+          items.push(createNodeCatItem('Library', 'Libraries & SDKs', 'library'));
+        }
         items.push(createNodeCatItem('Package', 'Packages', 'package'));
         break;
 
@@ -423,11 +437,23 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         break;
 
       case 4:
+        items.push(createNodeCatItem('Service', 'Services & Microservices', 'server-process'));
+        items.push(createNodeCatItem('App', 'Applications (Ingress)', 'browser'));
+        items.push(createNodeCatItem('Worker', 'Background Workers', 'gear'));
+        if ((counts['CliTool'] || 0) > 0) {
+          items.push(createNodeCatItem('CliTool', 'CLI Tools', 'terminal'));
+        }
+        items.push(createNodeCatItem('EntryPoint', 'Execution EntryPoints', 'sign-in'));
         items.push(createNodeCatItem('Endpoint', 'HTTP Endpoints', 'radio-tower'));
+        if ((counts['Procedure'] || 0) > 0) {
+          items.push(createNodeCatItem('Procedure', 'Stored Procedures', 'database'));
+        }
         items.push(createNodeCatItem('Database', 'Databases', 'database'));
         items.push(createNodeCatItem('Table', 'Database Tables', 'table'));
+        if ((counts['DataSet'] || 0) > 0) {
+          items.push(createNodeCatItem('DataSet', 'Data Sets', 'files'));
+        }
         items.push(createNodeCatItem('Topic', 'Message Topics & Queues', 'mail'));
-        items.push(createNodeCatItem('EntryPoint', 'Execution EntryPoints', 'sign-in'));
         items.push(createNodeCatItem('ExternalService', 'External Services (Egress)', 'cloud'));
         items.push(createNodeCatItem('CloudService', 'Cloud Services', 'server'));
         items.push(createNodeCatItem('ApiInUse', 'APIs in Use', 'plug'));

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
-import { GraphData, GraphNode, GraphEdge } from '../../../../proto/types';
+import { GraphData, GraphNode, GraphEdge, isProjectKind } from '../../../../proto/types';
 
 try {
   cytoscape.use(dagre);
@@ -88,7 +88,7 @@ export interface DomainProjectInfo {
   isLibrary?: boolean;
 }
 
-export type EntityKind = 'Service' | 'Ingress' | 'Database' | 'Topic' | 'ExternalService';
+export type EntityKind = 'Service' | 'Ingress' | 'Worker' | 'Library' | 'Database' | 'Topic' | 'ExternalService';
 
 export interface SelectedNodeDetail {
   id: string;
@@ -156,6 +156,22 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     style: {
       'background-color': '#e53935',
       'border-color': '#7f1d1d',
+    },
+  },
+  // Worker
+  {
+    selector: 'node[kind = "Worker"]',
+    style: {
+      'background-color': '#d97706',
+      'border-color': '#92400e',
+    },
+  },
+  // Library
+  {
+    selector: 'node[kind = "Library"]',
+    style: {
+      'background-color': '#475569',
+      'border-color': '#1e293b',
     },
   },
   // Database
@@ -318,6 +334,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [preparingStatus, setPreparingStatus] = useState('Analyzing domain microservices...');
   const activeLayoutRef = useRef<cytoscape.Layouts | null>(null);
 
+  // Zoom & Node Spacing (Air) State
+  const [currentZoom, setCurrentZoom] = useState<number>(1.0);
+  const [spacingFactor, setSpacingFactor] = useState<number>(1.0);
+  const spacingFactorRef = useRef<number>(1.0);
+  spacingFactorRef.current = spacingFactor;
+
+  const basePositionsRef = useRef<Map<string, cytoscape.Position>>(new Map());
+  const centroidRef = useRef<{ cx: number; cy: number }>({ cx: 0, cy: 0 });
+
   // Clear hidden filters when switching graph
   useEffect(() => {
     setHiddenTypes(new Set());
@@ -371,7 +396,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
     // 1a. Categorize Projects into Domains
     for (const node of graph?.nodes || []) {
-      if (node.kind !== 'Project') continue;
+      if (!isProjectKind(node.kind)) continue;
 
       const { domainKey, domainDisplayName, isIngressHint } = extractDomainKey(node);
       projToDomainMap.set(node.id, domainKey);
@@ -385,7 +410,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         domainProjectsMap.set(domainKey, pList);
 
         const layer = (node.properties?.layer || node.properties?.layerId || '').toLowerCase();
-        const isIngress = layer === 'layer_ingress' || isIngressHint;
+        const isIngress =
+          (node.kind === 'App' || node.kind === 'FrontendApp' || isIngressHint) &&
+          node.kind !== 'Service' &&
+          node.kind !== 'Worker';
         domainZoneMap.set(domainKey, isIngress ? 'ingress' : 'service');
 
         domainNameMap.set(domainKey, {
@@ -396,16 +424,25 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         });
       }
 
+      const isLib =
+        node.kind === 'Library' ||
+        node.kind === 'SharedLibrary' ||
+        node.properties?.is_library === 'true';
+
       pList.push({
         id: node.id,
         name: node.name,
         kind: node.kind,
         filePath: node.filePath,
-        isLibrary: node.properties?.is_library === 'true',
+        isLibrary: isLib,
       });
 
       const currPrimary = domainPrimaryMap.get(domainKey);
-      if (!currPrimary || (currPrimary.properties?.is_library === 'true' && node.properties?.is_library !== 'true')) {
+      const isCurrLib =
+        currPrimary?.kind === 'Library' ||
+        currPrimary?.kind === 'SharedLibrary' ||
+        currPrimary?.properties?.is_library === 'true';
+      if (!currPrimary || (isCurrLib && !isLib)) {
         domainPrimaryMap.set(domainKey, node);
       }
     }
@@ -534,26 +571,62 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     // 3. Build Cytoscape Nodes
     let ingressCount = 0;
     let serviceCount = 0;
+    let workerCount = 0;
+    let libCount = 0;
 
-    // 3a. Service / Ingress Nodes
+    // 3a. Service / Ingress / Worker / Library Nodes
     for (const [domainId, meta] of domainNameMap.entries()) {
       const zone = domainZoneMap.get(domainId) || 'service';
       const isIngress = zone === 'ingress';
-      if (isIngress) ingressCount++;
-      else serviceCount++;
 
       const projects = domainProjectsMap.get(domainId) || [];
       const primaryNode = domainPrimaryMap.get(domainId);
-      const tag = isIngress ? ':Ingress' : ':Service';
-      const bgColor = isIngress ? '#0288d1' : '#e53935';
-      const borderColor = isIngress ? '#01579b' : '#7f1d1d';
-      const size = isIngress ? 54 : 50;
+      const isWorker =
+        primaryNode?.kind === 'Worker' ||
+        primaryNode?.properties?.role === 'Worker' ||
+        projects.some((p) => p.kind === 'Worker');
+      const isLibDomain =
+        (primaryNode?.kind === 'Library' ||
+          primaryNode?.kind === 'SharedLibrary' ||
+          primaryNode?.properties?.is_library === 'true') &&
+        !projects.some((p) => p.kind === 'Service' || p.kind === 'App');
+
+      let tag = ':Service';
+      let nodeKind: EntityKind = 'Service';
+      let bgColor = '#e53935';
+      let borderColor = '#7f1d1d';
+      let size = 50;
+
+      if (isIngress) {
+        ingressCount++;
+        tag = ':Ingress';
+        nodeKind = 'Ingress';
+        bgColor = '#0288d1';
+        borderColor = '#01579b';
+        size = 54;
+      } else if (isWorker) {
+        workerCount++;
+        tag = ':Worker';
+        nodeKind = 'Worker';
+        bgColor = '#d97706';
+        borderColor = '#92400e';
+        size = 48;
+      } else if (isLibDomain) {
+        libCount++;
+        tag = ':Library';
+        nodeKind = 'Library';
+        bgColor = '#475569';
+        borderColor = '#1e293b';
+        size = 44;
+      } else {
+        serviceCount++;
+      }
 
       const detail: SelectedNodeDetail = {
         id: domainId,
         name: meta.name,
         displayName: meta.displayName,
-        kind: isIngress ? 'Ingress' : 'Service',
+        kind: nodeKind,
         displayTag: tag,
         bgColor,
         borderColor,
@@ -575,7 +648,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           name: meta.name,
           displayName: meta.displayName,
           displayLabel: `${tag}\n${meta.displayName}`,
-          kind: isIngress ? 'Ingress' : 'Service',
+          kind: nodeKind,
           bgColor,
           borderColor,
           size,
@@ -753,6 +826,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       counts: {
         ingress: ingressCount,
         services: serviceCount,
+        workers: workerCount,
+        libraries: libCount,
         databases: dbCount,
         topics: topicCount,
         external: extCount,
@@ -997,6 +1072,22 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       evt.target.removeClass('hovered');
     });
 
+    // Zoom listener to keep HUD percentage indicator synchronized
+    cy.on('zoom', () => {
+      setCurrentZoom(cy.zoom());
+    });
+
+    // Track manually dragged node positions relative to centroid
+    cy.on('dragfree', 'node', (evt) => {
+      const node = evt.target;
+      const p = node.position();
+      const { cx, cy: cyPos } = centroidRef.current;
+      const currentFactor = spacingFactorRef.current || 1.0;
+      const unscaledX = cx + (p.x - cx) / currentFactor;
+      const unscaledY = cyPos + (p.y - cyPos) / currentFactor;
+      basePositionsRef.current.set(node.id(), { x: unscaledX, y: unscaledY });
+    });
+
     cyRef.current = cy;
 
     return () => {
@@ -1088,12 +1179,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
 
       let layoutConfig: any;
+      const spacing = spacingFactorRef.current || 1.0;
       if (layoutName === 'dagre') {
         layoutConfig = {
           name: 'dagre',
           rankDir: 'LR',
-          nodeSep: 60,
-          rankSep: 140,
+          nodeSep: Math.round(60 * spacing),
+          rankSep: Math.round(140 * spacing),
           animate: false,
           fit: true,
           padding: 60,
@@ -1109,6 +1201,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             return 1;
           },
           levelWidth: () => 1,
+          minNodeSpacing: Math.round(50 * spacing),
           animate: false,
           fit: true,
           padding: 60,
@@ -1119,13 +1212,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           name: 'cose',
           animate: false,
           randomize: false,
-          componentSpacing: 80,
-          nodeRepulsion: () => 450000,
+          componentSpacing: Math.round(80 * spacing),
+          nodeRepulsion: () => Math.round(450000 * spacing),
           nodeOverlap: 25,
-          idealEdgeLength: () => 140,
+          idealEdgeLength: () => Math.round(140 * spacing),
           edgeElasticity: () => 100,
           nestingFactor: 5,
-          gravity: 60,
+          gravity: Math.max(10, Math.round(60 / spacing)),
           numIter: 300,
           coolingFactor: 0.95,
           fit: true,
@@ -1138,6 +1231,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           ...layoutConfig,
           stop: () => {
             if (!cancelled) {
+              recordBasePositions(cy);
+              const factor = spacingFactorRef.current;
+              if (factor !== 1.0) {
+                const { cx, cy: cyPos } = centroidRef.current;
+                cy.batch(() => {
+                  cy.nodes().forEach((node) => {
+                    const base = basePositionsRef.current.get(node.id());
+                    if (base) {
+                      node.position({
+                        x: cx + (base.x - cx) * factor,
+                        y: cyPos + (base.y - cyPos) * factor,
+                      });
+                    }
+                  });
+                });
+              }
+              setCurrentZoom(cy.zoom());
               setIsPreparing(false);
             }
           },
@@ -1169,37 +1279,105 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     };
   }, [elements, layoutName]);
 
-  // Search Query Filter
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
+  // Record unscaled node positions relative to centroid
+  const recordBasePositions = useCallback((cy: cytoscape.Core) => {
+    let sumX = 0;
+    let sumY = 0;
+    let count = 0;
+    const currentFactor = spacingFactorRef.current || 1.0;
 
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) {
-      cy.elements().removeClass('dimmed search-match');
-      return;
-    }
-
-    const matches = cy.nodes().filter((n) => {
-      const name = (n.data('name') || '').toLowerCase();
-      const dName = (n.data('displayName') || '').toLowerCase();
-      return name.includes(q) || dName.includes(q);
+    cy.nodes().forEach((n) => {
+      const p = n.position();
+      sumX += p.x;
+      sumY += p.y;
+      count++;
     });
 
-    if (matches.length > 0) {
-      cy.elements().addClass('dimmed');
-      matches.removeClass('dimmed').addClass('search-match');
-      matches.connectedEdges().removeClass('dimmed');
-      matches.neighborhood().removeClass('dimmed');
-    } else {
-      cy.elements().removeClass('dimmed search-match');
-    }
-  }, [searchQuery]);
+    const cx = count > 0 ? sumX / count : 0;
+    const cyPos = count > 0 ? sumY / count : 0;
+    centroidRef.current = { cx, cy: cyPos };
+
+    const baseMap = new Map<string, cytoscape.Position>();
+    cy.nodes().forEach((n) => {
+      const p = n.position();
+      const unscaledX = cx + (p.x - cx) / currentFactor;
+      const unscaledY = cyPos + (p.y - cyPos) / currentFactor;
+      baseMap.set(n.id(), { x: unscaledX, y: unscaledY });
+    });
+    basePositionsRef.current = baseMap;
+  }, []);
+
+  // Real-time radial node spacing (air) adjustment
+  const handleSpacingChange = useCallback(
+    (newFactor: number) => {
+      const clamped = Math.max(0.4, Math.min(3.5, Math.round(newFactor * 10) / 10));
+      setSpacingFactor(clamped);
+      spacingFactorRef.current = clamped;
+
+      const cy = cyRef.current;
+      if (!cy) return;
+
+      if (basePositionsRef.current.size === 0) {
+        recordBasePositions(cy);
+      }
+
+      const { cx, cy: cyPos } = centroidRef.current;
+      cy.batch(() => {
+        cy.nodes().forEach((node) => {
+          const base = basePositionsRef.current.get(node.id());
+          if (base) {
+            const dx = base.x - cx;
+            const dy = base.y - cyPos;
+            node.position({
+              x: cx + dx * clamped,
+              y: cyPos + dy * clamped,
+            });
+          }
+        });
+      });
+    },
+    [recordBasePositions]
+  );
+
+  // Zoom control handlers
+  const handleZoomIn = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const newZoom = Math.min(3.5, cy.zoom() * 1.25);
+    cy.zoom({
+      level: newZoom,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
+    setCurrentZoom(newZoom);
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const newZoom = Math.max(0.15, cy.zoom() * 0.8);
+    cy.zoom({
+      level: newZoom,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
+    setCurrentZoom(newZoom);
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.zoom({
+      level: 1.0,
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
+    cy.center();
+    setCurrentZoom(1.0);
+  }, []);
 
   const handleFitView = useCallback(() => {
-    if (cyRef.current) {
-      cyRef.current.fit(undefined, 50);
-    }
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.fit(undefined, 50);
+    setCurrentZoom(cy.zoom());
   }, []);
 
   const handleLayoutChange = useCallback((newLayout: 'cose' | 'dagre' | 'concentric') => {
@@ -1248,6 +1426,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             >
               {hiddenTypes.has('Service') && <span className="filter-cross">✕</span>}
               ⚙️ Services ({rawGraph.counts.services})
+            </button>
+          )}
+          {rawGraph.counts.workers > 0 && (
+            <button
+              className={`hud-type-filter-btn ${hiddenTypes.has('Worker') ? 'is-hidden' : 'is-active'}`}
+              onClick={() => toggleTypeVisibility('Worker')}
+              title={hiddenTypes.has('Worker') ? 'Show Background Workers' : 'Hide Background Workers'}
+            >
+              {hiddenTypes.has('Worker') && <span className="filter-cross">✕</span>}
+              ⚡ Workers ({rawGraph.counts.workers})
+            </button>
+          )}
+          {rawGraph.counts.libraries > 0 && (
+            <button
+              className={`hud-type-filter-btn ${hiddenTypes.has('Library') ? 'is-hidden' : 'is-active'}`}
+              onClick={() => toggleTypeVisibility('Library')}
+              title={hiddenTypes.has('Library') ? 'Show Libraries' : 'Hide Libraries'}
+            >
+              {hiddenTypes.has('Library') && <span className="filter-cross">✕</span>}
+              📚 Libs ({rawGraph.counts.libraries})
             </button>
           )}
           {rawGraph.counts.databases > 0 && (
@@ -1316,9 +1514,73 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           </select>
         </div>
 
-        <button className="domain-hud-fit-btn" onClick={handleFitView} title="Center and Fit View">
-          Fit
-        </button>
+        {/* Node Spacing / Air Control ("Воздух") */}
+        <div className="domain-hud-control-group" title="Воздух: Раздвинуть узлы для удобства чтения">
+          <span className="domain-hud-group-label">Воздух:</span>
+          <button
+            className="domain-hud-step-btn"
+            onClick={() => handleSpacingChange(Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)))}
+            title="Сдвинуть узлы ближе"
+          >
+            ↔−
+          </button>
+          <input
+            type="range"
+            min="0.5"
+            max="3.0"
+            step="0.1"
+            value={spacingFactor}
+            onChange={(e) => handleSpacingChange(parseFloat(e.target.value))}
+            className="domain-hud-slider"
+            title={`Воздух: ${spacingFactor.toFixed(1)}x`}
+          />
+          <button
+            className="domain-hud-step-btn"
+            onClick={() => handleSpacingChange(Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)))}
+            title="Раздвинуть узлы дальше"
+          >
+            ↔+
+          </button>
+          <span
+            className="domain-hud-value-badge"
+            onClick={() => handleSpacingChange(1.0)}
+            title="Сбросить воздух на 1.0x"
+          >
+            {spacingFactor.toFixed(1)}x
+          </span>
+        </div>
+
+        {/* Zoom Controls */}
+        <div className="domain-hud-control-group" title="Масштабирование">
+          <button
+            className="domain-hud-btn"
+            onClick={handleZoomOut}
+            title="Отдалить (Zoom Out)"
+          >
+            −
+          </button>
+          <button
+            className="domain-hud-btn zoom-level-btn"
+            onClick={handleResetZoom}
+            title="Сбросить масштаб на 100%"
+          >
+            {Math.round(currentZoom * 100)}%
+          </button>
+          <button
+            className="domain-hud-btn"
+            onClick={handleZoomIn}
+            title="Приблизить (Zoom In)"
+          >
+            +
+          </button>
+          <button
+            className="domain-hud-btn fit-btn"
+            onClick={handleFitView}
+            title="Вписать в экран (Fit to Screen)"
+          >
+            ⛶ Fit
+          </button>
+        </div>
 
         {/* Search */}
         <div className="domain-hud-search">

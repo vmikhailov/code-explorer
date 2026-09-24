@@ -148,6 +148,22 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
 
   const getKindIcon = (kind: string) => {
     switch (kind) {
+      case 'Service':
+        return '⚙️';
+      case 'App':
+        return '🌐';
+      case 'Worker':
+        return '⚡';
+      case 'CliTool':
+        return '💻';
+      case 'Library':
+        return '📚';
+      case 'Package':
+        return '📦';
+      case 'Procedure':
+        return '⚙️';
+      case 'DataSet':
+        return '📊';
       case 'Project':
         return '📦';
       case 'Endpoint':

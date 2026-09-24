@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
-import { GraphData } from '../../../../proto/types';
+import { GraphData, isProjectKind } from '../../../../proto/types';
 
 interface MermaidDiagramViewProps {
   graph: GraphData | null;
@@ -59,7 +59,7 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
 
       if (type === 'architecture' || type === 'flow') {
         // 1. Projects
-        const projects = graph.nodes.filter((n) => n.kind === 'Project');
+        const projects = graph.nodes.filter((n) => isProjectKind(n.kind));
         if (projects.length > 0) {
           lines.push('  subgraph Projects ["Applications & Services"]');
           for (const p of projects) {

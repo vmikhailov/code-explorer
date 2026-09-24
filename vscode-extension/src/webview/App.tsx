@@ -12,6 +12,7 @@ import {
   ErrorResponse,
   GraphData,
   GraphNode,
+  isProjectKind,
 } from '../../../proto/types';
 import { Toolbar } from './components/Toolbar';
 import { ProjectFlowView, EdgeCategory } from './components/ProjectFlowView';
@@ -42,6 +43,17 @@ declare function acquireVsCodeApi(): {
   getState(): any;
   setState(state: any): void;
 };
+
+declare global {
+  interface Window {
+    __CE_CONFIG__?: {
+      viewMode?: ViewMode;
+      wsUrl?: string;
+      workspaceRoot?: string;
+      project?: string;
+    };
+  }
+}
 
 let vscodeApi: any = null;
 try {
@@ -131,13 +143,20 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 }
 
 export const App: React.FC = () => {
-  const [viewMode, setViewMode] = useState<ViewMode>('layers');
+  const initialConfig = typeof window !== 'undefined' ? window.__CE_CONFIG__ : undefined;
+  const savedState = vscodeApi?.getState();
+
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    return (initialConfig?.viewMode || savedState?.viewMode || 'semantic') as ViewMode;
+  });
   const [connectionStatus, setConnectionStatus] = useState<
     'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
   >('connecting');
   const [allProjects, setAllProjects] = useState<string[]>([]);
   const [projectPaths, setProjectPaths] = useState<Record<string, string>>({});
-  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [selectedProject, setSelectedProject] = useState<string>(() => {
+    return initialConfig?.project || savedState?.selectedProject || '';
+  });
   const [flowGraph, setFlowGraph] = useState<GraphData | null>(null);
   const [fullGraph, setFullGraph] = useState<GraphData | null>(null);
   const [cypherQuery, setCypherQuery] = useState<string>('');
@@ -242,36 +261,72 @@ export const App: React.FC = () => {
     sendWsMessage(req);
   }, [sendWsMessage]);
 
+  const viewModeRef = useRef<ViewMode>(viewMode);
+  viewModeRef.current = viewMode;
+
+  const selectedProjectRef = useRef<string>(selectedProject);
+  selectedProjectRef.current = selectedProject;
+
+  const fullGraphRef = useRef<GraphData | null>(null);
+  fullGraphRef.current = fullGraph;
+
+  const flowGraphRef = useRef<GraphData | null>(null);
+  flowGraphRef.current = flowGraph;
+
+  const allProjectsRef = useRef<string[]>(allProjects);
+  allProjectsRef.current = allProjects;
+
   // Command Action Handlers
   const handleViewModeChange = useCallback(
     (targetMode: ViewMode) => {
-      if (viewMode === targetMode) return;
+      if (viewModeRef.current === targetMode) return;
       setViewMode(targetMode);
-      if (targetMode === 'flow' && selectedProject) {
-        requestDependencies(selectedProject);
-      } else if (targetMode !== 'flow') {
+      viewModeRef.current = targetMode;
+      commandManager.setScope(targetMode);
+
+      if (vscodeApi) {
+        try {
+          const current = vscodeApi.getState() || {};
+          vscodeApi.setState({ ...current, viewMode: targetMode });
+        } catch {}
+      }
+
+      if (targetMode === 'flow' && selectedProjectRef.current && !flowGraphRef.current) {
+        requestDependencies(selectedProjectRef.current);
+      } else if (targetMode !== 'flow' && !fullGraphRef.current) {
         requestArchitecture();
       }
     },
-    [viewMode, selectedProject, requestDependencies, requestArchitecture]
+    [commandManager, requestDependencies, requestArchitecture]
   );
 
   const handleSelectProject = useCallback(
     (targetProject: string, targetMode: ViewMode = 'flow') => {
-      if (selectedProject === targetProject && viewMode === targetMode) return;
-      if (viewMode !== targetMode) {
+      if (selectedProjectRef.current === targetProject && viewModeRef.current === targetMode) return;
+      if (viewModeRef.current !== targetMode) {
         setViewMode(targetMode);
+        viewModeRef.current = targetMode;
         commandManager.setScope(targetMode);
       }
+      setSelectedProject(targetProject);
+      selectedProjectRef.current = targetProject;
+
+      if (vscodeApi) {
+        try {
+          const current = vscodeApi.getState() || {};
+          vscodeApi.setState({ ...current, viewMode: targetMode, selectedProject: targetProject });
+        } catch {}
+      }
+
       const cmd = new SelectProjectCommand(
-        selectedProject,
+        selectedProjectRef.current,
         targetProject,
         setSelectedProject,
         (p) => requestDependencies(p)
       );
       commandManager.executeCommand(cmd);
     },
-    [selectedProject, viewMode, commandManager, requestDependencies]
+    [commandManager, requestDependencies]
   );
 
   const handleDrillDownToFlow = useCallback(
@@ -717,7 +772,7 @@ export const App: React.FC = () => {
                   const projs: string[] = [];
                   const nodePaths: Record<string, string> = {};
                   for (const n of resp.graph.nodes) {
-                    if (n.kind === 'Project' && Boolean(n.name)) {
+                    if (isProjectKind(n.kind) && Boolean(n.name)) {
                       const lower = n.name.toLowerCase();
                       if (!seen.has(lower)) {
                         seen.add(lower);
@@ -805,58 +860,78 @@ export const App: React.FC = () => {
     };
   }, [requestDependencies, requestArchitecture]);
 
+  const handleViewModeChangeRef = useRef(handleViewModeChange);
+  handleViewModeChangeRef.current = handleViewModeChange;
+
+  const handleSelectProjectRef = useRef(handleSelectProject);
+  handleSelectProjectRef.current = handleSelectProject;
+
+  const handleTriggerScanRef = useRef(handleTriggerScan);
+  handleTriggerScanRef.current = handleTriggerScan;
+
   useEffect(() => {
+    // Immediate connection if initial configuration has wsUrl
+    if (initialConfig?.workspaceRoot) {
+      workspaceRootRef.current = initialConfig.workspaceRoot;
+    }
+    if (initialConfig?.wsUrl) {
+      connectWebSocket(initialConfig.wsUrl);
+    }
+
     const handleMessage = (event: MessageEvent) => {
       const msg = event.data;
       switch (msg.type) {
         case 'SERVER_CONFIG':
           logToExtension('INFO', `Received SERVER_CONFIG: wsUrl=${msg.wsUrl}, workspace=${msg.workspaceRoot}, initialViewMode=${msg.initialViewMode}`);
-          workspaceRootRef.current = msg.workspaceRoot;
-          if (msg.initialViewMode) {
-            setViewMode(msg.initialViewMode as ViewMode);
-            commandManager.setScope(msg.initialViewMode);
+          if (msg.workspaceRoot) {
+            workspaceRootRef.current = msg.workspaceRoot;
           }
-          connectWebSocket(msg.wsUrl);
+          if (msg.initialViewMode && msg.initialViewMode !== viewModeRef.current) {
+            handleViewModeChangeRef.current(msg.initialViewMode as ViewMode);
+          }
+          if (msg.wsUrl && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
+            connectWebSocket(msg.wsUrl);
+          }
           break;
 
         case 'TRIGGER_SCAN':
           logToExtension('INFO', `Received TRIGGER_SCAN from extension (clear=${Boolean(msg.clear)})`);
-          handleTriggerScan(Boolean(msg.clear));
+          handleTriggerScanRef.current(Boolean(msg.clear));
           break;
 
         case 'SET_VIEW_MODE':
           logToExtension('INFO', `Received SET_VIEW_MODE from extension: ${msg.viewMode}`);
-          if (msg.viewMode) {
-            handleViewModeChange(msg.viewMode as ViewMode);
+          if (msg.viewMode && msg.viewMode !== viewModeRef.current) {
+            handleViewModeChangeRef.current(msg.viewMode as ViewMode);
           }
           break;
 
         case 'OPEN_NODE_GRID':
           logToExtension('INFO', `Received OPEN_NODE_GRID from extension: kind=${msg.kind}, layer=${msg.layerName}`);
           setGridCategory({ kind: msg.kind, layerTitle: msg.layerName });
-          handleViewModeChange('grid');
+          handleViewModeChangeRef.current('grid');
           break;
 
         case 'SELECT_PROJECT':
           logToExtension('INFO', `Received SELECT_PROJECT from extension: ${msg.project}`);
           if (msg.project) {
-            handleSelectProject(msg.project, 'flow');
+            handleSelectProjectRef.current(msg.project, 'flow');
           }
           break;
 
         case 'FOCUS_NODE':
           logToExtension('INFO', `Received FOCUS_NODE from extension: ${msg.nodeId} (${msg.kind})`);
           if (msg.nodeId) {
-            const currentGraph = viewMode === 'flow' ? flowGraph : fullGraph;
+            const currentGraph = viewModeRef.current === 'flow' ? flowGraphRef.current : fullGraphRef.current;
             const targetNode = currentGraph?.nodes?.find(
               (n) => n.id === msg.nodeId || n.name === msg.nodeId || (msg.nodeId && n.id.includes(msg.nodeId))
             );
             if (targetNode) {
               setSelectedDrawerNode(targetNode);
             }
-            const p = allProjects.find((name) => msg.nodeId.toLowerCase().includes(name.toLowerCase()));
+            const p = allProjectsRef.current.find((name) => msg.nodeId.toLowerCase().includes(name.toLowerCase()));
             if (p) {
-              handleSelectProject(p, viewMode === 'flow' ? 'flow' : 'c1');
+              handleSelectProjectRef.current(p, viewModeRef.current === 'flow' ? 'flow' : 'c1');
             }
           }
           break;
@@ -882,7 +957,7 @@ export const App: React.FC = () => {
         } catch {}
       }
     };
-  }, [connectWebSocket]);
+  }, [connectWebSocket, initialConfig]);
 
   const handleCopyError = useCallback(() => {
     if (!activeError) return;

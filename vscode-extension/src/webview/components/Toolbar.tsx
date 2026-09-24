@@ -149,6 +149,26 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
       </div>
 
+      {/* View Mode Selector */}
+      <div className="view-mode-dropdown-wrap">
+        <label className="view-mode-dropdown-label">
+          <span className="view-label-prefix">View:</span>
+          <select
+            className="view-mode-select"
+            value={viewMode}
+            onChange={(e) => onViewModeChange?.(e.target.value as ViewMode)}
+            title="Switch architecture visualization view"
+          >
+            <option value="semantic">🌐 Domain Microservices</option>
+            <option value="layers">🏛️ Architecture Tiers</option>
+            <option value="c1">🌍 C1 System Context</option>
+            <option value="flow">🔀 Project Flow (C2)</option>
+            <option value="full">🕸️ Physical Dependency Graph</option>
+            <option value="mermaid">📊 Mermaid Architecture</option>
+          </select>
+        </label>
+      </div>
+
       {/* Dynamic Controls based on Mode */}
       <div className="toolbar-controls">
         {viewMode === 'c1' && (

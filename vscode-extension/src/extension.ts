@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ProcessManager } from './processManager';
 import { GraphPanel } from './graphPanel';
 import { CodeExplorerTreeDataProvider } from './codeExplorerTreeProvider';
+import { isProjectKind } from '../../proto/types';
 
 let processManager: ProcessManager | null = null;
 
@@ -251,7 +252,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
-        const targetMode = targetKind === 'Project' ? 'flow' : 'semantic';
+        const targetMode = isProjectKind(targetKind) ? 'flow' : 'semantic';
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
           serverInfo.wsUrl,

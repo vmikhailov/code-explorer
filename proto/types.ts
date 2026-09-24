@@ -27,9 +27,24 @@ export type MessageType =
 // Common Graph Models
 // ============================================================================
 
+export const PROJECT_KINDS = new Set([
+  'Project',
+  'Service',
+  'App',
+  'FrontendApp',
+  'Library',
+  'SharedLibrary',
+  'Worker',
+  'CliTool',
+]);
+
+export function isProjectKind(kind?: string): boolean {
+  return Boolean(kind && PROJECT_KINDS.has(kind));
+}
+
 export interface GraphNode {
   id: string;
-  kind: string; // 'Project' | 'Class' | 'Function' | 'Endpoint' | 'Table' | 'Database' etc.
+  kind: string; // 'Project' | 'Service' | 'App' | 'Library' | 'Worker' | 'CliTool' | 'Endpoint' etc.
   name: string;
   displayName?: string;
   filePath?: string;

@@ -26,11 +26,13 @@
   position: absolute;
   top: 10px;
   left: 16px;
+  max-width: calc(100% - 32px);
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(20, 20, 26, 0.9);
+  flex-wrap: wrap;
+  gap: 8px;
+  background: rgba(20, 20, 26, 0.92);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
   border-radius: 6px;
@@ -189,21 +191,124 @@
   color: #e2e8f0;
 }
 
-.domain-hud-fit-btn {
+/* Air (Spacing) & Zoom Control Groups in HUD */
+.domain-hud-control-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+
+.domain-hud-group-label {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.domain-hud-btn,
+.domain-hud-step-btn {
   background: rgba(255, 255, 255, 0.08);
   color: #cbd5e1;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 3px 9px;
-  font-size: 10.5px;
+  border-radius: 3px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
   font-weight: 600;
-  border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
+  user-select: none;
 }
 
-.domain-hud-fit-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
+.domain-hud-btn:hover,
+.domain-hud-step-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.domain-hud-btn:active,
+.domain-hud-step-btn:active {
+  transform: translateY(1px);
+}
+
+.domain-hud-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 70px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.domain-hud-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 1px solid #ffffff;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s ease;
+}
+
+.domain-hud-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.domain-hud-value-badge {
+  color: #38bdf8;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  min-width: 28px;
+  text-align: center;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.domain-hud-value-badge:hover {
+  background: rgba(56, 189, 248, 0.15);
+  text-decoration: underline;
+}
+
+.domain-hud-btn.zoom-level-btn {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  min-width: 36px;
+  padding: 0 4px;
+}
+
+.domain-hud-btn.fit-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 7px;
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.domain-hud-btn.fit-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  color: #ffffff;
+  border-color: #38bdf8;
 }
 
 .domain-hud-search {

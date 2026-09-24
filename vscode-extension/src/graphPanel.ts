@@ -47,10 +47,11 @@ export class GraphPanel {
     project?: string
   ): GraphPanel {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.Active;
-    const mode = initialViewMode || 'layers';
+    const mode = initialViewMode || 'semantic';
 
     const existing = GraphPanel.panels.get(mode);
     if (existing) {
+      existing.panel.title = getViewTitle(mode);
       existing.panel.reveal(existing.panel.viewColumn ?? column);
       existing.postMessage({
         type: 'SERVER_CONFIG',
@@ -76,7 +77,7 @@ export class GraphPanel {
       }
     );
 
-    const newPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot, outputChannel, mode);
+    const newPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot, outputChannel, mode, project);
     GraphPanel.panels.set(mode, newPanel);
     GraphPanel.activePanel = newPanel;
 
@@ -96,9 +97,10 @@ export class GraphPanel {
     private wsUrl: string,
     private workspaceRoot: string,
     private outputChannel?: vscode.OutputChannel,
-    private initialViewMode?: string
+    private initialViewMode?: string,
+    private initialProject?: string
   ) {
-    this.viewMode = initialViewMode || 'layers';
+    this.viewMode = initialViewMode || 'semantic';
     this.panel = panel;
     this.extensionUri = extensionUri;
 
@@ -331,6 +333,13 @@ export class GraphPanel {
     );
 
     const nonce = getNonce();
+    const configData = {
+      viewMode: this.viewMode,
+      wsUrl: this.wsUrl,
+      workspaceRoot: this.workspaceRoot,
+      project: this.initialProject,
+    };
+    const configScript = `window.__CE_CONFIG__ = ${JSON.stringify(configData).replace(/</g, '\\u003c')};`;
 
     this.panel.webview.html = `<!DOCTYPE html>
 <html lang="en">
@@ -346,6 +355,7 @@ export class GraphPanel {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CodeExplorer Graph</title>
   <link rel="stylesheet" href="${styleUri}">
+  <script nonce="${nonce}">${configScript}</script>
 </head>
 <body>
   <div id="root"></div>

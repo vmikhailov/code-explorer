@@ -12,7 +12,7 @@ import {
   Edge,
   MarkerType,
 } from '@xyflow/react';
-import { GraphData, GraphNode, GraphEdge } from '../../../../proto/types';
+import { GraphData, GraphNode, GraphEdge, isProjectKind } from '../../../../proto/types';
 import {
   C1EndpointCardNode,
   C1ProjectCardNode,
@@ -64,8 +64,8 @@ function C1Canvas({
     const wsNode = allNodes.find((n) => n.kind === 'Workspace');
     if (wsNode?.name) {
       sysName = wsNode.name;
-    } else if (allNodes.find((n) => n.kind === 'Project')) {
-      const p = allNodes.find((n) => n.kind === 'Project')!;
+    } else if (allNodes.find((n) => isProjectKind(n.kind))) {
+      const p = allNodes.find((n) => isProjectKind(n.kind))!;
       sysName = p.name.split('.')[0] || p.name;
     }
 
@@ -85,7 +85,7 @@ function C1Canvas({
 
       if (kind === 'endpoint' || node.id.includes('endpoint:') || filePath.endsWith('.cfm')) {
         ingress.push(node);
-      } else if (kind === 'project') {
+      } else if (isProjectKind(node.kind)) {
         projects.push(node);
       } else if (kind === 'database') {
         if (!dbSeen.has(name.toLowerCase())) {
