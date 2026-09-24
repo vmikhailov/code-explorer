@@ -9,8 +9,8 @@ WITH w,
          language: p.project_type,
          dependencies: [(p)-[:DEPENDS_ON]->(dep:Project) | dep.name],
          databases: projectDbs,
-         ingress: [(p)<-[:BELONGS_TO]-(psem:ProjectSemantic)-[:CONTAINS]->(ep) WHERE ep:Endpoint OR ep:EntryPoint | ep.name],
-         egress: [(p)<-[:BELONGS_TO]-(psem:ProjectSemantic)-[:CONTAINS]->(es:ExternalService) | es.name]
+         ingress: [(p)-[:CONTAINS]->(ep) WHERE ep:Endpoint OR ep:EntryPoint | ep.name],
+         egress: [(p)-[:CONTAINS]->(es:ExternalService) | es.name]
      }) AS projectsRaw
 WITH w, [x IN projectsRaw WHERE x.name IS NOT NULL] AS projects
 RETURN w.name AS workspace, w.path AS path, projects

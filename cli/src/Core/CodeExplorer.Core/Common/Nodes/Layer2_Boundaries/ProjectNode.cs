@@ -19,6 +19,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.PublishesTo)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.Contains)]
 public record ProjectNode(
     string Id,
     string Name,

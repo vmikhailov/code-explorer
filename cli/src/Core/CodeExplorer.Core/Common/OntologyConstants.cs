@@ -18,6 +18,11 @@ public static class OntologyConstants
         public const string ProjectSyntax = "ProjectSyntax";
         public const string SemanticStructure = "SemanticStructure";
         public const string ProjectSemantic = "ProjectSemantic";
+        public const string Service = "Service";
+        public const string App = "App";
+        public const string Library = "Library";
+        public const string Worker = "Worker";
+        public const string CliTool = "CliTool";
         public const string Database = "Database";
         public const string DataSet = "DataSet";
         public const string Table = "Table";

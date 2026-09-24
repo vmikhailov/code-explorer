@@ -490,7 +490,13 @@ public partial class SqliteCompiler
     private string? TryVisitGraphIntrospection(string fn, FunctionCallExpression func)
     {
         if (fn == "labels" && func.Arguments.Count == 1 && func.Arguments[0] is IdentifierExpression nodeVar)
-            return $"json_array({EscapeVar(nodeVar.Name)}.kind)";
+        {
+            var v = EscapeVar(nodeVar.Name);
+            return $"CASE " +
+                   $"WHEN {v}.kind = 'Project' AND json_extract({v}.properties, '$.role') IS NOT NULL " +
+                   $"THEN json_array({v}.kind, json_extract({v}.properties, '$.role')) " +
+                   $"ELSE json_array({v}.kind) END";
+        }
 
         if (fn == "type" && func.Arguments.Count == 1)
         {
@@ -768,7 +774,7 @@ public partial class SqliteCompiler
     {
         if (hasLabel.Expression is IdentifierExpression id)
         {
-            return $"({EscapeVar(id.Name)}.kind = '{hasLabel.Label}')";
+            return CompileNodeLabelPredicate(EscapeVar(id.Name), hasLabel.Label);
         }
 
         return $"({VisitExpression(hasLabel.Expression)} = '{hasLabel.Label}')";

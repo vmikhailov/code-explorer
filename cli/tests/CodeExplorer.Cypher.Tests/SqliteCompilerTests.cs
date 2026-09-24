@@ -362,5 +362,56 @@ public class SqliteCompilerTests
         Assert.That(rows, Has.Count.EqualTo(1));
         Assert.That(rows[0]["id"], Is.EqualTo("pkg:2"));
     }
+
+    [Test]
+    public void Test_SemanticRoleLabels_Service_App_Library_Matching()
+    {
+        InsertNode("proj:svc", "Project", new() { ["name"] = "OrdersApi", ["role"] = "Service" });
+        InsertNode("proj:app", "Project", new() { ["name"] = "ShopWeb", ["role"] = "FrontendApp" });
+        InsertNode("proj:lib", "Project", new() { ["name"] = "ShopCore", ["role"] = "SharedLibrary", ["is_library"] = true });
+        InsertNode("proj:worker", "Project", new() { ["name"] = "NotificationWorker", ["role"] = "Worker" });
+        InsertNode("proj:cli", "Project", new() { ["name"] = "MigratorCli", ["role"] = "CliTool" });
+
+        // 1. MATCH (s:Service)
+        var svcRows = ExecuteCypher("MATCH (s:Service) RETURN s.name AS name");
+        Assert.That(svcRows, Has.Count.EqualTo(1));
+        Assert.That(svcRows[0]["name"], Is.EqualTo("OrdersApi"));
+
+        // 2. MATCH (a:App)
+        var appRows = ExecuteCypher("MATCH (a:App) RETURN a.name AS name");
+        Assert.That(appRows, Has.Count.EqualTo(1));
+        Assert.That(appRows[0]["name"], Is.EqualTo("ShopWeb"));
+
+        // 3. MATCH (l:Library)
+        var libRows = ExecuteCypher("MATCH (l:Library) RETURN l.name AS name");
+        Assert.That(libRows, Has.Count.EqualTo(1));
+        Assert.That(libRows[0]["name"], Is.EqualTo("ShopCore"));
+
+        // 4. MATCH (w:Worker)
+        var workerRows = ExecuteCypher("MATCH (w:Worker) RETURN w.name AS name");
+        Assert.That(workerRows, Has.Count.EqualTo(1));
+        Assert.That(workerRows[0]["name"], Is.EqualTo("NotificationWorker"));
+
+        // 5. MATCH (c:CliTool)
+        var cliRows = ExecuteCypher("MATCH (c:CliTool) RETURN c.name AS name");
+        Assert.That(cliRows, Has.Count.EqualTo(1));
+        Assert.That(cliRows[0]["name"], Is.EqualTo("MigratorCli"));
+
+        // 6. MATCH (p:Project) matches all
+        var projRows = ExecuteCypher("MATCH (p:Project) WHERE p.name IN ['OrdersApi', 'ShopWeb', 'ShopCore', 'NotificationWorker', 'MigratorCli'] RETURN p.name AS name");
+        Assert.That(projRows, Has.Count.EqualTo(5));
+
+        // 7. WHERE p:Service filter
+        var whereRows = ExecuteCypher("MATCH (p:Project) WHERE p:Service RETURN p.name AS name");
+        Assert.That(whereRows, Has.Count.EqualTo(1));
+        Assert.That(whereRows[0]["name"], Is.EqualTo("OrdersApi"));
+
+        // 8. labels(p) includes both Project and role
+        var labelsRows = ExecuteCypher("MATCH (s:Service) RETURN labels(s) AS lbls");
+        Assert.That(labelsRows, Has.Count.EqualTo(1));
+        var lbls = (string)labelsRows[0]["lbls"]!;
+        Assert.That(lbls, Does.Contain("Project"));
+        Assert.That(lbls, Does.Contain("Service"));
+    }
 }
 

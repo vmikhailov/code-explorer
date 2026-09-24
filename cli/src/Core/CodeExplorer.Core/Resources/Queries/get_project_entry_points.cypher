@@ -1,4 +1,4 @@
-MATCH (p:Project {name: $projectName})<-[:BELONGS_TO]-(psem:ProjectSemantic)-[:CONTAINS]->(ep)
+MATCH (p:Project {name: $projectName})-[:CONTAINS]->(ep)
 WHERE ep:Endpoint OR ep:EntryPoint
 OPTIONAL MATCH (ep)-[:TRIGGERS]->(func:Function)
 OPTIONAL MATCH (ep)-[:EXPOSED_BY]->(class:Type)

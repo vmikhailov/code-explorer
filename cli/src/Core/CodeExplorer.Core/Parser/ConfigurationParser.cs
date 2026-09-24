@@ -491,9 +491,9 @@ public static class ConfigurationParser
         if (!string.IsNullOrWhiteSpace(engine)) aliases.Add(engine);
 
         string? projId = null;
-        if (containerNode is ProjectSemanticNode psn)
+        if (containerNode is ProjectNode pn)
         {
-            projId = $"{workspaceId}:project:{psn.Path}:";
+            projId = pn.Id;
         }
         else if (containerNode.Id.Contains(":project:"))
         {
@@ -553,9 +553,9 @@ public static class ConfigurationParser
         relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, topicId)));
 
         string? projId = null;
-        if (containerNode is ProjectSemanticNode psn)
+        if (containerNode is ProjectNode pn)
         {
-            projId = $"{workspaceId}:project:{psn.Path}:";
+            projId = pn.Id;
         }
         else if (containerNode.Id.Contains(":project:"))
         {

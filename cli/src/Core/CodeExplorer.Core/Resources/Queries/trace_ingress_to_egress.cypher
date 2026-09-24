@@ -1,4 +1,4 @@
-MATCH (p:Project)<-[:BELONGS_TO]-(psem:ProjectSemantic)-[:CONTAINS]->(ep:Endpoint)
+MATCH (p:Project)-[:CONTAINS]->(ep:Endpoint)
 OPTIONAL MATCH (ep)-[:TRIGGERS]->(fn:Function)
 OPTIONAL MATCH (fn)-[:CALLS*1..4]->(downstream)
 WHERE downstream:ExternalService OR downstream:Endpoint OR downstream:Topic

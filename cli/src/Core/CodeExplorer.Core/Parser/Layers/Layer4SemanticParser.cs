@@ -29,13 +29,6 @@ public class Layer4SemanticParser
             nProject++;
             ctx.Log($"[Layer4] Enriching project {nProject} of {l3Result.Prev.Projects.Count} at:'{project.Path}' with semantic information...");
 
-            var projectSemanticId = $"{ctx.WorkspaceId}:project:{project.Path}:project_semantic";
-            var projectSemanticNode = new ProjectSemanticNode(projectSemanticId, "ProjectSemantic", project.Path);
-            semanticStructureNode.Children.Add(projectSemanticNode);
-
-            var belongsToRel = Relationship.FromRelationship(new BelongsToRelationship(projectSemanticId, project.Id));
-            semanticRelationships.Add(belongsToRel);
-
             // Find project parser
             var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
             var filesInDir = Directory.GetFiles(projectAbsDir);
@@ -65,15 +58,15 @@ public class Layer4SemanticParser
 
             foreach (var semNode in projectSemanticNodes)
             {
-                if (!projectSemanticNode.Children.Any(c => c.Id == semNode.Id))
+                if (!project.Children.Any(c => c.Id == semNode.Id))
                 {
-                    projectSemanticNode.Children.Add(semNode);
+                    project.Children.Add(semNode);
                     semanticNodes.Add(semNode);
                 }
             }
 
             // Group EntryPoints
-            GroupEntryPoints(projectSemanticNode, projectTrees, ctx);
+            GroupEntryPoints(project, projectTrees, ctx);
 
             // Parse project-level configuration files
             var projectFiles = l3Result.Prev.Prev.Files.Where(f => IsEnclosedInProject(f, project, l3Result.Prev.Projects)).ToList();
@@ -81,7 +74,7 @@ public class Layer4SemanticParser
             {
                 if (ConfigurationParser.IsConfigurationFile(pfile.Name))
                 {
-                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, projectSemanticNode, semanticRelationships, ctx);
+                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, project, semanticRelationships, ctx);
                 }
             }
         }
@@ -96,8 +89,13 @@ public class Layer4SemanticParser
             }
         }
 
-        // Collect all semantic nodes from semanticStructureNode
+        // Collect all semantic nodes from projects and semanticStructureNode
+        foreach (var project in l3Result.Prev.Projects)
+        {
+            CollectSemanticNodes(project, semanticNodes);
+        }
         CollectSemanticNodes(semanticStructureNode, semanticNodes);
+        semanticNodes = semanticNodes.DistinctBy(n => n.Id).ToList();
 
         if (semanticRelationships.Count > 0)
         {
@@ -129,7 +127,7 @@ public class Layer4SemanticParser
         }
     }
 
-    private void GroupEntryPoints(ProjectSemanticNode? projectSemanticNode, List<SyntaxTree> projectTrees, ParsingContext ctx)
+    private void GroupEntryPoints(ProjectNode? project, List<SyntaxTree> projectTrees, ParsingContext ctx)
     {
         var entryPoints = new List<EntryPointNode>();
         var parentMap = new Dictionary<string, string>();
@@ -142,19 +140,16 @@ public class Layer4SemanticParser
             }
         }
 
-        if (entryPoints.Count > 0)
+        if (entryPoints.Count > 0 && project != null)
         {
-            if (projectSemanticNode != null)
+            foreach (var ep in entryPoints)
             {
-                foreach (var ep in entryPoints)
-                {
-                    projectSemanticNode.Children.Add(ep);
+                project.Children.Add(ep);
 
-                    if (parentMap.TryGetValue(ep.Id, out var parentId))
-                    {
-                        var implRel = new ImplementedByRelationship(ep.Id, parentId);
-                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(implRel));
-                    }
+                if (parentMap.TryGetValue(ep.Id, out var parentId))
+                {
+                    var implRel = new ImplementedByRelationship(ep.Id, parentId);
+                    ctx.AddGlobalProjectDependency(Relationship.FromRelationship(implRel));
                 }
             }
         }

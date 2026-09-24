@@ -141,7 +141,7 @@ public static class OntologyUploader
 
     private static IOntologyRelationship GetRelationship(string parentId, IOntologyNode child)
     {
-        if (parentId.Contains("files_structure") || parentId.Contains("syntax_structure") || parentId.Contains("semantic_structure") || parentId.Contains("project_syntax") || parentId.Contains("project_semantic"))
+        if (parentId.Contains("files_structure") || parentId.Contains("syntax_structure") || parentId.Contains("semantic_structure") || parentId.Contains("project_syntax"))
         {
             return new ContainsRelationship(parentId, child.Id);
         }
@@ -172,22 +172,42 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.Topic)
         {
+            if (parentId.Contains(":project:"))
+            {
+                return new PublishesToRelationship(parentId, child.Id);
+            }
             return new PublishedByRelationship(child.Id, parentId);
         }
         if (child.Kind == OntologyConstants.NodeLabels.Endpoint)
         {
+            if (parentId.Contains(":project:"))
+            {
+                return new ContainsRelationship(parentId, child.Id);
+            }
             return new ExposedByRelationship(child.Id, parentId);
         }
         if (child.Kind == OntologyConstants.NodeLabels.ApiInUse)
         {
+            if (parentId.Contains(":project:"))
+            {
+                return new ContainsRelationship(parentId, child.Id);
+            }
             return new UsesApiRelationship(parentId, child.Id);
         }
         if (child.Kind == OntologyConstants.NodeLabels.CloudService)
         {
+            if (parentId.Contains(":project:"))
+            {
+                return new ContainsRelationship(parentId, child.Id);
+            }
             return new UsesCloudRelationship(parentId, child.Id);
         }
         if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
+            if (parentId.Contains(":project:"))
+            {
+                return new ContainsRelationship(parentId, child.Id);
+            }
             if (parentId.Contains(":entrypoints"))
             {
                 return new ExposedByRelationship(child.Id, parentId); // EntryPoint -> EXPOSED_BY -> EntryPoints
@@ -196,6 +216,10 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.ExternalService)
         {
+            if (parentId.Contains(":project:"))
+            {
+                return new ContainsRelationship(parentId, child.Id);
+            }
             return new CalledByRelationship(child.Id, parentId); // ExternalService -> CALLED_BY -> Function
         }
 

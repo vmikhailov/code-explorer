@@ -177,16 +177,6 @@ public class PostIndexAnalyzer(IGraphClient db)
         foreach (var project in l4Result.Prev.Prev.Projects)
         {
             var epList = new List<string>();
-            var projectSemanticId = $"{ctx.WorkspaceId}:project:{project.Path}:project_semantic";
-            var semNode = ctx.SemanticStructure?.Children.FirstOrDefault(c => c.Id == projectSemanticId);
-            if (semNode != null)
-            {
-                foreach (var child in semNode.Children)
-                {
-                    if (child is EntryPointNode ep && !epList.Contains(ep.Id)) epList.Add(ep.Id);
-                    else if (child is EndpointNode endp && !epList.Contains(endp.Id)) epList.Add(endp.Id);
-                }
-            }
             foreach (var child in project.Children)
             {
                 if (child is EntryPointNode ep && !epList.Contains(ep.Id)) epList.Add(ep.Id);

@@ -44,7 +44,6 @@ graph TD
         EntryPoint["EntryPoint"]
         ExternalService["ExternalService"]
         Procedure["Procedure"]
-        ProjectSemantic["ProjectSemantic"]
         Query["Query"]
         SemanticStructure["SemanticStructure"]
         Table["Table"]
@@ -82,20 +81,18 @@ graph TD
     Project -->|PUBLISHES_TO| Topic
     Project -->|SUBSCRIBES_TO| Topic
     Project -->|DEPENDS_ON| Package
-    ProjectSemantic -->|CONTAINS| EntryPoint
-    ProjectSemantic -->|CONTAINS| Endpoint
-    ProjectSemantic -->|CONTAINS| Database
-    ProjectSemantic -->|CONTAINS| Topic
-    ProjectSemantic -->|CONTAINS| CloudService
-    ProjectSemantic -->|CONTAINS| ApiInUse
-    ProjectSemantic -->|CONTAINS| ExternalService
-    ProjectSemantic -->|BELONGS_TO| Project
+    Project -->|CONTAINS| EntryPoint
+    Project -->|CONTAINS| Endpoint
+    Project -->|CONTAINS| CloudService
+    Project -->|CONTAINS| ApiInUse
     ProjectsStructure -->|CONTAINS| Project
     ProjectSyntax -->|CONTAINS| Type
     ProjectSyntax -->|CONTAINS| Function
     ProjectSyntax -->|BELONGS_TO| Project
     Query -->|DEPENDS_ON| Table
-    SemanticStructure -->|CONTAINS| ProjectSemantic
+    SemanticStructure -->|CONTAINS| Database
+    SemanticStructure -->|CONTAINS| Topic
+    SemanticStructure -->|CONTAINS| CloudService
     SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|QUERIED_BY| Function
     Table -->|QUERIED_BY| Query
@@ -315,6 +312,10 @@ graph TD
 | `PUBLISHES_TO` | `Topic` |
 | `SUBSCRIBES_TO` | `Topic` |
 | `DEPENDS_ON` | `Package` |
+| `CONTAINS` | `EntryPoint` |
+| `CONTAINS` | `Endpoint` |
+| `CONTAINS` | `CloudService` |
+| `CONTAINS` | `ApiInUse` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -323,7 +324,6 @@ graph TD
 | `Package` | `IMPLEMENTED_BY` |
 | `Project` | `DEPENDS_ON` |
 | `Project` | `SERVICE_CALL` |
-| `ProjectSemantic` | `BELONGS_TO` |
 | `ProjectsStructure` | `CONTAINS` |
 | `ProjectSyntax` | `BELONGS_TO` |
 | `Topic` | `TRIGGERS` |
@@ -544,7 +544,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `ProjectSemantic` | `CONTAINS` |
+| `Project` | `CONTAINS` |
 
 **Properties:**
 
@@ -563,7 +563,8 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `ProjectSemantic` | `CONTAINS` |
+| `Project` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
 
 **Properties:**
 
@@ -591,7 +592,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `Project` | `USES_DB` |
-| `ProjectSemantic` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
 
 **Properties:**
 
@@ -632,7 +633,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `ExternalService` | `CALLS_ENDPOINT` |
-| `ProjectSemantic` | `CONTAINS` |
+| `Project` | `CONTAINS` |
 
 **Properties:**
 
@@ -667,7 +668,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `ProjectSemantic` | `CONTAINS` |
+| `Project` | `CONTAINS` |
 
 **Properties:**
 
@@ -695,7 +696,6 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `Project` | `SERVICE_CALL` |
-| `ProjectSemantic` | `CONTAINS` |
 
 ---
 
@@ -708,38 +708,6 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `CONTAINS` | `Query` |
-
----
-
-#### `ProjectSemantic`
-
-> Represents an intermediate node grouping semantic runtime declarations of a specific project.
-
-**Outbound edges:**
-
-| Relationship | To |
-| :--- | :--- |
-| `CONTAINS` | `EntryPoint` |
-| `CONTAINS` | `Endpoint` |
-| `CONTAINS` | `Database` |
-| `CONTAINS` | `Topic` |
-| `CONTAINS` | `CloudService` |
-| `CONTAINS` | `ApiInUse` |
-| `CONTAINS` | `ExternalService` |
-| `BELONGS_TO` | `Project` |
-
-**Incoming edges** *(derived from other nodes' declarations)*:
-
-| From | Relationship |
-| :--- | :--- |
-| `SemanticStructure` | `CONTAINS` |
-
-**Properties:**
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `Name` | `string` | The name of the entity. |
-| `Path` | `string` | The path of the folder or file relative to its parent container. |
 
 ---
 
@@ -771,7 +739,9 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `CONTAINS` | `ProjectSemantic` |
+| `CONTAINS` | `Database` |
+| `CONTAINS` | `Topic` |
+| `CONTAINS` | `CloudService` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -829,7 +799,7 @@ graph TD
 | :--- | :--- |
 | `Project` | `PUBLISHES_TO` |
 | `Project` | `SUBSCRIBES_TO` |
-| `ProjectSemantic` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
 
 **Properties:**
 
@@ -913,7 +883,6 @@ graph TD
 | Layer 4: Semantic Structure | `EntryPoint` | `{workspaceId}:entrypoint:{type}:{name}` |
 | Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:externalservice:{protocol}:{host}` |
 | Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:procedure:{procedureName}` |
-| Layer 4: Semantic Structure | `ProjectSemantic` | `{workspaceId}:project:{relativeProjectDir}:project_semantic` |
 | Layer 4: Semantic Structure | `Query` | `{workspaceId}:query:{queryHash}` |
 | Layer 4: Semantic Structure | `SemanticStructure` | `{workspaceId}:semantic_structure` |
 | Layer 4: Semantic Structure | `Table` | `{workspaceId}:table:{tableName}` |

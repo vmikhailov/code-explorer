@@ -642,18 +642,57 @@ public partial class SqliteCompiler
         var nVar = EscapeVar(nodeVar);
         if (node.Labels.Count == 1)
         {
-            conditions.Add($"{nVar}.kind = '{node.Labels[0]}'");
+            conditions.Add(CompileNodeLabelPredicate(nVar, node.Labels[0]));
         }
         else if (node.Labels.Count > 1)
         {
-            var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
-            conditions.Add($"{nVar}.kind IN ({kinds})");
+            var anySemantic = node.Labels.Any(IsSemanticRoleLabel);
+            if (anySemantic)
+            {
+                foreach (var label in node.Labels)
+                {
+                    conditions.Add(CompileNodeLabelPredicate(nVar, label));
+                }
+            }
+            else
+            {
+                var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
+                conditions.Add($"{nVar}.kind IN ({kinds})");
+            }
         }
 
         if (node.Properties != null)
         {
             AddNodePropertiesConditions(node.Properties, nVar, conditions);
         }
+    }
+
+    internal static bool IsSemanticRoleLabel(string label) =>
+        label.Equals("Service", StringComparison.OrdinalIgnoreCase) ||
+        label.Equals("App", StringComparison.OrdinalIgnoreCase) ||
+        label.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+        label.Equals("Library", StringComparison.OrdinalIgnoreCase) ||
+        label.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
+        label.Equals("Worker", StringComparison.OrdinalIgnoreCase) ||
+        label.Equals("CliTool", StringComparison.OrdinalIgnoreCase);
+
+    internal static string CompileNodeLabelPredicate(string nVar, string label)
+    {
+        if (label.Equals("Service", StringComparison.OrdinalIgnoreCase))
+            return $"({nVar}.kind = 'Service' OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') = 'Service'))";
+        if (label.Equals("App", StringComparison.OrdinalIgnoreCase))
+            return $"({nVar}.kind = 'App' OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') IN ('App', 'FrontendApp')))";
+        if (label.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
+            return $"({nVar}.kind = 'FrontendApp' OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') = 'FrontendApp'))";
+        if (label.Equals("Library", StringComparison.OrdinalIgnoreCase))
+            return $"({nVar}.kind = 'Library' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.role') IN ('Library', 'SharedLibrary') OR json_extract({nVar}.properties, '$.is_library') = 1)))";
+        if (label.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
+            return $"({nVar}.kind = 'SharedLibrary' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.role') = 'SharedLibrary' OR json_extract({nVar}.properties, '$.is_library') = 1)))";
+        if (label.Equals("Worker", StringComparison.OrdinalIgnoreCase))
+            return $"({nVar}.kind = 'Worker' OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') = 'Worker'))";
+        if (label.Equals("CliTool", StringComparison.OrdinalIgnoreCase))
+            return $"({nVar}.kind = 'CliTool' OR ({nVar}.kind = 'Project' AND json_extract({nVar}.properties, '$.role') = 'CliTool'))";
+        return $"{nVar}.kind = '{label}'";
     }
 
     private void AddNodePropertiesConditions(Dictionary<string, Expression> properties, string nVar, List<string> conditions)

@@ -17,8 +17,7 @@ public static class OntologyPruner
                 child.Kind == OntologyConstants.NodeLabels.ProjectsStructure ||
                 child.Kind == OntologyConstants.NodeLabels.SyntaxStructure ||
                 child.Kind == OntologyConstants.NodeLabels.ProjectSyntax ||
-                child.Kind == OntologyConstants.NodeLabels.SemanticStructure ||
-                child.Kind == OntologyConstants.NodeLabels.ProjectSemantic)
+                child.Kind == OntologyConstants.NodeLabels.SemanticStructure)
             {
                 var shouldPruneChild = PruneEmptyFolders(child);
                 if (shouldPruneChild)
@@ -37,6 +36,11 @@ public static class OntologyPruner
         if (node.Kind == OntologyConstants.NodeLabels.File ||
             node.Kind == OntologyConstants.NodeLabels.EntryPoint ||
             node.Kind == OntologyConstants.NodeLabels.Endpoint ||
+            node.Kind == OntologyConstants.NodeLabels.Database ||
+            node.Kind == OntologyConstants.NodeLabels.Topic ||
+            node.Kind == OntologyConstants.NodeLabels.CloudService ||
+            node.Kind == OntologyConstants.NodeLabels.ExternalService ||
+            node.Kind == OntologyConstants.NodeLabels.ApiInUse ||
             node.Kind == OntologyConstants.NodeLabels.Type ||
             node.Kind == OntologyConstants.NodeLabels.Function ||
             node.Kind == OntologyConstants.NodeLabels.Query ||

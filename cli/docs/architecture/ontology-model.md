@@ -43,14 +43,14 @@ graph TD
     end
 
     subgraph Layer4 [Layer 4: Semantic Runtime]
-        SemanticStructure -->|CONTAINS| ProjectSemantic[ProjectSemantic]
-        ProjectSemantic -->|CONTAINS| Endpoint[Endpoint]
-        ProjectSemantic -->|CONTAINS| Database[Database]
-        ProjectSemantic -->|CONTAINS| Topic[Topic]
-        ProjectSemantic -->|CONTAINS| EntryPoint[EntryPoint]
-        ProjectSemantic -->|CONTAINS| CloudService[CloudService]
-        ProjectSemantic -->|CONTAINS| ApiInUse[ApiInUse]
-        ProjectSemantic -->|CONTAINS| ExternalService[ExternalService]
+        SemanticStructure -->|CONTAINS| Database
+        SemanticStructure -->|CONTAINS| Topic
+        SemanticStructure -->|CONTAINS| CloudService
+        Project -->|CONTAINS| Endpoint[Endpoint]
+        Project -->|CONTAINS| EntryPoint[EntryPoint]
+        Project -->|CONTAINS| CloudService
+        Project -->|CONTAINS| ApiInUse[ApiInUse]
+        Project -->|CONTAINS| ExternalService[ExternalService]
     end
 
     subgraph Layer5 [Layer 5: Cross-Project / Late-Bound Dependencies]
@@ -80,7 +80,6 @@ graph TD
         Function -.->|USES_TYPE| Type
         Project -.->|DEPENDS_ON| Project
         ProjectSyntax -.->|BELONGS_TO| Project
-        ProjectSemantic -.->|BELONGS_TO| Project
     end
 ```
 
@@ -158,8 +157,8 @@ Represents declarations extracted by Tree-sitter and Microsoft SQL ScriptDom vis
 Captures runtime entry points, external API boundaries, databases, and message queue topics. These nodes map the microservice and distributed system architecture.
 
 ### Nodes
-*   **`SemanticStructure`**: Structural root for all runtime semantic elements.
-*   **`ProjectSemantic`**: Groups runtime semantic elements belonging to a specific project.
+*   **`SemanticStructure`**: Structural root for workspace-level shared runtime infrastructure (e.g. Docker Compose databases and message brokers).
+*   **`Project` / Semantic Entities (`Service`, `App`, `Library`, `Worker`, `CliTool`)**: First-class architectural boundary entities containing project-scoped endpoints, entrypoints, and service contracts.
 *   **`Endpoint`**: HTTP API endpoint routes (`http_method`, `route_template`).
 *   **`Database`**: Database engine instance, catalog, or schema (`name`, `db_type`).
 *   **`Topic`**: Message queue, event exchange, or topic boundary (`name`, `broker_type`).
@@ -169,9 +168,10 @@ Captures runtime entry points, external API boundaries, databases, and message q
 *   **`ExternalService`**: External HTTP host or egress service target.
 
 ### Relationships
-*   `SemanticStructure -[CONTAINS]-> ProjectSemantic`
-*   `ProjectSemantic -[CONTAINS]-> Endpoint | Database | Topic | EntryPoint | CloudService | ApiInUse | ExternalService`
-*   `ProjectSemantic -[BELONGS_TO]-> Project`
+*   `SemanticStructure -[CONTAINS]-> Database | Topic | CloudService` (workspace-level shared infrastructure)
+*   `Project -[CONTAINS]-> Endpoint | EntryPoint | CloudService | ApiInUse | ExternalService`
+*   `Project -[USES_DB]-> Database`
+*   `Project -[PUBLISHES_TO | SUBSCRIBES_TO]-> Topic`
 
 ---
 
