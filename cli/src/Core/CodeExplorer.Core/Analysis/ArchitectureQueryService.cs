@@ -36,8 +36,38 @@ public class ArchitectureQueryService(IGraphClient db) : IArchitectureQueryServi
         return _viewEngine.GetMetadataAsync(ct);
     }
 
-    public Task<NodesResponseDto> GetNodesAsync(string? kind = null, int offset = 0, int limit = 50, string? search = null, CancellationToken ct = default)
+    public Task<NodesResponseDto> GetNodesAsync(string? kind = null, int offset = 0, int limit = 50, string? search = null, string? service = null, CancellationToken ct = default)
     {
-        return _viewEngine.GetNodesAsync(kind, offset, limit, search, ct);
+        return _viewEngine.GetNodesAsync(kind, offset, limit, search, service, ct);
+    }
+
+    public Task<OntologyLayersResponseDto> GetOntologyLayersAsync(CancellationToken ct = default)
+    {
+        return _viewEngine.GetOntologyLayersAsync(ct);
+    }
+
+    public Task<List<ServiceSummaryDto>> GetServicesOntologySummaryAsync(CancellationToken ct = default)
+    {
+        return _viewEngine.GetServicesOntologySummaryAsync(ct);
+    }
+
+    public Task<ServiceOntologyDetailsDto> GetServiceCapabilitiesAsync(string serviceName, CancellationToken ct = default)
+    {
+        return _viewEngine.GetServiceCapabilitiesAsync(serviceName, ct);
+    }
+
+    public Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = true, CancellationToken ct = default)
+    {
+        return _viewEngine.GetDomainArchitectureAsync(includeLibraries, ct);
+    }
+
+    public Task<ServiceContractDto> GetServiceContractsAsync(string serviceName, string direction = "all", CancellationToken ct = default)
+    {
+        return _viewEngine.GetServiceContractsAsync(serviceName, direction, ct);
+    }
+
+    public Task<CrossServiceFlowDto> TraceCrossServiceFlowAsync(string startService, string? entryPoint = null, int maxDepth = 3, CancellationToken ct = default)
+    {
+        return _viewEngine.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, ct);
     }
 }

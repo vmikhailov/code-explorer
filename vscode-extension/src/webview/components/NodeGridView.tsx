@@ -5,6 +5,7 @@ import { ViewMode } from '../commands';
 export interface NodeCategorySelection {
   kind: string;
   layerTitle?: string;
+  service?: string;
 }
 
 export interface NodeDto {
@@ -49,15 +50,22 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const currentKind = category?.kind || '';
-  const currentLayer = category?.layerTitle || 'Graph Nodes';
+  const currentService = category?.service;
+  const currentLayer = category?.layerTitle || (currentService ? `Layer 4 › ${currentService}` : 'Graph Nodes');
 
   // Fetch from server /api/nodes when category or paging changes
   const fetchRemoteNodes = useCallback(async () => {
-    if (!serverHttpUrl || !currentKind) return;
+    let baseUrl = serverHttpUrl;
+    if (!baseUrl && typeof window !== 'undefined' && window.__CE_CONFIG__?.wsUrl) {
+      baseUrl = window.__CE_CONFIG__.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
+    }
+    if (!baseUrl) return;
     setLoading(true);
     setError(null);
     try {
-      const url = `${serverHttpUrl}/api/nodes?kind=${encodeURIComponent(currentKind)}&offset=${page * pageSize}&limit=${pageSize}&search=${encodeURIComponent(searchTerm)}`;
+      const kindParam = currentKind || 'all';
+      const serviceParam = currentService ? `&service=${encodeURIComponent(currentService)}` : '';
+      const url = `${baseUrl}/api/nodes?kind=${encodeURIComponent(kindParam)}&offset=${page * pageSize}&limit=${pageSize}&search=${encodeURIComponent(searchTerm)}${serviceParam}`;
       const res = await fetch(url);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -72,11 +80,11 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [serverHttpUrl, currentKind, page, pageSize, searchTerm]);
+  }, [serverHttpUrl, currentKind, currentService, page, pageSize, searchTerm]);
 
   useEffect(() => {
     setPage(0);
-  }, [currentKind, searchTerm]);
+  }, [currentKind, currentService, searchTerm]);
 
   useEffect(() => {
     fetchRemoteNodes();
@@ -86,8 +94,21 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
   const localFilteredNodes = useMemo(() => {
     if (!graph?.nodes) return [];
     let list = graph.nodes;
-    if (currentKind) {
-      list = list.filter((n) => n.kind?.toLowerCase() === currentKind.toLowerCase());
+    if (currentKind && currentKind !== 'all') {
+      if (currentKind.startsWith('Layer')) {
+        const layerNum = parseInt(currentKind.replace('Layer', ''), 10);
+        if (layerNum === 1) {
+          list = list.filter((n) => ['file', 'folder', 'gitsettings'].includes(n.kind?.toLowerCase() || ''));
+        } else if (layerNum === 2) {
+          list = list.filter((n) => ['project', 'library', 'sharedlibrary', 'package', 'service', 'app', 'worker'].includes(n.kind?.toLowerCase() || ''));
+        } else if (layerNum === 3) {
+          list = list.filter((n) => ['type', 'function', 'member'].includes(n.kind?.toLowerCase() || ''));
+        } else if (layerNum === 4) {
+          list = list.filter((n) => ['service', 'app', 'worker', 'clitool', 'entrypoint', 'endpoint', 'procedure', 'database', 'table', 'dataset', 'topic', 'externalservice', 'cloudservice', 'apiinuse', 'query'].includes(n.kind?.toLowerCase() || ''));
+        }
+      } else {
+        list = list.filter((n) => n.kind?.toLowerCase() === currentKind.toLowerCase());
+      }
     }
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
@@ -203,8 +224,11 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
     const props = node.properties || {};
     const parts: string[] = [];
 
+    if (props.protocol) {
+      parts.push(`[${props.protocol}]`);
+    }
     if (props.http_method || props.method) {
-      parts.push(`[${props.http_method || props.method}]`);
+      parts.push(`${props.http_method || props.method}`);
     }
     if (props.route_template || props.route) {
       parts.push(props.route_template || props.route);
@@ -240,7 +264,7 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
             <span className="breadcrumb-layer">{currentLayer}</span>
             <span className="breadcrumb-separator">/</span>
             <span className="breadcrumb-kind">
-              {getKindIcon(currentKind)} {currentKind || 'All Nodes'}
+              {getKindIcon(currentKind)} {currentKind === 'all' ? (currentService ? `${currentService} Nodes` : 'All Graph Nodes') : currentKind.startsWith('Layer') ? `${currentKind} Items` : (currentKind || 'All Nodes')}
             </span>
           </div>
           <span className="total-badge">{totalCount.toLocaleString()} items</span>
@@ -328,7 +352,13 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
                 const hasFile = Boolean(node.filePath);
 
                 return (
-                  <tr key={node.id} className="node-grid-row">
+                  <tr
+                    key={node.id}
+                    className="node-grid-row"
+                    onClick={() => onSelectNode && onSelectNode(node as GraphNode)}
+                    onDoubleClick={() => hasFile && onOpenFile(node.filePath!, node.lineStart)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td className="td-name">
                       <span className="row-icon">{getKindIcon(node.kind)}</span>
                       <span className="row-name" title={node.id}>
@@ -365,7 +395,10 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
                         {hasFile && (
                           <button
                             className="mini-btn"
-                            onClick={() => onOpenFile(node.filePath!, node.lineStart)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenFile(node.filePath!, node.lineStart);
+                            }}
                             title="Open source code at declaration line"
                           >
                             📄 Code
@@ -374,7 +407,10 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
                         {onFocusInDiagram && (
                           <button
                             className="mini-btn highlight"
-                            onClick={() => onFocusInDiagram(node.id, node.kind)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFocusInDiagram(node.id, node.kind);
+                            }}
                             title="Locate and focus this node in diagram"
                           >
                             🎯 Focus
@@ -383,7 +419,10 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
                         {onSelectNode && (
                           <button
                             className="mini-btn"
-                            onClick={() => onSelectNode(node as GraphNode)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectNode(node as GraphNode);
+                            }}
                             title="Inspect full properties in drawer"
                           >
                             ℹ️ Info

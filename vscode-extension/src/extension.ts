@@ -164,7 +164,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Command: Open Node Grid in Central Panel
   const openNodeGridCommand = vscode.commands.registerCommand(
     'codeExplorer.openNodeGrid',
-    async (kind: string, layerName?: string) => {
+    async (kind: string, layerName?: string, service?: string) => {
       const workspaceRoot = getWorkspaceRoot();
       if (!workspaceRoot) {
         vscode.window.showWarningMessage('Please open a project workspace folder first.');
@@ -190,6 +190,7 @@ export function activate(context: vscode.ExtensionContext) {
           type: 'OPEN_NODE_GRID',
           kind,
           layerName,
+          service,
         });
       } catch (err: any) {
         outputChannel.appendLine(`[openNodeGrid Error] ${err.message}`);

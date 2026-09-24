@@ -16,12 +16,14 @@ public static class WsMessageTypes
     public const string GetImpactRequest = "GET_IMPACT_REQUEST";
     public const string ExecuteCypherRequest = "EXECUTE_CYPHER_REQUEST";
     public const string TriggerScanRequest = "TRIGGER_SCAN_REQUEST";
+    public const string GetOntologyLayersRequest = "GET_ONTOLOGY_LAYERS_REQUEST";
 
     // Server -> Client responses
     public const string HandshakeResponse = "HANDSHAKE_RESPONSE";
     public const string PongResponse = "PONG_RESPONSE";
     public const string QueryResponse = "QUERY_RESPONSE";
     public const string GetViewResponse = "GET_VIEW_RESPONSE";
+    public const string GetOntologyLayersResponse = "GET_ONTOLOGY_LAYERS_RESPONSE";
     public const string ErrorResponse = "ERROR_RESPONSE";
 
     // Server -> Client broadcast events
@@ -385,4 +387,400 @@ public class NodesResponseDto
     [JsonPropertyName("limit")]
     public int Limit { get; set; }
 }
+
+// ============================================================================
+// Ontology Layers DTOs (for Tree & Layer Browsing)
+// ============================================================================
+
+public class OntologyCategoryDto
+{
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    [JsonPropertyName("icon")]
+    public string Icon { get; set; } = string.Empty;
+
+    [JsonPropertyName("count")]
+    public long Count { get; set; }
+
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; set; }
+}
+
+public class OntologyLayerDto
+{
+    [JsonPropertyName("layerId")]
+    public int LayerId { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    [JsonPropertyName("icon")]
+    public string Icon { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalCount")]
+    public long TotalCount { get; set; }
+
+    [JsonPropertyName("categories")]
+    public List<OntologyCategoryDto> Categories { get; set; } = [];
+}
+
+public class OntologyLayersResponseDto
+{
+    [JsonPropertyName("layers")]
+    public List<OntologyLayerDto> Layers { get; set; } = [];
+
+    [JsonPropertyName("totalNodes")]
+    public long TotalNodes { get; set; }
+
+    [JsonPropertyName("totalEdges")]
+    public long TotalEdges { get; set; }
+}
+
+// ============================================================================
+// Domain Architecture DTOs (Service Map & Bounded Contexts)
+// ============================================================================
+
+public class DomainProjectInfoDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Kind { get; set; }
+
+    [JsonPropertyName("filePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FilePath { get; set; }
+
+    [JsonPropertyName("isLibrary")]
+    public bool IsLibrary { get; set; }
+}
+
+public class DomainEntityDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = "Service";
+
+    [JsonPropertyName("displayTag")]
+    public string DisplayTag { get; set; } = ":Service";
+
+    [JsonPropertyName("zone")]
+    public string Zone { get; set; } = "service";
+
+    [JsonPropertyName("bgColor")]
+    public string BgColor { get; set; } = "#e53935";
+
+    [JsonPropertyName("borderColor")]
+    public string BorderColor { get; set; } = "#7f1d1d";
+
+    [JsonPropertyName("size")]
+    public int Size { get; set; } = 50;
+
+    [JsonPropertyName("framework")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Framework { get; set; }
+
+    [JsonPropertyName("language")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Language { get; set; }
+
+    [JsonPropertyName("primaryFilePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PrimaryFilePath { get; set; }
+
+    [JsonPropertyName("projects")]
+    public List<DomainProjectInfoDto> Projects { get; set; } = [];
+
+    [JsonPropertyName("inboundCallsCount")]
+    public int InboundCallsCount { get; set; }
+
+    [JsonPropertyName("outboundCallsCount")]
+    public int OutboundCallsCount { get; set; }
+
+    [JsonPropertyName("dbCount")]
+    public int DbCount { get; set; }
+
+    [JsonPropertyName("messagingCount")]
+    public int MessagingCount { get; set; }
+}
+
+public class DomainMacroEdgeDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    [JsonPropertyName("target")]
+    public string Target { get; set; } = string.Empty;
+
+    [JsonPropertyName("category")]
+    public string Category { get; set; } = "service_call";
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = "CALLS";
+
+    [JsonPropertyName("count")]
+    public int Count { get; set; } = 1;
+}
+
+public class DomainStatsDto
+{
+    [JsonPropertyName("totalDomains")]
+    public int TotalDomains { get; set; }
+
+    [JsonPropertyName("ingress")]
+    public int Ingress { get; set; }
+
+    [JsonPropertyName("services")]
+    public int Services { get; set; }
+
+    [JsonPropertyName("workers")]
+    public int Workers { get; set; }
+
+    [JsonPropertyName("libraries")]
+    public int Libraries { get; set; }
+
+    [JsonPropertyName("databases")]
+    public int Databases { get; set; }
+
+    [JsonPropertyName("topics")]
+    public int Topics { get; set; }
+
+    [JsonPropertyName("external")]
+    public int External { get; set; }
+
+    [JsonPropertyName("serviceCalls")]
+    public int ServiceCalls { get; set; }
+
+    [JsonPropertyName("messages")]
+    public int Messages { get; set; }
+}
+
+public class DomainArchitectureDto
+{
+    [JsonPropertyName("nodes")]
+    public List<DomainEntityDto> Nodes { get; set; } = [];
+
+    [JsonPropertyName("edges")]
+    public List<DomainMacroEdgeDto> Edges { get; set; } = [];
+
+    [JsonPropertyName("stats")]
+    public DomainStatsDto Stats { get; set; } = new();
+}
+
+// ============================================================================
+// Service Contracts & Execution Flow Tracing DTOs
+// ============================================================================
+
+public class ServiceContractDto
+{
+    [JsonPropertyName("serviceName")]
+    public string ServiceName { get; set; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = "Service";
+
+    [JsonPropertyName("framework")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Framework { get; set; }
+
+    [JsonPropertyName("language")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Language { get; set; }
+
+    [JsonPropertyName("ingressEndpoints")]
+    public List<string> IngressEndpoints { get; set; } = [];
+
+    [JsonPropertyName("subscribedTopics")]
+    public List<string> SubscribedTopics { get; set; } = [];
+
+    [JsonPropertyName("outboundServiceCalls")]
+    public List<string> OutboundServiceCalls { get; set; } = [];
+
+    [JsonPropertyName("publishedTopics")]
+    public List<string> PublishedTopics { get; set; } = [];
+
+    [JsonPropertyName("databases")]
+    public List<string> Databases { get; set; } = [];
+
+    [JsonPropertyName("externalServices")]
+    public List<string> ExternalServices { get; set; } = [];
+}
+
+public class CrossServiceHopDto
+{
+    [JsonPropertyName("step")]
+    public int Step { get; set; }
+
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    [JsonPropertyName("target")]
+    public string Target { get; set; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    [JsonPropertyName("protocol")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Protocol { get; set; }
+
+    [JsonPropertyName("details")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Details { get; set; }
+}
+
+public class CrossServiceFlowDto
+{
+    [JsonPropertyName("startService")]
+    public string StartService { get; set; } = string.Empty;
+
+    [JsonPropertyName("entryPoint")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? EntryPoint { get; set; }
+
+    [JsonPropertyName("maxDepth")]
+    public int MaxDepth { get; set; }
+
+    [JsonPropertyName("hops")]
+    public List<CrossServiceHopDto> Hops { get; set; } = [];
+
+    [JsonPropertyName("visitedServices")]
+    public List<string> VisitedServices { get; set; } = [];
+}
+
+public class ServiceSummaryDto
+{
+    [JsonPropertyName("serviceName")]
+    public string ServiceName { get; set; } = string.Empty;
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; set; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = "Service";
+
+    [JsonPropertyName("framework")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Framework { get; set; }
+
+    [JsonPropertyName("language")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Language { get; set; }
+
+    [JsonPropertyName("endpointCount")]
+    public int EndpointCount { get; set; }
+
+    [JsonPropertyName("databaseCount")]
+    public int DatabaseCount { get; set; }
+
+    [JsonPropertyName("topicCount")]
+    public int TopicCount { get; set; }
+
+    [JsonPropertyName("externalCount")]
+    public int ExternalCount { get; set; }
+}
+
+public class ServiceCapabilityItemDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty;
+
+    [JsonPropertyName("protocol")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Protocol { get; set; }
+
+    [JsonPropertyName("method")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Method { get; set; }
+
+    [JsonPropertyName("route")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Route { get; set; }
+
+    [JsonPropertyName("filePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FilePath { get; set; }
+
+    [JsonPropertyName("line")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Line { get; set; }
+
+    [JsonPropertyName("details")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Details { get; set; }
+}
+
+public class ServiceOntologyGroupDto
+{
+    [JsonPropertyName("categoryKey")]
+    public string CategoryKey { get; set; } = string.Empty;
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = string.Empty;
+
+    [JsonPropertyName("icon")]
+    public string Icon { get; set; } = string.Empty;
+
+    [JsonPropertyName("count")]
+    public int Count { get; set; }
+
+    [JsonPropertyName("items")]
+    public List<ServiceCapabilityItemDto> Items { get; set; } = [];
+}
+
+public class ServiceOntologyDetailsDto
+{
+    [JsonPropertyName("serviceName")]
+    public string ServiceName { get; set; } = string.Empty;
+
+    [JsonPropertyName("serviceId")]
+    public string ServiceId { get; set; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = "Service";
+
+    [JsonPropertyName("framework")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Framework { get; set; }
+
+    [JsonPropertyName("language")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Language { get; set; }
+
+    [JsonPropertyName("groups")]
+    public List<ServiceOntologyGroupDto> Groups { get; set; } = [];
+}
+
 

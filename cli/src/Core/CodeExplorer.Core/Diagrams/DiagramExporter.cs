@@ -32,7 +32,7 @@ public static class DiagramExporter
         sb.AppendLine("flowchart TD");
 
         // 1. Query Projects
-        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.framework AS framework";
+        var projQuery = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS id, p.name AS name, p.framework AS framework";
         var projJson = await client.ExecuteQueryAsync(projQuery, null, cancellationToken);
         using var projDoc = JsonDocument.Parse(projJson);
 
@@ -154,7 +154,7 @@ public static class DiagramExporter
         sb.AppendLine();
 
         // 1. Containers (Projects)
-        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.framework AS framework";
+        var projQuery = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS id, p.name AS name, p.framework AS framework";
         var projJson = await client.ExecuteQueryAsync(projQuery, null, cancellationToken);
         using var projDoc = JsonDocument.Parse(projJson);
 

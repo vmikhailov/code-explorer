@@ -330,7 +330,7 @@ public class CodeExplorerRepository
         return text.Replace(".", "_").Replace("-", "_").Replace(":", "_").Replace("/", "_").Replace(" ", "_");
     }
 
-    private static string FormatDependenciesAll(string rawJson, string format, int limit)
+    private static string FormatDependenciesAll(string rawJson, string format, int limit, string type = "all")
     {
         using var doc = JsonDocument.Parse(rawJson);
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
@@ -346,6 +346,8 @@ public class CodeExplorerRepository
             return ToonYamlSerializer.SerializeToon(doc.RootElement);
         }
 
+        var isRuntimeOnly = type.Equals("runtime", StringComparison.OrdinalIgnoreCase);
+
         if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
         {
             var sb = new System.Text.StringBuilder();
@@ -356,11 +358,13 @@ public class CodeExplorerRepository
             {
                 foreach (var item in doc.RootElement.EnumerateArray())
                 {
-                    if (count++ >= limit) break;
                     var proj = item.TryGetProperty("project", out var p) ? p.GetString() : null;
                     var dep = item.TryGetProperty("dependency", out var d) ? d.GetString() : null;
                     if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
                     {
+                        if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) || dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
+                            continue;
+                        if (count++ >= limit) break;
                         sb.AppendLine($"    {SanitizeMermaidId(proj)}[\"{proj}\"] --> {SanitizeMermaidId(dep)}[\"{dep}\"]");
                     }
                 }
@@ -375,18 +379,20 @@ public class CodeExplorerRepository
 
         // Markdown format (default)
         var md = new System.Text.StringBuilder();
-        md.AppendLine("### Project Dependencies\n");
+        md.AppendLine($"### Project Dependencies (Filter: {type})\n");
         var grouped = new Dictionary<string, List<string>>();
         var total = 0;
         if (doc.RootElement.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in doc.RootElement.EnumerateArray())
             {
-                if (total++ >= limit) break;
                 var proj = item.TryGetProperty("project", out var p) ? p.GetString() : null;
                 var dep = item.TryGetProperty("dependency", out var d) ? d.GetString() : null;
                 if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
                 {
+                    if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) || dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
+                        continue;
+                    if (total++ >= limit) break;
                     if (!grouped.TryGetValue(proj, out var list))
                     {
                         list = [];
@@ -399,7 +405,7 @@ public class CodeExplorerRepository
 
         if (grouped.Count == 0)
         {
-            md.AppendLine("No project dependencies found in workspace.");
+            md.AppendLine("No matching project dependencies found in workspace.");
         }
         else
         {
@@ -411,7 +417,7 @@ public class CodeExplorerRepository
         return md.ToString().TrimEnd();
     }
 
-    private static string FormatDependenciesFiltered(string rawJson, string format, string projectFilter)
+    private static string FormatDependenciesFiltered(string rawJson, string format, string projectFilter, string type = "all")
     {
         using var doc = JsonDocument.Parse(rawJson);
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
@@ -442,6 +448,12 @@ public class CodeExplorerRepository
             }
         }
 
+        if (type.Equals("runtime", StringComparison.OrdinalIgnoreCase))
+        {
+            outgoing = outgoing.Where(x => !x.Contains("Test", StringComparison.OrdinalIgnoreCase) && !x.Contains("Mock", StringComparison.OrdinalIgnoreCase)).ToList();
+            incoming = incoming.Where(x => !x.Contains("Test", StringComparison.OrdinalIgnoreCase) && !x.Contains("Mock", StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
         if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
         {
             var sb = new System.Text.StringBuilder();
@@ -467,13 +479,92 @@ public class CodeExplorerRepository
 
         // Markdown format
         var md = new System.Text.StringBuilder();
-        md.AppendLine($"### Dependencies for Project: `{projectFilter}`\n");
+        md.AppendLine($"### Dependencies for Project: `{projectFilter}` (Filter: {type})\n");
         md.AppendLine($"- **Outgoing Dependencies** ({outgoing.Count}): {(outgoing.Count > 0 ? string.Join(", ", outgoing) : "none")}");
         md.AppendLine($"- **Incoming Dependencies** ({incoming.Count}): {(incoming.Count > 0 ? string.Join(", ", incoming) : "none")}");
         return md.ToString().TrimEnd();
     }
 
-    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string format = "markdown", int limit = 50, string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> GetArchitectureViewAsync(
+        string level = "c1",
+        string? scope = null,
+        bool includeLibraries = true,
+        string format = "markdown",
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        var normalizedLevel = level?.Trim().ToLowerInvariant() ?? "c1";
+        var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
+
+        if (normalizedLevel is "domain" or "context" or "bounded-context" or "domain-map")
+        {
+            var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries, cancellationToken);
+            return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
+        }
+
+        var viewType = normalizedLevel switch
+        {
+            "c2" or "service" or "flow" or "service-flow" => CodeExplorer.Core.Analysis.ArchitectureViewType.ServiceFlow,
+            "c3" or "component" => CodeExplorer.Core.Analysis.ArchitectureViewType.Component,
+            "tiers" or "tiered" => CodeExplorer.Core.Analysis.ArchitectureViewType.Tiers,
+            _ => CodeExplorer.Core.Analysis.ArchitectureViewType.SystemContext
+        };
+
+        var graph = await engine.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
+        {
+            ViewType = viewType,
+            Scope = scope,
+            IncludeLibraries = includeLibraries
+        }, cancellationToken);
+
+        var title = $"{viewType} Architecture View";
+        return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeGraph(graph, format, title);
+    }
+
+    public async Task<string> GetServiceContractsAsync(
+        string serviceName,
+        string direction = "all",
+        string format = "markdown",
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
+        var contract = await engine.GetServiceContractsAsync(serviceName, direction, cancellationToken);
+        return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeServiceContract(contract, format);
+    }
+
+    public async Task<string> TraceCrossServiceFlowAsync(
+        string startService,
+        string? entryPoint = null,
+        int maxDepth = 3,
+        string format = "markdown",
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
+        var flow = await engine.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, cancellationToken);
+        return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeCrossServiceFlow(flow, format);
+    }
+
+    public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string format = "markdown", int limit = 50, string type = "all", string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var client = await ResolveClientAsync(workspacePath);
         if (await IsEmptyStandbyAsync(client))
@@ -485,13 +576,13 @@ public class CodeExplorerRepository
         {
             var query = Queries.Get("get_project_dependencies_filtered");
             var rawJson = await client.ExecuteQueryAsync(query, new Dictionary<string, object> { ["projectFilter"] = projectFilter }, cancellationToken);
-            return FormatDependenciesFiltered(rawJson, format, projectFilter);
+            return FormatDependenciesFiltered(rawJson, format, projectFilter, type);
         }
         else
         {
             var query = Queries.Get("get_project_dependencies_all");
             var rawJson = await client.ExecuteQueryAsync(query, new Dictionary<string, object>(), cancellationToken);
-            return FormatDependenciesAll(rawJson, format, limit);
+            return FormatDependenciesAll(rawJson, format, limit, type);
         }
     }
 

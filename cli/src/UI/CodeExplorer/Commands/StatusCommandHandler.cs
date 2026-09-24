@@ -39,7 +39,7 @@ public static class StatusCommandHandler
             }
 
             // Projects info
-            var projResult = await client.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name, p.project_type AS language ORDER BY p.name");
+            var projResult = await client.ExecuteQueryAsync("MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.name AS name, p.project_type AS language ORDER BY p.name");
             using var projDoc = JsonDocument.Parse(projResult);
             var projects = new List<(string Name, string Language)>();
             if (projDoc.RootElement.ValueKind == JsonValueKind.Array)

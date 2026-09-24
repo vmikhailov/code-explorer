@@ -272,19 +272,42 @@ export class ProcessManager implements vscode.Disposable {
         candidates.push(resolved.replace('bin_Release_AnyCPU', 'bin_Debug_AnyCPU'));
       }
 
-      for (const candidate of candidates) {
-        if (fs.existsSync(candidate)) {
-          const isDll = candidate.endsWith('.dll');
-          this.outputChannel.appendLine(
-            `[ProcessManager] Using configured executable (${customPath ? 'settings' : 'ENV'}): ${candidate}`
-          );
-          return isDll ? { command: 'dotnet', args: [candidate] } : { command: candidate, args: [] };
-        }
+      const existingCandidates = candidates
+        .filter((c) => fs.existsSync(c))
+        .sort((a, b) => {
+          try {
+            return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs;
+          } catch {
+            return 0;
+          }
+        });
+
+      if (existingCandidates.length > 0) {
+        const candidate = existingCandidates[0];
+        const isDll = candidate.endsWith('.dll');
+        this.outputChannel.appendLine(
+          `[ProcessManager] Using configured executable (${customPath ? 'settings' : 'ENV'}, newest): ${candidate}`
+        );
+        return isDll ? { command: 'dotnet', args: [candidate] } : { command: candidate, args: [] };
       }
     }
 
-    // 2. Bundled platform-specific binary in extension (used in installed extensions)
+    // 2. System PATH "ce" (e.g. dotnet global tool installed via dotnet tool update -g)
     const isWindows = process.platform === 'win32';
+    try {
+      const checkRes = cp.spawnSync(isWindows ? 'where.exe' : 'which', ['ce'], { encoding: 'utf8' });
+      if (checkRes.status === 0 && checkRes.stdout?.trim()) {
+        const sysPath = checkRes.stdout.trim().split(/\r?\n/)[0];
+        if (fs.existsSync(sysPath)) {
+          this.outputChannel.appendLine(`[ProcessManager] Using system PATH executable: ${sysPath}`);
+          return { command: sysPath, args: [] };
+        }
+      }
+    } catch {
+      // Fallback
+    }
+
+    // 3. Bundled platform-specific binary in extension (used in installed extensions)
     const binName = isWindows ? 'ce.exe' : 'ce';
     const extensionRoot = path.resolve(__dirname, '..');
     const bundledCandidate = path.resolve(extensionRoot, 'bin', binName);
@@ -301,7 +324,7 @@ export class ProcessManager implements vscode.Disposable {
       return { command: bundledCandidate, args: [] };
     }
 
-    // 3. Fallback to system PATH
+    // 4. Fallback to system PATH command
     this.outputChannel.appendLine('[ProcessManager] Using system PATH "ce".');
     return { command: 'ce', args: [] };
   }

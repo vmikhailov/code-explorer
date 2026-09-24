@@ -19,7 +19,7 @@
     <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' == ''">$(SolutionDir).Build\publish_$(Configuration)\$(MSBuildProjectName)\</PublishDir>
 
     <!-- Versioning -->
-    <Version Condition="'$(Version)' == ''">1.5.11</Version>
+    <Version Condition="'$(Version)' == ''">1.6.5</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$(Version)</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">$(Version)</FileVersion>

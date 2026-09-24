@@ -24,6 +24,8 @@ export interface C1SystemContextViewProps {
   graph: GraphData | null;
   onDrillDownToC2?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
+  onSelectNode?: (node: GraphNode | null) => void;
+  selectedNodeId?: string;
 }
 
 const nodeTypes = {
@@ -37,6 +39,8 @@ function C1Canvas({
   graph,
   onDrillDownToC2,
   onOpenFile,
+  onSelectNode,
+  selectedNodeId,
 }: C1SystemContextViewProps) {
   const { fitView } = useReactFlow();
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,6 +188,8 @@ function C1Canvas({
           filePath: node.filePath,
           lineStart: node.lineStart,
           onOpenFile,
+          onSelectNode: () => onSelectNode?.(node),
+          isSelected: selectedNodeId ? (node.id === selectedNodeId || node.name === selectedNodeId) : false,
         },
       });
     });
@@ -213,6 +219,8 @@ function C1Canvas({
           packageCount: proj.properties?.package_count ? parseInt(proj.properties.package_count, 10) : undefined,
           onDrillDown: onDrillDownToC2,
           onOpenFile,
+          onSelectNode: () => onSelectNode?.(proj),
+          isSelected: selectedNodeId ? (proj.id === selectedNodeId || proj.name === selectedNodeId) : false,
         },
       });
     });
@@ -233,6 +241,8 @@ function C1Canvas({
           packageCount: proj.properties?.package_count ? parseInt(proj.properties.package_count, 10) : undefined,
           onDrillDown: onDrillDownToC2,
           onOpenFile,
+          onSelectNode: () => onSelectNode?.(proj),
+          isSelected: selectedNodeId ? (proj.id === selectedNodeId || proj.name === selectedNodeId) : false,
         },
       });
     });
@@ -274,6 +284,8 @@ function C1Canvas({
           details: node.properties?.table_count ? `${node.properties.table_count} tables` : undefined,
           filePath: node.filePath,
           onOpenFile,
+          onSelectNode: () => onSelectNode?.(node),
+          isSelected: selectedNodeId ? (node.id === selectedNodeId || node.name === selectedNodeId) : false,
         },
       });
     });
@@ -488,6 +500,21 @@ function C1Canvas({
           minZoom={0.2}
           maxZoom={2.5}
           proOptions={{ hideAttribution: true }}
+          onNodeClick={(_, rfNode) => {
+            const raw = (rfNode.data as any)?.graphNode || (rfNode.data as any);
+            if (raw) {
+              const gNode: GraphNode = raw.kind ? raw : {
+                id: raw.id,
+                name: raw.name || raw.id,
+                kind: rfNode.type === 'c1Endpoint' ? 'Endpoint' : rfNode.type === 'c1Project' ? 'Project' : (raw.category === 'database' ? 'Database' : 'ExternalService'),
+                filePath: raw.filePath,
+                lineStart: raw.lineStart,
+                properties: raw,
+              };
+              onSelectNode?.(gNode);
+            }
+          }}
+          onPaneClick={() => onSelectNode?.(null)}
         >
           <Background color="var(--vscode-panel-border, rgba(128, 128, 128, 0.15))" gap={24} size={1} />
           <Controls position="bottom-right" showInteractive={false} />

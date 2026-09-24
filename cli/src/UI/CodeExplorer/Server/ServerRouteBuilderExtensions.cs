@@ -74,6 +74,8 @@ public static class ServerRouteBuilderExtensions
                 {
                     "serviceflow" or "flow" or "c2" => ArchitectureViewType.ServiceFlow,
                     "component" or "c3" => ArchitectureViewType.Component,
+                    "domain" or "domainmap" or "domain-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.DomainMap,
+                    "tiers" or "tiered" => ArchitectureViewType.Tiers,
                     _ => ArchitectureViewType.SystemContext
                 };
                 var graph = await archQueryService.GetViewAsync(new ArchitectureViewRequest
@@ -87,6 +89,96 @@ public static class ServerRouteBuilderExtensions
             catch (Exception ex)
             {
                 logger.LogError(ex, "[REST] Failed /api/view");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/ontology/layers", async (IArchitectureQueryService archQueryService, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/ontology/layers");
+                var layers = await archQueryService.GetOntologyLayersAsync(ct);
+                return Results.Ok(layers);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/ontology/layers");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/ontology/services", async (IArchitectureQueryService archQueryService, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/ontology/services");
+                var services = await archQueryService.GetServicesOntologySummaryAsync(ct);
+                return Results.Ok(services);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/ontology/services");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/ontology/services/{serviceName}", async (IArchitectureQueryService archQueryService, string serviceName, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/ontology/services/{ServiceName}", serviceName);
+                var details = await archQueryService.GetServiceCapabilitiesAsync(serviceName, ct);
+                return Results.Ok(details);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/ontology/services/{ServiceName}", serviceName);
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/domain/architecture", async (IArchitectureQueryService archQueryService, bool? includeLibraries, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/domain/architecture");
+                var domain = await archQueryService.GetDomainArchitectureAsync(includeLibraries ?? true, ct);
+                return Results.Ok(domain);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/domain/architecture");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/contracts/{service}", async (IArchitectureQueryService archQueryService, string service, string? direction, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/contracts/{Service}", service);
+                var contract = await archQueryService.GetServiceContractsAsync(service, direction ?? "all", ct);
+                return Results.Ok(contract);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/contracts/{Service}", service);
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/trace/flow", async (IArchitectureQueryService archQueryService, string service, string? entryPoint, int? maxDepth, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/trace/flow (service: {Service}, entryPoint: {EntryPoint})", service, entryPoint ?? "none");
+                var flow = await archQueryService.TraceCrossServiceFlowAsync(service, entryPoint, maxDepth ?? 3, ct);
+                return Results.Ok(flow);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/trace/flow");
                 return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
             }
         });
@@ -151,12 +243,12 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
-        endpoints.MapGet("/api/nodes", async (IArchitectureQueryService archQueryService, string? kind, int? offset, int? limit, string? search) =>
+        endpoints.MapGet("/api/nodes", async (IArchitectureQueryService archQueryService, string? kind, int? offset, int? limit, string? search, string? service, CancellationToken ct) =>
         {
             try
             {
-                logger.LogInformation("[REST] GET /api/nodes (kind: {Kind}, offset: {Offset}, limit: {Limit})", kind ?? "all", offset ?? 0, limit ?? 50);
-                var nodes = await archQueryService.GetNodesAsync(kind, offset ?? 0, limit ?? 50, search);
+                logger.LogInformation("[REST] GET /api/nodes (kind: {Kind}, service: {Service}, offset: {Offset}, limit: {Limit})", kind ?? "all", service ?? "all", offset ?? 0, limit ?? 50);
+                var nodes = await archQueryService.GetNodesAsync(kind, offset ?? 0, limit ?? 50, search, service, ct);
                 return Results.Ok(nodes);
             }
             catch (Exception ex)

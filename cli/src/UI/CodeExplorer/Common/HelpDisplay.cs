@@ -65,6 +65,10 @@ public static class HelpDisplay
         Console.WriteLine("  clear                   Clear indexed data from the workspace database");
         Console.WriteLine("  queries                 List all available built-in and workspace custom queries");
         Console.WriteLine("  query                   Run a read-only Cypher query against the knowledge graph");
+        Console.WriteLine("  view                    View architecture projections (C1, C2, C3, domain map, tiers)");
+        Console.WriteLine("  dependencies (or deps)  Inspect project dependencies with runtime vs build filtering");
+        Console.WriteLine("  contracts               List ingress/egress APIs, gRPC, and messaging contracts");
+        Console.WriteLine("  trace                   Trace distributed cross-service execution flows");
         Console.WriteLine("  export                  Export architecture and lineage diagrams (Mermaid, C4)");
         Console.WriteLine("  mcp                     Run Model Context Protocol server (stdio default, or --port)");
         Console.WriteLine("  serve                   Run real-time WebSocket and HTTP API server (ws:// on --port)");

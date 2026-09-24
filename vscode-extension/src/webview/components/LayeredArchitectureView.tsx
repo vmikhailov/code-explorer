@@ -9,6 +9,8 @@ export interface LayeredArchitectureViewProps {
   showTests: boolean;
   collapsedLayers?: Set<string>;
   onToggleLayer?: (layerId: string) => void;
+  onSelectNode?: (node: GraphNode | null) => void;
+  selectedNodeId?: string;
 }
 
 export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = ({
@@ -18,6 +20,8 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
   showTests,
   collapsedLayers: collapsedLayersProp,
   onToggleLayer: onToggleLayerProp,
+  onSelectNode,
+  selectedNodeId,
 }) => {
   const [localCollapsedLayers, setLocalCollapsedLayers] = useState<Set<string>>(new Set());
   const collapsedLayers = collapsedLayersProp !== undefined ? collapsedLayersProp : localCollapsedLayers;
@@ -201,8 +205,14 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
                       const inCount = incomingCounts[node.id] || 0;
                       const outCount = outgoingCounts[node.id] || 0;
 
+                      const isSelected = selectedNodeId ? (node.id === selectedNodeId || node.name === selectedNodeId) : false;
+
                       return (
-                        <div key={node.id} className="tier-project-card">
+                        <div
+                          key={node.id}
+                          className={`tier-project-card ${isSelected ? 'is-selected' : ''}`}
+                          onClick={() => onSelectNode?.(node)}
+                        >
                           <div className="tier-card-header">
                             <span
                               className="tier-node-kind"

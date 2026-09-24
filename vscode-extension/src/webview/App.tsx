@@ -170,7 +170,12 @@ export const App: React.FC = () => {
   const [scanNotification, setScanNotification] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [graphStats, setGraphStats] = useState<{ totalNodes: number; totalEdges: number; serverVersion?: string } | null>(null);
   const [gridCategory, setGridCategory] = useState<NodeCategorySelection | null>(null);
-  const [serverHttpUrl, setServerHttpUrl] = useState<string>('');
+  const [serverHttpUrl, setServerHttpUrl] = useState<string>(() => {
+    if (initialConfig?.wsUrl) {
+      return initialConfig.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
+    }
+    return '';
+  });
 
   // Active error and diagnostics state
   const [activeError, setActiveError] = useState<ErrorInfo | null>(null);
@@ -302,7 +307,8 @@ export const App: React.FC = () => {
 
   const handleSelectProject = useCallback(
     (targetProject: string, targetMode: ViewMode = 'flow') => {
-      if (selectedProjectRef.current === targetProject && viewModeRef.current === targetMode) return;
+      const prevProject = selectedProjectRef.current;
+      if (prevProject === targetProject && viewModeRef.current === targetMode) return;
       if (viewModeRef.current !== targetMode) {
         setViewMode(targetMode);
         viewModeRef.current = targetMode;
@@ -319,7 +325,7 @@ export const App: React.FC = () => {
       }
 
       const cmd = new SelectProjectCommand(
-        selectedProjectRef.current,
+        prevProject,
         targetProject,
         setSelectedProject,
         (p) => requestDependencies(p)
@@ -664,8 +670,12 @@ export const App: React.FC = () => {
               // Fetch full architecture (with layer classifications)
               requestArchitecture();
 
-              // Fetch dependencies for default/first project
-              requestDependencies();
+              // Fetch dependencies for default or active project
+              if (selectedProjectRef.current) {
+                requestDependencies(selectedProjectRef.current);
+              } else {
+                requestDependencies();
+              }
             }
             break;
           }
@@ -860,6 +870,28 @@ export const App: React.FC = () => {
     };
   }, [requestDependencies, requestArchitecture]);
 
+  const handleTriggerScan = useCallback((clear: boolean = false) => {
+    if (connectionStatus !== 'connected') {
+      logToExtension('WARN', 'Cannot trigger scan: not connected to server');
+      return;
+    }
+    if (isScanning) {
+      logToExtension('WARN', 'Scan already in progress');
+      return;
+    }
+    setIsScanning(true);
+    setScanProgress({ phase: 'Starting', percentage: 5, currentFile: clear ? 'Full re-index...' : 'Scanning workspace...' });
+    setScanNotification(null);
+    sendWsMessage({
+      type: 'TRIGGER_SCAN_REQUEST',
+      requestId: `req_scan_${Date.now()}`,
+      payload: {
+        targetPath: workspaceRootRef.current,
+        clear,
+      },
+    });
+  }, [connectionStatus, isScanning, sendWsMessage]);
+
   const handleViewModeChangeRef = useRef(handleViewModeChange);
   handleViewModeChangeRef.current = handleViewModeChange;
 
@@ -886,6 +918,10 @@ export const App: React.FC = () => {
           if (msg.workspaceRoot) {
             workspaceRootRef.current = msg.workspaceRoot;
           }
+          if (msg.wsUrl) {
+            const http = msg.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
+            setServerHttpUrl(http);
+          }
           if (msg.initialViewMode && msg.initialViewMode !== viewModeRef.current) {
             handleViewModeChangeRef.current(msg.initialViewMode as ViewMode);
           }
@@ -907,8 +943,8 @@ export const App: React.FC = () => {
           break;
 
         case 'OPEN_NODE_GRID':
-          logToExtension('INFO', `Received OPEN_NODE_GRID from extension: kind=${msg.kind}, layer=${msg.layerName}`);
-          setGridCategory({ kind: msg.kind, layerTitle: msg.layerName });
+          logToExtension('INFO', `Received OPEN_NODE_GRID from extension: kind=${msg.kind}, layer=${msg.layerName}, service=${msg.service}`);
+          setGridCategory({ kind: msg.kind, layerTitle: msg.layerName, service: msg.service });
           handleViewModeChangeRef.current('grid');
           break;
 
@@ -994,71 +1030,50 @@ export const App: React.FC = () => {
     }
   }, [connectWebSocket]);
 
-  const handleTriggerScan = useCallback((clear: boolean = false) => {
-    if (connectionStatus !== 'connected') {
-      logToExtension('WARN', 'Cannot trigger scan: not connected to server');
-      return;
-    }
-    if (isScanning) {
-      logToExtension('WARN', 'Scan already in progress');
-      return;
-    }
-    setIsScanning(true);
-    setScanProgress({ phase: 'Starting', percentage: 5, currentFile: clear ? 'Full re-index...' : 'Scanning workspace...' });
-    setScanNotification(null);
-    sendWsMessage({
-      type: 'TRIGGER_SCAN_REQUEST',
-      requestId: `req_scan_${Date.now()}`,
-      payload: {
-        targetPath: workspaceRootRef.current,
-        clear,
-      },
-    });
-  }, [connectionStatus, isScanning, sendWsMessage]);
-
   return (
     <CommandProvider manager={commandManager}>
       <div id="app">
-        <Toolbar
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-          allProjects={allProjects}
-          projectPaths={projectPaths}
-          selectedProject={selectedProject}
-          onSelectProject={(p) => handleSelectProject(p, 'flow')}
-          connectionStatus={connectionStatus}
-          onFitView={() => {
-            if (viewMode === 'flow') {
-              requestDependencies(selectedProject);
-            } else {
-              requestArchitecture();
-            }
-          }}
-          onRefresh={() => {
-            if (viewMode === 'flow') {
-              requestDependencies(selectedProject);
-            } else {
-              requestArchitecture();
-            }
-          }}
-          cypherQuery={cypherQuery}
-          onCypherQueryChange={setCypherQuery}
-          onRunCypher={handleRunCypher}
-          showTests={showTests}
-          onToggleShowTests={handleToggleShowTests}
-          canGoBack={commandSnapshot.canUndo}
-          canGoForward={commandSnapshot.canRedo}
-          onGoBack={() => commandManager.undo()}
-          onGoForward={() => commandManager.redo()}
-          undoDescription={commandSnapshot.undoDescription}
-          redoDescription={commandSnapshot.redoDescription}
-          groupLayers={groupLayers}
-          onToggleGroupLayers={handleToggleGroupLayers}
-          isScanning={isScanning}
-          scanProgress={scanProgress}
-          onTriggerScan={handleTriggerScan}
-          graphStats={graphStats}
-        />
+        {viewMode !== 'grid' && (
+          <Toolbar
+            viewMode={viewMode}
+            allProjects={allProjects}
+            projectPaths={projectPaths}
+            selectedProject={selectedProject}
+            onSelectProject={(p) => handleSelectProject(p, 'flow')}
+            connectionStatus={connectionStatus}
+            onFitView={() => {
+              if (viewMode === 'flow') {
+                requestDependencies(selectedProject);
+              } else {
+                requestArchitecture();
+              }
+            }}
+            onRefresh={() => {
+              if (viewMode === 'flow') {
+                requestDependencies(selectedProject);
+              } else {
+                requestArchitecture();
+              }
+            }}
+            cypherQuery={cypherQuery}
+            onCypherQueryChange={setCypherQuery}
+            onRunCypher={handleRunCypher}
+            showTests={showTests}
+            onToggleShowTests={handleToggleShowTests}
+            canGoBack={commandSnapshot.canUndo}
+            canGoForward={commandSnapshot.canRedo}
+            onGoBack={() => commandManager.undo()}
+            onGoForward={() => commandManager.redo()}
+            undoDescription={commandSnapshot.undoDescription}
+            redoDescription={commandSnapshot.redoDescription}
+            groupLayers={groupLayers}
+            onToggleGroupLayers={handleToggleGroupLayers}
+            isScanning={isScanning}
+            scanProgress={scanProgress}
+            onTriggerScan={handleTriggerScan}
+            graphStats={graphStats}
+          />
+        )}
 
         {scanNotification && (
           <div className={`scan-toast ${scanNotification.type}`}>
@@ -1179,6 +1194,8 @@ export const App: React.FC = () => {
                 graph={fullGraph}
                 onOpenFile={handleOpenFile}
                 onDrillDownToC2={handleDrillDownToFlow}
+                onSelectNode={handleSelectDrawerNode}
+                selectedNodeId={selectedDrawerNode?.id}
               />
             )}
 
@@ -1187,6 +1204,7 @@ export const App: React.FC = () => {
                 graph={fullGraph}
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
+                onSelectNode={handleSelectDrawerNode}
               />
             )}
 
@@ -1198,6 +1216,8 @@ export const App: React.FC = () => {
                 showTests={showTests}
                 collapsedLayers={collapsedLayers}
                 onToggleLayer={handleToggleLayerCollapse}
+                onSelectNode={handleSelectDrawerNode}
+                selectedNodeId={selectedDrawerNode?.id}
               />
             )}
 
@@ -1214,6 +1234,8 @@ export const App: React.FC = () => {
                 visibleEdgeTypes={flowVisibleEdgeTypes}
                 onToggleEdgeType={handleToggleFlowEdgeType}
                 onResetLevels={handleResetFlowLevels}
+                onSelectNode={handleSelectDrawerNode}
+                selectedNodeId={selectedDrawerNode?.id}
               />
             )}
 
@@ -1281,40 +1303,98 @@ export const App: React.FC = () => {
           </ErrorBoundary>
         </main>
 
-        {/* Slide-out drawer for Cytoscape node inspection */}
+        {/* Slide-out drawer for node inspection across all views */}
         {selectedDrawerNode && (
-          <aside className="drawer">
+          <aside className="drawer" role="complementary" aria-label="Node Inspector">
             <div className="drawer-header">
-              <span className="badge">{selectedDrawerNode.kind}</span>
-              <h3>{selectedDrawerNode.displayName || selectedDrawerNode.name}</h3>
-              <button className="close-btn" onClick={() => handleSelectDrawerNode(null)}>
+              <span className={`badge badge-${(selectedDrawerNode.kind || '').toLowerCase()}`}>
+                {selectedDrawerNode.kind}
+              </span>
+              <h3 title={selectedDrawerNode.displayName || selectedDrawerNode.name}>
+                {selectedDrawerNode.displayName || selectedDrawerNode.name}
+              </h3>
+              <button
+                className="close-btn"
+                onClick={() => handleSelectDrawerNode(null)}
+                title="Close Inspector (Esc)"
+              >
                 &times;
               </button>
             </div>
             <div className="drawer-content">
+              {/* Quick Actions */}
+              <div className="drawer-actions-row">
+                {isProjectKind(selectedDrawerNode.kind) && (
+                  <button
+                    className="drawer-action-btn primary"
+                    onClick={() => handleDrillDownToFlow(selectedDrawerNode.name)}
+                    title={`Inspect ${selectedDrawerNode.name} in Project Flow`}
+                  >
+                    🔀 Inspect in Flow
+                  </button>
+                )}
+                {selectedDrawerNode.filePath && (
+                  <button
+                    className="drawer-action-btn"
+                    onClick={() => handleOpenFile(selectedDrawerNode.filePath!, selectedDrawerNode.lineStart)}
+                    title="Open in VS Code Editor"
+                  >
+                    📄 Open Code
+                  </button>
+                )}
+              </div>
+
               {selectedDrawerNode.filePath && (
                 <div className="drawer-field">
                   <label>Location</label>
                   <div
                     className="clickable-code-link"
                     onClick={() => handleOpenFile(selectedDrawerNode.filePath!, selectedDrawerNode.lineStart)}
+                    title="Click to jump to file"
                   >
-                    {selectedDrawerNode.filePath}
+                    {selectedDrawerNode.filePath}{selectedDrawerNode.lineStart ? `:${selectedDrawerNode.lineStart}` : ''}
                   </div>
                 </div>
               )}
-              <div className="drawer-field">
-                <label>Properties</label>
-                <div className="property-list">
-                  {selectedDrawerNode.properties &&
-                    Object.entries(selectedDrawerNode.properties).map(([k, v]) => (
-                      <div key={k} className="prop-item">
-                        <span className="prop-key">{k}</span>
-                        <span className="prop-val">{v}</span>
-                      </div>
-                    ))}
+
+              {/* Special handling for ExternalReferences packages list */}
+              {selectedDrawerNode.kind === 'ExternalReferences' && selectedDrawerNode.properties?.packages && (
+                <div className="drawer-field">
+                  <label>External Packages ({selectedDrawerNode.properties?.package_count || ''})</label>
+                  <div className="drawer-packages-list">
+                    {(() => {
+                      try {
+                        const pkgs = JSON.parse(selectedDrawerNode.properties.packages) as Array<{ name: string; version?: string; type?: string }>;
+                        return pkgs.map((pkg, idx) => (
+                          <div key={idx} className="drawer-package-item">
+                            <span className="pkg-name">{pkg.name}</span>
+                            {pkg.version && <span className="pkg-version">{pkg.version}</span>}
+                          </div>
+                        ));
+                      } catch {
+                        return <div>{selectedDrawerNode.properties.packages}</div>;
+                      }
+                    })()}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Properties list */}
+              {selectedDrawerNode.properties && Object.keys(selectedDrawerNode.properties).length > 0 && (
+                <div className="drawer-field">
+                  <label>Properties</label>
+                  <div className="property-list">
+                    {Object.entries(selectedDrawerNode.properties)
+                      .filter(([k]) => k !== 'packages')
+                      .map(([k, v]) => (
+                        <div key={k} className="prop-item">
+                          <span className="prop-key">{k}</span>
+                          <span className="prop-val" title={String(v)}>{String(v)}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           </aside>
         )}

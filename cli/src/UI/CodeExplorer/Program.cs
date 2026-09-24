@@ -38,34 +38,49 @@ public class Program
         WorkspaceIndexer.Register(new ColdFusionProjectParser());
         WorkspaceIndexer.Register(new ColdFusionFileParser());
 
-        return await CommandLineParser.Default
-            .ParseArguments<
-                InitOptions,
-                ScanOptions,
-                IndexOptions,
-                StatusOptions,
-                InfoOptions,
-                ClearOptions,
-                QueriesOptions,
-                QueryOptions,
-                McpOptions,
-                IngestOptions,
-                ExportOptions,
-                ServeOptions>(args)
-            .MapResult(
-                (InitOptions opts) => InitCommandHandler.HandleAsync(opts),
-                (ScanOptions opts) => ScanCommandHandler.HandleAsync(opts),
-                (IndexOptions opts) => ScanCommandHandler.HandleAsync(opts),
-                (StatusOptions opts) => StatusCommandHandler.HandleAsync(opts),
-                (InfoOptions opts) => StatusCommandHandler.HandleAsync(opts),
-                (ClearOptions opts) => ClearCommandHandler.HandleAsync(opts),
-                (QueriesOptions opts) => QueryCommandHandler.HandleAsync(opts),
-                (QueryOptions opts) => QueryCommandHandler.HandleAsync(opts),
-                (McpOptions opts) => McpCommandHandler.HandleAsync(opts),
-                (IngestOptions opts) => IngestCommandHandler.HandleAsync(opts),
-                (ExportOptions opts) => ExportCommandHandler.HandleAsync(opts),
-                (ServeOptions opts) => ServeCommandHandler.HandleAsync(opts),
-                _ => Task.FromResult(1));
+        var parseResult = CommandLineParser.Default.ParseArguments(args, [
+            typeof(InitOptions),
+            typeof(ScanOptions),
+            typeof(IndexOptions),
+            typeof(StatusOptions),
+            typeof(InfoOptions),
+            typeof(ClearOptions),
+            typeof(QueriesOptions),
+            typeof(QueryOptions),
+            typeof(McpOptions),
+            typeof(IngestOptions),
+            typeof(ExportOptions),
+            typeof(ServeOptions),
+            typeof(ViewOptions),
+            typeof(DependenciesOptions),
+            typeof(DepsOptions),
+            typeof(ContractsOptions),
+            typeof(TraceOptions)
+        ]);
+
+        if (parseResult is Parsed<object> parsed)
+        {
+            return parsed.Value switch
+            {
+                InitOptions opts => await InitCommandHandler.HandleAsync(opts),
+                ScanOptions opts => await ScanCommandHandler.HandleAsync(opts),
+                StatusOptions opts => await StatusCommandHandler.HandleAsync(opts),
+                ClearOptions opts => await ClearCommandHandler.HandleAsync(opts),
+                QueriesOptions opts => await QueryCommandHandler.HandleAsync(opts),
+                QueryOptions opts => await QueryCommandHandler.HandleAsync(opts),
+                McpOptions opts => await McpCommandHandler.HandleAsync(opts),
+                IngestOptions opts => await IngestCommandHandler.HandleAsync(opts),
+                ExportOptions opts => await ExportCommandHandler.HandleAsync(opts),
+                ServeOptions opts => await ServeCommandHandler.HandleAsync(opts),
+                ViewOptions opts => await ViewCommandHandler.HandleAsync(opts),
+                DependenciesOptions opts => await DependenciesCommandHandler.HandleAsync(opts),
+                ContractsOptions opts => await ContractsCommandHandler.HandleAsync(opts),
+                TraceOptions opts => await TraceCommandHandler.HandleAsync(opts),
+                _ => 1
+            };
+        }
+
+        return 1;
     }
 
     public static WebApplication CreateWebApplication(ServeOptions opts, string wsRoot, SqliteGraphClient client, string[]? args = null)

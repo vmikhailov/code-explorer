@@ -7,6 +7,7 @@ export type MessageType =
   // Client -> Server
   | 'HANDSHAKE_REQUEST'
   | 'PING_REQUEST'
+  | 'GET_VIEW_REQUEST'
   | 'GET_ARCHITECTURE_REQUEST'
   | 'GET_DEPENDENCIES_REQUEST'
   | 'GET_SYMBOL_NEIGHBORHOOD_REQUEST'
@@ -14,10 +15,13 @@ export type MessageType =
   | 'GET_IMPACT_REQUEST'
   | 'EXECUTE_CYPHER_REQUEST'
   | 'TRIGGER_SCAN_REQUEST'
+  | 'GET_ONTOLOGY_LAYERS'
   // Server -> Client responses
   | 'HANDSHAKE_RESPONSE'
   | 'PONG_RESPONSE'
+  | 'GET_VIEW_RESPONSE'
   | 'QUERY_RESPONSE'
+  | 'GET_ONTOLOGY_LAYERS_RESPONSE'
   | 'ERROR_RESPONSE'
   // Broadcast events
   | 'GRAPH_PATCH_EVENT'
@@ -67,6 +71,30 @@ export interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
   metadata?: Record<string, string>;
+}
+
+export interface OntologyCategory {
+  kind: string;
+  label: string;
+  icon: string;
+  count: number;
+  layerId: number;
+}
+
+export interface OntologyLayer {
+  layerId: number;
+  name: string;
+  title: string;
+  description: string;
+  icon: string;
+  totalCount: number;
+  categories: OntologyCategory[];
+}
+
+export interface OntologyLayersResponse {
+  layers: OntologyLayer[];
+  totalNodes: number;
+  totalEdges: number;
 }
 
 // ============================================================================

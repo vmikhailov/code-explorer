@@ -3,7 +3,6 @@ import { ViewMode } from '../commands';
 
 export interface ToolbarProps {
   viewMode: ViewMode;
-  onViewModeChange?: (mode: ViewMode) => void;
   allProjects: string[];
   projectPaths?: Record<string, string>;
   selectedProject: string;
@@ -32,7 +31,6 @@ export interface ToolbarProps {
 
 export const Toolbar: React.FC<ToolbarProps> = ({
   viewMode,
-  onViewModeChange,
   allProjects,
   projectPaths,
   selectedProject,
@@ -149,24 +147,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
       </div>
 
-      {/* View Mode Selector */}
-      <div className="view-mode-dropdown-wrap">
-        <label className="view-mode-dropdown-label">
-          <span className="view-label-prefix">View:</span>
-          <select
-            className="view-mode-select"
-            value={viewMode}
-            onChange={(e) => onViewModeChange?.(e.target.value as ViewMode)}
-            title="Switch architecture visualization view"
-          >
-            <option value="semantic">🌐 Domain Microservices</option>
-            <option value="layers">🏛️ Architecture Tiers</option>
-            <option value="c1">🌍 C1 System Context</option>
-            <option value="flow">🔀 Project Flow (C2)</option>
-            <option value="full">🕸️ Physical Dependency Graph</option>
-            <option value="mermaid">📊 Mermaid Architecture</option>
-          </select>
-        </label>
+      {/* View Title Badge */}
+      <div className="view-mode-title-badge">
+        <span className="view-mode-badge-text">
+          {viewMode === 'semantic' && '🌐 Domain Microservices'}
+          {viewMode === 'layers' && '🏛️ Architecture Tiers'}
+          {viewMode === 'c1' && '🌍 C1 System Context'}
+          {viewMode === 'flow' && '🔀 Project Flow (C2)'}
+          {viewMode === 'full' && '🕸️ Physical Dependency Graph'}
+          {viewMode === 'mermaid' && '📊 Mermaid Architecture'}
+        </span>
       </div>
 
       {/* Dynamic Controls based on Mode */}

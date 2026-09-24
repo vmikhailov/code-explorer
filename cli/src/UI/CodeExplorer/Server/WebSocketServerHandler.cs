@@ -225,6 +225,8 @@ public class WebSocketServerHandler
                     {
                         "serviceflow" or "flow" or "c2" => CodeExplorer.Core.Analysis.ArchitectureViewType.ServiceFlow,
                         "component" or "c3" => CodeExplorer.Core.Analysis.ArchitectureViewType.Component,
+                        "domain" or "domainmap" or "domain-map" or "boundedcontext" or "bounded-context" => CodeExplorer.Core.Analysis.ArchitectureViewType.DomainMap,
+                        "tiers" or "tiered" => CodeExplorer.Core.Analysis.ArchitectureViewType.Tiers,
                         _ => CodeExplorer.Core.Analysis.ArchitectureViewType.SystemContext
                     };
                     var viewGraph = await _archQueryService.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
@@ -238,6 +240,12 @@ public class WebSocketServerHandler
                         Success = true,
                         Graph = viewGraph
                     }, cancellationToken);
+                    break;
+
+                case WsMessageTypes.GetOntologyLayersRequest:
+                case "GET_ONTOLOGY_LAYERS":
+                    var ontologyLayers = await _archQueryService.GetOntologyLayersAsync(cancellationToken);
+                    await SendResponseAsync(session, WsMessageTypes.GetOntologyLayersResponse, reqId, ontologyLayers, cancellationToken);
                     break;
 
                 case WsMessageTypes.GetArchitectureRequest:

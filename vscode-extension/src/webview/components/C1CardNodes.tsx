@@ -13,6 +13,8 @@ export interface C1EndpointData extends Record<string, unknown> {
   lineStart?: number;
   targetProject?: string;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
+  onSelectNode?: () => void;
+  isSelected?: boolean;
 }
 
 export const C1EndpointCardNode = memo((props: any) => {
@@ -39,7 +41,13 @@ export const C1EndpointCardNode = memo((props: any) => {
   };
 
   return (
-    <div className="c1-node-card c1-endpoint-card">
+    <div
+      className={`c1-node-card c1-endpoint-card ${data.isSelected ? 'is-selected' : ''}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        data.onSelectNode?.();
+      }}
+    >
       <div className="c1-card-header">
         <span className={`c1-method-badge ${getMethodBadgeClass(rawMethod)}`}>{rawMethod}</span>
         <span className="c1-badge-sub">INGRESS</span>
@@ -83,6 +91,8 @@ export interface C1ProjectData extends Record<string, unknown> {
   packageCount?: number;
   onDrillDown?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
+  onSelectNode?: () => void;
+  isSelected?: boolean;
 }
 
 export const C1ProjectCardNode = memo((props: any) => {
@@ -90,7 +100,13 @@ export const C1ProjectCardNode = memo((props: any) => {
   if (!data) return null;
 
   return (
-    <div className="c1-node-card c1-project-card">
+    <div
+      className={`c1-node-card c1-project-card ${data.isSelected ? 'is-selected' : ''}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        data.onSelectNode?.();
+      }}
+    >
       <Handle type="target" position={Position.Left} id="ingress" className="c1-handle c1-handle-left" />
 
       <div className="c1-card-header">
@@ -166,6 +182,8 @@ export interface C1EgressData extends Record<string, unknown> {
   targetCount?: number;
   filePath?: string;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
+  onSelectNode?: () => void;
+  isSelected?: boolean;
 }
 
 export const C1EgressCardNode = memo((props: any) => {
@@ -180,7 +198,13 @@ export const C1EgressCardNode = memo((props: any) => {
   const badgeClass = isDb ? 'c1-badge-db' : isExt ? 'c1-badge-ext' : 'c1-badge-msg';
 
   return (
-    <div className={`c1-node-card c1-egress-card ${badgeClass}`}>
+    <div
+      className={`c1-node-card c1-egress-card ${badgeClass} ${data.isSelected ? 'is-selected' : ''}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        data.onSelectNode?.();
+      }}
+    >
       <Handle type="target" position={Position.Left} id="ingress" className="c1-handle c1-handle-left" />
 
       <div className="c1-card-header">

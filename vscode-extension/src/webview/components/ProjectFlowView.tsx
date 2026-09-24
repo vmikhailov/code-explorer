@@ -30,6 +30,8 @@ export interface ProjectFlowViewProps {
   visibleEdgeTypes?: Record<EdgeCategory, boolean>;
   onToggleEdgeType?: (cat: EdgeCategory) => void;
   onResetLevels?: () => void;
+  onSelectNode?: (node: GraphNode | null) => void;
+  selectedNodeId?: string;
 }
 
 const nodeTypes = {
@@ -48,6 +50,8 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
   visibleEdgeTypes: visibleEdgeTypesProp,
   onToggleEdgeType: onToggleEdgeTypeProp,
   onResetLevels: onResetLevelsProp,
+  onSelectNode,
+  selectedNodeId,
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -154,17 +158,13 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     const edgeMap = new Map<string, GraphEdge>();
 
     for (const e of allEdges) {
+      if (!e?.source || !e?.target) continue;
       const srcNode = nMap.get(e.source) || nMap.get(e.source.toLowerCase());
       const tgtNode = nMap.get(e.target) || nMap.get(e.target.toLowerCase());
       if (!srcNode || !tgtNode) continue;
 
       edgeMap.set(`${e.source}->${e.target}`, e);
       edgeMap.set(`${srcNode.id}->${tgtNode.id}`, e);
-      edgeMap.set(`${srcNode.name}->${tgtNode.name}`, e);
-      edgeMap.set(`${srcNode.id}->${tgtNode.name}`, e);
-      edgeMap.set(`${srcNode.name}->${tgtNode.id}`, e);
-      edgeMap.set(`${srcNode.id.toLowerCase()}->${tgtNode.id.toLowerCase()}`, e);
-      edgeMap.set(`${srcNode.name.toLowerCase()}->${tgtNode.name.toLowerCase()}`, e);
 
       // Outbound (srcNode is using tgtNode)
       const curOut = outMap.get(srcNode.id) || [];
@@ -172,8 +172,6 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         curOut.push(tgtNode);
         outMap.set(srcNode.id, curOut);
         outMap.set(srcNode.name, curOut);
-        outMap.set(srcNode.id.toLowerCase(), curOut);
-        outMap.set(srcNode.name.toLowerCase(), curOut);
       }
 
       // Inbound (tgtNode is used by srcNode)
@@ -182,14 +180,12 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         curIn.push(srcNode);
         inMap.set(tgtNode.id, curIn);
         inMap.set(tgtNode.name, curIn);
-        inMap.set(tgtNode.id.toLowerCase(), curIn);
-        inMap.set(tgtNode.name.toLowerCase(), curIn);
       }
 
       // Communications breakdown
       const srcComms = getOrCreateComms(srcNode);
       const tgtComms = getOrCreateComms(tgtNode);
-      const category = getEdgeCategory(e, tgtNode, srcNode);
+      const category = getEdgeCategory(e);
 
       if (category === 'service_call') {
         if (!srcComms.callsOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase())) {
@@ -608,16 +604,9 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
 
         const edgeObj =
           edgeLookup.get(key) ||
-          (srcNode && tgtNode
-            ? edgeLookup.get(`${srcNode.id}->${tgtNode.id}`) ||
-              edgeLookup.get(`${srcNode.name}->${tgtNode.name}`) ||
-              edgeLookup.get(`${srcNode.id}->${tgtNode.name}`) ||
-              edgeLookup.get(`${srcNode.name}->${tgtNode.id}`) ||
-              edgeLookup.get(`${srcNode.id.toLowerCase()}->${tgtNode.id.toLowerCase()}`) ||
-              edgeLookup.get(`${srcNode.name.toLowerCase()}->${tgtNode.name.toLowerCase()}`)
-            : undefined);
+          (srcNode && tgtNode ? edgeLookup.get(`${srcNode.id}->${tgtNode.id}`) : undefined);
 
-        const category = getEdgeCategory(edgeObj, tgtNode, srcNode);
+        const category = getEdgeCategory(edgeObj);
         if (!visibleEdgeTypes[category]) {
           return;
         }
@@ -647,7 +636,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           return;
         }
 
-        const visuals = getEdgeVisuals(edgeObj, tgtNode, srcNode);
+        const visuals = getEdgeVisuals(edgeObj);
 
         const isSourceExpanded =
           expandedCards.has(sourceId) || (srcNode && (expandedCards.has(srcNode.id) || expandedCards.has(srcNode.name)));
@@ -1037,6 +1026,8 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
             activeCategories: Array.from(getActiveCategories(node.id, node.name)),
             onToggleCategory: handleToggleCategory,
             onFocusProject: onSelectProject,
+            onSelectNode,
+            isSelected: selectedNodeId ? (node.id === selectedNodeId || node.name === selectedNodeId) : false,
             onOpenFile,
             visibleEdgeTypes,
           },
@@ -1166,6 +1157,11 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         nodesConnectable={false}
         autoPanOnConnect={false}
         connectOnClick={false}
+        onNodeClick={(_, rfNode) => {
+          const n = (rfNode.data as any)?.graphNode || (rfNode.data as any);
+          if (n) onSelectNode?.(n);
+        }}
+        onPaneClick={() => onSelectNode?.(null)}
         fitView
         fitViewOptions={{ padding: 0.25 }}
         minZoom={0.2}

@@ -421,12 +421,32 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
       const nodeToLayer: Record<string, string> = {};
       const nodesByLayer = new Map<string, GraphNode[]>();
 
+      const validLayerIds = new Set(layerDefs.map((d) => d.layerId));
+      const defaultLayerId = validLayerIds.has('layer_components')
+        ? 'layer_components'
+        : layerDefs[0]?.layerId || 'layer_components';
+
       for (const def of layerDefs) {
         nodesByLayer.set(def.layerId, []);
       }
 
       for (const node of validNodes) {
-        const layerId = node.properties?.layerId || 'layer_engines';
+        let layerId = node.properties?.layerId;
+        if (!layerId || !validLayerIds.has(layerId)) {
+          // Infer layer based on node kind or role
+          if (node.kind === 'ExternalService') {
+            layerId = validLayerIds.has('layer_egress') ? 'layer_egress' : defaultLayerId;
+          } else if (node.kind === 'Database' || node.kind === 'Topic') {
+            layerId = validLayerIds.has('layer_foundation') ? 'layer_foundation' : defaultLayerId;
+          } else if (node.kind === 'App' || node.kind === 'FrontendApp' || node.kind === 'EntryPoint') {
+            layerId = validLayerIds.has('layer_ingress') ? 'layer_ingress' : defaultLayerId;
+          } else if (node.properties?.isTest === 'true') {
+            layerId = validLayerIds.has('layer_tests') ? 'layer_tests' : defaultLayerId;
+          } else {
+            layerId = defaultLayerId;
+          }
+        }
+
         nodeToLayer[node.id] = layerId;
 
         const list = nodesByLayer.get(layerId) || [];
@@ -490,6 +510,14 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
         }
       }
 
+      // Collect all node IDs that were actually added to elements
+      const addedNodeIds = new Set<string>();
+      for (const el of elements) {
+        if (el.group === 'nodes' && el.data?.id) {
+          addedNodeIds.add(el.data.id as string);
+        }
+      }
+
       // Add Edges with Collapsed Re-routing and Aggregation
       const edgeMap = new Map<string, { source: string; target: string; count: number; kinds: Set<string>; depTypes: Set<string>; primaryKind: string }>();
 
@@ -536,6 +564,11 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
       }
 
       for (const [key, agg] of edgeMap) {
+        // Defensive check: both endpoints must be in addedNodeIds
+        if (!addedNodeIds.has(agg.source) || !addedNodeIds.has(agg.target)) {
+          continue;
+        }
+
         const isAggregated = agg.count > 1;
         const label = isAggregated
           ? `${agg.count} calls`
@@ -563,7 +596,20 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
       }
     }
 
-    cy.add(elements);
+    // Defensive sanitization: ensure no orphan edges reach Cytoscape
+    const finalNodeIds = new Set(
+      elements.filter((el) => el.group === 'nodes').map((el) => el.data?.id as string)
+    );
+    const safeElements = elements.filter((el) => {
+      if (el.group === 'edges') {
+        const s = el.data?.source as string;
+        const t = el.data?.target as string;
+        return s && t && finalNodeIds.has(s) && finalNodeIds.has(t);
+      }
+      return true;
+    });
+
+    cy.add(safeElements);
 
     const layout = cy.layout({
       name: 'dagre',

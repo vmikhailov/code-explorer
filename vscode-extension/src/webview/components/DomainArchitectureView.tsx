@@ -11,6 +11,7 @@ export interface DomainArchitectureViewProps {
   graph: GraphData | null;
   onFocusInFlow?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
+  onSelectNode?: (node: GraphNode | null) => void;
 }
 
 // Common sub-project naming suffixes that belong to a parent domain
@@ -320,6 +321,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   graph,
   onFocusInFlow,
   onOpenFile,
+  onSelectNode,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -995,8 +997,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       else if (cat === 'messaging') visibleMsgs += count;
     }
 
+    const visibleNodeIdSet = new Set(visibleNodes.map((n) => n.data.id as string));
+    const safeVisibleEdges = visibleEdges.filter((e) => {
+      const s = (e.data as any)?.source as string;
+      const t = (e.data as any)?.target as string;
+      return s && t && visibleNodeIdSet.has(s) && visibleNodeIdSet.has(t);
+    });
+
     return {
-      elements: [...visibleNodes, ...visibleEdges],
+      elements: [...visibleNodes, ...safeVisibleEdges],
       hiddenCount: rawGraph.allNodes.length - visibleNodes.length,
       stats: {
         total: visibleNodes.length,
@@ -1034,6 +1043,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const detail = nodeDetailMap.get(nodeId);
       if (detail) {
         setSelectedNode(detail);
+        const gNode: GraphNode = {
+          id: detail.id,
+          name: detail.name,
+          displayName: detail.displayName,
+          kind: detail.kind === 'Service' || detail.kind === 'Ingress' ? 'Service' : detail.kind,
+          filePath: detail.primaryFilePath,
+          properties: {
+            kind: detail.kind,
+            framework: detail.framework || '',
+            language: detail.language || '',
+            inboundCalls: String(detail.inboundCallsCount),
+            outboundCalls: String(detail.outboundCallsCount),
+            dbCount: String(detail.dbCount),
+            messagingCount: String(detail.messagingCount),
+          },
+        };
+        onSelectNode?.(gNode);
       }
 
       // Highlight neighborhood
@@ -1047,6 +1073,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     cy.on('tap', (evt) => {
       if (evt.target === cy) {
         setSelectedNode(null);
+        onSelectNode?.(null);
         cy.elements().removeClass('highlighted dimmed');
       }
     });

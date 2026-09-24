@@ -117,6 +117,20 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
+    [Description("Primary architecture tool for inspecting workspace structure. Supports multi-level architectural views: 'c1' / 'system' (cross-service, external APIs, databases, brokers), 'c2' / 'service' (inter-project dependencies & service flows), 'c3' / 'component' (internal packages, controllers, namespaces), 'domain' / 'context' (bounded contexts synthesized from projects and domains), and 'tiers' (3-tier layered breakdown). Supports output formats: 'markdown', 'toon', 'mermaid', 'json'.")]
+    public async Task<CallToolResult> GetArchitectureViewAsync(
+        [Description("View level: 'c1' (system context), 'c2' (service flow), 'c3' (component), 'domain' (bounded contexts), or 'tiers' (layered architecture). Default: 'c1'.")] string level = "c1",
+        [Description("Optional scope (e.g. project or service name) to isolate in the view.")] string? scope = null,
+        [Description("Whether to include shared libraries and utility projects. Default: true.")] bool includeLibraries = true,
+        [Description("Output format: 'markdown', 'toon', 'mermaid', or 'json'. Default: 'markdown'.")] string format = "markdown",
+        [Description("Optional workspace root path. If omitted, uses current workspace context.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(() => repository.GetArchitectureViewAsync(level, scope, includeLibraries, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
     [Description("Returns a lightweight, high-level overview of the workspace architecture, grouping projects into semantic layers (Core/Domain, Services/Backend, UI/Presentation, Infrastructure/Data, Tests) with project counts, databases, external services, and summary statistics. Ideal starting point for understanding repository structure without heavy payloads.")]
     public async Task<CallToolResult> GetArchitectureOverviewAsync(
         [Description("Optional workspace root path. If omitted, uses current workspace context.")] string? workspacePath = null,
@@ -138,15 +152,51 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Retrieves the complete dependency graph between projects. Supports 'markdown', 'mermaid' diagrams, and 'json' outputs.")]
+    [Description("Retrieves the complete dependency graph between projects. Supports 'markdown', 'mermaid' diagrams, and 'json' outputs, with filtering by runtime vs build/package dependencies.")]
     public async Task<CallToolResult> GetProjectDependenciesAsync(
         [Description("Optional name of a specific project to isolate its incoming and outgoing dependencies.")] string? projectFilter = null,
         [Description("Output format: 'markdown', 'mermaid', 'json', 'yaml', or 'toon' (default: 'markdown').")] string format = "markdown",
         [Description("Maximum results to return (default: 50).")] int limit = 50,
+        [Description("Filter dependency types: 'all', 'runtime' (direct project-to-project & service calls), or 'build' (compile/package dependencies). Default: 'all'.")] string type = "all",
         [Description("Optional workspace root path. If omitted, uses current workspace context.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.GetProjectDependenciesAsync(projectFilter, format, limit, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetProjectDependenciesAsync(projectFilter, format, limit, type, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Lists ingress and egress communication contracts for a specific service (HTTP endpoints, gRPC calls, message publishers, and event subscribers).")]
+    public async Task<CallToolResult> GetServiceContractsAsync(
+        [Description("The name of the service or project (e.g., 'AuthService' or 'OrderApi').")] string serviceName,
+        [Description("Direction of contracts: 'ingress' (incoming APIs/subscribers), 'egress' (outgoing HTTP calls/publishers), or 'all'. Default: 'all'.")] string direction = "all",
+        [Description("Output format: 'markdown', 'toon', 'mermaid', or 'json'. Default: 'markdown'.")] string format = "markdown",
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(serviceName))
+        {
+            return WrapError("Missing 'serviceName' argument.");
+        }
+        return await ExecuteAsync(() => repository.GetServiceContractsAsync(serviceName, direction, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Traces end-to-end distributed execution flow across microservices starting from an ingress controller or message topic (e.g. Gateway -> Orders -> RabbitMQ -> Payments -> DB).")]
+    public async Task<CallToolResult> TraceCrossServiceFlowAsync(
+        [Description("Starting service or project name (e.g. 'Gateway' or 'OrderService').")] string startService,
+        [Description("Optional specific entry point (endpoint URL or method name) to narrow the trace.")] string? entryPoint = null,
+        [Description("Maximum service traversal depth (1-10, default: 3).")] int maxDepth = 3,
+        [Description("Output format: 'markdown', 'toon', 'mermaid', or 'json'. Default: 'markdown'.")] string format = "markdown",
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(startService))
+        {
+            return WrapError("Missing 'startService' argument.");
+        }
+        return await ExecuteAsync(() => repository.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]

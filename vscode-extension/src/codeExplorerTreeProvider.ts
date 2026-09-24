@@ -28,6 +28,71 @@ export interface NodesResponseDto {
   limit: number;
 }
 
+export interface OntologyCategoryDto {
+  kind: string;
+  label: string;
+  icon: string;
+  count: number;
+  layerId: number;
+}
+
+export interface OntologyLayerDto {
+  layerId: number;
+  name: string;
+  title: string;
+  description: string;
+  icon: string;
+  totalCount: number;
+  categories: OntologyCategoryDto[];
+}
+
+export interface OntologyLayersResponseDto {
+  layers: OntologyLayerDto[];
+  totalNodes: number;
+  totalEdges: number;
+}
+
+export interface ServiceSummaryDto {
+  serviceName: string;
+  serviceId: string;
+  kind: string;
+  framework?: string;
+  language?: string;
+  endpointCount: number;
+  databaseCount: number;
+  topicCount: number;
+  externalCount: number;
+}
+
+export interface ServiceCapabilityItemDto {
+  id: string;
+  name: string;
+  kind: string;
+  protocol?: string;
+  method?: string;
+  route?: string;
+  filePath?: string;
+  line?: number;
+  details?: string;
+}
+
+export interface ServiceOntologyGroupDto {
+  categoryKey: string;
+  label: string;
+  icon: string;
+  count: number;
+  items: ServiceCapabilityItemDto[];
+}
+
+export interface ServiceOntologyDetailsDto {
+  serviceName: string;
+  serviceId: string;
+  kind: string;
+  framework?: string;
+  language?: string;
+  groups: ServiceOntologyGroupDto[];
+}
+
 export type TreeItemType =
   | 'root-diagrams'
   | 'root-layers'
@@ -37,6 +102,10 @@ export type TreeItemType =
   | 'layer-group'
   | 'node-category'
   | 'rel-category'
+  | 'services-container'
+  | 'ontology-service'
+  | 'service-group'
+  | 'service-item'
   | 'metadata-stat'
   | 'management-item'
   | 'empty-notice'
@@ -100,8 +169,70 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     });
   }
 
+  private _ontologyCache: OntologyLayersResponseDto | null = null;
+  private _servicesCache: ServiceSummaryDto[] | null = null;
+  private _serviceDetailsCache = new Map<string, ServiceOntologyDetailsDto>();
+
   refresh(): void {
+    this._ontologyCache = null;
+    this._servicesCache = null;
+    this._serviceDetailsCache.clear();
     this._onDidChangeTreeData.fire();
+  }
+
+  private async getOntologyLayers(): Promise<OntologyLayersResponseDto | null> {
+    if (this._ontologyCache) {
+      return this._ontologyCache;
+    }
+    const serverInfo = await this.getServerInfo();
+    if (serverInfo) {
+      try {
+        const res = await fetchJson<OntologyLayersResponseDto>(`${serverInfo.httpUrl}/api/ontology/layers`);
+        if (res && res.layers && res.layers.length > 0) {
+          this._ontologyCache = res;
+          return res;
+        }
+      } catch {}
+    }
+    return null;
+  }
+
+  private async getOntologyServices(): Promise<ServiceSummaryDto[]> {
+    if (this._servicesCache && this._servicesCache.length > 0) {
+      return this._servicesCache;
+    }
+    const serverInfo = await this.getServerInfo();
+    if (serverInfo) {
+      try {
+        const res = await fetchJson<ServiceSummaryDto[]>(`${serverInfo.httpUrl}/api/ontology/services`);
+        if (Array.isArray(res)) {
+          this._servicesCache = res;
+          return res;
+        }
+      } catch (e: any) {
+        this.outputChannel.appendLine(`[TreeProvider] getOntologyServices error: ${e.message}`);
+      }
+    }
+    return [];
+  }
+
+  private async getServiceCapabilities(serviceName: string): Promise<ServiceOntologyDetailsDto | null> {
+    if (this._serviceDetailsCache.has(serviceName)) {
+      return this._serviceDetailsCache.get(serviceName)!;
+    }
+    const serverInfo = await this.getServerInfo();
+    if (serverInfo) {
+      try {
+        const res = await fetchJson<ServiceOntologyDetailsDto>(`${serverInfo.httpUrl}/api/ontology/services/${encodeURIComponent(serviceName)}`);
+        if (res && res.groups) {
+          this._serviceDetailsCache.set(serviceName, res);
+          return res;
+        }
+      } catch (e: any) {
+        this.outputChannel.appendLine(`[TreeProvider] getServiceCapabilities error: ${e.message}`);
+      }
+    }
+    return null;
   }
 
   private async getServerInfo(): Promise<ServerInfo | null> {
@@ -109,15 +240,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     if (!root) return null;
     if (!this.processManager.hasWorkspace(root)) return null;
 
-    const existing = this.processManager.getServerInfo();
-    if (existing) return existing;
-
-    try {
-      return await this.processManager.ensureServerStarted(root);
-    } catch (e: any) {
-      this.outputChannel.appendLine(`[TreeProvider] Server start error: ${e.message}`);
-      return null;
-    }
+    return this.processManager.getServerInfo();
   }
 
   getTreeItem(element: CodeExplorerTreeItem): vscode.TreeItem {
@@ -175,6 +298,11 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       );
       layersRoot.iconPath = new vscode.ThemeIcon('layers');
       layersRoot.tooltip = 'Decoupled 5-layer ontology graph model';
+      layersRoot.command = {
+        command: 'codeExplorer.openNodeGrid',
+        title: 'Browse All Graph Layers in Grid',
+        arguments: ['all', 'Graph Layers (Ontology 1 - 5)'],
+      };
 
       // 3. Metadata & Health
       const serverInfo = this.processManager.getServerInfo();
@@ -211,6 +339,18 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
     if (element.itemType === 'layer-group') {
       return this.getLayerCategoryItems(element.data?.layerId, element.data?.title);
+    }
+
+    if (element.itemType === 'services-container') {
+      return this.getServicesListItems(element.data?.layerTitle);
+    }
+
+    if (element.itemType === 'ontology-service') {
+      return this.getServiceOntologyGroups(element.data?.serviceName);
+    }
+
+    if (element.itemType === 'service-group') {
+      return this.getServiceGroupItems(element.data?.serviceName, element.data?.categoryKey, element.data?.items);
     }
 
     if (element.itemType === 'root-metadata') {
@@ -290,6 +430,30 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   }
 
   private async getGraphLayerGroups(): Promise<CodeExplorerTreeItem[]> {
+    const ontology = await this.getOntologyLayers();
+    if (ontology && ontology.layers && ontology.layers.length > 0) {
+      return ontology.layers.map((l) => {
+        const item = new CodeExplorerTreeItem(
+          'layer-group',
+          l.title || `Layer ${l.layerId}: ${l.name}`,
+          vscode.TreeItemCollapsibleState.Collapsed,
+          { layerId: l.layerId, title: l.title || l.name }
+        );
+        item.description = `${l.totalCount.toLocaleString()} ${l.layerId === 5 ? 'edges' : 'nodes'}`;
+        item.iconPath = new vscode.ThemeIcon(l.icon || (l.layerId === 5 ? 'references' : 'folder'));
+        item.tooltip = l.description;
+        item.command = {
+          command: 'codeExplorer.openNodeGrid',
+          title: `Browse ${l.title || l.name} in Grid`,
+          arguments: [
+            l.layerId === 5 ? 'Layer5_Relationships' : `Layer${l.layerId}`,
+            l.title || `Layer ${l.layerId}: ${l.name}`,
+          ],
+        };
+        return item;
+      });
+    }
+
     const serverInfo = await this.getServerInfo();
     let meta: MetadataDto | null = null;
     if (serverInfo) {
@@ -376,12 +540,90 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       item.description = l.desc;
       item.iconPath = new vscode.ThemeIcon(l.icon);
       item.tooltip = l.tooltip;
+      item.command = {
+        command: 'codeExplorer.openNodeGrid',
+        title: `Browse ${l.title} in Grid`,
+        arguments: [
+          l.layerId === 5 ? 'Layer5_Relationships' : `Layer${l.layerId}`,
+          l.title,
+        ],
+      };
       return item;
     });
   }
 
   private async getLayerCategoryItems(layerId?: number, layerTitle?: string): Promise<CodeExplorerTreeItem[]> {
     if (!layerId) return [];
+
+    if (layerId === 4) {
+      const services = await this.getOntologyServices();
+      const servicesItem = new CodeExplorerTreeItem(
+        'services-container',
+        'Services & Workloads',
+        vscode.TreeItemCollapsibleState.Collapsed,
+        { layerTitle: layerTitle || 'Layer 4: Semantic Runtime' }
+      );
+      servicesItem.description = `${services.length} services`;
+      servicesItem.iconPath = new vscode.ThemeIcon('server-process');
+      servicesItem.tooltip = 'Microservices, applications, workers, and background workloads';
+      servicesItem.command = {
+        command: 'codeExplorer.openNodeGrid',
+        title: 'Browse Services in Grid',
+        arguments: ['Service', 'Layer 4: Semantic Runtime › Services'],
+      };
+
+      const ontology = await this.getOntologyLayers();
+      const layer = ontology?.layers?.find((l) => l.layerId === 4);
+      const otherCategories: CodeExplorerTreeItem[] = [];
+
+      if (layer && layer.categories && layer.categories.length > 0) {
+        for (const cat of layer.categories) {
+          if (cat.kind === 'Service') continue;
+          const item = new CodeExplorerTreeItem(
+            'node-category',
+            cat.label,
+            vscode.TreeItemCollapsibleState.None,
+            { kind: cat.kind, layerTitle: layerTitle || layer.title }
+          );
+          item.description = `${cat.count.toLocaleString()}`;
+          item.iconPath = new vscode.ThemeIcon(cat.icon || 'symbol-class');
+          item.tooltip = `Click to browse all ${cat.count.toLocaleString()} ${cat.label} in central grid`;
+          item.command = {
+            command: 'codeExplorer.openNodeGrid',
+            title: `Browse ${cat.label} in Grid`,
+            arguments: [cat.kind, layerTitle || layer.title],
+          };
+          otherCategories.push(item);
+        }
+      }
+
+      return [servicesItem, ...otherCategories];
+    }
+
+    const ontology = await this.getOntologyLayers();
+    const layer = ontology?.layers?.find((l) => l.layerId === layerId);
+    if (layer && layer.categories && layer.categories.length > 0) {
+      return layer.categories.map((cat) => {
+        const isRel = cat.layerId === 5;
+        const item = new CodeExplorerTreeItem(
+          isRel ? 'rel-category' : 'node-category',
+          cat.label,
+          vscode.TreeItemCollapsibleState.None,
+          { kind: cat.kind, rel: cat.kind, layerTitle: layerTitle || layer.title }
+        );
+        item.description = `${cat.count.toLocaleString()}`;
+        item.iconPath = new vscode.ThemeIcon(cat.icon || (isRel ? 'arrow-right' : 'symbol-class'));
+        item.tooltip = isRel
+          ? `${cat.count.toLocaleString()} ${cat.kind} relationships`
+          : `Click to browse all ${cat.count.toLocaleString()} ${cat.label} in central grid`;
+        item.command = {
+          command: 'codeExplorer.openNodeGrid',
+          title: `Browse ${cat.label} in Grid`,
+          arguments: [cat.kind, layerTitle || layer.title],
+        };
+        return item;
+      });
+    }
 
     const serverInfo = await this.getServerInfo();
     let meta: MetadataDto | null = null;
@@ -437,27 +679,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         break;
 
       case 4:
-        items.push(createNodeCatItem('Service', 'Services & Microservices', 'server-process'));
-        items.push(createNodeCatItem('App', 'Applications (Ingress)', 'browser'));
-        items.push(createNodeCatItem('Worker', 'Background Workers', 'gear'));
-        if ((counts['CliTool'] || 0) > 0) {
-          items.push(createNodeCatItem('CliTool', 'CLI Tools', 'terminal'));
-        }
-        items.push(createNodeCatItem('EntryPoint', 'Execution EntryPoints', 'sign-in'));
-        items.push(createNodeCatItem('Endpoint', 'HTTP Endpoints', 'radio-tower'));
-        if ((counts['Procedure'] || 0) > 0) {
-          items.push(createNodeCatItem('Procedure', 'Stored Procedures', 'database'));
-        }
-        items.push(createNodeCatItem('Database', 'Databases', 'database'));
-        items.push(createNodeCatItem('Table', 'Database Tables', 'table'));
-        if ((counts['DataSet'] || 0) > 0) {
-          items.push(createNodeCatItem('DataSet', 'Data Sets', 'files'));
-        }
-        items.push(createNodeCatItem('Topic', 'Message Topics & Queues', 'mail'));
-        items.push(createNodeCatItem('ExternalService', 'External Services (Egress)', 'cloud'));
-        items.push(createNodeCatItem('CloudService', 'Cloud Services', 'server'));
-        items.push(createNodeCatItem('ApiInUse', 'APIs in Use', 'plug'));
-        items.push(createNodeCatItem('Query', 'SQL Queries', 'search'));
         break;
 
       case 5: {
@@ -501,6 +722,86 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     }
 
     return items;
+  }
+
+  private async getServicesListItems(layerTitle?: string): Promise<CodeExplorerTreeItem[]> {
+    const services = await this.getOntologyServices();
+    return services.map((s) => {
+      const item = new CodeExplorerTreeItem(
+        'ontology-service',
+        s.serviceName,
+        vscode.TreeItemCollapsibleState.Collapsed,
+        { serviceName: s.serviceName, serviceId: s.serviceId, layerTitle }
+      );
+      const icon = s.kind === 'Worker' ? 'gear' : s.kind === 'App' || s.kind === 'FrontendApp' ? 'browser' : 'server-process';
+      item.iconPath = new vscode.ThemeIcon(icon);
+      item.description = `${s.endpointCount} eps • ${s.databaseCount} dbs`;
+      item.tooltip = `${s.serviceName} (${s.kind}${s.framework ? ` • ${s.framework}` : ''}${s.language ? ` • ${s.language}` : ''})\n` +
+        `Endpoints: ${s.endpointCount} | Databases: ${s.databaseCount} | Topics: ${s.topicCount} | External APIs: ${s.externalCount}`;
+      item.command = {
+        command: 'codeExplorer.openNodeGrid',
+        title: `Browse ${s.serviceName} in Grid`,
+        arguments: ['all', `Layer 4 › ${s.serviceName}`, s.serviceName],
+      };
+      return item;
+    });
+  }
+
+  private async getServiceOntologyGroups(serviceName?: string): Promise<CodeExplorerTreeItem[]> {
+    if (!serviceName) return [];
+    const details = await this.getServiceCapabilities(serviceName);
+    if (!details || !details.groups) return [];
+
+    return details.groups.map((g) => {
+      const kind = g.categoryKey === 'endpoints' ? 'Endpoint'
+        : g.categoryKey === 'databases' ? 'Database'
+        : g.categoryKey === 'topics' ? 'Topic'
+        : 'ExternalService';
+
+      const item = new CodeExplorerTreeItem(
+        'service-group',
+        `${g.label} (${g.count})`,
+        g.count > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+        { serviceName, categoryKey: g.categoryKey, items: g.items, kind }
+      );
+      item.iconPath = new vscode.ThemeIcon(g.icon || 'folder');
+      item.description = `${g.count}`;
+      item.tooltip = `${g.label} (${g.count}) belonging to ${serviceName} in graph ontology`;
+      item.command = {
+        command: 'codeExplorer.openNodeGrid',
+        title: `Browse ${serviceName} ${g.label} in Grid`,
+        arguments: [kind, `${serviceName} › ${g.label}`, serviceName],
+      };
+      return item;
+    });
+  }
+
+  private getServiceGroupItems(serviceName?: string, categoryKey?: string, items?: ServiceCapabilityItemDto[]): CodeExplorerTreeItem[] {
+    if (!items || items.length === 0) return [];
+
+    return items.map((it) => {
+      const item = new CodeExplorerTreeItem(
+        'service-item',
+        it.name,
+        vscode.TreeItemCollapsibleState.None,
+        { serviceName, item: it }
+      );
+
+      const icon = it.kind === 'Endpoint' ? 'radio-tower'
+        : it.kind === 'Database' ? 'database'
+        : it.kind === 'Topic' ? 'mail'
+        : 'cloud';
+
+      item.iconPath = new vscode.ThemeIcon(icon);
+      item.description = it.details || (it.protocol ? `[${it.protocol}]` : '');
+      item.tooltip = `${it.name}\nType: ${it.kind}\n${it.filePath ? `Location: ${it.filePath}${it.line ? `:${it.line}` : ''}` : ''}`;
+      item.command = {
+        command: 'codeExplorer.openNodeGrid',
+        title: `Browse ${it.name} in Grid`,
+        arguments: [it.kind, `${serviceName} › ${it.name}`, serviceName],
+      };
+      return item;
+    });
   }
 
   private async getMetadataItems(): Promise<CodeExplorerTreeItem[]> {

@@ -27,6 +27,8 @@ export interface ProjectCardData {
   onFocusProject?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
   visibleEdgeTypes?: Record<EdgeCategory, boolean>;
+  onSelectNode?: (node: GraphNode) => void;
+  isSelected?: boolean;
 }
 
 export const ProjectCardNode = memo((props: any) => {
@@ -45,6 +47,8 @@ export const ProjectCardNode = memo((props: any) => {
     onFocusProject,
     onOpenFile,
     visibleEdgeTypes,
+    onSelectNode,
+    isSelected,
   } = nodeData;
 
   const [showCommsPopover, setShowCommsPopover] = useState(false);
@@ -306,7 +310,11 @@ export const ProjectCardNode = memo((props: any) => {
     return (
       <div
         ref={cardRef}
-        className={`project-card external-refs-card ${isCardExpanded ? 'is-expanded' : 'is-compact'}`}
+        className={`project-card external-refs-card ${isCardExpanded ? 'is-expanded' : 'is-compact'} ${isSelected ? 'is-selected' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectNode?.(graphNode);
+        }}
       >
         <Handle
           id="target-default"
@@ -406,7 +414,17 @@ export const ProjectCardNode = memo((props: any) => {
   return (
     <div
       ref={cardRef}
-      className={`project-card ${isCenter ? 'center-hero' : ''} ${isCardExpanded ? 'is-expanded' : 'is-compact'} ${showCommsPopover ? 'has-open-popover' : ''}`}
+      className={`project-card ${isCenter ? 'center-hero' : ''} ${isCardExpanded ? 'is-expanded' : 'is-compact'} ${showCommsPopover ? 'has-open-popover' : ''} ${isSelected ? 'is-selected' : ''}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelectNode?.(graphNode);
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (!isCenter && !isDatabase && !isPackage && !isTopic && onFocusProject) {
+          onFocusProject(graphNode.name);
+        }
+      }}
     >
       {/* Top Part of the Box */}
       <div className="card-top-box">
