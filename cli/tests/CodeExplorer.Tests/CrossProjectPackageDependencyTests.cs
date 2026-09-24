@@ -1,7 +1,7 @@
 using System.Text.Json;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Protocol;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
@@ -61,8 +61,8 @@ require (
             var cnt = doc.RootElement[0].GetProperty("cnt").GetInt64();
             Assert.That(cnt, Is.EqualTo(1), "service-b should depend on service-a via workspace module resolution");
 
-            // 2. Verify GraphDataConverter includes project_type == 'go'
-            var graph = await GraphDataConverter.GetArchitectureGraphAsync(db);
+            // 2. Verify ArchitectureViewEngine includes project_type == 'go'
+            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
             var nodeB = graph.Nodes.FirstOrDefault(n => n.Name == "service-b");
             var nodeA = graph.Nodes.FirstOrDefault(n => n.Name == "service-a");
 
@@ -71,12 +71,12 @@ require (
             Assert.That(nodeB!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
             Assert.That(nodeA!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
 
-            // 3. Verify graph edge exists in GraphDataConverter output
+            // 3. Verify graph edge exists in architecture view output
             var edge = graph.Edges.FirstOrDefault(e => e.Source == nodeB.Id && e.Target == nodeA.Id);
-            Assert.That(edge, Is.Not.Null, "GraphDataConverter should output edge from service-b to service-a");
+            Assert.That(edge, Is.Not.Null, "ArchitectureViewEngine should output edge from service-b to service-a");
 
             // 4. Verify neighborhood query for service-b
-            var hood = await GraphDataConverter.GetProjectNeighborhoodAsync(db, "service-b");
+            var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("service-b", includeLibraries: true);
             Assert.That(hood.Nodes.Any(n => n.Name == "service-a"), Is.True, "service-a should appear in neighborhood outbound of service-b");
             var centerNode = hood.Nodes.FirstOrDefault(n => n.Name == "service-b");
             Assert.That(centerNode?.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
@@ -137,8 +137,8 @@ require (
             var cnt = doc.RootElement[0].GetProperty("cnt").GetInt64();
             Assert.That(cnt, Is.EqualTo(1), "web-app should depend on common-lib via @myorg/common-lib package mapping");
 
-            // Verify GraphDataConverter includes edge and proper project_type == 'typescript'
-            var graph = await GraphDataConverter.GetArchitectureGraphAsync(db);
+            // Verify architecture view includes edge and proper project_type == 'typescript'
+            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
             var nodeApp = graph.Nodes.FirstOrDefault(n => n.Name == "web-app");
             var nodeLib = graph.Nodes.FirstOrDefault(n => n.Name == "common-lib");
 
@@ -148,7 +148,7 @@ require (
             Assert.That(nodeLib!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("typescript"));
 
             var edge = graph.Edges.FirstOrDefault(e => e.Source == nodeApp.Id && e.Target == nodeLib.Id);
-            Assert.That(edge, Is.Not.Null, "GraphDataConverter should output edge from web-app to common-lib");
+            Assert.That(edge, Is.Not.Null, "ArchitectureViewEngine should output edge from web-app to common-lib");
             Assert.That(edge!.Kind, Is.EqualTo("LIBRARY"));
             Assert.That(edge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
         }
@@ -192,7 +192,7 @@ require (
             await db.UploadRelationshipsAsync(rels);
 
             // Test Architecture Graph
-            var arch = await GraphDataConverter.GetArchitectureGraphAsync(db);
+            var arch = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
             var svcEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:server");
             Assert.That(svcEdge, Is.Not.Null);
@@ -210,7 +210,7 @@ require (
             Assert.That(dbEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("database"));
 
             // Test Neighborhood Graph for ClientSvc
-            var hood = await GraphDataConverter.GetProjectNeighborhoodAsync(db, "proj:client");
+            var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:client", includeLibraries: true);
 
             var hoodSvcEdge = hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:server");
             Assert.That(hoodSvcEdge, Is.Not.Null);
@@ -289,7 +289,7 @@ require (
             await db.UploadRelationshipsAsync(rels);
 
             // Test Project Flow / Neighborhood Graph for API project
-            var flowGraph = await GraphDataConverter.GetProjectNeighborhoodAsync(db, "workspace:project:Dobco.PACSONWEB3.API:");
+            var flowGraph = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("workspace:project:Dobco.PACSONWEB3.API:", includeLibraries: true);
 
             var coreEdge = flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Core:");
             Assert.That(coreEdge, Is.Not.Null, "Edge to Dobco.PACSONWEB3.Core should exist");
@@ -369,7 +369,7 @@ require (
             await db.UploadRelationshipsAsync(rels);
 
             // 1. Verify Neighborhood Graph contains external packages
-            var hood = await GraphDataConverter.GetProjectNeighborhoodAsync(db, "lidoma-admin-application");
+            var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("lidoma-admin-application", includeLibraries: true);
             Assert.That(hood.Nodes.Count, Is.EqualTo(3), "Should have center project + 2 packages");
 
             var angularNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:package:@angular/core");
@@ -389,7 +389,7 @@ require (
             Assert.That(centerNode?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
 
             // 2. Verify Architecture Graph contains package_count on project and package nodes/edges
-            var arch = await GraphDataConverter.GetArchitectureGraphAsync(db);
+            var arch = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
             var archProj = arch.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
             Assert.That(archProj?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
             Assert.That(arch.Nodes.Any(n => n.Kind == "Package"), Is.True, "Architecture graph should contain package nodes");

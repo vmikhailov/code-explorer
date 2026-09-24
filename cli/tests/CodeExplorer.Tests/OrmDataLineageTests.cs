@@ -1,5 +1,6 @@
 using System.Text.Json;
 using NUnit.Framework;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
@@ -249,7 +250,7 @@ export class Product {
             };
             await db.UploadRelationshipsAsync(rels);
 
-            var graph = await CodeExplorer.Core.Protocol.GraphDataConverter.GetArchitectureGraphAsync(db);
+            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
             // Exactly 1 TypeORM node
             var typeOrmNodes = graph.Nodes.Where(n => n.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase)).ToList();
@@ -320,7 +321,7 @@ export class Product {
 
 
     [Test]
-    public async Task Test_GraphDataConverter_Does_Not_Convert_Project_To_Database()
+    public async Task Test_ArchitectureView_Does_Not_Convert_Project_To_Database()
     {
         var tempWorkspace = Path.Combine(Path.GetTempPath(), "proj_not_db_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempWorkspace);
@@ -342,7 +343,7 @@ export class Product {
             };
             await db.UploadRelationshipsAsync(rels);
 
-            var graph = await CodeExplorer.Core.Protocol.GraphDataConverter.GetArchitectureGraphAsync(db);
+            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
             var projNode = graph.Nodes.FirstOrDefault(n => n.Id == "proj:svc_a");
             Assert.That(projNode, Is.Not.Null);

@@ -7,7 +7,7 @@ using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Core.Protocol;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Java;
@@ -387,10 +387,10 @@ public class CrossLanguageCommunicationDetectionTests
     }
 
     // =========================================================================
-    // 7. GraphDataConverter Multi-Type Classification & DB Consolidation
+    // 7. ArchitectureViewEngine Multi-Type Classification & DB Consolidation
     // =========================================================================
     [Test]
-    public async Task Test_GraphDataConverter_Categorizes_All_Communication_Types_Accurately()
+    public async Task Test_ArchitectureView_Categorizes_All_Communication_Types_Accurately()
     {
         var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_graph_comms_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempWorkspace);
@@ -436,8 +436,8 @@ public class CrossLanguageCommunicationDetectionTests
             };
             await db.UploadRelationshipsAsync(rels);
 
-            // Execute GraphDataConverter
-            var graph = await GraphDataConverter.GetArchitectureGraphAsync(db);
+            // Execute ArchitectureViewEngine
+            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
             // 1. Verify Database Consolidation (Only 1 canonical TypeORM node instead of 2!)
             var typeOrmNodes = graph.Nodes.Where(n => n.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase)).ToList();
@@ -520,7 +520,7 @@ public class CrossLanguageCommunicationDetectionTests
             await db.UploadRelationshipsAsync(rels);
 
             // 3. Convert to Architecture Graph
-            var graph = await GraphDataConverter.GetArchitectureGraphAsync(db);
+            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
             // Assert Entity Classifications
             var orderNode = graph.Nodes.First(n => n.Id == "proj:svc_order");
@@ -561,7 +561,7 @@ public class CrossLanguageCommunicationDetectionTests
             Assert.That(orderToBilling.Properties?["is_semantic"], Is.EqualTo("true"));
 
             // 7. Verify Project Neighborhood (Flow View)
-            var flow = await GraphDataConverter.GetProjectNeighborhoodAsync(db, "proj:svc_order");
+            var flow = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:svc_order", includeLibraries: true);
             var flowDatabases = flow.Nodes.Where(n => n.Kind == "Database").ToList();
             Assert.That(flowDatabases.Any(d => d.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include resolved PostgreSQL");
             Assert.That(flowDatabases.Any(d => d.Name.Equals("TypeORM", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include lifted TypeORM");
