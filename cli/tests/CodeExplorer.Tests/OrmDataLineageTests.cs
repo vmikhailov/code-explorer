@@ -192,22 +192,22 @@ export class Product {
     [Test]
     public void Test_Database_Deduplication_And_Canonicalization()
     {
-        var (tName1, tType1, tKey1) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("typeorm", "relational");
-        var (tName2, tType2, tKey2) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("TypeORM", "relational");
+        var (tName1, tType1, tKey1) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("typeorm", "relational");
+        var (tName2, tType2, tKey2) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("TypeORM", "relational");
         Assert.That(tName1, Is.EqualTo("TypeORM"));
         Assert.That(tName2, Is.EqualTo("TypeORM"));
         Assert.That(tKey1, Is.EqualTo("typeorm"));
         Assert.That(tKey2, Is.EqualTo("typeorm"));
 
-        var (pName1, _, pKey1) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("postgres", null);
-        var (pName2, _, pKey2) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("PostgreSQL", "relational");
+        var (pName1, _, pKey1) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("postgres", null);
+        var (pName2, _, pKey2) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("PostgreSQL", "relational");
         Assert.That(pName1, Is.EqualTo("PostgreSQL"));
         Assert.That(pName2, Is.EqualTo("PostgreSQL"));
         Assert.That(pKey1, Is.EqualTo("postgresql"));
         Assert.That(pKey2, Is.EqualTo("postgresql"));
 
-        var (rName1, rType1, rKey1) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("REDIS_HOST", "cache");
-        var (rName2, rType2, rKey2) = CodeExplorer.Core.Protocol.GraphDataConverter.CanonicalizeDatabase("redis", "keyvalue");
+        var (rName1, rType1, rKey1) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("REDIS_HOST", "cache");
+        var (rName2, rType2, rKey2) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("redis", "keyvalue");
         Assert.That(rName1, Is.EqualTo("Redis"));
         Assert.That(rName2, Is.EqualTo("Redis"));
         Assert.That(rType1, Is.EqualTo("cache"));

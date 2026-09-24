@@ -638,10 +638,18 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
         else
         {
-            var projIdx = nodeId.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
-            if (projIdx >= 0)
+            var symIdx = nodeId.IndexOf(":symbol:", StringComparison.OrdinalIgnoreCase);
+            if (symIdx >= 0)
             {
-                pathPart = nodeId[(projIdx + 9)..];
+                pathPart = nodeId[(symIdx + 8)..];
+            }
+            else
+            {
+                var projIdx = nodeId.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
+                if (projIdx >= 0)
+                {
+                    pathPart = nodeId[(projIdx + 9)..];
+                }
             }
         }
 
@@ -844,14 +852,19 @@ public class PostIndexAnalyzer(IGraphClient db)
                         // Case 4: Library publishes to Topic
                         else if ((tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
                                  || edge.To.Contains(":topic:")
-                                 || edge.To.Contains(":res:topic:"))
+                                 || edge.To.Contains(":res:topic:")
+                                 || edge.Kind == OntologyConstants.Relationships.PublishesTo
+                                 || edge.Kind == OntologyConstants.Relationships.Triggers)
                         {
-                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.PublishesTo)))
+                            var outKind = edge.Kind == OntologyConstants.Relationships.Triggers
+                                ? OntologyConstants.Relationships.Triggers
+                                : OntologyConstants.Relationships.PublishesTo;
+                            if (existingEdges.Add((service.Id, edge.To, outKind)))
                             {
                                 liftedRels.Add(new Relationship(
                                     service.Id,
                                     edge.To,
-                                    OntologyConstants.Relationships.PublishesTo,
+                                    outKind,
                                     new Dictionary<string, object>
                                     {
                                         ["dependency_type"] = "messaging",

@@ -18,26 +18,26 @@ public class ArchitectureQueryService(IGraphClient db) : IArchitectureQueryServi
 
     public Task<GraphDataDto> GetArchitectureGraphAsync(string? projectFilter = null, CancellationToken ct = default)
     {
-        return GraphDataConverter.GetArchitectureGraphAsync(db, projectFilter, ct);
+        return _viewEngine.GetSystemContextViewAsync(includeLibraries: true, projectFilter, ct);
     }
 
     public Task<GraphDataDto> GetProjectNeighborhoodAsync(string? projectName = null, CancellationToken ct = default)
     {
-        return GraphDataConverter.GetProjectNeighborhoodAsync(db, projectName, ct);
+        return _viewEngine.GetServiceFlowViewAsync(projectName, includeLibraries: true, ct);
     }
 
     public Task<List<string>> GetAllProjectsAsync(CancellationToken ct = default)
     {
-        return GraphDataConverter.GetAllProjectsAsync(db, ct);
+        return _viewEngine.GetAllProjectsAsync(ct);
     }
 
     public Task<MetadataResponseDto> GetMetadataAsync(CancellationToken ct = default)
     {
-        return GraphDataConverter.GetMetadataAsync(db, ct);
+        return _viewEngine.GetMetadataAsync(ct);
     }
 
     public Task<NodesResponseDto> GetNodesAsync(string? kind = null, int offset = 0, int limit = 50, string? search = null, CancellationToken ct = default)
     {
-        return GraphDataConverter.GetNodesAsync(db, kind, offset, limit, search, ct);
+        return _viewEngine.GetNodesAsync(kind, offset, limit, search, ct);
     }
 }
