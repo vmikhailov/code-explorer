@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
@@ -242,6 +243,20 @@ public class PostIndexAnalyzer(IGraphClient db)
         allCombinedRels.AddRange(lateBoundRels);
         allCombinedRels.AddRange(ctx.TreeRelationships);
 
+        var directProjectRels = MaterializeDirectProjectRelationships(
+            l4Result.Prev.Prev.Projects,
+            l4Result.Prev.Prev.Prev.Files,
+            allCombinedRels
+        );
+
+        if (directProjectRels.Count > 0)
+        {
+            ctx.Log($"[PostIndexAnalyzer] Materializing {directProjectRels.Count} direct project relationships into SQLite graph...");
+            await ctx.DbClient.UploadRelationshipsAsync(directProjectRels);
+            ctx.AddRelsCount(directProjectRels.Count);
+            allCombinedRels.AddRange(directProjectRels);
+        }
+
         var liftedSemanticRels = LiftTransitiveSemanticRelations(l4Result.Prev.Prev.Projects, allCombinedRels);
         if (liftedSemanticRels.Count > 0)
         {
@@ -250,7 +265,395 @@ public class PostIndexAnalyzer(IGraphClient db)
             ctx.AddRelsCount(liftedSemanticRels.Count);
         }
 
-        ctx.Log($"[PostIndexAnalyzer] In-memory analysis complete: {result.TransitivelyCalls.Count} TRANSITIVELY_CALLS, {result.AttributedTo.Count} ATTRIBUTED_TO, {liftedSemanticRels.Count} lifted semantic edges, {result.ProjectExternalApis.Count} project external_apis.");
+        // Classify projects and persist layer metadata into SQLite nodes
+        var classifierItems = l4Result.Prev.Prev.Projects.Select(p => new CodeExplorer.Core.Analysis.ProjectClassifierItem
+        {
+            Id = p.Id,
+            Name = p.Name,
+            FilePath = p.Path,
+            Framework = p.Extensions?.GetValueOrDefault("framework") ?? p.ProjectType
+        });
+
+        var dependencyItems = allCombinedRels
+            .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn ||
+                        r.Kind == OntologyConstants.Relationships.ServiceCall ||
+                        r.Kind == OntologyConstants.Relationships.UsesDb)
+            .Select(r => new CodeExplorer.Core.Analysis.DependencyItem { SourceId = r.From, TargetId = r.To });
+
+        var layerMap = CodeExplorer.Core.Analysis.ProjectLayerClassifier.Classify(classifierItems, dependencyItems);
+
+        var updatedProjectNodes = new List<Node>();
+        foreach (var p in l4Result.Prev.Prev.Projects)
+        {
+            p.Extensions ??= [];
+            if (layerMap.TryGetValue(p.Id, out var layerInfo))
+            {
+                p.Extensions["layer"] = layerInfo.LayerId;
+                p.Extensions["layerId"] = layerInfo.LayerId;
+                p.Extensions["layerName"] = layerInfo.LayerName;
+                p.Extensions["layerOrder"] = layerInfo.Order.ToString();
+                p.Extensions["layerColor"] = layerInfo.Color;
+                p.Extensions["layerIcon"] = layerInfo.Icon;
+            }
+            p.Extensions["role"] = p.Role;
+            p.Extensions["is_library"] = p.IsLibrary ? "true" : "false";
+            p.Extensions["entity_type"] = p.IsLibrary ? "library" : "service";
+            p.Extensions["is_semantic_entity"] = p.IsLibrary ? "false" : "true";
+
+            updatedProjectNodes.Add(Node.FromNode(p));
+        }
+
+        if (updatedProjectNodes.Count > 0)
+        {
+            await ctx.DbClient.UploadNodesAsync(updatedProjectNodes);
+        }
+
+        ctx.Log($"[PostIndexAnalyzer] In-memory analysis complete: {result.TransitivelyCalls.Count} TRANSITIVELY_CALLS, {result.AttributedTo.Count} ATTRIBUTED_TO, {directProjectRels.Count} direct project edges, {liftedSemanticRels.Count} lifted semantic edges, {result.ProjectExternalApis.Count} project external_apis.");
+    }
+
+    public static List<Relationship> MaterializeDirectProjectRelationships(
+        IReadOnlyList<ProjectNode> projects,
+        IReadOnlyList<FileNode> files,
+        IReadOnlyList<Relationship> allRelationships,
+        IReadOnlyDictionary<string, string>? nodeKindsById = null)
+    {
+        var materializedRels = new List<Relationship>();
+        var existingEdges = new HashSet<(string From, string To, string Kind)>(
+            allRelationships.Select(r => (r.From, r.To, r.Kind))
+        );
+
+        var projList = projects.ToList();
+        var fileToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in files)
+        {
+            var p = projList.FirstOrDefault(pr => Layer2ProjectParser.IsEnclosedInProject(file, pr, projList));
+            if (p != null)
+            {
+                fileToProject[file.Id] = p;
+                if (!string.IsNullOrEmpty(file.Path))
+                {
+                    fileToProject[file.Path] = p;
+                }
+            }
+        }
+
+        var nodeToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in projList)
+        {
+            nodeToProject[p.Id] = p;
+            if (p.Id.EndsWith(':'))
+            {
+                nodeToProject[p.Id.TrimEnd(':')] = p;
+            }
+            nodeToProject[$"{p.Id}project_semantic"] = p;
+            nodeToProject[$"{p.Id}:project_semantic"] = p;
+        }
+
+        foreach (var rel in allRelationships)
+        {
+            if (rel.Kind == OntologyConstants.Relationships.Contains ||
+                rel.Kind == OntologyConstants.Relationships.Declares ||
+                rel.Kind == OntologyConstants.Relationships.HasMethod ||
+                rel.Kind == OntologyConstants.Relationships.HasMember)
+            {
+                if (fileToProject.TryGetValue(rel.From, out var proj) || nodeToProject.TryGetValue(rel.From, out proj))
+                {
+                    nodeToProject.TryAdd(rel.To, proj);
+                }
+            }
+        }
+
+        ProjectNode? ResolveOwningProject(string nodeId)
+        {
+            if (string.IsNullOrEmpty(nodeId)) return null;
+            if (nodeToProject.TryGetValue(nodeId, out var p)) return p;
+            if (fileToProject.TryGetValue(nodeId, out p)) return p;
+
+            if (nodeId.EndsWith("project_semantic"))
+            {
+                var stripped = nodeId.Replace(":project_semantic", ":").Replace("project_semantic", "");
+                if (nodeToProject.TryGetValue(stripped, out p)) return p;
+            }
+
+            return FindOwningProjectForId(nodeId, projList, fileToProject);
+        }
+
+        foreach (var rel in allRelationships)
+        {
+            var kind = rel.Kind;
+            var from = rel.From;
+            var to = rel.To;
+
+            // 1. Direct Project -> Database
+            if (kind == OntologyConstants.Relationships.UsesDb)
+            {
+                var isTargetDb = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Database) ||
+                                 to.Contains(":db:") || to.Contains(":database:") || to.Contains(":res:db:");
+                if (isTargetDb)
+                {
+                    var owner = ResolveOwningProject(from);
+                    if (owner != null && owner.Id != to)
+                    {
+                        if (existingEdges.Add((owner.Id, to, OntologyConstants.Relationships.UsesDb)))
+                        {
+                            materializedRels.Add(new Relationship(
+                                owner.Id,
+                                to,
+                                OntologyConstants.Relationships.UsesDb,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "database",
+                                    ["is_semantic"] = "true"
+                                }
+                            ));
+                        }
+                    }
+                }
+            }
+            // 2. Direct Project -> Topic (PUBLISHES_TO)
+            else if (kind == OntologyConstants.Relationships.PublishesTo)
+            {
+                var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
+                                    to.Contains(":topic:") || to.Contains(":res:topic:");
+                if (isTargetTopic)
+                {
+                    var owner = ResolveOwningProject(from);
+                    if (owner != null && owner.Id != to)
+                    {
+                        if (existingEdges.Add((owner.Id, to, OntologyConstants.Relationships.PublishesTo)))
+                        {
+                            materializedRels.Add(new Relationship(
+                                owner.Id,
+                                to,
+                                OntologyConstants.Relationships.PublishesTo,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "messaging",
+                                    ["is_semantic"] = "true"
+                                }
+                            ));
+                        }
+                    }
+                }
+            }
+            // 3. Topic -> Project (TRIGGERS)
+            else if (kind == OntologyConstants.Relationships.Triggers)
+            {
+                var isSourceTopic = (nodeKindsById?.GetValueOrDefault(from) == OntologyConstants.NodeLabels.Topic) ||
+                                    from.Contains(":topic:") || from.Contains(":res:topic:");
+                if (isSourceTopic)
+                {
+                    var owner = ResolveOwningProject(to);
+                    if (owner != null && owner.Id != from)
+                    {
+                        if (existingEdges.Add((from, owner.Id, OntologyConstants.Relationships.Triggers)))
+                        {
+                            materializedRels.Add(new Relationship(
+                                from,
+                                owner.Id,
+                                OntologyConstants.Relationships.Triggers,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "messaging",
+                                    ["is_semantic"] = "true"
+                                }
+                            ));
+                        }
+                    }
+                }
+            }
+            // 4. Project -> Topic (SUBSCRIBES_TO)
+            else if (kind == OntologyConstants.Relationships.SubscribesTo)
+            {
+                var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
+                                    to.Contains(":topic:") || to.Contains(":res:topic:");
+                if (isTargetTopic)
+                {
+                    var owner = ResolveOwningProject(from);
+                    if (owner != null && owner.Id != to)
+                    {
+                        if (existingEdges.Add((owner.Id, to, OntologyConstants.Relationships.SubscribesTo)))
+                        {
+                            materializedRels.Add(new Relationship(
+                                owner.Id,
+                                to,
+                                OntologyConstants.Relationships.SubscribesTo,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "messaging",
+                                    ["is_semantic"] = "true"
+                                }
+                            ));
+                        }
+                        if (existingEdges.Add((to, owner.Id, OntologyConstants.Relationships.Triggers)))
+                        {
+                            materializedRels.Add(new Relationship(
+                                to,
+                                owner.Id,
+                                OntologyConstants.Relationships.Triggers,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "messaging",
+                                    ["is_semantic"] = "true"
+                                }
+                            ));
+                        }
+                    }
+                }
+            }
+            // 5. Calls Endpoint -> Project -> Project SERVICE_CALL
+            else if (kind == OntologyConstants.Relationships.CallsEndpoint)
+            {
+                var callerOwner = ResolveOwningProject(from);
+                var targetOwner = ResolveOwningProject(to);
+                if (callerOwner != null && targetOwner != null && callerOwner.Id != targetOwner.Id)
+                {
+                    if (existingEdges.Add((callerOwner.Id, targetOwner.Id, OntologyConstants.Relationships.ServiceCall)))
+                    {
+                        materializedRels.Add(new Relationship(
+                            callerOwner.Id,
+                            targetOwner.Id,
+                            OntologyConstants.Relationships.ServiceCall,
+                            new Dictionary<string, object>
+                            {
+                                ["dependency_type"] = "service_call",
+                                ["is_semantic"] = "true"
+                            }
+                        ));
+                    }
+                }
+            }
+            // 6. External Service invocation -> Project -> ExternalService SERVICE_CALL
+            else if (kind == OntologyConstants.Relationships.ServiceCall ||
+                     kind == OntologyConstants.Relationships.UsesApi ||
+                     kind == OntologyConstants.Relationships.UsesCloud)
+            {
+                var isTargetExt = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.ExternalService) ||
+                                  to.Contains(":externalservice:") || to.Contains(":res:service:external:") || to.Contains(":cloud:");
+                if (isTargetExt)
+                {
+                    var callerOwner = ResolveOwningProject(from);
+                    if (callerOwner != null && callerOwner.Id != to)
+                    {
+                        if (existingEdges.Add((callerOwner.Id, to, OntologyConstants.Relationships.ServiceCall)))
+                        {
+                            materializedRels.Add(new Relationship(
+                                callerOwner.Id,
+                                to,
+                                OntologyConstants.Relationships.ServiceCall,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "service_call",
+                                    ["is_semantic"] = "true"
+                                }
+                            ));
+                        }
+                    }
+                }
+            }
+            // 7. Configures -> roll up DB / Topic configuration to Project
+            else if (kind == OntologyConstants.Relationships.Configures)
+            {
+                var isTargetDb = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Database) ||
+                                 to.Contains(":db:") || to.Contains(":database:");
+                var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
+                                    to.Contains(":topic:");
+
+                var owner = ResolveOwningProject(from);
+                if (owner != null && isTargetDb && owner.Id != to)
+                {
+                    if (existingEdges.Add((owner.Id, to, OntologyConstants.Relationships.UsesDb)))
+                    {
+                        materializedRels.Add(new Relationship(
+                            owner.Id,
+                            to,
+                            OntologyConstants.Relationships.UsesDb,
+                            new Dictionary<string, object>
+                            {
+                                ["dependency_type"] = "database",
+                                ["is_semantic"] = "true"
+                            }
+                        ));
+                    }
+                }
+                else if (owner != null && isTargetTopic && owner.Id != to)
+                {
+                    if (existingEdges.Add((owner.Id, to, OntologyConstants.Relationships.PublishesTo)))
+                    {
+                        materializedRels.Add(new Relationship(
+                            owner.Id,
+                            to,
+                            OntologyConstants.Relationships.PublishesTo,
+                            new Dictionary<string, object>
+                            {
+                                ["dependency_type"] = "messaging",
+                                ["is_semantic"] = "true"
+                            }
+                        ));
+                    }
+                }
+            }
+        }
+
+        return materializedRels;
+    }
+
+    public static ProjectNode? FindOwningProjectForId(
+        string nodeId,
+        IReadOnlyList<ProjectNode> projects,
+        IReadOnlyDictionary<string, ProjectNode>? fileToProjectMap = null)
+    {
+        if (string.IsNullOrEmpty(nodeId)) return null;
+
+        var directProj = projects.FirstOrDefault(p => p.Id == nodeId || p.Id.TrimEnd(':') == nodeId.TrimEnd(':'));
+        if (directProj != null) return directProj;
+
+        if (fileToProjectMap != null && fileToProjectMap.TryGetValue(nodeId, out var proj))
+        {
+            return proj;
+        }
+
+        string pathPart = nodeId;
+        var fileIdx = nodeId.IndexOf(":file:", StringComparison.OrdinalIgnoreCase);
+        if (fileIdx >= 0)
+        {
+            pathPart = nodeId[(fileIdx + 6)..];
+        }
+        else
+        {
+            var projIdx = nodeId.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
+            if (projIdx >= 0)
+            {
+                pathPart = nodeId[(projIdx + 9)..];
+            }
+        }
+
+        pathPart = pathPart.TrimEnd(':').Replace('\\', '/');
+
+        ProjectNode? bestMatch = null;
+        int bestLen = -1;
+        foreach (var p in projects)
+        {
+            var pPath = (p.Path ?? "").Replace('\\', '/').Trim('/');
+            if (string.IsNullOrEmpty(pPath))
+            {
+                if (bestLen < 0) { bestMatch = p; bestLen = 0; }
+                continue;
+            }
+            if (pathPart.StartsWith(pPath, StringComparison.OrdinalIgnoreCase))
+            {
+                if (pathPart.Length == pPath.Length || pathPart[pPath.Length] == '/' || pathPart[pPath.Length] == ':')
+                {
+                    if (pPath.Length > bestLen)
+                    {
+                        bestMatch = p;
+                        bestLen = pPath.Length;
+                    }
+                }
+            }
+        }
+
+        return bestMatch;
     }
 
     public static List<Relationship> LiftTransitiveSemanticRelations(
@@ -376,15 +779,15 @@ public class PostIndexAnalyzer(IGraphClient db)
                                 ));
                             }
                         }
-                        // Case 2: Library calls another Service -> Lift direct INTEGRATES_WITH to Service
+                        // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
                         else if (projects.Any(p => p.Id == edge.To && !p.IsLibrary && p.Id != service.Id))
                         {
-                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.IntegratesWith)))
+                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.ServiceCall)))
                             {
                                 liftedRels.Add(new Relationship(
                                     service.Id,
                                     edge.To,
-                                    OntologyConstants.Relationships.IntegratesWith,
+                                    OntologyConstants.Relationships.ServiceCall,
                                     new Dictionary<string, object>
                                     {
                                         ["dependency_type"] = "service_call",
@@ -401,12 +804,12 @@ public class PostIndexAnalyzer(IGraphClient db)
                                  || edge.To.Contains(":externalservice:")
                                  || edge.To.Contains(":res:service:external:"))
                         {
-                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.IntegratesWith)))
+                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.ServiceCall)))
                             {
                                 liftedRels.Add(new Relationship(
                                     service.Id,
                                     edge.To,
-                                    OntologyConstants.Relationships.IntegratesWith,
+                                    OntologyConstants.Relationships.ServiceCall,
                                     new Dictionary<string, object>
                                     {
                                         ["dependency_type"] = "service_call",

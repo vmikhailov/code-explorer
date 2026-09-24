@@ -76,6 +76,11 @@ graph TD
     Project -->|LOCATED_IN| Folder
     Project -->|LOCATED_IN| Workspace
     Project -->|DEPENDS_ON| Project
+    Project -->|SERVICE_CALL| Project
+    Project -->|SERVICE_CALL| ExternalService
+    Project -->|USES_DB| Database
+    Project -->|PUBLISHES_TO| Topic
+    Project -->|SUBSCRIBES_TO| Topic
     Project -->|DEPENDS_ON| Package
     ProjectSemantic -->|CONTAINS| EntryPoint
     ProjectSemantic -->|CONTAINS| Endpoint
@@ -97,6 +102,8 @@ graph TD
     Table -->|PERSISTED_IN| Type
     Topic -->|PUBLISHED_BY| Function
     Topic -->|SUBSCRIBED_BY| Function
+    Topic -->|TRIGGERS| Project
+    Topic -->|SUBSCRIBED_BY| Project
     Type -->|DECLARED_IN| File
     Type -->|USES_TYPE| Type
     Type -->|IMPLEMENTS| Type
@@ -302,6 +309,11 @@ graph TD
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
 | `DEPENDS_ON` | `Project` |
+| `SERVICE_CALL` | `Project` |
+| `SERVICE_CALL` | `ExternalService` |
+| `USES_DB` | `Database` |
+| `PUBLISHES_TO` | `Topic` |
+| `SUBSCRIBES_TO` | `Topic` |
 | `DEPENDS_ON` | `Package` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -310,9 +322,12 @@ graph TD
 | :--- | :--- |
 | `Package` | `IMPLEMENTED_BY` |
 | `Project` | `DEPENDS_ON` |
+| `Project` | `SERVICE_CALL` |
 | `ProjectSemantic` | `BELONGS_TO` |
 | `ProjectsStructure` | `CONTAINS` |
 | `ProjectSyntax` | `BELONGS_TO` |
+| `Topic` | `TRIGGERS` |
+| `Topic` | `SUBSCRIBED_BY` |
 
 ---
 
@@ -575,6 +590,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `Project` | `USES_DB` |
 | `ProjectSemantic` | `CONTAINS` |
 
 **Properties:**
@@ -678,6 +694,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `Project` | `SERVICE_CALL` |
 | `ProjectSemantic` | `CONTAINS` |
 
 ---
@@ -803,11 +820,15 @@ graph TD
 | :--- | :--- |
 | `PUBLISHED_BY` | `Function` |
 | `SUBSCRIBED_BY` | `Function` |
+| `TRIGGERS` | `Project` |
+| `SUBSCRIBED_BY` | `Project` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `Project` | `PUBLISHES_TO` |
+| `Project` | `SUBSCRIBES_TO` |
 | `ProjectSemantic` | `CONTAINS` |
 
 **Properties:**
@@ -849,8 +870,11 @@ graph TD
 | `PERSISTED_IN` | Links an ORM entity or model class to its physical database table. |
 | `POTENTIAL_TYPE` | Links a variable or parameter to concrete classes that implement its declared interface type. |
 | `PUBLISHED_BY` | Links a topic to the function that publishes to it. |
+| `PUBLISHES_TO` | Links a service or function to a message queue or topic it publishes messages or events to. |
 | `QUERIED_BY` | Links a database or table to the function or query that accesses it. |
+| `SERVICE_CALL` | Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API. |
 | `SUBSCRIBED_BY` | Links a topic to the function that subscribes to it. |
+| `SUBSCRIBES_TO` | Links a service or handler function to a message queue or topic it listens to or consumes events from. |
 | `TRANSFORMS_TO` | Links a data model or dataset representing a transformation step to its destination structure. |
 | `TRIGGERS` | Links an entry point or API endpoint to the handler function it triggers. |
 | `USES_API` | Links a project, file, or class to an external API library or client model. |

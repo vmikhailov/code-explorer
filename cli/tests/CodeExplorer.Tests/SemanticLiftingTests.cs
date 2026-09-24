@@ -33,7 +33,7 @@ public class SemanticLiftingTests
         var rel = lifted[0];
         Assert.That(rel.From, Is.EqualTo("proj:svc_a"));
         Assert.That(rel.To, Is.EqualTo("proj:svc_d"));
-        Assert.That(rel.Kind, Is.EqualTo(OntologyConstants.Relationships.IntegratesWith));
+        Assert.That(rel.Kind, Is.EqualTo(OntologyConstants.Relationships.ServiceCall));
         Assert.That(rel.Properties!["via_library"]?.ToString(), Is.EqualTo("LibB"));
         Assert.That(rel.Properties!["call_chain"]?.ToString(), Is.EqualTo("LibB -> LibC"));
     }

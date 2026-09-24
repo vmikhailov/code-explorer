@@ -490,7 +490,18 @@ public static class ConfigurationParser
         if (!string.IsNullOrWhiteSpace(catalog)) aliases.Add(catalog);
         if (!string.IsNullOrWhiteSpace(engine)) aliases.Add(engine);
 
-        var projId = containerNode is ProjectSemanticNode psn ? psn.Id : (containerNode.Id.Contains(":project:") ? containerNode.Id : null);
+        string? projId = null;
+        if (containerNode is ProjectSemanticNode psn)
+        {
+            projId = $"{workspaceId}:project:{psn.Path}:";
+        }
+        else if (containerNode.Id.Contains(":project:"))
+        {
+            var id = containerNode.Id;
+            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
+            if (!id.EndsWith(':')) id += ":";
+            projId = id;
+        }
 
         ctx.ResourceRegistry.RegisterResource(
             workspaceId,
@@ -541,10 +552,26 @@ public static class ConfigurationParser
 
         relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, topicId)));
 
-        var projId = containerNode is ProjectSemanticNode psn ? psn.Id : (containerNode.Id.Contains(":project:") ? containerNode.Id : null);
+        string? projId = null;
+        if (containerNode is ProjectSemanticNode psn)
+        {
+            projId = $"{workspaceId}:project:{psn.Path}:";
+        }
+        else if (containerNode.Id.Contains(":project:"))
+        {
+            var id = containerNode.Id;
+            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
+            if (!id.EndsWith(':')) id += ":";
+            projId = id;
+        }
+
         if (!string.IsNullOrEmpty(projId))
         {
-            var triggersRel = new TriggersRelationship(projId, topicId);
+            var pubRel = new PublishesToRelationship(projId, topicId);
+            relationships.Add(Relationship.FromRelationship(pubRel));
+            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(pubRel));
+
+            var triggersRel = new TriggersRelationship(topicId, projId);
             relationships.Add(Relationship.FromRelationship(triggersRel));
             ctx.AddGlobalProjectDependency(Relationship.FromRelationship(triggersRel));
         }

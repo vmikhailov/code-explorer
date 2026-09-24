@@ -185,6 +185,25 @@ public class SqliteGraphClient : IGraphClient, IDisposable
               AND d.from_id != i.to_id
               AND d.from_id LIKE '%:project:%'
               AND i.to_id LIKE '%:project:%';
+
+            -- Promote project_semantic edges to direct Project node edges
+            INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+            SELECT DISTINCT
+                SUBSTR(from_id, 1, LENGTH(from_id) - LENGTH('project_semantic')),
+                to_id,
+                kind,
+                properties
+            FROM edges
+            WHERE from_id LIKE '%:project:%:project_semantic';
+
+            INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+            SELECT DISTINCT
+                from_id,
+                SUBSTR(to_id, 1, LENGTH(to_id) - LENGTH('project_semantic')),
+                kind,
+                properties
+            FROM edges
+            WHERE to_id LIKE '%:project:%:project_semantic';
             """;
         cmd.ExecuteNonQuery();
     }

@@ -67,6 +67,7 @@ public static class OntologyConstants
 
         // Transitive architectural macro-relationships (C4 Level)
         public const string IntegratesWith = "INTEGRATES_WITH";
+        public const string ServiceCall = "SERVICE_CALL";
         public const string WritesTo = "WRITES_TO";
         public const string ReadsFrom = "READS_FROM";
 

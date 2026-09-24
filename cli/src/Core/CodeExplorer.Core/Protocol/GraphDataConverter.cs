@@ -411,38 +411,89 @@ public static class GraphDataConverter
         }
         catch { }
 
-        // 7. Project -> Database (Direct, File-Level, and Project-Scoped)
+        // 7. Macro Edges (Materialized in Graph: USES_DB, SERVICE_CALL, PUBLISHES_TO, TRIGGERS, etc.)
         var projectNodes = graph.Nodes.Where(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase)).ToList();
 
-        // 7a. Direct Project->Database
         try
         {
-            var usesDbQuery = "MATCH (p:Project)-[r:USES_DB]->(d:Database) RETURN p.id AS source, d.id AS target, r.kind AS kind";
-            var usesDbJson = await client.ExecuteQueryAsync(usesDbQuery, null, cancellationToken);
-            using var usesDbDoc = JsonDocument.Parse(usesDbJson);
+            var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
+            var edgesJson = await client.ExecuteQueryAsync(edgesQuery, null, cancellationToken);
+            using var edgesDoc = JsonDocument.Parse(edgesJson);
 
-            foreach (var row in usesDbDoc.RootElement.EnumerateArray())
+            foreach (var row in edgesDoc.RootElement.EnumerateArray())
             {
-                var src = row.GetStringProp("source");
+                var rawSrc = row.GetStringProp("source");
                 var rawTgt = row.GetStringProp("target");
-                var tgt = dbIdToCanonicalId.GetValueOrDefault(rawTgt, rawTgt);
-                var kind = "USES_DB";
+                var rKind = row.GetStringProp("kind");
 
-                if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt))
+                var src = dbIdToCanonicalId.GetValueOrDefault(rawSrc, rawSrc);
+                var tgt = dbIdToCanonicalId.GetValueOrDefault(rawTgt, rawTgt);
+
+                if (!nodeMap.ContainsKey(src))
                 {
-                    if (graph.Edges.All(e => !(e.Source == src && e.Target == tgt)))
+                    var owner = FindOwningProject(src, projectNodes);
+                    if (owner != null) src = owner.Id;
+                }
+                if (!nodeMap.ContainsKey(tgt))
+                {
+                    var owner = FindOwningProject(tgt, projectNodes);
+                    if (owner != null) tgt = owner.Id;
+                }
+
+                if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt) && src != tgt)
+                {
+                    var edgeProps = new Dictionary<string, string>();
+                    if (row.TryGetProperty("properties", out var propsElem) && propsElem.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in propsElem.EnumerateObject())
+                        {
+                            edgeProps[prop.Name] = prop.Value.ToString();
+                        }
+                    }
+
+                    nodeMap.TryGetValue(tgt, out var targetNode);
+                    var isTargetLib = IsLibraryProject(targetNode);
+                    var depType = edgeProps.GetValueOrDefault("dependency_type");
+
+                    if (rKind == "DEPENDS_ON")
+                    {
+                        if (string.IsNullOrEmpty(depType))
+                        {
+                            depType = isTargetLib ? "library" : "service_call";
+                        }
+                    }
+                    else if (rKind is "SERVICE_CALL" or "INTEGRATES_WITH" or "CALLS_ENDPOINT")
+                    {
+                        depType = "service_call";
+                    }
+                    else if (rKind == "USES_DB")
+                    {
+                        depType = "database";
+                    }
+                    else if (rKind is "PUBLISHES_TO" or "TRIGGERS" or "SUBSCRIBES_TO")
+                    {
+                        depType = "messaging";
+                    }
+
+                    if (!string.IsNullOrEmpty(depType))
+                    {
+                        edgeProps["dependency_type"] = depType;
+                    }
+
+                    var outKind = depType == "library" ? "LIBRARY" :
+                                  (rKind == "USES_DB" ? "USES_DB" :
+                                  (rKind == "PUBLISHES_TO" ? "PUBLISHES_TO" :
+                                  (rKind == "TRIGGERS" ? "TRIGGERS" : "SERVICE_CALL")));
+
+                    if (graph.Edges.All(e => !(e.Source == src && e.Target == tgt && e.Kind == outKind)))
                     {
                         graph.Edges.Add(new GraphEdgeDto
                         {
-                            Id = $"{src}->{tgt}:{kind}",
+                            Id = $"{src}->{tgt}:{outKind}",
                             Source = src,
                             Target = tgt,
-                            Kind = kind,
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["dependency_type"] = "database",
-                                ["is_semantic"] = "true"
-                            }
+                            Kind = outKind,
+                            Properties = edgeProps
                         });
                     }
                 }
@@ -450,43 +501,7 @@ public static class GraphDataConverter
         }
         catch { }
 
-        // 7b. File-level Database usage: (File)-[:USES_DB]->(Database)
-        try
-        {
-            var fileDbQuery = "MATCH (f:File)-[r:USES_DB]->(d:Database) RETURN f.id AS source, d.id AS target, r.kind AS kind";
-            var fileDbJson = await client.ExecuteQueryAsync(fileDbQuery, null, cancellationToken);
-            using var fileDbDoc = JsonDocument.Parse(fileDbJson);
-
-            foreach (var row in fileDbDoc.RootElement.EnumerateArray())
-            {
-                var fileId = row.GetStringProp("source");
-                var rawTgt = row.GetStringProp("target");
-                var tgt = dbIdToCanonicalId.GetValueOrDefault(rawTgt, rawTgt);
-
-                if (!string.IsNullOrEmpty(fileId) && !string.IsNullOrEmpty(tgt) && nodeMap.ContainsKey(tgt))
-                {
-                    var owningProj = FindOwningProject(fileId, projectNodes);
-                    if (owningProj != null && graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == tgt)))
-                    {
-                        graph.Edges.Add(new GraphEdgeDto
-                        {
-                            Id = $"{owningProj.Id}->{tgt}:USES_DB",
-                            Source = owningProj.Id,
-                            Target = tgt,
-                            Kind = "USES_DB",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["dependency_type"] = "database",
-                                ["is_semantic"] = "true"
-                            }
-                        });
-                    }
-                }
-            }
-        }
-        catch { }
-
-        // 7c. Synthesize project -> database edges from project prefix (for workspaces where direct Project->USES_DB wasn't written)
+        // 8. Synthesize project -> database edges from project prefix (for unmaterialized project-scoped databases)
         foreach (var (rawDbId, canonicalId) in dbIdToCanonicalId)
         {
             var owningProj = FindOwningProject(rawDbId, projectNodes);
@@ -506,178 +521,6 @@ public static class GraphDataConverter
                 });
             }
         }
-
-        // 8. External Service Links
-        var svcLinkQuery = "MATCH (p:Project)-[r:CALLS_ENDPOINT|TRIGGERS]->(s:ExternalService) RETURN p.id AS source, s.id AS target, r.kind AS kind";
-        var svcLinkJson = await client.ExecuteQueryAsync(svcLinkQuery, null, cancellationToken);
-        using var svcLinkDoc = JsonDocument.Parse(svcLinkJson);
-
-        foreach (var row in svcLinkDoc.RootElement.EnumerateArray())
-        {
-            var src = row.GetStringProp("source");
-            var tgt = row.GetStringProp("target");
-            var rKind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "CALLS_ENDPOINT") : "CALLS_ENDPOINT";
-            var kind = rKind == "TRIGGERS" ? "TRIGGERS" : "SERVICE_CALL";
-            var depType = rKind == "TRIGGERS" ? "messaging" : "service_call";
-
-            if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt))
-            {
-                if (graph.Edges.All(e => !(e.Source == src && e.Target == tgt && e.Kind == kind)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{src}->{tgt}:{kind}",
-                        Source = src,
-                        Target = tgt,
-                        Kind = kind,
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = depType,
-                            ["is_semantic"] = "true"
-                        }
-                    });
-                }
-            }
-        }
-
-        // 8b. Topic Links (PubSub, Message Queues)
-        try
-        {
-            var topicEdgeQuery = @"
-                MATCH (p:Project)-[:TRIGGERS|PUBLISHES|PUBLISHES_TO]->(t:Topic) RETURN p.id AS source, t.id AS target
-                UNION
-                MATCH (t:Topic)-[:TRIGGERS|SUBSCRIBED_BY]->(p:Project) RETURN t.id AS source, p.id AS target
-                UNION
-                MATCH (p:Project)-[:SUBSCRIBES_TO]->(t:Topic) RETURN t.id AS source, p.id AS target";
-
-            var topicEdgeJson = await client.ExecuteQueryAsync(topicEdgeQuery, null, cancellationToken);
-            using var topicEdgeDoc = JsonDocument.Parse(topicEdgeJson);
-
-            foreach (var row in topicEdgeDoc.RootElement.EnumerateArray())
-            {
-                var src = row.GetStringProp("source");
-                var tgt = row.GetStringProp("target");
-                if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt))
-                {
-                    if (graph.Edges.All(e => !(e.Source == src && e.Target == tgt)))
-                    {
-                        graph.Edges.Add(new GraphEdgeDto
-                        {
-                            Id = $"{src}->{tgt}:TRIGGERS",
-                            Source = src,
-                            Target = tgt,
-                            Kind = "TRIGGERS",
-                            Category = "messaging",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["dependency_type"] = "messaging",
-                                ["is_semantic"] = "true"
-                            }
-                        });
-                    }
-                }
-            }
-        }
-        catch { }
-
-        try
-        {
-            var pubQuery = "MATCH (t:Topic)-[:PUBLISHED_BY]->(sym) RETURN t.id AS topicId, sym.id AS symId";
-            var pubJson = await client.ExecuteQueryAsync(pubQuery, null, cancellationToken);
-            using var pubDoc = JsonDocument.Parse(pubJson);
-
-            foreach (var row in pubDoc.RootElement.EnumerateArray())
-            {
-                var topicId = row.GetStringProp("topicId");
-                var symId = row.GetStringProp("symId");
-                if (string.IsNullOrEmpty(topicId) || string.IsNullOrEmpty(symId) || !nodeMap.ContainsKey(topicId)) continue;
-
-                var owningProj = FindOwningProject(symId, projectNodes);
-                if (owningProj != null && graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == topicId)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{owningProj.Id}->{topicId}:TRIGGERS",
-                        Source = owningProj.Id,
-                        Target = topicId,
-                        Kind = "TRIGGERS",
-                        Category = "messaging",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "messaging",
-                            ["is_semantic"] = "true"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        try
-        {
-            var subQuery = "MATCH (t:Topic)-[:SUBSCRIBED_BY]->(sym) RETURN t.id AS topicId, sym.id AS symId";
-            var subJson = await client.ExecuteQueryAsync(subQuery, null, cancellationToken);
-            using var subDoc = JsonDocument.Parse(subJson);
-
-            foreach (var row in subDoc.RootElement.EnumerateArray())
-            {
-                var topicId = row.GetStringProp("topicId");
-                var symId = row.GetStringProp("symId");
-                if (string.IsNullOrEmpty(topicId) || string.IsNullOrEmpty(symId) || !nodeMap.ContainsKey(topicId)) continue;
-
-                var owningProj = FindOwningProject(symId, projectNodes);
-                if (owningProj != null && graph.Edges.All(e => !(e.Source == topicId && e.Target == owningProj.Id)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{topicId}->{owningProj.Id}:TRIGGERS",
-                        Source = topicId,
-                        Target = owningProj.Id,
-                        Kind = "TRIGGERS",
-                        Category = "messaging",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "messaging",
-                            ["is_semantic"] = "true"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        try
-        {
-            var cfgTopicQuery = "MATCH (f:File)-[:CONFIGURES]->(t:Topic) RETURN f.id AS fileId, t.id AS topicId";
-            var cfgTopicJson = await client.ExecuteQueryAsync(cfgTopicQuery, null, cancellationToken);
-            using var cfgTopicDoc = JsonDocument.Parse(cfgTopicJson);
-
-            foreach (var row in cfgTopicDoc.RootElement.EnumerateArray())
-            {
-                var fileId = row.GetStringProp("fileId");
-                var topicId = row.GetStringProp("topicId");
-                if (string.IsNullOrEmpty(fileId) || string.IsNullOrEmpty(topicId) || !nodeMap.ContainsKey(topicId)) continue;
-
-                var owningProj = FindOwningProject(fileId, projectNodes);
-                if (owningProj != null && graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == topicId)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{owningProj.Id}->{topicId}:TRIGGERS",
-                        Source = owningProj.Id,
-                        Target = topicId,
-                        Kind = "TRIGGERS",
-                        Category = "messaging",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "messaging",
-                            ["is_semantic"] = "true"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
 
         // 9. Lift Transitive Semantic Relations through Internal Libraries
         LiftTransitiveSemanticRelations(graph);
@@ -845,903 +688,121 @@ public static class GraphDataConverter
         graph.Nodes.Add(centerNode);
         graph.Metadata["selectedProject"] = centerProjName;
 
-        var allProjectsQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
-        var allProjectsJson = await client.ExecuteQueryAsync(allProjectsQuery, null, cancellationToken);
-        using var allProjectsDoc = JsonDocument.Parse(allProjectsJson);
-        var allProjectNodes = new List<GraphNodeDto>();
-        foreach (var pRow in allProjectsDoc.RootElement.EnumerateArray())
+        // 2. Fetch the architecture graph which has already materialized and lifted all macro relationships
+        var archGraph = await GetArchitectureGraphAsync(client, null, cancellationToken);
+        var archCenter = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase));
+        if (archCenter?.Properties != null)
         {
-            var pId = pRow.GetStringProp("id");
-            var pName = pRow.GetStringProp("name", pId);
-            var pPath = pRow.TryGetProperty("path", out var pp) && pp.ValueKind == JsonValueKind.String ? pp.GetString() : null;
-            allProjectNodes.Add(new GraphNodeDto
+            foreach (var (k, v) in archCenter.Properties)
             {
-                Id = pId,
-                Name = pName,
-                FilePath = pPath
-            });
-        }
-        if (allProjectNodes.All(p => p.Id != centerId))
-        {
-            allProjectNodes.Add(centerNode);
-        }
-
-        // 2. Inbound Project Dependencies (Left Column)
-        var inQuery = "MATCH (in:Project)-[r:DEPENDS_ON]->(p:Project {id: $centerId}) RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, in.project_type AS project_type, r.kind AS kind, r.dependency_type AS dep_type";
-        var inJson = await client.ExecuteQueryAsync(inQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-        using var inDoc = JsonDocument.Parse(inJson);
-
-        foreach (var row in inDoc.RootElement.EnumerateArray())
-        {
-            var id = row.GetStringProp("id");
-            var name = row.GetStringProp("name", id);
-            var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
-            var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
-            var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
-            var rawKind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "DEPENDS_ON") : "DEPENDS_ON";
-            var depType = row.TryGetProperty("dep_type", out var dt) && dt.ValueKind == JsonValueKind.String ? (dt.GetString() ?? "") : "";
-
-            var isTargetLib = IsLibraryProject(centerNode);
-            if (string.IsNullOrEmpty(depType))
-            {
-                depType = isTargetLib ? "library" : "service_call";
-            }
-            else if (isTargetLib && depType != "service_call")
-            {
-                depType = "library";
-            }
-
-            var edgeKind = depType == "library" ? "LIBRARY" : (rawKind == "TRIGGERS" ? "TRIGGERS" : "SERVICE_CALL");
-
-            if (graph.Nodes.All(n => n.Id != id))
-            {
-                var inNode = new GraphNodeDto
+                if (!centerNode.Properties.ContainsKey(k))
                 {
-                    Id = id,
-                    Kind = "Project",
-                    Name = name,
-                    DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
-                    FilePath = path,
-                    Properties = new Dictionary<string, string>
+                    centerNode.Properties[k] = v;
+                }
+            }
+        }
+
+        var nodeLookup = archGraph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+
+        // 3. Project 1-hop inbound and outbound neighborhood from archGraph
+        foreach (var edge in archGraph.Edges)
+        {
+            if (edge.Source.Equals(centerId, StringComparison.OrdinalIgnoreCase) && !edge.Target.Equals(centerId, StringComparison.OrdinalIgnoreCase))
+            {
+                // Outbound from center
+                if (nodeLookup.TryGetValue(edge.Target, out var tgtNode))
+                {
+                    if (tgtNode.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) && edge.Kind.Equals("SUBSCRIBES_TO", StringComparison.OrdinalIgnoreCase))
                     {
-                        ["column"] = "left",
-                        ["role"] = "inbound"
+                        // Subscribed topic acts as an inbound trigger into center
+                        AddNeighborNode(graph, tgtNode, column: "left", role: "topic");
+                        AddNeighborEdge(graph, tgtNode.Id, centerId, "TRIGGERS", "messaging", edge.Properties);
                     }
+                    else
+                    {
+                        var role = tgtNode.Kind switch
+                        {
+                            "Database" => "database",
+                            "ExternalService" => "service",
+                            "Topic" => "topic",
+                            "Package" => "outbound",
+                            _ => "outbound"
+                        };
+                        var cat = edge.Category ?? (tgtNode.Kind switch
+                        {
+                            "Database" => "database",
+                            "ExternalService" => "service_call",
+                            "Topic" => "messaging",
+                            "Package" => "library",
+                            _ => (edge.Kind == "LIBRARY" ? "library" : "service_call")
+                        });
+
+                        AddNeighborNode(graph, tgtNode, column: "right", role: role);
+                        AddNeighborEdge(graph, centerId, tgtNode.Id, edge.Kind, cat, edge.Properties);
+                    }
+                }
+            }
+            else if (edge.Target.Equals(centerId, StringComparison.OrdinalIgnoreCase) && !edge.Source.Equals(centerId, StringComparison.OrdinalIgnoreCase))
+            {
+                // Inbound to center
+                if (nodeLookup.TryGetValue(edge.Source, out var srcNode))
+                {
+                    var role = srcNode.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) ? "topic" : "inbound";
+                    var cat = edge.Category ?? (srcNode.Kind switch
+                    {
+                        "Topic" => "messaging",
+                        _ => (edge.Kind == "LIBRARY" ? "library" : "service_call")
+                    });
+
+                    AddNeighborNode(graph, srcNode, column: "left", role: role);
+                    AddNeighborEdge(graph, srcNode.Id, centerId, edge.Kind, cat, edge.Properties);
+                }
+            }
+        }
+
+        static void AddNeighborNode(GraphDataDto g, GraphNodeDto sourceNode, string column, string role)
+        {
+            if (g.Nodes.All(n => !n.Id.Equals(sourceNode.Id, StringComparison.OrdinalIgnoreCase)))
+            {
+                var clone = new GraphNodeDto
+                {
+                    Id = sourceNode.Id,
+                    Kind = sourceNode.Kind,
+                    Name = sourceNode.Name,
+                    DisplayName = sourceNode.DisplayName,
+                    FilePath = sourceNode.FilePath,
+                    Properties = sourceNode.Properties != null
+                        ? new Dictionary<string, string>(sourceNode.Properties)
+                        : new Dictionary<string, string>()
                 };
-                if (!string.IsNullOrEmpty(framework)) inNode.Properties["framework"] = framework;
-                if (!string.IsNullOrEmpty(path)) inNode.Properties["path"] = path;
-                if (!string.IsNullOrEmpty(projectType)) inNode.Properties["project_type"] = projectType;
-                graph.Nodes.Add(inNode);
+                clone.Properties["column"] = column;
+                clone.Properties["role"] = role;
+                g.Nodes.Add(clone);
             }
+        }
 
-            if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId && e.Kind == edgeKind)))
+        static void AddNeighborEdge(GraphDataDto g, string source, string target, string kind, string category, Dictionary<string, string>? properties)
+        {
+            if (g.Edges.All(e => !(e.Source.Equals(source, StringComparison.OrdinalIgnoreCase) &&
+                                  e.Target.Equals(target, StringComparison.OrdinalIgnoreCase) &&
+                                  e.Kind.Equals(kind, StringComparison.OrdinalIgnoreCase))))
             {
-                graph.Edges.Add(new GraphEdgeDto
+                var props = properties != null ? new Dictionary<string, string>(properties) : new Dictionary<string, string>();
+                if (!props.ContainsKey("dependency_type"))
                 {
-                    Id = $"{id}->{centerId}:{edgeKind}",
-                    Source = id,
-                    Target = centerId,
-                    Kind = edgeKind,
-                    Properties = new Dictionary<string, string>
-                    {
-                        ["dependency_type"] = depType
-                    }
+                    props["dependency_type"] = category;
+                }
+                g.Edges.Add(new GraphEdgeDto
+                {
+                    Id = $"{source}->{target}:{kind}",
+                    Source = source,
+                    Target = target,
+                    Kind = kind,
+                    Category = category,
+                    Properties = props
                 });
             }
         }
-
-        // 2b. Inbound package fallback
-        try
-        {
-            var inPkgQuery = "MATCH (in:Project)-[:DEPENDS_ON]->(:Package)-[:IMPLEMENTED_BY]->(p:Project {id: $centerId}) WHERE in.id <> p.id RETURN in.id AS id, in.name AS name, in.framework AS framework, in.path AS path, in.project_type AS project_type";
-            var inPkgJson = await client.ExecuteQueryAsync(inPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-            using var inPkgDoc = JsonDocument.Parse(inPkgJson);
-            foreach (var row in inPkgDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
-                var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
-                var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
-
-                if (graph.Nodes.All(n => n.Id != id))
-                {
-                    var inNode = new GraphNodeDto
-                    {
-                        Id = id,
-                        Kind = "Project",
-                        Name = name,
-                        DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
-                        FilePath = path,
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["column"] = "left",
-                            ["role"] = "inbound"
-                        }
-                    };
-                    if (!string.IsNullOrEmpty(framework)) inNode.Properties["framework"] = framework;
-                    if (!string.IsNullOrEmpty(path)) inNode.Properties["path"] = path;
-                    if (!string.IsNullOrEmpty(projectType)) inNode.Properties["project_type"] = projectType;
-                    graph.Nodes.Add(inNode);
-                }
-
-                if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId && e.Kind == "LIBRARY")))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{id}->{centerId}:LIBRARY",
-                        Source = id,
-                        Target = centerId,
-                        Kind = "LIBRARY",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "library"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        // 3. Outbound Project Dependencies (Right Column)
-        var outQuery = "MATCH (p:Project {id: $centerId})-[r:DEPENDS_ON]->(out:Project) RETURN out.id AS id, out.name AS name, out.framework AS framework, out.path AS path, out.project_type AS project_type, r.kind AS kind, r.dependency_type AS dep_type";
-        var outJson = await client.ExecuteQueryAsync(outQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-        using var outDoc = JsonDocument.Parse(outJson);
-
-        foreach (var row in outDoc.RootElement.EnumerateArray())
-        {
-            var id = row.GetStringProp("id");
-            var name = row.GetStringProp("name", id);
-            var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
-            var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
-            var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
-            var rawKind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "DEPENDS_ON") : "DEPENDS_ON";
-            var depType = row.TryGetProperty("dep_type", out var dt) && dt.ValueKind == JsonValueKind.String ? (dt.GetString() ?? "") : "";
-
-            if (graph.Nodes.All(n => n.Id != id))
-            {
-                var outNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = "Project",
-                    Name = name,
-                    DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
-                    FilePath = path,
-                    Properties = new Dictionary<string, string>
-                    {
-                        ["column"] = "right",
-                        ["role"] = "outbound"
-                    }
-                };
-                if (!string.IsNullOrEmpty(framework)) outNode.Properties["framework"] = framework;
-                if (!string.IsNullOrEmpty(path)) outNode.Properties["path"] = path;
-                if (!string.IsNullOrEmpty(projectType)) outNode.Properties["project_type"] = projectType;
-                graph.Nodes.Add(outNode);
-            }
-
-            var outTargetNode = graph.Nodes.FirstOrDefault(n => n.Id == id);
-            var isOutLib = IsLibraryProject(outTargetNode);
-
-            if (string.IsNullOrEmpty(depType))
-            {
-                depType = isOutLib ? "library" : "service_call";
-            }
-            else if (isOutLib && depType != "service_call")
-            {
-                depType = "library";
-            }
-
-            var edgeKind = depType == "library" ? "LIBRARY" : (rawKind == "TRIGGERS" ? "TRIGGERS" : "SERVICE_CALL");
-
-            if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id && e.Kind == edgeKind)))
-            {
-                graph.Edges.Add(new GraphEdgeDto
-                {
-                    Id = $"{centerId}->{id}:{edgeKind}",
-                    Source = centerId,
-                    Target = id,
-                    Kind = edgeKind,
-                    Properties = new Dictionary<string, string>
-                    {
-                        ["dependency_type"] = depType
-                    }
-                });
-            }
-        }
-
-        // 3b. Outbound package fallback
-        try
-        {
-            var outPkgQuery = "MATCH (p:Project {id: $centerId})-[:DEPENDS_ON]->(:Package)-[:IMPLEMENTED_BY]->(out:Project) WHERE p.id <> out.id RETURN out.id AS id, out.name AS name, out.framework AS framework, out.path AS path, out.project_type AS project_type";
-            var outPkgJson = await client.ExecuteQueryAsync(outPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-            using var outPkgDoc = JsonDocument.Parse(outPkgJson);
-            foreach (var row in outPkgDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
-                var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
-                var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
-
-                if (graph.Nodes.All(n => n.Id != id))
-                {
-                    var outNode = new GraphNodeDto
-                    {
-                        Id = id,
-                        Kind = "Project",
-                        Name = name,
-                        DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
-                        FilePath = path,
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["column"] = "right",
-                            ["role"] = "outbound"
-                        }
-                    };
-                    if (!string.IsNullOrEmpty(framework)) outNode.Properties["framework"] = framework;
-                    if (!string.IsNullOrEmpty(path)) outNode.Properties["path"] = path;
-                    if (!string.IsNullOrEmpty(projectType)) outNode.Properties["project_type"] = projectType;
-                    graph.Nodes.Add(outNode);
-                }
-
-                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id && e.Kind == "LIBRARY")))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{centerId}->{id}:LIBRARY",
-                        Source = centerId,
-                        Target = id,
-                        Kind = "LIBRARY",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "library"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        // 3c. Outbound external packages (npm, NuGet, etc. not implemented by an internal workspace project)
-        try
-        {
-            var extPkgQuery = "MATCH (p:Project {id: $centerId})-[r:DEPENDS_ON]->(pkg:Package) WHERE (pkg.is_external = true OR (pkg.is_external IS NULL AND NOT (pkg)-[:IMPLEMENTED_BY]->(:Project))) AND NOT (pkg)-[:IMPLEMENTED_BY]->(p) AND toLower(pkg.name) <> toLower(p.name) RETURN pkg.id AS id, pkg.name AS name, pkg.version AS version, pkg.type AS pkg_type, coalesce(pkg.is_external, true) AS is_external";
-            var extPkgJson = await client.ExecuteQueryAsync(extPkgQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-            using var extPkgDoc = JsonDocument.Parse(extPkgJson);
-            foreach (var row in extPkgDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var version = row.TryGetProperty("version", out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
-                var pkgType = row.TryGetProperty("pkg_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : "package";
-
-                var displayName = string.IsNullOrEmpty(version) ? name : $"{name}@{version}";
-
-                if (graph.Nodes.All(n => n.Id != id))
-                {
-                    var pkgNode = new GraphNodeDto
-                    {
-                        Id = id,
-                        Kind = "Package",
-                        Name = name,
-                        DisplayName = displayName,
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["column"] = "right",
-                            ["role"] = "outbound",
-                            ["is_library"] = "true",
-                            ["is_external"] = "true",
-                            ["entity_type"] = "library",
-                            ["package_type"] = pkgType ?? "package",
-                            ["version"] = version ?? "",
-                            ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                            ["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                            ["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName,
-                            ["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color
-                        }
-                    };
-                    graph.Nodes.Add(pkgNode);
-                }
-
-                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id && e.Kind == "LIBRARY")))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{centerId}->{id}:LIBRARY",
-                        Source = centerId,
-                        Target = id,
-                        Kind = "LIBRARY",
-                        Category = "library",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "library"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        // 4. Outbound Databases (Right Column)
-        try
-        {
-            var dbQuery = "MATCH (p:Project {id: $centerId})-[r:USES_DB]->(d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, r.kind AS kind";
-            var dbJson = await client.ExecuteQueryAsync(dbQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-            using var dbDoc = JsonDocument.Parse(dbJson);
-
-            var rawList = new List<(string Id, string Name, string DbType, string Kind)>();
-            foreach (var row in dbDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
-                var kind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "USES_DB") : "USES_DB";
-                rawList.Add((id, name, dbType, kind));
-            }
-
-            foreach (var (id, name, dbType, kind) in rawList)
-            {
-                var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
-                var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
-                                      id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
-                var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
-                var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
-                    ? $"workspace:database:{cType}:{cKey}"
-                    : id;
-
-                if (graph.Nodes.All(n => n.Id != canonicalId))
-                {
-                    var dbNode = new GraphNodeDto
-                    {
-                        Id = canonicalId,
-                        Kind = "Database",
-                        Name = cName,
-                        DisplayName = $"{cName} [{cType}]",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["column"] = "right",
-                            ["role"] = "database",
-                            ["db_type"] = cType
-                        }
-                    };
-                    graph.Nodes.Add(dbNode);
-                }
-
-                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == canonicalId)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{centerId}->{canonicalId}:{kind}",
-                        Source = centerId,
-                        Target = canonicalId,
-                        Kind = kind,
-                        Category = "database",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "database"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        // Also query databases whose ID starts with centerId prefix (fallback for workspaces where direct Project->USES_DB wasn't stored)
-        try
-        {
-            var centerPrefix = centerId.EndsWith(':') ? centerId : centerId + ":";
-            var dbPrefixQuery = "MATCH (d:Database) WHERE d.id STARTS WITH $centerPrefix RETURN d.id AS id, d.name AS name, d.db_type AS db_type";
-            var dbPrefixJson = await client.ExecuteQueryAsync(dbPrefixQuery, new Dictionary<string, object> { ["centerPrefix"] = centerPrefix }, cancellationToken);
-            using var dbPrefixDoc = JsonDocument.Parse(dbPrefixJson);
-
-            foreach (var row in dbPrefixDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
-                var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
-                var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
-                                      id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
-                var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
-                var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
-                    ? $"workspace:database:{cType}:{cKey}"
-                    : id;
-
-                if (graph.Nodes.All(n => n.Id != canonicalId))
-                {
-                    var dbNode = new GraphNodeDto
-                    {
-                        Id = canonicalId,
-                        Kind = "Database",
-                        Name = cName,
-                        DisplayName = $"{cName} [{cType}]",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["column"] = "right",
-                            ["role"] = "database",
-                            ["db_type"] = cType
-                        }
-                    };
-                    graph.Nodes.Add(dbNode);
-                }
-
-                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == canonicalId)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{centerId}->{canonicalId}:USES_DB",
-                        Source = centerId,
-                        Target = canonicalId,
-                        Kind = "USES_DB",
-                        Category = "database",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "database"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        // Query file-level databases belonging to center project
-        try
-        {
-            var fileDbQuery = "MATCH (f:File)-[r:USES_DB]->(d:Database) RETURN f.id AS fileId, d.id AS id, d.name AS name, d.db_type AS db_type";
-            var fileDbJson = await client.ExecuteQueryAsync(fileDbQuery, null, cancellationToken);
-            using var fileDbDoc = JsonDocument.Parse(fileDbJson);
-
-            foreach (var row in fileDbDoc.RootElement.EnumerateArray())
-            {
-                var fileId = row.GetStringProp("fileId");
-                if (string.IsNullOrEmpty(fileId)) continue;
-
-                var owning = FindOwningProject(fileId, allProjectNodes);
-                var isOwnedOrViaLibrary = owning != null && (
-                    owning.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase) ||
-                    owning.Name.Equals(centerProjName, StringComparison.OrdinalIgnoreCase) ||
-                    graph.Edges.Any(e => e.Source == centerId && e.Target == owning.Id && e.Kind == "LIBRARY")
-                );
-
-                if (isOwnedOrViaLibrary)
-                {
-                    var id = row.GetStringProp("id");
-                    var name = row.GetStringProp("name", id);
-                    var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
-                    var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
-                    var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
-                                          id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
-                    var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
-                    var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
-                        ? $"workspace:database:{cType}:{cKey}"
-                        : id;
-
-                    if (graph.Nodes.All(n => n.Id != canonicalId))
-                    {
-                        graph.Nodes.Add(new GraphNodeDto
-                        {
-                            Id = canonicalId,
-                            Kind = "Database",
-                            Name = cName,
-                            DisplayName = $"{cName} [{cType}]",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["column"] = "right",
-                                ["role"] = "database",
-                                ["db_type"] = cType
-                            }
-                        });
-                    }
-
-                    if (graph.Edges.All(e => !(e.Source == centerId && e.Target == canonicalId)))
-                    {
-                        graph.Edges.Add(new GraphEdgeDto
-                        {
-                            Id = $"{centerId}->{canonicalId}:USES_DB",
-                            Source = centerId,
-                            Target = canonicalId,
-                            Kind = "USES_DB",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["dependency_type"] = "database"
-                            }
-                        });
-                    }
-                }
-            }
-        }
-        catch { }
-
-        // Query transitive databases via outbound libraries
-        try
-        {
-            var outboundLibs = graph.Nodes
-                .Where(n => n.Properties?.GetValueOrDefault("column") == "right" && IsLibraryProject(n))
-                .ToList();
-
-            foreach (var lib in outboundLibs)
-            {
-                var libDbQuery = "MATCH (p:Project {id: $libId})-[r:USES_DB]->(d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type";
-                var libDbJson = await client.ExecuteQueryAsync(libDbQuery, new Dictionary<string, object> { ["libId"] = lib.Id }, cancellationToken);
-                using var libDbDoc = JsonDocument.Parse(libDbJson);
-
-                foreach (var row in libDbDoc.RootElement.EnumerateArray())
-                {
-                    var id = row.GetStringProp("id");
-                    var name = row.GetStringProp("name", id);
-                    var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
-                    var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
-                    var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
-                                          id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase);
-                    var isWorkspaceDatabase = id.StartsWith("workspace:database:", StringComparison.OrdinalIgnoreCase);
-                    var canonicalId = (isProjectScoped || isWorkspaceDatabase || cKey == "typeorm")
-                        ? $"workspace:database:{cType}:{cKey}"
-                        : id;
-
-                    if (graph.Nodes.All(n => n.Id != canonicalId))
-                    {
-                        graph.Nodes.Add(new GraphNodeDto
-                        {
-                            Id = canonicalId,
-                            Kind = "Database",
-                            Name = cName,
-                            DisplayName = $"{cName} [{cType}]",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["column"] = "right",
-                                ["role"] = "database",
-                                ["db_type"] = cType
-                            }
-                        });
-                    }
-
-                    if (graph.Edges.All(e => !(e.Source == centerId && e.Target == canonicalId)))
-                    {
-                        graph.Edges.Add(new GraphEdgeDto
-                        {
-                            Id = $"{centerId}->{canonicalId}:USES_DB",
-                            Source = centerId,
-                            Target = canonicalId,
-                            Kind = "USES_DB",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["dependency_type"] = "database",
-                                ["semantic_lifted"] = "true",
-                                ["via_library"] = lib.Name
-                            }
-                        });
-                    }
-                }
-            }
-        }
-        catch { }
-
-        // 5. Outbound External Services / Message Brokers (Right Column)
-        try
-        {
-            var svcQuery = "MATCH (p:Project {id: $centerId})-[r:CALLS_ENDPOINT|TRIGGERS]->(s:ExternalService) RETURN s.id AS id, s.name AS name, s.service_type AS service_type, r.kind AS kind";
-            var svcJson = await client.ExecuteQueryAsync(svcQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-            using var svcDoc = JsonDocument.Parse(svcJson);
-
-            foreach (var row in svcDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var st = row.TryGetProperty("service_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Service") : "Service";
-                var rKind = row.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? (k.GetString() ?? "CALLS_ENDPOINT") : "CALLS_ENDPOINT";
-                var kind = rKind == "TRIGGERS" ? "TRIGGERS" : "SERVICE_CALL";
-                var depType = rKind == "TRIGGERS" ? "messaging" : "service_call";
-
-                if (graph.Nodes.All(n => n.Id != id))
-                {
-                    var svcNode = new GraphNodeDto
-                    {
-                        Id = id,
-                        Kind = "ExternalService",
-                        Name = name,
-                        DisplayName = $"{name} [{st}]",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["column"] = "right",
-                            ["role"] = "service",
-                            ["service_type"] = st
-                        }
-                    };
-                    graph.Nodes.Add(svcNode);
-                }
-
-                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{centerId}->{id}:{kind}",
-                        Source = centerId,
-                        Target = id,
-                        Kind = kind,
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = depType
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        // 6. Outbound & Inbound Topics
-        try
-        {
-            // 6a. Outbound Topics (Center project publishes to Topic via symbol or config)
-            var pubQuery = "MATCH (t:Topic)-[:PUBLISHED_BY]->(sym) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type, sym.id AS symId";
-            var pubJson = await client.ExecuteQueryAsync(pubQuery, null, cancellationToken);
-            using var pubDoc = JsonDocument.Parse(pubJson);
-
-            foreach (var row in pubDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
-                var symId = row.GetStringProp("symId");
-
-                var owning = FindOwningProject(symId, allProjectNodes);
-                var isOwnedOrViaLibrary = owning != null && (
-                    owning.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase) ||
-                    owning.Name.Equals(centerProjName, StringComparison.OrdinalIgnoreCase) ||
-                    graph.Edges.Any(e => e.Source == centerId && e.Target == owning.Id && e.Kind == "LIBRARY")
-                );
-
-                if (isOwnedOrViaLibrary)
-                {
-                    if (graph.Nodes.All(n => n.Id != id))
-                    {
-                        graph.Nodes.Add(new GraphNodeDto
-                        {
-                            Id = id,
-                            Kind = "Topic",
-                            Name = name,
-                            DisplayName = $"{name} [{broker}]",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["column"] = "right",
-                                ["role"] = "topic",
-                                ["broker_type"] = broker,
-                                ["entity_type"] = "topic"
-                            }
-                        });
-                    }
-
-                    if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id)))
-                    {
-                        graph.Edges.Add(new GraphEdgeDto
-                        {
-                            Id = $"{centerId}->{id}:TRIGGERS",
-                            Source = centerId,
-                            Target = id,
-                            Kind = "TRIGGERS",
-                            Category = "messaging",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["dependency_type"] = "messaging"
-                            }
-                        });
-                    }
-                }
-            }
-
-            // Also check CONFIGURES edges from File to Topic
-            var cfgQuery = "MATCH (f:File)-[:CONFIGURES]->(t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type, f.id AS fileId";
-            var cfgJson = await client.ExecuteQueryAsync(cfgQuery, null, cancellationToken);
-            using var cfgDoc = JsonDocument.Parse(cfgJson);
-
-            foreach (var row in cfgDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
-                var fileId = row.GetStringProp("fileId");
-
-                var owning = FindOwningProject(fileId, allProjectNodes);
-                var isOwnedOrViaLibrary = owning != null && (
-                    owning.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase) ||
-                    owning.Name.Equals(centerProjName, StringComparison.OrdinalIgnoreCase) ||
-                    graph.Edges.Any(e => e.Source == centerId && e.Target == owning.Id && e.Kind == "LIBRARY")
-                );
-
-                if (isOwnedOrViaLibrary)
-                {
-                    if (graph.Nodes.All(n => n.Id != id))
-                    {
-                        graph.Nodes.Add(new GraphNodeDto
-                        {
-                            Id = id,
-                            Kind = "Topic",
-                            Name = name,
-                            DisplayName = $"{name} [{broker}]",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["column"] = "right",
-                                ["role"] = "topic",
-                                ["broker_type"] = broker,
-                                ["entity_type"] = "topic"
-                            }
-                        });
-                    }
-
-                    if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id)))
-                    {
-                        graph.Edges.Add(new GraphEdgeDto
-                        {
-                            Id = $"{centerId}->{id}:TRIGGERS",
-                            Source = centerId,
-                            Target = id,
-                            Kind = "TRIGGERS",
-                            Category = "messaging",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["dependency_type"] = "messaging"
-                            }
-                        });
-                    }
-                }
-            }
-
-            // Direct project-to-topic outbound fallback
-            var directTopicQuery = "MATCH (p:Project {id: $centerId})-[r:TRIGGERS|PUBLISHES|PUBLISHES_TO]->(t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
-            var directTopicJson = await client.ExecuteQueryAsync(directTopicQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-            using var directTopicDoc = JsonDocument.Parse(directTopicJson);
-
-            foreach (var row in directTopicDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
-
-                if (graph.Nodes.All(n => n.Id != id))
-                {
-                    graph.Nodes.Add(new GraphNodeDto
-                    {
-                        Id = id,
-                        Kind = "Topic",
-                        Name = name,
-                        DisplayName = $"{name} [{broker}]",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["column"] = "right",
-                            ["role"] = "topic",
-                            ["broker_type"] = broker,
-                            ["entity_type"] = "topic"
-                        }
-                    });
-                }
-
-                if (graph.Edges.All(e => !(e.Source == centerId && e.Target == id)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{centerId}->{id}:TRIGGERS",
-                        Source = centerId,
-                        Target = id,
-                        Kind = "TRIGGERS",
-                        Category = "messaging",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "messaging"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
-
-        try
-        {
-            // 6b. Inbound Topics (Center project subscribes to Topic via symbol)
-            var subQuery = "MATCH (t:Topic)-[:SUBSCRIBED_BY]->(sym) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type, sym.id AS symId";
-            var subJson = await client.ExecuteQueryAsync(subQuery, null, cancellationToken);
-            using var subDoc = JsonDocument.Parse(subJson);
-
-            foreach (var row in subDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
-                var symId = row.GetStringProp("symId");
-
-                var owning = FindOwningProject(symId, allProjectNodes);
-                var isOwnedOrViaLibrary = owning != null && (
-                    owning.Id.Equals(centerId, StringComparison.OrdinalIgnoreCase) ||
-                    owning.Name.Equals(centerProjName, StringComparison.OrdinalIgnoreCase) ||
-                    graph.Edges.Any(e => e.Source == centerId && e.Target == owning.Id && e.Kind == "LIBRARY")
-                );
-
-                if (isOwnedOrViaLibrary)
-                {
-                    if (graph.Nodes.All(n => n.Id != id))
-                    {
-                        graph.Nodes.Add(new GraphNodeDto
-                        {
-                            Id = id,
-                            Kind = "Topic",
-                            Name = name,
-                            DisplayName = $"{name} [{broker}]",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["column"] = "left",
-                                ["role"] = "topic",
-                                ["broker_type"] = broker,
-                                ["entity_type"] = "topic"
-                            }
-                        });
-                    }
-
-                    if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId)))
-                    {
-                        graph.Edges.Add(new GraphEdgeDto
-                        {
-                            Id = $"{id}->{centerId}:TRIGGERS",
-                            Source = id,
-                            Target = centerId,
-                            Kind = "TRIGGERS",
-                            Category = "messaging",
-                            Properties = new Dictionary<string, string>
-                            {
-                                ["dependency_type"] = "messaging"
-                            }
-                        });
-                    }
-                }
-            }
-
-            // Direct topic-to-project inbound fallback
-            var inTopicQuery = @"
-                MATCH (t:Topic)-[:TRIGGERS|SUBSCRIBED_BY]->(p:Project {id: $centerId}) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type
-                UNION
-                MATCH (p:Project {id: $centerId})-[:SUBSCRIBES_TO]->(t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker_type";
-            var inTopicJson = await client.ExecuteQueryAsync(inTopicQuery, new Dictionary<string, object> { ["centerId"] = centerId }, cancellationToken);
-            using var inTopicDoc = JsonDocument.Parse(inTopicJson);
-
-            foreach (var row in inTopicDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var broker = row.TryGetProperty("broker_type", out var b) && b.ValueKind == JsonValueKind.String ? (b.GetString() ?? "Topic") : "Topic";
-
-                if (graph.Nodes.All(n => n.Id != id))
-                {
-                    graph.Nodes.Add(new GraphNodeDto
-                    {
-                        Id = id,
-                        Kind = "Topic",
-                        Name = name,
-                        DisplayName = $"{name} [{broker}]",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["column"] = "left",
-                            ["role"] = "topic",
-                            ["broker_type"] = broker,
-                            ["entity_type"] = "topic"
-                        }
-                    });
-                }
-
-                if (graph.Edges.All(e => !(e.Source == id && e.Target == centerId)))
-                {
-                    graph.Edges.Add(new GraphEdgeDto
-                    {
-                        Id = $"{id}->{centerId}:TRIGGERS",
-                        Source = id,
-                        Target = centerId,
-                        Kind = "TRIGGERS",
-                        Category = "messaging",
-                        Properties = new Dictionary<string, string>
-                        {
-                            ["dependency_type"] = "messaging"
-                        }
-                    });
-                }
-            }
-        }
-        catch { }
 
         ApplyLayerClassification(graph);
 
@@ -2062,7 +1123,7 @@ public static class GraphDataConverter
 
             if (node.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase))
             {
-                if (layerMap.TryGetValue(node.Id, out var layer))
+                if (!node.Properties.ContainsKey("layer") && layerMap.TryGetValue(node.Id, out var layer))
                 {
                     node.Properties["layer"] = layer.LayerId;
                     node.Properties["layerId"] = layer.LayerId;
