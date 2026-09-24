@@ -314,6 +314,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(new Set());
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
   const prevLayoutRef = useRef(layoutName);
+  const [isPreparing, setIsPreparing] = useState(true);
+  const [preparingStatus, setPreparingStatus] = useState('Analyzing domain microservices...');
+  const activeLayoutRef = useRef<cytoscape.Layouts | null>(null);
 
   // Clear hidden filters when switching graph
   useEffect(() => {
@@ -837,8 +840,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         }
       }
 
-      while (queue.length > 0) {
-        const item = queue.shift()!;
+      let qIdx = 0;
+      while (qIdx < queue.length) {
+        const item = queue[qIdx++];
         if (item.depth > 6) continue;
 
         const outEdges = rawGraph.outAdj.get(item.curr) || [];
@@ -933,64 +937,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const nodeDetailMap = rawGraph.detailMap;
 
-  // Apply layout
-  const applyLayout = useCallback(
-    (name: 'cose' | 'dagre' | 'concentric', cyInstance?: cytoscape.Core | null) => {
-      const cy = cyInstance || cyRef.current;
-      if (!cy || cy.nodes().length === 0) return;
-
-      let layoutConfig: any;
-      if (name === 'dagre') {
-        layoutConfig = {
-          name: 'dagre',
-          rankDir: 'LR',
-          nodeSep: 60,
-          rankSep: 140,
-          animate: false,
-          fit: true,
-          padding: 60,
-        };
-      } else if (name === 'concentric') {
-        layoutConfig = {
-          name: 'concentric',
-          concentric: (node: any) => {
-            const kind = node.data('kind');
-            if (kind === 'Ingress') return 4;
-            if (kind === 'Service') return 3;
-            if (kind === 'Topic') return 2;
-            return 1;
-          },
-          levelWidth: () => 1,
-          animate: false,
-          fit: true,
-          padding: 60,
-        };
-      } else {
-        // Organic Force-Directed (COSE)
-        layoutConfig = {
-          name: 'cose',
-          animate: false,
-          randomize: false,
-          componentSpacing: 80,
-          nodeRepulsion: () => 450000,
-          nodeOverlap: 25,
-          idealEdgeLength: () => 140,
-          edgeElasticity: () => 100,
-          nestingFactor: 5,
-          gravity: 60,
-          numIter: 400,
-          coolingFactor: 0.95,
-          fit: true,
-          padding: 60,
-        };
-      }
-
-      const layout = cy.layout(layoutConfig);
-      layout.run();
-    },
-    []
-  );
-
   // Initialize Cytoscape Instance
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1077,23 +1023,38 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedNode, hideNode]);
 
-  // Load Elements into Cytoscape when data changes, preserving layout stability
+  // Asynchronously load elements and execute layout without freezing the UI
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
 
-    const layoutChanged = prevLayoutRef.current !== layoutName;
-    prevLayoutRef.current = layoutName;
+    if (elements.length === 0) {
+      cy.elements().remove();
+      setIsPreparing(false);
+      return;
+    }
 
-    // Capture existing positions of visible nodes
-    const savedPositions = new Map<string, cytoscape.Position>();
-    cy.nodes().forEach((n) => {
-      savedPositions.set(n.id(), { ...n.position() });
-    });
-    const hadExisting = savedPositions.size > 0;
+    let cancelled = false;
 
-    cy.elements().remove();
-    if (elements.length > 0) {
+    const runAsyncLayout = async () => {
+      setIsPreparing(true);
+      setPreparingStatus('Synthesizing domain clusters...');
+
+      // Yield execution to the browser event loop so React renders the loading overlay immediately
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      if (cancelled) return;
+
+      const layoutChanged = prevLayoutRef.current !== layoutName;
+      prevLayoutRef.current = layoutName;
+
+      // Capture existing positions of visible nodes
+      const savedPositions = new Map<string, cytoscape.Position>();
+      cy.nodes().forEach((n) => {
+        savedPositions.set(n.id(), { ...n.position() });
+      });
+      const hadExisting = savedPositions.size > 0;
+
+      cy.elements().remove();
       cy.add(elements);
 
       if (hadExisting && !layoutChanged) {
@@ -1107,15 +1068,106 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           }
         });
 
-        // If nodes were unhidden and have no saved positions, run layout
-        if (hasNewNodes) {
-          applyLayout(layoutName, cy);
+        // If nodes were already placed and none are new, skip running layout
+        if (!hasNewNodes) {
+          setIsPreparing(false);
+          return;
         }
-      } else {
-        applyLayout(layoutName, cy);
       }
-    }
-  }, [elements, layoutName, applyLayout]);
+
+      if (cancelled) return;
+      setPreparingStatus('Computing force-directed topology...');
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      if (cancelled) return;
+
+      if (activeLayoutRef.current) {
+        try {
+          activeLayoutRef.current.stop();
+        } catch {}
+        activeLayoutRef.current = null;
+      }
+
+      let layoutConfig: any;
+      if (layoutName === 'dagre') {
+        layoutConfig = {
+          name: 'dagre',
+          rankDir: 'LR',
+          nodeSep: 60,
+          rankSep: 140,
+          animate: false,
+          fit: true,
+          padding: 60,
+        };
+      } else if (layoutName === 'concentric') {
+        layoutConfig = {
+          name: 'concentric',
+          concentric: (node: any) => {
+            const kind = node.data('kind');
+            if (kind === 'Ingress') return 4;
+            if (kind === 'Service') return 3;
+            if (kind === 'Topic') return 2;
+            return 1;
+          },
+          levelWidth: () => 1,
+          animate: false,
+          fit: true,
+          padding: 60,
+        };
+      } else {
+        // Organic Force-Directed (COSE)
+        layoutConfig = {
+          name: 'cose',
+          animate: false,
+          randomize: false,
+          componentSpacing: 80,
+          nodeRepulsion: () => 450000,
+          nodeOverlap: 25,
+          idealEdgeLength: () => 140,
+          edgeElasticity: () => 100,
+          nestingFactor: 5,
+          gravity: 60,
+          numIter: 300,
+          coolingFactor: 0.95,
+          fit: true,
+          padding: 60,
+        };
+      }
+
+      try {
+        const layout = cy.layout({
+          ...layoutConfig,
+          stop: () => {
+            if (!cancelled) {
+              setIsPreparing(false);
+            }
+          },
+        });
+        activeLayoutRef.current = layout;
+        layout.run();
+        setTimeout(() => {
+          if (!cancelled) {
+            setIsPreparing(false);
+          }
+        }, 1200);
+      } catch {
+        if (!cancelled) {
+          setIsPreparing(false);
+        }
+      }
+    };
+
+    runAsyncLayout();
+
+    return () => {
+      cancelled = true;
+      if (activeLayoutRef.current) {
+        try {
+          activeLayoutRef.current.stop();
+        } catch {}
+        activeLayoutRef.current = null;
+      }
+    };
+  }, [elements, layoutName]);
 
   // Search Query Filter
   useEffect(() => {
@@ -1150,16 +1202,25 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
   }, []);
 
-  const handleLayoutChange = useCallback(
-    (newLayout: 'cose' | 'dagre' | 'concentric') => {
-      setLayoutName(newLayout);
-      applyLayout(newLayout);
-    },
-    [applyLayout]
-  );
+  const handleLayoutChange = useCallback((newLayout: 'cose' | 'dagre' | 'concentric') => {
+    setLayoutName(newLayout);
+  }, []);
 
   return (
     <div className="domain-map-canvas-container">
+      {/* Non-blocking loading overlay during heavy synthesis and layout */}
+      {isPreparing && (
+        <div className="view-loading-overlay">
+          <div className="view-loading-card">
+            <div className="view-loading-spinner" />
+            <div className="view-loading-content">
+              <span className="view-loading-title">Domain Microservice Map</span>
+              <span className="view-loading-subtitle">{preparingStatus}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Floating HUD */}
       <div className="domain-map-hud">
         <div className="domain-hud-title-badge">

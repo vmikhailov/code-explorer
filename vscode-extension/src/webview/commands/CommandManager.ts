@@ -1,8 +1,8 @@
 import { ICommand, ICommandManager, CommandManagerSnapshot } from './types';
 
 export class CommandManager implements ICommandManager {
-  private undoStack: ICommand[] = [];
-  private redoStack: ICommand[] = [];
+  private scopes: Map<string, { undoStack: ICommand[]; redoStack: ICommand[] }> = new Map();
+  private currentScope: string = 'default';
   private readonly maxHistorySize: number;
   private listeners: Set<() => void> = new Set();
   private version: number = 0;
@@ -10,6 +10,29 @@ export class CommandManager implements ICommandManager {
 
   constructor(maxHistorySize: number = 100) {
     this.maxHistorySize = maxHistorySize;
+    this.scopes.set('default', { undoStack: [], redoStack: [] });
+  }
+
+  public setScope(scope: string): void {
+    if (!scope || this.currentScope === scope) return;
+    this.currentScope = scope;
+    if (!this.scopes.has(scope)) {
+      this.scopes.set(scope, { undoStack: [], redoStack: [] });
+    }
+    this.notifyChange();
+  }
+
+  public getScope(): string {
+    return this.currentScope;
+  }
+
+  private getActiveStacks(): { undoStack: ICommand[]; redoStack: ICommand[] } {
+    let s = this.scopes.get(this.currentScope);
+    if (!s) {
+      s = { undoStack: [], redoStack: [] };
+      this.scopes.set(this.currentScope, s);
+    }
+    return s;
   }
 
   public executeCommand(command: ICommand): void {
@@ -20,76 +43,84 @@ export class CommandManager implements ICommandManager {
       throw err;
     }
 
-    this.undoStack.push(command);
-    if (this.undoStack.length > this.maxHistorySize) {
-      this.undoStack.shift();
+    const { undoStack, redoStack } = this.getActiveStacks();
+    undoStack.push(command);
+    if (undoStack.length > this.maxHistorySize) {
+      undoStack.shift();
     }
 
-    // A new action clears the redo stack (standard linear history branching)
-    this.redoStack = [];
+    // A new action clears the redo stack for the current scope
+    redoStack.length = 0;
     this.notifyChange();
   }
 
   public undo(): boolean {
-    if (this.undoStack.length === 0) {
+    const { undoStack, redoStack } = this.getActiveStacks();
+    if (undoStack.length === 0) {
       return false;
     }
 
-    const command = this.undoStack.pop()!;
+    const command = undoStack.pop()!;
     try {
       command.undo();
     } catch (err) {
       console.error(`[CommandManager] Error undoing command '${command.description}':`, err);
       // Restore back to undo stack so state isn't permanently corrupted
-      this.undoStack.push(command);
+      undoStack.push(command);
       this.notifyChange();
       throw err;
     }
 
-    this.redoStack.push(command);
+    redoStack.push(command);
     this.notifyChange();
     return true;
   }
 
   public redo(): boolean {
-    if (this.redoStack.length === 0) {
+    const { undoStack, redoStack } = this.getActiveStacks();
+    if (redoStack.length === 0) {
       return false;
     }
 
-    const command = this.redoStack.pop()!;
+    const command = redoStack.pop()!;
     try {
       command.execute();
     } catch (err) {
       console.error(`[CommandManager] Error redoing command '${command.description}':`, err);
-      this.redoStack.push(command);
+      redoStack.push(command);
       this.notifyChange();
       throw err;
     }
 
-    this.undoStack.push(command);
+    undoStack.push(command);
     this.notifyChange();
     return true;
   }
 
   public get canUndo(): boolean {
-    return this.undoStack.length > 0;
+    const { undoStack } = this.getActiveStacks();
+    return undoStack.length > 0;
   }
 
   public get canRedo(): boolean {
-    return this.redoStack.length > 0;
+    const { redoStack } = this.getActiveStacks();
+    return redoStack.length > 0;
   }
 
   public get undoDescription(): string | null {
-    return this.undoStack.length > 0 ? this.undoStack[this.undoStack.length - 1].description : null;
+    const { undoStack } = this.getActiveStacks();
+    return undoStack.length > 0 ? undoStack[undoStack.length - 1].description : null;
   }
 
   public get redoDescription(): string | null {
-    return this.redoStack.length > 0 ? this.redoStack[this.redoStack.length - 1].description : null;
+    const { redoStack } = this.getActiveStacks();
+    return redoStack.length > 0 ? redoStack[redoStack.length - 1].description : null;
   }
 
   public clear(): void {
-    this.undoStack = [];
-    this.redoStack = [];
+    const { undoStack, redoStack } = this.getActiveStacks();
+    undoStack.length = 0;
+    redoStack.length = 0;
     this.notifyChange();
   }
 
@@ -105,14 +136,16 @@ export class CommandManager implements ICommandManager {
       return this.cachedSnapshot;
     }
 
+    const { undoStack, redoStack } = this.getActiveStacks();
     this.cachedSnapshot = {
-      canUndo: this.canUndo,
-      canRedo: this.canRedo,
+      canUndo: undoStack.length > 0,
+      canRedo: redoStack.length > 0,
       undoDescription: this.undoDescription,
       redoDescription: this.redoDescription,
-      undoCount: this.undoStack.length,
-      redoCount: this.redoStack.length,
+      undoCount: undoStack.length,
+      redoCount: redoStack.length,
       version: this.version,
+      scope: this.currentScope,
     };
 
     return this.cachedSnapshot;

@@ -226,7 +226,6 @@ Every node identifier is prefixed with `{workspaceId}` to guarantee isolation:
 | **Layer 3** | **`Function`** | `{workspaceId}:symbol:{relativeFilePath}:Function:{name}:{line}` | `1:symbol:src/Orders.cs:Function:Get:25` |
 | **Layer 3** | **`Member`** | `{workspaceId}:symbol:{relativeFilePath}:Member:{name}:{line}` | `1:symbol:src/Orders.cs:Member:id:26` |
 | **Layer 4** | **`SemanticStructure`**| `{workspaceId}:semantic_structure` | `1:semantic_structure` |
-| **Layer 4** | **`ProjectSemantic`** | `{workspaceId}:project:{relativeProjectDir}:project_semantic` | `1:project:src/:project_semantic` |
 | **Layer 4** | **`Endpoint`** | `{workspaceId}:endpoint:{http_method}:{route}` | `1:endpoint:GET:/api/orders` |
 | **Layer 4** | **`Database`** | `{workspaceId}:db:{db_type}:{name}` | `1:db:sqlserver:ProductionDb` |
 | **Layer 4** | **`Topic`** | `{workspaceId}:topic:{broker_type}:{name}` | `1:topic:rabbitmq:order-events` |

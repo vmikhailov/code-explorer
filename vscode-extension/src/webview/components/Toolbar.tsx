@@ -179,7 +179,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <span className="btn-icon">🧪</span>
               <span className="btn-text">{showTests ? 'Hide Tests' : 'Show Tests'}</span>
             </button>
-            <button onClick={onRefresh} title="Reload layers" className="ctrl-btn icon-btn">
+            <button onClick={onRefresh} title="Reload Architecture Tiers" className="ctrl-btn icon-btn">
               <span className="btn-icon">🔄</span>
               <span className="btn-text">Refresh</span>
             </button>

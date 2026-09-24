@@ -2,33 +2,72 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
+export function getViewTitle(viewMode?: string): string {
+  switch (viewMode) {
+    case 'semantic':
+      return 'CodeExplorer: Domain Microservices';
+    case 'layers':
+      return 'CodeExplorer: Architecture Tiers';
+    case 'c1':
+      return 'CodeExplorer: C1 System Context';
+    case 'flow':
+      return 'CodeExplorer: Project Flow';
+    case 'full':
+      return 'CodeExplorer: Physical Graph';
+    case 'grid':
+      return 'CodeExplorer: Node Grid';
+    case 'mermaid':
+      return 'CodeExplorer: Mermaid Diagram';
+    default:
+      return 'CodeExplorer: Architecture';
+  }
+}
+
 export class GraphPanel {
-  public static currentPanel: GraphPanel | undefined;
+  public static readonly panels = new Map<string, GraphPanel>();
+  public static activePanel: GraphPanel | undefined;
+
+  public static get currentPanel(): GraphPanel | undefined {
+    return GraphPanel.activePanel || GraphPanel.panels.values().next().value;
+  }
+
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
+  private readonly viewMode: string;
   private disposables: vscode.Disposable[] = [];
+  private isWebviewReady = false;
+  private pendingMessages: any[] = [];
 
   public static createOrShow(
     extensionUri: vscode.Uri,
     wsUrl: string,
     workspaceRoot: string,
-    outputChannel?: vscode.OutputChannel
-  ) {
+    outputChannel?: vscode.OutputChannel,
+    initialViewMode?: string,
+    project?: string
+  ): GraphPanel {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.Active;
+    const mode = initialViewMode || 'layers';
 
-    if (GraphPanel.currentPanel) {
-      GraphPanel.currentPanel.panel.reveal(GraphPanel.currentPanel.panel.viewColumn ?? column);
-      GraphPanel.currentPanel.postMessage({
+    const existing = GraphPanel.panels.get(mode);
+    if (existing) {
+      existing.panel.reveal(existing.panel.viewColumn ?? column);
+      existing.postMessage({
         type: 'SERVER_CONFIG',
         wsUrl,
         workspaceRoot,
+        initialViewMode: mode,
       });
-      return;
+      existing.postMessage({ type: 'SET_VIEW_MODE', viewMode: mode });
+      if (project) {
+        existing.postMessage({ type: 'SELECT_PROJECT', project });
+      }
+      return existing;
     }
 
     const panel = vscode.window.createWebviewPanel(
-      'codeExplorerGraph',
-      'CodeExplorer: Graph',
+      `codeExplorerGraph.${mode}`,
+      getViewTitle(mode),
       column,
       {
         enableScripts: true,
@@ -37,7 +76,18 @@ export class GraphPanel {
       }
     );
 
-    GraphPanel.currentPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot, outputChannel);
+    const newPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot, outputChannel, mode);
+    GraphPanel.panels.set(mode, newPanel);
+    GraphPanel.activePanel = newPanel;
+
+    if (mode) {
+      newPanel.postMessage({ type: 'SET_VIEW_MODE', viewMode: mode });
+    }
+    if (project) {
+      newPanel.postMessage({ type: 'SELECT_PROJECT', project });
+    }
+
+    return newPanel;
   }
 
   private constructor(
@@ -45,10 +95,23 @@ export class GraphPanel {
     extensionUri: vscode.Uri,
     private wsUrl: string,
     private workspaceRoot: string,
-    private outputChannel?: vscode.OutputChannel
+    private outputChannel?: vscode.OutputChannel,
+    private initialViewMode?: string
   ) {
+    this.viewMode = initialViewMode || 'layers';
     this.panel = panel;
     this.extensionUri = extensionUri;
+
+    // Track active state for currentPanel getter
+    this.panel.onDidChangeViewState(
+      (e) => {
+        if (e.webviewPanel.active) {
+          GraphPanel.activePanel = this;
+        }
+      },
+      null,
+      this.disposables
+    );
 
     // Set webview HTML
     this.updateHtml();
@@ -61,20 +124,32 @@ export class GraphPanel {
       async (message) => {
         switch (message.type) {
           case 'WEBVIEW_READY':
-            this.outputChannel?.appendLine('[GraphPanel] Webview ready received. Sending SERVER_CONFIG.');
-            this.postMessage({
+            this.isWebviewReady = true;
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview ready. Sending SERVER_CONFIG.`);
+            this.panel.webview.postMessage({
               type: 'SERVER_CONFIG',
               wsUrl: this.wsUrl,
               workspaceRoot: this.workspaceRoot,
+              initialViewMode: this.initialViewMode,
             });
+            while (this.pendingMessages.length > 0) {
+              const queuedMsg = this.pendingMessages.shift();
+              this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Delivering queued message: ${queuedMsg.type}`);
+              this.panel.webview.postMessage(queuedMsg);
+            }
             break;
 
           case 'LOG':
-            this.outputChannel?.appendLine(`[Webview ${message.level || 'INFO'}] ${message.message}`);
+            this.outputChannel?.appendLine(`[Webview:${this.viewMode} ${message.level || 'INFO'}] ${message.message}`);
+            break;
+
+          case 'OPEN_VIEW':
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] OPEN_VIEW requested: ${message.viewMode} (project=${message.project})`);
+            await vscode.commands.executeCommand('codeExplorer.openView', message.viewMode, message.project);
             break;
 
           case 'OPEN_FILE':
-            this.outputChannel?.appendLine(`[GraphPanel] Open file requested: ${message.filePath}:${message.lineStart || 1}`);
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Open file requested: ${message.filePath}:${message.lineStart || 1}`);
             await this.handleOpenFile(message.filePath, message.lineStart, message.lineEnd);
             break;
 
@@ -239,6 +314,10 @@ export class GraphPanel {
   }
 
   public postMessage(message: any) {
+    if (!this.isWebviewReady) {
+      this.pendingMessages.push(message);
+      return;
+    }
     this.panel.webview.postMessage(message);
   }
 
@@ -276,7 +355,10 @@ export class GraphPanel {
   }
 
   public dispose() {
-    GraphPanel.currentPanel = undefined;
+    GraphPanel.panels.delete(this.viewMode);
+    if (GraphPanel.activePanel === this) {
+      GraphPanel.activePanel = GraphPanel.panels.values().next().value;
+    }
     this.panel.dispose();
     while (this.disposables.length) {
       const d = this.disposables.pop();

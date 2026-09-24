@@ -130,7 +130,7 @@ export function activate(context: vscode.ExtensionContext) {
           try {
             progress.report({ message: 'Connecting to ce serve...' });
             const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
-            GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel);
+            GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel, 'semantic');
           } catch (err: any) {
             outputChannel.appendLine(`\n[CodeExplorer Server Activation Error]\n${err.message}\n`);
             const firstLine = err.message.split('\n')[0] || 'Server process failed';
@@ -184,16 +184,12 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
-        GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel);
-        setTimeout(() => {
-          if (GraphPanel.currentPanel) {
-            GraphPanel.currentPanel.postMessage({
-              type: 'OPEN_NODE_GRID',
-              kind,
-              layerName,
-            });
-          }
-        }, 300);
+        const panel = GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel, 'grid');
+        panel.postMessage({
+          type: 'OPEN_NODE_GRID',
+          kind,
+          layerName,
+        });
       } catch (err: any) {
         outputChannel.appendLine(`[openNodeGrid Error] ${err.message}`);
       }
@@ -203,7 +199,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Command: Open Specific View (e.g. 'c1', 'flow', 'layers', 'semantic', 'full')
   const openViewCommand = vscode.commands.registerCommand(
     'codeExplorer.openView',
-    async (viewMode: string) => {
+    async (viewMode: string, project?: string) => {
       const workspaceRoot = getWorkspaceRoot();
       if (!workspaceRoot) {
         vscode.window.showWarningMessage('Please open a project workspace folder first.');
@@ -224,12 +220,18 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
-        GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel);
-        setTimeout(() => {
-          if (GraphPanel.currentPanel) {
-            GraphPanel.currentPanel.postMessage({ type: 'SET_VIEW_MODE', viewMode });
-          }
-        }, 300);
+        const panel = GraphPanel.createOrShow(
+          context.extensionUri,
+          serverInfo.wsUrl,
+          workspaceRoot,
+          outputChannel,
+          viewMode,
+          project
+        );
+        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode });
+        if (project) {
+          panel.postMessage({ type: 'SELECT_PROJECT', project });
+        }
       } catch (err: any) {
         outputChannel.appendLine(`[openView Error] ${err.message}`);
       }
@@ -249,16 +251,19 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
-        GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel);
-        setTimeout(() => {
-          if (GraphPanel.currentPanel) {
-            GraphPanel.currentPanel.postMessage({
-              type: 'FOCUS_NODE',
-              nodeId: targetId,
-              kind: targetKind,
-            });
-          }
-        }, 300);
+        const targetMode = targetKind === 'Project' ? 'flow' : 'semantic';
+        const panel = GraphPanel.createOrShow(
+          context.extensionUri,
+          serverInfo.wsUrl,
+          workspaceRoot,
+          outputChannel,
+          targetMode
+        );
+        panel.postMessage({
+          type: 'FOCUS_NODE',
+          nodeId: targetId,
+          kind: targetKind,
+        });
       } catch (err: any) {
         outputChannel.appendLine(`[focusNode Error] ${err.message}`);
       }
@@ -317,15 +322,17 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    if (!GraphPanel.currentPanel) {
+    if (GraphPanel.panels.size === 0) {
       await vscode.commands.executeCommand('codeExplorer.showGraph');
       setTimeout(() => {
-        if (GraphPanel.currentPanel) {
-          GraphPanel.currentPanel.postMessage({ type: 'TRIGGER_SCAN', clear });
+        for (const p of GraphPanel.panels.values()) {
+          p.postMessage({ type: 'TRIGGER_SCAN', clear });
         }
       }, 1000);
     } else {
-      GraphPanel.currentPanel.postMessage({ type: 'TRIGGER_SCAN', clear });
+      for (const p of GraphPanel.panels.values()) {
+        p.postMessage({ type: 'TRIGGER_SCAN', clear });
+      }
     }
     // Also refresh tree view after short delay
     setTimeout(() => treeDataProvider.refresh(), 1500);

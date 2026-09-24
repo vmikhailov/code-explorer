@@ -165,3 +165,46 @@ test('CommandManager: notify change and snapshots', () => {
   manager.undo();
   assert.equal(notifications, 3); // no new notifications after unsubscribe
 });
+
+test('CommandManager: scoped history isolation per view', () => {
+  const manager = new CommandManager(10);
+
+  // 1. In 'flow' view, execute a command
+  manager.setScope('flow');
+  assert.equal(manager.getScope(), 'flow');
+  assert.equal(manager.canUndo, false);
+
+  manager.executeCommand(new MockCommand('FLOW_1', 'Select Project A'));
+  assert.equal(manager.canUndo, true);
+  assert.equal(manager.undoDescription, 'Select Project A');
+
+  // 2. Switch to 'layers' view
+  manager.setScope('layers');
+  assert.equal(manager.getScope(), 'layers');
+  // 'layers' should have an empty stack initially
+  assert.equal(manager.canUndo, false);
+  assert.equal(manager.undoDescription, null);
+
+  manager.executeCommand(new MockCommand('LAYERS_1', 'Collapse Presentation'));
+  assert.equal(manager.canUndo, true);
+  assert.equal(manager.undoDescription, 'Collapse Presentation');
+
+  // 3. Switch back to 'flow' view
+  manager.setScope('flow');
+  // 'flow' stack is preserved intact!
+  assert.equal(manager.canUndo, true);
+  assert.equal(manager.undoDescription, 'Select Project A');
+
+  // Undo in 'flow'
+  assert.equal(manager.undo(), true);
+  assert.equal(manager.canUndo, false);
+  assert.equal(manager.canRedo, true);
+  assert.equal(manager.redoDescription, 'Select Project A');
+
+  // 4. Switch to 'layers' view again
+  manager.setScope('layers');
+  // 'layers' stack is unaffected by 'flow' undo!
+  assert.equal(manager.canUndo, true);
+  assert.equal(manager.undoDescription, 'Collapse Presentation');
+  assert.equal(manager.canRedo, false);
+});

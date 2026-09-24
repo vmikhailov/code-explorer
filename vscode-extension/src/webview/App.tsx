@@ -193,6 +193,10 @@ export const App: React.FC = () => {
     () => commandManager.getSnapshot()
   );
 
+  useEffect(() => {
+    commandManager.setScope(viewMode);
+  }, [viewMode, commandManager]);
+
   // Lifted UI interaction states for cross-view persistence & undoability
   const [flowExpandedCategories, setFlowExpandedCategories] = useState<Map<string, Set<string>>>(new Map());
   const [flowExpandedCards, setFlowExpandedCards] = useState<Set<string>>(new Set());
@@ -242,41 +246,47 @@ export const App: React.FC = () => {
   const handleViewModeChange = useCallback(
     (targetMode: ViewMode) => {
       if (viewMode === targetMode) return;
-      const cmd = new ChangeViewModeCommand(
-        viewMode,
-        targetMode,
-        selectedProject,
-        selectedProject,
-        setViewMode,
-        setSelectedProject,
-        (m, p) => {
-          if (m === 'flow' && p) {
-            requestDependencies(p);
-          } else if (m !== 'flow') {
-            requestArchitecture();
-          }
-        }
-      );
-      commandManager.executeCommand(cmd);
+      setViewMode(targetMode);
+      if (targetMode === 'flow' && selectedProject) {
+        requestDependencies(selectedProject);
+      } else if (targetMode !== 'flow') {
+        requestArchitecture();
+      }
     },
-    [viewMode, selectedProject, commandManager, requestDependencies, requestArchitecture]
+    [viewMode, selectedProject, requestDependencies, requestArchitecture]
   );
 
   const handleSelectProject = useCallback(
     (targetProject: string, targetMode: ViewMode = 'flow') => {
       if (selectedProject === targetProject && viewMode === targetMode) return;
+      if (viewMode !== targetMode) {
+        setViewMode(targetMode);
+        commandManager.setScope(targetMode);
+      }
       const cmd = new SelectProjectCommand(
         selectedProject,
         targetProject,
-        viewMode,
-        targetMode,
-        setViewMode,
         setSelectedProject,
         (p) => requestDependencies(p)
       );
       commandManager.executeCommand(cmd);
     },
     [selectedProject, viewMode, commandManager, requestDependencies]
+  );
+
+  const handleDrillDownToFlow = useCallback(
+    (targetProject: string) => {
+      if (vscodeApi) {
+        vscodeApi.postMessage({
+          type: 'OPEN_VIEW',
+          viewMode: 'flow',
+          project: targetProject,
+        });
+      } else {
+        handleSelectProject(targetProject, 'flow');
+      }
+    },
+    [handleSelectProject]
   );
 
   const handleToggleShowTests = useCallback(() => {
@@ -800,8 +810,12 @@ export const App: React.FC = () => {
       const msg = event.data;
       switch (msg.type) {
         case 'SERVER_CONFIG':
-          logToExtension('INFO', `Received SERVER_CONFIG: wsUrl=${msg.wsUrl}, workspace=${msg.workspaceRoot}`);
+          logToExtension('INFO', `Received SERVER_CONFIG: wsUrl=${msg.wsUrl}, workspace=${msg.workspaceRoot}, initialViewMode=${msg.initialViewMode}`);
           workspaceRootRef.current = msg.workspaceRoot;
+          if (msg.initialViewMode) {
+            setViewMode(msg.initialViewMode as ViewMode);
+            commandManager.setScope(msg.initialViewMode);
+          }
           connectWebSocket(msg.wsUrl);
           break;
 
@@ -821,6 +835,13 @@ export const App: React.FC = () => {
           logToExtension('INFO', `Received OPEN_NODE_GRID from extension: kind=${msg.kind}, layer=${msg.layerName}`);
           setGridCategory({ kind: msg.kind, layerTitle: msg.layerName });
           handleViewModeChange('grid');
+          break;
+
+        case 'SELECT_PROJECT':
+          logToExtension('INFO', `Received SELECT_PROJECT from extension: ${msg.project}`);
+          if (msg.project) {
+            handleSelectProject(msg.project, 'flow');
+          }
           break;
 
         case 'FOCUS_NODE':
@@ -1056,12 +1077,33 @@ export const App: React.FC = () => {
             </div>
           )}
 
+          {/* Global Loading Overlay when fetching initial graph data */}
+          {((viewMode === 'flow' && !flowGraph) || (viewMode !== 'flow' && !fullGraph)) &&
+            connectionStatus !== 'error' &&
+            connectionStatus !== 'disconnected' && (
+              <div className="view-loading-overlay">
+                <div className="view-loading-card">
+                  <div className="view-loading-spinner" />
+                  <div className="view-loading-content">
+                    <span className="view-loading-title">
+                      {viewMode === 'flow'
+                        ? `Loading dependencies for ${selectedProject || 'project'}...`
+                        : 'Loading architecture graph...'}
+                    </span>
+                    <span className="view-loading-subtitle">
+                      Querying CodeExplorer server
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
           <ErrorBoundary onLogError={(err) => logToExtension('ERROR', `View crash: ${err.message}\n${err.stack}`)}>
             {viewMode === 'c1' && (
               <C1SystemContextView
                 graph={fullGraph}
                 onOpenFile={handleOpenFile}
-                onDrillDownToC2={(p) => handleSelectProject(p, 'flow')}
+                onDrillDownToC2={handleDrillDownToFlow}
               />
             )}
 
@@ -1069,7 +1111,7 @@ export const App: React.FC = () => {
               <DomainArchitectureView
                 graph={fullGraph}
                 onOpenFile={handleOpenFile}
-                onFocusInFlow={(p) => handleSelectProject(p, 'flow')}
+                onFocusInFlow={handleDrillDownToFlow}
               />
             )}
 
@@ -1077,7 +1119,7 @@ export const App: React.FC = () => {
               <LayeredArchitectureView
                 graph={fullGraph}
                 onOpenFile={handleOpenFile}
-                onFocusInFlow={(p) => handleSelectProject(p, 'flow')}
+                onFocusInFlow={handleDrillDownToFlow}
                 showTests={showTests}
                 collapsedLayers={collapsedLayers}
                 onToggleLayer={handleToggleLayerCollapse}
@@ -1122,13 +1164,23 @@ export const App: React.FC = () => {
                 onFocusInDiagram={(nodeId, kind) => {
                   const p = allProjects.find((name) => nodeId.toLowerCase().includes(name.toLowerCase()));
                   if (p) {
-                    handleSelectProject(p, 'flow');
+                    handleDrillDownToFlow(p);
                   } else {
-                    handleViewModeChange('c1');
+                    if (vscodeApi) {
+                      vscodeApi.postMessage({ type: 'OPEN_VIEW', viewMode: 'c1' });
+                    } else {
+                      handleViewModeChange('c1');
+                    }
                   }
                 }}
                 onSelectNode={handleSelectDrawerNode}
-                onSwitchView={(m) => handleViewModeChange(m)}
+                onSwitchView={(m) => {
+                  if (vscodeApi) {
+                    vscodeApi.postMessage({ type: 'OPEN_VIEW', viewMode: m });
+                  } else {
+                    handleViewModeChange(m);
+                  }
+                }}
               />
             )}
 
@@ -1140,9 +1192,13 @@ export const App: React.FC = () => {
                 onFocusNode={(nodeId, kind) => {
                   const p = allProjects.find((name) => nodeId.toLowerCase().includes(name.toLowerCase()));
                   if (p) {
-                    handleSelectProject(p, 'flow');
+                    handleDrillDownToFlow(p);
                   } else {
-                    handleViewModeChange('c1');
+                    if (vscodeApi) {
+                      vscodeApi.postMessage({ type: 'OPEN_VIEW', viewMode: 'c1' });
+                    } else {
+                      handleViewModeChange('c1');
+                    }
                   }
                 }}
               />

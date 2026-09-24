@@ -9,7 +9,7 @@ function getViewModeLabel(mode: ViewMode): string {
     case 'c1':
       return 'C1: System Context & Boundaries';
     case 'layers':
-      return 'System Layers';
+      return 'Architecture Tiers';
     case 'flow':
       return 'Project Flow';
     case 'semantic':
@@ -78,7 +78,7 @@ export class ChangeViewModeCommand implements ICommand {
 }
 
 /**
- * Command for selecting a project (and optionally switching to flow view).
+ * Command for selecting a project within Project Flow view.
  */
 export class SelectProjectCommand implements ICommand {
   public readonly id = 'SELECT_PROJECT';
@@ -86,9 +86,6 @@ export class SelectProjectCommand implements ICommand {
   constructor(
     private readonly prevProject: string,
     private readonly nextProject: string,
-    private readonly prevMode: ViewMode,
-    private readonly nextMode: ViewMode,
-    private readonly setMode: (mode: ViewMode) => void,
     private readonly setProject: (project: string) => void,
     private readonly onRequestDependencies?: (project: string) => void
   ) {}
@@ -98,17 +95,11 @@ export class SelectProjectCommand implements ICommand {
   }
 
   public execute(): void {
-    if (this.nextMode !== this.prevMode) {
-      this.setMode(this.nextMode);
-    }
     this.setProject(this.nextProject);
     this.onRequestDependencies?.(this.nextProject);
   }
 
   public undo(): void {
-    if (this.prevMode !== this.nextMode) {
-      this.setMode(this.prevMode);
-    }
     this.setProject(this.prevProject);
     if (this.prevProject) {
       this.onRequestDependencies?.(this.prevProject);

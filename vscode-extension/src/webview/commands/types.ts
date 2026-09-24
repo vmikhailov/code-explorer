@@ -24,9 +24,16 @@ export interface CommandManagerSnapshot {
   readonly undoCount: number;
   readonly redoCount: number;
   readonly version: number;
+  readonly scope?: string;
 }
 
 export interface ICommandManager {
+  /** Sets the active history scope (e.g. 'flow', 'layers', 'c1') */
+  setScope(scope: string): void;
+
+  /** Gets the active history scope */
+  getScope(): string;
+
   /** Executes a command, pushes it to undo stack, and clears redo stack */
   executeCommand(command: ICommand): void;
 
@@ -48,7 +55,7 @@ export interface ICommandManager {
   /** Description of the action that will be redone */
   readonly redoDescription: string | null;
 
-  /** Clears both undo and redo history */
+  /** Clears undo and redo history for active scope */
   clear(): void;
 
   /** Subscribes to history changes */

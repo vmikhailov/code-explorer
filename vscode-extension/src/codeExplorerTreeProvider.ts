@@ -228,10 +228,10 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const diagrams = [
       {
         mode: 'layers',
-        label: 'Project Architecture Diagram',
+        label: 'Architecture Tiers',
         desc: 'Tiered projects & databases',
         icon: 'layers',
-        tooltip: 'Project Architecture Diagram — Tiered system view (Presentation, Application, Domain, Infrastructure)',
+        tooltip: 'Architecture Tiers — Tiered system view (Presentation, Application, Domain, Infrastructure)',
       },
       {
         mode: 'c1',
