@@ -39,37 +39,63 @@ public static class ProjectRoleDetector
             return (ProjectRole.Test, true);
         }
 
-        // 2. Database Migration Detection
+        // 2. Angular Library / Secondary Entry Point Detection (e.g. ng-package.json, package.json with "ngPackage")
+        if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase)))
+        {
+            return (ProjectRole.SharedLibrary, true);
+        }
+
+        var pkgJson = Path.Combine(directoryPath, "package.json");
+        if (File.Exists(pkgJson))
+        {
+            try
+            {
+                var content = File.ReadAllText(pkgJson);
+                if (content.Contains("\"ngPackage\"", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (ProjectRole.SharedLibrary, true);
+                }
+            }
+            catch { }
+        }
+
+        // 3. Explicit Library Directory Paths (/src/lib/, /lib/, /libs/, /packages/)
+        if (normRelPath.Contains("/src/lib/") || normRelPath.Contains("/libs/") || normRelPath.Contains("/lib/"))
+        {
+            return (ProjectRole.SharedLibrary, true);
+        }
+
+        // 4. Database Migration Detection
         if (IsDatabaseMigration(normName, normRelPath, normProjType, filesInDirectory))
         {
             return (ProjectRole.DatabaseMigration, false);
         }
 
-        // 3. Frontend Application Detection
+        // 5. Frontend Application Detection
         if (IsFrontendApp(normName, normRelPath, normProjType, filesInDirectory, dependencies))
         {
             return (ProjectRole.FrontendApp, false);
         }
 
-        // 4. Worker / Background Consumer Detection
+        // 6. Worker / Background Consumer Detection
         if (IsWorker(normName, normRelPath, filesInDirectory))
         {
             return (ProjectRole.Worker, false);
         }
 
-        // 5. CLI Tool Detection
+        // 7. CLI Tool Detection
         if (IsCliTool(normName, normRelPath))
         {
             return (ProjectRole.CliTool, false);
         }
 
-        // 6. Shared Library Detection
+        // 8. Shared Library Detection (name patterns, other heuristics)
         if (IsSharedLibrary(normName, normRelPath, filesInDirectory, normProjType))
         {
             return (ProjectRole.SharedLibrary, true);
         }
 
-        // 7. Default to Service (executable API / container)
+        // 9. Default to Service (executable API / container)
         return (ProjectRole.Service, false);
     }
 
@@ -85,25 +111,25 @@ public static class ProjectRoleDetector
         if (name.EndsWith(".tests") || name.EndsWith("-tests") || name.EndsWith("_tests") ||
             name.EndsWith(".test") || name.EndsWith("-test") || name.EndsWith("_test") ||
             name.EndsWith(".specs") || name.EndsWith("-specs") ||
-            name.EndsWith(".spec") || name.EndsWith("-spec"))
+            name.EndsWith(".spec") || name.EndsWith("-spec") ||
+            name is "test" or "tests" or "spec" or "specs")
         {
             return true;
         }
 
-        if (deps != null && deps.Any(d => TestPackageTokens.Any(token => d.Contains(token, StringComparison.OrdinalIgnoreCase))))
+        var codeFiles = files.Where(f =>
         {
-            return true;
-        }
+            var ext = Path.GetExtension(f).ToLowerInvariant();
+            return ext is ".ts" or ".js" or ".cs" or ".java" or ".go" or ".py";
+        }).ToList();
 
-        if (files.Any(f =>
+        if (codeFiles.Count > 0 && codeFiles.All(f =>
         {
-            var fn = Path.GetFileName(f);
-            return fn.EndsWith(".test.ts", StringComparison.OrdinalIgnoreCase) ||
-                   fn.EndsWith(".spec.ts", StringComparison.OrdinalIgnoreCase) ||
-                   fn.EndsWith(".test.js", StringComparison.OrdinalIgnoreCase) ||
-                   fn.EndsWith("Tests.cs", StringComparison.OrdinalIgnoreCase) ||
-                   fn.EndsWith("Test.cs", StringComparison.OrdinalIgnoreCase) ||
-                   fn.EndsWith("Test.java", StringComparison.OrdinalIgnoreCase);
+            var fn = Path.GetFileName(f).ToLowerInvariant();
+            return fn.EndsWith(".test.ts") || fn.EndsWith(".spec.ts") ||
+                   fn.EndsWith(".test.js") || fn.EndsWith(".spec.js") ||
+                   fn.EndsWith("tests.cs") || fn.EndsWith("test.cs") ||
+                   fn.EndsWith("test.java");
         }))
         {
             return true;
@@ -135,6 +161,16 @@ public static class ProjectRoleDetector
 
     private static bool IsFrontendApp(string name, string relPath, string projType, string[] files, IReadOnlyList<string>? deps)
     {
+        if (relPath.Contains("/src/lib/") || relPath.Contains("/lib/") || relPath.Contains("/libs/"))
+        {
+            return false;
+        }
+
+        if (files.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
         if (files.Any(f =>
         {
             var fn = Path.GetFileName(f).ToLowerInvariant();
@@ -149,11 +185,15 @@ public static class ProjectRoleDetector
 
         if (deps != null && deps.Any(d => FrontendPackageTokens.Any(token => d.Equals(token, StringComparison.OrdinalIgnoreCase))))
         {
-            return true;
+            if (files.Any(f => Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase)) ||
+                files.Any(f => Path.GetFileName(f).Equals("main.ts", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f).Equals("main.tsx", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
         }
 
         if (relPath.Contains("/frontend/") || relPath.Contains("/client/") ||
-            relPath.Contains("/web/") || relPath.Contains("/ui/"))
+            relPath.Contains("/web/"))
         {
             // If it has HTML or TypeScript/JS files, it's frontend
             if (projType is "typescript" or "javascript" || files.Any(f => Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase)))
@@ -162,7 +202,7 @@ public static class ProjectRoleDetector
             }
         }
 
-        if (name.EndsWith("-ui") || name.EndsWith("-web") || name.EndsWith("-frontend") || name.EndsWith("-client"))
+        if (name.EndsWith("-ui") || name.EndsWith("-web") || name.EndsWith("-frontend") || name.EndsWith("-client") || name.EndsWith("-fe") || name.EndsWith("-landings") || name == "cf-landings")
         {
             return true;
         }

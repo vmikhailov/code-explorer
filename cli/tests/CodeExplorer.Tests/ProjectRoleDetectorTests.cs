@@ -134,4 +134,43 @@ public class ProjectRoleDetectorTests
         Assert.That(role, Is.EqualTo(ProjectRole.Service));
         Assert.That(isLib, Is.False);
     }
+
+    [Test]
+    public void DetectRole_IdentifiesAngularLibrariesAndSecondaryEntryPoints()
+    {
+        var (roleLib, isLib) = ProjectRoleDetector.DetectRole(
+            "/workspace/fe/projects/ui/src/lib/button",
+            ["/workspace/fe/projects/ui/src/lib/button/button.component.ts", "/workspace/fe/projects/ui/src/lib/button/public-api.ts"],
+            "fe/projects/ui/src/lib/button",
+            "button",
+            "typescript"
+        );
+        Assert.That(roleLib, Is.EqualTo(ProjectRole.SharedLibrary));
+        Assert.That(isLib, Is.True);
+
+        var (roleRootLib, isRootLib) = ProjectRoleDetector.DetectRole(
+            "/workspace/fe/projects/ui",
+            ["/workspace/fe/projects/ui/ng-package.json", "/workspace/fe/projects/ui/package.json"],
+            "fe/projects/ui",
+            "@atsystems/ui",
+            "typescript"
+        );
+        Assert.That(roleRootLib, Is.EqualTo(ProjectRole.SharedLibrary));
+        Assert.That(isRootLib, Is.True);
+    }
+
+    [Test]
+    public void DetectRole_DoesNotClassifyBackendServiceWithJestAsTestProject()
+    {
+        var (role, isLib) = ProjectRoleDetector.DetectRole(
+            "/workspace/services/bff",
+            ["/workspace/services/bff/main.ts", "/workspace/services/bff/app.module.ts", "/workspace/services/bff/app.controller.spec.ts"],
+            "services/bff",
+            "bff",
+            "typescript",
+            ["@nestjs/core", "jest", "@types/jest", "supertest"]
+        );
+        Assert.That(role, Is.EqualTo(ProjectRole.Service));
+        Assert.That(isLib, Is.False);
+    }
 }

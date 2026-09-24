@@ -826,6 +826,20 @@ public class ArchitectureViewEngine(IGraphClient db)
                 }
             }
             result.TotalNodes = totalNodes;
+
+            // 1b. Project counts by architectural role for Layer 4 semantic workloads
+            var roleQuery = "MATCH (p:Project) RETURN json_extract(p.properties, '$.role') AS role, count(p) AS cnt";
+            var roleJson = await db.ExecuteQueryAsync(roleQuery, null, ct);
+            using var roleDoc = JsonDocument.Parse(roleJson);
+            foreach (var row in roleDoc.RootElement.EnumerateArray())
+            {
+                var role = row.GetStringProp("role");
+                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
+                if (!string.IsNullOrEmpty(role))
+                {
+                    result.NodeCounts[$"Role:{role}"] = cnt;
+                }
+            }
         }
         catch { }
 
@@ -991,7 +1005,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
         else if (string.Equals(safeKind, "Layer2", StringComparison.OrdinalIgnoreCase))
         {
-            layerFilter = "WHERE (n:Project OR n:Library OR n:SharedLibrary OR n:Package OR n:Service OR n:App OR n:Worker)";
+            layerFilter = "WHERE (n:Project OR n:Package)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "Layer3", StringComparison.OrdinalIgnoreCase))
@@ -1001,7 +1015,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
         else if (string.Equals(safeKind, "Layer4", StringComparison.OrdinalIgnoreCase))
         {
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query)";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query OR (n:Project AND json_extract(n.properties, '$.role') IN ('Service', 'FrontendApp', 'Worker', 'CliTool', 'SharedLibrary')))";
             safeKind = null;
         }
 
@@ -1496,28 +1510,11 @@ public class ArchitectureViewEngine(IGraphClient db)
             new() { Kind = "GitSettings", Label = "Git Settings", Icon = "git-commit", Count = counts.GetValueOrDefault("GitSettings", 0), LayerId = 1 }
         };
 
-        var l2Categories = new List<OntologyCategoryDto>();
-        if (counts.GetValueOrDefault("Project", 0) > 0 || counts.GetValueOrDefault("Library", 0) == 0)
+        var l2Categories = new List<OntologyCategoryDto>
         {
-            l2Categories.Add(new() { Kind = "Project", Label = "Projects", Icon = "project", Count = counts.GetValueOrDefault("Project", 0), LayerId = 2 });
-        }
-        if (counts.GetValueOrDefault("Service", 0) > 0)
-        {
-            l2Categories.Add(new() { Kind = "Service", Label = "Services", Icon = "server-process", Count = counts.GetValueOrDefault("Service", 0), LayerId = 2 });
-        }
-        if (counts.GetValueOrDefault("App", 0) > 0)
-        {
-            l2Categories.Add(new() { Kind = "App", Label = "Applications", Icon = "browser", Count = counts.GetValueOrDefault("App", 0), LayerId = 2 });
-        }
-        if (counts.GetValueOrDefault("Worker", 0) > 0)
-        {
-            l2Categories.Add(new() { Kind = "Worker", Label = "Workers", Icon = "gear", Count = counts.GetValueOrDefault("Worker", 0), LayerId = 2 });
-        }
-        if (counts.GetValueOrDefault("Library", 0) > 0 || counts.GetValueOrDefault("SharedLibrary", 0) > 0)
-        {
-            l2Categories.Add(new() { Kind = "Library", Label = "Libraries & SDKs", Icon = "library", Count = counts.GetValueOrDefault("Library", 0) + counts.GetValueOrDefault("SharedLibrary", 0), LayerId = 2 });
-        }
-        l2Categories.Add(new() { Kind = "Package", Label = "Packages & Dependencies", Icon = "package", Count = counts.GetValueOrDefault("Package", 0), LayerId = 2 });
+            new() { Kind = "Project", Label = "Projects", Icon = "project", Count = counts.GetValueOrDefault("Project", 0), LayerId = 2 },
+            new() { Kind = "Package", Label = "Packages & Dependencies", Icon = "package", Count = counts.GetValueOrDefault("Package", 0), LayerId = 2 }
+        };
 
         var l3Categories = new List<OntologyCategoryDto>
         {
@@ -1526,15 +1523,19 @@ public class ArchitectureViewEngine(IGraphClient db)
             new() { Kind = "Member", Label = "Members & Fields", Icon = "symbol-field", Count = counts.GetValueOrDefault("Member", 0), LayerId = 3 }
         };
 
-        var totalServiceWorkloads = counts.GetValueOrDefault("Service", 0) +
-                                    counts.GetValueOrDefault("App", 0) +
-                                    counts.GetValueOrDefault("FrontendApp", 0) +
-                                    counts.GetValueOrDefault("Worker", 0) +
-                                    counts.GetValueOrDefault("CliTool", 0);
+        var serviceCount = counts.GetValueOrDefault("Role:Service", 0) + counts.GetValueOrDefault("Service", 0);
+        var appCount = counts.GetValueOrDefault("Role:FrontendApp", 0) + counts.GetValueOrDefault("App", 0) + counts.GetValueOrDefault("FrontendApp", 0);
+        var workerCount = counts.GetValueOrDefault("Role:Worker", 0) + counts.GetValueOrDefault("Worker", 0);
+        var libCount = counts.GetValueOrDefault("Role:SharedLibrary", 0) + counts.GetValueOrDefault("Library", 0) + counts.GetValueOrDefault("SharedLibrary", 0);
+
+        var totalServiceWorkloads = serviceCount + appCount + workerCount;
 
         var l4Categories = new List<OntologyCategoryDto>
         {
-            new() { Kind = "Service", Label = "Services & Workloads", Icon = "server-process", Count = totalServiceWorkloads, LayerId = 4 },
+            new() { Kind = "Service", Label = "Services", Icon = "server-process", Count = serviceCount, LayerId = 4 },
+            new() { Kind = "App", Label = "Applications", Icon = "browser", Count = appCount, LayerId = 4 },
+            new() { Kind = "Worker", Label = "Workers", Icon = "gear", Count = workerCount, LayerId = 4 },
+            new() { Kind = "Library", Label = "Libraries & SDKs", Icon = "library", Count = libCount, LayerId = 4 },
             new() { Kind = "Endpoint", Label = "API Endpoints (REST, gRPC, WS)", Icon = "radio-tower", Count = counts.GetValueOrDefault("Endpoint", 0), LayerId = 4 },
             new() { Kind = "Database", Label = "Databases & Storage", Icon = "database", Count = counts.GetValueOrDefault("Database", 0) + counts.GetValueOrDefault("Table", 0), LayerId = 4 },
             new() { Kind = "Topic", Label = "Message Topics & Queues", Icon = "mail", Count = counts.GetValueOrDefault("Topic", 0), LayerId = 4 },
@@ -1632,7 +1633,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         var list = new List<ServiceSummaryDto>();
         try
         {
-            var query = "MATCH (s) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
+            var query = "MATCH (s) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
             var json = await db.ExecuteQueryAsync(query, null, ct);
             using var doc = JsonDocument.Parse(json);
             var serviceMap = new Dictionary<string, ServiceSummaryDto>(StringComparer.OrdinalIgnoreCase);
@@ -1645,7 +1646,15 @@ public class ArchitectureViewEngine(IGraphClient db)
                 if (string.IsNullOrWhiteSpace(name)) continue;
 
                 var kind = "Service";
-                if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
+                if (row.TryGetProperty("role", out var roleProp) && roleProp.ValueKind == JsonValueKind.String)
+                {
+                    var r = roleProp.GetString();
+                    if (r is "FrontendApp" or "App") kind = "App";
+                    else if (r is "Worker") kind = "Worker";
+                    else if (r is "SharedLibrary" or "Library") kind = "Library";
+                    else if (r is "CliTool") kind = "CliTool";
+                }
+                else if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var l in lblProp.EnumerateArray())
                     {

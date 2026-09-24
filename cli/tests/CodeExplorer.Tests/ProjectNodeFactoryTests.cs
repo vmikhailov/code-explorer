@@ -19,8 +19,8 @@ public class ProjectNodeFactoryTests
             ["/workspace/services/orders/Program.cs", "/workspace/services/orders/Orders.csproj"]
         );
 
-        Assert.That(node, Is.InstanceOf<ServiceNode>());
-        Assert.That(node.Kind, Is.EqualTo("Service"));
+        Assert.That(node, Is.InstanceOf<ProjectNode>());
+        Assert.That(node.Kind, Is.EqualTo("Project"));
         Assert.That(node.Role, Is.EqualTo("Service"));
         Assert.That(node.IsLibrary, Is.False);
         Assert.That(node.Extensions?["role"], Is.EqualTo("Service"));
@@ -40,8 +40,8 @@ public class ProjectNodeFactoryTests
             ["react", "react-dom"]
         );
 
-        Assert.That(node, Is.InstanceOf<AppNode>());
-        Assert.That(node.Kind, Is.EqualTo("App"));
+        Assert.That(node, Is.InstanceOf<ProjectNode>());
+        Assert.That(node.Kind, Is.EqualTo("Project"));
         Assert.That(node.Role, Is.EqualTo("FrontendApp"));
         Assert.That(node.IsLibrary, Is.False);
     }
@@ -58,8 +58,8 @@ public class ProjectNodeFactoryTests
             ["/workspace/libs/common/Common.csproj"]
         );
 
-        Assert.That(node, Is.InstanceOf<LibraryNode>());
-        Assert.That(node.Kind, Is.EqualTo("Library"));
+        Assert.That(node, Is.InstanceOf<ProjectNode>());
+        Assert.That(node.Kind, Is.EqualTo("Project"));
         Assert.That(node.Role, Is.EqualTo("SharedLibrary"));
         Assert.That(node.IsLibrary, Is.True);
         Assert.That(node.Extensions?["entity_type"], Is.EqualTo("library"));
@@ -77,8 +77,8 @@ public class ProjectNodeFactoryTests
             ["/workspace/workers/email-worker/Worker.cs"]
         );
 
-        Assert.That(node, Is.InstanceOf<WorkerNode>());
-        Assert.That(node.Kind, Is.EqualTo("Worker"));
+        Assert.That(node, Is.InstanceOf<ProjectNode>());
+        Assert.That(node.Kind, Is.EqualTo("Project"));
         Assert.That(node.Role, Is.EqualTo("Worker"));
         Assert.That(node.IsLibrary, Is.False);
     }
@@ -95,8 +95,8 @@ public class ProjectNodeFactoryTests
             ["/workspace/tools/db-migrator-cli/Program.cs"]
         );
 
-        Assert.That(node, Is.InstanceOf<CliToolNode>());
-        Assert.That(node.Kind, Is.EqualTo("CliTool"));
+        Assert.That(node, Is.InstanceOf<ProjectNode>());
+        Assert.That(node.Kind, Is.EqualTo("Project"));
         Assert.That(node.Role, Is.EqualTo("CliTool"));
         Assert.That(node.IsLibrary, Is.False);
     }

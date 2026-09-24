@@ -33,40 +33,6 @@ public static class ProjectNodeFactory
         extensions["is_library"] = isLibrary ? "true" : "false";
         extensions["entity_type"] = isLibrary ? "library" : "service";
 
-        return role switch
-        {
-            ProjectRole.Service => new ServiceNode(id, projectName, relativeProjectDir, projectType, extensions)
-            {
-                Role = role.ToString(),
-                IsLibrary = isLibrary
-            },
-            ProjectRole.FrontendApp => new AppNode(id, projectName, relativeProjectDir, projectType, extensions)
-            {
-                Role = role.ToString(),
-                IsLibrary = isLibrary
-            },
-            ProjectRole.SharedLibrary => new LibraryNode(id, projectName, relativeProjectDir, projectType, extensions)
-            {
-                Role = role.ToString(),
-                IsLibrary = isLibrary
-            },
-            ProjectRole.Worker => new WorkerNode(id, projectName, relativeProjectDir, projectType, extensions)
-            {
-                Role = role.ToString(),
-                IsLibrary = isLibrary
-            },
-            ProjectRole.CliTool => new CliToolNode(id, projectName, relativeProjectDir, projectType, extensions)
-            {
-                Role = role.ToString(),
-                IsLibrary = isLibrary
-            },
-            _ => isLibrary
-                ? new LibraryNode(id, projectName, relativeProjectDir, projectType, extensions)
-                {
-                    Role = role.ToString(),
-                    IsLibrary = isLibrary
-                }
-                : new ProjectNode(id, projectName, relativeProjectDir, projectType, role.ToString(), isLibrary, extensions)
-        };
+        return new ProjectNode(id, projectName, relativeProjectDir, projectType, role.ToString(), isLibrary, extensions);
     }
 }
