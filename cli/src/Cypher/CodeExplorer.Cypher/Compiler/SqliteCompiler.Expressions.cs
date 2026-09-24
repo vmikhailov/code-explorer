@@ -129,6 +129,11 @@ public partial class SqliteCompiler
             return $"COALESCE(json_extract({propSrc}, '$.kind'), {propSrc})";
         }
 
+        if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
+        {
+            return propSrc;
+        }
+
         return $"json_extract({propSrc}, '$.{propName}')";
     }
 
@@ -156,6 +161,11 @@ public partial class SqliteCompiler
                 return $"{v}.to_id";
             }
 
+            if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{v}.properties";
+            }
+
             return $"json_extract({v}.properties, '$.{propName}')";
         }
 
@@ -167,6 +177,11 @@ public partial class SqliteCompiler
         if (propName.Equals("kind", StringComparison.OrdinalIgnoreCase))
         {
             return $"COALESCE(json_extract({v}.properties, '$.kind'), {v}.kind)";
+        }
+
+        if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{v}.properties";
         }
 
         return $"json_extract({v}.properties, '$.{propName}')";

@@ -78,6 +78,87 @@
   white-space: nowrap;
 }
 
+/* Interactive Type Filters in HUD */
+.domain-hud-type-filters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hud-type-filter-btn {
+  font-size: 10px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2.5px 7px;
+  border-radius: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.hud-type-filter-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.hud-type-filter-btn.is-active {
+  background: rgba(255, 255, 255, 0.09);
+  color: #f1f5f9;
+}
+
+.hud-type-filter-btn.is-hidden {
+  opacity: 0.45;
+  color: #94a3b8;
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(239, 68, 68, 0.4);
+  text-decoration: line-through;
+}
+
+.filter-cross {
+  color: #ef4444;
+  font-weight: bold;
+  font-size: 9px;
+  margin-right: 1px;
+}
+
+/* Reset / Unhide All Button */
+.domain-hud-reset-hidden-btn {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  padding: 2.5px 9px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  animation: pulse-border 2.5s infinite ease-in-out;
+  transition: all 0.15s ease;
+}
+
+.domain-hud-reset-hidden-btn:hover {
+  background: rgba(239, 68, 68, 0.32);
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.45); }
+  50% { border-color: rgba(239, 68, 68, 0.85); }
+}
+
 .domain-hud-layout-select {
   display: flex;
   align-items: center;
@@ -397,4 +478,38 @@
 .inspector-action-btn.secondary:hover {
   background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
+}
+
+.inspector-header-hide-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 2.5px 7px;
+  font-size: 10px;
+  border-radius: 4px;
+  margin-right: 4px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.inspector-header-hide-btn:hover {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.inspector-action-btn.hide-node-btn {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.inspector-action-btn.hide-node-btn:hover {
+  background: rgba(239, 68, 68, 0.28);
+  color: #ffffff;
+  border-color: #ef4444;
 }

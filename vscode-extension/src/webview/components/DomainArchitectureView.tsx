@@ -88,11 +88,13 @@ export interface DomainProjectInfo {
   isLibrary?: boolean;
 }
 
+export type EntityKind = 'Service' | 'Ingress' | 'Database' | 'Topic' | 'ExternalService';
+
 export interface SelectedNodeDetail {
   id: string;
   name: string;
   displayName: string;
-  kind: 'Service' | 'Ingress' | 'Database' | 'Topic' | 'ExternalService';
+  kind: EntityKind;
   displayTag: string;
   bgColor: string;
   borderColor: string;
@@ -256,6 +258,17 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'target-arrow-color': '#34d399',
     },
   },
+  // Transitive / Composite Edges (created when hiding intermediate nodes)
+  {
+    selector: 'edge[isTransitive = "true"], edge.transitive-edge',
+    style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [6, 4],
+      'line-color': '#c084fc',
+      'target-arrow-color': '#c084fc',
+      'opacity': 0.9,
+    },
+  },
   // Highlighted Edges
   {
     selector: 'edge.highlighted',
@@ -298,10 +311,53 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [layoutName, setLayoutName] = useState<'cose' | 'dagre' | 'concentric'>('cose');
   const [selectedNode, setSelectedNode] = useState<SelectedNodeDetail | null>(null);
+  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(new Set());
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  const prevLayoutRef = useRef(layoutName);
+
+  // Clear hidden filters when switching graph
+  useEffect(() => {
+    setHiddenTypes(new Set());
+    setHiddenNodeIds(new Set());
+    setSelectedNode(null);
+  }, [graph]);
+
+  const toggleTypeVisibility = useCallback((kind: EntityKind) => {
+    setHiddenTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) {
+        next.delete(kind);
+      } else {
+        next.add(kind);
+      }
+      return next;
+    });
+    setSelectedNode((curr) => (curr?.kind === kind ? null : curr));
+    if (cyRef.current) {
+      cyRef.current.elements().removeClass('highlighted dimmed');
+    }
+  }, []);
+
+  const hideNode = useCallback((nodeId: string) => {
+    setHiddenNodeIds((prev) => {
+      const next = new Set(prev);
+      next.add(nodeId);
+      return next;
+    });
+    setSelectedNode((curr) => (curr?.id === nodeId ? null : curr));
+    if (cyRef.current) {
+      cyRef.current.elements().removeClass('highlighted dimmed');
+    }
+  }, []);
+
+  const unhideAll = useCallback(() => {
+    setHiddenTypes(new Set());
+    setHiddenNodeIds(new Set());
+  }, []);
 
   // 1. Synthesize Domain Entities & Infrastructure Nodes from GraphData
-  const { elements, stats, nodeDetailMap } = useMemo(() => {
-    const cyElements: cytoscape.ElementDefinition[] = [];
+  const rawGraph = useMemo(() => {
+    const cyNodes: cytoscape.NodeDefinition[] = [];
     const detailMap = new Map<string, SelectedNodeDetail>();
 
     const projToDomainMap = new Map<string, string>();
@@ -509,7 +565,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       };
       detailMap.set(domainId, detail);
 
-      cyElements.push({
+      cyNodes.push({
         group: 'nodes',
         data: {
           id: domainId,
@@ -524,7 +580,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       });
     }
 
-    // 3b. Database Nodes (Only add databases that are actually used by at least one service, or workspace databases)
+    // 3b. Database Nodes
     let dbCount = 0;
     for (const [dbId, db] of dbNodes.entries()) {
       const isUsed = Array.from(macroEdges.values()).some((e) => e.target === dbId || e.source === dbId);
@@ -551,7 +607,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         messagingCount: 0,
       });
 
-      cyElements.push({
+      cyNodes.push({
         group: 'nodes',
         data: {
           id: dbId,
@@ -593,7 +649,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         messagingCount: 0,
       });
 
-      cyElements.push({
+      cyNodes.push({
         group: 'nodes',
         data: {
           id: tId,
@@ -609,9 +665,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
 
     // 3d. External Services
+    let extCount = 0;
     for (const [extId, ext] of extNodes.entries()) {
       const isUsed = Array.from(macroEdges.values()).some((e) => e.target === extId);
       if (!isUsed) continue;
+      extCount++;
 
       const tag = ':External';
       const bgColor = '#26a69a';
@@ -633,7 +691,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         messagingCount: 0,
       });
 
-      cyElements.push({
+      cyNodes.push({
         group: 'nodes',
         data: {
           id: extId,
@@ -648,8 +706,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       });
     }
 
-    // 4. Build Cytoscape Edges
-    const validNodeIdSet = new Set(cyElements.map((el) => el.data.id));
+    // 4. Raw Macro Edges & Outgoing Adjacency
+    const validNodeIdSet = new Set(cyNodes.map((n) => n.data.id as string));
+    const rawEdges: Array<{ id: string; source: string; target: string; category: 'service_call' | 'database' | 'messaging' | 'external'; label: string; count: number }> = [];
+    const outAdj = new Map<string, Array<{ target: string; category: 'service_call' | 'database' | 'messaging' | 'external'; label: string; count: number }>>();
+
     let serviceCallsCount = 0;
     let messagesCount = 0;
 
@@ -659,36 +720,218 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       if (e.category === 'service_call') serviceCallsCount += e.count;
       else if (e.category === 'messaging') messagesCount += e.count;
 
-      const edgeLabel = e.count > 1 ? `${e.label} (${e.count})` : e.label;
+      rawEdges.push({
+        id: key,
+        source: e.source,
+        target: e.target,
+        category: e.category,
+        label: e.label,
+        count: e.count,
+      });
 
-      cyElements.push({
-        group: 'edges',
-        data: {
-          id: key,
-          source: e.source,
-          target: e.target,
-          category: e.category,
-          label: edgeLabel,
-          count: e.count,
-        },
+      let list = outAdj.get(e.source);
+      if (!list) {
+        list = [];
+        outAdj.set(e.source, list);
+      }
+      list.push({
+        target: e.target,
+        category: e.category,
+        label: e.label,
+        count: e.count,
       });
     }
 
     return {
-      elements: cyElements,
+      allNodes: cyNodes,
+      rawEdges,
       detailMap,
-      nodeDetailMap: detailMap,
-      stats: {
-        total: cyElements.filter((el) => el.group === 'nodes').length,
+      outAdj,
+      counts: {
         ingress: ingressCount,
         services: serviceCount,
         databases: dbCount,
         topics: topicCount,
+        external: extCount,
         serviceCalls: serviceCallsCount,
         messages: messagesCount,
       },
     };
   }, [graph]);
+
+  // 2. Visible Graph Memo with Directional Transitive Contraction
+  const { elements, stats, hiddenCount } = useMemo(() => {
+    const hiddenNodeIdSet = new Set<string>(hiddenNodeIds);
+    for (const node of rawGraph.allNodes) {
+      const kind = (node.data as any).kind as EntityKind;
+      if (hiddenTypes.has(kind)) {
+        hiddenNodeIdSet.add(node.data.id as string);
+      }
+    }
+
+    const visibleNodes = rawGraph.allNodes.filter((n) => !hiddenNodeIdSet.has(n.data.id as string));
+    const visibleNodeIds = new Set<string>(visibleNodes.map((n) => n.data.id as string));
+
+    // Direct edges between visible nodes
+    const visibleEdges: cytoscape.ElementDefinition[] = [];
+    const directVisibleEdgeKeys = new Set<string>();
+
+    for (const e of rawGraph.rawEdges) {
+      if (visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)) {
+        visibleEdges.push({
+          group: 'edges',
+          data: {
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            category: e.category,
+            label: e.count > 1 ? `${e.label} (${e.count})` : e.label,
+            count: e.count,
+            isTransitive: 'false',
+          },
+        });
+        directVisibleEdgeKeys.add(`${e.source}->${e.target}`);
+      }
+    }
+
+    // Directional Transitive Contraction BFS (u -> hidden... -> v)
+    interface TransitivePath {
+      curr: string;
+      viaNames: string[];
+      category: 'service_call' | 'database' | 'messaging' | 'external';
+      label: string;
+      count: number;
+      depth: number;
+    }
+
+    const transitiveEdgesMap = new Map<
+      string,
+      {
+        source: string;
+        target: string;
+        category: 'service_call' | 'database' | 'messaging' | 'external';
+        label: string;
+        count: number;
+        viaNames: string[];
+      }
+    >();
+
+    for (const u of visibleNodeIds) {
+      const queue: TransitivePath[] = [];
+      const visitedHidden = new Set<string>();
+
+      const initialEdges = rawGraph.outAdj.get(u) || [];
+      for (const edge of initialEdges) {
+        if (hiddenNodeIdSet.has(edge.target)) {
+          const targetDetail = rawGraph.detailMap.get(edge.target);
+          const name = targetDetail?.displayName || edge.target;
+          queue.push({
+            curr: edge.target,
+            viaNames: [name],
+            category: edge.category,
+            label: edge.label,
+            count: edge.count,
+            depth: 1,
+          });
+          visitedHidden.add(edge.target);
+        }
+      }
+
+      while (queue.length > 0) {
+        const item = queue.shift()!;
+        if (item.depth > 6) continue;
+
+        const outEdges = rawGraph.outAdj.get(item.curr) || [];
+        for (const nextEdge of outEdges) {
+          const v = nextEdge.target;
+          if (v === u) continue; // Skip self loops
+
+          if (visibleNodeIds.has(v)) {
+            // Direct edge takes precedence
+            if (directVisibleEdgeKeys.has(`${u}->${v}`)) {
+              continue;
+            }
+
+            const transKey = `${u}->${v}`;
+            const existing = transitiveEdgesMap.get(transKey);
+            if (existing) {
+              existing.count += nextEdge.count;
+              for (const via of item.viaNames) {
+                if (!existing.viaNames.includes(via)) {
+                  existing.viaNames.push(via);
+                }
+              }
+            } else {
+              transitiveEdgesMap.set(transKey, {
+                source: u,
+                target: v,
+                category: item.category,
+                label: item.label,
+                count: Math.max(item.count, nextEdge.count),
+                viaNames: [...item.viaNames],
+              });
+            }
+          } else if (hiddenNodeIdSet.has(v) && !visitedHidden.has(v)) {
+            visitedHidden.add(v);
+            const vDetail = rawGraph.detailMap.get(v);
+            const name = vDetail?.displayName || v;
+            queue.push({
+              curr: v,
+              viaNames: [...item.viaNames, name],
+              category: item.category,
+              label: item.label,
+              count: item.count,
+              depth: item.depth + 1,
+            });
+          }
+        }
+      }
+    }
+
+    // Append dashed transitive edges
+    for (const [key, t] of transitiveEdgesMap.entries()) {
+      const viaStr = t.viaNames.slice(0, 2).join(', ') + (t.viaNames.length > 2 ? '...' : '');
+      const transLabel = `${t.label} (via ${viaStr})`;
+      visibleEdges.push({
+        group: 'edges',
+        classes: 'transitive-edge',
+        data: {
+          id: `transitive:${key}`,
+          source: t.source,
+          target: t.target,
+          category: t.category,
+          label: transLabel,
+          isTransitive: 'true',
+          count: t.count,
+        },
+      });
+    }
+
+    let visibleCalls = 0;
+    let visibleMsgs = 0;
+    for (const e of visibleEdges) {
+      const cat = (e.data as any).category;
+      const count = (e.data as any).count || 1;
+      if (cat === 'service_call') visibleCalls += count;
+      else if (cat === 'messaging') visibleMsgs += count;
+    }
+
+    return {
+      elements: [...visibleNodes, ...visibleEdges],
+      hiddenCount: rawGraph.allNodes.length - visibleNodes.length,
+      stats: {
+        total: visibleNodes.length,
+        ingress: rawGraph.counts.ingress,
+        services: rawGraph.counts.services,
+        databases: rawGraph.counts.databases,
+        topics: rawGraph.counts.topics,
+        serviceCalls: visibleCalls,
+        messages: visibleMsgs,
+      },
+    };
+  }, [rawGraph, hiddenTypes, hiddenNodeIds]);
+
+  const nodeDetailMap = rawGraph.detailMap;
 
   // Apply layout
   const applyLayout = useCallback(
@@ -816,15 +1059,61 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     };
   }, [nodeDetailMap, onFocusInFlow]);
 
-  // Load Elements into Cytoscape when data changes
+  // Keyboard shortcut to hide selected node (Delete, Backspace, 'h')
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedNode) return;
+      const tag = (e.target as HTMLElement)?.tagName?.toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        hideNode(selectedNode.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNode, hideNode]);
+
+  // Load Elements into Cytoscape when data changes, preserving layout stability
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
 
+    const layoutChanged = prevLayoutRef.current !== layoutName;
+    prevLayoutRef.current = layoutName;
+
+    // Capture existing positions of visible nodes
+    const savedPositions = new Map<string, cytoscape.Position>();
+    cy.nodes().forEach((n) => {
+      savedPositions.set(n.id(), { ...n.position() });
+    });
+    const hadExisting = savedPositions.size > 0;
+
     cy.elements().remove();
     if (elements.length > 0) {
       cy.add(elements);
-      applyLayout(layoutName, cy);
+
+      if (hadExisting && !layoutChanged) {
+        let hasNewNodes = false;
+        cy.nodes().forEach((n) => {
+          const pos = savedPositions.get(n.id());
+          if (pos) {
+            n.position(pos);
+          } else {
+            hasNewNodes = true;
+          }
+        });
+
+        // If nodes were unhidden and have no saved positions, run layout
+        if (hasNewNodes) {
+          applyLayout(layoutName, cy);
+        }
+      } else {
+        applyLayout(layoutName, cy);
+      }
     }
   }, [elements, layoutName, applyLayout]);
 
@@ -878,23 +1167,72 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           <span className="domain-hud-title">Domain Microservice Map</span>
         </div>
 
+        {/* Entity Type Toggle Filters */}
+        <div className="domain-hud-type-filters">
+          {rawGraph.counts.ingress > 0 && (
+            <button
+              className={`hud-type-filter-btn ${hiddenTypes.has('Ingress') ? 'is-hidden' : 'is-active'}`}
+              onClick={() => toggleTypeVisibility('Ingress')}
+              title={hiddenTypes.has('Ingress') ? 'Show Ingress & Apps' : 'Hide Ingress & Apps'}
+            >
+              {hiddenTypes.has('Ingress') && <span className="filter-cross">✕</span>}
+              🌐 Apps ({rawGraph.counts.ingress})
+            </button>
+          )}
+          {rawGraph.counts.services > 0 && (
+            <button
+              className={`hud-type-filter-btn ${hiddenTypes.has('Service') ? 'is-hidden' : 'is-active'}`}
+              onClick={() => toggleTypeVisibility('Service')}
+              title={hiddenTypes.has('Service') ? 'Show Domain Services' : 'Hide Domain Services'}
+            >
+              {hiddenTypes.has('Service') && <span className="filter-cross">✕</span>}
+              ⚙️ Services ({rawGraph.counts.services})
+            </button>
+          )}
+          {rawGraph.counts.databases > 0 && (
+            <button
+              className={`hud-type-filter-btn ${hiddenTypes.has('Database') ? 'is-hidden' : 'is-active'}`}
+              onClick={() => toggleTypeVisibility('Database')}
+              title={hiddenTypes.has('Database') ? 'Show Databases' : 'Hide Databases'}
+            >
+              {hiddenTypes.has('Database') && <span className="filter-cross">✕</span>}
+              🗄️ DBs ({rawGraph.counts.databases})
+            </button>
+          )}
+          {rawGraph.counts.topics > 0 && (
+            <button
+              className={`hud-type-filter-btn ${hiddenTypes.has('Topic') ? 'is-hidden' : 'is-active'}`}
+              onClick={() => toggleTypeVisibility('Topic')}
+              title={hiddenTypes.has('Topic') ? 'Show Message Topics' : 'Hide Message Topics'}
+            >
+              {hiddenTypes.has('Topic') && <span className="filter-cross">✕</span>}
+              📬 Topics ({rawGraph.counts.topics})
+            </button>
+          )}
+          {rawGraph.counts.external > 0 && (
+            <button
+              className={`hud-type-filter-btn ${hiddenTypes.has('ExternalService') ? 'is-hidden' : 'is-active'}`}
+              onClick={() => toggleTypeVisibility('ExternalService')}
+              title={hiddenTypes.has('ExternalService') ? 'Show External Services' : 'Hide External Services'}
+            >
+              {hiddenTypes.has('ExternalService') && <span className="filter-cross">✕</span>}
+              🔌 External ({rawGraph.counts.external})
+            </button>
+          )}
+        </div>
+
+        {/* Reset Hidden Button (appears when anything is hidden) */}
+        {hiddenCount > 0 && (
+          <button
+            className="domain-hud-reset-hidden-btn"
+            onClick={unhideAll}
+            title="Reset all hidden nodes and type filters"
+          >
+            👁️ Reset Hidden ({hiddenCount})
+          </button>
+        )}
+
         <div className="domain-hud-stats">
-          <span className="hud-stat-pill" title="Ingress & Frontends">
-            🌐 {stats.ingress} Apps
-          </span>
-          <span className="hud-stat-pill" title="Domain Services">
-            ⚙️ {stats.services} Services
-          </span>
-          {stats.databases > 0 && (
-            <span className="hud-stat-pill" title="Databases">
-              🗄️ {stats.databases} DBs
-            </span>
-          )}
-          {stats.topics > 0 && (
-            <span className="hud-stat-pill" title="Message Queues & Event Topics">
-              📬 {stats.topics} Topics
-            </span>
-          )}
           <span className="hud-stat-pill" title="Service Calls (RPC / HTTP)">
             ⚡ {stats.serviceCalls} Calls
           </span>
@@ -960,6 +1298,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 <span className="inspector-subtitle">{selectedNode.framework}</span>
               )}
             </div>
+            <button
+              className="inspector-header-hide-btn"
+              onClick={() => hideNode(selectedNode.id)}
+              title="Hide this node and build transitive connections (Shortcut: H or Del)"
+            >
+              👁️ Hide
+            </button>
             <button
               className="inspector-close-btn"
               onClick={() => {
@@ -1044,6 +1389,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   Open Source
                 </button>
               )}
+              <button
+                className="inspector-action-btn hide-node-btn"
+                onClick={() => hideNode(selectedNode.id)}
+                title="Hide node from map (Shortcut: H or Del)"
+              >
+                Hide Node
+              </button>
             </div>
           </div>
         </aside>

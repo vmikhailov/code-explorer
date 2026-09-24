@@ -14,7 +14,7 @@ public static class GraphDataConverter
         var nodeMap = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
 
         // 1. Projects
-        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path, p.project_type AS project_type";
+        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.framework AS framework, p.path AS path, p.project_type AS project_type, p.role AS role, p.is_library AS is_library, p.layer AS layer, p.layerId AS layerId, p.layerName AS layerName, p.layerOrder AS layerOrder, p.layerColor AS layerColor, p.layerIcon AS layerIcon, p.package_count AS package_count, p.properties AS properties";
         var projJson = await client.ExecuteQueryAsync(projQuery, null, cancellationToken);
         using var projDoc = JsonDocument.Parse(projJson);
 
@@ -22,14 +22,39 @@ public static class GraphDataConverter
         {
             var id = row.GetStringProp("id");
             var name = row.GetStringProp("name", id);
-            var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String ? f.GetString() : null;
-            var path = row.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
-            var projectType = row.TryGetProperty("project_type", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
+            var framework = row.GetStringProp("framework");
+            var path = row.GetStringProp("path");
+            var projectType = row.GetStringProp("project_type");
 
             if (!string.IsNullOrWhiteSpace(projectFilter) && !name.Contains(projectFilter, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
+
+            var props = row.ExtractProperties();
+            if (!string.IsNullOrEmpty(framework)) props["framework"] = framework;
+            if (!string.IsNullOrEmpty(path)) props["path"] = path;
+            if (!string.IsNullOrEmpty(projectType)) props["project_type"] = projectType;
+
+            var role = row.GetStringProp("role", props.GetValueOrDefault("role", ""));
+            if (!string.IsNullOrEmpty(role)) props["role"] = role;
+
+            var isLibStr = row.GetStringProp("is_library", props.GetValueOrDefault("is_library", ""));
+            if (!string.IsNullOrEmpty(isLibStr)) props["is_library"] = isLibStr;
+
+            var layer = row.GetStringProp("layer", props.GetValueOrDefault("layer", ""));
+            if (!string.IsNullOrEmpty(layer))
+            {
+                props["layer"] = layer;
+                props["layerId"] = row.GetStringProp("layerId", props.GetValueOrDefault("layerId", layer));
+                props["layerName"] = row.GetStringProp("layerName", props.GetValueOrDefault("layerName", ""));
+                props["layerOrder"] = row.GetStringProp("layerOrder", props.GetValueOrDefault("layerOrder", ""));
+                props["layerColor"] = row.GetStringProp("layerColor", props.GetValueOrDefault("layerColor", ""));
+                props["layerIcon"] = row.GetStringProp("layerIcon", props.GetValueOrDefault("layerIcon", ""));
+            }
+
+            var pkgCount = row.GetStringProp("package_count", props.GetValueOrDefault("package_count", ""));
+            if (!string.IsNullOrEmpty(pkgCount)) props["package_count"] = pkgCount;
 
             var node = new GraphNodeDto
             {
@@ -38,51 +63,55 @@ public static class GraphDataConverter
                 Name = name,
                 DisplayName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})",
                 FilePath = path,
-                Properties = new Dictionary<string, string>()
+                Properties = props
             };
-            if (!string.IsNullOrEmpty(framework)) node.Properties["framework"] = framework;
-            if (!string.IsNullOrEmpty(path)) node.Properties["path"] = path;
-            if (!string.IsNullOrEmpty(projectType)) node.Properties["project_type"] = projectType;
 
             nodeMap[id] = node;
             graph.Nodes.Add(node);
         }
 
-        // 1b. Query Package Dependency Counts per Project
+        // 1b. Query Package Dependency Counts per Project (fallback if not already in properties)
         try
         {
-            var pkgCountQuery = "MATCH (p:Project)-[:DEPENDS_ON]->(pkg:Package) RETURN p.id AS projId, count(pkg) AS pkgCount";
-            var pkgCountJson = await client.ExecuteQueryAsync(pkgCountQuery, null, cancellationToken);
-            using var pkgCountDoc = JsonDocument.Parse(pkgCountJson);
-            foreach (var row in pkgCountDoc.RootElement.EnumerateArray())
+            var needsPkgCount = graph.Nodes.Any(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase) && n.Properties?.ContainsKey("package_count") != true);
+            if (needsPkgCount)
             {
-                var projId = row.GetStringProp("projId");
-                var count = row.TryGetProperty("pkgCount", out var pc) && pc.ValueKind == JsonValueKind.Number ? pc.GetInt64() : 0;
-                if (!string.IsNullOrEmpty(projId) && nodeMap.TryGetValue(projId, out var pNode) && pNode != null)
+                var pkgCountQuery = "MATCH (p:Project)-[:DEPENDS_ON]->(pkg:Package) RETURN p.id AS projId, count(pkg) AS pkgCount";
+                var pkgCountJson = await client.ExecuteQueryAsync(pkgCountQuery, null, cancellationToken);
+                using var pkgCountDoc = JsonDocument.Parse(pkgCountJson);
+                foreach (var row in pkgCountDoc.RootElement.EnumerateArray())
                 {
-                    pNode.Properties ??= new Dictionary<string, string>();
-                    pNode.Properties["package_count"] = count.ToString();
+                    var projId = row.GetStringProp("projId");
+                    var count = row.TryGetProperty("pkgCount", out var pc) && pc.ValueKind == JsonValueKind.Number ? pc.GetInt64() : 0;
+                    if (!string.IsNullOrEmpty(projId) && nodeMap.TryGetValue(projId, out var pNode) && pNode != null)
+                    {
+                        pNode.Properties ??= new Dictionary<string, string>();
+                        pNode.Properties["package_count"] = count.ToString();
+                    }
                 }
             }
         }
         catch { }
 
         // 2. Databases (Consolidate project-scoped DB nodes into canonical data stores to prevent duplication)
-        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type";
+        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.display_name AS display_name, d.db_type AS db_type, d.engine AS engine, d.is_canonical AS is_canonical, d.role AS role, d.layer AS layer, d.properties AS properties";
         var dbJson = await client.ExecuteQueryAsync(dbQuery, null, cancellationToken);
         using var dbDoc = JsonDocument.Parse(dbJson);
         var dbIdToCanonicalId = new Dictionary<string, string>();
 
-        var rawDbList = new List<(string Id, string Name, string DbType)>();
+        var rawDbList = new List<(string Id, string Name, string DisplayName, string DbType, string Engine, Dictionary<string, string> Props)>();
         foreach (var row in dbDoc.RootElement.EnumerateArray())
         {
             var id = row.GetStringProp("id");
             var name = row.GetStringProp("name", id);
-            var dbType = row.TryGetProperty("db_type", out var t) && t.ValueKind == JsonValueKind.String ? (t.GetString() ?? "Database") : "Database";
-            rawDbList.Add((id, name, dbType));
+            var props = row.ExtractProperties();
+            var dbType = row.GetStringProp("db_type", props.GetValueOrDefault("db_type", "Database"));
+            var engine = row.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
+            var dispName = row.GetStringProp("display_name", props.GetValueOrDefault("display_name", ""));
+            rawDbList.Add((id, name, dispName, dbType, engine, props));
         }
 
-        foreach (var (id, name, dbType) in rawDbList)
+        foreach (var (id, name, dispName, dbType, engine, props) in rawDbList)
         {
             var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
             var isProjectScoped = id.IndexOf("db:", StringComparison.OrdinalIgnoreCase) > 0 ||
@@ -94,23 +123,51 @@ public static class GraphDataConverter
 
             dbIdToCanonicalId[id] = canonicalId;
 
-            if (!nodeMap.ContainsKey(canonicalId))
+            var engineToUse = !string.IsNullOrEmpty(engine) ? engine : props.GetValueOrDefault("engine", "");
+            var formattedDispName = !string.IsNullOrEmpty(dispName)
+                ? dispName
+                : (!string.IsNullOrEmpty(engineToUse) ? $"{cName} ({engineToUse}) [{cType}]" : $"{cName} [{cType}]");
+
+            if (!nodeMap.TryGetValue(canonicalId, out var existingDbNode))
             {
+                var nodeProps = new Dictionary<string, string>(props)
+                {
+                    ["db_type"] = cType,
+                    ["role"] = "database",
+                    ["is_canonical"] = "true",
+                    ["is_semantic_entity"] = "true",
+                    ["layer"] = props.GetValueOrDefault("layer", CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId),
+                    ["layerId"] = props.GetValueOrDefault("layerId", CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId),
+                    ["layerName"] = props.GetValueOrDefault("layerName", CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName),
+                    ["layerOrder"] = props.GetValueOrDefault("layerOrder", CodeExplorer.Core.Analysis.StandardLayers.Foundation.Order.ToString()),
+                    ["layerColor"] = props.GetValueOrDefault("layerColor", CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color),
+                    ["layerIcon"] = props.GetValueOrDefault("layerIcon", CodeExplorer.Core.Analysis.StandardLayers.Foundation.Icon)
+                };
+                if (!string.IsNullOrEmpty(engineToUse)) nodeProps["engine"] = engineToUse;
+
                 var node = new GraphNodeDto
                 {
                     Id = canonicalId,
                     Kind = "Database",
                     Name = cName,
-                    DisplayName = $"{cName} [{cType}]",
-                    Properties = new Dictionary<string, string>
-                    {
-                        ["db_type"] = cType,
-                        ["role"] = "database"
-                    }
+                    DisplayName = formattedDispName,
+                    Properties = nodeProps
                 };
 
                 nodeMap[canonicalId] = node;
                 graph.Nodes.Add(node);
+            }
+            else
+            {
+                existingDbNode.Properties ??= new Dictionary<string, string>();
+                if (!string.IsNullOrEmpty(engineToUse) && !existingDbNode.Properties.ContainsKey("engine"))
+                {
+                    existingDbNode.Properties["engine"] = engineToUse;
+                    if (existingDbNode.DisplayName != null && !existingDbNode.DisplayName.Contains(engineToUse, StringComparison.OrdinalIgnoreCase))
+                    {
+                        existingDbNode.DisplayName = $"{existingDbNode.Name} ({engineToUse}) [{existingDbNode.Properties.GetValueOrDefault("db_type")}]";
+                    }
+                }
             }
         }
 
@@ -237,7 +294,10 @@ public static class GraphDataConverter
                 TargetId = d.Target
             }));
 
-        var layerMap = CodeExplorer.Core.Analysis.ProjectLayerClassifier.Classify(classifierItems, dependencyItems);
+        var needsClassification = graph.Nodes.Any(n => n.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase) && n.Properties?.ContainsKey("layer") != true);
+        var layerMap = needsClassification
+            ? CodeExplorer.Core.Analysis.ProjectLayerClassifier.Classify(classifierItems, dependencyItems)
+            : new Dictionary<string, CodeExplorer.Core.Analysis.ProjectLayerInfo>();
 
         foreach (var node in graph.Nodes)
         {
@@ -245,7 +305,7 @@ public static class GraphDataConverter
 
             if (node.Kind.Equals("Project", StringComparison.OrdinalIgnoreCase))
             {
-                if (layerMap.TryGetValue(node.Id, out var layer))
+                if (!node.Properties.ContainsKey("layer") && layerMap.TryGetValue(node.Id, out var layer))
                 {
                     node.Properties["layer"] = layer.LayerId;
                     node.Properties["layerId"] = layer.LayerId;
@@ -442,48 +502,23 @@ public static class GraphDataConverter
 
                 if (nodeMap.ContainsKey(src) && nodeMap.ContainsKey(tgt) && src != tgt)
                 {
-                    var edgeProps = new Dictionary<string, string>();
-                    if (row.TryGetProperty("properties", out var propsElem) && propsElem.ValueKind == JsonValueKind.Object)
-                    {
-                        foreach (var prop in propsElem.EnumerateObject())
-                        {
-                            edgeProps[prop.Name] = prop.Value.ToString();
-                        }
-                    }
-
+                    var edgeProps = row.ExtractProperties();
                     nodeMap.TryGetValue(tgt, out var targetNode);
                     var isTargetLib = IsLibraryProject(targetNode);
-                    var depType = edgeProps.GetValueOrDefault("dependency_type");
 
-                    if (rKind == "DEPENDS_ON")
-                    {
-                        if (string.IsNullOrEmpty(depType))
-                        {
-                            depType = isTargetLib ? "library" : "service_call";
-                        }
-                    }
-                    else if (rKind is "SERVICE_CALL" or "INTEGRATES_WITH" or "CALLS_ENDPOINT")
-                    {
-                        depType = "service_call";
-                    }
-                    else if (rKind == "USES_DB")
-                    {
-                        depType = "database";
-                    }
-                    else if (rKind is "PUBLISHES_TO" or "TRIGGERS" or "SUBSCRIBES_TO")
-                    {
-                        depType = "messaging";
-                    }
+                    var (category, dType, normalizedKind) = CodeExplorer.Core.Parser.PostIndexAnalyzer.NormalizeEdgeCategory(
+                        rKind,
+                        nodeMap.GetValueOrDefault(src)?.Kind,
+                        targetNode?.Kind,
+                        edgeProps.GetValueOrDefault("category"),
+                        edgeProps.GetValueOrDefault("dependency_type"),
+                        isTargetLib
+                    );
 
-                    if (!string.IsNullOrEmpty(depType))
-                    {
-                        edgeProps["dependency_type"] = depType;
-                    }
+                    edgeProps["dependency_type"] = dType;
+                    edgeProps["category"] = category;
 
-                    var outKind = depType == "library" ? "LIBRARY" :
-                                  (rKind == "USES_DB" ? "USES_DB" :
-                                  (rKind == "PUBLISHES_TO" ? "PUBLISHES_TO" :
-                                  (rKind == "TRIGGERS" ? "TRIGGERS" : "SERVICE_CALL")));
+                    var outKind = category == "library" ? "LIBRARY" : normalizedKind;
 
                     if (graph.Edges.All(e => !(e.Source == src && e.Target == tgt && e.Kind == outKind)))
                     {
@@ -493,6 +528,7 @@ public static class GraphDataConverter
                             Source = src,
                             Target = tgt,
                             Kind = outKind,
+                            Category = category,
                             Properties = edgeProps
                         });
                     }
@@ -1160,72 +1196,40 @@ public static class GraphDataConverter
             : fallback;
     }
 
+    private static Dictionary<string, string> ExtractProperties(this JsonElement elem, string propName = "properties")
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!elem.TryGetProperty(propName, out var pElem)) return result;
+
+        if (pElem.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in pElem.EnumerateObject())
+            {
+                result[prop.Name] = prop.Value.ToString();
+            }
+        }
+        else if (pElem.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pElem.GetString()))
+        {
+            try
+            {
+                using var innerDoc = JsonDocument.Parse(pElem.GetString()!);
+                if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in innerDoc.RootElement.EnumerateObject())
+                    {
+                        result[prop.Name] = prop.Value.ToString();
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return result;
+    }
+
     public static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeDatabase(string rawName, string? rawDbType)
     {
-        var trimmed = (rawName ?? "").Trim();
-        var lower = trimmed.ToLowerInvariant();
-        var type = string.IsNullOrWhiteSpace(rawDbType) ? "relational" : rawDbType.Trim().ToLowerInvariant();
-
-        switch (lower)
-        {
-            case "typeorm":
-                return ("TypeORM", "relational", "typeorm");
-            case "microsoft.entityframeworkcore":
-            case "entity framework core":
-            case "ef-core":
-                return ("EF Core", "relational", "ef_core");
-            case "dapper":
-                return ("Dapper", "relational", "dapper");
-            case "defaultconnection":
-                return ("Database", "relational", "database");
-            case "postgres":
-            case "postgresql":
-                return ("PostgreSQL", "relational", "postgresql");
-            case "redis":
-                return ("Redis", "cache", "redis");
-            case "mysql":
-                return ("MySQL", "relational", "mysql");
-            case "mariadb":
-                return ("MariaDB", "relational", "mariadb");
-            case "sqlite":
-            case "sqlite3":
-                return ("SQLite", "relational", "sqlite");
-            case "mongodb":
-            case "mongo":
-                return ("MongoDB", "document", "mongodb");
-            case "clickhouse":
-                return ("ClickHouse", "analytics", "clickhouse");
-            case "bigquery":
-                return ("BigQuery", "analytics", "bigquery");
-            case "mssql":
-            case "sqlserver":
-            case "sql server":
-                return ("SQL Server", "relational", "sqlserver");
-            case "oracle":
-                return ("Oracle", "relational", "oracle");
-            case "cassandra":
-                return ("Cassandra", "nosql", "cassandra");
-            case "elasticsearch":
-                return ("Elasticsearch", "search", "elasticsearch");
-            case "neo4j":
-                return ("Neo4j", "graph", "neo4j");
-            case "sequelize":
-                return ("Sequelize", "relational", "sequelize");
-            case "prisma":
-                return ("Prisma", "relational", "prisma");
-            case "drizzle":
-            case "drizzle orm":
-                return ("Drizzle ORM", "relational", "drizzle");
-            default:
-                if (lower.StartsWith("redis_"))
-                {
-                    return ("Redis", "cache", "redis");
-                }
-                var normName = CodeExplorer.Core.Analysis.ResourceReconciliationService.NormalizeResourceName(trimmed, type);
-                var canonicalKey = System.Text.RegularExpressions.Regex.Replace(normName.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
-                if (string.IsNullOrEmpty(canonicalKey)) canonicalKey = "db";
-                return (normName, type, canonicalKey);
-        }
+        return CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase(rawName, rawDbType);
     }
 
     public static bool IsGenericOrOrmDatabase(string rawName)
@@ -1241,74 +1245,22 @@ public static class GraphDataConverter
         {
             edge.Properties ??= new Dictionary<string, string>();
             var depType = edge.Properties.GetValueOrDefault("dependency_type");
-            var kind = edge.Kind?.ToUpperInvariant() ?? "";
 
             nodesById.TryGetValue(edge.Source, out var sourceNode);
             nodesById.TryGetValue(edge.Target, out var targetNode);
 
-            string category;
-            if (!string.IsNullOrEmpty(edge.Category))
-            {
-                category = edge.Category.ToLowerInvariant();
-            }
-            else if (!string.IsNullOrEmpty(depType))
-            {
-                category = depType.ToLowerInvariant();
-            }
-            else if (kind == "USES_DB" ||
-                     targetNode?.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase) == true ||
-                     sourceNode?.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                category = "database";
-            }
-            else if (kind is "TRIGGERS" or "PUBLISHES" or "PUBLISHES_TO" or "SUBSCRIBES_TO" or "SUBSCRIBED_BY" ||
-                     targetNode?.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) == true ||
-                     sourceNode?.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                category = "messaging";
-            }
-            else if (kind is "SERVICE_CALL" or "CALLS_ENDPOINT" ||
-                     targetNode?.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase) == true ||
-                     sourceNode?.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                category = "service_call";
-            }
-            else if (targetNode != null && IsLibraryProject(targetNode))
-            {
-                category = "library";
-            }
-            else
-            {
-                category = "service_call";
-            }
-
-            category = category switch
-            {
-                "database" or "db" => "database",
-                "messaging" or "queue" or "topic" or "pubsub" => "messaging",
-                "service_call" or "service" or "api" or "http" or "grpc" => "service_call",
-                _ => "library"
-            };
+            var (category, dType, normalizedKind) = CodeExplorer.Core.Parser.PostIndexAnalyzer.NormalizeEdgeCategory(
+                edge.Kind,
+                sourceNode?.Kind,
+                targetNode?.Kind,
+                edge.Category,
+                depType,
+                targetNode != null && IsLibraryProject(targetNode)
+            );
 
             edge.Category = category;
-            edge.Properties["dependency_type"] = category;
-
-            if (category == "database")
-            {
-                edge.Kind = "USES_DB";
-            }
-            else if (category == "messaging")
-            {
-                edge.Kind = "TRIGGERS";
-            }
-            else if (category == "service_call")
-            {
-                edge.Kind = edge.Kind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL";
-            }
-            else if (category == "library")
-            {
-                edge.Kind = "LIBRARY";
-            }
+            edge.Properties["dependency_type"] = dType;
+            edge.Kind = category == "library" ? "LIBRARY" : normalizedKind;
         }
     }
 

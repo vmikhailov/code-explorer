@@ -357,4 +357,89 @@ export class Product {
             try { Directory.Delete(tempWorkspace, true); } catch { }
         }
     }
+
+    [Test]
+    public async Task Test_PostIndexAnalyzer_Canonicalizes_Databases_And_Links_Projects()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "postindex_canonical_db_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+
+            var nodes = new List<CodeExplorer.Core.Database.Node>
+            {
+                new("workspace:project:order_service", "Project", new Dictionary<string, object> { ["name"] = "OrderService", ["path"] = "/src/order_service" }),
+                new("workspace:project:billing_service", "Project", new Dictionary<string, object> { ["name"] = "BillingService", ["path"] = "/src/billing_service" }),
+                // Project-scoped database node
+                new("workspace:project:order_service:db:typeorm", "Database", new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" }),
+                // Cased raw database node
+                new("workspace:database:relational:PostgreSQL", "Database", new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" }),
+                // Generic database name
+                new("workspace:database:relational:orders_db", "Database", new Dictionary<string, object> { ["name"] = "orders_db", ["db_type"] = "relational" })
+            };
+            await db.UploadNodesAsync(nodes);
+
+            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            {
+                new("workspace:project:order_service", "workspace:project:order_service:db:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new("workspace:project:billing_service", "workspace:database:relational:PostgreSQL", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new("workspace:project:billing_service", "workspace:database:relational:orders_db", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" })
+            };
+            await db.UploadRelationshipsAsync(rels);
+
+            var analyzer = new PostIndexAnalyzer(db);
+            await analyzer.RunAsync("workspace");
+
+            // 1. Verify canonical database nodes exist in the graph
+            var typeOrmDb = await db.ExecuteQueryAsync("MATCH (d:Database) WHERE d.id = 'workspace:database:relational:typeorm' RETURN d.id AS id, d.name AS name, d.is_canonical AS is_canonical");
+            using (var doc = JsonDocument.Parse(typeOrmDb))
+            {
+                var rows = doc.RootElement.EnumerateArray().ToList();
+                Assert.That(rows, Has.Count.EqualTo(1));
+                Assert.That(rows[0].GetProperty("name").GetString(), Is.EqualTo("TypeORM"));
+                Assert.That(rows[0].GetProperty("is_canonical").GetString(), Is.EqualTo("true"));
+            }
+
+            var postgresDb = await db.ExecuteQueryAsync("MATCH (d:Database) WHERE d.id = 'workspace:database:relational:postgresql' RETURN d.id AS id, d.name AS name");
+            using (var doc = JsonDocument.Parse(postgresDb))
+            {
+                var rows = doc.RootElement.EnumerateArray().ToList();
+                Assert.That(rows, Has.Count.EqualTo(1));
+                Assert.That(rows[0].GetProperty("name").GetString(), Is.EqualTo("PostgreSQL"));
+            }
+
+            // 2. Verify non-canonical project-scoped node was cleaned up
+            var staleDb = await db.ExecuteQueryAsync("MATCH (d:Database) WHERE d.id = 'workspace:project:order_service:db:typeorm' RETURN d.id AS id");
+            using (var doc = JsonDocument.Parse(staleDb))
+            {
+                Assert.That(doc.RootElement.EnumerateArray().Count(), Is.EqualTo(0));
+            }
+
+            // 3. Verify direct USES_DB relationships point to the canonical database nodes
+            var orderUsesDb = await db.ExecuteQueryAsync("MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE p.id = 'workspace:project:order_service' RETURN d.id AS dbId, r.is_canonical AS isCanonical");
+            using (var doc = JsonDocument.Parse(orderUsesDb))
+            {
+                var rows = doc.RootElement.EnumerateArray().ToList();
+                Assert.That(rows, Has.Count.EqualTo(1));
+                Assert.That(rows[0].GetProperty("dbId").GetString(), Is.EqualTo("workspace:database:relational:typeorm"));
+                Assert.That(rows[0].GetProperty("isCanonical").GetString(), Is.EqualTo("true"));
+            }
+
+            var billingUsesDb = await db.ExecuteQueryAsync("MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE p.id = 'workspace:project:billing_service' RETURN d.id AS dbId ORDER BY d.id");
+            using (var doc = JsonDocument.Parse(billingUsesDb))
+            {
+                var rows = doc.RootElement.EnumerateArray().ToList();
+                Assert.That(rows, Has.Count.EqualTo(2));
+                var targets = rows.Select(r => r.GetProperty("dbId").GetString()).ToList();
+                Assert.That(targets, Does.Contain("workspace:database:relational:postgresql"));
+                Assert.That(targets, Does.Contain("workspace:database:relational:orders_db"));
+            }
+        }
+        finally
+        {
+            try { Directory.Delete(tempWorkspace, true); } catch { }
+        }
+    }
 }
