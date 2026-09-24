@@ -1,40 +1,17 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  Background,
-  Controls,
-  MiniMap,
-  useNodesState,
-  useEdgesState,
-  useReactFlow,
-  Node,
-  Edge,
-  MarkerType,
-} from '@xyflow/react';
-import {
-  forceSimulation,
-  forceLink,
-  forceManyBody,
-  forceCenter,
-  forceCollide,
-  forceX,
-  forceY,
-  SimulationNodeDatum,
-  SimulationLinkDatum,
-} from 'd3-force';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import cytoscape from 'cytoscape';
+import dagre from 'cytoscape-dagre';
 import { GraphData, GraphNode, GraphEdge } from '../../../../proto/types';
-import { DomainCardNode, DomainCardData, DomainProjectInfo } from './DomainCardNode';
+
+try {
+  cytoscape.use(dagre);
+} catch {}
 
 export interface DomainArchitectureViewProps {
   graph: GraphData | null;
   onFocusInFlow?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
 }
-
-const nodeTypes = {
-  domainCard: DomainCardNode as any,
-};
 
 // Common sub-project naming suffixes that belong to a parent domain
 const SUB_PROJECT_SUFFIX_REGEX =
@@ -56,7 +33,6 @@ function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayNa
   const suffixMatch = name.match(SUB_PROJECT_SUFFIX_REGEX);
   if (suffixMatch) {
     const parentName = name.substring(0, suffixMatch.index);
-    // Extract short domain name (e.g., from Lidoma.Services.Player -> Player)
     const dotParts = parentName.split('.');
     const shortName = dotParts[dotParts.length - 1];
     return {
@@ -104,112 +80,264 @@ function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayNa
   };
 }
 
-interface InternalDomainRecord {
-  domainId: string;
+export interface DomainProjectInfo {
+  id: string;
+  name: string;
+  kind?: string;
+  filePath?: string;
+  isLibrary?: boolean;
+}
+
+export interface SelectedNodeDetail {
+  id: string;
   name: string;
   displayName: string;
-  zone: 'ingress' | 'service' | 'data' | 'topic' | 'external';
-  primaryNode?: GraphNode;
-  projects: DomainProjectInfo[];
+  kind: 'Service' | 'Ingress' | 'Database' | 'Topic' | 'ExternalService';
+  displayTag: string;
+  bgColor: string;
+  borderColor: string;
   framework?: string;
   language?: string;
+  primaryFilePath?: string;
+  projects: DomainProjectInfo[];
+  inboundCallsCount: number;
+  outboundCallsCount: number;
+  dbCount: number;
+  messagingCount: number;
 }
 
-interface LayoutSimNode extends SimulationNodeDatum {
-  id: string;
-  domain: DomainCardData;
-  width: number;
-  height: number;
-  radius: number;
-  targetX: number;
-}
+// Cytoscape stylesheets matching the circular Neo4j / graph ontology styling
+const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
+  // Base Node Style (Circular Discs)
+  {
+    selector: 'node',
+    style: {
+      'shape': 'ellipse',
+      'width': 'data(size)',
+      'height': 'data(size)',
+      'background-color': 'data(bgColor)',
+      'border-width': 3,
+      'border-color': 'data(borderColor)',
+      'border-opacity': 0.9,
+      'label': 'data(displayLabel)',
+      'color': '#f8fafc',
+      'font-size': '10.5px',
+      'font-weight': 600,
+      'font-family': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      'text-valign': 'bottom',
+      'text-halign': 'center',
+      'text-margin-y': 7,
+      'text-wrap': 'wrap',
+      'text-max-width': '130px',
+      'text-background-color': '#090d16',
+      'text-background-opacity': 0.92,
+      'text-background-padding': '3px',
+      'text-background-shape': 'roundrectangle',
+      'text-border-color': 'rgba(255, 255, 255, 0.14)',
+      'text-border-width': 1,
+      'text-border-opacity': 0.6,
+      'transition-property': 'background-color, border-color, width, height, opacity',
+      'transition-duration': 0.2,
+    },
+  },
+  // Ingress / App
+  {
+    selector: 'node[kind = "Ingress"]',
+    style: {
+      'background-color': '#0288d1',
+      'border-color': '#01579b',
+    },
+  },
+  // Service
+  {
+    selector: 'node[kind = "Service"]',
+    style: {
+      'background-color': '#e53935',
+      'border-color': '#7f1d1d',
+    },
+  },
+  // Database
+  {
+    selector: 'node[kind = "Database"]',
+    style: {
+      'background-color': '#7b1fa2',
+      'border-color': '#4a148c',
+    },
+  },
+  // Topic
+  {
+    selector: 'node[kind = "Topic"]',
+    style: {
+      'background-color': '#f59e0b',
+      'border-color': '#b45309',
+    },
+  },
+  // External
+  {
+    selector: 'node[kind = "ExternalService"]',
+    style: {
+      'background-color': '#26a69a',
+      'border-color': '#004d40',
+    },
+  },
+  // Selected Node Highlight
+  {
+    selector: 'node:selected',
+    style: {
+      'border-color': '#ffffff',
+      'border-width': 4,
+      'underlay-color': '#38bdf8',
+      'underlay-padding': '8px',
+      'underlay-opacity': 0.5,
+    },
+  },
+  // Hovered Node
+  {
+    selector: 'node.hovered',
+    style: {
+      'border-color': '#38bdf8',
+      'border-width': 4,
+    },
+  },
+  // Base Edge Style (Bezier with Labeled Directed Arrows)
+  {
+    selector: 'edge',
+    style: {
+      'width': 2,
+      'line-color': '#64748b',
+      'target-arrow-color': '#64748b',
+      'target-arrow-shape': 'triangle',
+      'arrow-scale': 1.15,
+      'curve-style': 'bezier',
+      'label': 'data(label)',
+      'font-size': '8.5px',
+      'font-weight': 'bold',
+      'color': '#e2e8f0',
+      'text-rotation': 'autorotate',
+      'text-background-color': '#090d16',
+      'text-background-opacity': 0.94,
+      'text-background-padding': '3px',
+      'text-background-shape': 'roundrectangle',
+      'text-border-color': 'rgba(255, 255, 255, 0.1)',
+      'text-border-width': 1,
+      'text-border-opacity': 0.7,
+      'opacity': 0.8,
+      'transition-property': 'line-color, target-arrow-color, width, opacity',
+      'transition-duration': 0.2,
+    },
+  },
+  // Edge Categories
+  {
+    selector: 'edge[category = "service_call"]',
+    style: {
+      'line-color': '#38bdf8',
+      'target-arrow-color': '#38bdf8',
+    },
+  },
+  {
+    selector: 'edge[category = "database"]',
+    style: {
+      'line-color': '#c084fc',
+      'target-arrow-color': '#c084fc',
+    },
+  },
+  {
+    selector: 'edge[category = "messaging"]',
+    style: {
+      'line-color': '#fbbf24',
+      'target-arrow-color': '#fbbf24',
+      'line-style': 'dashed',
+    },
+  },
+  {
+    selector: 'edge[category = "external"]',
+    style: {
+      'line-color': '#34d399',
+      'target-arrow-color': '#34d399',
+    },
+  },
+  // Highlighted Edges
+  {
+    selector: 'edge.highlighted',
+    style: {
+      'width': 3.5,
+      'opacity': 1,
+      'z-index': 999,
+      'line-color': '#38bdf8',
+      'target-arrow-color': '#38bdf8',
+    },
+  },
+  // Dimmed Elements during search or hover
+  {
+    selector: '.dimmed',
+    style: {
+      'opacity': 0.12,
+    },
+  },
+  // Search Matches
+  {
+    selector: 'node.search-match',
+    style: {
+      'underlay-color': '#f59e0b',
+      'underlay-padding': '10px',
+      'underlay-opacity': 0.6,
+      'border-color': '#f59e0b',
+      'border-width': 4,
+    },
+  },
+];
 
-interface LayoutSimLink extends SimulationLinkDatum<LayoutSimNode> {
-  source: string | LayoutSimNode;
-  target: string | LayoutSimNode;
-  category: 'service_call' | 'messaging';
-  count: number;
-}
-
-const DomainMapInner: React.FC<DomainArchitectureViewProps> = ({
+export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   graph,
   onFocusInFlow,
   onOpenFile,
 }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cyRef = useRef<cytoscape.Core | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
-  const { fitView } = useReactFlow();
+  const [layoutName, setLayoutName] = useState<'cose' | 'dagre' | 'concentric'>('cose');
+  const [selectedNode, setSelectedNode] = useState<SelectedNodeDetail | null>(null);
 
-  // 1. Synthesize Domain Entities from Graph Data
-  const { domains, projectToDomain, macroEdges, stats } = useMemo(() => {
-    const domainMap = new Map<string, InternalDomainRecord>();
+  // 1. Synthesize Domain Entities & Infrastructure Nodes from GraphData
+  const { elements, stats, nodeDetailMap } = useMemo(() => {
+    const cyElements: cytoscape.ElementDefinition[] = [];
+    const detailMap = new Map<string, SelectedNodeDetail>();
+
     const projToDomainMap = new Map<string, string>();
+    const domainProjectsMap = new Map<string, DomainProjectInfo[]>();
+    const domainPrimaryMap = new Map<string, GraphNode>();
+    const domainZoneMap = new Map<string, 'ingress' | 'service'>();
+    const domainNameMap = new Map<string, { name: string; displayName: string; framework?: string; language?: string }>();
 
-    // 1a. Process Message Topics, Queues, and External Services (Databases are mapped for metric counting, not as domain cards)
-    for (const node of graph?.nodes || []) {
-      if (node.kind === 'Database' || node.properties?.role === 'database') {
-        // Map database IDs so Project -> Database edges can be resolved for metric counts on service cards,
-        // but do not add Database nodes to domainMap (keeps Domain Service Map focused on services and messaging).
-        projToDomainMap.set(node.id, node.id);
-        projToDomainMap.set(node.name, node.id);
-      } else if (node.kind === 'Topic' || node.properties?.role === 'topic') {
-        const domainId = node.id;
-        projToDomainMap.set(node.id, domainId);
-        projToDomainMap.set(node.name, domainId);
-        domainMap.set(domainId, {
-          domainId,
-          name: node.name,
-          displayName: node.displayName || node.name,
-          zone: 'topic',
-          primaryNode: node,
-          projects: [],
-          framework: node.properties?.broker_type || 'Message Queue',
-        });
-      } else if (node.kind === 'ExternalService') {
-        const isMsg = (node.properties?.service_type || '').toLowerCase() === 'messagebroker';
-        const domainId = node.id;
-        projToDomainMap.set(node.id, domainId);
-        projToDomainMap.set(node.name, domainId);
-        domainMap.set(domainId, {
-          domainId,
-          name: node.name,
-          displayName: node.displayName || node.name,
-          zone: isMsg ? 'topic' : 'external',
-          primaryNode: node,
-          projects: [],
-          framework: node.properties?.service_type || 'External',
-        });
-      }
-    }
-
-    // 1b. Process Projects and Cluster into Domains
+    // 1a. Categorize Projects into Domains
     for (const node of graph?.nodes || []) {
       if (node.kind !== 'Project') continue;
 
       const { domainKey, domainDisplayName, isIngressHint } = extractDomainKey(node);
       projToDomainMap.set(node.id, domainKey);
       projToDomainMap.set(node.name, domainKey);
+      projToDomainMap.set(node.id.toLowerCase(), domainKey);
+      projToDomainMap.set(node.name.toLowerCase(), domainKey);
 
-      let rec = domainMap.get(domainKey);
-      if (!rec) {
+      let pList = domainProjectsMap.get(domainKey);
+      if (!pList) {
+        pList = [];
+        domainProjectsMap.set(domainKey, pList);
+
         const layer = (node.properties?.layer || node.properties?.layerId || '').toLowerCase();
         const isIngress = layer === 'layer_ingress' || isIngressHint;
+        domainZoneMap.set(domainKey, isIngress ? 'ingress' : 'service');
 
-        rec = {
-          domainId: domainKey,
+        domainNameMap.set(domainKey, {
           name: node.name,
           displayName: domainDisplayName,
-          zone: isIngress ? 'ingress' : 'service',
-          primaryNode: node,
-          projects: [],
           framework: node.properties?.framework,
           language: node.properties?.language || node.properties?.project_type,
-        };
-        domainMap.set(domainKey, rec);
+        });
       }
 
-      rec.projects.push({
+      pList.push({
         id: node.id,
         name: node.name,
         kind: node.kind,
@@ -217,335 +345,533 @@ const DomainMapInner: React.FC<DomainArchitectureViewProps> = ({
         isLibrary: node.properties?.is_library === 'true',
       });
 
-      // Update primary node if current is an entrypoint / API rather than sub-library
-      if (
-        rec.primaryNode &&
-        (rec.primaryNode.properties?.is_library === 'true' ||
-          rec.primaryNode.name.toLowerCase().includes('client')) &&
-        node.properties?.is_library !== 'true'
-      ) {
-        rec.primaryNode = node;
+      const currPrimary = domainPrimaryMap.get(domainKey);
+      if (!currPrimary || (currPrimary.properties?.is_library === 'true' && node.properties?.is_library !== 'true')) {
+        domainPrimaryMap.set(domainKey, node);
       }
     }
 
-    // 2. Synthesize Macro Edges (Only Service Calls and Messaging flows)
+    // 1b. Collect Infrastructure Entities (Databases, Topics, ExternalServices)
+    const dbNodes = new Map<string, { id: string; name: string; dbType: string }>();
+    const topicNodes = new Map<string, { id: string; name: string; broker: string }>();
+    const extNodes = new Map<string, { id: string; name: string; serviceType: string }>();
+
+    for (const node of graph?.nodes || []) {
+      if (node.kind === 'Database' || node.properties?.role === 'database') {
+        const name = node.name || node.displayName || 'Database';
+        dbNodes.set(node.id, {
+          id: node.id,
+          name,
+          dbType: node.properties?.db_type || 'relational',
+        });
+        projToDomainMap.set(node.id, node.id);
+        projToDomainMap.set(node.id.toLowerCase(), node.id);
+      } else if (node.kind === 'Topic' || node.properties?.role === 'topic') {
+        const name = node.name || node.displayName || 'Topic';
+        topicNodes.set(node.id, {
+          id: node.id,
+          name,
+          broker: node.properties?.broker_type || 'Message Queue',
+        });
+        projToDomainMap.set(node.id, node.id);
+        projToDomainMap.set(node.id.toLowerCase(), node.id);
+      } else if (node.kind === 'ExternalService') {
+        const name = node.name || node.displayName || 'External Service';
+        extNodes.set(node.id, {
+          id: node.id,
+          name,
+          serviceType: node.properties?.service_type || 'API',
+        });
+        projToDomainMap.set(node.id, node.id);
+        projToDomainMap.set(node.id.toLowerCase(), node.id);
+      }
+    }
+
+    // 2. Synthesize Macro Edges
     interface EdgeAggregator {
       source: string;
       target: string;
-      category: 'service_call' | 'messaging';
+      category: 'service_call' | 'database' | 'messaging' | 'external';
+      label: string;
       count: number;
     }
-    const macroEdgeMap = new Map<string, EdgeAggregator>();
-    const dbsUsed = new Map<string, Set<string>>();
+    const macroEdges = new Map<string, EdgeAggregator>();
+
+    const inCalls = new Map<string, number>();
+    const outCalls = new Map<string, number>();
+    const dbUsage = new Map<string, Set<string>>();
+    const msgUsage = new Map<string, Set<string>>();
 
     for (const edge of graph?.edges || []) {
-      const srcDomain = projToDomainMap.get(edge.source) || projToDomainMap.get(edge.source.toLowerCase());
-      const tgtDomain = projToDomainMap.get(edge.target) || projToDomainMap.get(edge.target.toLowerCase());
+      const srcDomain =
+        projToDomainMap.get(edge.source) ||
+        projToDomainMap.get(edge.source.toLowerCase()) ||
+        (dbNodes.has(edge.source) ? edge.source : null) ||
+        (topicNodes.has(edge.source) ? edge.source : null);
 
-      if (!srcDomain || !tgtDomain || srcDomain === tgtDomain) {
-        continue;
-      }
+      const tgtDomain =
+        projToDomainMap.get(edge.target) ||
+        projToDomainMap.get(edge.target.toLowerCase()) ||
+        (dbNodes.has(edge.target) ? edge.target : null) ||
+        (topicNodes.has(edge.target) ? edge.target : null) ||
+        (extNodes.has(edge.target) ? edge.target : null);
 
-      // Check for Database usage
-      if (edge.category === 'database' || edge.kind === 'USES_DB') {
-        if (!dbsUsed.has(srcDomain)) dbsUsed.set(srcDomain, new Set());
-        dbsUsed.get(srcDomain)!.add(tgtDomain);
-        continue;
-      }
+      if (!srcDomain || !tgtDomain || srcDomain === tgtDomain) continue;
 
-      // Only domain entities that exist in domainMap can participate in macro edges
-      if (!domainMap.has(srcDomain) || !domainMap.has(tgtDomain)) {
-        continue;
-      }
+      let cat: 'service_call' | 'database' | 'messaging' | 'external' | null = null;
+      let label = 'CALLS';
 
-      const tgtRecord = domainMap.get(tgtDomain);
-      let cat: 'service_call' | 'messaging' | 'library' | null = null;
-
-      if (tgtRecord?.zone === 'topic') {
+      if (dbNodes.has(tgtDomain) || edge.category === 'database' || edge.kind === 'USES_DB') {
+        cat = 'database';
+        label = 'USES_DB';
+        if (!dbUsage.has(srcDomain)) dbUsage.set(srcDomain, new Set());
+        dbUsage.get(srcDomain)!.add(tgtDomain);
+      } else if (topicNodes.has(tgtDomain) || topicNodes.has(srcDomain) || edge.category === 'messaging' || edge.kind === 'TRIGGERS') {
         cat = 'messaging';
-      } else if (edge.category === 'messaging' || edge.kind === 'TRIGGERS') {
-        cat = 'messaging';
-      } else if (edge.category === 'service_call' || edge.kind === 'SERVICE_CALL') {
+        label = topicNodes.has(srcDomain) ? 'SUBSCRIBES' : 'PUBLISHES';
+        if (topicNodes.has(tgtDomain)) {
+          if (!msgUsage.has(srcDomain)) msgUsage.set(srcDomain, new Set());
+          msgUsage.get(srcDomain)!.add(tgtDomain);
+        } else if (topicNodes.has(srcDomain)) {
+          if (!msgUsage.has(tgtDomain)) msgUsage.set(tgtDomain, new Set());
+          msgUsage.get(tgtDomain)!.add(srcDomain);
+        }
+      } else if (extNodes.has(tgtDomain)) {
+        cat = 'external';
+        label = 'CALLS';
+      } else if (edge.category === 'service_call' || edge.kind === 'SERVICE_CALL' || edge.kind === 'CALLS_ENDPOINT') {
         cat = 'service_call';
+        label = 'CALLS';
       } else {
-        // If target project is a .Client library, referencing it means calling the service!
         const isClientLib = edge.target.toLowerCase().includes('.client') || edge.target.toLowerCase().endsWith('client');
-        cat = isClientLib ? 'service_call' : 'library';
+        if (isClientLib) {
+          cat = 'service_call';
+          label = 'CALLS';
+        }
       }
 
-      // On Domain Service Map, only show service calls and messages!
-      if (cat !== 'service_call' && cat !== 'messaging') {
-        continue;
+      if (!cat) continue;
+
+      if (cat === 'service_call') {
+        outCalls.set(srcDomain, (outCalls.get(srcDomain) || 0) + 1);
+        inCalls.set(tgtDomain, (inCalls.get(tgtDomain) || 0) + 1);
       }
 
       const key = `${srcDomain}->${tgtDomain}:${cat}`;
-      const existing = macroEdgeMap.get(key);
-
+      const existing = macroEdges.get(key);
       if (existing) {
         existing.count += 1;
       } else {
-        macroEdgeMap.set(key, {
+        macroEdges.set(key, {
           source: srcDomain,
           target: tgtDomain,
           category: cat,
+          label,
           count: 1,
         });
       }
     }
 
-    // 3. Compute Metrics for each Domain
-    const inCalls = new Map<string, number>();
-    const outCalls = new Map<string, number>();
-    const msgsUsed = new Map<string, Set<string>>();
-
-    for (const edge of macroEdgeMap.values()) {
-      if (edge.category === 'service_call') {
-        outCalls.set(edge.source, (outCalls.get(edge.source) || 0) + 1);
-        inCalls.set(edge.target, (inCalls.get(edge.target) || 0) + 1);
-      } else if (edge.category === 'messaging') {
-        if (!msgsUsed.has(edge.source)) msgsUsed.set(edge.source, new Set());
-        msgsUsed.get(edge.source)!.add(edge.target);
-      }
-    }
-
-    const domainList: DomainCardData[] = [];
+    // 3. Build Cytoscape Nodes
     let ingressCount = 0;
     let serviceCount = 0;
-    let topicCount = 0;
 
-    for (const d of domainMap.values()) {
-      if (d.zone === 'ingress') ingressCount++;
-      else if (d.zone === 'service') serviceCount++;
-      else if (d.zone === 'topic') topicCount++;
+    // 3a. Service / Ingress Nodes
+    for (const [domainId, meta] of domainNameMap.entries()) {
+      const zone = domainZoneMap.get(domainId) || 'service';
+      const isIngress = zone === 'ingress';
+      if (isIngress) ingressCount++;
+      else serviceCount++;
 
-      domainList.push({
-        domainId: d.domainId,
-        name: d.name,
-        displayName: d.displayName,
-        zone: d.zone,
-        primaryNode: d.primaryNode,
-        projects: d.projects,
-        framework: d.framework,
-        language: d.language,
-        inboundCallsCount: inCalls.get(d.domainId) || 0,
-        outboundCallsCount: outCalls.get(d.domainId) || 0,
-        dbCount: dbsUsed.get(d.domainId)?.size || 0,
-        messagingCount: msgsUsed.get(d.domainId)?.size || 0,
-        onFocusInFlow,
-        onOpenFile,
+      const projects = domainProjectsMap.get(domainId) || [];
+      const primaryNode = domainPrimaryMap.get(domainId);
+      const tag = isIngress ? ':Ingress' : ':Service';
+      const bgColor = isIngress ? '#0288d1' : '#e53935';
+      const borderColor = isIngress ? '#01579b' : '#7f1d1d';
+      const size = isIngress ? 54 : 50;
+
+      const detail: SelectedNodeDetail = {
+        id: domainId,
+        name: meta.name,
+        displayName: meta.displayName,
+        kind: isIngress ? 'Ingress' : 'Service',
+        displayTag: tag,
+        bgColor,
+        borderColor,
+        framework: meta.framework,
+        language: meta.language,
+        primaryFilePath: primaryNode?.filePath || projects[0]?.filePath,
+        projects,
+        inboundCallsCount: inCalls.get(domainId) || 0,
+        outboundCallsCount: outCalls.get(domainId) || 0,
+        dbCount: dbUsage.get(domainId)?.size || 0,
+        messagingCount: msgUsage.get(domainId)?.size || 0,
+      };
+      detailMap.set(domainId, detail);
+
+      cyElements.push({
+        group: 'nodes',
+        data: {
+          id: domainId,
+          name: meta.name,
+          displayName: meta.displayName,
+          displayLabel: `${tag}\n${meta.displayName}`,
+          kind: isIngress ? 'Ingress' : 'Service',
+          bgColor,
+          borderColor,
+          size,
+        },
       });
     }
 
+    // 3b. Database Nodes (Only add databases that are actually used by at least one service, or workspace databases)
+    let dbCount = 0;
+    for (const [dbId, db] of dbNodes.entries()) {
+      const isUsed = Array.from(macroEdges.values()).some((e) => e.target === dbId || e.source === dbId);
+      if (!isUsed && dbNodes.size > 20) continue;
+      dbCount++;
+
+      const tag = ':DB';
+      const bgColor = '#7b1fa2';
+      const borderColor = '#4a148c';
+
+      detailMap.set(dbId, {
+        id: dbId,
+        name: db.name,
+        displayName: db.name,
+        kind: 'Database',
+        displayTag: tag,
+        bgColor,
+        borderColor,
+        framework: db.dbType,
+        projects: [],
+        inboundCallsCount: 0,
+        outboundCallsCount: 0,
+        dbCount: 0,
+        messagingCount: 0,
+      });
+
+      cyElements.push({
+        group: 'nodes',
+        data: {
+          id: dbId,
+          name: db.name,
+          displayName: db.name,
+          displayLabel: `${tag}\n${db.name}`,
+          kind: 'Database',
+          bgColor,
+          borderColor,
+          size: 48,
+        },
+      });
+    }
+
+    // 3c. Message Topics / Queues
+    let topicCount = 0;
+    for (const [tId, t] of topicNodes.entries()) {
+      const isUsed = Array.from(macroEdges.values()).some((e) => e.target === tId || e.source === tId);
+      if (!isUsed && topicNodes.size > 25) continue;
+      topicCount++;
+
+      const tag = ':Topic';
+      const bgColor = '#f59e0b';
+      const borderColor = '#b45309';
+
+      detailMap.set(tId, {
+        id: tId,
+        name: t.name,
+        displayName: t.name,
+        kind: 'Topic',
+        displayTag: tag,
+        bgColor,
+        borderColor,
+        framework: t.broker,
+        projects: [],
+        inboundCallsCount: 0,
+        outboundCallsCount: 0,
+        dbCount: 0,
+        messagingCount: 0,
+      });
+
+      cyElements.push({
+        group: 'nodes',
+        data: {
+          id: tId,
+          name: t.name,
+          displayName: t.name,
+          displayLabel: `${tag}\n${t.name}`,
+          kind: 'Topic',
+          bgColor,
+          borderColor,
+          size: 46,
+        },
+      });
+    }
+
+    // 3d. External Services
+    for (const [extId, ext] of extNodes.entries()) {
+      const isUsed = Array.from(macroEdges.values()).some((e) => e.target === extId);
+      if (!isUsed) continue;
+
+      const tag = ':External';
+      const bgColor = '#26a69a';
+      const borderColor = '#004d40';
+
+      detailMap.set(extId, {
+        id: extId,
+        name: ext.name,
+        displayName: ext.name,
+        kind: 'ExternalService',
+        displayTag: tag,
+        bgColor,
+        borderColor,
+        framework: ext.serviceType,
+        projects: [],
+        inboundCallsCount: 0,
+        outboundCallsCount: 0,
+        dbCount: 0,
+        messagingCount: 0,
+      });
+
+      cyElements.push({
+        group: 'nodes',
+        data: {
+          id: extId,
+          name: ext.name,
+          displayName: ext.name,
+          displayLabel: `${tag}\n${ext.name}`,
+          kind: 'ExternalService',
+          bgColor,
+          borderColor,
+          size: 44,
+        },
+      });
+    }
+
+    // 4. Build Cytoscape Edges
+    const validNodeIdSet = new Set(cyElements.map((el) => el.data.id));
     let serviceCallsCount = 0;
     let messagesCount = 0;
-    for (const edge of macroEdgeMap.values()) {
-      if (edge.category === 'service_call') serviceCallsCount += edge.count;
-      else if (edge.category === 'messaging') messagesCount += edge.count;
+
+    for (const [key, e] of macroEdges.entries()) {
+      if (!validNodeIdSet.has(e.source) || !validNodeIdSet.has(e.target)) continue;
+
+      if (e.category === 'service_call') serviceCallsCount += e.count;
+      else if (e.category === 'messaging') messagesCount += e.count;
+
+      const edgeLabel = e.count > 1 ? `${e.label} (${e.count})` : e.label;
+
+      cyElements.push({
+        group: 'edges',
+        data: {
+          id: key,
+          source: e.source,
+          target: e.target,
+          category: e.category,
+          label: edgeLabel,
+          count: e.count,
+        },
+      });
     }
 
     return {
-      domains: domainList,
-      projectToDomain: projToDomainMap,
-      macroEdges: Array.from(macroEdgeMap.values()),
+      elements: cyElements,
+      detailMap,
+      nodeDetailMap: detailMap,
       stats: {
-        total: domainList.length,
+        total: cyElements.filter((el) => el.group === 'nodes').length,
         ingress: ingressCount,
         services: serviceCount,
+        databases: dbCount,
         topics: topicCount,
         serviceCalls: serviceCallsCount,
         messages: messagesCount,
       },
     };
-  }, [graph, onFocusInFlow, onOpenFile]);
+  }, [graph]);
 
-  // 2. Perform Force-Directed Layout & Build ReactFlow Graph
+  // Apply layout
+  const applyLayout = useCallback(
+    (name: 'cose' | 'dagre' | 'concentric', cyInstance?: cytoscape.Core | null) => {
+      const cy = cyInstance || cyRef.current;
+      if (!cy || cy.nodes().length === 0) return;
+
+      let layoutConfig: any;
+      if (name === 'dagre') {
+        layoutConfig = {
+          name: 'dagre',
+          rankDir: 'LR',
+          nodeSep: 60,
+          rankSep: 140,
+          animate: false,
+          fit: true,
+          padding: 60,
+        };
+      } else if (name === 'concentric') {
+        layoutConfig = {
+          name: 'concentric',
+          concentric: (node: any) => {
+            const kind = node.data('kind');
+            if (kind === 'Ingress') return 4;
+            if (kind === 'Service') return 3;
+            if (kind === 'Topic') return 2;
+            return 1;
+          },
+          levelWidth: () => 1,
+          animate: false,
+          fit: true,
+          padding: 60,
+        };
+      } else {
+        // Organic Force-Directed (COSE)
+        layoutConfig = {
+          name: 'cose',
+          animate: false,
+          randomize: false,
+          componentSpacing: 80,
+          nodeRepulsion: () => 450000,
+          nodeOverlap: 25,
+          idealEdgeLength: () => 140,
+          edgeElasticity: () => 100,
+          nestingFactor: 5,
+          gravity: 60,
+          numIter: 400,
+          coolingFactor: 0.95,
+          fit: true,
+          padding: 60,
+        };
+      }
+
+      const layout = cy.layout(layoutConfig);
+      layout.run();
+    },
+    []
+  );
+
+  // Initialize Cytoscape Instance
   useEffect(() => {
-    if (!domains || domains.length === 0) {
-      setNodes([]);
-      setEdges([]);
+    if (!containerRef.current) return;
+
+    const cy = cytoscape({
+      container: containerRef.current,
+      elements: [],
+      style: CYTOSCAPE_STYLES,
+      boxSelectionEnabled: false,
+      autoungrabify: false,
+      minZoom: 0.15,
+      maxZoom: 3.5,
+      wheelSensitivity: 0.25,
+    });
+
+    // Node Selection & Highlight
+    cy.on('tap', 'node', (evt) => {
+      const node = evt.target;
+      const nodeId = node.id();
+      const detail = nodeDetailMap.get(nodeId);
+      if (detail) {
+        setSelectedNode(detail);
+      }
+
+      // Highlight neighborhood
+      cy.elements().removeClass('highlighted dimmed');
+      const neighborhood = node.neighborhood().add(node);
+      cy.elements().not(neighborhood).addClass('dimmed');
+      node.connectedEdges().addClass('highlighted');
+    });
+
+    // Background click -> Deselect
+    cy.on('tap', (evt) => {
+      if (evt.target === cy) {
+        setSelectedNode(null);
+        cy.elements().removeClass('highlighted dimmed');
+      }
+    });
+
+    // Double-click -> Drill down into Flow
+    cy.on('dbltap', 'node', (evt) => {
+      const node = evt.target;
+      const nodeId = node.id();
+      const detail = nodeDetailMap.get(nodeId);
+      if (detail && (detail.kind === 'Service' || detail.kind === 'Ingress') && onFocusInFlow) {
+        onFocusInFlow(detail.name);
+      }
+    });
+
+    // Mouseover / Mouseout hover highlights
+    cy.on('mouseover', 'node', (evt) => {
+      containerRef.current?.classList.add('node-hover');
+      evt.target.addClass('hovered');
+    });
+
+    cy.on('mouseout', 'node', (evt) => {
+      containerRef.current?.classList.remove('node-hover');
+      evt.target.removeClass('hovered');
+    });
+
+    cyRef.current = cy;
+
+    return () => {
+      cy.destroy();
+      cyRef.current = null;
+    };
+  }, [nodeDetailMap, onFocusInFlow]);
+
+  // Load Elements into Cytoscape when data changes
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    cy.elements().remove();
+    if (elements.length > 0) {
+      cy.add(elements);
+      applyLayout(layoutName, cy);
+    }
+  }, [elements, layoutName, applyLayout]);
+
+  // Search Query Filter
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) {
+      cy.elements().removeClass('dimmed search-match');
       return;
     }
 
-    // Filter based on search query
-    const query = searchQuery.trim().toLowerCase();
-    const visibleDomainIds = new Set<string>();
-
-    for (const d of domains) {
-      if (!query) {
-        visibleDomainIds.add(d.domainId);
-        continue;
-      }
-
-      const matchName = d.displayName.toLowerCase().includes(query) || d.name.toLowerCase().includes(query);
-      const matchSub = d.projects.some((p) => p.name.toLowerCase().includes(query));
-      if (matchName || matchSub) {
-        visibleDomainIds.add(d.domainId);
-      }
-    }
-
-    const visibleDomains = domains.filter((d) => visibleDomainIds.has(d.domainId));
-    const totalVisible = visibleDomains.length;
-
-    // Simulation nodes with collision radius and target horizontal bias
-    const simNodes: LayoutSimNode[] = visibleDomains.map((d, index) => {
-      const isTopic = d.zone === 'topic';
-      const width = isTopic ? 190 : 250;
-      const height = isTopic ? 80 : (d.projects.length > 1 ? 165 : 135);
-      const radius = isTopic ? 120 : 160;
-
-      // Target X bias: Ingress frontends on left, Services in middle, Topics on right
-      let targetX = 0;
-      if (d.zone === 'ingress') {
-        targetX = -450;
-      } else if (d.zone === 'topic') {
-        targetX = 400;
-      }
-
-      // Initial circular / banded distribution to prevent starting from exact (0,0)
-      const angle = (2 * Math.PI * index) / (totalVisible || 1);
-      const ringRadius = 260 + totalVisible * 16;
-      const initX = targetX !== 0 ? targetX + Math.cos(angle) * 120 : Math.cos(angle) * ringRadius;
-      const initY = Math.sin(angle) * (ringRadius * 0.7);
-
-      return {
-        id: d.domainId,
-        domain: d,
-        width,
-        height,
-        radius,
-        targetX,
-        x: initX,
-        y: initY,
-      };
+    const matches = cy.nodes().filter((n) => {
+      const name = (n.data('name') || '').toLowerCase();
+      const dName = (n.data('displayName') || '').toLowerCase();
+      return name.includes(q) || dName.includes(q);
     });
 
-    const simNodeMap = new Map<string, LayoutSimNode>(simNodes.map((n) => [n.id, n]));
-
-    // Simulation links
-    const simLinks: LayoutSimLink[] = [];
-    for (const e of macroEdges) {
-      if (visibleDomainIds.has(e.source) && visibleDomainIds.has(e.target)) {
-        simLinks.push({
-          source: e.source,
-          target: e.target,
-          category: e.category,
-          count: e.count,
-        });
-      }
+    if (matches.length > 0) {
+      cy.elements().addClass('dimmed');
+      matches.removeClass('dimmed').addClass('search-match');
+      matches.connectedEdges().removeClass('dimmed');
+      matches.neighborhood().removeClass('dimmed');
+    } else {
+      cy.elements().removeClass('dimmed search-match');
     }
+  }, [searchQuery]);
 
-    // Force simulation
-    const simulation = forceSimulation<LayoutSimNode>(simNodes)
-      .force(
-        'link',
-        forceLink<LayoutSimNode, LayoutSimLink>(simLinks)
-          .id((d) => d.id)
-          .distance((l) => (l.category === 'messaging' ? 260 : 320))
-          .strength(0.45)
-      )
-      .force('charge', forceManyBody<LayoutSimNode>().strength(-1800).distanceMax(2200))
-      .force('collide', forceCollide<LayoutSimNode>().radius((d) => d.radius).iterations(4))
-      .force(
-        'x',
-        forceX<LayoutSimNode>((d) => d.targetX).strength((d) => (d.domain.zone === 'ingress' ? 0.15 : 0.08))
-      )
-      .force('y', forceY<LayoutSimNode>(0).strength(0.06))
-      .force('center', forceCenter(0, 0))
-      .stop();
-
-    // Execute 300 iterations synchronously for instant, stable layout
-    for (let i = 0; i < 300; ++i) {
-      simulation.tick();
+  const handleFitView = useCallback(() => {
+    if (cyRef.current) {
+      cyRef.current.fit(undefined, 50);
     }
+  }, []);
 
-    // Build ReactFlow Nodes
-    const flowNodes: Node[] = simNodes.map((sNode) => ({
-      id: sNode.id,
-      type: 'domainCard',
-      position: {
-        x: Math.round((sNode.x || 0) - sNode.width / 2),
-        y: Math.round((sNode.y || 0) - sNode.height / 2),
-      },
-      data: sNode.domain,
-    }));
-
-    // Build ReactFlow Edges with dynamic nearest-face handles
-    const flowEdges: Edge[] = [];
-    for (const link of simLinks) {
-      const sNode = (typeof link.source === 'object' ? link.source : simNodeMap.get(link.source)) as LayoutSimNode | undefined;
-      const tNode = (typeof link.target === 'object' ? link.target : simNodeMap.get(link.target)) as LayoutSimNode | undefined;
-
-      if (!sNode || !tNode) continue;
-
-      const sx = sNode.x || 0;
-      const sy = sNode.y || 0;
-      const tx = tNode.x || 0;
-      const ty = tNode.y || 0;
-
-      const dx = tx - sx;
-      const dy = ty - sy;
-
-      let sourceHandle = 'source-right';
-      let targetHandle = 'target-left';
-
-      if (Math.abs(dx) >= Math.abs(dy)) {
-        if (dx >= 0) {
-          sourceHandle = 'source-right';
-          targetHandle = 'target-left';
-        } else {
-          sourceHandle = 'source-left';
-          targetHandle = 'target-right';
-        }
-      } else {
-        if (dy >= 0) {
-          sourceHandle = 'source-bottom';
-          targetHandle = 'target-top';
-        } else {
-          sourceHandle = 'source-top';
-          targetHandle = 'target-bottom';
-        }
-      }
-
-      const isMsg = link.category === 'messaging';
-      const stroke = isMsg ? '#fbbf24' : '#38bdf8';
-      const strokeDasharray = isMsg ? '6,4' : undefined;
-      const label = link.count > 1 ? (isMsg ? `${link.count} msgs` : `${link.count} calls`) : undefined;
-
-      flowEdges.push({
-        id: `${sNode.id}->${tNode.id}:${link.category}`,
-        source: sNode.id,
-        target: tNode.id,
-        sourceHandle,
-        targetHandle,
-        animated: false,
-        style: {
-          stroke,
-          strokeWidth: 2,
-          strokeDasharray,
-        },
-        label,
-        labelStyle: { fill: '#94a3b8', fontSize: 10, fontWeight: 600 },
-        labelBgStyle: { fill: 'rgba(15, 23, 42, 0.85)', rx: 4, ry: 4 },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: stroke,
-          width: 14,
-          height: 14,
-        },
-      });
-    }
-
-    setNodes(flowNodes);
-    setEdges(flowEdges);
-
-    setTimeout(() => {
-      fitView({ padding: 0.2, duration: 400 });
-    }, 50);
-  }, [domains, macroEdges, searchQuery, fitView, setNodes, setEdges]);
+  const handleLayoutChange = useCallback(
+    (newLayout: 'cose' | 'dagre' | 'concentric') => {
+      setLayoutName(newLayout);
+      applyLayout(newLayout);
+    },
+    [applyLayout]
+  );
 
   return (
     <div className="domain-map-canvas-container">
-      {/* Top-Left Floating HUD */}
+      {/* Top Floating HUD */}
       <div className="domain-map-hud">
         <div className="domain-hud-title-badge">
           <span className="domain-hud-label">Macro Architecture</span>
@@ -559,9 +885,14 @@ const DomainMapInner: React.FC<DomainArchitectureViewProps> = ({
           <span className="hud-stat-pill" title="Domain Services">
             ⚙️ {stats.services} Services
           </span>
+          {stats.databases > 0 && (
+            <span className="hud-stat-pill" title="Databases">
+              🗄️ {stats.databases} DBs
+            </span>
+          )}
           {stats.topics > 0 && (
             <span className="hud-stat-pill" title="Message Queues & Event Topics">
-              📬 {stats.topics} Queues
+              📬 {stats.topics} Topics
             </span>
           )}
           <span className="hud-stat-pill" title="Service Calls (RPC / HTTP)">
@@ -572,11 +903,30 @@ const DomainMapInner: React.FC<DomainArchitectureViewProps> = ({
           </span>
         </div>
 
+        {/* Layout Selector */}
+        <div className="domain-hud-layout-select">
+          <select
+            value={layoutName}
+            onChange={(e) => handleLayoutChange(e.target.value as any)}
+            title="Graph Layout"
+            className="domain-layout-dropdown"
+          >
+            <option value="cose">Force (COSE)</option>
+            <option value="dagre">Hierarchical (Dagre)</option>
+            <option value="concentric">Concentric</option>
+          </select>
+        </div>
+
+        <button className="domain-hud-fit-btn" onClick={handleFitView} title="Center and Fit View">
+          Fit
+        </button>
+
+        {/* Search */}
         <div className="domain-hud-search">
           <input
             type="text"
             className="domain-search-input"
-            placeholder="Filter domains or projects..."
+            placeholder="Search domain or service..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -592,41 +942,112 @@ const DomainMapInner: React.FC<DomainArchitectureViewProps> = ({
         </div>
       </div>
 
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        nodesConnectable={false}
-        autoPanOnConnect={false}
-        connectOnClick={false}
-        fitView
-        minZoom={0.15}
-        maxZoom={2}
-      >
-        <Background color="rgba(255,255,255,0.06)" gap={24} />
-        <Controls />
-        <MiniMap
-          nodeColor={(n) => {
-            const zone = (n.data as any)?.zone;
-            if (zone === 'ingress') return '#38bdf8';
-            if (zone === 'service') return '#a855f7';
-            if (zone === 'topic') return '#fbbf24';
-            return '#34d399';
-          }}
-          maskColor="rgba(0, 0, 0, 0.6)"
-          style={{ background: '#181822', border: '1px solid #333' }}
-        />
-      </ReactFlow>
-    </div>
-  );
-};
+      {/* Full-bleed HTML5 Canvas Container for Cytoscape */}
+      <div ref={containerRef} className="domain-cytoscape-container" />
 
-export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = (props) => {
-  return (
-    <ReactFlowProvider>
-      <DomainMapInner {...props} />
-    </ReactFlowProvider>
+      {/* Floating Node Inspector Panel (when node selected) */}
+      {selectedNode && (
+        <aside className="domain-inspector-panel">
+          <div className="domain-inspector-header">
+            <div className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
+              {selectedNode.displayTag}
+            </div>
+            <div className="inspector-title-group">
+              <h4 className="inspector-title" title={selectedNode.displayName}>
+                {selectedNode.displayName}
+              </h4>
+              {selectedNode.framework && (
+                <span className="inspector-subtitle">{selectedNode.framework}</span>
+              )}
+            </div>
+            <button
+              className="inspector-close-btn"
+              onClick={() => {
+                setSelectedNode(null);
+                cyRef.current?.elements().removeClass('highlighted dimmed');
+              }}
+              title="Close inspector"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="inspector-body">
+            {/* Subprojects breakdown if clustered */}
+            {selectedNode.projects && selectedNode.projects.length > 1 && (
+              <div className="inspector-section">
+                <label className="inspector-section-label">
+                  Clustered Projects ({selectedNode.projects.length})
+                </label>
+                <div className="inspector-subprojects-list">
+                  {selectedNode.projects.map((p) => (
+                    <div
+                      key={p.id}
+                      className="inspector-subproject-item"
+                      onClick={() => p.filePath && onOpenFile?.(p.filePath, 1)}
+                      title={p.filePath || p.name}
+                    >
+                      <span className="subproject-dot">•</span>
+                      <span className="subproject-name">{p.name}</span>
+                      {p.isLibrary && <span className="subproject-lib-tag">lib</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Metrics Grid */}
+            <div className="inspector-metrics-grid">
+              {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && (
+                <>
+                  <div className="inspector-metric-card" title="Inbound calls from other services">
+                    <span className="metric-val">{selectedNode.inboundCallsCount}</span>
+                    <span className="metric-lbl">Inbound Calls</span>
+                  </div>
+                  <div className="inspector-metric-card" title="Outbound calls to downstream services">
+                    <span className="metric-val">{selectedNode.outboundCallsCount}</span>
+                    <span className="metric-lbl">Outbound Calls</span>
+                  </div>
+                  {selectedNode.dbCount > 0 && (
+                    <div className="inspector-metric-card" title="Databases used directly">
+                      <span className="metric-val">{selectedNode.dbCount}</span>
+                      <span className="metric-lbl">Databases</span>
+                    </div>
+                  )}
+                  {selectedNode.messagingCount > 0 && (
+                    <div className="inspector-metric-card" title="Topics published or subscribed">
+                      <span className="metric-val">{selectedNode.messagingCount}</span>
+                      <span className="metric-lbl">Topics</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="inspector-actions">
+              {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && onFocusInFlow && (
+                <button
+                  className="inspector-action-btn primary"
+                  onClick={() => onFocusInFlow(selectedNode.name)}
+                  title="Drill down to Project Flow (C2) view"
+                >
+                  Explore in Flow (C2) ➔
+                </button>
+              )}
+              {selectedNode.primaryFilePath && onOpenFile && (
+                <button
+                  className="inspector-action-btn secondary"
+                  onClick={() => onOpenFile(selectedNode.primaryFilePath!, 1)}
+                  title="Open source file in editor"
+                >
+                  Open Source
+                </button>
+              )}
+            </div>
+          </div>
+        </aside>
+      )}
+    </div>
   );
 };
