@@ -9,7 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents an exposed HTTP API endpoint route.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "radio-tower",
-    order: 6,
+    order: 10,
     pluralLabel: "API Endpoints (REST, gRPC, WS)"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Triggers)]

@@ -10,7 +10,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a message queue, event exchange, or topic boundary.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "mail",
-    order: 8,
+    order: 11,
     pluralLabel: "Message Topics & Queues"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.PublishedBy)]

@@ -8,7 +8,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a cloud provider service used by the project (e.g. AWS S3, Stripe, Firebase).",
     layer: OntologyConstants.Layers.Semantic,
     icon: "cloud-upload",
-    order: 10,
+    order: 13,
     pluralLabel: "Cloud Resources"
 )]
 public record CloudServiceNode(

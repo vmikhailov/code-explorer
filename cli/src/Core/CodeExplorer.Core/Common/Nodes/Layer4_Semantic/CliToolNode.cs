@@ -10,7 +10,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a command-line tool, developer script, or administrative CLI utility.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "terminal",
-    order: 5,
+    order: 4,
     pluralLabel: "CLI Tools"
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]

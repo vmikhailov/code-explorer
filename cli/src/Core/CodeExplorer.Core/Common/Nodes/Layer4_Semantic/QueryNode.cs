@@ -8,7 +8,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a SQL query.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "search",
-    order: 14,
+    order: 30,
     pluralLabel: "SQL Queries"
 )]
 [OntologyEdge<TableNode>(OntologyConstants.Relationships.DependsOn)]

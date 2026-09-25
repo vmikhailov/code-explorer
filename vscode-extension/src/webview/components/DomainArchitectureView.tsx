@@ -342,6 +342,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const spacingFactorRef = useRef<number>(1.0);
   spacingFactorRef.current = spacingFactor;
 
+  // Mouse wheel zoom sensitivity (default 2.5, 10x of previous 0.25)
+  const [wheelSensitivity, setWheelSensitivity] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('ce_wheel_sensitivity');
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val >= 0.5 && val <= 5.0) return val;
+      }
+    } catch { }
+    return 2.5;
+  });
+  const wheelSensitivityRef = useRef<number>(2.5);
+  wheelSensitivityRef.current = wheelSensitivity;
+
   const basePositionsRef = useRef<Map<string, cytoscape.Position>>(new Map());
   const centroidRef = useRef<{ cx: number; cy: number }>({ cx: 0, cy: 0 });
 
@@ -1033,7 +1047,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       autoungrabify: false,
       minZoom: 0.15,
       maxZoom: 3.5,
-      wheelSensitivity: 0.25,
+      wheelSensitivity: wheelSensitivityRef.current,
     });
 
     // Node Selection & Highlight
@@ -1366,6 +1380,24 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     [recordBasePositions]
   );
 
+  // Wheel sensitivity change handler
+  const handleWheelSensitivityChange = useCallback((val: number) => {
+    const clamped = Math.max(0.5, Math.min(5.0, +val.toFixed(1)));
+    setWheelSensitivity(clamped);
+    try {
+      localStorage.setItem('ce_wheel_sensitivity', clamped.toString());
+    } catch { }
+    if (cyRef.current) {
+      const cy = cyRef.current as any;
+      if (cy._private?.renderer) {
+        cy._private.renderer.wheelSensitivity = clamped;
+      }
+      if (cy._private?.options) {
+        cy._private.options.wheelSensitivity = clamped;
+      }
+    }
+  }, []);
+
   // Zoom control handlers
   const handleZoomIn = useCallback(() => {
     const cy = cyRef.current;
@@ -1574,6 +1606,42 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             title="Reset air to 1.0x"
           >
             {spacingFactor.toFixed(1)}x
+          </span>
+        </div>
+
+        {/* Wheel Zoom Sensitivity Control ("Wheel") */}
+        <div className="domain-hud-control-group" title="Wheel: Adjust mouse wheel zoom sensitivity">
+          <span className="domain-hud-group-label">Wheel:</span>
+          <button
+            className="domain-hud-step-btn"
+            onClick={() => handleWheelSensitivityChange(Math.max(0.5, +(wheelSensitivity - 0.5).toFixed(1)))}
+            title="Decrease wheel sensitivity (-)"
+          >
+            -
+          </button>
+          <input
+            type="range"
+            min="0.5"
+            max="5.0"
+            step="0.1"
+            value={wheelSensitivity}
+            onChange={(e) => handleWheelSensitivityChange(parseFloat(e.target.value))}
+            className="domain-hud-slider"
+            title={`Wheel Sensitivity: ${wheelSensitivity.toFixed(1)}x`}
+          />
+          <button
+            className="domain-hud-step-btn"
+            onClick={() => handleWheelSensitivityChange(Math.min(5.0, +(wheelSensitivity + 0.5).toFixed(1)))}
+            title="Increase wheel sensitivity (+)"
+          >
+            +
+          </button>
+          <span
+            className="domain-hud-value-badge"
+            onClick={() => handleWheelSensitivityChange(2.5)}
+            title="Reset wheel sensitivity to 2.5x"
+          >
+            {wheelSensitivity.toFixed(1)}x
           </span>
         </div>
 

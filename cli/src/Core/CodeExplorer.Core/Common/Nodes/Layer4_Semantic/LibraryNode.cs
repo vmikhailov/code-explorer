@@ -11,7 +11,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a shared library, utility module, DTO package, or domain contract reused across services.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "library",
-    order: 4,
+    order: 5,
     pluralLabel: "Libraries & SDKs"
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]

@@ -5,7 +5,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.DataSet,
     idScheme: "{workspaceId}:dataset:{datasetName}",
-    purpose: "Represents a collection of data tables or datasets."
+    purpose: "Represents a collection of data tables or datasets.",
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "database",
+    order: 21,
+    pluralLabel: "DataSets & Schemas"
 )]
 [OntologyEdge<TableNode>(OntologyConstants.Relationships.Contains)]
 public record DataSetNode(

@@ -1379,13 +1379,25 @@ export const App: React.FC = () => {
                 </div>
               )}
 
+              {/* Special handling for Group items list */}
+              {selectedDrawerNode.kind === 'Group' && selectedDrawerNode.properties?.items && (
+                <div className="drawer-field">
+                  <label>Group Members ({selectedDrawerNode.properties?.total_count || ''})</label>
+                  <GroupDrawerItems
+                    itemsJson={selectedDrawerNode.properties.items}
+                    onOpenFile={handleOpenFile}
+                    onDrillDown={handleDrillDownToFlow}
+                  />
+                </div>
+              )}
+
               {/* Properties list */}
               {selectedDrawerNode.properties && Object.keys(selectedDrawerNode.properties).length > 0 && (
                 <div className="drawer-field">
                   <label>Properties</label>
                   <div className="property-list">
                     {Object.entries(selectedDrawerNode.properties)
-                      .filter(([k]) => k !== 'packages')
+                      .filter(([k]) => k !== 'packages' && k !== 'items')
                       .map(([k, v]) => (
                         <div key={k} className="prop-item">
                           <span className="prop-key">{k}</span>
@@ -1402,3 +1414,111 @@ export const App: React.FC = () => {
     </CommandProvider>
   );
 };
+
+function GroupDrawerItems({
+  itemsJson,
+  onOpenFile,
+  onDrillDown,
+}: {
+  itemsJson: string;
+  onOpenFile: (file: string, line?: number) => void;
+  onDrillDown: (projectName: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const items = useMemo(() => {
+    try {
+      return JSON.parse(itemsJson) as Array<{
+        id: string;
+        name: string;
+        filePath?: string;
+        lineStart?: number;
+        properties?: Record<string, string>;
+      }>;
+    } catch {
+      return [];
+    }
+  }, [itemsJson]);
+
+  const filtered = useMemo(() => {
+    if (!query) return items;
+    const q = query.toLowerCase();
+    return items.filter(
+      (it) => it.name.toLowerCase().includes(q) || (it.filePath || '').toLowerCase().includes(q)
+    );
+  }, [items, query]);
+
+  return (
+    <div className="drawer-group-items-wrap">
+      {items.length > 8 && (
+        <input
+          type="text"
+          className="drawer-group-search-input"
+          placeholder={`Filter ${items.length} items...`}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
+      <div className="drawer-packages-list" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+        {filtered.map((item, idx) => {
+          const rawMethod =
+            item.properties?.method ||
+            (item.name.startsWith('GET:')
+              ? 'GET'
+              : item.name.startsWith('POST:')
+              ? 'POST'
+              : item.name.startsWith('DELETE:')
+              ? 'DELETE'
+              : undefined);
+          const cleanName = item.name.replace(/^[A-Z]+:/, '');
+
+          return (
+            <div
+              key={idx}
+              className="drawer-package-item"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}
+            >
+              <div style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {rawMethod && (
+                  <span
+                    className={`c1-method-badge c1-method-${rawMethod.toLowerCase()}`}
+                    style={{ marginRight: '6px' }}
+                  >
+                    {rawMethod}
+                  </span>
+                )}
+                <span className="pkg-name" title={item.name} style={{ fontSize: '11px' }}>
+                  {cleanName}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                {item.filePath && (
+                  <button
+                    className="drawer-action-btn"
+                    style={{ padding: '2px 5px', fontSize: '10px' }}
+                    onClick={() => onOpenFile(item.filePath!, item.lineStart)}
+                    title="Open in Editor"
+                  >
+                    📄
+                  </button>
+                )}
+                {isProjectKind(item.properties?.role || '') && (
+                  <button
+                    className="drawer-action-btn primary"
+                    style={{ padding: '2px 5px', fontSize: '10px' }}
+                    onClick={() => onDrillDown(cleanName)}
+                    title="Inspect in Flow"
+                  >
+                    🔀
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div style={{ padding: '8px', color: '#94a3b8', fontSize: '11px' }}>No matching items</div>
+        )}
+      </div>
+    </div>
+  );
+}

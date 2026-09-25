@@ -117,6 +117,7 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
     const cy = cytoscape({
       container: containerRef.current,
       boxSelectionEnabled: false,
+      wheelSensitivity: 2.5,
       style: [
         // Leaf / Childless Nodes (Projects, Classes, Databases, Endpoints)
         {

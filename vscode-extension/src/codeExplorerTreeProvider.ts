@@ -342,7 +342,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       return this.getLayerCategoryItems(element.data?.layerId, element.data?.title);
     }
 
-    if (element.itemType === 'services-container') {
+    if (element.itemType === 'services-container' || element.itemType === 'services-category') {
       return this.getServicesListItems(element.data?.layerTitle);
     }
 
@@ -594,7 +594,8 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
   private async getServicesListItems(layerTitle?: string): Promise<CodeExplorerTreeItem[]> {
     const services = await this.getOntologyServices();
-    return services.map((s) => {
+    const serviceList = services.filter((s) => !s.kind || s.kind === 'Service');
+    return serviceList.map((s) => {
       const item = new CodeExplorerTreeItem(
         'ontology-service',
         s.serviceName,

@@ -248,6 +248,8 @@ export const C1EgressCardNode = memo((props: any) => {
 export interface C1BoundaryData extends Record<string, unknown> {
   systemName: string;
   projectCount: number;
+  onToggleGroupAll?: () => void;
+  isGroupedAll?: boolean;
 }
 
 export const C1BoundaryCardNode = memo((props: any) => {
@@ -255,10 +257,149 @@ export const C1BoundaryCardNode = memo((props: any) => {
   return (
     <div className="c1-boundary-container">
       <div className="c1-boundary-header">
-        <span className="c1-boundary-icon">🏢</span>
-        <span className="c1-boundary-title">SYSTEM BOUNDARY: {data?.systemName || 'WORKSPACE'}</span>
-        <span className="c1-boundary-count">({data?.projectCount || 0} projects)</span>
+        <div className="c1-boundary-header-left">
+          <span className="c1-boundary-icon">🏢</span>
+          <span className="c1-boundary-title">SYSTEM BOUNDARY: {data?.systemName || 'WORKSPACE'}</span>
+          <span className="c1-boundary-count">({data?.projectCount || 0} projects)</span>
+        </div>
+        {data?.onToggleGroupAll && data.projectCount > 10 && (
+          <button
+            className="c1-boundary-toggle-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onToggleGroupAll?.();
+            }}
+            title={data.isGroupedAll ? "Show categorized project groups" : "Collapse all projects into 1 card"}
+          >
+            {data.isGroupedAll ? "Split by Kind" : "Collapse All to 1 Box"}
+          </button>
+        )}
       </div>
     </div>
   );
 });
+
+// ============================================================================
+// C1 Grouped Box Card (For > 10 items of the same kind)
+// ============================================================================
+export interface C1GroupData extends Record<string, unknown> {
+  id: string;
+  kind: string; // 'Endpoint' | 'Database' | 'ExternalService' | 'Topic' | 'Service' | 'Library' | 'Worker' | 'App' | 'Project'
+  category: 'ingress' | 'project' | 'egress';
+  title: string;
+  count: number;
+  items: any[];
+  subSummary?: string;
+  methodCounts?: Record<string, number>;
+  previewItems?: string[];
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+  onSelectNode?: () => void;
+  isSelected?: boolean;
+}
+
+export const C1GroupCardNode = memo((props: any) => {
+  const data = props.data as C1GroupData;
+  if (!data) return null;
+
+  const k = (data.kind || '').toLowerCase();
+  const isEndpoint = k === 'endpoint';
+  const isDb = k === 'database';
+  const isExt = k.includes('external') || k.includes('cloud');
+  const isMsg = k.includes('topic') || k.includes('queue') || k.includes('messaging');
+  const isLib = k.includes('lib');
+  const isService = k.includes('service');
+
+  const icon = isEndpoint ? '🌐' : isDb ? '🗄️' : isExt ? '☁️' : isMsg ? '📨' : isLib ? '📚' : isService ? '⚙️' : '📦';
+  const themeClass = isEndpoint
+    ? 'c1-group-endpoint'
+    : isDb
+    ? 'c1-group-database'
+    : isExt
+    ? 'c1-group-external'
+    : isMsg
+    ? 'c1-group-messaging'
+    : isLib
+    ? 'c1-group-library'
+    : isService
+    ? 'c1-group-service'
+    : 'c1-group-project';
+
+  return (
+    <div
+      className={`c1-node-card c1-group-card ${themeClass} ${data.isSelected ? 'is-selected' : ''}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        data.onSelectNode?.();
+      }}
+    >
+      {/* Left handle for incoming connections (Projects, Egress) */}
+      {(data.category === 'project' || data.category === 'egress') && (
+        <Handle type="target" position={Position.Left} id="ingress" className="c1-handle c1-handle-left" />
+      )}
+
+      <div className="c1-group-header">
+        <div className="c1-group-header-left">
+          <span className="c1-group-icon">{icon}</span>
+          <span className="c1-group-badge">{data.kind.toUpperCase()} GROUP</span>
+          <span className="c1-group-count-pill">{data.count}</span>
+        </div>
+        {data.onToggleExpand && (
+          <button
+            className="c1-group-toggle-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              data.onToggleExpand?.();
+            }}
+            title={data.isExpanded ? "Collapse group to hide details" : "Expand group to show individual cards"}
+          >
+            {data.isExpanded ? '▴ Collapse' : '▾ Expand'}
+          </button>
+        )}
+      </div>
+
+      <div className="c1-group-title" title={data.title}>
+        {data.title}
+      </div>
+
+      {data.subSummary && (
+        <div className="c1-group-subsummary">
+          {data.subSummary}
+        </div>
+      )}
+
+      {data.methodCounts && Object.keys(data.methodCounts).length > 0 && (
+        <div className="c1-group-methods-row">
+          {Object.entries(data.methodCounts).map(([method, count]) => (
+            <span key={method} className={`c1-group-method-tag c1-method-${method.toLowerCase()}`}>
+              {count} {method}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {data.previewItems && data.previewItems.length > 0 && (
+        <div className="c1-group-preview-chips">
+          {data.previewItems.slice(0, 3).map((item, idx) => (
+            <span key={idx} className="c1-group-chip" title={item}>
+              {item}
+            </span>
+          ))}
+          {data.count > 3 && (
+            <span className="c1-group-chip-more">+{data.count - 3} more</span>
+          )}
+        </div>
+      )}
+
+      <div className="c1-group-hint">
+        Click card to inspect all {data.count} items in drawer
+      </div>
+
+      {/* Right handle for outgoing connections (Ingress, Projects) */}
+      {(data.category === 'ingress' || data.category === 'project') && (
+        <Handle type="source" position={Position.Right} id="egress" className="c1-handle c1-handle-right" />
+      )}
+    </div>
+  );
+});
+

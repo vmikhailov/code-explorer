@@ -9,7 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a database instance, catalog, or physical schema.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "database",
-    order: 7,
+    order: 20,
     pluralLabel: "Databases & Storage"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.QueriedBy)]

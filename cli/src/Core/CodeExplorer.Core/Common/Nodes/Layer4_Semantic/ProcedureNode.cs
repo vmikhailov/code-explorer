@@ -8,7 +8,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a stored procedure in a database.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "database",
-    order: 13,
+    order: 23,
     pluralLabel: "Stored Procedures"
 )]
 [OntologyEdge<QueryNode>(OntologyConstants.Relationships.Contains)]

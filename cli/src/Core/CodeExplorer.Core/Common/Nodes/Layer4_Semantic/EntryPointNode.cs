@@ -9,7 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents non-HTTP execution triggers (e.g. gRPC services, CLI command definitions, Cron schedules, queue subscribers).",
     layer: OntologyConstants.Layers.Semantic,
     icon: "sign-in",
-    order: 11,
+    order: 6,
     pluralLabel: "Entry Points"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Triggers)]

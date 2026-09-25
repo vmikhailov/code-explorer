@@ -332,7 +332,30 @@
   border-radius: 3px;
 }
 
+/* Packages and Group list in Drawer */
+.drawer-group-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--vscode-input-background, #1e1e1e);
+  color: var(--vscode-input-foreground, #cccccc);
+  border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.3));
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.drawer-group-search-input:focus {
+  outline: 1px solid var(--vscode-focusBorder, #007acc);
+}
+
 /* Drawer Badges by Kind */
+.badge-group {
+  background: rgba(168, 85, 247, 0.25) !important;
+  color: #c084fc !important;
+  border: 1px solid rgba(168, 85, 247, 0.5);
+}
+
 .badge-service, .badge-project, .badge-app {
   background: rgba(14, 165, 233, 0.2) !important;
   color: #38bdf8 !important;

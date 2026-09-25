@@ -9,7 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a physical database table.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "table",
-    order: 12,
+    order: 22,
     pluralLabel: "Tables & Views"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.QueriedBy)]

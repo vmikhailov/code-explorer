@@ -9,7 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     purpose: "Represents a physical/logical external host dependency.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "cloud",
-    order: 9,
+    order: 12,
     pluralLabel: "External Services"
 )]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.CallsEndpoint)]
