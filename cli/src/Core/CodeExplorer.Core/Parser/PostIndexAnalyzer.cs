@@ -275,12 +275,38 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
 
         // Classify projects and persist layer metadata into SQLite nodes
-        var classifierItems = l4Result.Prev.Prev.Projects.Select(p => new CodeExplorer.Core.Analysis.ProjectClassifierItem
+        var classifierItems = l4Result.Prev.Prev.Projects.Select(p =>
         {
-            Id = p.Id,
-            Name = p.Name,
-            FilePath = p.Path,
-            Framework = p.Extensions?.GetValueOrDefault("framework") ?? p.ProjectType
+            var allChildren = new List<IOntologyNode>();
+            void Collect(IOntologyNode parent)
+            {
+                foreach (var c in parent.Children)
+                {
+                    allChildren.Add(c);
+                    Collect(c);
+                }
+            }
+            Collect(p);
+
+            var endpointsCount = allChildren.OfType<EndpointNode>().Count();
+            var entryPoints = allChildren.OfType<EntryPointNode>().ToList();
+            var externalServicesCount = allChildren.OfType<ExternalServiceNode>().Count();
+            var usesDbCount = allCombinedRels.Count(r => r.From == p.Id && r.Kind == OntologyConstants.Relationships.UsesDb);
+
+            return new CodeExplorer.Core.Analysis.ProjectClassifierItem
+            {
+                Id = p.Id,
+                Name = p.Name,
+                FilePath = p.Path,
+                Framework = p.Extensions?.GetValueOrDefault("framework") ?? p.ProjectType,
+                Role = p.Role,
+                IsLibrary = p.IsLibrary,
+                EndpointsCount = endpointsCount,
+                EntryPoints = entryPoints,
+                ExternalServicesCount = externalServicesCount,
+                UsesDbCount = usesDbCount,
+                Extensions = p.Extensions
+            };
         });
 
         var dependencyItems = allCombinedRels
@@ -310,6 +336,28 @@ public class PostIndexAnalyzer(IGraphClient db)
             p.Extensions["is_semantic_entity"] = p.IsLibrary ? "false" : "true";
 
             updatedProjectNodes.Add(Node.FromNode(p));
+        }
+
+        if (l4Result.SemanticStructure != null)
+        {
+            foreach (var workloadNode in l4Result.SemanticStructure.Children)
+            {
+                if (workloadNode is CompositeNode compNode)
+                {
+                    compNode.Extensions ??= [];
+                    var projId = compNode.Extensions.GetValueOrDefault("project_id");
+                    if (projId != null && layerMap.TryGetValue(projId, out var layerInfo))
+                    {
+                        compNode.Extensions["layer"] = layerInfo.LayerId;
+                        compNode.Extensions["layerId"] = layerInfo.LayerId;
+                        compNode.Extensions["layerName"] = layerInfo.LayerName;
+                        compNode.Extensions["layerOrder"] = layerInfo.Order.ToString();
+                        compNode.Extensions["layerColor"] = layerInfo.Color;
+                        compNode.Extensions["layerIcon"] = layerInfo.Icon;
+                        updatedProjectNodes.Add(Node.FromNode(compNode));
+                    }
+                }
+            }
         }
 
         if (updatedProjectNodes.Count > 0)

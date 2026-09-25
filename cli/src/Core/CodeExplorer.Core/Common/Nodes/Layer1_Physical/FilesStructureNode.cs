@@ -6,7 +6,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
     label: OntologyConstants.NodeLabels.FilesStructure,
     idScheme: "{workspaceId}:files_structure",
     purpose: "Represents an intermediate node grouping the physical folder and file tree of the entire workspace.",
-    layer: OntologyConstants.Layers.Physical
+    layer: OntologyConstants.Layers.Physical,
+    isSystemNode: true
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]

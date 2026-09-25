@@ -74,6 +74,13 @@ public class ProjectClassifierItem
     public required string Name { get; init; }
     public string? FilePath { get; init; }
     public string? Framework { get; init; }
+    public string? Role { get; init; }
+    public bool IsLibrary { get; init; }
+    public int EndpointsCount { get; init; }
+    public IReadOnlyList<CodeExplorer.Core.Common.Nodes.Layer4_Semantic.EntryPointNode> EntryPoints { get; init; } = [];
+    public int ExternalServicesCount { get; init; }
+    public int UsesDbCount { get; init; }
+    public IReadOnlyDictionary<string, string>? Extensions { get; init; }
 }
 
 public class DependencyItem
@@ -114,62 +121,78 @@ public static class ProjectLayerClassifier
             var path = p.FilePath ?? "";
             var inDegree = incomingCount.GetValueOrDefault(p.Id, 0);
             var outDegree = outgoingCount.GetValueOrDefault(p.Id, 0);
+            var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
 
             // 1. Tests & Tools
-            if (IsTestOrTool(name, path))
+            if (IsTestOrTool(name, path, p))
             {
                 result[p.Id] = StandardLayers.Tests;
                 continue;
             }
 
-            // 2. Ingress (Entry Points, APIs, UI, Web, Gateways, BFF)
-            if (IsIngress(name, path, inDegree))
+            // 2. Library Priority (is_library == true / role == SharedLibrary / manifest_type == "library" / Library path)
+            // If project is a library (e.g., fe/projects/ui/src/lib/* or common-nest),
+            // it immediately goes to Storage & Foundation, avoiding /ui/ or /integrations/.
+            if (IsLibrary(p, name, path))
+            {
+                result[p.Id] = StandardLayers.Foundation;
+                continue;
+            }
+
+            // 3. Worker Projects (role == "Worker" or manifest_type == "worker" or worker entry points)
+            // Workers belong to Components (background business processors), NOT Ingress.
+            if (IsWorker(p, name, path))
+            {
+                result[p.Id] = StandardLayers.Components;
+                continue;
+            }
+
+            // 4. Ingress (Entry Points, APIs, UI, Web, Gateways, BFF, CLI)
+            if (IsIngress(name, path, inDegree, p))
             {
                 result[p.Id] = StandardLayers.Ingress;
                 continue;
             }
 
-            // 3. Egress (External clients, adapters, notifiers, publishers, webhooks)
-            if (IsEgress(name, path))
+            // 5. Egress (External clients, adapters, notifiers, publishers, webhooks, integrations)
+            if (IsEgress(name, path, p))
             {
                 result[p.Id] = StandardLayers.Egress;
                 continue;
             }
 
-            // 4. Storage & Foundation (Common, Shared, DB, KV, Infrastructure)
+            // 6. Storage & Foundation (Common, Shared, DB, KV, Infrastructure)
             if (IsExplicitFoundation(name, path))
             {
                 result[p.Id] = StandardLayers.Foundation;
                 continue;
             }
 
-            // 5. Components (Domain, Core, Services, Engines, Processors)
+            // 7. Components (Domain, Core, Services, Engines, Processors)
             if (IsComponents(name, path))
             {
                 result[p.Id] = StandardLayers.Components;
                 continue;
             }
 
-            // Fallback based on topology
-            var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
-            var hasServiceFramework = !string.IsNullOrWhiteSpace(p.Framework) &&
-                                      !p.Framework.Equals("Library", StringComparison.OrdinalIgnoreCase);
-            var isServicePath = normalizedPath.Contains("/services/") ||
-                                normalizedPath.Contains("/apps/") ||
-                                normalizedPath.Contains("/microservices/");
-
-            if (inDegree > 0 && outDegree == 0)
+            // 8. Fallback based on topology:
+            // Stricter inDegree == 0 rule: Do NOT treat a service as Ingress just because inDegree == 0.
+            // If it's a backend service/workload, default to Components.
+            if (inDegree > 0 && outDegree == 0 && p.EndpointsCount == 0 && p.EntryPoints.Count == 0)
             {
+                var hasServiceFramework = !string.IsNullOrWhiteSpace(p.Framework) &&
+                                          !p.Framework.Equals("Library", StringComparison.OrdinalIgnoreCase);
+                var isServicePath = normalizedPath.Contains("/services/") ||
+                                    normalizedPath.Contains("/apps/") ||
+                                    normalizedPath.Contains("/microservices/");
+
                 result[p.Id] = (hasServiceFramework || isServicePath)
                     ? StandardLayers.Components
                     : StandardLayers.Foundation;
             }
-            else if (inDegree == 0 && outDegree > 0)
-            {
-                result[p.Id] = StandardLayers.Ingress;
-            }
             else
             {
+                // Default to Components for regular backend services and workloads
                 result[p.Id] = StandardLayers.Components;
             }
         }
@@ -177,8 +200,10 @@ public static class ProjectLayerClassifier
         return result;
     }
 
-    private static bool IsTestOrTool(string name, string path)
+    private static bool IsTestOrTool(string name, string path, ProjectClassifierItem p)
     {
+        if (string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase)) return true;
+
         var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 
@@ -202,15 +227,140 @@ public static class ProjectLayerClassifier
                normalizedPath.Contains("/test/");
     }
 
-    private static bool IsIngress(string name, string path, int inDegree)
+    private static bool IsLibrary(ProjectClassifierItem p, string name, string path)
     {
+        if (p.IsLibrary) return true;
+
+        if (string.Equals(p.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Role, "Library", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (p.Extensions != null)
+        {
+            var manifestType = p.Extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
+            if (manifestType == "library") return true;
+
+            var outputType = p.Extensions.GetValueOrDefault("output_type");
+            var sdk = p.Extensions.GetValueOrDefault("sdk");
+            if (outputType == "Library" && sdk == "Microsoft.NET.Sdk") return true;
+        }
+
+        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
+        var lowerName = name.ToLowerInvariant();
+
+        // Angular / React / Nest library paths, e.g. fe/projects/ui/src/lib/*, common-nest, etc.
+        if (normalizedPath.Contains("/src/lib/") ||
+            normalizedPath.Contains("/src/libs/") ||
+            normalizedPath.Contains("/projects/ui/src/lib/") ||
+            (normalizedPath.Contains("/fe/projects/") && normalizedPath.Contains("/lib/")) ||
+            normalizedPath.Contains("/common-nest") ||
+            lowerName.StartsWith("common-") ||
+            lowerName.EndsWith(".lib") ||
+            lowerName.EndsWith("-lib") ||
+            lowerName.Contains("-lib-") ||
+            lowerName.Contains(".lib."))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsWorker(ProjectClassifierItem p, string name, string path)
+    {
+        if (string.Equals(p.Role, "Worker", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (p.Extensions != null)
+        {
+            var manifestType = p.Extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
+            if (manifestType == "worker") return true;
+
+            var frameworkType = p.Extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
+            if (frameworkType == "worker") return true;
+
+            var sdk = p.Extensions.GetValueOrDefault("sdk");
+            if (sdk == "Microsoft.NET.Sdk.Worker") return true;
+        }
+
+        if (p.EntryPoints.Any(ep => ep.EntryType is "queue-listener" or "cron" or "worker"))
+        {
+            return true;
+        }
+
+        var lowerName = name.ToLowerInvariant();
+        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
+
+        if (normalizedPath.Contains("/worker/") || normalizedPath.Contains("/workers/") ||
+            normalizedPath.Contains("/consumer/") || normalizedPath.Contains("/consumers/") ||
+            normalizedPath.Contains("/scheduler/"))
+        {
+            return true;
+        }
+
+        if (lowerName.EndsWith("-worker") ||
+            lowerName.EndsWith(".worker") ||
+            lowerName.EndsWith("_worker") ||
+            lowerName.EndsWith("-consumer") ||
+            lowerName.EndsWith("_consumer"))
+        {
+            // Do not treat gateways as background workers unless role is explicitly Worker
+            if (!lowerName.Contains("gateway"))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsIngress(string name, string path, int inDegree, ProjectClassifierItem p)
+    {
+        if (IsWorker(p, name, path)) return false;
+        if (IsLibrary(p, name, path)) return false;
+
+        // Evidence 1: Role or Manifest Type
+        if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (p.Extensions != null)
+        {
+            var manifestType = p.Extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
+            if (manifestType is "cli") return true;
+
+            var hasCliBin = p.Extensions.GetValueOrDefault("has_cli_bin") == "true";
+            if (hasCliBin) return true;
+
+            var frameworkType = p.Extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
+            if (frameworkType is "frontend") return true;
+
+            var sdk = p.Extensions.GetValueOrDefault("sdk");
+            if (sdk == "Microsoft.NET.Sdk.Web" && (p.EndpointsCount > 0 || inDegree == 0))
+            {
+                return true;
+            }
+        }
+
+        // Evidence 2: EntryPoints (e.g. CLI command entrypoint)
+        if (p.EntryPoints.Any(ep => ep.EntryType == "cli"))
+        {
+            return true;
+        }
+
+        // Evidence 3: Path indicators for Ingress
         var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 
         if (normalizedPath.Contains("/ui/") ||
             normalizedPath.Contains("/cli/") ||
             normalizedPath.Contains("/web/") ||
-            normalizedPath.Contains("/api/") ||
             normalizedPath.Contains("/host/") ||
             normalizedPath.Contains("/bff/") ||
             normalizedPath.Contains("/gateway/") ||
@@ -220,6 +370,12 @@ public static class ProjectLayerClassifier
             normalizedPath.Contains("/landing/") ||
             normalizedPath.Contains("/landers/") ||
             normalizedPath.Contains("/ingress/"))
+        {
+            return true;
+        }
+
+        // Evidence 4: Top-level API Gateway / BFF / Ingress by Endpoints + InDegree == 0
+        if (p.EndpointsCount > 0 && inDegree == 0 && (lowerName.Contains("gateway") || lowerName.Contains("bff") || normalizedPath.Contains("/api/")))
         {
             return true;
         }
@@ -238,8 +394,7 @@ public static class ProjectLayerClassifier
             lowerName.Contains("bff") ||
             lowerName.Contains("-fe") ||
             lowerName.Contains("landing") ||
-            lowerName.Contains("landers") ||
-            lowerName.Contains("cf-worker"))
+            lowerName.Contains("landers"))
         {
             return true;
         }
@@ -247,8 +402,15 @@ public static class ProjectLayerClassifier
         return false;
     }
 
-    private static bool IsEgress(string name, string path)
+    private static bool IsEgress(string name, string path, ProjectClassifierItem p)
     {
+        // Evidence 1: External service calls without hosting server endpoints
+        if (p.ExternalServicesCount > 0 && p.EndpointsCount == 0 && p.EntryPoints.Count == 0)
+        {
+            return true;
+        }
+
+        // Evidence 2: Path indicators
         var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 
@@ -273,6 +435,12 @@ public static class ProjectLayerClassifier
                lowerName.EndsWith(".notifier") ||
                lowerName.EndsWith(".integration") ||
                lowerName.EndsWith(".egress") ||
+               lowerName.StartsWith("integration-") ||
+               lowerName.StartsWith("integration_") ||
+               lowerName.Contains("integration-service") ||
+               lowerName.Contains("integration_service") ||
+               lowerName.Contains("-integration") ||
+               lowerName.Contains("_integration") ||
                lowerName.Contains("-adapter") ||
                lowerName.Contains("adapter") ||
                lowerName.Contains("notifier") ||

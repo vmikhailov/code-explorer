@@ -27,11 +27,42 @@ public static class ProjectRoleDetector
         string relativeProjectDir,
         string projectName,
         string projectType,
-        IReadOnlyList<string>? dependencies = null)
+        IReadOnlyList<string>? dependencies = null,
+        IReadOnlyDictionary<string, string>? extensions = null)
     {
         var normName = (projectName ?? "").Trim().ToLowerInvariant();
         var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
         var normProjType = (projectType ?? "").ToLowerInvariant();
+
+        // 0. Explicit Manifest Evidence (Highest Priority)
+        if (extensions != null)
+        {
+            var manifestType = extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
+            var frameworkType = extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
+            var hasCliBin = extensions.GetValueOrDefault("has_cli_bin") == "true";
+            var sdk = extensions.GetValueOrDefault("sdk");
+
+            if (manifestType == "library")
+            {
+                return (ProjectRole.SharedLibrary, true);
+            }
+            if (manifestType == "cli" || hasCliBin)
+            {
+                return (ProjectRole.CliTool, false);
+            }
+            if (manifestType == "worker" || frameworkType == "worker" || sdk == "Microsoft.NET.Sdk.Worker")
+            {
+                return (ProjectRole.Worker, false);
+            }
+            if (frameworkType == "frontend")
+            {
+                if (!normRelPath.Contains("/src/lib/") && !normRelPath.Contains("/libs/") && !normRelPath.Contains("/lib/"))
+                {
+                    return (ProjectRole.FrontendApp, false);
+                }
+                return (ProjectRole.SharedLibrary, true);
+            }
+        }
 
         // 1. Test Project Detection
         if (IsTestProject(normName, normRelPath, filesInDirectory, dependencies))
@@ -202,7 +233,7 @@ public static class ProjectRoleDetector
             }
         }
 
-        if (name.EndsWith("-ui") || name.EndsWith("-web") || name.EndsWith("-frontend") || name.EndsWith("-client") || name.EndsWith("-fe") || name.EndsWith("-landings") || name == "cf-landings")
+        if (name.EndsWith("-ui") || name.EndsWith("-web") || name.EndsWith("-frontend") || name.EndsWith("-client") || name.EndsWith("-fe") || name.EndsWith("-landings"))
         {
             return true;
         }

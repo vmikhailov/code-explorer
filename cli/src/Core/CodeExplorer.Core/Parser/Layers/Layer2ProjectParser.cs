@@ -67,6 +67,8 @@ public class Layer2ProjectParser
                 var depInfo = await ParseProjectDependenciesAsync(projectParser, dir, ctx);
                 var extPkgNames = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
 
+                var manifestProps = projectParser.ExtractManifestProperties(dir, filesInDir);
+
                 var projectNode = ProjectNodeFactory.Create(
                     projectNodeId,
                     projectName,
@@ -74,7 +76,8 @@ public class Layer2ProjectParser
                     projectParser.ProjectType,
                     dir,
                     filesInDir,
-                    extPkgNames);
+                    extPkgNames,
+                    manifestProps);
 
                 projectsStructureNode.Children.Add(projectNode);
                 projects.Add(projectNode);
@@ -141,6 +144,8 @@ public class Layer2ProjectParser
                             var depInfo = await ParseProjectDependenciesAsync(projectParser, dir, ctx);
                             var extPkgNames = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
 
+                            var manifestProps = projectParser.ExtractManifestProperties(dir, filesInDir);
+
                             var projectNode = ProjectNodeFactory.Create(
                                 projectNodeId,
                                 projectName,
@@ -148,7 +153,8 @@ public class Layer2ProjectParser
                                 projectParser.ProjectType,
                                 dir,
                                 filesInDir,
-                                extPkgNames);
+                                extPkgNames,
+                                manifestProps);
 
                             projectsStructureNode.Children.Add(projectNode);
                             projects.Add(projectNode);

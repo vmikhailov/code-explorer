@@ -50,10 +50,15 @@ public class Layer1PhysicalParser
         var filesStructureNode = new FilesStructureNode(filesNodeId, "FilesStructure", hostPath);
         workspaceNode.Children.Add(filesStructureNode);
 
-        var gitSettingsNode = GitSettingsParser.Parse(wsId, ctx.AbsoluteWorkspacePath);
-        if (gitSettingsNode != null)
+        var rootRepoDir = GitSettingsParser.FindRepoRoot(ctx.AbsoluteWorkspacePath);
+        if (rootRepoDir != null)
         {
-            filesStructureNode.Children.Add(gitSettingsNode);
+            var gitSettingsNode = GitSettingsParser.Parse(wsId, ctx.AbsoluteWorkspacePath, rootRepoDir);
+            if (gitSettingsNode != null)
+            {
+                filesStructureNode.Children.Add(gitSettingsNode);
+                ctx.RegisterGitRepository(rootRepoDir, gitSettingsNode);
+            }
         }
 
         var files = new List<FileNode>();
@@ -157,6 +162,17 @@ public class Layer1PhysicalParser
             parentNode.Children.Add(folderNode);
             folders.Add(folderNode);
             currentParentNode = folderNode;
+
+            var gitPath = Path.Combine(currentDir, ".git");
+            if (Directory.Exists(gitPath) || File.Exists(gitPath))
+            {
+                var subGitNode = GitSettingsParser.Parse(ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, currentDir);
+                if (subGitNode != null)
+                {
+                    folderNode.Children.Add(subGitNode);
+                    ctx.RegisterGitRepository(currentDir, subGitNode);
+                }
+            }
         }
 
         var dirInfo = new DirectoryInfo(currentDir);

@@ -93,6 +93,10 @@ public class GraphNodeDto
     [JsonPropertyName("properties")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? Properties { get; set; }
+
+    [JsonPropertyName("isSystemNode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsSystemNode { get; set; }
 }
 
 public class GraphEdgeDto
@@ -363,6 +367,9 @@ public class MetadataResponseDto
     [JsonPropertyName("relationshipCounts")]
     public Dictionary<string, long> RelationshipCounts { get; set; } = [];
 
+    [JsonPropertyName("layerCounts")]
+    public Dictionary<int, long> LayerCounts { get; set; } = [];
+
     [JsonPropertyName("totalNodes")]
     public long TotalNodes { get; set; }
 
@@ -408,6 +415,10 @@ public class OntologyCategoryDto
 
     [JsonPropertyName("layerId")]
     public int LayerId { get; set; }
+
+    [JsonPropertyName("isSystemNode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsSystemNode { get; set; }
 }
 
 public class OntologyLayerDto

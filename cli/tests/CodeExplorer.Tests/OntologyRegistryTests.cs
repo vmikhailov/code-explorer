@@ -78,4 +78,32 @@ public class OntologyRegistryTests
         var definition = OntologyRegistry.GetNodeDefinition(kind!);
         Assert.That(definition, Is.EqualTo("Invalid node kind."));
     }
+
+    [Test]
+    public void SystemNodes_HaveIsSystemNodeFlag_True()
+    {
+        var expectedSystemKinds = new[] { "Counter", "FilesStructure", "ProjectsStructure", "SyntaxStructure", "SemanticStructure", "ProjectSyntax" };
+
+        foreach (var kind in expectedSystemKinds)
+        {
+            var node = OntologyRegistry.AllNodes.FirstOrDefault(n => string.Equals(n.Kind, kind, StringComparison.OrdinalIgnoreCase));
+            Assert.That(node, Is.Not.Null, $"Node '{kind}' should exist in AllNodes");
+            Assert.That(node!.Attribute.IsSystemNode, Is.True, $"Node '{kind}' should have IsSystemNode = true");
+            Assert.That(OntologyRegistry.IsSystemNode(kind), Is.True, $"IsSystemNode('{kind}') should return true");
+        }
+    }
+
+    [Test]
+    public void DomainNodes_HaveIsSystemNodeFlag_False()
+    {
+        var domainKinds = new[] { "Project", "File", "Folder", "Service", "App", "Worker", "Library", "Database", "Topic", "Type", "Function" };
+
+        foreach (var kind in domainKinds)
+        {
+            var node = OntologyRegistry.AllNodes.FirstOrDefault(n => string.Equals(n.Kind, kind, StringComparison.OrdinalIgnoreCase));
+            Assert.That(node, Is.Not.Null, $"Node '{kind}' should exist in AllNodes");
+            Assert.That(node!.Attribute.IsSystemNode, Is.False, $"Node '{kind}' should have IsSystemNode = false");
+            Assert.That(OntologyRegistry.IsSystemNode(kind), Is.False, $"IsSystemNode('{kind}') should return false");
+        }
+    }
 }

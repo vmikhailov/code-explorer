@@ -44,7 +44,8 @@ export class GraphPanel {
     workspaceRoot: string,
     outputChannel?: vscode.OutputChannel,
     initialViewMode?: string,
-    project?: string
+    project?: string,
+    initialGridCategory?: { kind: string; layerTitle?: string; service?: string }
   ): GraphPanel {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.Active;
     const mode = initialViewMode || 'semantic';
@@ -63,6 +64,14 @@ export class GraphPanel {
       if (project) {
         existing.postMessage({ type: 'SELECT_PROJECT', project });
       }
+      if (initialGridCategory) {
+        existing.postMessage({
+          type: 'OPEN_NODE_GRID',
+          kind: initialGridCategory.kind,
+          layerName: initialGridCategory.layerTitle,
+          service: initialGridCategory.service,
+        });
+      }
       return existing;
     }
 
@@ -77,7 +86,7 @@ export class GraphPanel {
       }
     );
 
-    const newPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot, outputChannel, mode, project);
+    const newPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot, outputChannel, mode, project, initialGridCategory);
     GraphPanel.panels.set(mode, newPanel);
     GraphPanel.activePanel = newPanel;
 
@@ -86,6 +95,14 @@ export class GraphPanel {
     }
     if (project) {
       newPanel.postMessage({ type: 'SELECT_PROJECT', project });
+    }
+    if (initialGridCategory) {
+      newPanel.postMessage({
+        type: 'OPEN_NODE_GRID',
+        kind: initialGridCategory.kind,
+        layerName: initialGridCategory.layerTitle,
+        service: initialGridCategory.service,
+      });
     }
 
     return newPanel;
@@ -98,7 +115,8 @@ export class GraphPanel {
     private workspaceRoot: string,
     private outputChannel?: vscode.OutputChannel,
     private initialViewMode?: string,
-    private initialProject?: string
+    private initialProject?: string,
+    private initialGridCategory?: { kind: string; layerTitle?: string; service?: string }
   ) {
     this.viewMode = initialViewMode || 'semantic';
     this.panel = panel;
@@ -338,6 +356,7 @@ export class GraphPanel {
       wsUrl: this.wsUrl,
       workspaceRoot: this.workspaceRoot,
       project: this.initialProject,
+      initialGridCategory: this.initialGridCategory,
     };
     const configScript = `window.__CE_CONFIG__ = ${JSON.stringify(configData).replace(/</g, '\\u003c')};`;
 

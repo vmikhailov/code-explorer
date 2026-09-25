@@ -7,7 +7,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
     label: OntologyConstants.NodeLabels.ProjectSyntax,
     idScheme: "{workspaceId}:project:{relativeProjectDir}:project_syntax",
     purpose: "Represents an intermediate node grouping AST/syntactic declarations of a specific project.",
-    layer: OntologyConstants.Layers.Syntactic
+    layer: OntologyConstants.Layers.Syntactic,
+    isSystemNode: true
 )]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Contains)]

@@ -98,13 +98,27 @@ public static class OntologyUploader
         // Special: If Project (or subtype Service/App/Library/Worker/CliTool), link it to GitSettings via USES_GIT and Folder/Workspace via LOCATED_IN
         if (node is ProjectNode)
         {
-            var gitDir = Path.Combine(ctx.AbsoluteWorkspacePath, ".git");
-            if (Directory.Exists(gitDir))
+            var projectAbsDir = string.IsNullOrEmpty(node.Path) || node.Path == "."
+                ? ctx.AbsoluteWorkspacePath
+                : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, node.Path));
+
+            var gitSettings = ctx.FindGitSettingsForPath(projectAbsDir);
+            if (gitSettings != null)
             {
-                var gitSettingsId = $"{ctx.WorkspaceId}:gitsettings";
-                var usesGitRel = Relationship.FromRelationship(new UsesGitRelationship(node.Id, gitSettingsId));
+                var usesGitRel = Relationship.FromRelationship(new UsesGitRelationship(node.Id, gitSettings.Id));
                 collectedRelationships.Add(usesGitRel);
                 ctx.AddRelsCount(1);
+
+                if (!string.IsNullOrEmpty(gitSettings.Branch))
+                    node.SetExtension("git_branch", gitSettings.Branch);
+                if (!string.IsNullOrEmpty(gitSettings.OriginUrl))
+                    node.SetExtension("git_origin", gitSettings.OriginUrl);
+                if (!string.IsNullOrEmpty(gitSettings.UserName))
+                    node.SetExtension("git_user", gitSettings.UserName);
+                if (gitSettings.Extensions?.TryGetValue("commit_hash", out var commit) == true && !string.IsNullOrEmpty(commit))
+                    node.SetExtension("git_commit", commit);
+                if (gitSettings.Extensions?.TryGetValue("repo_name", out var repo) == true && !string.IsNullOrEmpty(repo))
+                    node.SetExtension("git_repo", repo);
             }
 
             // Emit LOCATED_IN relationship to Folder or Workspace

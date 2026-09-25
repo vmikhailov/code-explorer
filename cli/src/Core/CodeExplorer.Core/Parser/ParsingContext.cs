@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -258,5 +259,53 @@ public class ParsingContext
         GlobalProjectDependencies = globalProjectDependencies ?? [];
         _progress = progress;
         _logger = logger ?? NullLogger.Instance;
+    }
+
+    public Dictionary<string, GitSettingsNode> DiscoveredGitRepositories { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public void RegisterGitRepository(string repoAbsDir, GitSettingsNode settings)
+    {
+        var norm = Path.GetFullPath(repoAbsDir).Replace('\\', '/').TrimEnd('/');
+        DiscoveredGitRepositories[norm] = settings;
+    }
+
+    public GitSettingsNode? FindGitSettingsForPath(string path)
+    {
+        var absPath = Path.IsPathRooted(path)
+            ? Path.GetFullPath(path)
+            : Path.GetFullPath(Path.Combine(AbsoluteWorkspacePath, path));
+        var norm = absPath.Replace('\\', '/').TrimEnd('/');
+
+        GitSettingsNode? bestMatch = null;
+        int bestLen = -1;
+
+        foreach (var (repoDir, settings) in DiscoveredGitRepositories)
+        {
+            if (norm.Equals(repoDir, StringComparison.OrdinalIgnoreCase) ||
+                norm.StartsWith(repoDir + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (repoDir.Length > bestLen)
+                {
+                    bestLen = repoDir.Length;
+                    bestMatch = settings;
+                }
+            }
+        }
+
+        if (bestMatch != null) return bestMatch;
+
+        // Fallback: search upward for .git
+        var root = GitSettingsParser.FindRepoRoot(absPath);
+        if (root != null)
+        {
+            var parsed = GitSettingsParser.Parse(WorkspaceId, AbsoluteWorkspacePath, root);
+            if (parsed != null)
+            {
+                RegisterGitRepository(root, parsed);
+                return parsed;
+            }
+        }
+
+        return null;
     }
 }

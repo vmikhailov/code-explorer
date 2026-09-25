@@ -42,7 +42,8 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
       if (seenNodeIds.has(lowerId) || node.kind === 'Package') continue;
       seenNodeIds.add(lowerId);
 
-      const layerId = node.properties?.layerId || 'layer_engines';
+      const rawLayerId = node.properties?.layerId || node.properties?.layer || 'layer_components';
+      const layerId = map.has(rawLayerId) ? rawLayerId : 'layer_components';
       const list = map.get(layerId) || [];
       list.push(node);
       map.set(layerId, list);

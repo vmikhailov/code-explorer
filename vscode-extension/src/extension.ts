@@ -185,7 +185,15 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
-        const panel = GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel, 'grid');
+        const panel = GraphPanel.createOrShow(
+          context.extensionUri,
+          serverInfo.wsUrl,
+          workspaceRoot,
+          outputChannel,
+          'grid',
+          undefined,
+          { kind, layerTitle: layerName, service }
+        );
         panel.postMessage({
           type: 'OPEN_NODE_GRID',
           kind,

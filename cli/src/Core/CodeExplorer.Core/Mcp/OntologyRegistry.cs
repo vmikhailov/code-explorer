@@ -22,6 +22,19 @@ public static class OntologyRegistry
             .Select(x => x!)
             .ToList();
 
+    public static readonly HashSet<string> SystemKinds = AllNodes
+        .Where(x => x.Attribute.IsSystemNode)
+        .Select(x => x.Kind)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    public static bool IsSystemNode(string? kind)
+    {
+        if (string.IsNullOrWhiteSpace(kind)) return false;
+        return SystemKinds.Contains(kind) ||
+               kind.EndsWith("Structure", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(kind, "Counter", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static readonly Dictionary<string, (string CapitalizedKind, Type NodeType)> KindMapping = 
         AllNodes.ToDictionary(
             x => x.Kind, 

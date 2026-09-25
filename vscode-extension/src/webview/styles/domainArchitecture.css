@@ -161,6 +161,49 @@
   50% { border-color: rgba(239, 68, 68, 0.85); }
 }
 
+/* Concrete Hidden Items Chips */
+.domain-hud-hidden-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 320px;
+  overflow-x: auto;
+  padding: 1px 0;
+}
+
+.domain-hud-hidden-chip {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border: 1px dashed rgba(239, 68, 68, 0.4);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.domain-hud-hidden-chip:hover {
+  background: rgba(239, 68, 68, 0.32);
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+.domain-hud-hidden-chip .chip-remove {
+  font-size: 9px;
+  font-weight: bold;
+  opacity: 0.75;
+}
+
+.domain-hud-hidden-chip:hover .chip-remove {
+  opacity: 1;
+}
+
 .domain-hud-layout-select {
   display: flex;
   align-items: center;
@@ -369,7 +412,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-  z-index: 20;
+  z-index: 50;
   pointer-events: auto;
   overflow: hidden;
   animation: domainInspectorSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);

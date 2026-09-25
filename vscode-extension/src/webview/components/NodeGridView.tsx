@@ -60,6 +60,12 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
       baseUrl = window.__CE_CONFIG__.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
     }
     if (!baseUrl) return;
+    if (!category || !category.kind) {
+      setRemoteNodes([]);
+      setRemoteTotal(0);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -215,6 +221,8 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
         return '📄';
       case 'Folder':
         return '📁';
+      case 'GitSettings':
+        return '🌿';
       default:
         return '🔹';
     }
@@ -247,6 +255,15 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
     }
     if (props.return_type) {
       parts.push(`returns: ${props.return_type}`);
+    }
+    if (props.branch) {
+      parts.push(`branch: ${props.branch}`);
+    }
+    if (props.origin_url) {
+      parts.push(`origin: ${props.origin_url}`);
+    }
+    if (props.git_branch) {
+      parts.push(`branch: ${props.git_branch}`);
     }
 
     if (parts.length > 0) return parts.join(' ');

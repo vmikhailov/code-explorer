@@ -6,7 +6,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
     label: OntologyConstants.NodeLabels.ProjectsStructure,
     idScheme: "{workspaceId}:projects_structure",
     purpose: "Represents an intermediate node grouping all logical projects in the workspace.",
-    layer: OntologyConstants.Layers.ProjectBoundary
+    layer: OntologyConstants.Layers.ProjectBoundary,
+    isSystemNode: true
 )]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.Contains)]
 public record ProjectsStructureNode(

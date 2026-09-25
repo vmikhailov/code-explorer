@@ -6,7 +6,8 @@ namespace CodeExplorer.Core.Common.Nodes;
     label: OntologyConstants.NodeLabels.Counter,
     idScheme: "workspace_id",
     purpose: "Represents an internal database counter used for auto-incrementing identifiers.",
-    layer: OntologyConstants.Layers.Physical
+    layer: OntologyConstants.Layers.Physical,
+    isSystemNode: true
 )]
 public record CounterNode(
     string Id,

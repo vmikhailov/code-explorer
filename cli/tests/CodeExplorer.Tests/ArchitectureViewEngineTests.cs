@@ -152,4 +152,57 @@ public class ArchitectureViewEngineTests
         Assert.That(compIds, Does.Contain("ws:endpoint:orders:POST"));
         Assert.That(compIds, Does.Contain("ws:type:orders:Order"));
     }
+
+    [Test]
+    public async Task GetOntologyLayers_FiltersOutSystemNodes()
+    {
+        // Add system nodes to graph
+        var systemNodes = new List<Node>
+        {
+            new("ws:counter:1", "Counter", new Dictionary<string, object> { ["name"] = "counter", ["value"] = 42 }),
+            new("ws:files_structure", "FilesStructure", new Dictionary<string, object> { ["name"] = "FilesStructure" }),
+            new("ws:projects_structure", "ProjectsStructure", new Dictionary<string, object> { ["name"] = "ProjectsStructure" }),
+            new("ws:syntax_structure", "SyntaxStructure", new Dictionary<string, object> { ["name"] = "SyntaxStructure" }),
+            new("ws:semantic_structure", "SemanticStructure", new Dictionary<string, object> { ["name"] = "SemanticStructure" })
+        };
+        await _db.UploadNodesAsync(systemNodes);
+
+        var layersResponse = await _engine.GetOntologyLayersAsync();
+
+        foreach (var layer in layersResponse.Layers)
+        {
+            foreach (var category in layer.Categories)
+            {
+                Assert.That(category.Kind, Is.Not.EqualTo("Counter"), "Counter should be filtered out from layers");
+                Assert.That(category.Kind, Is.Not.EqualTo("FilesStructure"), "FilesStructure should be filtered out from layers");
+                Assert.That(category.Kind, Is.Not.EqualTo("ProjectsStructure"), "ProjectsStructure should be filtered out from layers");
+                Assert.That(category.Kind, Is.Not.EqualTo("SyntaxStructure"), "SyntaxStructure should be filtered out from layers");
+                Assert.That(category.Kind, Is.Not.EqualTo("SemanticStructure"), "SemanticStructure should be filtered out from layers");
+                Assert.That(category.Kind.EndsWith("Structure", StringComparison.OrdinalIgnoreCase), Is.False, $"No structure nodes should be in category list: {category.Kind}");
+            }
+        }
+    }
+
+    [Test]
+    public async Task GetMetadata_And_GetNodes_FilterOutSystemNodes()
+    {
+        var systemNodes = new List<Node>
+        {
+            new("ws:counter:1", "Counter", new Dictionary<string, object> { ["name"] = "counter", ["value"] = 42 }),
+            new("ws:files_structure", "FilesStructure", new Dictionary<string, object> { ["name"] = "FilesStructure" })
+        };
+        await _db.UploadNodesAsync(systemNodes);
+
+        var meta = await _engine.GetMetadataAsync();
+        Assert.That(meta.NodeCounts.ContainsKey("Counter"), Is.False, "NodeCounts must not contain Counter");
+        Assert.That(meta.NodeCounts.ContainsKey("FilesStructure"), Is.False, "NodeCounts must not contain FilesStructure");
+
+        var counterNodes = await _engine.GetNodesAsync(kind: "Counter");
+        Assert.That(counterNodes.Total, Is.EqualTo(0), "GetNodes for Counter must return 0 total");
+        Assert.That(counterNodes.Nodes, Is.Empty, "GetNodes for Counter must be empty");
+
+        var filesStructureNodes = await _engine.GetNodesAsync(kind: "FilesStructure");
+        Assert.That(filesStructureNodes.Total, Is.EqualTo(0), "GetNodes for FilesStructure must return 0 total");
+        Assert.That(filesStructureNodes.Nodes, Is.Empty, "GetNodes for FilesStructure must be empty");
+    }
 }

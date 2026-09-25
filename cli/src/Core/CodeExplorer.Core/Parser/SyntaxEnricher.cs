@@ -195,11 +195,23 @@ public class SyntaxEnricher : ISyntaxEnricher
                         }
 
                         var semanticNodeForDb = ctx.SemanticStructure;
-                        if (semanticNodeForDb != null && !semanticNodeForDb.Children.Any(c => c.Id == dbId))
+                        if (semanticNodeForDb != null)
                         {
-                            var dbNode = new DatabaseNode(dbId, canonicalDbName, fileNode.Path, dbType, extensions);
-                            semanticNodeForDb.Children.Add(dbNode);
-                            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, canonicalDbName, dbId);
+                            var isConcreteDb = !string.Equals(canonicalDbName, "Database", StringComparison.OrdinalIgnoreCase) &&
+                                               !string.Equals(canonicalRes.Engine, "Database", StringComparison.OrdinalIgnoreCase);
+
+                            if (isConcreteDb)
+                            {
+                                // Remove any previous generic placeholder Database node that might have been registered before a driver was detected
+                                semanticNodeForDb.Children.RemoveAll(c => c is DatabaseNode dn && (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase)));
+                            }
+
+                            if (!semanticNodeForDb.Children.Any(c => c.Id == dbId))
+                            {
+                                var dbNode = new DatabaseNode(dbId, canonicalDbName, fileNode.Path, dbType, extensions);
+                                semanticNodeForDb.Children.Add(dbNode);
+                                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, canonicalDbName, dbId);
+                            }
                         }
 
                         var relExt = new Dictionary<string, string>
@@ -409,45 +421,62 @@ public class SyntaxEnricher : ISyntaxEnricher
                 }
             }
 
-            // 2. C# (.csproj files)
+            // 2. C# (.csproj files, transitive ProjectReferences, Directory.Build.props)
             var csprojFiles = Directory.GetFiles(projectAbsDir, "*.csproj", SearchOption.TopDirectoryOnly);
             if (csprojFiles.Length > 0)
             {
+                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var csproj in csprojFiles)
                 {
-                    var content = File.ReadAllText(csproj);
-                    var lower = content.ToLowerInvariant();
-                    if (lower.Contains("npgsql"))
+                    var res = DetectDriverFromCsproj(csproj, ctx.AbsoluteWorkspacePath, visited);
+                    if (res.Engine != null)
+                    {
+                        _projectDriverCache[projectNode.Id] = res;
+                        return res;
+                    }
+                }
+
+                var propsRes = DetectDriverFromDirectoryBuildProps(projectAbsDir, ctx.AbsoluteWorkspacePath);
+                if (propsRes.Engine != null)
+                {
+                    _projectDriverCache[projectNode.Id] = propsRes;
+                    return propsRes;
+                }
+            }
+
+            // Also check appsettings*.json in project directory
+            var appsettingsFiles = Directory.GetFiles(projectAbsDir, "appsettings*.json", SearchOption.TopDirectoryOnly);
+            foreach (var appsetting in appsettingsFiles)
+            {
+                try
+                {
+                    var content = File.ReadAllText(appsetting).ToLowerInvariant();
+                    if (content.Contains("port=5432") || content.Contains("username=postgres") || content.Contains("npgsql") || content.Contains("database=postgres"))
                     {
                         var res = ("PostgreSQL", "relational");
                         _projectDriverCache[projectNode.Id] = res;
                         return res;
                     }
-                    if (lower.Contains("sqlclient") || lower.Contains("entityframeworkcore.sqlserver"))
+                    if (content.Contains("initial catalog=") || content.Contains("trusted_connection=") || content.Contains("server=localhost;database="))
                     {
                         var res = ("SQL Server", "relational");
                         _projectDriverCache[projectNode.Id] = res;
                         return res;
                     }
-                    if (lower.Contains("mysql") || lower.Contains("pomelo"))
+                    if (content.Contains("port=3306") || content.Contains("uid=root") || content.Contains("user id=root"))
                     {
                         var res = ("MySQL", "relational");
                         _projectDriverCache[projectNode.Id] = res;
                         return res;
                     }
-                    if (lower.Contains("sqlite"))
+                    if (content.Contains("data source=") && (content.Contains(".db") || content.Contains(".sqlite")))
                     {
                         var res = ("SQLite", "relational");
                         _projectDriverCache[projectNode.Id] = res;
                         return res;
                     }
-                    if (lower.Contains("oracle"))
-                    {
-                        var res = ("Oracle", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
-                        return res;
-                    }
                 }
+                catch { }
             }
 
             // 3. Python (requirements.txt, pyproject.toml)
@@ -504,6 +533,24 @@ public class SyntaxEnricher : ISyntaxEnricher
                     return res;
                 }
             }
+
+            // 5. Fallback: check if another project in the workspace or config already registered a concrete relational database
+            if (ctx.ResourceRegistry != null)
+            {
+                var existingConcreteRelational = ctx.ResourceRegistry.AllResources
+                    .Where(r => string.Equals(r.DbType, "relational", StringComparison.OrdinalIgnoreCase) &&
+                                !CodeExplorer.Core.Analysis.ResourceReconciliationService.IsGenericConfigKey(r.Engine) &&
+                                !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase))
+                    .Select(r => r.Engine)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (existingConcreteRelational.Count == 1)
+                {
+                    var res = (existingConcreteRelational[0], "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -512,5 +559,133 @@ public class SyntaxEnricher : ISyntaxEnricher
 
         _projectDriverCache[projectNode.Id] = (null, null);
         return (null, null);
+    }
+
+    private static (string? Engine, string? DbType) DetectDriverFromCsproj(
+        string csprojPath,
+        string workspaceRoot,
+        HashSet<string> visited,
+        int depth = 0)
+    {
+        if (depth > 5 || string.IsNullOrEmpty(csprojPath)) return (null, null);
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(csprojPath).Replace('\\', '/');
+        }
+        catch
+        {
+            return (null, null);
+        }
+
+        if (!visited.Add(fullPath) || !File.Exists(fullPath)) return (null, null);
+
+        try
+        {
+            var content = File.ReadAllText(fullPath);
+            var lower = content.ToLowerInvariant();
+
+            if (lower.Contains("npgsql"))
+                return ("PostgreSQL", "relational");
+            if (lower.Contains("sqlclient") || lower.Contains("entityframeworkcore.sqlserver"))
+                return ("SQL Server", "relational");
+            if (lower.Contains("mysql") || lower.Contains("pomelo"))
+                return ("MySQL", "relational");
+            if (lower.Contains("sqlite"))
+                return ("SQLite", "relational");
+            if (lower.Contains("oracle"))
+                return ("Oracle", "relational");
+
+            // Follow ProjectReference
+            var dir = Path.GetDirectoryName(fullPath) ?? "";
+            var matches = Regex.Matches(content, @"<ProjectReference\s+Include=""([^""]+)""", RegexOptions.IgnoreCase);
+            foreach (Match m in matches)
+            {
+                var relRef = m.Groups[1].Value.Trim();
+                relRef = Regex.Replace(relRef, @"\$\([A-Za-z0-9_]+\)[\\/]*", "");
+                var candidate = Path.Combine(dir, relRef);
+                var found = DetectDriverFromCsproj(candidate, workspaceRoot, visited, depth + 1);
+                if (found.Engine != null) return found;
+
+                if (!File.Exists(candidate) && !string.IsNullOrEmpty(workspaceRoot))
+                {
+                    var wsCandidate = Path.Combine(workspaceRoot, relRef);
+                    found = DetectDriverFromCsproj(wsCandidate, workspaceRoot, visited, depth + 1);
+                    if (found.Engine != null) return found;
+
+                    // Fallback: look up by filename in workspace
+                    var csprojMap = GetWorkspaceCsprojMap(workspaceRoot);
+                    var projFileName = Path.GetFileName(relRef);
+                    if (csprojMap.TryGetValue(projFileName, out var mappedPath))
+                    {
+                        found = DetectDriverFromCsproj(mappedPath, workspaceRoot, visited, depth + 1);
+                        if (found.Engine != null) return found;
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return (null, null);
+    }
+
+    private static (string? Engine, string? DbType) DetectDriverFromDirectoryBuildProps(string projectAbsDir, string workspaceRoot)
+    {
+        try
+        {
+            var curr = new DirectoryInfo(projectAbsDir);
+            var root = new DirectoryInfo(workspaceRoot);
+            while (curr != null)
+            {
+                var p1 = Path.Combine(curr.FullName, "Directory.Packages.props");
+                var p2 = Path.Combine(curr.FullName, "Directory.Build.props");
+                foreach (var p in new[] { p1, p2 })
+                {
+                    if (File.Exists(p))
+                    {
+                        var content = File.ReadAllText(p).ToLowerInvariant();
+                        if (content.Contains("npgsql")) return ("PostgreSQL", "relational");
+                        if (content.Contains("sqlclient") || content.Contains("entityframeworkcore.sqlserver")) return ("SQL Server", "relational");
+                        if (content.Contains("mysql") || content.Contains("pomelo")) return ("MySQL", "relational");
+                        if (content.Contains("sqlite")) return ("SQLite", "relational");
+                        if (content.Contains("oracle")) return ("Oracle", "relational");
+                    }
+                }
+                if (string.Equals(curr.FullName, root.FullName, StringComparison.OrdinalIgnoreCase))
+                    break;
+                curr = curr.Parent;
+            }
+        }
+        catch { }
+
+        return (null, null);
+    }
+
+    private static readonly ConcurrentDictionary<string, Dictionary<string, string>> _workspaceCsprojCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static Dictionary<string, string> GetWorkspaceCsprojMap(string workspaceRoot)
+    {
+        if (string.IsNullOrEmpty(workspaceRoot) || !Directory.Exists(workspaceRoot))
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        return _workspaceCsprojCache.GetOrAdd(workspaceRoot, root =>
+        {
+            try
+            {
+                var files = Directory.GetFiles(root, "*.csproj", SearchOption.AllDirectories);
+                var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var f in files)
+                {
+                    var name = Path.GetFileName(f);
+                    map.TryAdd(name, f.Replace('\\', '/'));
+                }
+                return map;
+            }
+            catch
+            {
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+        });
     }
 }

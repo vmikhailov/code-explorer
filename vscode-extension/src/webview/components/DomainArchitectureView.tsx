@@ -87,6 +87,7 @@ export interface DomainProjectInfo {
   kind?: string;
   filePath?: string;
   isLibrary?: boolean;
+  gitBranch?: string;
 }
 
 export type EntityKind = 'Service' | 'Ingress' | 'Worker' | 'Library' | 'Database' | 'Topic' | 'ExternalService';
@@ -101,6 +102,7 @@ export interface SelectedNodeDetail {
   borderColor: string;
   framework?: string;
   language?: string;
+  gitBranch?: string;
   primaryFilePath?: string;
   projects: DomainProjectInfo[];
   inboundCallsCount: number;
@@ -394,6 +396,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
   }, []);
 
+  const unhideNode = useCallback((nodeId: string) => {
+    setHiddenNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  }, []);
+
   const unhideAll = useCallback(() => {
     setHiddenTypes(new Set());
     setHiddenNodeIds(new Set());
@@ -451,6 +461,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         kind: node.kind,
         filePath: node.filePath,
         isLibrary: isLib,
+        gitBranch: node.properties?.git_branch,
       });
 
       const currPrimary = domainPrimaryMap.get(domainKey);
@@ -648,6 +659,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         borderColor,
         framework: meta.framework,
         language: meta.language,
+        gitBranch: primaryNode?.properties?.git_branch || projects.find((p) => p.gitBranch)?.gitBranch,
         primaryFilePath: primaryNode?.filePath || projects[0]?.filePath,
         projects,
         inboundCallsCount: inCalls.get(domainId) || 0,
@@ -1102,6 +1114,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     });
 
+    // Right-click / Context-tap -> Hide concrete node directly
+    cy.on('cxttap', 'node', (evt) => {
+      const nodeId = evt.target.id();
+      hideNode(nodeId);
+    });
+
     // Mouseover / Mouseout hover highlights
     cy.on('mouseover', 'node', (evt) => {
       containerRef.current?.classList.add('node-hover');
@@ -1135,9 +1153,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       cy.destroy();
       cyRef.current = null;
     };
-  }, [nodeDetailMap, onFocusInFlow]);
+  }, [nodeDetailMap, onFocusInFlow, hideNode]);
 
-  // Keyboard shortcut to hide selected node (Delete, Backspace, 'h')
+  // Keyboard shortcut to hide selected node (Delete, Backspace, 'h') or dismiss inspector (Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedNode) return;
@@ -1148,6 +1166,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'h' || e.key === 'H') {
         e.preventDefault();
         hideNode(selectedNode.id);
+      } else if (e.key === 'Escape') {
+        setSelectedNode(null);
+        cyRef.current?.elements().removeClass('highlighted dimmed');
       }
     };
 
@@ -1550,6 +1571,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           </button>
         )}
 
+        {/* Concrete Hidden Nodes Chips (allows unhiding individual concrete nodes) */}
+        {hiddenNodeIds.size > 0 && (
+          <div className="domain-hud-hidden-chips" title="Hidden items (click ✕ to restore)">
+            {Array.from(hiddenNodeIds).map((id) => {
+              const detail = rawGraph.detailMap.get(id);
+              const label = detail?.displayName || id;
+              return (
+                <span
+                  key={id}
+                  className="domain-hud-hidden-chip"
+                  onClick={() => unhideNode(id)}
+                  title={`Click to restore ${label}`}
+                >
+                  {label} <span className="chip-remove">✕</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         <div className="domain-hud-stats">
           <span className="hud-stat-pill" title="Service Calls (RPC / HTTP)">
             ⚡ {stats.serviceCalls} Calls
@@ -1715,11 +1756,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               {selectedNode.framework && (
                 <span className="inspector-subtitle">{selectedNode.framework}</span>
               )}
+              {selectedNode.gitBranch && (
+                <span className="inspector-subtitle" style={{ opacity: 0.85, fontSize: '0.82em' }}>🌿 {selectedNode.gitBranch}</span>
+              )}
             </div>
             <button
               className="inspector-header-hide-btn"
               onClick={() => hideNode(selectedNode.id)}
-              title="Hide this node and build transitive connections (Shortcut: H or Del)"
+              title="Hide this node (Transitive connections will bypass it) [Shortcut: H, Del, or Right-Click]"
             >
               👁️ Hide
             </button>
@@ -1753,6 +1797,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       <span className="subproject-dot">•</span>
                       <span className="subproject-name">{p.name}</span>
                       {p.isLibrary && <span className="subproject-lib-tag">lib</span>}
+                      {p.gitBranch && <span className="subproject-lib-tag" style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>🌿 {p.gitBranch}</span>}
                     </div>
                   ))}
                 </div>
@@ -1810,7 +1855,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               <button
                 className="inspector-action-btn hide-node-btn"
                 onClick={() => hideNode(selectedNode.id)}
-                title="Hide node from map (Shortcut: H or Del)"
+                title="Hide this node from map (Shortcut: H, Del, or Right-Click)"
               >
                 Hide Node
               </button>

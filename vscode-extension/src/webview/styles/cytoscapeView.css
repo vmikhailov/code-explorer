@@ -235,6 +235,32 @@
   text-decoration: underline;
 }
 
+.drawer-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 12px;
+  width: fit-content;
+}
+
+.drawer-tier-icon {
+  font-size: 14px;
+}
+
+.drawer-tier-name {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.drawer-tier-order {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #888888);
+  margin-left: 2px;
+}
+
 .property-list {
   display: flex;
   flex-direction: column;

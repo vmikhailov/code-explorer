@@ -6,7 +6,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
     label: OntologyConstants.NodeLabels.SyntaxStructure,
     idScheme: "{workspaceId}:syntax_structure",
     purpose: "Represents an intermediate node grouping all AST/syntactic declarations of the entire workspace.",
-    layer: OntologyConstants.Layers.Syntactic
+    layer: OntologyConstants.Layers.Syntactic,
+    isSystemNode: true
 )]
 [OntologyEdge<ProjectSyntaxNode>(OntologyConstants.Relationships.Contains)]
 public record SyntaxStructureNode(

@@ -141,6 +141,27 @@ public class ResourceReconciliationService
                 }
             }
 
+            // If this is a concrete database engine, retire and transfer any previous generic "Database" placeholders of the same dbType
+            var isConcrete = !IsGenericConfigKey(engine) && !string.Equals(engine, "Database", StringComparison.OrdinalIgnoreCase);
+            if (isConcrete)
+            {
+                var genericPlaceholders = _resourcesById.Values
+                    .Where(r => string.Equals(r.DbType, dbType, StringComparison.OrdinalIgnoreCase) &&
+                                (IsGenericConfigKey(r.Engine) || string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                foreach (var placeholder in genericPlaceholders)
+                {
+                    _resourcesById.TryRemove(placeholder.Id, out _);
+                    foreach (var a in placeholder.Aliases)
+                    {
+                        aliasSet.Add(a);
+                        _aliasToResourceId[a] = id;
+                    }
+                    _aliasToResourceId[placeholder.Id] = id;
+                }
+            }
+
             var resProps = properties ?? new Dictionary<string, string>();
             resProps["engine"] = engine;
             resProps["db_type"] = dbType;
@@ -264,6 +285,8 @@ public class ResourceReconciliationService
         if (string.IsNullOrWhiteSpace(aliasOrName) && !string.IsNullOrWhiteSpace(expectedDbType))
         {
             var matchingType = _resourcesById.Values.Where(r => string.Equals(r.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase)).ToList();
+            var concrete = matchingType.Where(r => !IsGenericConfigKey(r.Engine) && !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (concrete.Count == 1) return concrete[0];
             if (matchingType.Count == 1) return matchingType[0];
         }
 

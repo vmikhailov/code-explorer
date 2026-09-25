@@ -91,6 +91,102 @@ public class CSharpParser : IProjectParser, IFileParser
         return Path.GetFileName(directoryPath);
     }
 
+    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    {
+        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var csprojFile = filesInDirectory.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
+        if (csprojFile == null || !File.Exists(csprojFile)) return props;
+
+        try
+        {
+            var content = File.ReadAllText(csprojFile);
+
+            // 1. Inspect SDK
+            if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Web\"", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Sdk='Microsoft.NET.Sdk.Web'", StringComparison.OrdinalIgnoreCase))
+            {
+                props["sdk"] = "Microsoft.NET.Sdk.Web";
+                props["framework_type"] = "web";
+                props["manifest_type"] = "application";
+            }
+            else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Worker\"", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("Sdk='Microsoft.NET.Sdk.Worker'", StringComparison.OrdinalIgnoreCase))
+            {
+                props["sdk"] = "Microsoft.NET.Sdk.Worker";
+                props["framework_type"] = "worker";
+                props["manifest_type"] = "worker";
+            }
+            else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.BlazorWebAssembly\"", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("Sdk='Microsoft.NET.Sdk.BlazorWebAssembly'", StringComparison.OrdinalIgnoreCase))
+            {
+                props["sdk"] = "Microsoft.NET.Sdk.BlazorWebAssembly";
+                props["framework_type"] = "frontend";
+                props["manifest_type"] = "application";
+            }
+            else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Razor\"", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("Sdk='Microsoft.NET.Sdk.Razor'", StringComparison.OrdinalIgnoreCase))
+            {
+                props["sdk"] = "Microsoft.NET.Sdk.Razor";
+                props["framework_type"] = "web";
+                props["manifest_type"] = "application";
+            }
+            else if (content.Contains("Sdk=\"Microsoft.NET.Sdk\"", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("Sdk='Microsoft.NET.Sdk'", StringComparison.OrdinalIgnoreCase))
+            {
+                props["sdk"] = "Microsoft.NET.Sdk";
+            }
+
+            // 2. Inspect <OutputType>
+            var outputTypeMatch = System.Text.RegularExpressions.Regex.Match(content, @"<OutputType>\s*([A-Za-z0-9]+)\s*</OutputType>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (outputTypeMatch.Success)
+            {
+                var outputType = outputTypeMatch.Groups[1].Value;
+                props["output_type"] = outputType;
+                if (outputType.Equals("Exe", StringComparison.OrdinalIgnoreCase) || outputType.Equals("WinExe", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!props.ContainsKey("manifest_type"))
+                    {
+                        props["manifest_type"] = "application";
+                    }
+                }
+                else if (outputType.Equals("Library", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!props.ContainsKey("manifest_type") && props.GetValueOrDefault("sdk") != "Microsoft.NET.Sdk.Web")
+                    {
+                        props["manifest_type"] = "library";
+                    }
+                }
+            }
+            else
+            {
+                // In .NET SDK, OutputType defaults to Library if not Exe
+                if (props.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk" && !props.ContainsKey("manifest_type"))
+                {
+                    props["output_type"] = "Library";
+                    props["manifest_type"] = "library";
+                }
+            }
+
+            // 3. Inspect <IsPackable>
+            var isPackableMatch = System.Text.RegularExpressions.Regex.Match(content, @"<IsPackable>\s*(true|false)\s*</IsPackable>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (isPackableMatch.Success)
+            {
+                props["is_packable"] = isPackableMatch.Groups[1].Value.ToLowerInvariant();
+            }
+
+            // 4. Inspect CLI / Tool properties (<PackAsTool>true</PackAsTool> or ToolCommandName)
+            if (content.Contains("<PackAsTool>true</PackAsTool>", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("<ToolCommandName>", StringComparison.OrdinalIgnoreCase))
+            {
+                props["has_cli_bin"] = "true";
+                props["manifest_type"] = "cli";
+            }
+        }
+        catch { }
+
+        return props;
+    }
+
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
         List<ILibraryParser> activeLibraryParsers,

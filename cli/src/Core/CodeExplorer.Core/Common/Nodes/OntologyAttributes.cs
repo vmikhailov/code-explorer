@@ -10,7 +10,8 @@ public class OntologyNodeAttribute(
     string layer = OntologyConstants.Layers.Semantic,
     string icon = "symbol-class",
     int order = 0,
-    string? pluralLabel = null) : Attribute
+    string? pluralLabel = null,
+    bool isSystemNode = false) : Attribute
 {
     public string Label { get; } = label;
     public string IdScheme { get; } = idScheme;
@@ -19,6 +20,7 @@ public class OntologyNodeAttribute(
     public string Icon { get; } = icon;
     public int Order { get; } = order;
     public string PluralLabel { get; } = pluralLabel ?? label;
+    public bool IsSystemNode { get; init; } = isSystemNode;
 }
 
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]

@@ -20,13 +20,16 @@ public static class ProjectNodeFactory
         IReadOnlyList<string>? externalPackages = null,
         Dictionary<string, string>? extensions = null)
     {
+        extensions ??= new Dictionary<string, string>();
+
         var (role, isLibrary) = ProjectRoleDetector.DetectRole(
             directoryPath,
             filesInDirectory,
             relativeProjectDir,
             projectName,
             projectType,
-            externalPackages);
+            externalPackages,
+            extensions);
 
         extensions ??= new Dictionary<string, string>();
         extensions["role"] = role.ToString();

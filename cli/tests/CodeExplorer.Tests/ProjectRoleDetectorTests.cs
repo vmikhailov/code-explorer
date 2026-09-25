@@ -173,4 +173,44 @@ public class ProjectRoleDetectorTests
         Assert.That(role, Is.EqualTo(ProjectRole.Service));
         Assert.That(isLib, Is.False);
     }
+
+    [Test]
+    public void DetectRole_UsesExplicitManifestEvidence()
+    {
+        // 1. Library from manifest_type
+        var (roleLib, isLib) = ProjectRoleDetector.DetectRole(
+            "/workspace/packages/auth",
+            ["/workspace/packages/auth/index.ts"],
+            "packages/auth",
+            "auth",
+            "typescript",
+            extensions: new Dictionary<string, string> { ["manifest_type"] = "library" }
+        );
+        Assert.That(roleLib, Is.EqualTo(ProjectRole.SharedLibrary));
+        Assert.That(isLib, Is.True);
+
+        // 2. CLI from has_cli_bin
+        var (roleCli, isCli) = ProjectRoleDetector.DetectRole(
+            "/workspace/tools/runner",
+            ["/workspace/tools/runner/index.ts"],
+            "tools/runner",
+            "runner",
+            "typescript",
+            extensions: new Dictionary<string, string> { ["has_cli_bin"] = "true" }
+        );
+        Assert.That(roleCli, Is.EqualTo(ProjectRole.CliTool));
+        Assert.That(isCli, Is.False);
+
+        // 3. Worker from worker SDK
+        var (roleWorker, isWorker) = ProjectRoleDetector.DetectRole(
+            "/workspace/services/queue",
+            ["/workspace/services/queue/Program.cs"],
+            "services/queue",
+            "queue",
+            "csharp",
+            extensions: new Dictionary<string, string> { ["sdk"] = "Microsoft.NET.Sdk.Worker" }
+        );
+        Assert.That(roleWorker, Is.EqualTo(ProjectRole.Worker));
+        Assert.That(isWorker, Is.False);
+    }
 }

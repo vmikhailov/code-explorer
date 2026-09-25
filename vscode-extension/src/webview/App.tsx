@@ -51,6 +51,7 @@ declare global {
       wsUrl?: string;
       workspaceRoot?: string;
       project?: string;
+      initialGridCategory?: NodeCategorySelection;
     };
   }
 }
@@ -169,7 +170,9 @@ export const App: React.FC = () => {
   const [scanProgress, setScanProgress] = useState<ScanProgressEvent | null>(null);
   const [scanNotification, setScanNotification] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [graphStats, setGraphStats] = useState<{ totalNodes: number; totalEdges: number; serverVersion?: string } | null>(null);
-  const [gridCategory, setGridCategory] = useState<NodeCategorySelection | null>(null);
+  const [gridCategory, setGridCategory] = useState<NodeCategorySelection | null>(() => {
+    return (initialConfig?.initialGridCategory as NodeCategorySelection) || null;
+  });
   const [serverHttpUrl, setServerHttpUrl] = useState<string>(() => {
     if (initialConfig?.wsUrl) {
       return initialConfig.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
@@ -285,6 +288,9 @@ export const App: React.FC = () => {
   const handleViewModeChange = useCallback(
     (targetMode: ViewMode) => {
       if (viewModeRef.current === targetMode) return;
+      if (targetMode === 'semantic') {
+        setSelectedDrawerNode(null);
+      }
       setViewMode(targetMode);
       viewModeRef.current = targetMode;
       commandManager.setScope(targetMode);
@@ -1204,7 +1210,6 @@ export const App: React.FC = () => {
                 graph={fullGraph}
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
-                onSelectNode={handleSelectDrawerNode}
               />
             )}
 
@@ -1303,8 +1308,8 @@ export const App: React.FC = () => {
           </ErrorBoundary>
         </main>
 
-        {/* Slide-out drawer for node inspection across all views */}
-        {selectedDrawerNode && (
+        {/* Slide-out drawer for node inspection across all views (suppressed in semantic domain view which has its own floating inspector) */}
+        {selectedDrawerNode && viewMode !== 'semantic' && (
           <aside className="drawer" role="complementary" aria-label="Node Inspector">
             <div className="drawer-header">
               <span className={`badge badge-${(selectedDrawerNode.kind || '').toLowerCase()}`}>
@@ -1391,22 +1396,64 @@ export const App: React.FC = () => {
                 </div>
               )}
 
+              {/* Architectural Tier badge if available */}
+              {(() => {
+                const props = selectedDrawerNode.properties || {};
+                const tierName = props.layerName || (props.layerId ? props.layerId.replace('layer_', '').replace(/_/g, ' ') : null);
+                if (!tierName) return null;
+                const tierColor = props.layerColor || '#6366f1';
+                const tierIcon = props.layerIcon || '🏛️';
+                const tierOrder = props.layerOrder;
+                return (
+                  <div className="drawer-field">
+                    <label>Architectural Tier</label>
+                    <div className="drawer-tier-badge" style={{ borderColor: tierColor, background: `${tierColor}18` }}>
+                      <span className="drawer-tier-icon">{tierIcon}</span>
+                      <span className="drawer-tier-name" style={{ color: tierColor }}>{tierName}</span>
+                      {tierOrder !== undefined && tierOrder !== '' && (
+                        <span className="drawer-tier-order">(Tier {tierOrder})</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Properties list */}
-              {selectedDrawerNode.properties && Object.keys(selectedDrawerNode.properties).length > 0 && (
-                <div className="drawer-field">
-                  <label>Properties</label>
-                  <div className="property-list">
-                    {Object.entries(selectedDrawerNode.properties)
-                      .filter(([k]) => k !== 'packages' && k !== 'items')
-                      .map(([k, v]) => (
+              {selectedDrawerNode.properties && (() => {
+                const hiddenKeys = new Set([
+                  'packages',
+                  'items',
+                  'column',
+                  'flow_direction',
+                  'is_semantic_entity',
+                  'layer',
+                  'layerId',
+                  'layerName',
+                  'layerOrder',
+                  'layerColor',
+                  'layerIcon',
+                  'name',
+                  'path',
+                  'filePath',
+                  'file_path',
+                ]);
+                const visibleEntries = Object.entries(selectedDrawerNode.properties)
+                  .filter(([k]) => !hiddenKeys.has(k));
+                if (visibleEntries.length === 0) return null;
+                return (
+                  <div className="drawer-field">
+                    <label>Properties</label>
+                    <div className="property-list">
+                      {visibleEntries.map(([k, v]) => (
                         <div key={k} className="prop-item">
                           <span className="prop-key">{k}</span>
                           <span className="prop-val" title={String(v)}>{String(v)}</span>
                         </div>
                       ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </aside>
         )}

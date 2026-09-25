@@ -36,4 +36,9 @@ public interface IProjectParser
     /// Gets the syntax enricher for this project type.
     /// </summary>
     ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree);
+
+    /// <summary>
+    /// Extracts project-level manifest metadata and properties (e.g., manifest_type, has_cli_bin, framework_type, sdk, output_type, is_packable).
+    /// </summary>
+    Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) => [];
 }

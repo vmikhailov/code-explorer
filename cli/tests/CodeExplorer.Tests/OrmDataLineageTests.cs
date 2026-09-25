@@ -451,4 +451,67 @@ export class Product {
             try { Directory.Delete(tempWorkspace, true); } catch { }
         }
     }
+
+    [Test]
+    public async Task Test_Transitive_ProjectReference_Resolves_DatabaseEngine()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_transitive_db_" + Guid.NewGuid().ToString("N")).Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            var coreDataDir = Path.Combine(tempWorkspace, "Core", "Core.Data");
+            Directory.CreateDirectory(coreDataDir);
+            var coreCsproj = Path.Combine(coreDataDir, "Core.Data.csproj");
+            await File.WriteAllTextAsync(coreCsproj, @"<Project Sdk=""Microsoft.NET.Sdk"">
+  <ItemGroup>
+    <PackageReference Include=""Npgsql.EntityFrameworkCore.PostgreSQL"" Version=""6.0.0"" />
+  </ItemGroup>
+</Project>");
+
+            var appDir = Path.Combine(tempWorkspace, "Apps", "MyApp");
+            Directory.CreateDirectory(appDir);
+            var appCsproj = Path.Combine(appDir, "MyApp.csproj");
+            await File.WriteAllTextAsync(appCsproj, @"<Project Sdk=""Microsoft.NET.Sdk"">
+  <ItemGroup>
+    <ProjectReference Include=""../../Core/Core.Data/Core.Data.csproj"" />
+  </ItemGroup>
+</Project>");
+
+            var entityFile = Path.Combine(appDir, "MyEntityConfiguration.cs");
+            await File.WriteAllTextAsync(entityFile, @"using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+public class MyEntityConfiguration : IEntityTypeConfiguration<MyEntity>
+{
+    public void Configure(EntityTypeBuilder<MyEntity> builder)
+    {
+        builder.ToTable(""my_entities"");
+    }
+}
+public class MyEntity { public int Id { get; set; } }
+");
+
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+
+            var csharpParser = new CodeExplorer.Parser.CSharp.CSharpParser();
+            using var syntaxTree = await csharpParser.ParseAsync(entityFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            CodeExplorer.Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var projectNode = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
+            var enricher = csharpParser.GetSyntaxEnricher(syntaxTree);
+            await enricher.EnrichAsync(projectNode, ctx);
+
+            var resources = ctx.ResourceRegistry.AllResources.ToList();
+            Assert.That(resources, Has.Count.EqualTo(1));
+            Assert.That(resources[0].Name, Is.EqualTo("PostgreSQL"));
+            Assert.That(resources[0].Engine, Is.EqualTo("PostgreSQL"));
+            Assert.That(resources[0].DbType, Is.EqualTo("relational"));
+        }
+        finally
+        {
+            try { Directory.Delete(tempWorkspace, true); } catch { }
+        }
+    }
 }

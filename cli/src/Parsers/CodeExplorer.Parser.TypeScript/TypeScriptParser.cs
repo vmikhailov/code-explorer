@@ -124,6 +124,137 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return Path.GetFileName(directoryPath);
     }
 
+    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    {
+        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // 1. Check wrangler.toml (Cloudflare Workers / Serverless)
+        var hasWrangler = filesInDirectory.Any(f => Path.GetFileName(f).Equals("wrangler.toml", StringComparison.OrdinalIgnoreCase))
+                          || File.Exists(Path.Combine(directoryPath, "wrangler.toml"));
+        if (hasWrangler)
+        {
+            props["manifest_type"] = "worker";
+            props["framework_type"] = "worker";
+            props["cloud_runtime"] = "cloudflare-worker";
+        }
+
+        // 2. Check project.json (Nx monorepo project definition)
+        var projectJsonPath = Path.Combine(directoryPath, "project.json");
+        if (File.Exists(projectJsonPath))
+        {
+            try
+            {
+                var content = File.ReadAllText(projectJsonPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(content);
+                if (doc.RootElement.TryGetProperty("projectType", out var ptProp) && ptProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var pt = ptProp.GetString()?.ToLowerInvariant();
+                    if (pt == "library")
+                    {
+                        props["manifest_type"] = "library";
+                    }
+                    else if (pt == "application")
+                    {
+                        props["manifest_type"] = "application";
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 3. Check ng-package.json or angular.json
+        if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase)))
+        {
+            props["manifest_type"] = "library";
+            props["framework_type"] = "frontend";
+        }
+        else if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("angular.json", StringComparison.OrdinalIgnoreCase))
+                 || File.Exists(Path.Combine(directoryPath, "angular.json")))
+        {
+            if (!props.ContainsKey("framework_type")) props["framework_type"] = "frontend";
+        }
+
+        // 4. Inspect package.json
+        var packageJsonPath = Path.Combine(directoryPath, "package.json");
+        if (File.Exists(packageJsonPath))
+        {
+            try
+            {
+                var content = File.ReadAllText(packageJsonPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(content);
+                var root = doc.RootElement;
+
+                // Check "bin" property
+                if (root.TryGetProperty("bin", out var binProp))
+                {
+                    if (binProp.ValueKind == System.Text.Json.JsonValueKind.String && !string.IsNullOrWhiteSpace(binProp.GetString()))
+                    {
+                        props["has_cli_bin"] = "true";
+                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "cli";
+                    }
+                    else if (binProp.ValueKind == System.Text.Json.JsonValueKind.Object && binProp.EnumerateObject().Any())
+                    {
+                        props["has_cli_bin"] = "true";
+                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "cli";
+                    }
+                }
+
+                // Check "ngPackage" in package.json
+                if (root.TryGetProperty("ngPackage", out _))
+                {
+                    props["manifest_type"] = "library";
+                    props["framework_type"] = "frontend";
+                }
+
+                // Collect dependencies
+                var allDeps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (root.TryGetProperty("dependencies", out var depsObj) && depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var prop in depsObj.EnumerateObject()) allDeps.Add(prop.Name);
+                }
+                if (root.TryGetProperty("devDependencies", out var devDepsObj) && devDepsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var prop in devDepsObj.EnumerateObject()) allDeps.Add(prop.Name);
+                }
+
+                // Framework detection
+                if (allDeps.Any(d => d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next" or "nuxt"))
+                {
+                    props["framework_type"] = "frontend";
+                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
+                }
+                else if (allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono"))
+                {
+                    props["framework_type"] = "web";
+                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
+                }
+                else if (allDeps.Any(d => d is "bullmq" or "bull" or "amqplib" or "kafkajs" or "@cloudflare/workers-types" or "wrangler"))
+                {
+                    props["framework_type"] = "worker";
+                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
+                }
+                else if (allDeps.Any(d => d.StartsWith("@aws-cdk/") || d.StartsWith("@pulumi/") || d == "serverless"))
+                {
+                    props["framework_type"] = "cloud";
+                }
+
+                // Check if library by export declarations (main, types, exports without index.html)
+                if (!props.ContainsKey("manifest_type"))
+                {
+                    var hasMainOrTypes = root.TryGetProperty("main", out _) || root.TryGetProperty("types", out _) || root.TryGetProperty("exports", out _);
+                    var hasIndexHtml = filesInDirectory.Any(f => Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase));
+                    if (hasMainOrTypes && !hasIndexHtml)
+                    {
+                        props["manifest_type"] = "library";
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return props;
+    }
+
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
         List<ILibraryParser> activeLibraryParsers,

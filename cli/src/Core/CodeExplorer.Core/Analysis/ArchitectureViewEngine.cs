@@ -321,13 +321,38 @@ public class ArchitectureViewEngine(IGraphClient db)
                     // If raw project was already added, replace it with this higher-level semantic workload
                     if (nodeMap.TryGetValue(associatedProjectId, out var rawProj))
                     {
+                        if (rawProj.Properties != null)
+                        {
+                            foreach (var key in new[] { "layer", "layerId", "layerName", "layerOrder", "layerColor", "layerIcon" })
+                            {
+                                if (!props.ContainsKey(key) && rawProj.Properties.TryGetValue(key, out var val))
+                                {
+                                    props[key] = val;
+                                }
+                            }
+                        }
                         graph.Nodes.Remove(rawProj);
                         nodeMap.Remove(associatedProjectId);
                     }
                 }
                 else if (kind == "Project")
                 {
-                    // If semantic workload for this project already exists, skip redundant raw Project node
+                    // If semantic workload for this project already exists, copy layer properties and skip redundant raw Project node
+                    if (projectToWorkloadMap.TryGetValue(id, out var workloadId) && nodeMap.TryGetValue(workloadId, out var existingWorkload))
+                    {
+                        if (existingWorkload.Properties != null && props != null)
+                        {
+                            foreach (var key in new[] { "layer", "layerId", "layerName", "layerOrder", "layerColor", "layerIcon" })
+                            {
+                                if (!existingWorkload.Properties.ContainsKey(key) && props.TryGetValue(key, out var val))
+                                {
+                                    existingWorkload.Properties[key] = val;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
                     if (projectToWorkloadMap.ContainsKey(id))
                     {
                         continue;
@@ -359,7 +384,11 @@ public class ArchitectureViewEngine(IGraphClient db)
                 props["is_semantic_entity"] = isLibProject ? "false" : "true";
                 if (!props.ContainsKey("layer"))
                 {
-                    var defaultLayer = isLibProject ? StandardLayers.Foundation : StandardLayers.Components;
+                    var isAppOrFrontend = kind is "App" or "FrontendApp" ||
+                                          string.Equals(props.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                                          string.Equals(props.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase) ||
+                                          (name?.ToLowerInvariant().Contains("gateway") == true);
+                    var defaultLayer = isLibProject ? StandardLayers.Foundation : isAppOrFrontend ? StandardLayers.Ingress : StandardLayers.Components;
                     props["layer"] = defaultLayer.LayerId;
                     props["layerId"] = defaultLayer.LayerId;
                     props["layerName"] = defaultLayer.LayerName;
@@ -591,10 +620,13 @@ public class ArchitectureViewEngine(IGraphClient db)
             ParentId = centerNode.ParentId,
             Properties = new Dictionary<string, string>(centerNode.Properties ?? new())
             {
-                ["column"] = "center",
-                ["role"] = "target"
+                ["column"] = "center"
             }
         };
+        if (!centerDto.Properties.ContainsKey("role"))
+        {
+            centerDto.Properties["role"] = "target";
+        }
         graph.Nodes.Add(centerDto);
 
         var nodeLookup = archGraph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
@@ -604,6 +636,19 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             if (addedNodeIds.Add(src.Id))
             {
+                var nProps = new Dictionary<string, string>(src.Properties ?? new())
+                {
+                    ["column"] = column
+                };
+                if (!nProps.ContainsKey("role") || string.Equals(nProps["role"], "inbound", StringComparison.OrdinalIgnoreCase) || string.Equals(nProps["role"], "outbound", StringComparison.OrdinalIgnoreCase) || string.Equals(nProps["role"], "target", StringComparison.OrdinalIgnoreCase))
+                {
+                    nProps["role"] = role;
+                }
+                else
+                {
+                    nProps["flow_direction"] = role;
+                }
+
                 var nDto = new GraphNodeDto
                 {
                     Id = src.Id,
@@ -614,11 +659,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                     LineStart = src.LineStart,
                     LineEnd = src.LineEnd,
                     ParentId = src.ParentId,
-                    Properties = new Dictionary<string, string>(src.Properties ?? new())
-                    {
-                        ["column"] = column,
-                        ["role"] = role
-                    }
+                    Properties = nProps
                 };
                 graph.Nodes.Add(nDto);
             }
@@ -847,10 +888,23 @@ public class ArchitectureViewEngine(IGraphClient db)
             foreach (var row in nodeDoc.RootElement.EnumerateArray())
             {
                 var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
-                totalNodes += cnt;
 
                 if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
                 {
+                    var isSystem = false;
+                    foreach (var l in lblProp.EnumerateArray())
+                    {
+                        var lbl = l.GetString();
+                        if (!string.IsNullOrEmpty(lbl) && Mcp.OntologyRegistry.IsSystemNode(lbl))
+                        {
+                            isSystem = true;
+                            break;
+                        }
+                    }
+                    if (isSystem) continue;
+
+                    totalNodes += cnt;
+
                     foreach (var l in lblProp.EnumerateArray())
                     {
                         var lbl = l.GetString();
@@ -867,6 +921,10 @@ public class ArchitectureViewEngine(IGraphClient db)
                             }
                         }
                     }
+                }
+                else
+                {
+                    totalNodes += cnt;
                 }
             }
             result.TotalNodes = totalNodes;
@@ -934,6 +992,27 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
         catch { }
 
+        // 3. Dynamically compute LayerCounts from registered ontology node definitions
+        foreach (var node in Mcp.OntologyRegistry.AllNodes)
+        {
+            if (node.Attribute.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(node.Kind))
+            {
+                continue;
+            }
+            var cnt = result.NodeCounts.GetValueOrDefault(node.Kind, 0);
+            if (cnt <= 0) continue;
+            var layerId = node.Attribute.Layer switch
+            {
+                OntologyConstants.Layers.Physical => 1,
+                OntologyConstants.Layers.ProjectBoundary => 2,
+                OntologyConstants.Layers.Syntactic => 3,
+                OntologyConstants.Layers.Semantic => 4,
+                _ => 4
+            };
+            result.LayerCounts[layerId] = result.LayerCounts.GetValueOrDefault(layerId, 0) + cnt;
+        }
+        result.LayerCounts[5] = result.TotalEdges;
+
         return result;
     }
 
@@ -965,13 +1044,18 @@ public class ArchitectureViewEngine(IGraphClient db)
             safeKind = null;
         }
 
+        if (safeKind != null && Mcp.OntologyRegistry.IsSystemNode(safeKind))
+        {
+            return result;
+        }
+
         string? serviceId = null;
         string? serviceNameResolved = null;
         if (!string.IsNullOrWhiteSpace(service))
         {
             try
             {
-                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.id = $srv OR s.id = 'workspace:project:' + $srv) AND (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool) RETURN s.id AS id, coalesce(s.name, s.id) AS name LIMIT 1";
+                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.id = $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
                 var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["srv"] = service }, ct);
                 using var sDoc = JsonDocument.Parse(sJson);
                 var first = sDoc.RootElement.EnumerateArray().FirstOrDefault();
@@ -1085,33 +1169,39 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
         else if (string.Equals(safeKind, "Layer4", StringComparison.OrdinalIgnoreCase))
         {
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query OR (n:Project AND json_extract(n.properties, '$.role') IN ['Service', 'FrontendApp', 'App', 'Worker', 'CliTool', 'SharedLibrary', 'Library']))";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "App", StringComparison.OrdinalIgnoreCase) && serviceId == null)
         {
-            layerFilter = "WHERE (n:App OR n:FrontendApp OR (n:Project AND json_extract(n.properties, '$.role') IN ['App', 'FrontendApp']))";
+            layerFilter = "WHERE (n:App OR n:FrontendApp)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "Worker", StringComparison.OrdinalIgnoreCase) && serviceId == null)
         {
-            layerFilter = "WHERE (n:Worker OR (n:Project AND json_extract(n.properties, '$.role') = 'Worker'))";
+            layerFilter = "WHERE (n:Worker)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "Library", StringComparison.OrdinalIgnoreCase) && serviceId == null)
         {
-            layerFilter = "WHERE (n:Library OR n:SharedLibrary OR (n:Project AND (json_extract(n.properties, '$.role') IN ['Library', 'SharedLibrary'] OR json_extract(n.properties, '$.is_library') = 'true')))";
+            layerFilter = "WHERE (n:Library OR n:SharedLibrary)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "CliTool", StringComparison.OrdinalIgnoreCase) && serviceId == null)
         {
-            layerFilter = "WHERE (n:CliTool OR (n:Project AND json_extract(n.properties, '$.role') = 'CliTool'))";
+            layerFilter = "WHERE (n:CliTool)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "Service", StringComparison.OrdinalIgnoreCase) && serviceId == null)
         {
-            layerFilter = "WHERE (n:Service OR (n:Project AND json_extract(n.properties, '$.role') = 'Service'))";
+            layerFilter = "WHERE (n:Service)";
             safeKind = null;
+        }
+
+        if (safeKind == null && layerFilter == null && serviceId == null)
+        {
+            // Default macro filter for unconstrained / 'all' queries (prevents pulling thousands of raw AST symbols)
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Database OR n:Table OR n:Topic OR n:ExternalService OR n:CloudService)";
         }
 
         var matchClause = safeKind != null ? $"MATCH (n:{safeKind})" : "MATCH (n)";
@@ -1125,11 +1215,11 @@ public class ArchitectureViewEngine(IGraphClient db)
             var sNameEsc = (serviceNameResolved ?? serviceId).Replace("'", "''");
             if (string.Equals(safeKind, "Endpoint", StringComparison.OrdinalIgnoreCase))
             {
-                matchClause = $"MATCH (s)-[:CONTAINS]->(n:Endpoint) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}')";
+                matchClause = $"MATCH (s)-[:CONTAINS|EXPOSED_BY]-(n:Endpoint) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}')";
             }
             else if (string.Equals(safeKind, "Database", StringComparison.OrdinalIgnoreCase))
             {
-                matchClause = $"MATCH (s)-[:USES_DB|CONTAINS]->(n:Database) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}')";
+                matchClause = $"MATCH (s)-[:USES_DB|CONTAINS]-(n:Database) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}')";
             }
             else if (string.Equals(safeKind, "Topic", StringComparison.OrdinalIgnoreCase))
             {
@@ -1139,13 +1229,13 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 matchClause = $"MATCH (s)-[:CALLS_ENDPOINT|SERVICE_CALL|INTEGRATES_WITH]->(n) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}') AND (n:ExternalService OR n:CloudService)";
             }
-            else if (string.Equals(safeKind, "Service", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(safeKind, "Service", StringComparison.OrdinalIgnoreCase) || string.Equals(safeKind, "App", StringComparison.OrdinalIgnoreCase))
             {
                 matchClause = $"MATCH (n) WHERE (n.id = '{sIdEsc}' OR n.name = '{sNameEsc}')";
             }
             else
             {
-                matchClause = $"MATCH (s)-[r]->(n) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}') AND (n:Endpoint OR n:Database OR n:Topic OR n:ExternalService OR n:CloudService OR n:File OR n:Type)";
+                matchClause = $"MATCH (s)-[r]-(n) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}') AND (n:Endpoint OR n:Database OR n:Topic OR n:ExternalService OR n:CloudService OR n:File OR n:Type)";
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -1232,6 +1322,10 @@ public class ArchitectureViewEngine(IGraphClient db)
                 if (string.IsNullOrEmpty(nodeKind) && row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
                 {
                     nodeKind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "";
+                }
+                if (Mcp.OntologyRegistry.IsSystemNode(nodeKind))
+                {
+                    continue;
                 }
                 if (nodeKind == "Project" && !string.IsNullOrEmpty(role) && !string.Equals(kind, "Project", StringComparison.OrdinalIgnoreCase))
                 {
@@ -1612,6 +1706,10 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             var attr = node.Attribute;
             var kind = node.Kind;
+            if (attr.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(kind))
+            {
+                continue;
+            }
             var count = counts.GetValueOrDefault(kind, 0);
 
             if (attr.Layer == OntologyConstants.Layers.Physical)
@@ -1705,8 +1803,8 @@ public class ArchitectureViewEngine(IGraphClient db)
         return new OntologyLayersResponseDto
         {
             Layers = [l1, l2, l3, l4, l5],
-            TotalNodes = meta.TotalNodes,
-            TotalEdges = meta.TotalEdges
+            TotalNodes = l1Categories.Sum(c => c.Count) + l2Categories.Sum(c => c.Count) + l3Categories.Sum(c => c.Count) + l4Categories.Sum(c => c.Count),
+            TotalEdges = meta.TotalEdges > 0 ? meta.TotalEdges : relCounts.Values.Sum()
         };
     }
 
@@ -1715,13 +1813,23 @@ public class ArchitectureViewEngine(IGraphClient db)
         var list = new List<ServiceSummaryDto>();
         try
         {
-            var query = "MATCH (s) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
+            var query = "MATCH (s) WHERE (s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
             var json = await db.ExecuteQueryAsync(query, null, ct);
             using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            JsonDocument? fallbackDoc = null;
+            if (root.GetArrayLength() == 0)
+            {
+                var fallbackQuery = "MATCH (s:Project) WHERE json_extract(s.properties, '$.role') IN ['Service', 'App', 'FrontendApp', 'Worker', 'CliTool'] RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
+                var fbJson = await db.ExecuteQueryAsync(fallbackQuery, null, ct);
+                fallbackDoc = JsonDocument.Parse(fbJson);
+                root = fallbackDoc.RootElement;
+            }
+
             var serviceMap = new Dictionary<string, ServiceSummaryDto>(StringComparer.OrdinalIgnoreCase);
             var idToName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var row in doc.RootElement.EnumerateArray())
+            foreach (var row in root.EnumerateArray())
             {
                 var id = row.GetStringProp("id");
                 var name = row.GetStringProp("name", id);
@@ -1763,6 +1871,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 }
                 idToName[id] = name;
             }
+            fallbackDoc?.Dispose();
 
             // Tally endpoints directly from graph
             try
@@ -1996,7 +2105,10 @@ public class ArchitectureViewEngine(IGraphClient db)
             var parentName = name[..suffixMatch.Index];
             var dotParts = parentName.Split('.');
             var shortName = dotParts[^1];
-            return ($"domain:{parentName.ToLowerInvariant()}", $"{shortName} Service", false);
+            var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
+                                string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
+            return ($"domain:{parentName.ToLowerInvariant()}", $"{shortName} Service", isIngressHint);
         }
 
         // 2. Directory structure
@@ -2008,14 +2120,17 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 var folder = parts[servicesIdx + 1];
                 var cleanName = char.ToUpperInvariant(folder[0]) + folder[1..];
-                return ($"domain:{folder.ToLowerInvariant()}", $"{cleanName} Service", false);
+                var isIngressHint = IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
+                return ($"domain:{folder.ToLowerInvariant()}", $"{cleanName} Service", isIngressHint);
             }
 
             if (parts.Length >= 2 && !parts[0].Equals("src", StringComparison.OrdinalIgnoreCase) && !parts[0].Equals("packages", StringComparison.OrdinalIgnoreCase) && !parts[0].Equals("libs", StringComparison.OrdinalIgnoreCase))
             {
                 var folder = parts[0];
                 var cleanName = char.ToUpperInvariant(folder[0]) + folder[1..];
-                var isIngressHint = IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase));
+                var isIngressHint = IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
                 return ($"domain:{folder.ToLowerInvariant()}", cleanName, isIngressHint);
             }
         }
@@ -2024,6 +2139,10 @@ public class ArchitectureViewEngine(IGraphClient db)
         var framework = node.Properties?.GetValueOrDefault("framework", "") ?? "";
         var isIngress = node.Kind.Equals("App", StringComparison.OrdinalIgnoreCase) ||
                         node.Kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(node.Properties?.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(node.Properties?.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
                         IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
                         IngressFrameworks.Any(fw => framework.Contains(fw, StringComparison.OrdinalIgnoreCase));
 
@@ -2055,9 +2174,15 @@ public class ArchitectureViewEngine(IGraphClient db)
                 pList = [];
                 domainProjectsMap[domainKey] = pList;
 
-                var isIngress = (node.Kind.Equals("App", StringComparison.OrdinalIgnoreCase) || node.Kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) || isIngressHint) &&
-                                !node.Kind.Equals("Service", StringComparison.OrdinalIgnoreCase) &&
-                                !node.Kind.Equals("Worker", StringComparison.OrdinalIgnoreCase);
+                var isIngress = (node.Kind.Equals("App", StringComparison.OrdinalIgnoreCase) ||
+                                 node.Kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(node.Properties?.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(node.Properties?.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                 isIngressHint) &&
+                                !node.Kind.Equals("Worker", StringComparison.OrdinalIgnoreCase) &&
+                                node.Properties?.GetValueOrDefault("role") != "Worker";
                 domainZoneMap[domainKey] = isIngress ? "ingress" : "service";
                 domainNameMap[domainKey] = (node.Name, domainDisplayName, node.Properties?.GetValueOrDefault("framework"), node.Properties?.GetValueOrDefault("language") ?? node.Properties?.GetValueOrDefault("project_type"));
             }

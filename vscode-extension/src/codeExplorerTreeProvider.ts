@@ -5,6 +5,7 @@ import { ProcessManager, ServerInfo } from './processManager';
 export interface MetadataDto {
   nodeCounts: Record<string, number>;
   relationshipCounts: Record<string, number>;
+  layerCounts?: Record<number, number>;
   totalNodes: number;
   totalEdges: number;
 }
@@ -34,6 +35,7 @@ export interface OntologyCategoryDto {
   icon: string;
   count: number;
   layerId: number;
+  isSystemNode?: boolean;
 }
 
 export interface OntologyLayerDto {
@@ -299,11 +301,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       );
       layersRoot.iconPath = new vscode.ThemeIcon('layers');
       layersRoot.tooltip = 'Decoupled 5-layer ontology graph model';
-      layersRoot.command = {
-        command: 'codeExplorer.openNodeGrid',
-        title: 'Browse All Graph Layers in Grid',
-        arguments: ['all', 'Graph Layers (Ontology 1 - 5)'],
-      };
 
       // 3. Metadata & Health
       const serverInfo = this.processManager.getServerInfo();
@@ -343,7 +340,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     }
 
     if (element.itemType === 'services-container' || element.itemType === 'services-category') {
-      return this.getServicesListItems(element.data?.layerTitle);
+      return this.getServicesListItems(element.data?.layerTitle, element.data?.kind);
     }
 
     if (element.itemType === 'ontology-service') {
@@ -432,119 +429,26 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
   private async getGraphLayerGroups(): Promise<CodeExplorerTreeItem[]> {
     const ontology = await this.getOntologyLayers();
-    if (ontology && ontology.layers && ontology.layers.length > 0) {
-      return ontology.layers.map((l) => {
-        const item = new CodeExplorerTreeItem(
-          'layer-group',
-          l.title || `Layer ${l.layerId}: ${l.name}`,
-          vscode.TreeItemCollapsibleState.Collapsed,
-          { layerId: l.layerId, title: l.title || l.name }
-        );
-        item.description = `${l.totalCount.toLocaleString()} ${l.layerId === 5 ? 'edges' : 'nodes'}`;
-        item.iconPath = new vscode.ThemeIcon(l.icon || (l.layerId === 5 ? 'references' : 'folder'));
-        item.tooltip = l.description;
-        item.command = {
-          command: 'codeExplorer.openNodeGrid',
-          title: `Browse ${l.title || l.name} in Grid`,
-          arguments: [
-            l.layerId === 5 ? 'Layer5_Relationships' : `Layer${l.layerId}`,
-            l.title || `Layer ${l.layerId}: ${l.name}`,
-          ],
-        };
-        return item;
-      });
+    if (!ontology || !ontology.layers || ontology.layers.length === 0) {
+      return [];
     }
 
-    const serverInfo = await this.getServerInfo();
-    let meta: MetadataDto | null = null;
-    if (serverInfo) {
-      try {
-        meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
-      } catch {}
-    }
-
-    const counts = meta?.nodeCounts || {};
-    const relCounts = meta?.relationshipCounts || {};
-
-    // Sum nodes per layer
-    const l1Count = (counts['File'] || 0) + (counts['Folder'] || 0) + (counts['GitSettings'] || 0);
-    const l2Count = (counts['Project'] || 0) + (counts['Package'] || 0);
-    const l3Count = (counts['Type'] || 0) + (counts['Function'] || 0) + (counts['Member'] || 0);
-    const l4Count =
-      (counts['Service'] || 0) +
-      (counts['App'] || 0) +
-      (counts['FrontendApp'] || 0) +
-      (counts['Worker'] || 0) +
-      (counts['Library'] || 0) +
-      (counts['SharedLibrary'] || 0) +
-      (counts['CliTool'] || 0) +
-      (counts['EntryPoint'] || 0) +
-      (counts['Endpoint'] || 0) +
-      (counts['Procedure'] || 0) +
-      (counts['Database'] || 0) +
-      (counts['Table'] || 0) +
-      (counts['DataSet'] || 0) +
-      (counts['Topic'] || 0) +
-      (counts['ExternalService'] || 0) +
-      (counts['CloudService'] || 0) +
-      (counts['ApiInUse'] || 0) +
-      (counts['Query'] || 0);
-    const l5Count = meta?.totalEdges || Object.values(relCounts).reduce((acc, c) => acc + c, 0);
-
-    const layers = [
-      {
-        layerId: 1,
-        title: 'Layer 1: Physical Topology',
-        desc: `${l1Count.toLocaleString()} nodes`,
-        icon: 'folder-library',
-        tooltip: 'Layer 1: Files, Folders, and Git configuration',
-      },
-      {
-        layerId: 2,
-        title: 'Layer 2: Project Boundary',
-        desc: `${l2Count.toLocaleString()} nodes`,
-        icon: 'project',
-        tooltip: 'Layer 2: Logical compilation scopes, projects, and external packages',
-      },
-      {
-        layerId: 3,
-        title: 'Layer 3: Syntactic AST',
-        desc: `${l3Count.toLocaleString()} nodes`,
-        icon: 'symbol-structure',
-        tooltip: 'Layer 3: Abstract Syntax Tree declarations (Types, Methods, Fields)',
-      },
-      {
-        layerId: 4,
-        title: 'Layer 4: Semantic Runtime',
-        desc: `${l4Count.toLocaleString()} nodes`,
-        icon: 'radio-tower',
-        tooltip: 'Layer 4: Runtime architecture (Endpoints, Databases, Topics, EntryPoints, External Services)',
-      },
-      {
-        layerId: 5,
-        title: 'Layer 5: System Bindings',
-        desc: `${l5Count.toLocaleString()} edges`,
-        icon: 'references',
-        tooltip: 'Layer 5: Cross-project late-bound relationships (CALLS, IMPLEMENTS, USES_DB, INTEGRATES_WITH)',
-      },
-    ];
-
-    return layers.map((l) => {
+    return ontology.layers.map((l) => {
       const item = new CodeExplorerTreeItem(
         'layer-group',
-        l.title,
+        l.title || `Layer ${l.layerId}: ${l.name}`,
         vscode.TreeItemCollapsibleState.Collapsed,
-        { layerId: l.layerId, title: l.title }
+        { layerId: l.layerId, title: l.title || l.name }
       );
-      item.description = l.desc;
-      item.iconPath = new vscode.ThemeIcon(l.icon);
-      item.tooltip = l.tooltip;
+      item.description = `${l.totalCount.toLocaleString()} ${l.layerId === 5 ? 'edges' : 'nodes'}`;
+      item.iconPath = new vscode.ThemeIcon(l.icon || (l.layerId === 5 ? 'references' : 'folder'));
+      item.tooltip = l.description;
       item.command = {
         command: 'codeExplorer.openNodeGrid',
-        title: `Browse ${l.title} in Grid`,
+        title: `Browse ${l.title || l.name} in Grid`,
         arguments: [
           l.layerId === 5 ? 'Layer5_Relationships' : `Layer${l.layerId}`,
-          l.title,
+          l.title || `Layer ${l.layerId}: ${l.name}`,
         ],
       };
       return item;
@@ -557,9 +461,11 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const ontology = await this.getOntologyLayers();
     const layer = ontology?.layers?.find((l) => l.layerId === layerId);
     if (layer && layer.categories && layer.categories.length > 0) {
-      return layer.categories.map((cat) => {
+      return layer.categories
+        .filter((cat) => !cat.isSystemNode)
+        .map((cat) => {
         const isRel = cat.layerId === 5;
-        const isServiceWorkload = cat.kind === 'Service';
+        const isServiceWorkload = cat.kind === 'Service' || cat.kind === 'App' || cat.kind === 'Worker' || cat.kind === 'CliTool';
         const itemType = isRel ? 'rel-category' : isServiceWorkload ? 'services-category' : 'node-category';
         const collapsibleState = isServiceWorkload && cat.count > 0
           ? vscode.TreeItemCollapsibleState.Collapsed
@@ -592,9 +498,10 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     return [];
   }
 
-  private async getServicesListItems(layerTitle?: string): Promise<CodeExplorerTreeItem[]> {
+  private async getServicesListItems(layerTitle?: string, kindFilter?: string): Promise<CodeExplorerTreeItem[]> {
     const services = await this.getOntologyServices();
-    const serviceList = services.filter((s) => !s.kind || s.kind === 'Service');
+    const targetKind = kindFilter || 'Service';
+    const serviceList = services.filter((s) => s.kind === targetKind || (!s.kind && targetKind === 'Service'));
     return serviceList.map((s) => {
       const item = new CodeExplorerTreeItem(
         'ontology-service',
