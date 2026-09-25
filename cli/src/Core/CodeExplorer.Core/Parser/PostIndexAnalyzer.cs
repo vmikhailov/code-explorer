@@ -1071,6 +1071,41 @@ public class PostIndexAnalyzer(IGraphClient db)
         return CanonicalizeDatabasesAsync(db, widPrefix, ct);
     }
 
+    private static readonly HashSet<string> KnownDbEnginesAndNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "postgresql", "postgres", "mysql", "mariadb", "sqlite", "sqlite3",
+        "clickhouse", "bigquery", "redis", "mongodb", "mongo",
+        "sqlserver", "mssql", "sql server", "oracle", "cassandra",
+        "elasticsearch", "neo4j", "dynamodb", "firestore", "cosmosdb",
+        "couchdb", "cockroachdb", "tidb", "influxdb", "timescaledb",
+        "memcached", "kafka", "rabbitmq", "database", "db", "default",
+        "typeorm", "sequelize", "prisma", "drizzle", "dapper", "ef-core"
+    };
+
+    public static bool IsLikelyDatabaseName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var trimmed = name.Trim();
+        var lower = trimmed.ToLowerInvariant();
+        if (lower.Length <= 1) return false;
+        if (char.IsDigit(lower[0])) return false;
+        
+        // Reject SQL keywords, stopwords, functions, and PostgreSQL system catalogs
+        if (NestedSqlParser.IsSqlKeyword(lower)) return false;
+        if (lower.StartsWith("pg_") || lower.StartsWith("information_schema")) return false;
+
+        // Matches known engine names or aliases
+        if (KnownDbEnginesAndNames.Contains(lower)) return true;
+        if (lower.StartsWith("redis_") || lower.StartsWith("postgres_") || lower.StartsWith("db_")) return true;
+        if (lower.EndsWith("_db") || lower.EndsWith("-db") || lower.EndsWith("database")) return true;
+
+        // Reject if it contains table or function indicators
+        if (lower.Contains("_tb") || lower.Contains("_table") || lower.Contains("_history") || 
+            lower.Contains("_rules") || lower.Contains("jsonb_") || lower.Contains("dblink")) return false;
+
+        return false;
+    }
+
     public static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeDatabase(string rawName, string? rawDbType)
     {
         var trimmed = (rawName ?? "").Trim();
@@ -1172,7 +1207,10 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             if (node is DatabaseNode db)
             {
-                allDbNodes.Add(db);
+                if (IsLikelyDatabaseName(db.Name) || IsLikelyDatabaseName(db.Id))
+                {
+                    allDbNodes.Add(db);
+                }
             }
             foreach (var child in node.Children)
             {
@@ -1239,7 +1277,15 @@ public class PostIndexAnalyzer(IGraphClient db)
             if (isDbRel && !rawToCanonical.ContainsKey(rel.To))
             {
                 var parts = rel.To.Split(':');
-                var rawName = parts.Length > 0 ? parts[^1] : "database";
+                var rawName = parts.Length > 0 ? parts[^1] : "";
+                if (string.IsNullOrWhiteSpace(rawName)) continue;
+
+                // STRICT VALIDATION: Only canonicalize if rawName is a genuine database!
+                if (!IsLikelyDatabaseName(rawName))
+                {
+                    continue;
+                }
+
                 var rawType = "relational";
                 if (rel.Properties.TryGetValue("db_type", out var dtObj) && dtObj != null)
                 {
@@ -1408,6 +1454,22 @@ public class PostIndexAnalyzer(IGraphClient db)
                     await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId });
                 }
             }
+
+            // Purge any remaining phantom Database nodes that were not canonicalized
+            var validIds = canonicalDbNodes.Keys.ToList();
+            if (validIds.Count > 0)
+            {
+                var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
+                var paramDict = new Dictionary<string, object>();
+                for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+
+                await ctx.DbClient.ExecuteWriteAsync(
+                    $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
+                    paramDict);
+                await ctx.DbClient.ExecuteWriteAsync(
+                    $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
+                    paramDict);
+            }
         }
 
         return (canonicalRels, rawToCanonical);
@@ -1430,6 +1492,8 @@ public class PostIndexAnalyzer(IGraphClient db)
             {
                 var id = GetStringProp(row, "id");
                 var name = GetStringProp(row, "name", id);
+                if (!IsLikelyDatabaseName(name) && !IsLikelyDatabaseName(id)) continue;
+
                 var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String ? (dt.GetString() ?? "Database") : "Database";
                 var rawEngine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String ? eg.GetString() : null;
 
@@ -1576,6 +1640,22 @@ public class PostIndexAnalyzer(IGraphClient db)
                     await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId }, cancellationToken);
                     await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId }, cancellationToken);
                 }
+            }
+
+            // Purge any remaining phantom Database nodes that were not canonicalized
+            var validIds = canonicalNodes.Keys.ToList();
+            if (validIds.Count > 0)
+            {
+                var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
+                var paramDict = new Dictionary<string, object>();
+                for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+
+                await db.ExecuteWriteAsync(
+                    $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
+                    paramDict, cancellationToken);
+                await db.ExecuteWriteAsync(
+                    $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
+                    paramDict, cancellationToken);
             }
         }
 

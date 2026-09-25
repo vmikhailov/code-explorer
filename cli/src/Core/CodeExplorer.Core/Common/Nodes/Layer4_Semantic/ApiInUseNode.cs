@@ -5,7 +5,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.ApiInUse,
     idScheme: "{workspaceId}:project:{relativeProjectDir}:api:{apiName}",
-    purpose: "Represents an external API library or client service used by the project (e.g. NestJS, Axios, HttpClient)."
+    purpose: "Represents an external API library or client service used by the project (e.g. NestJS, Axios, HttpClient).",
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "plug",
+    order: 15,
+    pluralLabel: "APIs in Use"
 )]
 public record ApiInUseNode(
     string Id,

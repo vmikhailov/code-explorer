@@ -5,7 +5,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Query,
     idScheme: "{workspaceId}:query:{queryHash}",
-    purpose: "Represents a SQL query."
+    purpose: "Represents a SQL query.",
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "search",
+    order: 14,
+    pluralLabel: "SQL Queries"
 )]
 [OntologyEdge<TableNode>(OntologyConstants.Relationships.DependsOn)]
 public record QueryNode(

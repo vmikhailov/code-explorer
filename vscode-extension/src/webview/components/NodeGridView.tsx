@@ -100,11 +100,11 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
         if (layerNum === 1) {
           list = list.filter((n) => ['file', 'folder', 'gitsettings'].includes(n.kind?.toLowerCase() || ''));
         } else if (layerNum === 2) {
-          list = list.filter((n) => ['project', 'library', 'sharedlibrary', 'package', 'service', 'app', 'worker'].includes(n.kind?.toLowerCase() || ''));
+          list = list.filter((n) => ['project', 'package'].includes(n.kind?.toLowerCase() || ''));
         } else if (layerNum === 3) {
           list = list.filter((n) => ['type', 'function', 'member'].includes(n.kind?.toLowerCase() || ''));
         } else if (layerNum === 4) {
-          list = list.filter((n) => ['service', 'app', 'worker', 'clitool', 'entrypoint', 'endpoint', 'procedure', 'database', 'table', 'dataset', 'topic', 'externalservice', 'cloudservice', 'apiinuse', 'query'].includes(n.kind?.toLowerCase() || ''));
+          list = list.filter((n) => ['service', 'app', 'frontendapp', 'worker', 'library', 'sharedlibrary', 'clitool', 'entrypoint', 'endpoint', 'procedure', 'database', 'table', 'dataset', 'topic', 'externalservice', 'cloudservice', 'apiinuse', 'query'].includes(n.kind?.toLowerCase() || ''));
         }
       } else {
         list = list.filter((n) => n.kind?.toLowerCase() === currentKind.toLowerCase());

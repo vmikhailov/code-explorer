@@ -6,7 +6,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.EntryPoint,
     idScheme: "{workspaceId}:entrypoint:{type}:{name}",
-    purpose: "Represents non-HTTP execution triggers (e.g. gRPC services, CLI command definitions, Cron schedules, queue subscribers)."
+    purpose: "Represents non-HTTP execution triggers (e.g. gRPC services, CLI command definitions, Cron schedules, queue subscribers).",
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "sign-in",
+    order: 11,
+    pluralLabel: "Entry Points"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Triggers)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.ExposedBy)]

@@ -7,7 +7,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
     label: OntologyConstants.NodeLabels.Member,
     idScheme: "{workspaceId}:symbol:{filePath}:Member:{name}:{line}",
     purpose: "Represents a declared field, property, parameter, or local variable.",
-    layer: OntologyConstants.Layers.Syntactic
+    layer: OntologyConstants.Layers.Syntactic,
+    icon: "symbol-field",
+    order: 3,
+    pluralLabel: "Members & Fields"
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.OfType)]

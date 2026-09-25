@@ -1541,15 +1541,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           </select>
         </div>
 
-        {/* Node Spacing / Air Control ("Воздух") */}
-        <div className="domain-hud-control-group" title="Воздух: Раздвинуть узлы для удобства чтения">
-          <span className="domain-hud-group-label">Воздух:</span>
+        {/* Node Spacing / Air Control ("Air") */}
+        <div className="domain-hud-control-group" title="Air: Adjust node spacing">
+          <span className="domain-hud-group-label">Air:</span>
           <button
             className="domain-hud-step-btn"
             onClick={() => handleSpacingChange(Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)))}
-            title="Сдвинуть узлы ближе"
+            title="Decrease spacing (-)"
           >
-            ↔−
+            -
           </button>
           <input
             type="range"
@@ -1559,19 +1559,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             value={spacingFactor}
             onChange={(e) => handleSpacingChange(parseFloat(e.target.value))}
             className="domain-hud-slider"
-            title={`Воздух: ${spacingFactor.toFixed(1)}x`}
+            title={`Air: ${spacingFactor.toFixed(1)}x`}
           />
           <button
             className="domain-hud-step-btn"
             onClick={() => handleSpacingChange(Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)))}
-            title="Раздвинуть узлы дальше"
+            title="Increase spacing (+)"
           >
-            ↔+
+            +
           </button>
           <span
             className="domain-hud-value-badge"
             onClick={() => handleSpacingChange(1.0)}
-            title="Сбросить воздух на 1.0x"
+            title="Reset air to 1.0x"
           >
             {spacingFactor.toFixed(1)}x
           </span>

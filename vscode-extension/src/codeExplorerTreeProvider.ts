@@ -103,6 +103,7 @@ export type TreeItemType =
   | 'node-category'
   | 'rel-category'
   | 'services-container'
+  | 'services-category'
   | 'ontology-service'
   | 'service-group'
   | 'service-item'
@@ -467,17 +468,15 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
     // Sum nodes per layer
     const l1Count = (counts['File'] || 0) + (counts['Folder'] || 0) + (counts['GitSettings'] || 0);
-    const l2Count =
-      (counts['Project'] || 0) +
-      (counts['Library'] || 0) +
-      (counts['SharedLibrary'] || 0) +
-      (counts['Package'] || 0);
+    const l2Count = (counts['Project'] || 0) + (counts['Package'] || 0);
     const l3Count = (counts['Type'] || 0) + (counts['Function'] || 0) + (counts['Member'] || 0);
     const l4Count =
       (counts['Service'] || 0) +
       (counts['App'] || 0) +
       (counts['FrontendApp'] || 0) +
       (counts['Worker'] || 0) +
+      (counts['Library'] || 0) +
+      (counts['SharedLibrary'] || 0) +
       (counts['CliTool'] || 0) +
       (counts['EntryPoint'] || 0) +
       (counts['Endpoint'] || 0) +
@@ -555,61 +554,26 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   private async getLayerCategoryItems(layerId?: number, layerTitle?: string): Promise<CodeExplorerTreeItem[]> {
     if (!layerId) return [];
 
-    if (layerId === 4) {
-      const services = await this.getOntologyServices();
-      const servicesItem = new CodeExplorerTreeItem(
-        'services-container',
-        'Services & Workloads',
-        vscode.TreeItemCollapsibleState.Collapsed,
-        { layerTitle: layerTitle || 'Layer 4: Semantic Runtime' }
-      );
-      servicesItem.description = `${services.length} services`;
-      servicesItem.iconPath = new vscode.ThemeIcon('server-process');
-      servicesItem.tooltip = 'Microservices, applications, workers, and background workloads';
-      servicesItem.command = {
-        command: 'codeExplorer.openNodeGrid',
-        title: 'Browse Services in Grid',
-        arguments: ['Service', 'Layer 4: Semantic Runtime › Services'],
-      };
-
-      const ontology = await this.getOntologyLayers();
-      const layer = ontology?.layers?.find((l) => l.layerId === 4);
-      const otherCategories: CodeExplorerTreeItem[] = [];
-
-      if (layer && layer.categories && layer.categories.length > 0) {
-        for (const cat of layer.categories) {
-          if (cat.kind === 'Service') continue;
-          const item = new CodeExplorerTreeItem(
-            'node-category',
-            cat.label,
-            vscode.TreeItemCollapsibleState.None,
-            { kind: cat.kind, layerTitle: layerTitle || layer.title }
-          );
-          item.description = `${cat.count.toLocaleString()}`;
-          item.iconPath = new vscode.ThemeIcon(cat.icon || 'symbol-class');
-          item.tooltip = `Click to browse all ${cat.count.toLocaleString()} ${cat.label} in central grid`;
-          item.command = {
-            command: 'codeExplorer.openNodeGrid',
-            title: `Browse ${cat.label} in Grid`,
-            arguments: [cat.kind, layerTitle || layer.title],
-          };
-          otherCategories.push(item);
-        }
-      }
-
-      return [servicesItem, ...otherCategories];
-    }
-
     const ontology = await this.getOntologyLayers();
     const layer = ontology?.layers?.find((l) => l.layerId === layerId);
     if (layer && layer.categories && layer.categories.length > 0) {
       return layer.categories.map((cat) => {
         const isRel = cat.layerId === 5;
+        const isServiceWorkload = cat.kind === 'Service';
+        const itemType = isRel ? 'rel-category' : isServiceWorkload ? 'services-category' : 'node-category';
+        const collapsibleState = isServiceWorkload && cat.count > 0
+          ? vscode.TreeItemCollapsibleState.Collapsed
+          : vscode.TreeItemCollapsibleState.None;
+
         const item = new CodeExplorerTreeItem(
-          isRel ? 'rel-category' : 'node-category',
+          itemType,
           cat.label,
-          vscode.TreeItemCollapsibleState.None,
-          { kind: cat.kind, rel: cat.kind, layerTitle: layerTitle || layer.title }
+          collapsibleState,
+          {
+            kind: cat.kind,
+            rel: isRel ? cat.kind : undefined,
+            layerTitle: layerTitle || layer.title,
+          }
         );
         item.description = `${cat.count.toLocaleString()}`;
         item.iconPath = new vscode.ThemeIcon(cat.icon || (isRel ? 'arrow-right' : 'symbol-class'));
@@ -625,103 +589,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       });
     }
 
-    const serverInfo = await this.getServerInfo();
-    let meta: MetadataDto | null = null;
-    if (serverInfo) {
-      try {
-        meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
-      } catch {}
-    }
-
-    const counts = meta?.nodeCounts || {};
-    const relCounts = meta?.relationshipCounts || {};
-
-    const items: CodeExplorerTreeItem[] = [];
-
-    const createNodeCatItem = (kind: string, label: string, icon: string) => {
-      const count = counts[kind] || 0;
-      const item = new CodeExplorerTreeItem(
-        'node-category',
-        label,
-        vscode.TreeItemCollapsibleState.None,
-        { kind, layerTitle: layerTitle || `Layer ${layerId}` }
-      );
-      item.description = `${count.toLocaleString()}`;
-      item.iconPath = new vscode.ThemeIcon(icon);
-      item.tooltip = `Click to browse all ${count.toLocaleString()} ${label} in central grid`;
-      item.command = {
-        command: 'codeExplorer.openNodeGrid',
-        title: `Browse ${label} in Grid`,
-        arguments: [kind, layerTitle || `Layer ${layerId}`],
-      };
-      return item;
-    };
-
-    switch (layerId) {
-      case 1:
-        items.push(createNodeCatItem('File', 'Files', 'file-code'));
-        items.push(createNodeCatItem('Folder', 'Folders', 'folder'));
-        items.push(createNodeCatItem('GitSettings', 'Git Settings', 'git-commit'));
-        break;
-
-      case 2:
-        items.push(createNodeCatItem('Project', 'Projects', 'project'));
-        if ((counts['Library'] || 0) > 0 || (counts['SharedLibrary'] || 0) > 0) {
-          items.push(createNodeCatItem('Library', 'Libraries & SDKs', 'library'));
-        }
-        items.push(createNodeCatItem('Package', 'Packages', 'package'));
-        break;
-
-      case 3:
-        items.push(createNodeCatItem('Type', 'Types (Classes, Interfaces)', 'symbol-class'));
-        items.push(createNodeCatItem('Function', 'Functions & Methods', 'symbol-method'));
-        items.push(createNodeCatItem('Member', 'Members & Fields', 'symbol-field'));
-        break;
-
-      case 4:
-        break;
-
-      case 5: {
-        const topRels = [
-          'CALLS',
-          'DEPENDS_ON',
-          'EXPOSED_BY',
-          'TRIGGERS',
-          'QUERIED_BY',
-          'PUBLISHED_BY',
-          'SUBSCRIBED_BY',
-          'INTEGRATES_WITH',
-          'USES_DB',
-          'IMPLEMENTS',
-          'INHERITS_FROM',
-          'USES_TYPE',
-        ];
-
-        for (const rel of topRels) {
-          const count = relCounts[rel] || 0;
-          if (count > 0 || ['CALLS', 'DEPENDS_ON', 'INTEGRATES_WITH', 'USES_DB'].includes(rel)) {
-            const item = new CodeExplorerTreeItem(
-              'rel-category',
-              rel,
-              vscode.TreeItemCollapsibleState.None,
-              { rel, layerTitle: layerTitle || 'Layer 5: System Bindings' }
-            );
-            item.description = `${count.toLocaleString()}`;
-            item.iconPath = new vscode.ThemeIcon('arrow-right');
-            item.tooltip = `${count.toLocaleString()} ${rel} relationships`;
-            item.command = {
-              command: 'codeExplorer.openNodeGrid',
-              title: `Browse ${rel} in Grid`,
-              arguments: [rel, 'Layer 5: System Bindings'],
-            };
-            items.push(item);
-          }
-        }
-        break;
-      }
-    }
-
-    return items;
+    return [];
   }
 
   private async getServicesListItems(layerTitle?: string): Promise<CodeExplorerTreeItem[]> {

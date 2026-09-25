@@ -7,7 +7,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
     label: OntologyConstants.NodeLabels.Function,
     idScheme: "{workspaceId}:symbol:{filePath}:Function:{name}:{line}",
     purpose: "Represents a parsed method, function, subroutine, or procedure.",
-    layer: OntologyConstants.Layers.Syntactic
+    layer: OntologyConstants.Layers.Syntactic,
+    icon: "symbol-method",
+    order: 2,
+    pluralLabel: "Functions & Methods"
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Calls)]

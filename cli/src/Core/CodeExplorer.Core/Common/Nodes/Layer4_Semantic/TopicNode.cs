@@ -7,10 +7,17 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Topic,
     idScheme: "{workspaceId}:topic:{brokerType}:{topicName}",
-    purpose: "Represents a message queue, event exchange, or topic boundary."
+    purpose: "Represents a message queue, event exchange, or topic boundary.",
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "mail",
+    order: 8,
+    pluralLabel: "Message Topics & Queues"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.PublishedBy)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.SubscribedBy)]
+[OntologyEdge<ServiceNode>(OntologyConstants.Relationships.PublishedBy)]
+[OntologyEdge<ServiceNode>(OntologyConstants.Relationships.SubscribedBy)]
+[OntologyEdge<WorkerNode>(OntologyConstants.Relationships.SubscribedBy)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.Triggers)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.SubscribedBy)]
 public record TopicNode(

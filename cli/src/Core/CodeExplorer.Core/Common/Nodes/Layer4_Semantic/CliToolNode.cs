@@ -1,35 +1,33 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
-namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.CliTool,
-    idScheme: "{workspaceId}:project:{relativeProjectDir}:",
+    idScheme: "{workspaceId}:clitool:{toolName}",
     purpose: "Represents a command-line tool, developer script, or administrative CLI utility.",
-    layer: OntologyConstants.Layers.ProjectBoundary
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "terminal",
+    order: 5,
+    pluralLabel: "CLI Tools"
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
-[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DependsOn)]
-[OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeployedBy)]
 [OntologyEdge<ServiceNode>(OntologyConstants.Relationships.ServiceCall)]
 [OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.ServiceCall)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
 [OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
-public record CliToolNode : ProjectNode
+public record CliToolNode(
+    string Id,
+    [property: OntologyProperty("The CLI tool name.")] string Name,
+    [property: OntologyProperty("The path of the tool directory relative to the workspace.")] string Path,
+    [property: OntologyProperty("The project type or language.")] string ProjectType,
+    Dictionary<string, string>? Extensions = null
+) : CompositeNode(Id, Extensions)
 {
-    public CliToolNode(
-        string id,
-        string name,
-        string path,
-        string projectType,
-        Dictionary<string, string>? extensions = null)
-        : base(id, name, path, projectType, OntologyConstants.ProjectRoles.CliTool, false, extensions)
-    {
-    }
-
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.CliTool;
 }

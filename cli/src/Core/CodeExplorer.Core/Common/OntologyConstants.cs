@@ -97,6 +97,8 @@ public static class OntologyConstants
         public const string LocatedIn = "LOCATED_IN";
         public const string PersistedIn = "PERSISTED_IN";
         public const string Configures = "CONFIGURES";
+        public const string Deploys = "DEPLOYS";
+        public const string DeployedBy = "DEPLOYED_BY";
     }
 
     public static class LibraryTypes

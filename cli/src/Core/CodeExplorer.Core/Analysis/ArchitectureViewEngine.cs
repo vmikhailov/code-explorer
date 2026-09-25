@@ -75,6 +75,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
         var nodeMap = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
         var dbIdToCanonicalId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // Query macro nodes: Services, Apps, Libraries, Workers, CliTools, Databases, Topics, ExternalServices, Packages
         var nodesQuery = includeLibraries
@@ -304,7 +305,35 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
             else
             {
-                // Project
+                // Project or Workload (Service, App, Worker, Library, CliTool)
+                var isWorkload = kind is "Service" or "App" or "Worker" or "Library" or "CliTool" or "FrontendApp" or "SharedLibrary";
+                var associatedProjectId = props.GetValueOrDefault("project_id");
+                if (string.IsNullOrEmpty(associatedProjectId))
+                {
+                    associatedProjectId = id.Contains(":project:", StringComparison.OrdinalIgnoreCase)
+                        ? id
+                        : $"{id.Split(':')[0]}:project:{name}";
+                }
+
+                if (isWorkload)
+                {
+                    projectToWorkloadMap[associatedProjectId] = id;
+                    // If raw project was already added, replace it with this higher-level semantic workload
+                    if (nodeMap.TryGetValue(associatedProjectId, out var rawProj))
+                    {
+                        graph.Nodes.Remove(rawProj);
+                        nodeMap.Remove(associatedProjectId);
+                    }
+                }
+                else if (kind == "Project")
+                {
+                    // If semantic workload for this project already exists, skip redundant raw Project node
+                    if (projectToWorkloadMap.ContainsKey(id))
+                    {
+                        continue;
+                    }
+                }
+
                 if (nodeMap.ContainsKey(id)) continue;
                 var dispName = elem.GetStringProp("display_name");
                 if (string.IsNullOrEmpty(dispName))
@@ -382,6 +411,9 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             var fromId = dbIdToCanonicalId.GetValueOrDefault(rawFrom, rawFrom);
             var toId = dbIdToCanonicalId.GetValueOrDefault(rawTo, rawTo);
+
+            fromId = projectToWorkloadMap.GetValueOrDefault(fromId, fromId);
+            toId = projectToWorkloadMap.GetValueOrDefault(toId, toId);
 
             if (!nodeMap.ContainsKey(fromId))
             {
@@ -814,31 +846,69 @@ public class ArchitectureViewEngine(IGraphClient db)
             long totalNodes = 0;
             foreach (var row in nodeDoc.RootElement.EnumerateArray())
             {
+                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
+                totalNodes += cnt;
+
                 if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
                 {
-                    var firstLbl = lblProp.EnumerateArray().FirstOrDefault().GetString();
-                    if (!string.IsNullOrEmpty(firstLbl))
+                    foreach (var l in lblProp.EnumerateArray())
                     {
-                        var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
-                        result.NodeCounts[firstLbl] = cnt;
-                        totalNodes += cnt;
+                        var lbl = l.GetString();
+                        if (!string.IsNullOrEmpty(lbl))
+                        {
+                            result.NodeCounts[lbl] = result.NodeCounts.GetValueOrDefault(lbl, 0) + cnt;
+                            if (lbl.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
+                            {
+                                result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
+                            }
+                            else if (lbl.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
+                            {
+                                result.NodeCounts["Library"] = result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
+                            }
+                        }
                     }
                 }
             }
             result.TotalNodes = totalNodes;
 
-            // 1b. Project counts by architectural role for Layer 4 semantic workloads
-            var roleQuery = "MATCH (p:Project) RETURN json_extract(p.properties, '$.role') AS role, count(p) AS cnt";
-            var roleJson = await db.ExecuteQueryAsync(roleQuery, null, ct);
-            using var roleDoc = JsonDocument.Parse(roleJson);
-            foreach (var row in roleDoc.RootElement.EnumerateArray())
+            // 1b. Fallback for legacy graphs where projects were not yet decomposed into separate workload nodes
+            if (result.NodeCounts.GetValueOrDefault("Service", 0) == 0 &&
+                result.NodeCounts.GetValueOrDefault("App", 0) == 0 &&
+                result.NodeCounts.GetValueOrDefault("Project", 0) > 0)
             {
-                var role = row.GetStringProp("role");
-                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
-                if (!string.IsNullOrEmpty(role))
+                try
                 {
-                    result.NodeCounts[$"Role:{role}"] = cnt;
+                    var roleQuery = "MATCH (p:Project) RETURN json_extract(p.properties, '$.role') AS role, json_extract(p.properties, '$.is_library') AS is_lib, count(p) AS cnt";
+                    var roleJson = await db.ExecuteQueryAsync(roleQuery, null, ct);
+                    using var roleDoc = JsonDocument.Parse(roleJson);
+                    foreach (var row in roleDoc.RootElement.EnumerateArray())
+                    {
+                        var role = row.GetStringProp("role");
+                        var isLib = row.GetStringProp("is_lib");
+                        var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
+                        if (role is "FrontendApp" or "App")
+                        {
+                            result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
+                        }
+                        else if (role is "Worker")
+                        {
+                            result.NodeCounts["Worker"] = result.NodeCounts.GetValueOrDefault("Worker", 0) + cnt;
+                        }
+                        else if (role is "SharedLibrary" or "Library" || isLib == "true")
+                        {
+                            result.NodeCounts["Library"] = result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
+                        }
+                        else if (role is "CliTool")
+                        {
+                            result.NodeCounts["CliTool"] = result.NodeCounts.GetValueOrDefault("CliTool", 0) + cnt;
+                        }
+                        else
+                        {
+                            result.NodeCounts["Service"] = result.NodeCounts.GetValueOrDefault("Service", 0) + cnt;
+                        }
+                    }
                 }
+                catch { }
             }
         }
         catch { }
@@ -1015,7 +1085,32 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
         else if (string.Equals(safeKind, "Layer4", StringComparison.OrdinalIgnoreCase))
         {
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query OR (n:Project AND json_extract(n.properties, '$.role') IN ('Service', 'FrontendApp', 'Worker', 'CliTool', 'SharedLibrary')))";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query OR (n:Project AND json_extract(n.properties, '$.role') IN ['Service', 'FrontendApp', 'App', 'Worker', 'CliTool', 'SharedLibrary', 'Library']))";
+            safeKind = null;
+        }
+        else if (string.Equals(safeKind, "App", StringComparison.OrdinalIgnoreCase) && serviceId == null)
+        {
+            layerFilter = "WHERE (n:App OR n:FrontendApp OR (n:Project AND json_extract(n.properties, '$.role') IN ['App', 'FrontendApp']))";
+            safeKind = null;
+        }
+        else if (string.Equals(safeKind, "Worker", StringComparison.OrdinalIgnoreCase) && serviceId == null)
+        {
+            layerFilter = "WHERE (n:Worker OR (n:Project AND json_extract(n.properties, '$.role') = 'Worker'))";
+            safeKind = null;
+        }
+        else if (string.Equals(safeKind, "Library", StringComparison.OrdinalIgnoreCase) && serviceId == null)
+        {
+            layerFilter = "WHERE (n:Library OR n:SharedLibrary OR (n:Project AND (json_extract(n.properties, '$.role') IN ['Library', 'SharedLibrary'] OR json_extract(n.properties, '$.is_library') = 'true')))";
+            safeKind = null;
+        }
+        else if (string.Equals(safeKind, "CliTool", StringComparison.OrdinalIgnoreCase) && serviceId == null)
+        {
+            layerFilter = "WHERE (n:CliTool OR (n:Project AND json_extract(n.properties, '$.role') = 'CliTool'))";
+            safeKind = null;
+        }
+        else if (string.Equals(safeKind, "Service", StringComparison.OrdinalIgnoreCase) && serviceId == null)
+        {
+            layerFilter = "WHERE (n:Service OR (n:Project AND json_extract(n.properties, '$.role') = 'Service'))";
             safeKind = null;
         }
 
@@ -1102,7 +1197,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
         catch { }
 
-        var dataQuery = $"{matchClause} {whereClause}RETURN DISTINCT n.id AS id, n.name AS name, n.file_path AS file_path, n.path AS path, n.line AS line, labels(n) AS lbl, n.framework AS framework, n.method AS method, n.route AS route, n.protocol AS protocol ORDER BY n.name ASC SKIP {offset} LIMIT {limit}";
+        var dataQuery = $"{matchClause} {whereClause}RETURN DISTINCT n.id AS id, n.name AS name, n.file_path AS file_path, n.path AS path, n.line AS line, labels(n) AS lbl, n.framework AS framework, n.method AS method, n.route AS route, n.protocol AS protocol, json_extract(n.properties, '$.role') AS role ORDER BY n.name ASC SKIP {offset} LIMIT {limit}";
 
 
         try
@@ -1132,10 +1227,15 @@ public class ArchitectureViewEngine(IGraphClient db)
                     }
                 }
 
+                var role = row.GetStringProp("role");
                 string nodeKind = safeKind ?? "";
                 if (string.IsNullOrEmpty(nodeKind) && row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
                 {
                     nodeKind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "";
+                }
+                if (nodeKind == "Project" && !string.IsNullOrEmpty(role) && !string.Equals(kind, "Project", StringComparison.OrdinalIgnoreCase))
+                {
+                    nodeKind = role is "FrontendApp" ? "App" : role is "SharedLibrary" ? "Library" : role;
                 }
 
                 var nodeDto = new GraphNodeDto
@@ -1503,63 +1603,45 @@ public class ArchitectureViewEngine(IGraphClient db)
         var counts = meta.NodeCounts;
         var relCounts = meta.RelationshipCounts;
 
-        var l1Categories = new List<OntologyCategoryDto>
-        {
-            new() { Kind = "File", Label = "Files", Icon = "file-code", Count = counts.GetValueOrDefault("File", 0), LayerId = 1 },
-            new() { Kind = "Folder", Label = "Folders", Icon = "folder", Count = counts.GetValueOrDefault("Folder", 0), LayerId = 1 },
-            new() { Kind = "GitSettings", Label = "Git Settings", Icon = "git-commit", Count = counts.GetValueOrDefault("GitSettings", 0), LayerId = 1 }
-        };
+        var l1Categories = new List<OntologyCategoryDto>();
+        var l2Categories = new List<OntologyCategoryDto>();
+        var l3Categories = new List<OntologyCategoryDto>();
+        var l4Categories = new List<OntologyCategoryDto>();
 
-        var l2Categories = new List<OntologyCategoryDto>
+        foreach (var node in Mcp.OntologyRegistry.AllNodes.OrderBy(n => n.Attribute.Order))
         {
-            new() { Kind = "Project", Label = "Projects", Icon = "project", Count = counts.GetValueOrDefault("Project", 0), LayerId = 2 },
-            new() { Kind = "Package", Label = "Packages & Dependencies", Icon = "package", Count = counts.GetValueOrDefault("Package", 0), LayerId = 2 }
-        };
+            var attr = node.Attribute;
+            var kind = node.Kind;
+            var count = counts.GetValueOrDefault(kind, 0);
 
-        var l3Categories = new List<OntologyCategoryDto>
-        {
-            new() { Kind = "Type", Label = "Types (Classes, Interfaces)", Icon = "symbol-class", Count = counts.GetValueOrDefault("Type", 0), LayerId = 3 },
-            new() { Kind = "Function", Label = "Functions & Methods", Icon = "symbol-method", Count = counts.GetValueOrDefault("Function", 0), LayerId = 3 },
-            new() { Kind = "Member", Label = "Members & Fields", Icon = "symbol-field", Count = counts.GetValueOrDefault("Member", 0), LayerId = 3 }
-        };
-
-        var serviceCount = counts.GetValueOrDefault("Role:Service", 0) + counts.GetValueOrDefault("Service", 0);
-        var appCount = counts.GetValueOrDefault("Role:FrontendApp", 0) + counts.GetValueOrDefault("App", 0) + counts.GetValueOrDefault("FrontendApp", 0);
-        var workerCount = counts.GetValueOrDefault("Role:Worker", 0) + counts.GetValueOrDefault("Worker", 0);
-        var libCount = counts.GetValueOrDefault("Role:SharedLibrary", 0) + counts.GetValueOrDefault("Library", 0) + counts.GetValueOrDefault("SharedLibrary", 0);
-
-        var totalServiceWorkloads = serviceCount + appCount + workerCount;
-
-        var l4Categories = new List<OntologyCategoryDto>
-        {
-            new() { Kind = "Service", Label = "Services", Icon = "server-process", Count = serviceCount, LayerId = 4 },
-            new() { Kind = "App", Label = "Applications", Icon = "browser", Count = appCount, LayerId = 4 },
-            new() { Kind = "Worker", Label = "Workers", Icon = "gear", Count = workerCount, LayerId = 4 },
-            new() { Kind = "Library", Label = "Libraries & SDKs", Icon = "library", Count = libCount, LayerId = 4 },
-            new() { Kind = "Endpoint", Label = "API Endpoints (REST, gRPC, WS)", Icon = "radio-tower", Count = counts.GetValueOrDefault("Endpoint", 0), LayerId = 4 },
-            new() { Kind = "Database", Label = "Databases & Storage", Icon = "database", Count = counts.GetValueOrDefault("Database", 0) + counts.GetValueOrDefault("Table", 0), LayerId = 4 },
-            new() { Kind = "Topic", Label = "Message Topics & Queues", Icon = "mail", Count = counts.GetValueOrDefault("Topic", 0), LayerId = 4 },
-            new() { Kind = "ExternalService", Label = "External & Cloud APIs", Icon = "cloud", Count = counts.GetValueOrDefault("ExternalService", 0) + counts.GetValueOrDefault("CloudService", 0), LayerId = 4 }
-        };
-        if (counts.GetValueOrDefault("EntryPoint", 0) > 0)
-        {
-            l4Categories.Add(new() { Kind = "EntryPoint", Label = "Execution EntryPoints", Icon = "sign-in", Count = counts.GetValueOrDefault("EntryPoint", 0), LayerId = 4 });
-        }
-        if (counts.GetValueOrDefault("Procedure", 0) > 0)
-        {
-            l4Categories.Add(new() { Kind = "Procedure", Label = "Stored Procedures", Icon = "database", Count = counts.GetValueOrDefault("Procedure", 0), LayerId = 4 });
-        }
-        if (counts.GetValueOrDefault("Query", 0) > 0)
-        {
-            l4Categories.Add(new() { Kind = "Query", Label = "SQL Queries", Icon = "search", Count = counts.GetValueOrDefault("Query", 0), LayerId = 4 });
+            if (attr.Layer == OntologyConstants.Layers.Physical)
+            {
+                l1Categories.Add(new() { Kind = kind, Label = attr.PluralLabel, Icon = attr.Icon, Count = count, LayerId = 1 });
+            }
+            else if (attr.Layer == OntologyConstants.Layers.ProjectBoundary)
+            {
+                l2Categories.Add(new() { Kind = kind, Label = attr.PluralLabel, Icon = attr.Icon, Count = count, LayerId = 2 });
+            }
+            else if (attr.Layer == OntologyConstants.Layers.Syntactic)
+            {
+                l3Categories.Add(new() { Kind = kind, Label = attr.PluralLabel, Icon = attr.Icon, Count = count, LayerId = 3 });
+            }
+            else if (attr.Layer == OntologyConstants.Layers.Semantic)
+            {
+                if (kind is "Procedure" or "Query" or "DataSet" or "EntryPoint" or "ApiInUse" && count == 0)
+                {
+                    continue;
+                }
+                l4Categories.Add(new() { Kind = kind, Label = attr.PluralLabel, Icon = attr.Icon, Count = count, LayerId = 4 });
+            }
         }
 
-        var topRels = new[] { "CALLS", "DEPENDS_ON", "EXPOSED_BY", "TRIGGERS", "QUERIED_BY", "PUBLISHED_BY", "SUBSCRIBED_BY", "INTEGRATES_WITH", "USES_DB", "IMPLEMENTS", "INHERITS_FROM", "USES_TYPE" };
+        var topRels = new[] { "CALLS", "DEPENDS_ON", "DEPLOYS", "EXPOSED_BY", "TRIGGERS", "QUERIED_BY", "PUBLISHED_BY", "SUBSCRIBED_BY", "INTEGRATES_WITH", "USES_DB", "IMPLEMENTS", "INHERITS_FROM", "USES_TYPE" };
         var l5Categories = new List<OntologyCategoryDto>();
         foreach (var rel in topRels)
         {
             var cnt = relCounts.GetValueOrDefault(rel, 0);
-            if (cnt > 0 || rel is "CALLS" or "DEPENDS_ON" or "INTEGRATES_WITH" or "USES_DB")
+            if (cnt > 0 || rel is "CALLS" or "DEPENDS_ON" or "INTEGRATES_WITH" or "USES_DB" or "DEPLOYS")
             {
                 l5Categories.Add(new() { Kind = rel, Label = rel, Icon = "arrow-right", Count = cnt, LayerId = 5 });
             }

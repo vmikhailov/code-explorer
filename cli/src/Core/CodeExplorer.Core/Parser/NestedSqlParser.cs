@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
@@ -80,6 +81,44 @@ public static class NestedSqlParser
             var word = match.Groups[1].Value.ToUpperInvariant();
             if (SqlKeywords.Contains(word))
             {
+                // Verify structural syntax for SQL statements to avoid false positives (e.g. Swagger / UI strings)
+                if (word == "SELECT")
+                {
+                    if (!Regex.IsMatch(cleanedSql, @"\b(?:FROM|WHERE)\b", RegexOptions.IgnoreCase) &&
+                        !Regex.IsMatch(cleanedSql, @"^\s*SELECT\s+[\d@'""\(]", RegexOptions.IgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+                else if (word == "INSERT")
+                {
+                    if (!Regex.IsMatch(cleanedSql, @"\bINTO\b", RegexOptions.IgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+                else if (word == "UPDATE")
+                {
+                    if (!Regex.IsMatch(cleanedSql, @"\bSET\b", RegexOptions.IgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+                else if (word == "DELETE")
+                {
+                    if (!Regex.IsMatch(cleanedSql, @"\bFROM\b", RegexOptions.IgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+                else if (word == "MERGE")
+                {
+                    if (!Regex.IsMatch(cleanedSql, @"\b(?:INTO|USING)\b", RegexOptions.IgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+
                 firstWord = word;
                 return true;
             }
@@ -372,15 +411,10 @@ public static class NestedSqlParser
             }
             if (!string.IsNullOrEmpty(tableRef.Schema) && 
                 !tableRef.Schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) && 
+                !tableRef.Schema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
                 addedTables.Add(tableRef.Schema))
             {
                 references.Add(new Reference(scopeSymbolId, tableRef.Schema, OntologyConstants.Relationships.DependsOn));
-            }
-            if (!string.IsNullOrEmpty(tableRef.Db) && 
-                !tableRef.Db.Equals("default", StringComparison.OrdinalIgnoreCase) && 
-                addedTables.Add(tableRef.Db))
-            {
-                references.Add(new Reference(scopeSymbolId, tableRef.Db, OntologyConstants.Relationships.DependsOn));
             }
         }
     }
@@ -412,19 +446,28 @@ public static class NestedSqlParser
         return current;
     }
 
-    private static bool IsSqlKeyword(string word)
+    private static readonly HashSet<string> ExtendedSqlKeywords = new(StringComparer.OrdinalIgnoreCase)
     {
-        return SqlKeywords.Contains(word) || 
-               word.Equals("FROM", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("JOIN", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("WHERE", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("AND", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("OR", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("IN", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("ON", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("AS", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("INTO", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("VALUES", StringComparison.OrdinalIgnoreCase) ||
-               word.Equals("SET", StringComparison.OrdinalIgnoreCase);
+        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE",
+        "FROM", "JOIN", "WHERE", "AND", "OR", "IN", "ON", "AS", "INTO", "VALUES", "SET",
+        "LATERAL", "INTERVAL", "CROSS", "OUTER", "INNER", "LEFT", "RIGHT", "FULL", "USING",
+        "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "OFFSET", "WITH", "RECURSIVE",
+        "CASE", "WHEN", "THEN", "ELSE", "END", "DISTINCT", "ALL", "ANY", "EXISTS",
+        "PARTITION", "OVER", "WINDOW", "TABLE", "VIEW", "INDEX", "SCHEMA", "DATABASE",
+        "PROCEDURE", "FUNCTION", "TRIGGER", "DECLARE", "EXEC", "EXECUTE", "BEGIN", "COMMIT", "ROLLBACK",
+        "JSONB_ARRAY_ELEMENTS_TEXT", "JSONB_TO_RECORDSET", "JSONB_OBJECT_KEYS", "JSONB_ARRAY_ELEMENTS",
+        "JSONB_EACH", "JSONB_EACH_TEXT", "DBLINK", "UNNEST", "GENERATE_SERIES", "COALESCE",
+        "COUNT", "SUM", "AVG", "MIN", "MAX", "NOW",
+        "THIS", "THE", "AN", "A", "NULL", "UNDEFINED", "TRUE", "FALSE"
+    };
+
+    public static bool IsSqlKeyword(string? word)
+    {
+        if (string.IsNullOrWhiteSpace(word)) return true;
+        var trimmed = word.Trim();
+        if (trimmed.Length <= 1) return true;
+        if (char.IsDigit(trimmed[0])) return true;
+        if (trimmed.Contains('(') || trimmed.Contains(')')) return true;
+        return ExtendedSqlKeywords.Contains(trimmed);
     }
 }

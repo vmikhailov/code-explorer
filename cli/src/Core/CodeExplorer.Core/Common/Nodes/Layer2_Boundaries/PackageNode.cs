@@ -6,7 +6,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
     label: OntologyConstants.NodeLabels.Package,
     idScheme: "{workspaceId}:package:{packageName}",
     purpose: "Represents an external dependency package or workspace package referenced or produced by projects.",
-    layer: OntologyConstants.Layers.ProjectBoundary
+    layer: OntologyConstants.Layers.ProjectBoundary,
+    icon: "package",
+    order: 2,
+    pluralLabel: "Packages & Dependencies"
 )]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
 public record PackageNode(

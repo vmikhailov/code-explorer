@@ -6,7 +6,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
     label: OntologyConstants.NodeLabels.File,
     idScheme: "{workspaceId}:file:{relativeFilePath}",
     purpose: "Represents a source code file containing parsable content.",
-    layer: OntologyConstants.Layers.Physical
+    layer: OntologyConstants.Layers.Physical,
+    icon: "file-code",
+    order: 1,
+    pluralLabel: "Files"
 )]
 public record FileNode(
     string Id,

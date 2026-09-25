@@ -6,7 +6,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Table,
     idScheme: "{workspaceId}:table:{tableName}",
-    purpose: "Represents a physical database table."
+    purpose: "Represents a physical database table.",
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "table",
+    order: 12,
+    pluralLabel: "Tables & Views"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.QueriedBy)]
 [OntologyEdge<QueryNode>(OntologyConstants.Relationships.QueriedBy)]

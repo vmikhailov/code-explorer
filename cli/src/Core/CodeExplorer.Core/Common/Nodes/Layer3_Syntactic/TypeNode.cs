@@ -8,7 +8,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
     label: OntologyConstants.NodeLabels.Type,
     idScheme: "{workspaceId}:symbol:{filePath}:Type:{name}:{line}",
     purpose: "Represents a type declaration (Class, Interface, Struct, Record, Enum, or Union type).",
-    layer: OntologyConstants.Layers.Syntactic
+    layer: OntologyConstants.Layers.Syntactic,
+    icon: "symbol-class",
+    order: 1,
+    pluralLabel: "Types (Classes, Interfaces)"
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.UsesType)]

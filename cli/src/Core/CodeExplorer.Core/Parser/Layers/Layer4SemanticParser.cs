@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -89,6 +90,76 @@ public class Layer4SemanticParser
             GroupEntryPoints(project, projectTrees, ctx);
         }
 
+        // 4. Materialize first-class semantic workload nodes under SemanticStructure
+        foreach (var project in l3Result.Prev.Projects)
+        {
+            var extensions = new Dictionary<string, string>(project.Extensions ?? new())
+            {
+                ["project_id"] = project.Id,
+                ["role"] = project.Role,
+                ["is_library"] = project.IsLibrary ? "true" : "false"
+            };
+
+            IOntologyNode workloadNode = project.Role switch
+            {
+                OntologyConstants.ProjectRoles.FrontendApp => new AppNode(
+                    $"{ctx.WorkspaceId}:app:{project.Name}",
+                    project.Name,
+                    project.Path,
+                    project.ProjectType,
+                    extensions),
+
+                OntologyConstants.ProjectRoles.Service => new ServiceNode(
+                    $"{ctx.WorkspaceId}:service:{project.Name}",
+                    project.Name,
+                    project.Path,
+                    project.ProjectType,
+                    extensions),
+
+                OntologyConstants.ProjectRoles.Worker => new WorkerNode(
+                    $"{ctx.WorkspaceId}:worker:{project.Name}",
+                    project.Name,
+                    project.Path,
+                    project.ProjectType,
+                    extensions),
+
+                OntologyConstants.ProjectRoles.SharedLibrary => new LibraryNode(
+                    $"{ctx.WorkspaceId}:library:{project.Name}",
+                    project.Name,
+                    project.Path,
+                    project.ProjectType,
+                    extensions),
+
+                OntologyConstants.ProjectRoles.CliTool => new CliToolNode(
+                    $"{ctx.WorkspaceId}:clitool:{project.Name}",
+                    project.Name,
+                    project.Path,
+                    project.ProjectType,
+                    extensions),
+
+                _ => project.IsLibrary
+                    ? new LibraryNode($"{ctx.WorkspaceId}:library:{project.Name}", project.Name, project.Path, project.ProjectType, extensions)
+                    : new ServiceNode($"{ctx.WorkspaceId}:service:{project.Name}", project.Name, project.Path, project.ProjectType, extensions)
+            };
+
+            if (!semanticStructureNode.Children.Any(c => c.Id == workloadNode.Id))
+            {
+                semanticStructureNode.Children.Add(workloadNode);
+                semanticNodes.Add(workloadNode);
+            }
+
+            semanticRelationships.Add(new Relationship(project.Id, workloadNode.Id, OntologyConstants.Relationships.Deploys, new Dictionary<string, object>()));
+
+            // Attach project endpoints and entry points to the workload node
+            foreach (var child in project.Children.Where(c => c is EndpointNode or EntryPointNode).ToList())
+            {
+                if (!workloadNode.Children.Any(c => c.Id == child.Id))
+                {
+                    workloadNode.Children.Add(child);
+                }
+            }
+        }
+
         // Collect all semantic nodes from projects and semanticStructureNode
         foreach (var project in l3Result.Prev.Projects)
         {
@@ -119,7 +190,7 @@ public class Layer4SemanticParser
     {
         foreach (var child in node.Children)
         {
-            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is ApiInUseNode || child is TableNode || child is DataSetNode)
+            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is ApiInUseNode || child is TableNode || child is DataSetNode || child is ServiceNode || child is AppNode || child is WorkerNode || child is LibraryNode || child is CliToolNode)
             {
                 semanticNodes.Add(child);
             }

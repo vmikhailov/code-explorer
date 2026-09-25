@@ -6,7 +6,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.ExternalService,
     idScheme: "{workspaceId}:externalservice:{protocol}:{host}",
-    purpose: "Represents a physical/logical external host dependency."
+    purpose: "Represents a physical/logical external host dependency.",
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "cloud",
+    order: 9,
+    pluralLabel: "External Services"
 )]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.CallsEndpoint)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.CalledBy)]

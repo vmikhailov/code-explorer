@@ -396,6 +396,19 @@ public class SyntaxEnricher : ISyntaxEnricher
                 }
             }
 
+            // Fallback for monorepos: check workspace root package.json
+            var rootPkgJson = Path.Combine(ctx.AbsoluteWorkspacePath, "package.json");
+            if (File.Exists(rootPkgJson))
+            {
+                var rootContent = File.ReadAllText(rootPkgJson).ToLowerInvariant();
+                if (rootContent.Contains("\"pg\"") || rootContent.Contains("\"pg-promise\"") || rootContent.Contains("\"postgres\""))
+                {
+                    var res = ("PostgreSQL", "relational");
+                    _projectDriverCache[projectNode.Id] = res;
+                    return res;
+                }
+            }
+
             // 2. C# (.csproj files)
             var csprojFiles = Directory.GetFiles(projectAbsDir, "*.csproj", SearchOption.TopDirectoryOnly);
             if (csprojFiles.Length > 0)

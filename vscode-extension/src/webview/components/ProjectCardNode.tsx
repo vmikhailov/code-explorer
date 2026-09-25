@@ -371,12 +371,6 @@ export const ProjectCardNode = memo((props: any) => {
           <div className="project-card-title">
             📦 {graphNode.name}
           </div>
-          {!isCardExpanded && packageList.length > 0 && (
-            <div className="ext-refs-preview" title={packageList.map((p) => p.name).join(', ')}>
-              {packageList.slice(0, 3).map((p) => p.name).join(', ')}
-              {packageList.length > 3 ? ` +${packageList.length - 3} more` : ''}
-            </div>
-          )}
         </div>
 
         {isCardExpanded && (

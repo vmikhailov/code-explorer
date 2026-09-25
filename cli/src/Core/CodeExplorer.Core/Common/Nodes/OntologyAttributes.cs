@@ -7,12 +7,18 @@ public class OntologyNodeAttribute(
     string label,
     string idScheme,
     string purpose,
-    string layer = OntologyConstants.Layers.Semantic) : Attribute
+    string layer = OntologyConstants.Layers.Semantic,
+    string icon = "symbol-class",
+    int order = 0,
+    string? pluralLabel = null) : Attribute
 {
     public string Label { get; } = label;
     public string IdScheme { get; } = idScheme;
     public string Purpose { get; } = purpose;
     public string Layer { get; } = layer;
+    public string Icon { get; } = icon;
+    public int Order { get; } = order;
+    public string PluralLabel { get; } = pluralLabel ?? label;
 }
 
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]

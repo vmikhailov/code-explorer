@@ -6,7 +6,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Endpoint,
     idScheme: "{workspaceId}:endpoint:{httpMethod}:{routeTemplate}",
-    purpose: "Represents an exposed HTTP API endpoint route."
+    purpose: "Represents an exposed HTTP API endpoint route.",
+    layer: OntologyConstants.Layers.Semantic,
+    icon: "radio-tower",
+    order: 6,
+    pluralLabel: "API Endpoints (REST, gRPC, WS)"
 )]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Triggers)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.ExposedBy)]

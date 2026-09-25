@@ -8,22 +8,20 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
     label: OntologyConstants.NodeLabels.Project,
     idScheme: "{workspaceId}:project:{relativeProjectDir}:",
     purpose: "Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).",
-    layer: OntologyConstants.Layers.ProjectBoundary
+    layer: OntologyConstants.Layers.ProjectBoundary,
+    icon: "project",
+    order: 1,
+    pluralLabel: "Projects"
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DependsOn)]
-[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ServiceCall)]
-[OntologyEdge<ServiceNode>(OntologyConstants.Relationships.ServiceCall)]
-[OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.ServiceCall)]
-[OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
-[OntologyEdge<TopicNode>(OntologyConstants.Relationships.PublishesTo)]
-[OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
-[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ServiceNode>(OntologyConstants.Relationships.Deploys)]
+[OntologyEdge<AppNode>(OntologyConstants.Relationships.Deploys)]
+[OntologyEdge<WorkerNode>(OntologyConstants.Relationships.Deploys)]
+[OntologyEdge<LibraryNode>(OntologyConstants.Relationships.Deploys)]
+[OntologyEdge<CliToolNode>(OntologyConstants.Relationships.Deploys)]
 public record ProjectNode(
     string Id,
     string Name,

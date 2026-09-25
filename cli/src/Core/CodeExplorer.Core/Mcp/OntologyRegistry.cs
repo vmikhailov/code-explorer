@@ -4,22 +4,30 @@ using CodeExplorer.Core.Common.Nodes;
 
 namespace CodeExplorer.Core.Mcp;
 
+public record NodeMetadataInfo(string Kind, Type NodeType, OntologyNodeAttribute Attribute);
+
 public static class OntologyRegistry
 {
-    public static readonly Dictionary<string, (string CapitalizedKind, Type NodeType)> KindMapping = 
+    public static readonly IReadOnlyList<NodeMetadataInfo> AllNodes = 
         typeof(IOntologyNode).Assembly.GetTypes()
             .Where(t => typeof(IOntologyNode).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
             .Select(t => 
             {
+                var attr = t.GetCustomAttribute<OntologyNodeAttribute>();
+                if (attr == null) return null;
                 var instance = (IOntologyNode)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t);
-                return (Kind: instance.Kind, Type: t);
+                return new NodeMetadataInfo(instance.Kind, t, attr);
             })
-            .Where(x => x.Type.GetCustomAttribute<OntologyNodeAttribute>() != null)
-            .ToDictionary(
-                x => x.Kind, 
-                x => (x.Kind, x.Type), 
-                StringComparer.OrdinalIgnoreCase
-            );
+            .Where(x => x != null)
+            .Select(x => x!)
+            .ToList();
+
+    public static readonly Dictionary<string, (string CapitalizedKind, Type NodeType)> KindMapping = 
+        AllNodes.ToDictionary(
+            x => x.Kind, 
+            x => (x.Kind, x.NodeType), 
+            StringComparer.OrdinalIgnoreCase
+        );
 
     public static string ToSnakeCase(string input)
     {
