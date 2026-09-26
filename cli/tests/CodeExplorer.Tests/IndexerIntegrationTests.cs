@@ -76,11 +76,11 @@ public class IndexerIntegrationTests
 
             var implByJson = await client.ExecuteQueryAsync(
                 $"MATCH (ep:Endpoint)-[:EXPOSED_BY]->(f:Function {{name: 'charge'}}) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
-            Assert.That(implByJson, Contains.Substring(":endpoint:POST:/orders/charge"));
+            Assert.That(implByJson, Contains.Substring(":ep:POST:/orders/charge"));
 
             var lateBoundJson = await client.ExecuteQueryAsync(
                 $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
-            Assert.That(lateBoundJson, Contains.Substring(":endpoint:POST:/orders/charge"));
+            Assert.That(lateBoundJson, Contains.Substring(":ep:POST:/orders/charge"));
         }
         finally
         {

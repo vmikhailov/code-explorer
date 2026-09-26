@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Diagrams;
@@ -17,10 +18,21 @@ public static class DiagramExporter
         {
             "lineage" or "data_lineage" => await GenerateDataLineageDiagramAsync(client, cancellationToken),
             "cqrs" or "saga" or "events" => await GenerateCqrsPipelineDiagramAsync(client, cancellationToken),
+            "domain" or "domains" or "domain-services" or "context" or "bounded-context" => await GenerateDomainDiagramAsync(client, format, cancellationToken),
             _ => format.ToLowerInvariant() == "c4"
                 ? await GenerateC4ArchitectureAsync(client, projectFilter, cancellationToken)
                 : await GenerateMermaidArchitectureAsync(client, projectFilter, cancellationToken)
         };
+    }
+
+    public static async Task<string> GenerateDomainDiagramAsync(
+        IGraphClient client,
+        string format = "mermaid",
+        CancellationToken cancellationToken = default)
+    {
+        var engine = new ArchitectureViewEngine(client);
+        var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries: true, cancellationToken);
+        return ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
     }
 
     public static async Task<string> GenerateMermaidArchitectureAsync(

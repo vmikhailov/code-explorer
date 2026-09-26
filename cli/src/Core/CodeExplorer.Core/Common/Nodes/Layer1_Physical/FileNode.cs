@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.File,
-    idScheme: "{workspaceId}:file:{relativeFilePath}",
+    idScheme: "{workspaceId}:f:{relativeFilePath}",
     purpose: "Represents a source code file containing parsable content.",
     layer: OntologyConstants.Layers.Physical,
     icon: "file-code",

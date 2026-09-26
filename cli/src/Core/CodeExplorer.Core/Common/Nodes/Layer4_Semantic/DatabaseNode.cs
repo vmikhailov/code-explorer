@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Database,
-    idScheme: "{workspaceId}:database:{dbType}:{dbName}",
+    idScheme: "{workspaceId}:db:{dbType}:{dbName}",
     purpose: "Represents a database instance, catalog, or physical schema.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "database",

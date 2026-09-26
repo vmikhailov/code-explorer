@@ -94,6 +94,12 @@ public class EfCoreLibraryParser : ILibraryParser
     {
         if (node.Is(TreeSitterSyntax.CSharp.ClassDeclaration))
         {
+            var classSchema = ExtractSchemaFromClass(node);
+            if (!string.IsNullOrEmpty(classSchema))
+            {
+                symbol.Properties["schema"] = classSchema;
+            }
+
             foreach (var child in node.Children)
             {
                 if (child.Is(TreeSitterSyntax.CSharp.AttributeList))
@@ -106,6 +112,11 @@ public class EfCoreLibraryParser : ILibraryParser
                             if (!string.IsNullOrEmpty(tableName))
                             {
                                 symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.PersistedIn));
+                            }
+                            var attrSchema = ExtractSchemaFromTableAttribute(attr);
+                            if (!string.IsNullOrEmpty(attrSchema))
+                            {
+                                symbol.Properties["schema"] = attrSchema;
                             }
                         }
                     }
@@ -128,7 +139,149 @@ public class EfCoreLibraryParser : ILibraryParser
             {
                 symbol.References.Add(new Reference(entityType, tableName, OntologyConstants.Relationships.PersistedIn));
             }
+            var toTableSchema = ExtractSchemaFromToTable(node);
+            if (!string.IsNullOrEmpty(toTableSchema))
+            {
+                symbol.Properties["schema"] = toTableSchema;
+            }
         }
+    }
+
+    public static string? ExtractSchemaFromClass(Node classNode)
+    {
+        if (!classNode.IsValid()) return null;
+
+        // 1. Look for const string SchemaName = "..." or DefaultSchemaName = "..."
+        var constSchema = FindConstantValueInClass(classNode);
+        if (!string.IsNullOrEmpty(constSchema)) return constSchema;
+
+        // 2. Scan entire class AST for HasDefaultSchema("...") invocation
+        var schemaFromMethod = ScanForHasDefaultSchema(classNode);
+        if (!string.IsNullOrEmpty(schemaFromMethod)) return schemaFromMethod;
+
+        return null;
+    }
+
+    public static string? FindConstantValueInClass(Node classNode, string? constName = null)
+    {
+        if (!classNode.IsValid()) return null;
+        foreach (var field in classNode.FindChildrenOfType(TreeSitterSyntax.CSharp.FieldDeclaration))
+        {
+            var text = field.Text;
+            if (text.Contains("const") && text.Contains("string"))
+            {
+                var varDecl = field.FindChildOfType(TreeSitterSyntax.CSharp.VariableDeclaration);
+                if (varDecl.IsValid())
+                {
+                    foreach (var declarator in varDecl.FindChildrenOfType(TreeSitterSyntax.CSharp.VariableDeclarator))
+                    {
+                        var nameNode = declarator.GetField(TreeSitterSyntax.Fields.Name);
+                        if (nameNode.IsValid())
+                        {
+                            if (constName == null || string.Equals(nameNode.Text, constName, StringComparison.OrdinalIgnoreCase) ||
+                                nameNode.Text.Contains("Schema", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var eqClause = declarator.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
+                                if (eqClause.IsValid())
+                                {
+                                    var str = eqClause.Children.FirstOrDefault(c => c.Type.Contains("string"));
+                                    if (str.IsValid())
+                                    {
+                                        return str.Text.Trim('"');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static string? ScanForHasDefaultSchema(Node node)
+    {
+        if (node.Is(TreeSitterSyntax.CSharp.InvocationExpression))
+        {
+            var func = node.GetFunctionNode();
+            if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+            {
+                var nameNode = func.GetField(TreeSitterSyntax.Fields.Name);
+                if (nameNode.IsValid() && nameNode.Text == "HasDefaultSchema")
+                {
+                    var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+                    var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
+                    if (firstArg.IsValid())
+                    {
+                        var strNode = firstArg.Children.FirstOrDefault(c => c.Type.Contains("string"));
+                        if (strNode.IsValid())
+                        {
+                            return strNode.Text.Trim('"');
+                        }
+                        var idNode = firstArg.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+                        if (idNode.IsValid())
+                        {
+                            var parentClass = GetParentClass(node);
+                            if (parentClass != null && parentClass.IsValid())
+                            {
+                                var constVal = FindConstantValueInClass(parentClass, idNode.Text);
+                                if (!string.IsNullOrEmpty(constVal)) return constVal;
+                            }
+                            return idNode.Text;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            var found = ScanForHasDefaultSchema(child);
+            if (!string.IsNullOrEmpty(found)) return found;
+        }
+
+        return null;
+    }
+
+    public static string? ExtractSchemaFromToTable(Node invocationNode)
+    {
+        var argList = invocationNode.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
+        if (argList == null || !argList.IsValid()) return null;
+
+        var args = argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument).ToList();
+        var named = args.FirstOrDefault(a => a.Text.StartsWith("schema:", StringComparison.OrdinalIgnoreCase));
+        if (named.IsValid())
+        {
+            var str = named.Children.FirstOrDefault(c => c.Type.Contains("string"));
+            if (str.IsValid()) return str.Text.Trim('"');
+        }
+        if (args.Count >= 2)
+        {
+            var second = args[1];
+            var str = second.Children.FirstOrDefault(c => c.Type.Contains("string"));
+            if (str.IsValid()) return str.Text.Trim('"');
+        }
+        return null;
+    }
+
+    public static string? ExtractSchemaFromTableAttribute(Node attrNode)
+    {
+        var argList = attrNode.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
+        if (argList.IsValid())
+        {
+            foreach (var arg in argList.FindChildrenOfType(TreeSitterSyntax.CSharp.AttributeArgument))
+            {
+                if (arg.Text.StartsWith("Schema", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parts = arg.Text.Split('=');
+                    if (parts.Length == 2)
+                    {
+                        return parts[1].Trim().Trim('"');
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static bool IsTableAttribute(Node node)

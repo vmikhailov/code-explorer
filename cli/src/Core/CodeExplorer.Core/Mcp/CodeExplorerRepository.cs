@@ -1269,12 +1269,12 @@ public class CodeExplorerRepository
 
         if (queryItem.Cypher.Contains("$workspaceId") && !paramDict.ContainsKey("workspaceId"))
         {
-            paramDict["workspaceId"] = "workspace";
+            paramDict["workspaceId"] = OntologyConstants.IdPrefixes.Workspace;
         }
 
         if (queryItem.Cypher.Contains("$workspaceIdPrefix") && !paramDict.ContainsKey("workspaceIdPrefix"))
         {
-            paramDict["workspaceIdPrefix"] = "workspace:";
+            paramDict["workspaceIdPrefix"] = $"{OntologyConstants.IdPrefixes.Workspace}:";
         }
 
         return await ExecuteAndFormatQueryAsync(queryItem.Cypher, paramDict, workspacePath, cancellationToken);

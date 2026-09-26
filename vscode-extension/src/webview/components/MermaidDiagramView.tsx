@@ -9,7 +9,7 @@ interface MermaidDiagramViewProps {
   onFocusNode?: (nodeId: string, kind?: string) => void;
 }
 
-export type DiagramType = 'architecture' | 'flow' | 'lineage' | 'cqrs';
+export type DiagramType = 'domain' | 'architecture' | 'flow' | 'lineage' | 'cqrs';
 
 export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
   graph,
@@ -17,7 +17,7 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
   onOpenFile,
   onFocusNode,
 }) => {
-  const [diagramType, setDiagramType] = useState<DiagramType>('architecture');
+  const [diagramType, setDiagramType] = useState<DiagramType>('domain');
   const [mermaidSource, setMermaidSource] = useState<string>('');
   const [svgHtml, setSvgHtml] = useState<string>('');
   const [showRawCode, setShowRawCode] = useState<boolean>(false);
@@ -55,9 +55,76 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
       }
 
       const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9_]/g, '_');
+      const esc = (str: string) => (str || '').replace(/"/g, "'");
       const lines: string[] = ['flowchart TD'];
 
-      if (type === 'architecture' || type === 'flow') {
+      if (type === 'domain') {
+        // 1. Ingress / Apps
+        const ingress = graph.nodes.filter(
+          (n) => n.kind === 'Ingress' || n.kind === 'App' || n.kind === 'FrontendApp'
+        );
+        if (ingress.length > 0) {
+          lines.push('  subgraph Ingress ["Apps & Ingress"]');
+          for (const node of ingress) {
+            lines.push(`    ${sanitize(node.id)}["${esc(node.displayName || node.name)}"]`);
+          }
+          lines.push('  end');
+        }
+
+        // 2. Core Services & Workers
+        const services = graph.nodes.filter(
+          (n) => n.kind === 'Service' || n.kind === 'Worker'
+        );
+        if (services.length > 0) {
+          lines.push('  subgraph Services ["Core Services"]');
+          for (const node of services) {
+            lines.push(`    ${sanitize(node.id)}["${esc(node.displayName || node.name)}"]`);
+          }
+          lines.push('  end');
+        }
+
+        // 3. Databases
+        const dbs = graph.nodes.filter((n) => n.kind === 'Database');
+        if (dbs.length > 0) {
+          lines.push('  subgraph Databases ["Databases"]');
+          for (const node of dbs) {
+            lines.push(`    ${sanitize(node.id)}[("🗄️ ${esc(node.displayName || node.name)}")]`);
+          }
+          lines.push('  end');
+        }
+
+        // 4. Topics
+        const topics = graph.nodes.filter((n) => n.kind === 'Topic');
+        if (topics.length > 0) {
+          lines.push('  subgraph Topics ["Message Queues"]');
+          for (const node of topics) {
+            lines.push(`    ${sanitize(node.id)}>\"📬 ${esc(node.displayName || node.name)}\"]`);
+          }
+          lines.push('  end');
+        }
+
+        // 5. External Systems
+        const exts = graph.nodes.filter(
+          (n) => n.kind === 'ExternalService' || n.kind === 'CloudService'
+        );
+        if (exts.length > 0) {
+          lines.push('  subgraph External ["External Systems"]');
+          for (const node of exts) {
+            lines.push(`    ${sanitize(node.id)}["🌐 ${esc(node.displayName || node.name)}"]`);
+          }
+          lines.push('  end');
+        }
+
+        // 6. Edges
+        if (graph.edges) {
+          const validIds = new Set(graph.nodes.map((n) => n.id));
+          for (const edge of graph.edges) {
+            if (validIds.has(edge.source) && validIds.has(edge.target)) {
+              lines.push(`  ${sanitize(edge.source)} -->|${edge.kind || 'CALLS'}| ${sanitize(edge.target)}`);
+            }
+          }
+        }
+      } else if (type === 'architecture' || type === 'flow') {
         // 1. Projects
         const projects = graph.nodes.filter((n) => isProjectKind(n.kind));
         if (projects.length > 0) {
@@ -228,6 +295,13 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
         <div className="mermaid-toolbar-left">
           <div className="diagram-type-tabs">
             <button
+              className={`tab-btn ${diagramType === 'domain' ? 'active' : ''}`}
+              onClick={() => setDiagramType('domain')}
+              title="Domain Microservices & Bounded Contexts Map"
+            >
+              🧩 Domain Services
+            </button>
+            <button
               className={`tab-btn ${diagramType === 'architecture' ? 'active' : ''}`}
               onClick={() => setDiagramType('architecture')}
               title="C1: System Context Diagram"
@@ -259,24 +333,34 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
         </div>
 
         <div className="mermaid-toolbar-right">
-          {/* Zoom Controls */}
-          <div className="zoom-controls">
-            <button
-              className="ctrl-btn"
-              onClick={() => setZoom((z) => Math.min(3.0, z * 1.2))}
-              title="Zoom In"
-            >
-              ➕
-            </button>
-            <span className="zoom-pct">{Math.round(zoom * 100)}%</span>
+          {/* Zoom Controls - matching Domain Microservices Map HUD controls */}
+          <div className="zoom-controls" title="Zoom Controls">
             <button
               className="ctrl-btn"
               onClick={() => setZoom((z) => Math.max(0.3, z / 1.2))}
-              title="Zoom Out"
+              title="Zoom Out (−)"
             >
-              ➖
+              −
             </button>
-            <button className="ctrl-btn" onClick={handleResetView} title="Reset Zoom and Pan">
+            <span
+              className="zoom-pct"
+              onClick={handleResetView}
+              title="Reset Zoom to 100%"
+            >
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              className="ctrl-btn"
+              onClick={() => setZoom((z) => Math.min(3.0, z * 1.2))}
+              title="Zoom In (+)"
+            >
+              +
+            </button>
+            <button
+              className="ctrl-btn reset-btn"
+              onClick={handleResetView}
+              title="Reset Zoom and Pan"
+            >
               ↺ Reset
             </button>
           </div>
@@ -293,7 +377,11 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
           </button>
 
           {/* Copy Mermaid Code */}
-          <button className="action-btn secondary" onClick={handleCopyCode} title="Copy Mermaid source to clipboard">
+          <button
+            className={`action-btn ${copied ? 'copied' : 'secondary'}`}
+            onClick={handleCopyCode}
+            title="Copy Mermaid source to clipboard"
+          >
             {copied ? '✓ Copied!' : '📋 Copy'}
           </button>
 
@@ -330,8 +418,12 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
           <div className="mermaid-code-viewer">
             <div className="code-viewer-header">
               <span>Mermaid Definition ({diagramType})</span>
-              <button className="mini-btn" onClick={handleCopyCode}>
-                {copied ? 'Copied' : 'Copy Source'}
+              <button
+                className={`mini-btn ${copied ? 'copied' : ''}`}
+                onClick={handleCopyCode}
+                title="Copy source markdown"
+              >
+                {copied ? '✓ Copied' : '📋 Copy Source'}
               </button>
             </div>
             <pre className="mermaid-code-pre">

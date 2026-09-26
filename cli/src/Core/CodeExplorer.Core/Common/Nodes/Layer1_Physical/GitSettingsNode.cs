@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.GitSettings,
-    idScheme: "{workspaceId}:gitsettings",
+    idScheme: "{workspaceId}:git",
     purpose: "Represents the Git repository configuration settings for the workspace.",
     layer: OntologyConstants.Layers.Physical,
     icon: "git-commit",

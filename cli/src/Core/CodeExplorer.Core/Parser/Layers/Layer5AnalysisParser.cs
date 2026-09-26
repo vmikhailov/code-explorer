@@ -95,15 +95,25 @@ public class Layer5AnalysisParser
 
     private static string? ExtractFilePathFromSymbolId(string scopeSymbolId)
     {
-        const string marker = ":symbol:";
-        var markerIdx = scopeSymbolId.IndexOf(marker, StringComparison.Ordinal);
-        if (markerIdx < 0) return null;
-
-        var start = markerIdx + marker.Length;
-        var end = scopeSymbolId.IndexOf(':', start);
-        if (end <= start) return null;
-
-        return scopeSymbolId[start..end];
+        if (Urn.TryParse(scopeSymbolId, out var urn) && !string.IsNullOrEmpty(urn.Path))
+        {
+            return urn.Path;
+        }
+        string[] markers = [$":{OntologyConstants.IdPrefixes.Symbol}:", ":symbol:"];
+        foreach (var marker in markers)
+        {
+            var markerIdx = scopeSymbolId.IndexOf(marker, StringComparison.Ordinal);
+            if (markerIdx >= 0)
+            {
+                var start = markerIdx + marker.Length;
+                var end = scopeSymbolId.IndexOf(':', start);
+                if (end > start)
+                {
+                    return scopeSymbolId[start..end];
+                }
+            }
+        }
+        return null;
     }
 
     private static string? ExtractSymbolNameFromId(string symbolId)
@@ -572,7 +582,7 @@ public class Layer5AnalysisParser
                     topicName = resolvedConst;
                 }
 
-                var topicId = $"{ctx.WorkspaceId}:topic:{brokerType}:{topicName}";
+                var topicId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
 
                 if (!createdTopicIds.Contains(topicId))
                 {
@@ -592,7 +602,7 @@ public class Layer5AnalysisParser
             {
                 if (typeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid))
                 {
-                    var targetTableId = tableSymbols.TryGetValue(refItem.TargetName, out var tblId) ? tblId : $"{ctx.WorkspaceId}:table:{refItem.TargetName.ToLowerInvariant()}";
+                    var targetTableId = tableSymbols.TryGetValue(refItem.TargetName, out var tblId) ? tblId : $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Table}:{refItem.TargetName.ToLowerInvariant()}";
                     if (tid != targetTableId && !referenceRelationships.Any(r => r.From == tid && r.To == targetTableId && r.Kind == OntologyConstants.Relationships.PersistedIn))
                     {
                         referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(tid, targetTableId)));

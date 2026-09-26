@@ -107,13 +107,13 @@ public static class QueryCommandHandler
             }
             if (cypherQuery.Contains("$workspaceId", StringComparison.OrdinalIgnoreCase))
             {
-                parameters["workspaceId"] = "workspace";
+                parameters["workspaceId"] = "ws";
             }
             if (cypherQuery.Contains("$workspaceIdPrefix", StringComparison.OrdinalIgnoreCase) ||
                 cypherQuery.Contains("$wsIdPrefix", StringComparison.OrdinalIgnoreCase))
             {
-                parameters["workspaceIdPrefix"] = "workspace:";
-                parameters["wsIdPrefix"] = "workspace:";
+                parameters["workspaceIdPrefix"] = "ws:";
+                parameters["wsIdPrefix"] = "ws:";
             }
 
             if (opts.Params != null)

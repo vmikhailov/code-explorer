@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Type,
-    idScheme: "{workspaceId}:symbol:{filePath}:Type:{name}:{line}",
+    idScheme: "{workspaceId}:sym:{filePath}:Type:{name}:{line}",
     purpose: "Represents a type declaration (Class, Interface, Struct, Record, Enum, or Union type).",
     layer: OntologyConstants.Layers.Syntactic,
     icon: "symbol-class",

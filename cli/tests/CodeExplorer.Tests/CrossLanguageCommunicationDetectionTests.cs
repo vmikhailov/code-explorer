@@ -443,7 +443,7 @@ public class CrossLanguageCommunicationDetectionTests
             var dbNodes = graph.Nodes.Where(n => n.Name.Equals("Database", StringComparison.OrdinalIgnoreCase)).ToList();
             Assert.That(dbNodes, Has.Count.EqualTo(1), "Duplicate database nodes MUST be collapsed into 1 canonical node");
             var canonicalDb = dbNodes.First();
-            Assert.That(canonicalDb.Id, Is.EqualTo("workspace:database:relational:database"));
+            Assert.That(canonicalDb.Id, Is.EqualTo("ws:db:relational:database"));
 
             // 2. Verify Standalone Redis DB node preserved
             var redisNode = graph.Nodes.FirstOrDefault(n => n.Id == "db:redis_cache");

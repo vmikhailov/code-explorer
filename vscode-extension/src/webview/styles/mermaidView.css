@@ -7,54 +7,74 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  background: var(--vscode-editor-background);
-  color: var(--vscode-editor-foreground);
+  background: radial-gradient(circle at 50% 50%, #111827 0%, #080c14 100%);
+  color: #f1f5f9;
   overflow: hidden;
 }
 
-/* Toolbar */
+/* Toolbar - matches Domain Map HUD glassmorphic aesthetics */
 .mermaid-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  background: var(--vscode-editorGroupHeader-tabsBackground, rgba(0, 0, 0, 0.2));
-  border-bottom: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
-  gap: 16px;
+  padding: 6px 14px;
+  background: rgba(20, 20, 26, 0.94);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  gap: 12px;
   flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 5;
 }
 
+.mermaid-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Diagram Type Tabs - matches .hud-type-filter-btn */
 .diagram-type-tabs {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--vscode-input-background, #252526);
-  padding: 2px;
-  border-radius: 5px;
-  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
 }
 
 .diagram-type-tabs .tab-btn {
-  background: transparent;
-  color: var(--vscode-descriptionForeground, #999999);
-  border: none;
-  padding: 4px 10px;
+  font-size: 10px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2.5px 7px;
   border-radius: 4px;
-  font-size: 11px;
   font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
   white-space: nowrap;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
 .diagram-type-tabs .tab-btn:hover {
-  color: var(--vscode-editor-foreground);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .diagram-type-tabs .tab-btn.active {
-  background: var(--vscode-button-background, #0e639c);
-  color: var(--vscode-button-foreground, #ffffff);
+  background: rgba(56, 189, 248, 0.12);
+  color: #f1f5f9;
+  border-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+  font-weight: 600;
+}
+
+.diagram-type-tabs .tab-btn.active:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: #ffffff;
+  border-color: #38bdf8;
 }
 
 .mermaid-toolbar-right {
@@ -63,42 +83,175 @@
   gap: 8px;
 }
 
+/* Zoom Controls - matches .domain-hud-control-group and .domain-hud-btn */
 .zoom-controls {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--vscode-input-background, #252526);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
   padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
+  font-size: 11px;
 }
 
 .zoom-controls .ctrl-btn {
-  background: transparent;
-  border: none;
-  color: var(--vscode-foreground, #cccccc);
-  padding: 2px 5px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 3px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
 .zoom-controls .ctrl-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-color: #38bdf8;
 }
 
-.zoom-pct {
-  font-size: 11px;
-  min-width: 36px;
-  text-align: center;
+.zoom-controls .ctrl-btn:active {
+  transform: translateY(1px);
+}
+
+.zoom-controls .zoom-pct {
+  color: #38bdf8;
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
   font-weight: 600;
-  color: var(--vscode-descriptionForeground);
+  min-width: 32px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  padding: 0 3px;
+  border-radius: 3px;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.zoom-controls .zoom-pct:hover {
+  background: rgba(56, 189, 248, 0.15);
+  text-decoration: underline;
+}
+
+.zoom-controls .ctrl-btn.reset-btn {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 7px;
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.zoom-controls .ctrl-btn.reset-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  color: #ffffff;
+  border-color: #38bdf8;
 }
 
 .toolbar-separator {
   width: 1px;
-  height: 20px;
-  background: var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
+  height: 18px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Action Buttons - matches Domain Map HUD buttons */
+.action-btn {
+  font-size: 10px;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2.5px 8px;
+  height: 24px;
+  border-radius: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.action-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.action-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.action-btn.secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.action-btn.primary {
+  background: rgba(56, 189, 248, 0.12);
+  color: #f1f5f9;
+  border-color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+  font-weight: 600;
+}
+
+.action-btn.primary:hover {
+  background: rgba(56, 189, 248, 0.22);
+  color: #ffffff;
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+}
+
+.action-btn.copied {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.45);
+}
+
+/* Mini Button in Code Viewer Header */
+.mini-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mini-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.mini-btn.copied {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.45);
 }
 
 /* Canvas Area */
@@ -106,7 +259,7 @@
   position: relative;
   flex: 1;
   overflow: hidden;
-  background: var(--vscode-editor-background);
+  background: radial-gradient(circle at 50% 50%, #111827 0%, #080c14 100%);
 }
 
 .mermaid-svg-viewport {

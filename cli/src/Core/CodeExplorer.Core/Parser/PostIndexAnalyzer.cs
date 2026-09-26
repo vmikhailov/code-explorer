@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -449,7 +450,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             if (kind == OntologyConstants.Relationships.UsesDb)
             {
                 var isTargetDb = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Database) ||
-                                 to.Contains(":db:") || to.Contains(":database:") || to.Contains(":res:db:");
+                                 to.Contains($":{OntologyConstants.IdPrefixes.Database}:") || to.Contains(":db:") || to.Contains(":database:") || to.Contains(":res:db:");
                 if (isTargetDb)
                 {
                     var targetDbId = dbCanonicalMap?.GetValueOrDefault(to, to) ?? to;
@@ -477,7 +478,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             else if (kind == OntologyConstants.Relationships.PublishesTo)
             {
                 var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
-                                    to.Contains(":topic:") || to.Contains(":res:topic:");
+                                    to.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || to.Contains(":topic:") || to.Contains(":res:topic:");
                 if (isTargetTopic)
                 {
                     var owner = ResolveOwningProject(from);
@@ -503,7 +504,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             else if (kind == OntologyConstants.Relationships.Triggers)
             {
                 var isSourceTopic = (nodeKindsById?.GetValueOrDefault(from) == OntologyConstants.NodeLabels.Topic) ||
-                                    from.Contains(":topic:") || from.Contains(":res:topic:");
+                                    from.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || from.Contains(":topic:") || from.Contains(":res:topic:");
                 if (isSourceTopic)
                 {
                     var owner = ResolveOwningProject(to);
@@ -529,7 +530,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             else if (kind == OntologyConstants.Relationships.SubscribesTo)
             {
                 var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
-                                    to.Contains(":topic:") || to.Contains(":res:topic:");
+                                    to.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || to.Contains(":topic:") || to.Contains(":res:topic:");
                 if (isTargetTopic)
                 {
                     var owner = ResolveOwningProject(from);
@@ -592,7 +593,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                      kind == OntologyConstants.Relationships.UsesCloud)
             {
                 var isTargetExt = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.ExternalService) ||
-                                  to.Contains(":externalservice:") || to.Contains(":res:service:external:") || to.Contains(":cloud:");
+                                  to.Contains($":{OntologyConstants.IdPrefixes.ExternalService}:") || to.Contains(":externalservice:") || to.Contains(":res:service:external:") || to.Contains(":cloud:") || to.Contains($":{OntologyConstants.IdPrefixes.CloudService}:");
                 if (isTargetExt)
                 {
                     var callerOwner = ResolveOwningProject(from);
@@ -618,9 +619,9 @@ public class PostIndexAnalyzer(IGraphClient db)
             else if (kind == OntologyConstants.Relationships.Configures)
             {
                 var isTargetDb = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Database) ||
-                                 to.Contains(":db:") || to.Contains(":database:");
+                                 to.Contains($":{OntologyConstants.IdPrefixes.Database}:") || to.Contains(":db:") || to.Contains(":database:");
                 var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
-                                    to.Contains(":topic:");
+                                    to.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || to.Contains(":topic:");
 
                 var owner = ResolveOwningProject(from);
                 if (owner != null && isTargetDb)
@@ -679,24 +680,43 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
 
         string pathPart = nodeId;
-        var fileIdx = nodeId.IndexOf(":file:", StringComparison.OrdinalIgnoreCase);
-        if (fileIdx >= 0)
+        if (Urn.TryParse(nodeId, out var urn) && !string.IsNullOrEmpty(urn.Path))
         {
-            pathPart = nodeId[(fileIdx + 6)..];
+            pathPart = urn.Path;
         }
         else
         {
-            var symIdx = nodeId.IndexOf(":symbol:", StringComparison.OrdinalIgnoreCase);
-            if (symIdx >= 0)
+            var fileIdx = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.File}:", StringComparison.OrdinalIgnoreCase);
+            if (fileIdx < 0) fileIdx = nodeId.IndexOf(":file:", StringComparison.OrdinalIgnoreCase);
+            if (fileIdx >= 0)
             {
-                pathPart = nodeId[(symIdx + 8)..];
+                var markerLen = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.File}:", StringComparison.OrdinalIgnoreCase) >= 0
+                    ? $":{OntologyConstants.IdPrefixes.File}:".Length
+                    : ":file:".Length;
+                pathPart = nodeId[(fileIdx + markerLen)..];
             }
             else
             {
-                var projIdx = nodeId.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
-                if (projIdx >= 0)
+                var symIdx = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.Symbol}:", StringComparison.OrdinalIgnoreCase);
+                if (symIdx < 0) symIdx = nodeId.IndexOf(":symbol:", StringComparison.OrdinalIgnoreCase);
+                if (symIdx >= 0)
                 {
-                    pathPart = nodeId[(projIdx + 9)..];
+                    var markerLen = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.Symbol}:", StringComparison.OrdinalIgnoreCase) >= 0
+                        ? $":{OntologyConstants.IdPrefixes.Symbol}:".Length
+                        : ":symbol:".Length;
+                    pathPart = nodeId[(symIdx + markerLen)..];
+                }
+                else
+                {
+                    var projIdx = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase);
+                    if (projIdx < 0) projIdx = nodeId.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
+                    if (projIdx >= 0)
+                    {
+                        var markerLen = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) >= 0
+                            ? $":{OntologyConstants.IdPrefixes.Project}:".Length
+                            : ":project:".Length;
+                        pathPart = nodeId[(projIdx + markerLen)..];
+                    }
                 }
             }
         }
@@ -796,6 +816,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                     {
                         var srcKind = nodeKindsById?.GetValueOrDefault(inEdge.From);
                         var isTopic = (srcKind != null && srcKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
+                                      || inEdge.From.Contains($":{OntologyConstants.IdPrefixes.Topic}:")
                                       || inEdge.From.Contains(":topic:")
                                       || inEdge.Kind == OntologyConstants.Relationships.Triggers;
 
@@ -877,6 +898,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                         }
                         // Case 3: Library connects to External Service
                         else if ((tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.ExternalService, StringComparison.OrdinalIgnoreCase))
+                                 || edge.To.Contains($":{OntologyConstants.IdPrefixes.ExternalService}:")
                                  || edge.To.Contains(":externalservice:")
                                  || edge.To.Contains(":res:service:external:"))
                         {
@@ -899,6 +921,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                         }
                         // Case 4: Library publishes to Topic
                         else if ((tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
+                                 || edge.To.Contains($":{OntologyConstants.IdPrefixes.Topic}:")
                                  || edge.To.Contains(":topic:")
                                  || edge.To.Contains(":res:topic:")
                                  || edge.Kind == OntologyConstants.Relationships.PublishesTo
@@ -1142,6 +1165,16 @@ public class PostIndexAnalyzer(IGraphClient db)
         if (NestedSqlParser.IsSqlKeyword(lower)) return false;
         if (lower.StartsWith("pg_") || lower.StartsWith("information_schema")) return false;
 
+        // <Technology>.<Schema> pattern (e.g. PostgreSQL.tournament, PostgreSQL.tree_rules)
+        if (trimmed.Contains('.'))
+        {
+            var parts = trimmed.Split('.', 2);
+            if (KnownDbEnginesAndNames.Contains(parts[0].ToLowerInvariant()))
+            {
+                return true;
+            }
+        }
+
         // Matches known engine names or aliases
         if (KnownDbEnginesAndNames.Contains(lower)) return true;
         if (lower.StartsWith("redis_") || lower.StartsWith("postgres_") || lower.StartsWith("db_")) return true;
@@ -1154,7 +1187,115 @@ public class PostIndexAnalyzer(IGraphClient db)
         return false;
     }
 
-    public static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeDatabase(string rawName, string? rawDbType)
+    public static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeDatabase(
+        string rawName,
+        string? rawDbType,
+        string? rawEngine = null,
+        string? rawSchema = null,
+        string? fallbackEngine = null)
+    {
+        var trimmed = (rawName ?? "").Trim();
+        var type = string.IsNullOrWhiteSpace(rawDbType) ? "relational" : rawDbType.Trim().ToLowerInvariant();
+
+        // If rawEngine is generic/default and fallbackEngine is provided, use fallbackEngine
+        var effectiveRawEngine = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase) && !rawEngine.Equals("default", StringComparison.OrdinalIgnoreCase)
+            ? rawEngine
+            : fallbackEngine;
+
+        // 1. If rawName contains '.', it is already in <Technology>.<Schema> format (e.g. PostgreSQL.tournament or Database.tree_rules)
+        if (trimmed.Contains('.'))
+        {
+            var dotParts = trimmed.Split('.', 2);
+            var techPrefix = dotParts[0].Trim();
+            if ((techPrefix.Equals("Database", StringComparison.OrdinalIgnoreCase) || techPrefix.Equals("default", StringComparison.OrdinalIgnoreCase)) &&
+                !string.IsNullOrWhiteSpace(effectiveRawEngine))
+            {
+                techPrefix = effectiveRawEngine;
+            }
+
+            var (techName, techType, techKey) = CanonicalizeTechnologyOnly(techPrefix, type);
+            var schemaPart = dotParts[1].Trim();
+            if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+            {
+                schemaPart = "public";
+            }
+
+            var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+            if (string.IsNullOrEmpty(schemaClean))
+            {
+                schemaClean = GetDefaultSchemaForEngine(techName, techType);
+                schemaPart = schemaClean;
+            }
+
+            return ($"{techName}.{schemaPart}", techType, $"{techKey}:{schemaClean}");
+        }
+
+        // 2. If an explicit rawSchema is provided
+        if (!string.IsNullOrWhiteSpace(rawSchema) && 
+            !rawSchema.Equals("database", StringComparison.OrdinalIgnoreCase) && 
+            !rawSchema.Equals("default", StringComparison.OrdinalIgnoreCase))
+        {
+            var effectiveTech = !string.IsNullOrWhiteSpace(effectiveRawEngine)
+                ? effectiveRawEngine
+                : trimmed;
+            if ((effectiveTech.Equals("Database", StringComparison.OrdinalIgnoreCase) || effectiveTech.Equals("default", StringComparison.OrdinalIgnoreCase)) &&
+                !string.IsNullOrWhiteSpace(fallbackEngine))
+            {
+                effectiveTech = fallbackEngine;
+            }
+
+            var (techName, techType, techKey) = CanonicalizeTechnologyOnly(effectiveTech, type);
+            var schemaPart = rawSchema.Trim();
+            if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+            {
+                schemaPart = "public";
+            }
+
+            var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+            if (string.IsNullOrEmpty(schemaClean)) schemaClean = GetDefaultSchemaForEngine(techName, techType);
+            return ($"{techName}.{schemaPart}", techType, $"{techKey}:{schemaClean}");
+        }
+
+        // 3. Fallback when rawName is "Database" or "default" without schema
+        if ((trimmed.Equals("Database", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("default", StringComparison.OrdinalIgnoreCase)) &&
+            !string.IsNullOrWhiteSpace(effectiveRawEngine))
+        {
+            var (techName, techType, techKey) = CanonicalizeTechnologyOnly(effectiveRawEngine, type);
+            var defaultSchema = GetDefaultSchemaForEngine(techName, techType);
+            var schemaClean = Regex.Replace(defaultSchema.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+            return ($"{techName}.{defaultSchema}", techType, $"{techKey}:{schemaClean}");
+        }
+
+        return CanonicalizeTechnologyOnly(trimmed, type);
+    }
+
+    private static string GetDefaultSchemaForEngine(string engine, string dbType)
+    {
+        var lower = engine.ToLowerInvariant();
+        if (lower.Contains("postgres")) return "public";
+        if (lower.Contains("sqlserver") || lower.Contains("sql server") || lower.Contains("mssql")) return "dbo";
+        if (lower.Contains("sqlite")) return "main";
+        if (lower.Contains("redis")) return "cache";
+        if (lower.Contains("mongo")) return "default";
+        if (dbType.Equals("cache", StringComparison.OrdinalIgnoreCase)) return "cache";
+        return "public";
+    }
+
+    public static bool IsRelationalEngine(string? engine)
+    {
+        if (string.IsNullOrWhiteSpace(engine)) return false;
+        var lower = engine.ToLowerInvariant();
+        return lower.Contains("postgres") ||
+               lower.Contains("mysql") ||
+               lower.Contains("mariadb") ||
+               lower.Contains("sqlserver") || lower.Contains("sql server") || lower.Contains("mssql") ||
+               lower.Contains("sqlite") ||
+               lower.Contains("oracle") ||
+               lower.Contains("clickhouse") ||
+               lower.Contains("bigquery");
+    }
+
+    private static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeTechnologyOnly(string rawName, string rawDbType)
     {
         var trimmed = (rawName ?? "").Trim();
         var lower = trimmed.ToLowerInvariant();
@@ -1177,10 +1318,14 @@ public class PostIndexAnalyzer(IGraphClient db)
                 return ("Database", "relational", "database");
             case "postgres":
             case "postgresql":
+            case "npgsql":
+            case "pg":
                 return ("PostgreSQL", "relational", "postgresql");
             case "redis":
+            case "ioredis":
                 return ("Redis", "cache", "redis");
             case "mysql":
+            case "mysql2":
                 return ("MySQL", "relational", "mysql");
             case "mariadb":
                 return ("MariaDB", "relational", "mariadb");
@@ -1197,8 +1342,10 @@ public class PostIndexAnalyzer(IGraphClient db)
             case "mssql":
             case "sqlserver":
             case "sql server":
+            case "tedious":
                 return ("SQL Server", "relational", "sqlserver");
             case "oracle":
+            case "oracledb":
                 return ("Oracle", "relational", "oracle");
             case "cassandra":
                 return ("Cassandra", "nosql", "cassandra");
@@ -1220,7 +1367,7 @@ public class PostIndexAnalyzer(IGraphClient db)
 
     public static string BuildCanonicalDatabaseId(string? rawId, string cType, string cKey, string? defaultWorkspaceId = null)
     {
-        var wid = "workspace";
+        var wid = OntologyConstants.IdPrefixes.Workspace;
         if (!string.IsNullOrEmpty(rawId) && rawId.Contains(':'))
         {
             var firstPart = rawId.Split(':')[0];
@@ -1238,7 +1385,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        return $"{wid}:database:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
+        return $"{wid}:{OntologyConstants.IdPrefixes.Database}:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
     }
 
     public static async Task<(List<Relationship> CanonicalRels, Dictionary<string, string> RawToCanonicalMap)> CanonicalizeDatabasesInMemoryAsync(
@@ -1271,25 +1418,47 @@ public class PostIndexAnalyzer(IGraphClient db)
         foreach (var p in l4Result.Prev.Prev.Projects) CollectDbNodes(p);
         foreach (var f in l4Result.Prev.Prev.Prev.Files) CollectDbNodes(f);
 
+        var primaryRelationalEngine = allDbNodes
+            .Where(d => string.IsNullOrEmpty(d.DbType) || d.DbType.Equals("relational", StringComparison.OrdinalIgnoreCase))
+            .Select(d => {
+                if (d.Extensions != null && d.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
+                    return eng;
+                if (!string.IsNullOrEmpty(d.Name) && d.Name.Contains('.'))
+                    return d.Name.Split('.', 2)[0];
+                return d.Name;
+            })
+            .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e) && 
+                                 !e.Equals("Database", StringComparison.OrdinalIgnoreCase) && 
+                                 !e.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                                 !ResourceReconciliationService.IsGenericConfigKey(e) &&
+                                 IsRelationalEngine(e));
+
         foreach (var db in allDbNodes)
         {
             var rawEngine = (db.Extensions != null && db.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
                 ? eng
                 : null;
-            var (cName, cType, cKey) = CanonicalizeDatabase(db.Name, db.DbType);
+            var rawSchema = (db.Extensions != null && db.Extensions.TryGetValue("schema", out var sch) && !string.IsNullOrWhiteSpace(sch))
+                ? sch
+                : null;
+            var (cName, cType, cKey) = CanonicalizeDatabase(db.Name, db.DbType, rawEngine, rawSchema, primaryRelationalEngine);
             var canonicalId = BuildCanonicalDatabaseId(db.Id, cType, cKey, ctx.WorkspaceId);
             rawToCanonical[db.Id] = canonicalId;
 
             var engineToUse = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
                 ? rawEngine
-                : cName;
+                : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
+
+            var schemaToUse = cName.Contains('.') ? cName.Split('.', 2)[1] : (rawSchema ?? "");
 
             if (!canonicalDbNodes.TryGetValue(canonicalId, out var existingNode) ||
                 (existingNode.Extensions != null && existingNode.Extensions.TryGetValue("engine", out var exEng) && exEng.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
             {
-                var dispName = !string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
-                    ? $"{cName} ({engineToUse}) [{cType}]"
-                    : $"{cName} [{cType}]";
+                var dispName = cName.Contains('.')
+                    ? cName
+                    : (!string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
+                        ? $"{cName} ({engineToUse}) [{cType}]"
+                        : $"{cName} [{cType}]");
 
                 var canonicalNode = new DatabaseNode(
                     canonicalId,
@@ -1303,6 +1472,8 @@ public class PostIndexAnalyzer(IGraphClient db)
                         ["db_type"] = cType,
                         ["role"] = "database",
                         ["engine"] = engineToUse,
+                        ["technology"] = engineToUse,
+                        ["schema"] = schemaToUse,
                         ["is_canonical"] = "true",
                         ["is_semantic_entity"] = "true",
                         ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
@@ -1313,6 +1484,46 @@ public class PostIndexAnalyzer(IGraphClient db)
                     }
                 );
                 canonicalDbNodes[canonicalId] = canonicalNode;
+            }
+
+            // Also map child DataSetNodes (representing schemas in SQL) to their canonical database nodes
+            foreach (var ds in db.Children.OfType<DataSetNode>())
+            {
+                var (dsCName, dsCType, dsCKey) = CanonicalizeDatabase(db.Name, db.DbType, rawEngine, ds.Name, primaryRelationalEngine);
+                var dsCanonicalId = BuildCanonicalDatabaseId(ds.Id, dsCType, dsCKey, ctx.WorkspaceId);
+                rawToCanonical[ds.Id] = dsCanonicalId;
+
+                var dsEngine = dsCName.Contains('.')
+                    ? dsCName.Split('.', 2)[0]
+                    : (!string.IsNullOrWhiteSpace(primaryRelationalEngine) ? primaryRelationalEngine : engineToUse);
+
+                if (!canonicalDbNodes.ContainsKey(dsCanonicalId))
+                {
+                    var dsNode = new DatabaseNode(
+                        dsCanonicalId,
+                        dsCName,
+                        ds.Path ?? "",
+                        dsCType,
+                        new Dictionary<string, string>
+                        {
+                            ["name"] = dsCName,
+                            ["display_name"] = dsCName,
+                            ["db_type"] = dsCType,
+                            ["role"] = "database",
+                            ["engine"] = dsEngine,
+                            ["technology"] = dsEngine,
+                            ["schema"] = ds.Name,
+                            ["is_canonical"] = "true",
+                            ["is_semantic_entity"] = "true",
+                            ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
+                            ["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
+                            ["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName,
+                            ["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color,
+                            ["layerIcon"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Icon
+                        }
+                    );
+                    canonicalDbNodes[dsCanonicalId] = dsNode;
+                }
             }
         }
 
@@ -1342,21 +1553,28 @@ public class PostIndexAnalyzer(IGraphClient db)
                 var rawEngine = rel.Properties.TryGetValue("engine", out var engObj) && engObj != null
                     ? engObj.ToString()
                     : null;
+                var rawSchema = rel.Properties.TryGetValue("schema", out var schObj) && schObj != null
+                    ? schObj.ToString()
+                    : null;
 
-                var (cName, cType, cKey) = CanonicalizeDatabase(rawName, rawType);
+                var (cName, cType, cKey) = CanonicalizeDatabase(rawName, rawType, rawEngine, rawSchema, primaryRelationalEngine);
                 var canonicalId = BuildCanonicalDatabaseId(rel.To, cType, cKey, ctx.WorkspaceId);
                 rawToCanonical[rel.To] = canonicalId;
 
                 var engineToUse = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
                     ? rawEngine
-                    : cName;
+                    : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
+
+                var schemaToUse = cName.Contains('.') ? cName.Split('.', 2)[1] : (rawSchema ?? "");
 
                 if (!canonicalDbNodes.TryGetValue(canonicalId, out var existingNode) ||
                     (existingNode.Extensions != null && existingNode.Extensions.TryGetValue("engine", out var exEng) && exEng.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
                 {
-                    var dispName = !string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
-                        ? $"{cName} ({engineToUse}) [{cType}]"
-                        : $"{cName} [{cType}]";
+                    var dispName = cName.Contains('.')
+                        ? cName
+                        : (!string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
+                            ? $"{cName} ({engineToUse}) [{cType}]"
+                            : $"{cName} [{cType}]");
 
                     var canonicalNode = new DatabaseNode(
                         canonicalId,
@@ -1370,6 +1588,8 @@ public class PostIndexAnalyzer(IGraphClient db)
                             ["db_type"] = cType,
                             ["role"] = "database",
                             ["engine"] = engineToUse,
+                            ["technology"] = engineToUse,
+                            ["schema"] = schemaToUse,
                             ["is_canonical"] = "true",
                             ["is_semantic_entity"] = "true",
                             ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
@@ -1384,9 +1604,32 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(primaryRelationalEngine))
+        {
+            var (defaultCName, defaultCType, defaultCKey) = CanonicalizeDatabase("Database", "relational", null, null, primaryRelationalEngine);
+            var defaultCanonicalId = BuildCanonicalDatabaseId($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:database", defaultCType, defaultCKey, ctx.WorkspaceId);
+            rawToCanonical["workspace:database:relational:database"] = defaultCanonicalId;
+            rawToCanonical[$"{ctx.WorkspaceId}:database:relational:database"] = defaultCanonicalId;
+            rawToCanonical[$"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Database}:relational:database"] = defaultCanonicalId;
+            rawToCanonical[$"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:database"] = defaultCanonicalId;
+
+            canonicalDbNodes.Remove("workspace:database:relational:database");
+            canonicalDbNodes.Remove($"{ctx.WorkspaceId}:database:relational:database");
+            canonicalDbNodes.Remove($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Database}:relational:database");
+            canonicalDbNodes.Remove($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:database");
+        }
+
         // 2. Add canonical nodes to SemanticStructure and upload
         if (ctx.SemanticStructure != null)
         {
+            if (!string.IsNullOrWhiteSpace(primaryRelationalEngine))
+            {
+                ctx.SemanticStructure.Children.RemoveAll(c => c is DatabaseNode dn &&
+                    (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) ||
+                     dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase) ||
+                     dn.Id.EndsWith($":{OntologyConstants.IdPrefixes.Database}:relational:database", StringComparison.OrdinalIgnoreCase)));
+            }
+
             foreach (var node in canonicalDbNodes.Values)
             {
                 if (!ctx.SemanticStructure.Children.Any(c => c.Id == node.Id))
@@ -1503,6 +1746,10 @@ public class PostIndexAnalyzer(IGraphClient db)
                 }
             }
 
+            // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
+            await ctx.DbClient.ExecuteWriteAsync(
+                "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';");
+
             // Purge any remaining phantom Database nodes that were not canonicalized
             var validIds = canonicalDbNodes.Keys.ToList();
             if (validIds.Count > 0)
@@ -1532,10 +1779,33 @@ public class PostIndexAnalyzer(IGraphClient db)
         var canonicalNodes = new Dictionary<string, (string Name, string DbType, string Key, string Engine)>(StringComparer.OrdinalIgnoreCase);
 
         // 1. Query databases
-        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine";
+        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine, d.schema AS schema";
         var dbJson = await db.ExecuteQueryAsync(dbQuery, null, cancellationToken);
+        string? primaryRelationalEngine = null;
         using (var dbDoc = JsonDocument.Parse(dbJson))
         {
+            foreach (var row in dbDoc.RootElement.EnumerateArray())
+            {
+                var dt = row.TryGetProperty("db_type", out var dtElem) && dtElem.ValueKind == JsonValueKind.String ? dtElem.GetString() : "relational";
+                if (!string.Equals(dt, "relational", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var eng = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String ? eg.GetString() : null;
+                var nm = GetStringProp(row, "name");
+                var candidate = !string.IsNullOrWhiteSpace(eng) && !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase)
+                    ? eng
+                    : (nm.Contains('.') ? nm.Split('.', 2)[0] : nm);
+
+                if (!string.IsNullOrWhiteSpace(candidate) &&
+                    !candidate.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                    !candidate.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                    !ResourceReconciliationService.IsGenericConfigKey(candidate) &&
+                    IsRelationalEngine(candidate))
+                {
+                    primaryRelationalEngine = candidate;
+                    break;
+                }
+            }
+
             foreach (var row in dbDoc.RootElement.EnumerateArray())
             {
                 var id = GetStringProp(row, "id");
@@ -1544,14 +1814,15 @@ public class PostIndexAnalyzer(IGraphClient db)
 
                 var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String ? (dt.GetString() ?? "Database") : "Database";
                 var rawEngine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String ? eg.GetString() : null;
+                var rawSchema = row.TryGetProperty("schema", out var sc) && sc.ValueKind == JsonValueKind.String ? sc.GetString() : null;
 
-                var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType);
+                var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType, rawEngine, rawSchema, primaryRelationalEngine);
                 var canonicalId = BuildCanonicalDatabaseId(id, cType, cKey, widPrefix);
                 rawToCanonical[id] = canonicalId;
 
                 var engineToUse = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
                     ? rawEngine
-                    : cName;
+                    : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
 
                 if (!canonicalNodes.TryGetValue(canonicalId, out var existing) ||
                     (existing.Engine.Equals(existing.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
@@ -1560,6 +1831,33 @@ public class PostIndexAnalyzer(IGraphClient db)
                 }
             }
         }
+
+        // Also map any dataset (schema) nodes
+        try
+        {
+            var dsQuery = "MATCH (ds:DataSet) RETURN ds.id AS id, ds.name AS name";
+            var dsJson = await db.ExecuteQueryAsync(dsQuery, null, cancellationToken);
+            using (var dsDoc = JsonDocument.Parse(dsJson))
+            {
+                foreach (var row in dsDoc.RootElement.EnumerateArray())
+                {
+                    var dsId = GetStringProp(row, "id");
+                    var dsName = GetStringProp(row, "name");
+                    if (string.IsNullOrEmpty(dsId) || string.IsNullOrEmpty(dsName)) continue;
+
+                    var targetEngine = !string.IsNullOrWhiteSpace(primaryRelationalEngine) ? primaryRelationalEngine : "PostgreSQL";
+                    var (cName, cType, cKey) = CanonicalizeDatabase(targetEngine, "relational", null, dsName, primaryRelationalEngine);
+                    var canonicalId = BuildCanonicalDatabaseId(dsId, cType, cKey, widPrefix);
+                    rawToCanonical[dsId] = canonicalId;
+
+                    if (!canonicalNodes.ContainsKey(canonicalId))
+                    {
+                        canonicalNodes[canonicalId] = (cName, cType, cKey, targetEngine);
+                    }
+                }
+            }
+        }
+        catch { }
 
         if (canonicalNodes.Count == 0)
         {
@@ -1570,9 +1868,14 @@ public class PostIndexAnalyzer(IGraphClient db)
         var nodesToUpload = new List<Node>();
         foreach (var (canonicalId, (cName, cType, cKey, engineToUse)) in canonicalNodes)
         {
-            var dispName = !string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
-                ? $"{cName} ({engineToUse}) [{cType}]"
-                : $"{cName} [{cType}]";
+            var dispName = cName.Contains('.')
+                ? cName
+                : (!string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
+                    ? $"{cName} ({engineToUse}) [{cType}]"
+                    : $"{cName} [{cType}]");
+
+            var schemaToUse = cName.Contains('.') ? cName.Split('.', 2)[1] : "";
+
             var props = new Dictionary<string, object>
             {
                 ["name"] = cName,
@@ -1580,6 +1883,8 @@ public class PostIndexAnalyzer(IGraphClient db)
                 ["db_type"] = cType,
                 ["role"] = "database",
                 ["engine"] = engineToUse,
+                ["technology"] = engineToUse,
+                ["schema"] = schemaToUse,
                 ["is_canonical"] = "true",
                 ["is_semantic_entity"] = "true",
                 ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
@@ -1689,6 +1994,11 @@ public class PostIndexAnalyzer(IGraphClient db)
                     await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId }, cancellationToken);
                 }
             }
+
+            // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
+            await db.ExecuteWriteAsync(
+                "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';",
+                null, cancellationToken);
 
             // Purge any remaining phantom Database nodes that were not canonicalized
             var validIds = canonicalNodes.Keys.ToList();

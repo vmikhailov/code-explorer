@@ -7,7 +7,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Library,
-    idScheme: "{workspaceId}:library:{libraryName}",
+    idScheme: "{workspaceId}:lib:{libraryName}",
     purpose: "Represents a shared library, utility module, DTO package, or domain contract reused across services.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "library",

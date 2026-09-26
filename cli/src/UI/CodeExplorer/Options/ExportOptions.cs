@@ -8,7 +8,7 @@ public class ExportOptions
     [Option('f', "format", Required = false, Default = "mermaid", HelpText = "Diagram format ('mermaid' or 'c4').")]
     public string Format { get; set; } = "mermaid";
 
-    [Option('t', "type", Required = false, Default = "architecture", HelpText = "Diagram type ('architecture', 'lineage', 'cqrs').")]
+    [Option('t', "type", Required = false, Default = "architecture", HelpText = "Diagram type ('architecture', 'domain', 'lineage', 'cqrs').")]
     public string Type { get; set; } = "architecture";
 
     [Option('p', "project", Required = false, HelpText = "Optional project name filter.")]

@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Worker,
-    idScheme: "{workspaceId}:worker:{workerName}",
+    idScheme: "{workspaceId}:w:{workerName}",
     purpose: "Represents a background job processor, queue consumer, or scheduled task (e.g. Hangfire, Celery, Worker Service).",
     layer: OntologyConstants.Layers.Semantic,
     icon: "gear",

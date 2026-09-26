@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -16,12 +17,12 @@ public class SqlDependencyVisitor : TSqlFragmentVisitor
     {
         if (node.SchemaObject != null)
         {
-            var db = node.SchemaObject.DatabaseIdentifier?.Value;
-            var schema = node.SchemaObject.SchemaIdentifier?.Value;
-            var table = node.SchemaObject.BaseIdentifier?.Value;
+            var db = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.DatabaseIdentifier?.Value ?? "");
+            var schema = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.SchemaIdentifier?.Value ?? "");
+            var table = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.BaseIdentifier?.Value ?? "");
             if (!string.IsNullOrEmpty(table))
             {
-                Tables.Add((db, schema, table));
+                Tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, table));
             }
         }
         base.Visit(node);
@@ -31,12 +32,12 @@ public class SqlDependencyVisitor : TSqlFragmentVisitor
     {
         if (node.ProcedureReference?.ProcedureReference?.Name != null)
         {
-            var db = node.ProcedureReference.ProcedureReference.Name.DatabaseIdentifier?.Value;
-            var schema = node.ProcedureReference.ProcedureReference.Name.SchemaIdentifier?.Value;
-            var proc = node.ProcedureReference.ProcedureReference.Name.BaseIdentifier?.Value;
+            var db = NestedSqlParser.CleanSqlIdentifier(node.ProcedureReference.ProcedureReference.Name.DatabaseIdentifier?.Value ?? "");
+            var schema = NestedSqlParser.CleanSqlIdentifier(node.ProcedureReference.ProcedureReference.Name.SchemaIdentifier?.Value ?? "");
+            var proc = NestedSqlParser.CleanSqlIdentifier(node.ProcedureReference.ProcedureReference.Name.BaseIdentifier?.Value ?? "");
             if (!string.IsNullOrEmpty(proc))
             {
-                Procedures.Add((db, schema, proc));
+                Procedures.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, proc));
             }
         }
         base.Visit(node);
@@ -154,8 +155,18 @@ public static class NestedSqlParser
         cleaned = Regex.Replace(cleaned, @"\$\{\s*([a-zA-Z0-9_\.]+)\s*\}", "$1");
         cleaned = Regex.Replace(cleaned, @"\$\{(.*?)\}", "$1");
 
-        // Convert backticks to square brackets for ScriptDom T-SQL parser compatibility
-        cleaned = Regex.Replace(cleaned, @"`([^`]+)`", "[$1]");
+        // Convert backticks to square brackets for ScriptDom T-SQL parser compatibility.
+        // If backticks contain dots (e.g. `dataset.table`), wrap each segment individually.
+        cleaned = Regex.Replace(cleaned, @"`([^`]+)`", m =>
+        {
+            var content = m.Groups[1].Value;
+            if (content.Contains('.'))
+            {
+                var segs = content.Split('.');
+                return string.Join(".", segs.Select(s => $"[{s.Trim('[', ']', '`', '\'', '"')}]"));
+            }
+            return $"[{content.Trim('[', ']', '`', '\'', '"')}]";
+        });
 
         return cleaned;
     }
@@ -226,14 +237,17 @@ public static class NestedSqlParser
         }
 
         // 2. Lexical Fallback: Match identifiers after FROM, JOIN, UPDATE, INTO, MERGE
-        var tableMatches = Regex.Matches(cleanedSql, @"\b(?:FROM|JOIN|UPDATE|INTO|MERGE)\s+([a-zA-Z0-9_\.\[\]""#@'`\$\{\}]+)", RegexOptions.IgnoreCase);
+        var tableMatches = Regex.Matches(cleanedSql, @"\b(?:FROM|JOIN|UPDATE|INTO|MERGE)\s+([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)", RegexOptions.IgnoreCase);
         foreach (Match match in tableMatches)
         {
             var rawTableName = match.Groups[1].Value.Trim();
-            var cleanedTablePath = CleanSqlIdentifier(rawTableName);
-            if (string.IsNullOrEmpty(cleanedTablePath)) continue;
+            var parts = rawTableName.Split('.')
+                .Select(CleanSqlIdentifier)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .ToArray();
 
-            var parts = cleanedTablePath.Split('.');
+            if (parts.Length == 0) continue;
+
             string? dbName = null;
             string? schemaName = null;
             string tableName;
@@ -260,14 +274,17 @@ public static class NestedSqlParser
         }
 
         // 3. Lexical Fallback: Match procedure calls after EXEC/EXECUTE
-        var execMatches = Regex.Matches(cleanedSql, @"\bEXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@'`\$\{\}]+)", RegexOptions.IgnoreCase);
+        var execMatches = Regex.Matches(cleanedSql, @"\bEXEC(?:UTE)?\s+([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)", RegexOptions.IgnoreCase);
         foreach (Match match in execMatches)
         {
             var rawProcName = match.Groups[1].Value.Trim();
-            var cleanedProcPath = CleanSqlIdentifier(rawProcName);
-            if (string.IsNullOrEmpty(cleanedProcPath)) continue;
+            var parts = rawProcName.Split('.')
+                .Select(CleanSqlIdentifier)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .ToArray();
 
-            var parts = cleanedProcPath.Split('.');
+            if (parts.Length == 0) continue;
+
             string? dbName = null;
             string? schemaName = null;
             string procName;
@@ -307,23 +324,114 @@ public static class NestedSqlParser
         var wsPrefix = colonIdx > 0 ? queryNode.Id[..colonIdx] : "";
         var dbPrefix = string.IsNullOrEmpty(wsPrefix) ? "db" : $"{wsPrefix}:db";
 
+        // Resolve engine
+        var engine = "default";
+        string? concreteDbName = null;
+
+        bool isBigQueryContext = 
+            rawText.Contains("_TABLE_SUFFIX", StringComparison.OrdinalIgnoreCase) ||
+            rawText.Contains("BigQuery", StringComparison.OrdinalIgnoreCase) ||
+            rawText.Contains("bq.driver", StringComparison.OrdinalIgnoreCase) ||
+            filePath.Contains("bq-", StringComparison.OrdinalIgnoreCase) ||
+            filePath.Contains("bigquery", StringComparison.OrdinalIgnoreCase);
+
+        bool isClickHouseContext =
+            rawText.Contains("MergeTree", StringComparison.OrdinalIgnoreCase) ||
+            rawText.Contains("clickhouse", StringComparison.OrdinalIgnoreCase) ||
+            filePath.Contains("clickhouse", StringComparison.OrdinalIgnoreCase);
+
+        if (isBigQueryContext)
+        {
+            engine = "BigQuery";
+        }
+        else if (isClickHouseContext)
+        {
+            engine = "ClickHouse";
+        }
+        else
+        {
+            var canonical = ctx?.ResourceRegistry.ResolveResource(null, expectedDbType: "relational");
+            if (canonical != null)
+            {
+                if (!string.IsNullOrEmpty(canonical.Engine) && !canonical.Engine.Equals("Database", StringComparison.OrdinalIgnoreCase))
+                {
+                    engine = canonical.Engine;
+                }
+                else
+                {
+                    engine = "PostgreSQL";
+                }
+                if (!string.IsNullOrEmpty(canonical.Name) &&
+                    !canonical.Name.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                    !canonical.Name.Equals(engine, StringComparison.OrdinalIgnoreCase) &&
+                    !ResourceReconciliationService.IsGenericConfigKey(canonical.Name))
+                {
+                    concreteDbName = canonical.Name;
+                }
+            }
+            else if (ctx?.ResourceRegistry.AllResources.FirstOrDefault(r => r.Kind == "Database" && (r.DbType == "relational" || r.DbType == "analytics")) is { } anyDb)
+            {
+                engine = !string.IsNullOrEmpty(anyDb.Engine) && !anyDb.Engine.Equals("Database", StringComparison.OrdinalIgnoreCase)
+                    ? anyDb.Engine
+                    : (!string.IsNullOrEmpty(anyDb.Name) && !anyDb.Name.Equals("Database", StringComparison.OrdinalIgnoreCase) ? anyDb.Name : "PostgreSQL");
+
+                if (!string.IsNullOrEmpty(anyDb.Name) &&
+                    !anyDb.Name.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                    !anyDb.Name.Equals(engine, StringComparison.OrdinalIgnoreCase) &&
+                    !ResourceReconciliationService.IsGenericConfigKey(anyDb.Name))
+                {
+                    concreteDbName = anyDb.Name;
+                }
+            }
+        }
+
         // Process Tables
         foreach (var tableRef in tables)
         {
-            var dbName = tableRef.Db;
-            if (string.IsNullOrEmpty(dbName) || dbName.Equals("default", StringComparison.OrdinalIgnoreCase))
+            var targetEngine = engine;
+            if (!string.IsNullOrEmpty(tableRef.Db) && !tableRef.Db.Equals("default", StringComparison.OrdinalIgnoreCase))
             {
-                var canonical = ctx?.ResourceRegistry.ResolveResource(null, expectedDbType: "relational");
-                dbName = canonical != null ? canonical.Name : "default";
+                var candidate = tableRef.Db;
+                if (candidate.Contains('.'))
+                {
+                    var dotParts = candidate.Split('.', 2);
+                    targetEngine = dotParts[0];
+                }
+                else
+                {
+                    targetEngine = candidate;
+                }
             }
-            var schemaName = tableRef.Schema ?? "dbo";
+
+            var targetDbType = targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) || targetEngine.Equals("ClickHouse", StringComparison.OrdinalIgnoreCase)
+                ? "analytics"
+                : "relational";
+
+            var defaultSchema = targetEngine.Equals("SQL Server", StringComparison.OrdinalIgnoreCase) ? "dbo"
+                              : targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) ? "main"
+                              : targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ? "default"
+                              : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
+                              : "public";
+
+            var schemaName = !string.IsNullOrEmpty(tableRef.Schema) ? tableRef.Schema : defaultSchema;
             var tableName = tableRef.Table;
 
-            var dbKey = dbName.ToLowerInvariant();
+            var fullDbName = !string.IsNullOrEmpty(concreteDbName)
+                ? concreteDbName
+                : $"{targetEngine}.{schemaName}";
+            var dbKey = !string.IsNullOrEmpty(concreteDbName)
+                ? concreteDbName.ToLowerInvariant()
+                : $"{targetEngine.ToLowerInvariant()}:{schemaName.ToLowerInvariant()}";
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
                 var dbNodeId = $"{dbPrefix}:{dbKey}";
-                dbNode = new DatabaseNode(dbNodeId, dbName, filePath, "relational");
+                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, targetDbType, new Dictionary<string, string>
+                {
+                    ["name"] = fullDbName,
+                    ["engine"] = targetEngine,
+                    ["schema"] = schemaName,
+                    ["db_type"] = targetDbType
+                });
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }
@@ -331,12 +439,12 @@ public static class NestedSqlParser
             var schemaKey = $"{dbKey}:{schemaName.ToLowerInvariant()}";
             if (!datasetNodes.TryGetValue(schemaKey, out var schemaNode))
             {
-                var schemaNodeId = $"{dbNode.Id}:dataset:{schemaName.ToLowerInvariant()}";
+                var schemaNodeId = $"{dbNode.Id}:{OntologyConstants.IdPrefixes.DataSet}:{schemaName.ToLowerInvariant()}";
                 schemaNode = new DataSetNode(schemaNodeId, schemaName, filePath);
                 dbNode.Children.Add(schemaNode);
             }
 
-            var tableNodeId = $"{schemaNode.Id}:table:{tableName.ToLowerInvariant()}";
+            var tableNodeId = $"{schemaNode.Id}:{OntologyConstants.IdPrefixes.Table}:{tableName.ToLowerInvariant()}";
             var tableNode = new TableNode(tableNodeId, tableName, filePath);
             
             if (!schemaNode.Children.Any(c => c.Id.Equals(tableNodeId, StringComparison.OrdinalIgnoreCase)))
@@ -348,20 +456,45 @@ public static class NestedSqlParser
         // Process Procedures
         foreach (var procRef in procedures)
         {
-            var dbName = procRef.Db;
-            if (string.IsNullOrEmpty(dbName) || dbName.Equals("default", StringComparison.OrdinalIgnoreCase))
+            var targetEngine = engine;
+            if (!string.IsNullOrEmpty(procRef.Db) && !procRef.Db.Equals("default", StringComparison.OrdinalIgnoreCase))
             {
-                var canonical = ctx?.ResourceRegistry.ResolveResource(null, expectedDbType: "relational");
-                dbName = canonical != null ? canonical.Name : "default";
+                var candidate = procRef.Db;
+                if (candidate.Contains('.'))
+                {
+                    var dotParts = candidate.Split('.', 2);
+                    targetEngine = dotParts[0];
+                }
+                else
+                {
+                    targetEngine = candidate;
+                }
             }
-            var schemaName = procRef.Schema ?? "dbo";
+
+            var defaultSchema = targetEngine.Equals("SQL Server", StringComparison.OrdinalIgnoreCase) ? "dbo"
+                              : targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) ? "main"
+                              : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
+                              : "public";
+
+            var schemaName = !string.IsNullOrEmpty(procRef.Schema) ? procRef.Schema : defaultSchema;
             var procName = procRef.Procedure;
 
-            var dbKey = dbName.ToLowerInvariant();
+            var fullDbName = !string.IsNullOrEmpty(concreteDbName)
+                ? concreteDbName
+                : $"{targetEngine}.{schemaName}";
+            var dbKey = !string.IsNullOrEmpty(concreteDbName)
+                ? concreteDbName.ToLowerInvariant()
+                : $"{targetEngine.ToLowerInvariant()}:{schemaName.ToLowerInvariant()}";
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
                 var dbNodeId = $"{dbPrefix}:{dbKey}";
-                dbNode = new DatabaseNode(dbNodeId, dbName, filePath, "relational");
+                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, "relational", new Dictionary<string, string>
+                {
+                    ["name"] = fullDbName,
+                    ["engine"] = targetEngine,
+                    ["schema"] = schemaName,
+                    ["db_type"] = "relational"
+                });
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }
@@ -369,12 +502,12 @@ public static class NestedSqlParser
             var schemaKey = $"{dbKey}:{schemaName.ToLowerInvariant()}";
             if (!datasetNodes.TryGetValue(schemaKey, out var schemaNode))
             {
-                var schemaNodeId = $"{dbNode.Id}:dataset:{schemaName.ToLowerInvariant()}";
+                var schemaNodeId = $"{dbNode.Id}:{OntologyConstants.IdPrefixes.DataSet}:{schemaName.ToLowerInvariant()}";
                 schemaNode = new DataSetNode(schemaNodeId, schemaName, filePath);
                 dbNode.Children.Add(schemaNode);
             }
 
-            var procNodeId = $"{schemaNode.Id}:procedure:{procName.ToLowerInvariant()}";
+            var procNodeId = $"{schemaNode.Id}:{OntologyConstants.IdPrefixes.Procedure}:{procName.ToLowerInvariant()}";
             var procNode = new ProcedureNode(procNodeId, procName, filePath);
             
             if (!schemaNode.Children.Any(c => c.Id.Equals(procNodeId, StringComparison.OrdinalIgnoreCase)))
@@ -419,7 +552,7 @@ public static class NestedSqlParser
         }
     }
 
-    private static string CleanSqlIdentifier(string identifier)
+    public static string CleanSqlIdentifier(string identifier)
     {
         if (string.IsNullOrEmpty(identifier)) return identifier;
 
@@ -436,10 +569,16 @@ public static class NestedSqlParser
                  (current.StartsWith('"') && current.EndsWith('"')) ||
                  (current.StartsWith('[') && current.EndsWith(']'))))
             {
-                current = current[1..^1];
+                current = current[1..^1].Trim();
             }
             
-            current = current.Replace("\"", "").Replace("`", "").Replace("'", "").Trim();
+            current = current
+                .Replace("\"", "")
+                .Replace("`", "")
+                .Replace("'", "")
+                .Replace("[", "")
+                .Replace("]", "")
+                .Trim();
             
         } while (current != previous);
 

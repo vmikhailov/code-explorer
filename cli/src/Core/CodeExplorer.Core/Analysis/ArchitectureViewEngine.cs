@@ -85,6 +85,31 @@ public class ArchitectureViewEngine(IGraphClient db)
         var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
         using var nodesDoc = JsonDocument.Parse(nodesJson);
 
+        string? primaryRelationalEngine = null;
+        foreach (var elem in nodesDoc.RootElement.EnumerateArray())
+        {
+            if (elem.GetStringProp("kind") == "Database")
+            {
+                var dt = elem.GetStringProp("db_type", "relational");
+                if (!dt.Equals("relational", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var eng = elem.GetStringProp("engine");
+                var nm = elem.GetStringProp("name");
+                var candidate = !string.IsNullOrWhiteSpace(eng) && !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase)
+                    ? eng
+                    : (nm.Contains('.') ? nm.Split('.', 2)[0] : nm);
+                if (!string.IsNullOrWhiteSpace(candidate) &&
+                    !candidate.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                    !candidate.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                    !ResourceReconciliationService.IsGenericConfigKey(candidate) &&
+                    PostIndexAnalyzer.IsRelationalEngine(candidate))
+                {
+                    primaryRelationalEngine = candidate;
+                    break;
+                }
+            }
+        }
+
         foreach (var elem in nodesDoc.RootElement.EnumerateArray())
         {
             var id = elem.GetStringProp("id");
@@ -126,7 +151,9 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             if (kind == "Database")
             {
-                var (cName, cType, cKey) = PostIndexAnalyzer.CanonicalizeDatabase(name, dbType);
+                var engineProp = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
+                var schemaProp = elem.GetStringProp("schema", props.GetValueOrDefault("schema", ""));
+                var (cName, cType, cKey) = PostIndexAnalyzer.CanonicalizeDatabase(name, dbType, engineProp, schemaProp, primaryRelationalEngine);
                 var isExplicitResource = id.Contains(":res:db:", StringComparison.OrdinalIgnoreCase) ||
                                          id.StartsWith("urn:", StringComparison.OrdinalIgnoreCase);
                 var isStandaloneDb = id.StartsWith("db:", StringComparison.OrdinalIgnoreCase);
@@ -142,7 +169,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 }
                 else
                 {
-                    canonicalId = $"workspace:database:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
+                    canonicalId = $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Database}:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
                 }
                 dbIdToCanonicalId[id] = canonicalId;
 
@@ -163,15 +190,19 @@ public class ArchitectureViewEngine(IGraphClient db)
                         props["layerColor"] = StandardLayers.Foundation.Color;
                         props["layerIcon"] = StandardLayers.Foundation.Icon;
                     }
-                    var engine = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
-                    if (!string.IsNullOrEmpty(engine)) props["engine"] = engine;
+                    var engine = !string.IsNullOrEmpty(engineProp) ? engineProp : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
+                    props["engine"] = engine;
+                    props["technology"] = engine;
+                    props["schema"] = cName.Contains('.') ? cName.Split('.', 2)[1] : schemaProp;
 
                     var dispName = elem.GetStringProp("display_name");
                     if (string.IsNullOrEmpty(dispName))
                     {
-                        dispName = !string.IsNullOrEmpty(engine) && !engine.Equals(cName, StringComparison.OrdinalIgnoreCase)
-                            ? $"{cName} ({engine}) [{cType}]"
-                            : $"{cName} [{cType}]";
+                        dispName = cName.Contains('.')
+                            ? cName
+                            : (!string.IsNullOrEmpty(engine) && !engine.Equals(cName, StringComparison.OrdinalIgnoreCase)
+                                ? $"{cName} ({engine}) [{cType}]"
+                                : $"{cName} [{cType}]");
                     }
 
                     var node = new GraphNodeDto
@@ -310,9 +341,9 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var associatedProjectId = props.GetValueOrDefault("project_id");
                 if (string.IsNullOrEmpty(associatedProjectId))
                 {
-                    associatedProjectId = id.Contains(":project:", StringComparison.OrdinalIgnoreCase)
+                    associatedProjectId = (id.Contains($":{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) || id.Contains(":project:", StringComparison.OrdinalIgnoreCase))
                         ? id
-                        : $"{id.Split(':')[0]}:project:{name}";
+                        : $"{id.Split(':')[0]}:{OntologyConstants.IdPrefixes.Project}:{name}";
                 }
 
                 if (isWorkload)
@@ -580,8 +611,11 @@ public class ArchitectureViewEngine(IGraphClient db)
              n.Id.Equals(targetName, StringComparison.OrdinalIgnoreCase) ||
              (n.FilePath != null && n.FilePath.Equals(targetName, StringComparison.OrdinalIgnoreCase)) ||
              n.Id.Equals($"workspace:project:{targetName}:", StringComparison.OrdinalIgnoreCase) ||
+             n.Id.Equals($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:{targetName}:", StringComparison.OrdinalIgnoreCase) ||
              (n.Id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase) &&
-              n.Id["workspace:project:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase))));
+              n.Id["workspace:project:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase)) ||
+             (n.Id.StartsWith($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) &&
+              n.Id[$"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase))));
 
         if (centerNode == null)
         {
@@ -858,9 +892,16 @@ public class ArchitectureViewEngine(IGraphClient db)
                 if (string.IsNullOrEmpty(path))
                 {
                     var id = row.GetStringProp("id");
-                    if (!string.IsNullOrEmpty(id) && id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase))
+                    if (!string.IsNullOrEmpty(id))
                     {
-                        path = id["workspace:project:".Length..];
+                        if (id.StartsWith($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            path = id[$"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:".Length..];
+                        }
+                        else if (id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            path = id["workspace:project:".Length..];
+                        }
                     }
                 }
 
@@ -878,10 +919,10 @@ public class ArchitectureViewEngine(IGraphClient db)
     {
         var result = new MetadataResponseDto();
 
-        // 1. Node counts by label
+        // 1. Node counts by primary label
         try
         {
-            var nodeQuery = "MATCH (n) RETURN labels(n) AS lbl, count(n) AS cnt";
+            var nodeQuery = "MATCH (n) RETURN labels(n)[0] AS lbl, count(n) AS cnt";
             var nodeJson = await db.ExecuteQueryAsync(nodeQuery, null, ct);
             using var nodeDoc = JsonDocument.Parse(nodeJson);
             long totalNodes = 0;
@@ -889,37 +930,36 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
 
-                if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
+                string? lbl = null;
+                if (row.TryGetProperty("lbl", out var lblProp))
                 {
-                    var isSystem = false;
-                    foreach (var l in lblProp.EnumerateArray())
+                    if (lblProp.ValueKind == JsonValueKind.String)
                     {
-                        var lbl = l.GetString();
-                        if (!string.IsNullOrEmpty(lbl) && Mcp.OntologyRegistry.IsSystemNode(lbl))
-                        {
-                            isSystem = true;
-                            break;
-                        }
+                        lbl = lblProp.GetString();
                     }
-                    if (isSystem) continue;
+                    else if (lblProp.ValueKind == JsonValueKind.Array && lblProp.GetArrayLength() > 0)
+                    {
+                        lbl = lblProp[0].GetString();
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(lbl))
+                {
+                    if (Mcp.OntologyRegistry.IsSystemNode(lbl))
+                    {
+                        continue;
+                    }
 
                     totalNodes += cnt;
 
-                    foreach (var l in lblProp.EnumerateArray())
+                    result.NodeCounts[lbl] = result.NodeCounts.GetValueOrDefault(lbl, 0) + cnt;
+                    if (lbl.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
                     {
-                        var lbl = l.GetString();
-                        if (!string.IsNullOrEmpty(lbl))
-                        {
-                            result.NodeCounts[lbl] = result.NodeCounts.GetValueOrDefault(lbl, 0) + cnt;
-                            if (lbl.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
-                            {
-                                result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
-                            }
-                            else if (lbl.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
-                            {
-                                result.NodeCounts["Library"] = result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
-                            }
-                        }
+                        result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
+                    }
+                    else if (lbl.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result.NodeCounts["Library"] = result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
                     }
                 }
                 else
@@ -1055,7 +1095,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             try
             {
-                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.id = $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
+                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
                 var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["srv"] = service }, ct);
                 using var sDoc = JsonDocument.Parse(sJson);
                 var first = sDoc.RootElement.EnumerateArray().FirstOrDefault();
@@ -1428,26 +1468,45 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
         }
 
-        // 3. File path resolution (e.g. workspace:file:action-scheduler/src/... or ws:symbol:action-scheduler/...)
+        // 3. File path resolution (e.g. ws:f:action-scheduler/src/... or ws:sym:action-scheduler/...)
         var filePath = sourceId;
-        var fileIdx = filePath.IndexOf(":file:", StringComparison.OrdinalIgnoreCase);
-        if (fileIdx >= 0)
+        if (Urn.TryParse(sourceId, out var urn) && !string.IsNullOrEmpty(urn.Path))
         {
-            filePath = filePath[(fileIdx + ":file:".Length)..];
+            filePath = urn.Path;
         }
         else
         {
-            var symIdx = filePath.IndexOf(":symbol:", StringComparison.OrdinalIgnoreCase);
-            if (symIdx >= 0)
+            var fileIdx = filePath.IndexOf($":{OntologyConstants.IdPrefixes.File}:", StringComparison.OrdinalIgnoreCase);
+            if (fileIdx < 0) fileIdx = filePath.IndexOf(":file:", StringComparison.OrdinalIgnoreCase);
+            if (fileIdx >= 0)
             {
-                filePath = filePath[(symIdx + ":symbol:".Length)..];
+                var markerLen = filePath.IndexOf($":{OntologyConstants.IdPrefixes.File}:", StringComparison.OrdinalIgnoreCase) >= 0
+                    ? $":{OntologyConstants.IdPrefixes.File}:".Length
+                    : ":file:".Length;
+                filePath = filePath[(fileIdx + markerLen)..];
             }
             else
             {
-                var projIdx = filePath.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
-                if (projIdx >= 0)
+                var symIdx = filePath.IndexOf($":{OntologyConstants.IdPrefixes.Symbol}:", StringComparison.OrdinalIgnoreCase);
+                if (symIdx < 0) symIdx = filePath.IndexOf(":symbol:", StringComparison.OrdinalIgnoreCase);
+                if (symIdx >= 0)
                 {
-                    filePath = filePath[(projIdx + ":project:".Length)..];
+                    var markerLen = filePath.IndexOf($":{OntologyConstants.IdPrefixes.Symbol}:", StringComparison.OrdinalIgnoreCase) >= 0
+                        ? $":{OntologyConstants.IdPrefixes.Symbol}:".Length
+                        : ":symbol:".Length;
+                    filePath = filePath[(symIdx + markerLen)..];
+                }
+                else
+                {
+                    var projIdx = filePath.IndexOf($":{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase);
+                    if (projIdx < 0) projIdx = filePath.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
+                    if (projIdx >= 0)
+                    {
+                        var markerLen = filePath.IndexOf($":{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) >= 0
+                            ? $":{OntologyConstants.IdPrefixes.Project}:".Length
+                            : ":project:".Length;
+                        filePath = filePath[(projIdx + markerLen)..];
+                    }
                 }
             }
         }
@@ -1857,7 +1916,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                     }
                 }
 
-                if (!serviceMap.ContainsKey(name))
+                if (!serviceMap.TryGetValue(name, out var existing))
                 {
                     var dto = new ServiceSummaryDto
                     {
@@ -1868,6 +1927,13 @@ public class ArchitectureViewEngine(IGraphClient db)
                         Language = row.GetStringProp("language")
                     };
                     serviceMap[name] = dto;
+                }
+                else if (existing.Kind == "Project" && kind != "Project")
+                {
+                    existing.ServiceId = id;
+                    existing.Kind = kind;
+                    if (!string.IsNullOrEmpty(row.GetStringProp("framework"))) existing.Framework = row.GetStringProp("framework");
+                    if (!string.IsNullOrEmpty(row.GetStringProp("language"))) existing.Language = row.GetStringProp("language");
                 }
                 idToName[id] = name;
             }
@@ -2114,7 +2180,9 @@ public class ArchitectureViewEngine(IGraphClient db)
         // 2. Directory structure
         if (!string.IsNullOrEmpty(path))
         {
-            var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries)
+                            .Where(p => p != ".." && p != ".")
+                            .ToArray();
             var servicesIdx = Array.FindIndex(parts, p => p.Equals("services", StringComparison.OrdinalIgnoreCase) || p.Equals("microservices", StringComparison.OrdinalIgnoreCase));
             if (servicesIdx != -1 && servicesIdx + 1 < parts.Length)
             {
@@ -2760,17 +2828,85 @@ public class ArchitectureViewEngine(IGraphClient db)
         return sb.ToString();
     }
 
+    private static Dictionary<string, string> BuildShortMermaidIdMap(IEnumerable<DomainEntityDto> nodes)
+    {
+        var idMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var node in nodes)
+        {
+            var raw = node.Id ?? "";
+            string prefix = node.Kind switch
+            {
+                "Ingress" => "app",
+                "Service" or "Worker" => "svc",
+                "Database" => "db",
+                "Topic" => "topic",
+                "ExternalService" => "ext",
+                "Library" => "lib",
+                _ => "node"
+            };
+
+            var baseName = !string.IsNullOrWhiteSpace(node.DisplayName) ? node.DisplayName : node.Name;
+            baseName = System.Text.RegularExpressions.Regex.Replace(baseName ?? "", @"[^\w\.\-]", "_");
+
+            var slug = baseName.ToLowerInvariant()
+                .Replace("postgresql.", "pg_")
+                .Replace("mysql.", "mysql_")
+                .Replace("clickhouse", "ch")
+                .Replace("bigquery", "bq")
+                .Replace("internal-service-", "")
+                .Replace("internal_service_", "")
+                .Replace("integration-service-", "")
+                .Replace("integration_service_", "")
+                .Replace("external-service-", "")
+                .Replace("external_service_", "")
+                .Replace("workspace:database:", "")
+                .Replace("workspace:externalservice:", "")
+                .Replace("workspace:topic:", "")
+                .Replace("workspace:library:", "")
+                .Replace("ws:db:", "")
+                .Replace("ws:es:", "")
+                .Replace("ws:top:", "")
+                .Replace("ws:lib:", "")
+                .Replace("domain:", "");
+
+            slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^a-z0-9_]", "_").Trim('_');
+            if (string.IsNullOrWhiteSpace(slug)) slug = "item";
+
+            var candidate = $"{prefix}_{slug}";
+            if (candidate.Length > 40) candidate = candidate[..40].TrimEnd('_');
+
+            var finalId = candidate;
+            int counter = 2;
+            while (usedIds.Contains(finalId))
+            {
+                finalId = $"{candidate}_{counter++}";
+            }
+
+            usedIds.Add(finalId);
+            idMap[raw] = finalId;
+            idMap[System.Text.RegularExpressions.Regex.Replace(raw, @"[^a-zA-Z0-9_]", "_")] = finalId;
+        }
+
+        return idMap;
+    }
+
     public static string ToMermaid(DomainArchitectureDto dto)
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("flowchart TD");
-        var sanitize = (string s) => s.Replace(":", "_").Replace("-", "_").Replace(".", "_").Replace("/", "_");
+        var idMap = BuildShortMermaidIdMap(dto.Nodes);
+        var getId = (string s) => idMap.GetValueOrDefault(s) ??
+                                  idMap.GetValueOrDefault(System.Text.RegularExpressions.Regex.Replace(s, @"[^a-zA-Z0-9_]", "_")) ??
+                                  System.Text.RegularExpressions.Regex.Replace(s, @"[^a-zA-Z0-9_]", "_");
+        var esc = (string s) => s?.Replace("\"", "'") ?? "";
 
         var ingress = dto.Nodes.Where(n => n.Kind == "Ingress").ToList();
         if (ingress.Count > 0)
         {
             sb.AppendLine("  subgraph Ingress [\"Apps & Ingress\"]");
-            foreach (var node in ingress) sb.AppendLine($"    {sanitize(node.Id)}[\"{node.DisplayName}\"]");
+            foreach (var node in ingress) sb.AppendLine($"    {getId(node.Id)}[\"{esc(node.DisplayName)}\"]");
             sb.AppendLine("  end");
         }
 
@@ -2778,7 +2914,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         if (services.Count > 0)
         {
             sb.AppendLine("  subgraph Services [\"Core Services\"]");
-            foreach (var node in services) sb.AppendLine($"    {sanitize(node.Id)}[\"{node.DisplayName}\"]");
+            foreach (var node in services) sb.AppendLine($"    {getId(node.Id)}[\"{esc(node.DisplayName)}\"]");
             sb.AppendLine("  end");
         }
 
@@ -2786,7 +2922,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         if (dbs.Count > 0)
         {
             sb.AppendLine("  subgraph Databases [\"Databases\"]");
-            foreach (var node in dbs) sb.AppendLine($"    {sanitize(node.Id)}[(\"🗄️ {node.DisplayName}\")]");
+            foreach (var node in dbs) sb.AppendLine($"    {getId(node.Id)}[(\"🗄️ {esc(node.DisplayName)}\")]");
             sb.AppendLine("  end");
         }
 
@@ -2794,13 +2930,29 @@ public class ArchitectureViewEngine(IGraphClient db)
         if (topics.Count > 0)
         {
             sb.AppendLine("  subgraph Topics [\"Message Queues\"]");
-            foreach (var node in topics) sb.AppendLine($"    {sanitize(node.Id)}>\"📬 {node.DisplayName}\"]");
+            foreach (var node in topics) sb.AppendLine($"    {getId(node.Id)}{{\"📬 {esc(node.DisplayName)}\"}}");
+            sb.AppendLine("  end");
+        }
+
+        var external = dto.Nodes.Where(n => n.Kind == "ExternalService").ToList();
+        if (external.Count > 0)
+        {
+            sb.AppendLine("  subgraph External [\"External Systems\"]");
+            foreach (var node in external) sb.AppendLine($"    {getId(node.Id)}[\"🌐 {esc(node.DisplayName)}\"]");
+            sb.AppendLine("  end");
+        }
+
+        var libs = dto.Nodes.Where(n => n.Kind == "Library").ToList();
+        if (libs.Count > 0)
+        {
+            sb.AppendLine("  subgraph Libraries [\"Shared Libraries\"]");
+            foreach (var node in libs) sb.AppendLine($"    {getId(node.Id)}[\"📦 {esc(node.DisplayName)}\"]");
             sb.AppendLine("  end");
         }
 
         foreach (var e in dto.Edges)
         {
-            sb.AppendLine($"  {sanitize(e.Source)} -->|{e.Label} ({e.Count})| {sanitize(e.Target)}");
+            sb.AppendLine($"  {getId(e.Source)} -->|\"{esc(e.Label)} ({e.Count})\"| {getId(e.Target)}");
         }
 
         return sb.ToString();
@@ -2910,7 +3062,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         var sanitize = (string s) => s.Replace(":", "_").Replace("-", "_").Replace(".", "_").Replace("/", "_");
         foreach (var hop in dto.Hops)
         {
-            sb.AppendLine($"  {sanitize(hop.Source)} -->|{hop.Kind}| {sanitize(hop.Target)}");
+            sb.AppendLine($"  {sanitize(hop.Source)} -->|\"{hop.Kind}\"| {sanitize(hop.Target)}");
         }
         return sb.ToString();
     }
@@ -2941,7 +3093,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         foreach (var edge in graph.Edges)
         {
             var kind = !string.IsNullOrWhiteSpace(edge.Kind) ? edge.Kind : "DEPENDS_ON";
-            sb.AppendLine($"  {sanitize(edge.Source)} -->|{kind}| {sanitize(edge.Target)}");
+            sb.AppendLine($"  {sanitize(edge.Source)} -->|\"{kind}\"| {sanitize(edge.Target)}");
         }
 
         return sb.ToString();

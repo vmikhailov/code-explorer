@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.ProjectsStructure,
-    idScheme: "{workspaceId}:projects_structure",
+    idScheme: "{workspaceId}:ps",
     purpose: "Represents an intermediate node grouping all logical projects in the workspace.",
     layer: OntologyConstants.Layers.ProjectBoundary,
     isSystemNode: true

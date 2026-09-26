@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.ProjectSyntax,
-    idScheme: "{workspaceId}:project:{relativeProjectDir}:project_syntax",
+    idScheme: "{workspaceId}:p:{relativeProjectDir}:syntax",
     purpose: "Represents an intermediate node grouping AST/syntactic declarations of a specific project.",
     layer: OntologyConstants.Layers.Syntactic,
     isSystemNode: true

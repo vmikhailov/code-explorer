@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Function,
-    idScheme: "{workspaceId}:symbol:{filePath}:Function:{name}:{line}",
+    idScheme: "{workspaceId}:sym:{filePath}:Function:{name}:{line}",
     purpose: "Represents a parsed method, function, subroutine, or procedure.",
     layer: OntologyConstants.Layers.Syntactic,
     icon: "symbol-method",

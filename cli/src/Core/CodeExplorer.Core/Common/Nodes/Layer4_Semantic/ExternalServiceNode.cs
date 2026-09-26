@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.ExternalService,
-    idScheme: "{workspaceId}:externalservice:{protocol}:{host}",
+    idScheme: "{workspaceId}:es:{protocol}:{host}",
     purpose: "Represents a physical/logical external host dependency.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "cloud",

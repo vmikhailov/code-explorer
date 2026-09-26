@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Package,
-    idScheme: "{workspaceId}:package:{packageName}",
+    idScheme: "{workspaceId}:pkg:{packageName}",
     purpose: "Represents an external dependency package or workspace package referenced or produced by projects.",
     layer: OntologyConstants.Layers.ProjectBoundary,
     icon: "package",

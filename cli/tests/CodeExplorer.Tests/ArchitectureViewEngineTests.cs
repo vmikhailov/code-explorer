@@ -205,4 +205,62 @@ public class ArchitectureViewEngineTests
         Assert.That(filesStructureNodes.Total, Is.EqualTo(0), "GetNodes for FilesStructure must return 0 total");
         Assert.That(filesStructureNodes.Nodes, Is.Empty, "GetNodes for FilesStructure must be empty");
     }
+
+    [Test]
+    public async Task GetMetadataAsync_DoesNotDoubleCountSemanticWorkloadNodes()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_double_count_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var dbPath = Path.Combine(tempDir, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+            var engine = new ArchitectureViewEngine(db);
+
+            var sampleNodes = new List<Node>
+            {
+                new("ws:project:ad-hub:", "Project", new() { ["name"] = "ad-hub", ["role"] = "Service" }),
+                new("ws:service:ad-hub", "Service", new() { ["name"] = "ad-hub" }),
+                new("ws:project:action-scheduler:", "Project", new() { ["name"] = "action-scheduler", ["role"] = "Worker" }),
+                new("ws:worker:action-scheduler", "Worker", new() { ["name"] = "action-scheduler" }),
+                new("ws:project:ats-front:", "Project", new() { ["name"] = "ats-front", ["role"] = "FrontendApp" }),
+                new("ws:app:ats-front", "App", new() { ["name"] = "ats-front" }),
+                new("ws:project:adhub-cli:", "Project", new() { ["name"] = "adhub-cli", ["role"] = "CliTool" }),
+                new("ws:cli:adhub-cli", "CliTool", new() { ["name"] = "adhub-cli" })
+            };
+            await db.UploadNodesAsync(sampleNodes);
+
+            var meta = await engine.GetMetadataAsync();
+            Assert.That(meta.NodeCounts["Service"], Is.EqualTo(1), "Service node count must be 1, not doubled");
+            Assert.That(meta.NodeCounts["Worker"], Is.EqualTo(1), "Worker node count must be 1, not doubled");
+            Assert.That(meta.NodeCounts["App"], Is.EqualTo(1), "App node count must be 1, not doubled");
+            Assert.That(meta.NodeCounts["CliTool"], Is.EqualTo(1), "CliTool node count must be 1, not doubled");
+            Assert.That(meta.NodeCounts["Project"], Is.EqualTo(4), "Project node count must be 4, not doubled");
+            Assert.That(meta.TotalNodes, Is.EqualTo(8), "Total nodes must be 8");
+
+            var layers = await engine.GetOntologyLayersAsync();
+            var l4 = layers.Layers.FirstOrDefault(l => l.LayerId == 4);
+            Assert.That(l4, Is.Not.Null);
+
+            var appCat = l4!.Categories.FirstOrDefault(c => c.Kind == "App");
+            Assert.That(appCat, Is.Not.Null);
+            Assert.That(appCat!.Count, Is.EqualTo(1));
+
+            var svcCat = l4.Categories.FirstOrDefault(c => c.Kind == "Service");
+            Assert.That(svcCat, Is.Not.Null);
+            Assert.That(svcCat!.Count, Is.EqualTo(1));
+
+            var workerCat = l4.Categories.FirstOrDefault(c => c.Kind == "Worker");
+            Assert.That(workerCat, Is.Not.Null);
+            Assert.That(workerCat!.Count, Is.EqualTo(1));
+
+            var cliCat = l4.Categories.FirstOrDefault(c => c.Kind == "CliTool");
+            Assert.That(cliCat, Is.Not.Null);
+            Assert.That(cliCat!.Count, Is.EqualTo(1));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
 }

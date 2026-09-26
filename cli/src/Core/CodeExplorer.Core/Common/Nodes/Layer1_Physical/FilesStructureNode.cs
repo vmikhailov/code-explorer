@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.FilesStructure,
-    idScheme: "{workspaceId}:files_structure",
+    idScheme: "{workspaceId}:fs",
     purpose: "Represents an intermediate node grouping the physical folder and file tree of the entire workspace.",
     layer: OntologyConstants.Layers.Physical,
     isSystemNode: true

@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Query,
-    idScheme: "{workspaceId}:query:{queryHash}",
+    idScheme: "{workspaceId}:q:{queryHash}",
     purpose: "Represents a SQL query.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "search",

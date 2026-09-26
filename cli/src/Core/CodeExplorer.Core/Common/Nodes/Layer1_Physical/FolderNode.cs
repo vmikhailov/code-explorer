@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Folder,
-    idScheme: "{workspaceId}:folder:{relativeDirectoryPath}",
+    idScheme: "{workspaceId}:dir:{relativeDirectoryPath}",
     purpose: "Represents a directory within the indexed workspace.",
     layer: OntologyConstants.Layers.Physical,
     icon: "folder",

@@ -162,7 +162,8 @@ public class ParserValidationTests
     private void AssertSqlHierarchy(QueryNode queryNode, string expectedDb, string expectedSchema, string expectedTable)
     {
         var dbNode = queryNode.Children.OfType<DatabaseNode>()
-            .FirstOrDefault(d => d.Name.Equals(expectedDb, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(d => d.Name.Equals(expectedDb, StringComparison.OrdinalIgnoreCase) ||
+                                (expectedDb.Equals("default", StringComparison.OrdinalIgnoreCase) && d.Name.EndsWith("." + expectedSchema, StringComparison.OrdinalIgnoreCase)));
         Assert.That(dbNode, Is.Not.Null, $"Should contain DB node: {expectedDb}");
         Assert.That(dbNode.DbType, Is.EqualTo("relational"));
 
@@ -181,6 +182,39 @@ public class ParserValidationTests
         var input = "\"'SELECT * FROM my_table'\"";
         var cleaned = NestedSqlParser.CleanQueryText(input);
         Assert.That(cleaned, Is.EqualTo("SELECT * FROM my_table"));
+    }
+
+    [Test]
+    public void Test_NestedSqlParser_CleanSqlIdentifier_UnbalancedBrackets()
+    {
+        Assert.That(NestedSqlParser.CleanSqlIdentifier("[calculation_history"), Is.EqualTo("calculation_history"));
+        Assert.That(NestedSqlParser.CleanSqlIdentifier("[calculation_history]"), Is.EqualTo("calculation_history"));
+        Assert.That(NestedSqlParser.CleanSqlIdentifier("`calculation_history`"), Is.EqualTo("calculation_history"));
+        Assert.That(NestedSqlParser.CleanSqlIdentifier("\"calculation_history\""), Is.EqualTo("calculation_history"));
+    }
+
+    [Test]
+    public void Test_NestedSqlParser_BigQueryWildcardQuery()
+    {
+        var rawSql = "SELECT DISTINCT _TABLE_SUFFIX AS suffix FROM `calculation_history.expect_site_cpm_*`";
+        var queryNode = NestedSqlParser.ParseNestedSql(rawSql, "ws:query:1", "bq-routes-calculation/src/repository/history.repository.ts");
+        
+        Assert.That(queryNode, Is.Not.Null);
+        var dbNode = queryNode!.Children.OfType<DatabaseNode>().FirstOrDefault();
+        Assert.That(dbNode, Is.Not.Null);
+        Assert.That(dbNode!.Name, Is.EqualTo("BigQuery.calculation_history"));
+        Assert.That(dbNode.DbType, Is.EqualTo("analytics"));
+        Assert.That(dbNode.Extensions!["engine"], Is.EqualTo("BigQuery"));
+        Assert.That(dbNode.Extensions!["schema"], Is.EqualTo("calculation_history"));
+        Assert.That(dbNode.Name.Contains('['), Is.False, "DatabaseNode name must not contain bracket '['");
+
+        var datasetNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault();
+        Assert.That(datasetNode, Is.Not.Null);
+        Assert.That(datasetNode!.Name, Is.EqualTo("calculation_history"));
+
+        var tableNode = datasetNode.Children.OfType<TableNode>().FirstOrDefault();
+        Assert.That(tableNode, Is.Not.Null);
+        Assert.That(tableNode!.Name, Is.EqualTo("expect_site_cpm_*"));
     }
 
     [Test]
@@ -433,7 +467,7 @@ public class ParserValidationTests
         // Check if DatabaseNode child was added at the project level (under SemanticStructureNode)
         var dbNode = semanticNode.Children.OfType<DatabaseNode>().FirstOrDefault();
         Assert.That(dbNode, Is.Not.Null);
-        Assert.That(dbNode.Name, Is.EqualTo("Database"));
+        Assert.That(dbNode.Name, Does.StartWith("PostgreSQL"));
         Assert.That(dbNode.DbType, Is.EqualTo("relational"));
 
         // Check if CloudServiceNode child was added at the project level (under SemanticStructureNode)
@@ -583,7 +617,7 @@ public class ParserValidationTests
             Assert.That(csDbGroup, Is.Not.Null);
             var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.DbType == "relational");
             Assert.That(csDbNode, Is.Not.Null);
-            Assert.That(csDbNode.Name, Is.EqualTo("Database"));
+            Assert.That(csDbNode.Name, Does.StartWith("PostgreSQL"));
             Assert.That(csDbNode.DbType, Is.EqualTo("relational"));
 
             Assert.That(

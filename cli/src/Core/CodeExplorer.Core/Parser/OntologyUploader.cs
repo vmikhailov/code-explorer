@@ -131,7 +131,7 @@ public static class OntologyUploader
             else
             {
                 var absoluteFolderPath = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, projectPath)).Replace('\\', '/');
-                targetId = $"{ctx.WorkspaceId}:folder:{absoluteFolderPath}";
+                targetId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Folder}:{absoluteFolderPath}";
             }
 
             var locatedInRel = Relationship.FromRelationship(new LocatedInRelationship(node.Id, targetId));
@@ -155,14 +155,21 @@ public static class OntologyUploader
 
     private static IOntologyRelationship GetRelationship(string parentId, IOntologyNode child)
     {
-        if (parentId.Contains("files_structure") || parentId.Contains("syntax_structure") || parentId.Contains("semantic_structure") || parentId.Contains("project_syntax"))
+        if (parentId.EndsWith($":{OntologyConstants.IdPrefixes.FilesStructure}") ||
+            parentId.EndsWith($":{OntologyConstants.IdPrefixes.SyntaxStructure}") ||
+            parentId.EndsWith($":{OntologyConstants.IdPrefixes.SemanticStructure}") ||
+            parentId.EndsWith($":{OntologyConstants.IdPrefixes.ProjectsStructure}") ||
+            parentId.Contains("files_structure") ||
+            parentId.Contains("syntax_structure") ||
+            parentId.Contains("semantic_structure") ||
+            parentId.EndsWith(":syntax"))
         {
             return new ContainsRelationship(parentId, child.Id);
         }
 
         if (child.Kind == OntologyConstants.NodeLabels.Package)
         {
-            if (child is PackageNode pn && (!pn.IsExternal || !string.IsNullOrEmpty(pn.Path)) && parentId.Contains(":project:"))
+            if (child is PackageNode pn && (!pn.IsExternal || !string.IsNullOrEmpty(pn.Path)) && IsProjectNodeId(parentId))
             {
                 return new ImplementedByRelationship(child.Id, parentId);
             }
@@ -170,7 +177,7 @@ public static class OntologyUploader
         }
         if (child is ProjectNode)
         {
-            if (parentId.Contains(":package:"))
+            if (IsPackageNodeId(parentId))
             {
                 return new ImplementedByRelationship(parentId, child.Id);
             }
@@ -178,7 +185,7 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.Database)
         {
-            if (parentId.Contains(":symbol:") || parentId.Contains(":function:") || parentId.Contains(":query:"))
+            if (IsSymbolOrCallableId(parentId))
             {
                 return new QueriedByRelationship(child.Id, parentId);
             }
@@ -186,7 +193,7 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.Topic)
         {
-            if (parentId.Contains(":project:"))
+            if (IsProjectNodeId(parentId))
             {
                 return new PublishesToRelationship(parentId, child.Id);
             }
@@ -194,7 +201,7 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.Endpoint)
         {
-            if (parentId.Contains(":project:"))
+            if (IsProjectNodeId(parentId))
             {
                 return new ContainsRelationship(parentId, child.Id);
             }
@@ -202,7 +209,7 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.ApiInUse)
         {
-            if (parentId.Contains(":project:"))
+            if (IsProjectNodeId(parentId))
             {
                 return new ContainsRelationship(parentId, child.Id);
             }
@@ -210,7 +217,7 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.CloudService)
         {
-            if (parentId.Contains(":project:"))
+            if (IsProjectNodeId(parentId))
             {
                 return new ContainsRelationship(parentId, child.Id);
             }
@@ -218,11 +225,11 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
-            if (parentId.Contains(":project:"))
+            if (IsProjectNodeId(parentId))
             {
                 return new ContainsRelationship(parentId, child.Id);
             }
-            if (parentId.Contains(":entrypoints"))
+            if (parentId.Contains(":entrypoints") || parentId.Contains(":entry"))
             {
                 return new ExposedByRelationship(child.Id, parentId); // EntryPoint -> EXPOSED_BY -> EntryPoints
             }
@@ -230,7 +237,7 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.ExternalService)
         {
-            if (parentId.Contains(":project:"))
+            if (IsProjectNodeId(parentId))
             {
                 return new ContainsRelationship(parentId, child.Id);
             }
@@ -239,11 +246,11 @@ public static class OntologyUploader
 
         if (IsCodeEntityKind(child.Kind))
         {
-            if (parentId.Contains(":file:"))
+            if (IsFileNodeId(parentId))
             {
                 return new DeclaredInRelationship(child.Id, parentId);
             }
-            if (parentId.Contains(":project:"))
+            if (IsProjectNodeId(parentId))
             {
                 if (child.Kind == OntologyConstants.NodeLabels.Type)
                 {
@@ -282,15 +289,19 @@ public static class OntologyUploader
     private static bool IsCodeEntityId(string id)
     {
         var lower = id.ToLowerInvariant();
-        return lower.Contains(":symbol:") ||
+        return lower.Contains($":{OntologyConstants.IdPrefixes.Symbol}:") ||
+               lower.Contains(":symbol:") ||
                lower.Contains(":class:") ||
                lower.Contains(":interface:") ||
                lower.Contains(":type:") ||
                lower.Contains(":function:") ||
                lower.Contains(":variable:") ||
                lower.Contains(":member:") ||
+               lower.Contains($":{OntologyConstants.IdPrefixes.Procedure}:") ||
                lower.Contains(":procedure:") ||
+               lower.Contains($":{OntologyConstants.IdPrefixes.Query}:") ||
                lower.Contains(":query:") ||
+               lower.Contains($":{OntologyConstants.IdPrefixes.Table}:") ||
                lower.Contains(":table:");
     }
 
@@ -303,4 +314,33 @@ public static class OntologyUploader
                kind == OntologyConstants.NodeLabels.Procedure ||
                kind == OntologyConstants.NodeLabels.Table;
     }
+
+    private static bool IsProjectNodeId(string id)
+    {
+        return Urn.TryParse(id, out var urn) && (urn.Domain.Equals(OntologyConstants.IdPrefixes.Project, StringComparison.OrdinalIgnoreCase) || urn.Domain.Equals("project", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsPackageNodeId(string id)
+    {
+        return Urn.TryParse(id, out var urn) && (urn.Domain.Equals(OntologyConstants.IdPrefixes.Package, StringComparison.OrdinalIgnoreCase) || urn.Domain.Equals("package", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsFileNodeId(string id)
+    {
+        return Urn.TryParse(id, out var urn) && (urn.Domain.Equals(OntologyConstants.IdPrefixes.File, StringComparison.OrdinalIgnoreCase) || urn.Domain.Equals("file", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsSymbolOrCallableId(string id)
+    {
+        if (Urn.TryParse(id, out var urn))
+        {
+            var d = urn.Domain.ToLowerInvariant();
+            return d is OntologyConstants.IdPrefixes.Symbol or "symbol"
+                     or OntologyConstants.IdPrefixes.Query or "query"
+                     or OntologyConstants.IdPrefixes.Procedure or "procedure"
+                     || id.Contains(":function:") || id.Contains(":Function:");
+        }
+        return false;
+    }
 }
+

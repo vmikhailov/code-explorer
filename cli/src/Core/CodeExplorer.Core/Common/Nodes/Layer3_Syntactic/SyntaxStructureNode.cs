@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.SyntaxStructure,
-    idScheme: "{workspaceId}:syntax_structure",
+    idScheme: "{workspaceId}:ss",
     purpose: "Represents an intermediate node grouping all AST/syntactic declarations of the entire workspace.",
     layer: OntologyConstants.Layers.Syntactic,
     isSystemNode: true

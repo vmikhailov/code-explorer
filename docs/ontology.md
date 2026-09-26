@@ -1135,35 +1135,35 @@ graph TD
 
 | Layer | Node Label | ID / URN Scheme |
 | :--- | :--- | :--- |
-| Root / Umbrella | `SemanticStructure` | `{workspaceId}:semantic_structure` |
+| Root / Umbrella | `SemanticStructure` | `{workspaceId}:sem` |
 | Root / Umbrella | `Workspace` | `{workspaceId}` |
 | Layer 1: Physical Topology | `Counter` | `workspace_id` |
-| Layer 1: Physical Topology | `File` | `{workspaceId}:file:{relativeFilePath}` |
-| Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:files_structure` |
-| Layer 1: Physical Topology | `Folder` | `{workspaceId}:folder:{relativeDirectoryPath}` |
-| Layer 1: Physical Topology | `GitSettings` | `{workspaceId}:gitsettings` |
-| Layer 2: Project Boundary | `Package` | `{workspaceId}:package:{packageName}` |
-| Layer 2: Project Boundary | `Project` | `{workspaceId}:project:{relativeProjectDir}:` |
-| Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:projects_structure` |
-| Layer 3: Syntactic Structure | `Function` | `{workspaceId}:symbol:{filePath}:Function:{name}:{line}` |
-| Layer 3: Syntactic Structure | `Member` | `{workspaceId}:symbol:{filePath}:Member:{name}:{line}` |
-| Layer 3: Syntactic Structure | `ProjectSyntax` | `{workspaceId}:project:{relativeProjectDir}:project_syntax` |
-| Layer 3: Syntactic Structure | `SyntaxStructure` | `{workspaceId}:syntax_structure` |
-| Layer 3: Syntactic Structure | `Type` | `{workspaceId}:symbol:{filePath}:Type:{name}:{line}` |
-| Layer 4: Semantic Structure | `ApiInUse` | `{workspaceId}:project:{relativeProjectDir}:api:{apiName}` |
+| Layer 1: Physical Topology | `File` | `{workspaceId}:f:{relativeFilePath}` |
+| Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:fs` |
+| Layer 1: Physical Topology | `Folder` | `{workspaceId}:dir:{relativeDirectoryPath}` |
+| Layer 1: Physical Topology | `GitSettings` | `{workspaceId}:git` |
+| Layer 2: Project Boundary | `Package` | `{workspaceId}:pkg:{packageName}` |
+| Layer 2: Project Boundary | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |
+| Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:ps` |
+| Layer 3: Syntactic Structure | `Function` | `{workspaceId}:sym:{filePath}:Function:{name}:{line}` |
+| Layer 3: Syntactic Structure | `Member` | `{workspaceId}:sym:{filePath}:Member:{name}:{line}` |
+| Layer 3: Syntactic Structure | `ProjectSyntax` | `{workspaceId}:p:{relativeProjectDir}:syntax` |
+| Layer 3: Syntactic Structure | `SyntaxStructure` | `{workspaceId}:ss` |
+| Layer 3: Syntactic Structure | `Type` | `{workspaceId}:sym:{filePath}:Type:{name}:{line}` |
+| Layer 4: Semantic Structure | `ApiInUse` | `{workspaceId}:p:{relativeProjectDir}:api:{apiName}` |
 | Layer 4: Semantic Structure | `App` | `{workspaceId}:app:{appName}` |
-| Layer 4: Semantic Structure | `CliTool` | `{workspaceId}:clitool:{toolName}` |
-| Layer 4: Semantic Structure | `CloudService` | `{workspaceId}:project:{relativeProjectDir}:cloudservice:{serviceName}` |
-| Layer 4: Semantic Structure | `Database` | `{workspaceId}:database:{dbType}:{dbName}` |
-| Layer 4: Semantic Structure | `DataSet` | `{workspaceId}:dataset:{datasetName}` |
-| Layer 4: Semantic Structure | `Endpoint` | `{workspaceId}:endpoint:{httpMethod}:{routeTemplate}` |
-| Layer 4: Semantic Structure | `EntryPoint` | `{workspaceId}:entrypoint:{type}:{name}` |
-| Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:externalservice:{protocol}:{host}` |
-| Layer 4: Semantic Structure | `Library` | `{workspaceId}:library:{libraryName}` |
-| Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:procedure:{procedureName}` |
-| Layer 4: Semantic Structure | `Query` | `{workspaceId}:query:{queryHash}` |
-| Layer 4: Semantic Structure | `Service` | `{workspaceId}:service:{serviceName}` |
-| Layer 4: Semantic Structure | `Table` | `{workspaceId}:table:{tableName}` |
-| Layer 4: Semantic Structure | `Topic` | `{workspaceId}:topic:{brokerType}:{topicName}` |
-| Layer 4: Semantic Structure | `Worker` | `{workspaceId}:worker:{workerName}` |
+| Layer 4: Semantic Structure | `CliTool` | `{workspaceId}:cli:{toolName}` |
+| Layer 4: Semantic Structure | `CloudService` | `{workspaceId}:p:{relativeProjectDir}:cloud:{serviceName}` |
+| Layer 4: Semantic Structure | `Database` | `{workspaceId}:db:{dbType}:{dbName}` |
+| Layer 4: Semantic Structure | `DataSet` | `{workspaceId}:ds:{datasetName}` |
+| Layer 4: Semantic Structure | `Endpoint` | `{workspaceId}:ep:{httpMethod}:{routeTemplate}` |
+| Layer 4: Semantic Structure | `EntryPoint` | `{workspaceId}:entry:{type}:{name}` |
+| Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:es:{protocol}:{host}` |
+| Layer 4: Semantic Structure | `Library` | `{workspaceId}:lib:{libraryName}` |
+| Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:proc:{procedureName}` |
+| Layer 4: Semantic Structure | `Query` | `{workspaceId}:q:{queryHash}` |
+| Layer 4: Semantic Structure | `Service` | `{workspaceId}:s:{serviceName}` |
+| Layer 4: Semantic Structure | `Table` | `{workspaceId}:tbl:{tableName}` |
+| Layer 4: Semantic Structure | `Topic` | `{workspaceId}:top:{brokerType}:{topicName}` |
+| Layer 4: Semantic Structure | `Worker` | `{workspaceId}:w:{workerName}` |
 

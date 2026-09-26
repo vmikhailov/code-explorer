@@ -46,7 +46,7 @@ public class Layer1PhysicalParser
         var hostPath = PathTools.NormalizeToHostPath(ctx.HostWorkspacePath);
         var workspaceNode = new WorkspaceNode(wsId, workspaceName, hostPath);
 
-        var filesNodeId = $"{wsId}:files_structure";
+        var filesNodeId = $"{wsId}:{OntologyConstants.IdPrefixes.FilesStructure}";
         var filesStructureNode = new FilesStructureNode(filesNodeId, "FilesStructure", hostPath);
         workspaceNode.Children.Add(filesStructureNode);
 
@@ -81,7 +81,7 @@ public class Layer1PhysicalParser
             for (int i = 0; i < segments.Length - 1; i++)
             {
                 currentPath = Path.Combine(currentPath, segments[i]).Replace('\\', '/');
-                var folderId = $"{wsId}:folder:{currentPath}";
+                var folderId = $"{wsId}:{OntologyConstants.IdPrefixes.Folder}:{currentPath}";
                 var intermediateFolder = new FolderNode(folderId, segments[i], currentPath);
 
                 currentParent.Children.Add(intermediateFolder);
@@ -156,7 +156,7 @@ public class Layer1PhysicalParser
         if (currentDir != ctx.AbsoluteWorkspacePath)
         {
             var absoluteFolderPath = Path.GetFullPath(currentDir).Replace('\\', '/');
-            var folderId = $"{ctx.WorkspaceId}:folder:{absoluteFolderPath}";
+            var folderId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Folder}:{absoluteFolderPath}";
             var folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
 
             parentNode.Children.Add(folderNode);
@@ -209,7 +209,7 @@ public class Layer1PhysicalParser
             }
 
             var absoluteFilePath = fileInfo.FullName.Replace('\\', '/');
-            var fileId = $"{ctx.WorkspaceId}:file:{relativeFile}";
+            var fileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relativeFile}";
             var fileName = fileInfo.Name;
             var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath);
 

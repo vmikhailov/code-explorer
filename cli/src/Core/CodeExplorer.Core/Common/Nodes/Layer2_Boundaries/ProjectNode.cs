@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Project,
-    idScheme: "{workspaceId}:project:{relativeProjectDir}:",
+    idScheme: "{workspaceId}:p:{relativeProjectDir}:",
     purpose: "Represents a buildable/compilable module or package directory (e.g. C# project, Go module, TS library, Python package).",
     layer: OntologyConstants.Layers.ProjectBoundary,
     icon: "project",

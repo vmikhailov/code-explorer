@@ -374,9 +374,9 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       {
         mode: 'c1',
         label: 'C1: System Context',
-        desc: 'Semantic boundaries & external APIs',
+        desc: 'Apps, Services & External APIs',
         icon: 'globe',
-        tooltip: 'C1: System Context — Ingress endpoints, system boundary, databases, and egress topics',
+        tooltip: 'C1: System Context — Apps, Services, and External Services (Dagre & Mermaid)',
       },
       {
         mode: 'flow',

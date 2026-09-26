@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Endpoint,
-    idScheme: "{workspaceId}:endpoint:{httpMethod}:{routeTemplate}",
+    idScheme: "{workspaceId}:ep:{httpMethod}:{routeTemplate}",
     purpose: "Represents an exposed HTTP API endpoint route.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "radio-tower",

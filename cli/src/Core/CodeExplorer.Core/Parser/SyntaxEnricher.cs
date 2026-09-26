@@ -5,6 +5,7 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
@@ -126,69 +127,58 @@ public class SyntaxEnricher : ISyntaxEnricher
                             ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesOrmRel));
                         }
 
-                        CanonicalResource? canonicalRes = null;
+                        var (detectedEngine, detectedType) = isOrm
+                            ? DetectProjectDatabaseDriver(projectNode, ctx)
+                            : (null, null);
 
-                        if (isOrm)
+                        var targetEngine = !string.IsNullOrEmpty(detectedEngine)
+                            ? detectedEngine
+                            : (!string.IsNullOrEmpty(dbEngine) && !dbEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
+                                ? ResourceReconciliationService.NormalizeEngineName(dbEngine)
+                                : "PostgreSQL");
+
+                        if (!string.IsNullOrEmpty(detectedType)) dbType = detectedType;
+                        else if (dbType == "unknown") dbType = "relational";
+
+                        var declaredSchema = dbType.Equals("relational", StringComparison.OrdinalIgnoreCase)
+                            ? (DetectDeclaredSchema(projectNode, fileNode, _syntaxTree) ?? GetDefaultSchemaForEngine(targetEngine, dbType))
+                            : null;
+
+                        var canonicalDbName = !string.IsNullOrEmpty(declaredSchema)
+                            ? $"{targetEngine}.{declaredSchema}"
+                            : targetEngine;
+
+                        CanonicalResource? canonicalRes = ctx.ResourceRegistry.ResolveResource(canonicalDbName, expectedDbType: dbType, expectedEngine: targetEngine);
+
+                        if (canonicalRes == null)
                         {
-                            // For an ORM, parser.Name (e.g. "TypeORM") is an abstraction library, NOT a physical database server.
-                            // Attempt to detect the actual database driver / engine for the project (e.g., PostgreSQL from 'pg' package or config).
-                            var (detectedEngine, detectedType) = DetectProjectDatabaseDriver(projectNode, ctx);
-                            if (!string.IsNullOrEmpty(detectedEngine))
-                            {
-                                dbEngine = detectedEngine;
-                                if (!string.IsNullOrEmpty(detectedType)) dbType = detectedType;
-                                canonicalRes = ctx.ResourceRegistry.ResolveResource(dbEngine, expectedDbType: dbType, expectedEngine: dbEngine)
-                                               ?? ctx.ResourceRegistry.ResolveResource(null, expectedDbType: dbType, expectedEngine: dbEngine);
-                            }
+                            var aliasList = new List<string> { canonicalDbName, targetEngine.ToLowerInvariant(), parser.Id.ToLowerInvariant() };
+                            if (!string.IsNullOrEmpty(declaredSchema)) aliasList.Add(declaredSchema);
 
-                            // If driver not detected, check if workspace/project already has an existing relational database
-                            canonicalRes ??= ctx.ResourceRegistry.ResolveResource(null, expectedDbType: dbType, expectedEngine: null);
-
-                            if (canonicalRes == null)
-                            {
-                                var targetEngine = !string.IsNullOrEmpty(detectedEngine) ? detectedEngine : "Database";
-                                canonicalRes = ctx.ResourceRegistry.RegisterResource(
-                                    ctx.WorkspaceId,
-                                    targetEngine,
-                                    targetEngine,
-                                    dbType,
-                                    OntologyConstants.NodeLabels.Database,
-                                    fileNode.Path,
-                                    projectNode.Id,
-                                    [!string.IsNullOrEmpty(detectedEngine) ? detectedEngine.ToLowerInvariant() : "database", "relational", parser.Id.ToLowerInvariant()]
-                                );
-                            }
-                        }
-                        else
-                        {
-                            // Direct database driver (e.g. pg, mysql2, sqlite3, redis)
-                            canonicalRes = ctx.ResourceRegistry.ResolveResource(parser.Id, expectedDbType: dbType, expectedEngine: dbEngine)
-                                           ?? ctx.ResourceRegistry.ResolveResource(parser.Name, expectedDbType: dbType, expectedEngine: dbEngine)
-                                           ?? ctx.ResourceRegistry.ResolveResource(null, expectedDbType: dbType, expectedEngine: dbEngine);
-
-                            if (canonicalRes == null)
-                            {
-                                canonicalRes = ctx.ResourceRegistry.RegisterResource(
-                                    ctx.WorkspaceId,
-                                    dbEngine,
-                                    dbEngine,
-                                    dbType,
-                                    OntologyConstants.NodeLabels.Database,
-                                    fileNode.Path,
-                                    projectNode.Id,
-                                    [parser.Id, parser.Name]
-                                );
-                            }
+                            canonicalRes = ctx.ResourceRegistry.RegisterResource(
+                                ctx.WorkspaceId,
+                                canonicalDbName,
+                                targetEngine,
+                                dbType,
+                                OntologyConstants.NodeLabels.Database,
+                                fileNode.Path,
+                                projectNode.Id,
+                                aliasList
+                            );
                         }
 
                         var dbId = canonicalRes.Id;
-                        var canonicalDbName = canonicalRes.Name;
 
                         var extensions = new Dictionary<string, string>
                         {
-                            ["engine"] = canonicalRes.Engine,
+                            ["name"] = canonicalDbName,
+                            ["engine"] = targetEngine,
                             ["provider"] = parser.Name
                         };
+                        if (!string.IsNullOrEmpty(declaredSchema))
+                        {
+                            extensions["schema"] = declaredSchema;
+                        }
                         if (isOrm)
                         {
                             extensions["is_orm"] = "true";
@@ -197,14 +187,8 @@ public class SyntaxEnricher : ISyntaxEnricher
                         var semanticNodeForDb = ctx.SemanticStructure;
                         if (semanticNodeForDb != null)
                         {
-                            var isConcreteDb = !string.Equals(canonicalDbName, "Database", StringComparison.OrdinalIgnoreCase) &&
-                                               !string.Equals(canonicalRes.Engine, "Database", StringComparison.OrdinalIgnoreCase);
-
-                            if (isConcreteDb)
-                            {
-                                // Remove any previous generic placeholder Database node that might have been registered before a driver was detected
-                                semanticNodeForDb.Children.RemoveAll(c => c is DatabaseNode dn && (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase)));
-                            }
+                            // Remove any previous generic placeholder Database node that might have been registered before a driver was detected
+                            semanticNodeForDb.Children.RemoveAll(c => c is DatabaseNode dn && (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith($":{OntologyConstants.IdPrefixes.Database}:relational:database", StringComparison.OrdinalIgnoreCase)));
 
                             if (!semanticNodeForDb.Children.Any(c => c.Id == dbId))
                             {
@@ -219,6 +203,10 @@ public class SyntaxEnricher : ISyntaxEnricher
                             ["via"] = parser.Name,
                             ["provider"] = parser.Id
                         };
+                        if (!string.IsNullOrEmpty(declaredSchema))
+                        {
+                            relExt["schema"] = declaredSchema;
+                        }
                         if (isOrm)
                         {
                             relExt["is_orm"] = "true";
@@ -281,7 +269,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                     if (isGlobal) varTypeStr.Add("global");
 
                     var varType = string.Join(",", varTypeStr);
-                    var varId = $"{ctx.WorkspaceId}:symbol:{relativePath}:Member:{rawVar.Name}:{rawVar.StartLine}";
+                    var varId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Member:{rawVar.Name}:{rawVar.StartLine}";
 
                     var ext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
@@ -337,6 +325,131 @@ public class SyntaxEnricher : ISyntaxEnricher
         return lower is "ef-core" or "microsoft.entityframeworkcore" or "dapper" or "typeorm" or
                "prisma" or "hibernate" or "nhibernate" or "sequelize" or "drizzle" or "sqlalchemy" or
                "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex";
+    }
+
+    private static readonly ConcurrentDictionary<string, string> _projectSchemaCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']([^""']+)[""']\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SchemaConstRegex = new(@"(?:SchemaName|DefaultSchemaName)\s*=\s*[""']([^""']+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex TypeOrmSchemaRegex = new(@"@Entity\s*\(\s*\{[^}]*schema\s*:\s*[""']([^""']+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[""'][^""']+[""']\s*,\s*(?:schema:\s*)?[""']([^""']+)[""']\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public static string? DetectDeclaredSchema(ProjectNode? projectNode, FileNode? fileNode, SyntaxTree? syntaxTree)
+    {
+        // 1. Check if any symbol in fileNode has schema extension
+        if (fileNode != null)
+        {
+            var found = FindSchemaInNode(fileNode);
+            if (!string.IsNullOrEmpty(found))
+            {
+                if (projectNode != null) _projectSchemaCache[projectNode.Id] = found;
+                return found;
+            }
+        }
+
+        // 2. Scan source file text if available
+        if (syntaxTree != null && !string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath))
+        {
+            var fileSchema = ScanFileTextForSchema(syntaxTree.FilePath);
+            if (!string.IsNullOrEmpty(fileSchema))
+            {
+                if (projectNode != null) _projectSchemaCache[projectNode.Id] = fileSchema;
+                return fileSchema;
+            }
+        }
+
+        // 3. Check project cache
+        if (projectNode != null && _projectSchemaCache.TryGetValue(projectNode.Id, out var cachedSchema))
+        {
+            return cachedSchema;
+        }
+
+        // 4. Infer from DbContext or Model class name in the file name
+        if (fileNode != null && !string.IsNullOrEmpty(fileNode.Name))
+        {
+            var fileName = Path.GetFileNameWithoutExtension(fileNode.Name);
+            var lower = fileName.ToLowerInvariant();
+            if (lower.EndsWith("dbcontext") && lower.Length > 9)
+            {
+                var inferred = lower[..^9].Trim('_', '-');
+                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
+                {
+                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
+                    return inferred;
+                }
+            }
+            if (lower.EndsWith("context") && lower.Length > 7)
+            {
+                var inferred = lower[..^7].Trim('_', '-');
+                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
+                {
+                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
+                    return inferred;
+                }
+            }
+        }
+
+        // 5. Infer from project name if project is named e.g. Lidoma.Tournament or tournament-service
+        if (projectNode != null && !string.IsNullOrEmpty(projectNode.Name))
+        {
+            var pName = projectNode.Name;
+            var lastDot = pName.LastIndexOf('.');
+            var segment = lastDot >= 0 ? pName[(lastDot + 1)..] : pName;
+            var cleanSegment = segment.ToLowerInvariant().Replace("service", "").Replace("api", "").Trim('_', '-');
+            if (!string.IsNullOrEmpty(cleanSegment) && !ResourceReconciliationService.IsGenericConfigKey(cleanSegment) && cleanSegment.Length >= 3)
+            {
+                return cleanSegment;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ScanFileTextForSchema(string filePath)
+    {
+        try
+        {
+            var text = File.ReadAllText(filePath);
+            var m1 = SchemaCallRegex.Match(text);
+            if (m1.Success) return m1.Groups[1].Value.Trim();
+
+            var m2 = SchemaConstRegex.Match(text);
+            if (m2.Success) return m2.Groups[1].Value.Trim();
+
+            var m3 = TypeOrmSchemaRegex.Match(text);
+            if (m3.Success) return m3.Groups[1].Value.Trim();
+
+            var m4 = ToTableSchemaRegex.Match(text);
+            if (m4.Success) return m4.Groups[1].Value.Trim();
+        }
+        catch { }
+        return null;
+    }
+
+    private static string? FindSchemaInNode(IOntologyNode node)
+    {
+        if (node.Extensions != null && node.Extensions.TryGetValue("schema", out var s) && !string.IsNullOrWhiteSpace(s))
+        {
+            return s;
+        }
+        foreach (var child in node.Children)
+        {
+            var found = FindSchemaInNode(child);
+            if (!string.IsNullOrEmpty(found)) return found;
+        }
+        return null;
+    }
+
+    public static string GetDefaultSchemaForEngine(string engine, string dbType)
+    {
+        var lower = (engine ?? "").ToLowerInvariant();
+        if (lower.Contains("postgres")) return "public";
+        if (lower.Contains("sqlserver") || lower.Contains("sql server") || lower.Contains("mssql")) return "dbo";
+        if (lower.Contains("sqlite")) return "main";
+        if (lower.Contains("redis")) return "cache";
+        if (lower.Contains("mongo")) return "default";
+        if (dbType.Equals("cache", StringComparison.OrdinalIgnoreCase)) return "cache";
+        return "public";
     }
 
     private static readonly ConcurrentDictionary<string, (string? Engine, string? DbType)> _projectDriverCache = new(StringComparer.OrdinalIgnoreCase);

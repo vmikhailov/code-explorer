@@ -797,7 +797,9 @@ export const App: React.FC = () => {
                       const p =
                         n.filePath ||
                         n.properties?.path ||
-                        (n.id?.startsWith('workspace:project:')
+                        (n.id?.startsWith('ws:p:')
+                          ? n.id.substring('ws:p:'.length)
+                          : n.id?.startsWith('workspace:project:')
                           ? n.id.substring('workspace:project:'.length)
                           : '');
                       if (p) {

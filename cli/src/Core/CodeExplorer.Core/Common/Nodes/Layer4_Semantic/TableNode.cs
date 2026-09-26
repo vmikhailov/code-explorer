@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Table,
-    idScheme: "{workspaceId}:table:{tableName}",
+    idScheme: "{workspaceId}:tbl:{tableName}",
     purpose: "Represents a physical database table.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "table",

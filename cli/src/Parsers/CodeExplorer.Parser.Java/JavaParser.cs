@@ -36,6 +36,7 @@ public class JavaParser : IProjectParser, IFileParser
         new GenericLibraryParser("h2", "H2 Database", "db:relational", ["org.h2"]),
         new GenericLibraryParser("sqlite", "SQLite", "db:relational", ["org.sqlite"]),
         new GenericLibraryParser("clickhouse", "ClickHouse", "db:analytics", ["com.clickhouse.jdbc", "com.clickhouse"]),
+        new GenericLibraryParser("bigquery", "BigQuery", "db:analytics", ["com.google.cloud.bigquery"]),
         new GenericLibraryParser("mongodb", "MongoDB", "db:document", ["org.springframework.data.mongodb", "com.mongodb"]),
         new GenericLibraryParser("redis", "Redis", "db:cache", ["org.springframework.data.redis", "redis.clients.jedis", "io.lettuce"]),
         new GenericLibraryParser("elasticsearch", "Elasticsearch", "db:search", ["org.elasticsearch", "co.elastic.clients", "org.opensearch"]),

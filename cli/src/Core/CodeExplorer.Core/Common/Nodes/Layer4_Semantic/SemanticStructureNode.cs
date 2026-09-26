@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.SemanticStructure,
-    idScheme: "{workspaceId}:semantic_structure",
+    idScheme: "{workspaceId}:sem",
     purpose: "Represents an intermediate node grouping all runtime workloads, databases, endpoints, cloud services, and APIs used in the entire workspace.",
     layer: OntologyConstants.Layers.Workspace,
     isSystemNode: true

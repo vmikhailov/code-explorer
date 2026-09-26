@@ -44,9 +44,9 @@ public class ResourceReconciliationService
 
     public static string BuildCanonicalDatabaseId(string workspaceId, string dbType, string canonicalName)
     {
+        var cleanType = string.IsNullOrWhiteSpace(dbType) ? "relational" : dbType.ToLowerInvariant().Trim();
         var cleanName = Regex.Replace((canonicalName ?? "database").ToLowerInvariant().Trim(), @"[^a-z0-9_-]", "_").Trim('_');
         if (string.IsNullOrEmpty(cleanName)) cleanName = "default";
-        var cleanType = string.IsNullOrWhiteSpace(dbType) ? "relational" : dbType.ToLowerInvariant().Trim();
         return $"{workspaceId}:res:db:{cleanType}:{cleanName}";
     }
 
@@ -299,6 +299,9 @@ public class ResourceReconciliationService
     /// </summary>
     public static string NormalizeResourceName(string rawName, string engine)
     {
+        if (string.IsNullOrWhiteSpace(rawName)) return NormalizeEngineName(engine);
+
+        var trimmed = rawName.Trim();
         var isEngineGeneric = string.IsNullOrWhiteSpace(engine) ||
                               IsGenericConfigKey(engine) ||
                               engine.Equals("relational", StringComparison.OrdinalIgnoreCase) ||
@@ -310,14 +313,23 @@ public class ResourceReconciliationService
                               engine.Equals("nosql", StringComparison.OrdinalIgnoreCase);
 
         var safeEngine = isEngineGeneric ? "Database" : engine;
-        if (string.IsNullOrWhiteSpace(rawName)) return safeEngine;
 
-        var trimmed = rawName.Trim();
         var lower = trimmed.ToLowerInvariant();
 
         if (IsGenericConfigKey(lower))
         {
             return safeEngine;
+        }
+
+        if (trimmed.Contains('.'))
+        {
+            var dotParts = trimmed.Split('.', 2);
+            var eng = NormalizeEngineName(dotParts[0]);
+            var sch = dotParts[1].Trim();
+            if (!string.IsNullOrEmpty(sch) && !IsGenericConfigKey(sch))
+            {
+                return $"{eng}.{sch}";
+            }
         }
 
         // Strip known technical suffixes like ConnectionString, Connection, DbContext, Context
@@ -348,6 +360,28 @@ public class ResourceReconciliationService
         }
 
         return trimmed;
+    }
+
+    public static string NormalizeEngineName(string? engine)
+    {
+        var lower = (engine ?? "").Trim().ToLowerInvariant();
+        return lower switch
+        {
+            "postgres" or "postgresql" or "npgsql" or "pg" => "PostgreSQL",
+            "mysql" or "mysql2" => "MySQL",
+            "mariadb" => "MariaDB",
+            "sqlite" or "sqlite3" => "SQLite",
+            "mssql" or "sqlserver" or "sql server" or "tedious" => "SQL Server",
+            "oracle" or "oracledb" => "Oracle",
+            "mongodb" or "mongo" => "MongoDB",
+            "redis" or "ioredis" => "Redis",
+            "clickhouse" => "ClickHouse",
+            "bigquery" => "BigQuery",
+            "cassandra" => "Cassandra",
+            "elasticsearch" => "Elasticsearch",
+            "neo4j" => "Neo4j",
+            _ => string.IsNullOrWhiteSpace(engine) || IsGenericConfigKey(lower) ? "PostgreSQL" : engine.Trim()
+        };
     }
 
     public static bool IsGenericConfigKey(string key)

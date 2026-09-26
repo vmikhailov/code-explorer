@@ -17,7 +17,7 @@ public class Layer3SyntacticParser
     {
         ctx.Log("[Layer3] Starting tree-sitter AST syntactic parsing pass...");
 
-        var syntaxNodeId = $"{ctx.WorkspaceId}:syntax_structure";
+        var syntaxNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.SyntaxStructure}";
         var syntaxStructureNode = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", l2Result.Prev.Workspace.Path);
         l2Result.Prev.Workspace.Children.Add(syntaxStructureNode);
         ctx.SyntaxStructure = syntaxStructureNode;
@@ -86,7 +86,7 @@ public class Layer3SyntacticParser
 
             ctx.Log($"[Layer3] Parsing project {nProject} of {l2Result.Projects.Count} at:'{project.Path}'...");
 
-            var projectSyntaxId = $"{ctx.WorkspaceId}:project:{project.Path}:project_syntax";
+            var projectSyntaxId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{project.Path}:syntax";
             var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", project.Path);
             syntaxStructureNode.Children.Add(projectSyntaxNode);
 
@@ -296,7 +296,7 @@ public class Layer3SyntacticParser
 
         var isType = kind == "Class" || kind == "Interface" || kind == OntologyConstants.NodeLabels.Type;
         var mappedKind = isType ? "Type" : kind;
-        var symbolId = $"{workspaceId}:symbol:{relativePath}:{mappedKind}:{name}:{node.StartPosition.Row}";
+        var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:{mappedKind}:{name}:{node.StartPosition.Row}";
 
         IOntologyNode typedNode;
         if (kind == "Class")
@@ -348,7 +348,7 @@ public class Layer3SyntacticParser
         }
         else if (kind == OntologyConstants.NodeLabels.Table)
         {
-            var tableId = $"{workspaceId}:table:{name.ToLowerInvariant()}";
+            var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{name.ToLowerInvariant()}";
             typedNode = new TableNode(tableId, name, relativePath);
         }
         else
@@ -366,6 +366,11 @@ public class Layer3SyntacticParser
         {
             var resolvedScopeId = string.IsNullOrEmpty(reference.ScopeSymbolId) ? typedNode.Id : reference.ScopeSymbolId;
             typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId });
+        }
+
+        foreach (var (k, v) in syntactic.Properties)
+        {
+            typedNode.SetExtension(k, v);
         }
 
         return typedNode;
@@ -387,7 +392,7 @@ public class Layer3SyntacticParser
             ? (method is "MUTATION" ? "Mutation" : (method is "SUBSCRIPTION" ? "Subscription" : "Query"))
             : (protocol == "gRPC" ? "Unary" : null));
 
-        var endpointId = $"{workspaceId}:endpoint:{method}:{route}";
+        var endpointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{method}:{route}";
         return new EndpointNode(
             endpointId,
             name,
@@ -432,7 +437,7 @@ public class Layer3SyntacticParser
             cleanName = name[(idx + 1)..];
         }
 
-        var entryPointId = $"{workspaceId}:entrypoint:{entryType}:{cleanName}";
+        var entryPointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{entryType}:{cleanName}";
 
         var ext = new Dictionary<string, string>
         {
@@ -563,7 +568,7 @@ public class Layer3SyntacticParser
             domainOrService = domainOrService[..colonPortIdx];
         }
 
-        var extServiceId = $"{workspaceId}:externalservice:{protocol}:{domainOrService}";
+        var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}";
 
         var ext = new Dictionary<string, string>
         {

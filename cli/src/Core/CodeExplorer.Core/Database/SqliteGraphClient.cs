@@ -183,8 +183,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             WHERE d.kind = 'DEPENDS_ON'
               AND i.kind = 'IMPLEMENTED_BY'
               AND d.from_id != i.to_id
-              AND d.from_id LIKE '%:project:%'
-              AND i.to_id LIKE '%:project:%';
+              AND (d.from_id LIKE '%:p:%' OR d.from_id LIKE '%:project:%')
+              AND (i.to_id LIKE '%:p:%' OR i.to_id LIKE '%:project:%');
 
             -- Promote project_semantic edges to direct Project node edges
             INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
@@ -194,7 +194,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 kind,
                 properties
             FROM edges
-            WHERE from_id LIKE '%:project:%:project_semantic';
+            WHERE from_id LIKE '%:p:%:project_semantic' OR from_id LIKE '%:project:%:project_semantic';
 
             INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
             SELECT DISTINCT
@@ -203,7 +203,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 kind,
                 properties
             FROM edges
-            WHERE to_id LIKE '%:project:%:project_semantic';
+            WHERE to_id LIKE '%:p:%:project_semantic' OR to_id LIKE '%:project:%:project_semantic';
             """;
         cmd.ExecuteNonQuery();
     }
@@ -323,19 +323,27 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             -- 1. Match nodes directly by ID prefix (supporting workspace:, ws:, and custom URN prefixes)
             INSERT OR IGNORE INTO temp_ws_del(id)
             SELECT id FROM nodes
-            WHERE lower(replace(id, '\', '/')) LIKE 'workspace:folder:' || @normPath || '/%'
+            WHERE lower(replace(id, '\', '/')) LIKE 'ws:dir:' || @normPath || '/%'
+               OR lower(replace(id, '\', '/')) = 'ws:dir:' || @normPath
+               OR lower(replace(id, '\', '/')) LIKE 'workspace:folder:' || @normPath || '/%'
                OR lower(replace(id, '\', '/')) = 'workspace:folder:' || @normPath
                OR lower(replace(id, '\', '/')) LIKE 'ws:folder:' || @normPath || '/%'
                OR lower(replace(id, '\', '/')) = 'ws:folder:' || @normPath
                OR (@hasRel = 1 AND (
-                   lower(replace(id, '\', '/')) LIKE 'workspace:file:' || @relPath || '/%'
+                   lower(replace(id, '\', '/')) LIKE 'ws:f:' || @relPath || '/%'
+                   OR lower(replace(id, '\', '/')) = 'ws:f:' || @relPath
+                   OR lower(replace(id, '\', '/')) LIKE 'workspace:file:' || @relPath || '/%'
                    OR lower(replace(id, '\', '/')) = 'workspace:file:' || @relPath
                    OR lower(replace(id, '\', '/')) LIKE 'ws:file:' || @relPath || '/%'
                    OR lower(replace(id, '\', '/')) = 'ws:file:' || @relPath
+                   OR lower(replace(id, '\', '/')) LIKE 'ws:p:' || @relPath || ':%'
+                   OR lower(replace(id, '\', '/')) = 'ws:p:' || @relPath || ':'
                    OR lower(replace(id, '\', '/')) LIKE 'workspace:project:' || @relPath || ':%'
                    OR lower(replace(id, '\', '/')) = 'workspace:project:' || @relPath || ':'
                    OR lower(replace(id, '\', '/')) LIKE 'ws:project:' || @relPath || ':%'
                    OR lower(replace(id, '\', '/')) = 'ws:project:' || @relPath || ':'
+                   OR lower(replace(id, '\', '/')) LIKE 'ws:sym:' || @relPath || '/%'
+                   OR lower(replace(id, '\', '/')) = 'ws:sym:' || @relPath
                    OR lower(replace(id, '\', '/')) LIKE 'workspace:symbol:' || @relPath || '/%'
                    OR lower(replace(id, '\', '/')) = 'workspace:symbol:' || @relPath
                    OR lower(replace(id, '\', '/')) LIKE 'ws:symbol:' || @relPath || '/%'
@@ -484,7 +492,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await using var cmd = _conn.CreateCommand();
             cmd.CommandText = "SELECT id FROM nodes WHERE kind = 'Workspace' LIMIT 1;";
             var existing = (string?)await cmd.ExecuteScalarAsync();
-            return existing ?? "workspace";
+            return existing ?? "ws";
         }
         finally
         {

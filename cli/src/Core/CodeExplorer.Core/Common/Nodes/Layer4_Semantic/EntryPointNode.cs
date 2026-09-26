@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.EntryPoint,
-    idScheme: "{workspaceId}:entrypoint:{type}:{name}",
+    idScheme: "{workspaceId}:entry:{type}:{name}",
     purpose: "Represents non-HTTP execution triggers (e.g. gRPC services, CLI command definitions, Cron schedules, queue subscribers).",
     layer: OntologyConstants.Layers.Semantic,
     icon: "sign-in",

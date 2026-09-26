@@ -104,6 +104,12 @@ public class TypeOrmLibraryParser : ILibraryParser
                     var tableName = ExtractTableNameFromDecorator(dec);
                     if (string.IsNullOrEmpty(tableName)) tableName = symbol.Name;
                     symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.PersistedIn));
+
+                    var schema = ExtractSchemaFromDecorator(dec);
+                    if (!string.IsNullOrEmpty(schema))
+                    {
+                        symbol.Properties["schema"] = schema;
+                    }
                 }
             }
         }
@@ -147,13 +153,53 @@ public class TypeOrmLibraryParser : ILibraryParser
         {
             var str = AstHelper.ExtractFirstStringArgument(callExpr);
             if (!string.IsNullOrEmpty(str)) return str;
+
+            var argsNode = callExpr.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+            if (argsNode.IsValid())
+            {
+                foreach (var arg in argsNode.Children)
+                {
+                    if (arg.Is(TreeSitterSyntax.TypeScript.Object))
+                    {
+                        if (AstHelper.TryGetObjectProperty(arg, "name", out var nameVal) && nameVal != null && nameVal.IsValid())
+                        {
+                            var text = nameVal.Text.Trim('\'', '"', '`');
+                            if (!string.IsNullOrEmpty(text)) return text;
+                        }
+                    }
+                }
+            }
         }
-        var text = decoratorNode.Text;
-        if (text.Contains('\'') || text.Contains('"'))
+        var rawText = decoratorNode.Text;
+        if (rawText.Contains('\'') || rawText.Contains('"'))
         {
-            var f = text.IndexOfAny(['\'', '"']);
-            var l = text.LastIndexOfAny(['\'', '"']);
-            if (l > f) return text[(f + 1)..l];
+            var f = rawText.IndexOfAny(['\'', '"']);
+            var l = rawText.LastIndexOfAny(['\'', '"']);
+            if (l > f) return rawText[(f + 1)..l];
+        }
+        return null;
+    }
+
+    public static string? ExtractSchemaFromDecorator(Node decoratorNode)
+    {
+        var callExpr = decoratorNode.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+        if (callExpr.IsValid())
+        {
+            var argsNode = callExpr.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+            if (argsNode.IsValid())
+            {
+                foreach (var arg in argsNode.Children)
+                {
+                    if (arg.Is(TreeSitterSyntax.TypeScript.Object))
+                    {
+                        if (AstHelper.TryGetObjectProperty(arg, "schema", out var schemaVal) && schemaVal != null && schemaVal.IsValid())
+                        {
+                            var text = schemaVal.Text.Trim('\'', '"', '`');
+                            if (!string.IsNullOrEmpty(text)) return text;
+                        }
+                    }
+                }
+            }
         }
         return null;
     }

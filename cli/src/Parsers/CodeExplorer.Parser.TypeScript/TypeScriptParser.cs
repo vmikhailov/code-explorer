@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -32,6 +33,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.SequelizeLibraryParser(),
         new Libraries.Sqlite3LibraryParser(),
         new Libraries.TypeOrmLibraryParser(),
+        new GenericLibraryParser("bigquery", "BigQuery", OntologyConstants.LibraryTypes.AnalyticsDb, ["@google-cloud/bigquery", "bigquery"]),
+        new GenericLibraryParser("clickhouse", "ClickHouse", OntologyConstants.LibraryTypes.AnalyticsDb, ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"]),
         new Libraries.GcpLibraryParser(),
         new Libraries.RabbitMqLibraryParser(),
         new Libraries.KafkaJsLibraryParser(),

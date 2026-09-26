@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Member,
-    idScheme: "{workspaceId}:symbol:{filePath}:Member:{name}:{line}",
+    idScheme: "{workspaceId}:sym:{filePath}:Member:{name}:{line}",
     purpose: "Represents a declared field, property, parameter, or local variable.",
     layer: OntologyConstants.Layers.Syntactic,
     icon: "symbol-field",

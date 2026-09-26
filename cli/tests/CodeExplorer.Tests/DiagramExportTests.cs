@@ -92,4 +92,13 @@ public class DiagramExportTests
         Assert.That(lineage, Does.Contain("orders"));
         Assert.That(lineage, Does.Contain("PERSISTED_IN"));
     }
+
+    [Test]
+    public async Task Test_ExportDomainMermaid()
+    {
+        var domain = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "domain");
+        Assert.That(domain, Does.StartWith("flowchart TD"));
+        Assert.That(domain, Does.Contain("Databases"));
+        Assert.That(domain, Does.Contain("OrderService"));
+    }
 }

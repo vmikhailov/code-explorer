@@ -4,7 +4,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.CloudService,
-    idScheme: "{workspaceId}:project:{relativeProjectDir}:cloudservice:{serviceName}",
+    idScheme: "{workspaceId}:p:{relativeProjectDir}:cloud:{serviceName}",
     purpose: "Represents a cloud provider service used by the project (e.g. AWS S3, Stripe, Firebase).",
     layer: OntologyConstants.Layers.Semantic,
     icon: "cloud-upload",

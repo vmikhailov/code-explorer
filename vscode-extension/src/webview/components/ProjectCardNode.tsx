@@ -655,7 +655,7 @@ export const ProjectCardNode = memo((props: any) => {
                       key={l.id}
                       className="comms-item-badge lib"
                       onClick={() => {
-                        if (!l.id.startsWith('workspace:package:')) {
+                        if (!l.id.startsWith('ws:pkg:') && !l.id.startsWith('workspace:package:')) {
                           onFocusProject?.(l.name);
                         }
                       }}

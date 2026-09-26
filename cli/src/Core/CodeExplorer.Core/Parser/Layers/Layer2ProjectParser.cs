@@ -14,7 +14,7 @@ public class Layer2ProjectParser
         ctx.Log("[Layer2] Starting project boundary detection and dependency scan...");
 
         var projectsStructureNode = new ProjectsStructureNode(
-            $"{ctx.WorkspaceId}:projects_structure", 
+            $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ProjectsStructure}", 
             "ProjectsStructure", 
             l1Result.Workspace.Path
         );
@@ -61,7 +61,7 @@ public class Layer2ProjectParser
                 var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
                 if (relativeProjectDir == ".") relativeProjectDir = "";
 
-                var projectNodeId = $"{ctx.WorkspaceId}:project:{relativeProjectDir}:";
+                var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeProjectDir}:";
 
                 // Parse project dependencies to supply externalPackages for role classification
                 var depInfo = await ParseProjectDependenciesAsync(projectParser, dir, ctx);
@@ -97,7 +97,7 @@ public class Layer2ProjectParser
                 if (!string.IsNullOrEmpty(prodPkg))
                 {
                     packageToProjectMap[prodPkg] = projectNode;
-                    packageToProjectMap[$"{ctx.WorkspaceId}:package:{prodPkg.ToLowerInvariant()}"] = projectNode;
+                    packageToProjectMap[$"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prodPkg.ToLowerInvariant()}"] = projectNode;
                     if (prodPkg.Contains('/'))
                     {
                         var shortName = prodPkg.Split('/')[^1];
@@ -127,7 +127,7 @@ public class Layer2ProjectParser
                     var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
                     if (relativeProjectDir == ".") relativeProjectDir = "";
 
-                    var projectNodeId = $"{ctx.WorkspaceId}:project:{relativeProjectDir}:";
+                    var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeProjectDir}:";
 
                     if (!projects.Any(p => p.Id == projectNodeId))
                     {
@@ -174,7 +174,7 @@ public class Layer2ProjectParser
                             if (!string.IsNullOrEmpty(prodPkg))
                             {
                                 packageToProjectMap[prodPkg] = projectNode;
-                                packageToProjectMap[$"{ctx.WorkspaceId}:package:{prodPkg.ToLowerInvariant()}"] = projectNode;
+                                packageToProjectMap[$"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prodPkg.ToLowerInvariant()}"] = projectNode;
                                 if (prodPkg.Contains('/'))
                                 {
                                     var shortName = prodPkg.Split('/')[^1];
@@ -258,7 +258,7 @@ public class Layer2ProjectParser
                                 {
                                     var folderName = Path.GetFileName(subDir);
                                     var relDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, subDir).Replace('\\', '/');
-                                    var subProjId = $"{ctx.WorkspaceId}:project:{relDir}:";
+                                    var subProjId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relDir}:";
 
                                     if (!projects.Any(p => p.Id == subProjId))
                                     {
@@ -274,13 +274,13 @@ public class Layer2ProjectParser
 
                                         packageToProjectMap[folderName] = libProjectNode;
                                         packageToProjectMap[prod.Name] = libProjectNode;
-                                        packageToProjectMap[$"{ctx.WorkspaceId}:package:{prod.Name.ToLowerInvariant()}"] = libProjectNode;
+                                        packageToProjectMap[$"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prod.Name.ToLowerInvariant()}"] = libProjectNode;
                                         if (prod.Name.Contains('/'))
                                         {
                                             packageToProjectMap.TryAdd(prod.Name.Split('/')[^1], libProjectNode);
                                         }
 
-                                        var packageNodeId = $"{ctx.WorkspaceId}:package:{prod.Name.ToLowerInvariant()}";
+                                        var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prod.Name.ToLowerInvariant()}";
                                         var packageNode = new PackageNode(packageNodeId, prod.Name, prod.Version, prod.Type, libProjectNode.Path);
                                         libProjectNode.Children.Add(packageNode);
                                         var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, subProjId));
@@ -308,7 +308,7 @@ public class Layer2ProjectParser
                 if (string.IsNullOrWhiteSpace(extPack.Name)) continue;
 
                 var matched = packageToProjectMap.TryGetValue(extPack.Name, out var targetProj) ||
-                              packageToProjectMap.TryGetValue($"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}", out targetProj);
+                              packageToProjectMap.TryGetValue($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{extPack.Name.ToLowerInvariant()}", out targetProj);
 
                 if (!matched && extPack.Name.Contains('/'))
                 {
@@ -375,7 +375,7 @@ public class Layer2ProjectParser
 
             var relativeTargetDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, targetDir).Replace('\\', '/');
             if (relativeTargetDir == ".") relativeTargetDir = "";
-            var targetProjectNodeId = $"{ctx.WorkspaceId}:project:{relativeTargetDir}:";
+            var targetProjectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeTargetDir}:";
 
             var dependsOnRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, targetProjectNodeId, new() { ["dependency_type"] = "library" }));
             if (!dependencies.Any(d => d.From == projectNodeId && d.To == targetProjectNodeId && d.Kind == OntologyConstants.Relationships.DependsOn))
@@ -390,7 +390,7 @@ public class Layer2ProjectParser
         {
             foreach (var extPack in depInfo.ExternalPackages)
             {
-                var packageNodeId = $"{ctx.WorkspaceId}:package:{extPack.Name.ToLowerInvariant()}";
+                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{extPack.Name.ToLowerInvariant()}";
 
                 var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
                     string.Empty, IsExternal: true);
@@ -416,7 +416,7 @@ public class Layer2ProjectParser
 
             if (producedPackage != null)
             {
-                var packageNodeId = $"{ctx.WorkspaceId}:package:{producedPackage.Name.ToLowerInvariant()}";
+                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{producedPackage.Name.ToLowerInvariant()}";
 
                 var packageNode = new PackageNode(packageNodeId, producedPackage.Name, producedPackage.Version,
                     producedPackage.Type, projectNode.Path);
@@ -443,7 +443,7 @@ public class Layer2ProjectParser
 
             if (!string.IsNullOrEmpty(dirName))
             {
-                var packageNodeId = $"{ctx.WorkspaceId}:package:{dirName.ToLowerInvariant()}";
+                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{dirName.ToLowerInvariant()}";
                 var packageNode = new PackageNode(packageNodeId, dirName, "1.0.0", "unknown", projectNode.Path);
 
                 projectNode.Children.Add(packageNode);

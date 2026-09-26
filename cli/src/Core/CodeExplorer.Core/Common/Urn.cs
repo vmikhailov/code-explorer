@@ -74,15 +74,19 @@ public readonly record struct Urn
         switch (domain.ToLowerInvariant())
         {
             case "symbol":
+            case "sym":
                 return TryParseSymbol(text, prefix, domain, body, out urn);
 
             case "project":
+            case "p":
                 var projPath = body.TrimEnd(':');
                 urn = new Urn(text, prefix, domain, path: projPath, name: System.IO.Path.GetFileName(projPath));
                 return true;
 
             case "file":
+            case "f":
             case "folder":
+            case "dir":
                 urn = new Urn(text, prefix, domain, path: body, name: System.IO.Path.GetFileName(body));
                 return true;
 
@@ -90,6 +94,7 @@ public readonly record struct Urn
                 return TryParseResource(text, prefix, domain, body, out urn);
 
             case "endpoint":
+            case "ep":
                 var lastColon = body.LastIndexOf(':');
                 if (lastColon > 0)
                 {
@@ -99,6 +104,36 @@ public readonly record struct Urn
                 {
                     urn = new Urn(text, prefix, domain, path: body);
                 }
+                return true;
+
+            case "service":
+            case "s":
+            case "externalservice":
+            case "es":
+            case "database":
+            case "db":
+            case "table":
+            case "tbl":
+            case "topic":
+            case "top":
+            case "package":
+            case "pkg":
+            case "app":
+            case "worker":
+            case "w":
+            case "library":
+            case "lib":
+            case "clitool":
+            case "cli":
+            case "dataset":
+            case "ds":
+            case "procedure":
+            case "proc":
+            case "query":
+            case "q":
+            case "entrypoint":
+            case "entry":
+                urn = new Urn(text, prefix, domain, path: body, name: body.Contains(':') ? body.Split(':')[^1] : body);
                 return true;
 
             default:

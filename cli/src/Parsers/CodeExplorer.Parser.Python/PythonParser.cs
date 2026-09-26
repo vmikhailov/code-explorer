@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 
 [assembly: ParserAssembly]
@@ -28,6 +29,8 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.PythonRedisLibraryParser(),
         new Libraries.PythonSqlite3LibraryParser(),
         new Libraries.SqlAlchemyLibraryParser(),
+        new GenericLibraryParser("bigquery", "BigQuery", OntologyConstants.LibraryTypes.AnalyticsDb, ["google-cloud-bigquery", "google.cloud.bigquery"]),
+        new GenericLibraryParser("clickhouse", "ClickHouse", OntologyConstants.LibraryTypes.AnalyticsDb, ["clickhouse-connect", "clickhouse-driver"]),
 
         // Generic Cloud Services
         new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe"]),

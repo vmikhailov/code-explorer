@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Service,
-    idScheme: "{workspaceId}:service:{serviceName}",
+    idScheme: "{workspaceId}:s:{serviceName}",
     purpose: "Represents an executable backend service, microservice, or API daemon (e.g. ASP.NET Core Web API, NestJS, Express, Go HTTP server).",
     layer: OntologyConstants.Layers.Semantic,
     icon: "server-process",

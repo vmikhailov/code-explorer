@@ -38,7 +38,7 @@ public static class ConfigurationParser
 
         var fileName = Path.GetFileName(filePath);
         var lower = fileName.ToLowerInvariant();
-        var fileNodeId = $"{workspaceId}:file:{relativePath}";
+        var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
 
         try
         {
@@ -483,7 +483,7 @@ public static class ConfigurationParser
             dbName = engine;
         }
 
-        var dbId = $"{workspaceId}:database:{dbType}:{dbName.ToLowerInvariant()}";
+        var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:{dbType}:{dbName.ToLowerInvariant()}";
 
         var aliases = new List<string>();
         if (!string.IsNullOrWhiteSpace(customName)) aliases.Add(customName);
@@ -495,7 +495,7 @@ public static class ConfigurationParser
         {
             projId = pn.Id;
         }
-        else if (containerNode.Id.Contains(":project:"))
+        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
         {
             var id = containerNode.Id;
             if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
@@ -541,7 +541,7 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         ParsingContext ctx)
     {
-        var topicId = $"{workspaceId}:topic:{brokerType}:{topicName.ToLowerInvariant()}";
+        var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName.ToLowerInvariant()}";
 
         if (!containerNode.Children.Any(c => c.Id == topicId))
         {
@@ -557,7 +557,7 @@ public static class ConfigurationParser
         {
             projId = pn.Id;
         }
-        else if (containerNode.Id.Contains(":project:"))
+        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
         {
             var id = containerNode.Id;
             if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];

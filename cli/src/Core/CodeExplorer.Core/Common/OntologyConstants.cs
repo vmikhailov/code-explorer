@@ -38,6 +38,37 @@ public static class OntologyConstants
         public const string Counter = "Counter";
     }
 
+    public static class IdPrefixes
+    {
+        public const string Workspace = "ws";
+        public const string FilesStructure = "fs";
+        public const string ProjectsStructure = "ps";
+        public const string SyntaxStructure = "ss";
+        public const string SemanticStructure = "sem";
+        public const string File = "f";
+        public const string Folder = "dir";
+        public const string Git = "git";
+        public const string Project = "p";
+        public const string Package = "pkg";
+        public const string Symbol = "sym";
+        public const string Service = "s";
+        public const string App = "app";
+        public const string Worker = "w";
+        public const string CliTool = "cli";
+        public const string Library = "lib";
+        public const string Database = "db";
+        public const string Table = "tbl";
+        public const string Topic = "top";
+        public const string Endpoint = "ep";
+        public const string ExternalService = "es";
+        public const string DataSet = "ds";
+        public const string Procedure = "proc";
+        public const string Query = "q";
+        public const string EntryPoint = "entry";
+        public const string CloudService = "cloud";
+        public const string ApiInUse = "api";
+    }
+
     public static class Layers
     {
         public const string Workspace = "";
@@ -105,6 +136,7 @@ public static class OntologyConstants
     {
         public const string Framework = "framework";
         public const string RelationalDb = "db:relational";
+        public const string AnalyticsDb = "db:analytics";
         public const string DocumentDb = "db:document";
         public const string GraphDb = "db:graph";
         public const string KeyValueDb = "db:kv";

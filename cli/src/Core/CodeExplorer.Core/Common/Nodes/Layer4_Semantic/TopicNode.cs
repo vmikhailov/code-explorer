@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.Topic,
-    idScheme: "{workspaceId}:topic:{brokerType}:{topicName}",
+    idScheme: "{workspaceId}:top:{brokerType}:{topicName}",
     purpose: "Represents a message queue, event exchange, or topic boundary.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "mail",

@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using TreeSitter;
 
@@ -67,7 +68,7 @@ public class SyntaxTree : IDisposable
         var parser = new TreeSitter.Parser(language);
         var tree = parser.Parse(sourceText);
 
-        var fileNodeId = $"{workspaceId}:file:{relativePath}";
+        var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
 
         if (tree == null)

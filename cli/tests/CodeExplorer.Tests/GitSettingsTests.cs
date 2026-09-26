@@ -49,14 +49,14 @@ public class GitSettingsTests
 
         var backendGit = GitSettingsParser.Parse("testws", _tempDir, backendDir);
         Assert.That(backendGit, Is.Not.Null);
-        Assert.That(backendGit!.Id, Is.EqualTo("testws:gitsettings:Backend"));
+        Assert.That(backendGit!.Id, Is.EqualTo("testws:git:Backend"));
         Assert.That(backendGit.Branch, Is.EqualTo("feature/super-api"));
         Assert.That(backendGit.OriginUrl, Is.EqualTo("https://example.com/backend.git"));
         Assert.That(backendGit.Name, Is.EqualTo("Git Settings (Backend)"));
 
         var clientGit = GitSettingsParser.Parse("testws", _tempDir, clientDir);
         Assert.That(clientGit, Is.Not.Null);
-        Assert.That(clientGit!.Id, Is.EqualTo("testws:gitsettings:Client"));
+        Assert.That(clientGit!.Id, Is.EqualTo("testws:git:Client"));
         Assert.That(clientGit.Branch, Is.EqualTo("release/v2"));
         Assert.That(clientGit.OriginUrl, Is.EqualTo("https://example.com/client.git"));
         Assert.That(clientGit.Name, Is.EqualTo("Git Settings (Client)"));
@@ -98,12 +98,12 @@ public class GitSettingsTests
 
         var resolvedBackend = ctx.FindGitSettingsForPath("Backend/Services/OrderService");
         Assert.That(resolvedBackend, Is.Not.Null);
-        Assert.That(resolvedBackend!.Id, Is.EqualTo("testws:gitsettings:Backend"));
+        Assert.That(resolvedBackend!.Id, Is.EqualTo("testws:git:Backend"));
         Assert.That(resolvedBackend.Branch, Is.EqualTo("dev"));
 
         var resolvedClient = ctx.FindGitSettingsForPath("Client/src/components");
         Assert.That(resolvedClient, Is.Not.Null);
-        Assert.That(resolvedClient!.Id, Is.EqualTo("testws:gitsettings:Client"));
+        Assert.That(resolvedClient!.Id, Is.EqualTo("testws:git:Client"));
         Assert.That(resolvedClient.Branch, Is.EqualTo("main"));
     }
 
@@ -142,7 +142,7 @@ public class GitSettingsTests
 
         // 2. Create ProjectNode in Layer 2
         var projNode = new ProjectNode(
-            $"{ctx.WorkspaceId}:project:Backend/Services/CoreApi:",
+            $"{ctx.WorkspaceId}:p:Backend/Services/CoreApi:",
             "CoreApi",
             "Backend/Services/CoreApi",
             "csharp",
@@ -162,6 +162,6 @@ public class GitSettingsTests
         var usesGitRels = ctx.TreeRelationships.Where(r => r.Kind == "USES_GIT").ToList();
         Assert.That(usesGitRels, Has.Count.EqualTo(1));
         Assert.That(usesGitRels[0].From, Is.EqualTo(projNode.Id));
-        Assert.That(usesGitRels[0].To, Is.EqualTo($"{ctx.WorkspaceId}:gitsettings:Backend"));
+        Assert.That(usesGitRels[0].To, Is.EqualTo($"{ctx.WorkspaceId}:git:Backend"));
     }
 }

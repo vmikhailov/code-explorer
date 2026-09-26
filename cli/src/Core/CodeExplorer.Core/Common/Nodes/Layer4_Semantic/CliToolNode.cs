@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 [OntologyNode(
     label: OntologyConstants.NodeLabels.CliTool,
-    idScheme: "{workspaceId}:clitool:{toolName}",
+    idScheme: "{workspaceId}:cli:{toolName}",
     purpose: "Represents a command-line tool, developer script, or administrative CLI utility.",
     layer: OntologyConstants.Layers.Semantic,
     icon: "terminal",
