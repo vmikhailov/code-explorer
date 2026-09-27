@@ -7,7 +7,7 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public static class AstHelper
 {
-    public static string? ResolveStringOrTemplate(Node? argNode)
+    public static string? ResolveStringOrTemplate(Node? argNode, string? contextOrProject = null)
     {
         if (!argNode.IsValid()) return null;
 
@@ -43,17 +43,14 @@ public static class AstHelper
                 return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
             }
 
-            if (ConstantRegistry.TryResolve(null, varName, out var cVal) && !string.IsNullOrEmpty(cVal))
-            {
-                return cVal;
-            }
-            if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(varName, out var derivedTopic))
-            {
-                return derivedTopic;
-            }
-            if (varName is "QUEUE_NAME" or "TOPIC_NAME" or "QUEUE" or "TOPIC" or "DEFAULT_TOPIC" or "EVENT_SUBSCRIBER_NAME")
+            if (WorkspaceConventions.IsPlaceholderName(varName))
             {
                 return null;
+            }
+
+            if (ConstantRegistry.TryResolve(contextOrProject, varName, out var cVal) && !string.IsNullOrEmpty(cVal))
+            {
+                return cVal;
             }
 
             var val = FindVariableInitializerInAst(argNode, varName);
@@ -100,7 +97,7 @@ public static class AstHelper
                 return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
             }
 
-            if (ConstantRegistry.TryResolve(null, argNode.Text, out var directConst) && !string.IsNullOrEmpty(directConst))
+            if (ConstantRegistry.TryResolve(contextOrProject, argNode.Text, out var directConst) && !string.IsNullOrEmpty(directConst))
             {
                 return directConst;
             }
@@ -108,11 +105,11 @@ public static class AstHelper
             if (argNode.Text.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
             {
                 var propName = argNode.Text[5..].Trim();
-                if (ConstantRegistry.TryResolve(null, argNode.Text, out var thisConst) && !string.IsNullOrEmpty(thisConst))
+                if (ConstantRegistry.TryResolve(contextOrProject, argNode.Text, out var thisConst) && !string.IsNullOrEmpty(thisConst))
                 {
                     return thisConst;
                 }
-                if (ConstantRegistry.TryResolve(null, propName, out var propConst) && !string.IsNullOrEmpty(propConst))
+                if (ConstantRegistry.TryResolve(contextOrProject, propName, out var propConst) && !string.IsNullOrEmpty(propConst))
                 {
                     return propConst;
                 }
@@ -129,17 +126,13 @@ public static class AstHelper
             if (envMatch.Success)
             {
                 var envKey = envMatch.Groups[1].Value;
-                if (ConstantRegistry.TryResolve(null, envKey, out var envVal) && !string.IsNullOrEmpty(envVal))
-                {
-                    return envVal;
-                }
-                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(envKey, out var derivedVal))
-                {
-                    return derivedVal;
-                }
-                if (envKey is "QUEUE_NAME" or "TOPIC_NAME" or "QUEUE" or "TOPIC" or "EVENT_SUBSCRIBER_NAME")
+                if (WorkspaceConventions.IsPlaceholderName(envKey))
                 {
                     return null;
+                }
+                if (ConstantRegistry.TryResolve(contextOrProject, envKey, out var envVal) && !string.IsNullOrEmpty(envVal))
+                {
+                    return envVal;
                 }
                 return envKey;
             }
@@ -225,6 +218,73 @@ public static class AstHelper
                         var cleanPath = rPath.Split('?')[0];
                         return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
                     }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static string? ResolveTopicOrQueue(Node? argNode, string? contextOrProject = null)
+    {
+        if (!argNode.IsValid()) return null;
+
+        // 1. If it's a string literal or template or resolved variable, resolve normally
+        var resolved = ResolveStringOrTemplate(argNode, contextOrProject);
+        if (!string.IsNullOrEmpty(resolved) && !WorkspaceConventions.IsPlaceholderName(resolved))
+        {
+            if (WorkspaceConventions.TryGetTopicAlias(resolved, out var mapped))
+            {
+                return mapped;
+            }
+            return resolved;
+        }
+
+        // 2. If it's an Identifier, attempt messaging derivation from identifier name
+        if (argNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            var varName = argNode.Text;
+            if (WorkspaceConventions.IsPlaceholderName(varName)) return null;
+
+            if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(varName, out var derivedTopic))
+            {
+                return derivedTopic;
+            }
+
+            var norm = WorkspaceConventions.NormalizeTopicName(varName);
+            if (!string.IsNullOrEmpty(norm) && !WorkspaceConventions.IsPlaceholderName(norm))
+            {
+                return norm;
+            }
+        }
+
+        // 3. If it's a MemberExpression (e.g. process.env.EVENT_BUS_TOPIC_NAME or this.config.ruleTreeTopic)
+        if (argNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var envMatch = Regex.Match(argNode.Text, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
+            if (envMatch.Success)
+            {
+                var envKey = envMatch.Groups[1].Value;
+                if (WorkspaceConventions.IsPlaceholderName(envKey)) return null;
+
+                if (ConstantRegistry.TryResolve(contextOrProject, envKey, out var envVal) && !string.IsNullOrEmpty(envVal))
+                {
+                    if (!WorkspaceConventions.IsPlaceholderName(envVal))
+                    {
+                        if (WorkspaceConventions.TryGetTopicAlias(envVal, out var mapped)) return mapped;
+                        return envVal;
+                    }
+                }
+
+                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(envKey, out var derivedVal))
+                {
+                    return derivedVal;
+                }
+
+                var normKey = WorkspaceConventions.NormalizeTopicName(envKey);
+                if (!string.IsNullOrEmpty(normKey) && !WorkspaceConventions.IsPlaceholderName(normKey))
+                {
+                    return normKey;
                 }
             }
         }

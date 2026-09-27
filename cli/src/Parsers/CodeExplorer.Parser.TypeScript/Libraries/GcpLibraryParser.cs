@@ -46,7 +46,7 @@ public class GcpLibraryParser : ILibraryParser
         {
             if (args.Count > 0)
             {
-                var topic = AstHelper.ResolveStringOrTemplate(args[0]);
+                var topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
                 AddPublishReference(references, scopeSymbolId, topic);
             }
         }
@@ -67,7 +67,7 @@ public class GcpLibraryParser : ILibraryParser
                     var innerArgs = AstHelper.GetCallArguments(obj);
                     if (innerArgs.Count > 0)
                     {
-                        topic = AstHelper.ResolveStringOrTemplate(innerArgs[0]);
+                        topic = AstHelper.ResolveTopicOrQueue(innerArgs[0], scopeSymbolId);
                     }
                 }
             }
@@ -86,12 +86,12 @@ public class GcpLibraryParser : ILibraryParser
                     if (AstHelper.TryGetObjectProperty(args[0], "topicName", out var tp) ||
                         AstHelper.TryGetObjectProperty(args[0], "topic", out tp))
                     {
-                        topic = AstHelper.ResolveStringOrTemplate(tp);
+                        topic = AstHelper.ResolveTopicOrQueue(tp, scopeSymbolId);
                     }
                 }
                 else if (args.Count > 1)
                 {
-                    topic = AstHelper.ResolveStringOrTemplate(args[1]);
+                    topic = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId);
                 }
             }
 
@@ -103,7 +103,7 @@ public class GcpLibraryParser : ILibraryParser
         {
             if (args.Count > 0)
             {
-                var topic = AstHelper.ResolveStringOrTemplate(args[0]);
+                var topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
                 AddPublishReference(references, scopeSymbolId, topic);
             }
         }
@@ -112,7 +112,7 @@ public class GcpLibraryParser : ILibraryParser
         {
             if (args.Count > 1)
             {
-                var topic = AstHelper.ResolveStringOrTemplate(args[1]);
+                var topic = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId);
                 AddPublishReference(references, scopeSymbolId, topic);
             }
         }
@@ -122,7 +122,7 @@ public class GcpLibraryParser : ILibraryParser
         {
             if (args.Count > 0)
             {
-                var topic = AstHelper.ResolveStringOrTemplate(args[0]);
+                var topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
                 AddPublishReference(references, scopeSymbolId, topic);
             }
         }
@@ -137,7 +137,7 @@ public class GcpLibraryParser : ILibraryParser
         {
             if (args.Count > 0)
             {
-                var sub = AstHelper.ResolveStringOrTemplate(args[0]);
+                var sub = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
                 AddSubscribeReference(references, scopeSymbolId, sub);
             }
         }
@@ -146,7 +146,7 @@ public class GcpLibraryParser : ILibraryParser
         {
             if (args.Count > 0)
             {
-                var topic = AstHelper.ResolveStringOrTemplate(args[0]);
+                var topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
                 AddSubscribeReference(references, scopeSymbolId, topic);
             }
             // args[1] - subscription name, do not register as a topic
@@ -172,6 +172,7 @@ public class GcpLibraryParser : ILibraryParser
     private static bool IsValidTopicName(string? topic)
     {
         if (string.IsNullOrWhiteSpace(topic)) return false;
+        if (WorkspaceConventions.IsPlaceholderName(topic)) return false;
         var t = topic.Trim();
         if (t.StartsWith(':') ||
             t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||

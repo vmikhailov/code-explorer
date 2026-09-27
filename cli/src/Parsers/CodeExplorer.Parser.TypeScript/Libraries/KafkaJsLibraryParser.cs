@@ -24,7 +24,7 @@ public class KafkaJsLibraryParser : ILibraryParser
         {
             if (string.Equals(propName, "send", StringComparison.OrdinalIgnoreCase))
             {
-                var topic = ExtractTopicFromConfig(node);
+                var topic = ExtractTopicFromConfig(node, scopeSymbolId);
                 if (!string.IsNullOrEmpty(topic))
                 {
                     references.Add(new Reference(scopeSymbolId, "kafka:" + topic, OntologyConstants.Relationships.PublishesTo));
@@ -32,7 +32,7 @@ public class KafkaJsLibraryParser : ILibraryParser
             }
             else if (string.Equals(propName, "subscribe", StringComparison.OrdinalIgnoreCase))
             {
-                var topics = ExtractTopicsFromSubscribeConfig(node);
+                var topics = ExtractTopicsFromSubscribeConfig(node, scopeSymbolId);
                 foreach (var topic in topics)
                 {
                     if (!string.IsNullOrEmpty(topic))
@@ -44,20 +44,20 @@ public class KafkaJsLibraryParser : ILibraryParser
         }
     }
 
-    private static string? ExtractTopicFromConfig(Node callNode)
+    private static string? ExtractTopicFromConfig(Node callNode, string? scopeSymbolId = null)
     {
         var args = AstHelper.GetCallArguments(callNode);
         if (args.Count == 0) return null;
 
         if (AstHelper.TryGetObjectProperty(args[0], "topic", out var valNode))
         {
-            return AstHelper.ResolveStringOrTemplate(valNode);
+            return AstHelper.ResolveTopicOrQueue(valNode, scopeSymbolId);
         }
 
         return null;
     }
 
-    private static List<string> ExtractTopicsFromSubscribeConfig(Node callNode)
+    private static List<string> ExtractTopicsFromSubscribeConfig(Node callNode, string? scopeSymbolId = null)
     {
         var result = new List<string>();
         var args = AstHelper.GetCallArguments(callNode);
@@ -65,7 +65,7 @@ public class KafkaJsLibraryParser : ILibraryParser
 
         if (AstHelper.TryGetObjectProperty(args[0], "topic", out var topicVal))
         {
-            var topic = AstHelper.ResolveStringOrTemplate(topicVal);
+            var topic = AstHelper.ResolveTopicOrQueue(topicVal, scopeSymbolId);
             if (!string.IsNullOrEmpty(topic)) result.Add(topic);
         }
 
@@ -73,7 +73,7 @@ public class KafkaJsLibraryParser : ILibraryParser
         {
             foreach (var item in topicsVal.Children)
             {
-                var topic = AstHelper.ResolveStringOrTemplate(item);
+                var topic = AstHelper.ResolveTopicOrQueue(item, scopeSymbolId);
                 if (!string.IsNullOrEmpty(topic)) result.Add(topic);
             }
         }

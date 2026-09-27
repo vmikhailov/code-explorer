@@ -52,6 +52,29 @@ public static class WorkspaceConventions
     }
 
     /// <summary>
+    /// Attempts to resolve an aliased topic name configured in conventions.json.
+    /// </summary>
+    public static bool TryGetTopicAlias(string key, out string alias)
+    {
+        return TopicAliases.TryGetValue(key, out alias!);
+    }
+
+    /// <summary>
+    /// Checks whether an identifier, token, or string is a placeholder dummy name (e.g. QUEUE_NAME, TOPIC_NAME, etc.).
+    /// </summary>
+    public static bool IsPlaceholderName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return true;
+        var lower = name.Trim().Trim('\'', '"', '`').ToLowerInvariant().Replace('_', '-').Replace('.', '-');
+        return lower is "topic" or "topic-name" or "topic-id" or "default-topic" or "default-topic-name" or "service-topic" or "my-topic" or "sample-topic" or "test-topic"
+            or "queue" or "queue-name" or "queue-id" or "default-queue" or "default-queue-name" or "service-queue" or "my-queue" or "sample-queue" or "test-queue"
+            or "sub" or "sub-id" or "subscription" or "subscription-name" or "default-sub" or "default-sub-id" or "default-subscription" or "default-subscription-name"
+            or "subscriber" or "subscriber-name" or "event-subscriber-name" or "pub-sub-subscription"
+            or "placeholder" or "placeholder-topic" or "placeholder-queue" or "dummy" or "dummy-topic" or "dummy-queue"
+            or "your-topic" or "your-queue" or "your-topic-name" or "your-queue-name";
+    }
+
+    /// <summary>
     /// Normalizes raw topic names or constants using configured aliases or algorithmic kebab-casing.
     /// </summary>
     public static string NormalizeTopicName(string raw)
@@ -67,9 +90,7 @@ public static class WorkspaceConventions
             return string.Empty;
         }
 
-        var lowerCheck = t.ToLowerInvariant().Replace('_', '-');
-        if (lowerCheck is "topic" or "topic-name" or "topic-id" or "queue" or "queue-name" or "sub" or "sub-id" or "subscription" or "subscriber" or "event-subscriber-name" or "pub-sub-subscription" ||
-            lowerCheck.EndsWith("-sub-id") || lowerCheck.EndsWith("-subscription-name"))
+        if (IsPlaceholderName(t))
         {
             return string.Empty;
         }

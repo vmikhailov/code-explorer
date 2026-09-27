@@ -35,9 +35,12 @@ public static class ConstantRegistry
         {
             var pKey = $"{projectName.Trim()}:{cleanKey}";
             _projectConstants[pKey] = cleanVal;
+            _globalConstants.TryAdd(cleanKey, cleanVal);
         }
-
-        _globalConstants[cleanKey] = cleanVal;
+        else
+        {
+            _globalConstants[cleanKey] = cleanVal;
+        }
     }
 
     public static bool TryResolve(string? projectNameOrFilePath, string key, out string value)
@@ -180,14 +183,20 @@ public static class ConstantRegistry
     {
         if (string.IsNullOrWhiteSpace(content)) return;
         var lines = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        // Supports: [export ]KEY="value", KEY='value', KEY=unquoted_value # comment
+        var envRegex = new Regex(@"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:([""'])(.*?)\2|([^#\r\n]*))", RegexOptions.Compiled);
+
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
             if (trimmed.StartsWith('#') || trimmed.StartsWith("//")) continue;
-            var eqIdx = trimmed.IndexOf('=');
-            if (eqIdx <= 0) continue;
-            var key = trimmed[..eqIdx].Trim();
-            var val = trimmed[(eqIdx + 1)..].Trim().Trim('\'', '"', '`');
+
+            var match = envRegex.Match(trimmed);
+            if (!match.Success) continue;
+
+            var key = match.Groups[1].Value.Trim();
+            var val = match.Groups[3].Success ? match.Groups[3].Value.Trim() : match.Groups[4].Value.Trim();
+
             if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(val))
             {
                 Register(projectName, key, val);
@@ -200,18 +209,34 @@ public static class ConstantRegistry
         derived = string.Empty;
         if (string.IsNullOrWhiteSpace(envVar)) return false;
         var upper = envVar.ToUpperInvariant();
-        // 1. Подписки: если это подписка, вычисляем родительский топик
-        if (upper.Contains("SUBSCRIBER") || upper.Contains("SUBSCRIPTION") || upper.Contains("_SUB_") || upper.EndsWith("_SUB"))
+
+        // 0. Immediately reject non-messaging keywords (URLs, ports, secrets, DB tables, metrics, flags)
+        if (upper.Contains("_URL") || upper.Contains("_URI") || upper.Contains("_PORT") ||
+            upper.Contains("_HOST") || upper.Contains("_KEY") || upper.Contains("_SECRET") ||
+            upper.Contains("_TOKEN") || upper.Contains("_PASSWORD") || upper.Contains("_TABLE") ||
+            upper.Contains("_COLLECTION") || upper.Contains("_DB") || upper.Contains("_DATABASE") ||
+            upper.Contains("_COUNT") || upper.Contains("_TIMEOUT") || upper.Contains("_INTERVAL") ||
+            upper.Contains("_RETRIES") || upper.Contains("_PATH") || upper.Contains("_BUCKET") ||
+            upper.EndsWith("_ENABLED") || upper.StartsWith("ENABLE_") || upper.StartsWith("DISABLE_"))
         {
-            var asTopic = upper.Replace("SUBSCRIPTION_NAME", "TOPIC")
-                               .Replace("SUBSCRIBER_NAME", "TOPIC")
-                               .Replace("SUBSCRIPTION", "TOPIC")
-                               .Replace("SUBSCRIBER", "TOPIC");
+            return false;
+        }
+
+        // 1. Explicit subscription names: EVENT_BUS_SUBSCRIPTION_NAME, ORDER_EVENTS_SUB -> parent topic
+        if (upper.EndsWith("_SUBSCRIPTION_NAME") || upper.EndsWith("_SUBSCRIBER_NAME") ||
+            upper.EndsWith("_SUBSCRIPTION") || upper.EndsWith("_SUBSCRIBER") ||
+            upper.EndsWith("_SUB_NAME") || upper.EndsWith("_SUB") || upper.Contains("_SUB_TOPIC"))
+        {
+            var asTopic = upper.Replace("_SUBSCRIPTION_NAME", "_TOPIC")
+                               .Replace("_SUBSCRIBER_NAME", "_TOPIC")
+                               .Replace("_SUB_NAME", "_TOPIC")
+                               .Replace("_SUBSCRIPTION", "_TOPIC")
+                               .Replace("_SUBSCRIBER", "_TOPIC");
             if (asTopic.EndsWith("_SUB")) asTopic = asTopic[..^4] + "_TOPIC";
             if (asTopic != upper && !asTopic.Equals("TOPIC", StringComparison.OrdinalIgnoreCase))
             {
                 var norm = WorkspaceConventions.NormalizeTopicName(asTopic);
-                if (!string.IsNullOrEmpty(norm) && !norm.Equals("topic", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(norm) && !WorkspaceConventions.IsPlaceholderName(norm))
                 {
                     derived = norm;
                     return true;
@@ -219,20 +244,27 @@ public static class ConstantRegistry
             }
             return false;
         }
-        // 2. Топики и очереди: EVENT_BUS_TOPIC_NAME -> event-bus-topic
+
+        // 2. Explicit topics, queues, and exchanges: EVENT_BUS_TOPIC_NAME -> event-bus-topic
         if (upper.EndsWith("_TOPIC_NAME") || upper.EndsWith("_TOPIC") ||
-            upper.EndsWith("_QUEUE_NAME") || upper.EndsWith("_QUEUE"))
+            upper.EndsWith("_TOPIC_ID") ||
+            upper.EndsWith("_QUEUE_NAME") || upper.EndsWith("_QUEUE") ||
+            upper.EndsWith("_QUEUE_ID") ||
+            upper.EndsWith("_EXCHANGE_NAME") || upper.EndsWith("_EXCHANGE"))
         {
             var raw = upper;
             if (raw.EndsWith("_NAME")) raw = raw[..^5];
-            if (raw is "TOPIC" or "QUEUE") return false;
+            else if (raw.EndsWith("_ID")) raw = raw[..^3];
+
+            if (raw is "TOPIC" or "QUEUE" or "EXCHANGE" or "DEFAULT_TOPIC" or "DEFAULT_QUEUE") return false;
             var norm = WorkspaceConventions.NormalizeTopicName(raw);
-            if (!string.IsNullOrEmpty(norm))
+            if (!string.IsNullOrEmpty(norm) && !WorkspaceConventions.IsPlaceholderName(norm))
             {
                 derived = norm;
                 return true;
             }
         }
+
         return false;
     }
 

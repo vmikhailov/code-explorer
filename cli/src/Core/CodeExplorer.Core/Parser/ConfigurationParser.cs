@@ -267,9 +267,11 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         ParsingContext ctx)
     {
-        if (relativePath.Contains("docker-compose", StringComparison.OrdinalIgnoreCase))
+        var fileName = Path.GetFileName(relativePath).ToLowerInvariant();
+        if (fileName.Contains("docker-compose") || fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
+            fileName.Equals("compose.yml") || fileName.Equals("compose.yaml"))
         {
-            return; // docker-compose описывает локальные контейнеры для dev, а не логику обмена сообщениями
+            return; // docker-compose / compose describes local dev containers, not production architecture
         }
 
         var lower = key.ToLowerInvariant();

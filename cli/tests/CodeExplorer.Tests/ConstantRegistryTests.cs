@@ -176,9 +176,10 @@ public class ConstantRegistryTests
     {
         var envContent = """
         # Comments
-        EVENT_BUS_TOPIC_NAME=custom-event-bus-topic
-        RULE_TREE_TOPIC=rule-tree-updates
+        export EVENT_BUS_TOPIC_NAME="custom-event-bus-topic"
+        RULE_TREE_TOPIC=rule-tree-updates # inline comment
         DB_HOST=127.0.0.1
+        WEBHOOK_SECRET="hash#value=123"
         IGNORED_LINE_WITHOUT_EQUALS
         """;
 
@@ -189,6 +190,9 @@ public class ConstantRegistryTests
 
         Assert.That(ConstantRegistry.TryResolve("billing", "RULE_TREE_TOPIC", out var ruleVal), Is.True);
         Assert.That(ruleVal, Is.EqualTo("rule-tree-updates"));
+
+        Assert.That(ConstantRegistry.TryResolve("billing", "WEBHOOK_SECRET", out var secretVal), Is.True);
+        Assert.That(secretVal, Is.EqualTo("hash#value=123"));
     }
 
     [Test]
@@ -211,6 +215,13 @@ public class ConstantRegistryTests
         // 3. Dummy / placeholder names should fail derivation
         Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("TOPIC_NAME", out _), Is.False);
         Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("QUEUE_NAME", out _), Is.False);
+
+        // 4. Non-messaging variables (URLs, tables, secrets, flags) MUST fail derivation
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("BILLING_SUBSCRIPTION_URL", out _), Is.False);
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("USER_SUBSCRIPTIONS_TABLE", out _), Is.False);
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("STRIPE_SUBSCRIPTION_WEBHOOK_SECRET", out _), Is.False);
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("SUBSCRIPTION_ENABLED", out _), Is.False);
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("SUBSCRIBERS_COUNT", out _), Is.False);
     }
 
     [Test]
@@ -219,9 +230,21 @@ public class ConstantRegistryTests
         Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("TOPIC_NAME"), Is.Empty);
         Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("QUEUE_NAME"), Is.Empty);
         Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("EVENT_SUBSCRIBER_NAME"), Is.Empty);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("my-service-sub-id"), Is.Empty);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("billing-subscription-name"), Is.Empty);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("default-sub-id"), Is.Empty);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("default-subscription-name"), Is.Empty);
 
         Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("ORDER_EVENTS_TOPIC"), Is.EqualTo("order-events-topic"));
+    }
+
+    [Test]
+    public void WorkspaceConventions_IsPlaceholderName_DetectsPlaceholdersAccurately()
+    {
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("TOPIC_NAME"), Is.True);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("QUEUE_NAME"), Is.True);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("default-topic"), Is.True);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("default-sub-id"), Is.True);
+
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("order-events-topic"), Is.False);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("payment-queue"), Is.False);
     }
 }

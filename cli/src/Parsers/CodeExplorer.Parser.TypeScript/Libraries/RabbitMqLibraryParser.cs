@@ -80,18 +80,19 @@ public class RabbitMqLibraryParser : ILibraryParser
                 {
                     var obj = funcNode.GetField(TreeSitterSyntax.Fields.Object);
                     var objText = obj.IsValid() ? obj.Text.ToLowerInvariant() : "";
-                    if (objText.Contains("cache") || objText.Contains("redis"))
+
+                    // .createQueue is not an amqplib method; only treat as RabbitMQ if object is explicitly rabbit/amqp/channel
+                    if (funcText.EndsWith(".createQueue", StringComparison.Ordinal) &&
+                        !objText.Contains("rabbit") && !objText.Contains("amqp") && !objText.Contains("channel"))
                     {
-                        return; // Пропускаем Redis очередь
+                        return;
                     }
+
                     if (args.Count > 0)
                     {
                         var queueArg = args[0];
-                        var topicName = AstHelper.ResolveStringOrTemplate(queueArg);
-                        if (!string.Equals(topicName, "QUEUE_NAME", StringComparison.OrdinalIgnoreCase))
-                        {
-                            AddSubscribeReference(references, scopeSymbolId, topicName);
-                        }
+                        var topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
+                        AddSubscribeReference(references, scopeSymbolId, topicName);
                     }
                 }
                 // 4. messaging.subscribe(to, handler, ...)
@@ -150,6 +151,7 @@ public class RabbitMqLibraryParser : ILibraryParser
     private static bool IsValidQueueName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
+        if (WorkspaceConventions.IsPlaceholderName(name)) return false;
         var t = name.Trim();
         if (t.StartsWith(':') ||
             t.Equals("string", StringComparison.OrdinalIgnoreCase) ||
