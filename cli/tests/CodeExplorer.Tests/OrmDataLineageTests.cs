@@ -95,7 +95,7 @@ public class Account {
         // 3. TypeScript with TypeORM @Entity('typeorm_products')
         var tsDir = Path.Combine(_tempWorkspace, "TsOrmApp").Replace('\\', '/');
         Directory.CreateDirectory(tsDir);
-        await File.WriteAllTextAsync(Path.Combine(tsDir, "package.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(tsDir, "package.json"), "{\"name\": \"ts-orm-app\", \"dependencies\": {\"typeorm\": \"^0.3.0\"}}");
 
         var tsCode = @"
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';

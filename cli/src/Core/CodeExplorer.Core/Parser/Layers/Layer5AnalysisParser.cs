@@ -62,6 +62,7 @@ public class Layer5AnalysisParser
         }
         else
         {
+            await ctx.WaitForQueueDrainedAsync();
             ctx.Log("[Layer5] Running in-memory post-indexing analysis via PostIndexAnalyzer...");
             await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
         }

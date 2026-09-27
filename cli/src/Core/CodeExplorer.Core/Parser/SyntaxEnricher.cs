@@ -73,7 +73,7 @@ public class SyntaxEnricher : ISyntaxEnricher
             var relativePath = fileNode.Path;
             // Extract libraries used as list of string
             var fileImports = _syntaxTree.RawImports
-                .Where(i => i.Type == ImportType.External)
+                .Where(i => i.Type == ImportType.External || _trieRegistry.Match(i.Path) != null)
                 .Select(i => i.Path)
                 .ToList();
 

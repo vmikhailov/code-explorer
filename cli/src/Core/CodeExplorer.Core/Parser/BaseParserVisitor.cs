@@ -17,7 +17,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     public void ResolveAndInjectLibraryParser(string importPath)
     {
         var type = FileParser.ResolveImportType(importPath, RelativePath, AbsoluteWorkspacePath);
-        if (type == ImportType.External)
+        if (type == ImportType.External || LibraryRegistry.Match(importPath) != null)
         {
             var matches = LibraryRegistry.MatchAll(importPath);
             foreach (var match in matches)

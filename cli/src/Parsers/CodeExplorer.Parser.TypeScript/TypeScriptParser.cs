@@ -386,10 +386,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
     {
-        return ResolveTsImportType(importPath, filePath);
+        return ResolveTsImportType(importPath, filePath, absoluteWorkspacePath);
     }
 
-    public ImportType ResolveTsImportType(string importPath, string filePath)
+    public ImportType ResolveTsImportType(string importPath, string filePath, string? absoluteWorkspacePath = null)
     {
         if (string.IsNullOrEmpty(importPath)) return ImportType.External;
 
@@ -399,7 +399,21 @@ public class TypeScriptParser : IProjectParser, IFileParser
         if (importPath.StartsWith("@/"))
             return ImportType.Internal;
 
-        var dir = Path.GetDirectoryName(filePath);
+        // If it matches any registered library parser, it is an external library
+        var firstPart = importPath.Contains('/') ? importPath.Split('/')[0] : importPath;
+        if (LibraryParsers.Any(p => p.SupportedPatterns.Any(pat =>
+            pat.Equals(importPath, StringComparison.OrdinalIgnoreCase) ||
+            pat.Equals(firstPart, StringComparison.OrdinalIgnoreCase) ||
+            pat.StartsWith(firstPart + "/", StringComparison.OrdinalIgnoreCase))))
+        {
+            return ImportType.External;
+        }
+
+        var fullFilePath = Path.IsPathRooted(filePath)
+            ? filePath
+            : (!string.IsNullOrEmpty(absoluteWorkspacePath) ? Path.Combine(absoluteWorkspacePath, filePath).Replace('\\', '/') : filePath);
+
+        var dir = Path.GetDirectoryName(fullFilePath);
         var projectDir = FindProjectDirectoryWithPackageJson(dir);
         if (projectDir != null)
         {
@@ -417,6 +431,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 if (deps.Any(d => d.StartsWith(parts[0] + "/")))
                     return ImportType.External;
 
+                if (deps.Count == 0)
+                    return ImportType.External;
+
                 return ImportType.Internal;
             }
             else
@@ -431,6 +448,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     "fs", "path", "os", "http", "https", "crypto", "child_process", "dns", "events", "net", "stream", "util", "url", "zlib"
                 };
                 if (builtIns.Contains(firstSegment))
+                    return ImportType.External;
+
+                if (deps.Count == 0)
                     return ImportType.External;
 
                 return ImportType.Internal;

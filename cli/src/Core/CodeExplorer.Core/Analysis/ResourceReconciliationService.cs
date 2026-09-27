@@ -393,7 +393,8 @@ public class ResourceReconciliationService
                "spring.datasource.url" or "spring-datasource" or "database_url" or
                "typeorm" or "ef-core" or "microsoft.entityframeworkcore" or "dapper" or
                "prisma" or "sequelize" or "drizzle" or "hibernate" or "sqlalchemy" or
-               "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex";
+               "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex" ||
+               lower.Contains("jpa") || lower.Contains("hibernate") || lower.Contains("spring data");
     }
 
     public static string NormalizeAlias(string raw)
