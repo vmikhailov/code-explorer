@@ -13,15 +13,11 @@ namespace CodeExplorer.Core.Parser;
 public static class ConfigurationParser
 {
     private static readonly Regex KeyValEnvRegex = new(@"^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.*)$", RegexOptions.Compiled);
-    private static readonly Regex ComposeServiceRegex = new(@"^\s{2}([A-Za-z0-9_-]+):\s*$", RegexOptions.Compiled);
-    private static readonly Regex ComposeImageRegex = new(@"^\s{4}image:\s*([^\s#]+)", RegexOptions.Compiled);
 
     public static bool IsConfigurationFile(string fileName)
     {
         var lower = fileName.ToLowerInvariant();
         return lower.StartsWith("appsettings") && lower.EndsWith(".json") ||
-               lower.StartsWith("docker-compose") && (lower.EndsWith(".yml") || lower.EndsWith(".yaml")) ||
-               lower.StartsWith("compose") && (lower.EndsWith(".yml") || lower.EndsWith(".yaml")) ||
                lower.StartsWith(".env") ||
                lower.StartsWith("application") && (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml"));
     }
@@ -45,10 +41,6 @@ public static class ConfigurationParser
             if (lower.StartsWith("appsettings") && lower.EndsWith(".json"))
             {
                 ParseAppSettingsJson(filePath, relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
-            }
-            else if (lower.StartsWith("docker-compose") || lower.StartsWith("compose"))
-            {
-                ParseDockerCompose(filePath, relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
             }
             else if (lower.StartsWith(".env"))
             {
@@ -212,80 +204,6 @@ public static class ConfigurationParser
                     InferAndCreateServiceFromConnectionString("spring-datasource", val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
                 }
             }
-        }
-    }
-
-    private static void ParseDockerCompose(
-        string filePath,
-        string relativePath,
-        string fileNodeId,
-        string workspaceId,
-        IOntologyNode containerNode,
-        List<Relationship> relationships,
-        ParsingContext ctx)
-    {
-        var lines = File.ReadAllLines(filePath);
-        string? currentService = null;
-
-        foreach (var line in lines)
-        {
-            var svcMatch = ComposeServiceRegex.Match(line);
-            if (svcMatch.Success)
-            {
-                currentService = svcMatch.Groups[1].Value.Trim();
-                continue;
-            }
-
-            var imgMatch = ComposeImageRegex.Match(line);
-            if (imgMatch.Success && !string.IsNullOrEmpty(currentService))
-            {
-                var image = imgMatch.Groups[1].Value.Trim().ToLowerInvariant();
-                InferServiceFromDockerImage(currentService, image, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-            }
-        }
-    }
-
-    private static void InferServiceFromDockerImage(
-        string serviceName,
-        string image,
-        string relativePath,
-        string fileNodeId,
-        string workspaceId,
-        IOntologyNode containerNode,
-        List<Relationship> relationships,
-        ParsingContext ctx)
-    {
-        if (image.Contains("postgres") || image.Contains("timescaledb"))
-        {
-            CreateDatabaseNode("PostgreSQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, serviceName);
-        }
-        else if (image.Contains("redis"))
-        {
-            CreateDatabaseNode("Redis", "cache", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, serviceName);
-        }
-        else if (image.Contains("mongo"))
-        {
-            CreateDatabaseNode("MongoDB", "document", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, serviceName);
-        }
-        else if (image.Contains("mysql") || image.Contains("mariadb"))
-        {
-            CreateDatabaseNode(image.Contains("mariadb") ? "MariaDB" : "MySQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, serviceName);
-        }
-        else if (image.Contains("mssql") || image.Contains("sqlserver"))
-        {
-            CreateDatabaseNode("SQL Server", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, serviceName);
-        }
-        else if (image.Contains("rabbitmq"))
-        {
-            CreateTopicNode("rabbitmq", serviceName, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (image.Contains("kafka"))
-        {
-            CreateTopicNode("kafka", serviceName, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (image.Contains("localstack"))
-        {
-            CreateCloudServiceNode("AWS (LocalStack)", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
         }
     }
 

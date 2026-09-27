@@ -80,7 +80,7 @@ public class ConfigurationMappingTests
     }
 
     [Test]
-    public async Task Test_DockerCompose_ExtractsInfrastructureServices()
+    public async Task Test_DockerCompose_DoesNotExtractFalseInfrastructureServices()
     {
         var composeContent = """
         version: '3.8'
@@ -109,12 +109,10 @@ public class ConfigurationMappingTests
         var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
-        Assert.That(databases.Any(d => d.DbType == "relational" && d.Name == "postgres"), Is.True, "Postgres service from docker-compose should be extracted");
-        Assert.That(databases.Any(d => d.DbType == "cache" && d.Name == "redis"), Is.True, "Redis service from docker-compose should be extracted");
+        Assert.That(databases, Is.Empty, "Docker compose should not generate false DatabaseNode dependencies");
 
         var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();
-        Assert.That(topics.Any(t => t.BrokerType == "rabbitmq" && t.Name == "rabbitmq"), Is.True, "RabbitMQ from docker-compose should be extracted");
-        Assert.That(topics.Any(t => t.BrokerType == "kafka" && t.Name == "kafka"), Is.True, "Kafka from docker-compose should be extracted");
+        Assert.That(topics, Is.Empty, "Docker compose should not generate false TopicNode dependencies");
     }
 
     [Test]
