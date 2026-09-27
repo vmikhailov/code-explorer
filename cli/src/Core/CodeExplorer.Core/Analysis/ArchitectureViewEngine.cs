@@ -513,7 +513,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 "library" => "LIBRARY",
                 "service_call" => (rKind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL"),
                 "database" => "USES_DB",
-                "messaging" => (rKind is "PUBLISHES_TO" or "SUBSCRIBES_TO" ? rKind : "TRIGGERS"),
+                "messaging" => (rKind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY" ? "PUBLISHES_TO" : "SUBSCRIBES_TO"),
                 _ => normalizedKind
             };
 
@@ -759,7 +759,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                     if (tgtNode.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) && edge.Kind.Equals("SUBSCRIBES_TO", StringComparison.OrdinalIgnoreCase))
                     {
                         AddNeighborNode(tgtNode, column: "left", role: "topic");
-                        AddNeighborEdge(tgtNode.Id, centerId, "TRIGGERS", "messaging", edge.Properties);
+                        AddNeighborEdge(tgtNode.Id, centerId, "SUBSCRIBES", "messaging", edge.Properties);
                     }
                     else
                     {
@@ -1639,16 +1639,16 @@ public class ArchitectureViewEngine(IGraphClient db)
                     foreach (var inEdge in incomingToLib)
                     {
                         if (!nodesById.TryGetValue(inEdge.Source, out var srcNode)) continue;
-                        if (srcNode.Kind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase) || inEdge.Kind == "TRIGGERS")
+                        if (srcNode.Kind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase) || inEdge.Kind == "TRIGGERS" || inEdge.Kind == "SUBSCRIBES_TO")
                         {
-                            if (graph.Edges.All(e => !(e.Source == srcNode.Id && e.Target == service.Id && e.Kind == "TRIGGERS")))
+                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == srcNode.Id && e.Kind == "SUBSCRIBES_TO")))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
                                 {
-                                    Id = $"{srcNode.Id}->{service.Id}:TRIGGERS",
-                                    Source = srcNode.Id,
-                                    Target = service.Id,
-                                    Kind = "TRIGGERS",
+                                    Id = $"{service.Id}->{srcNode.Id}:SUBSCRIBES_TO",
+                                    Source = service.Id,
+                                    Target = srcNode.Id,
+                                    Kind = "SUBSCRIBES_TO",
                                     Category = "messaging",
                                     Properties = new Dictionary<string, string>
                                     {
@@ -1735,17 +1735,17 @@ public class ArchitectureViewEngine(IGraphClient db)
                                 });
                             }
                         }
-                        // Case 4: Library publishes to Topic -> Lift direct TRIGGERS
+                        // Case 4: Library publishes to Topic -> Lift direct PUBLISHES_TO
                         else if (targetNode.Kind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
                         {
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && (e.Kind == "TRIGGERS" || e.Kind == "PUBLISHES_TO"))))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
                                 {
-                                    Id = $"{service.Id}->{targetNode.Id}:TRIGGERS",
+                                    Id = $"{service.Id}->{targetNode.Id}:PUBLISHES_TO",
                                     Source = service.Id,
                                     Target = targetNode.Id,
-                                    Kind = "TRIGGERS",
+                                    Kind = "PUBLISHES_TO",
                                     Category = "messaging",
                                     Properties = new Dictionary<string, string>
                                     {
@@ -2577,11 +2577,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             else if (topicNodes.ContainsKey(tgtDomain) || topicNodes.ContainsKey(srcDomain) || edge.Category == "messaging" || edge.Kind == "TRIGGERS" || edge.Kind == "PUBLISHES_TO" || edge.Kind == "SUBSCRIBES_TO" || edge.Kind == "PUBLISHED_BY" || edge.Kind == "SUBSCRIBED_BY")
             {
                 cat = "messaging";
-                if (topicNodes.ContainsKey(srcDomain))
-                {
-                    label = "TRIGGERS";
-                }
-                else if (edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY")
+                if (edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" || (topicNodes.ContainsKey(srcDomain) && !topicNodes.ContainsKey(tgtDomain)))
                 {
                     label = "SUBSCRIBES";
                 }

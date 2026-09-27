@@ -67,12 +67,12 @@ public class MessagingConnectionsTests
     {
         var (inCat, inDep, inKind) = PostIndexAnalyzer.NormalizeEdgeCategory("TRIGGERS", "Topic", "Project", null, null, false);
         Assert.That(inCat, Is.EqualTo("messaging"));
-        Assert.That(inKind, Is.EqualTo("TRIGGERS"));
+        Assert.That(inKind, Is.EqualTo("SUBSCRIBES_TO"));
         Assert.That(inDep, Is.EqualTo("messaging"));
 
-        var (outCat, outDep, outKind) = PostIndexAnalyzer.NormalizeEdgeCategory("TRIGGERS", "Project", "Topic", null, null, false);
+        var (outCat, outDep, outKind) = PostIndexAnalyzer.NormalizeEdgeCategory("PUBLISHES_TO", "Project", "Topic", null, null, false);
         Assert.That(outCat, Is.EqualTo("messaging"));
-        Assert.That(outKind, Is.EqualTo("TRIGGERS"));
+        Assert.That(outKind, Is.EqualTo("PUBLISHES_TO"));
         Assert.That(outDep, Is.EqualTo("messaging"));
     }
 
@@ -88,22 +88,22 @@ public class MessagingConnectionsTests
         var rels = new List<Relationship>
         {
             new("service1", "lib1", OntologyConstants.Relationships.DependsOn, new()),
-            new("inTopic", "lib1", OntologyConstants.Relationships.Triggers, new()),
-            new("lib1", "outTopic", OntologyConstants.Relationships.Triggers, new())
+            new("inTopic", "lib1", OntologyConstants.Relationships.SubscribesTo, new()),
+            new("lib1", "outTopic", OntologyConstants.Relationships.PublishesTo, new())
         };
 
         var lifted = PostIndexAnalyzer.LiftTransitiveSemanticRelations(projects, rels);
 
-        // Verify inbound message lifted to service
-        var liftedIn = lifted.FirstOrDefault(e => e.From == "inTopic" && e.To == "service1");
+        // Verify inbound message lifted to service as SUBSCRIBES_TO
+        var liftedIn = lifted.FirstOrDefault(e => e.From == "service1" && e.To == "inTopic");
         Assert.That(liftedIn, Is.Not.Null);
-        Assert.That(liftedIn!.Kind, Is.EqualTo("TRIGGERS"));
+        Assert.That(liftedIn!.Kind, Is.EqualTo("SUBSCRIBES_TO"));
         Assert.That(liftedIn.Properties.GetValueOrDefault("semantic_lifted")?.ToString(), Is.EqualTo("true"));
 
-        // Verify outbound message lifted to service
+        // Verify outbound message lifted to service as PUBLISHES_TO
         var liftedOut = lifted.FirstOrDefault(e => e.From == "service1" && e.To == "outTopic");
         Assert.That(liftedOut, Is.Not.Null);
-        Assert.That(liftedOut!.Kind, Is.EqualTo("TRIGGERS"));
+        Assert.That(liftedOut!.Kind, Is.EqualTo("PUBLISHES_TO"));
         Assert.That(liftedOut.Properties.GetValueOrDefault("semantic_lifted")?.ToString(), Is.EqualTo("true"));
     }
 
@@ -142,8 +142,8 @@ public class MessagingConnectionsTests
         var subRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicSubId && r.Kind == OntologyConstants.Relationships.SubscribesTo);
         Assert.That(subRel, Is.Not.Null, "Expected project-level SUBSCRIBES_TO edge from publisher project to topic");
 
-        var trigRel = materialized.FirstOrDefault(r => r.From == topicSubId && r.To == proj.Id && r.Kind == OntologyConstants.Relationships.Triggers);
-        Assert.That(trigRel, Is.Not.Null, "Expected project-level TRIGGERS edge from topic to publisher project");
+        var trigRel = materialized.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.Triggers);
+        Assert.That(trigRel, Is.Null, "Duplicate TRIGGERS edge must not be materialized on macro level");
     }
 }
 

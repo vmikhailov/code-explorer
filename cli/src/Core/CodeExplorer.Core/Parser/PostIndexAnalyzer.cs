@@ -538,19 +538,6 @@ public class PostIndexAnalyzer(IGraphClient db)
                                 }
                             ));
                         }
-                        if (existingEdges.Add((topicId, owner.Id, OntologyConstants.Relationships.Triggers)))
-                        {
-                            materializedRels.Add(new Relationship(
-                                topicId,
-                                owner.Id,
-                                OntologyConstants.Relationships.Triggers,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "messaging",
-                                    ["is_semantic"] = "true"
-                                }
-                            ));
-                        }
                     }
                 }
             }
@@ -807,16 +794,17 @@ public class PostIndexAnalyzer(IGraphClient db)
                         var isTopic = (srcKind != null && srcKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
                                       || inEdge.From.Contains($":{OntologyConstants.IdPrefixes.Topic}:")
                                       || inEdge.From.Contains(":topic:")
-                                      || inEdge.Kind == OntologyConstants.Relationships.Triggers;
+                                      || inEdge.Kind == OntologyConstants.Relationships.Triggers
+                                      || inEdge.Kind == OntologyConstants.Relationships.SubscribesTo;
 
                         if (isTopic)
                         {
-                            if (existingEdges.Add((inEdge.From, service.Id, OntologyConstants.Relationships.Triggers)))
+                            if (existingEdges.Add((service.Id, inEdge.From, OntologyConstants.Relationships.SubscribesTo)))
                             {
                                 liftedRels.Add(new Relationship(
-                                    inEdge.From,
                                     service.Id,
-                                    OntologyConstants.Relationships.Triggers,
+                                    inEdge.From,
+                                    OntologyConstants.Relationships.SubscribesTo,
                                     new Dictionary<string, object>
                                     {
                                         ["dependency_type"] = "messaging",
@@ -917,11 +905,9 @@ public class PostIndexAnalyzer(IGraphClient db)
                                  || edge.Kind == OntologyConstants.Relationships.SubscribesTo
                                  || edge.Kind == OntologyConstants.Relationships.Triggers)
                         {
-                            var outKind = (edge.Kind == OntologyConstants.Relationships.Triggers)
-                                ? OntologyConstants.Relationships.Triggers
-                                : (edge.Kind == OntologyConstants.Relationships.SubscribesTo)
-                                    ? OntologyConstants.Relationships.SubscribesTo
-                                    : OntologyConstants.Relationships.PublishesTo;
+                            var outKind = (edge.Kind == OntologyConstants.Relationships.SubscribesTo || edge.Kind == OntologyConstants.Relationships.Triggers)
+                                ? OntologyConstants.Relationships.SubscribesTo
+                                : OntologyConstants.Relationships.PublishesTo;
                             if (existingEdges.Add((service.Id, edge.To, outKind)))
                             {
                                 liftedRels.Add(new Relationship(
@@ -2043,6 +2029,12 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             category = "database";
         }
+        else if (kind == "TRIGGERS" && (string.Equals(sourceKind, "Endpoint", StringComparison.OrdinalIgnoreCase) ||
+                                       string.Equals(sourceKind, "EntryPoint", StringComparison.OrdinalIgnoreCase) ||
+                                       string.Equals(targetKind, "Function", StringComparison.OrdinalIgnoreCase)))
+        {
+            category = "entrypoint";
+        }
         else if (kind is "TRIGGERS" or "PUBLISHES" or "PUBLISHES_TO" or "SUBSCRIBES_TO" or "SUBSCRIBED_BY" ||
                  string.Equals(targetKind, "Topic", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(sourceKind, "Topic", StringComparison.OrdinalIgnoreCase))
@@ -2069,6 +2061,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             "database" or "db" => "database",
             "messaging" or "queue" or "topic" or "pubsub" => "messaging",
             "service_call" or "service" or "api" or "http" or "grpc" => "service_call",
+            "entrypoint" => "entrypoint",
             _ => "library"
         };
 
@@ -2079,9 +2072,13 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             normalizedKind = "USES_DB";
         }
+        else if (category == "entrypoint" || (kind == "TRIGGERS" && !string.Equals(targetKind, "Topic", StringComparison.OrdinalIgnoreCase) && !string.Equals(sourceKind, "Topic", StringComparison.OrdinalIgnoreCase)))
+        {
+            normalizedKind = "TRIGGERS";
+        }
         else if (category == "messaging")
         {
-            normalizedKind = (kind is "PUBLISHES_TO" or "SUBSCRIBES_TO") ? kind : "TRIGGERS";
+            normalizedKind = (kind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY") ? "PUBLISHES_TO" : "SUBSCRIBES_TO";
         }
         else if (kind is "DEPENDS_ON" or "DependsOn")
         {

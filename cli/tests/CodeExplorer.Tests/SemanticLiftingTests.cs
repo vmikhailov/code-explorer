@@ -82,9 +82,9 @@ public class SemanticLiftingTests
 
         Assert.That(lifted, Has.Count.EqualTo(1));
         var rel = lifted[0];
-        Assert.That(rel.From, Is.EqualTo("ws1:res:topic:kafka:orders"));
-        Assert.That(rel.To, Is.EqualTo("proj:svc_a"));
-        Assert.That(rel.Kind, Is.EqualTo(OntologyConstants.Relationships.Triggers));
+        Assert.That(rel.From, Is.EqualTo("proj:svc_a"));
+        Assert.That(rel.To, Is.EqualTo("ws1:res:topic:kafka:orders"));
+        Assert.That(rel.Kind, Is.EqualTo(OntologyConstants.Relationships.SubscribesTo));
         Assert.That(rel.Properties!["via_library"]?.ToString(), Is.EqualTo("LibConsumer"));
     }
 }

@@ -241,7 +241,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'line-color': '#64748b',
       'target-arrow-color': '#64748b',
       'target-arrow-shape': 'triangle',
-      'arrow-scale': 1.15,
+      'arrow-scale': 2.3,
       'curve-style': 'bezier',
       'label': 'data(label)',
       'font-size': '8.5px',
@@ -368,6 +368,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [swimlaneGuides, setSwimlaneGuides] = useState<SwimlaneGuide[]>([]);
   const [islandGuides, setIslandGuides] = useState<IslandGuide[]>([]);
   const [hiveGuides, setHiveGuides] = useState<HiveAxisGuide[]>([]);
+  const baseConcentricGuidesRef = useRef<ConcentricOrbitGuide[]>([]);
+  const baseSwimlaneGuidesRef = useRef<SwimlaneGuide[]>([]);
+  const baseIslandGuidesRef = useRef<IslandGuide[]>([]);
+  const baseHiveGuidesRef = useRef<HiveAxisGuide[]>([]);
   const [cyTransform, setCyTransform] = useState<{ pan: { x: number; y: number }; zoom: number }>({ pan: { x: 0, y: 0 }, zoom: 1 });
   const [selectedNode, setSelectedNode] = useState<SelectedNodeDetail | null>(null);
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(new Set());
@@ -654,9 +658,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         edge.kind === 'SUBSCRIBED_BY'
       ) {
         cat = 'messaging';
-        if (topicNodes.has(srcDomain)) {
-          label = 'TRIGGERS';
-        } else if (edge.kind === 'SUBSCRIBES_TO' || edge.kind === 'SUBSCRIBED_BY') {
+        if (edge.kind === 'SUBSCRIBES_TO' || edge.kind === 'SUBSCRIBED_BY' || (topicNodes.has(srcDomain) && !topicNodes.has(tgtDomain))) {
           label = 'SUBSCRIBES';
         } else {
           label = 'PUBLISHES';
@@ -1468,6 +1470,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setSwimlaneGuides([]);
         setIslandGuides([]);
         setHiveGuides([]);
+        baseConcentricGuidesRef.current = [];
+        baseSwimlaneGuidesRef.current = [];
+        baseIslandGuidesRef.current = [];
+        baseHiveGuidesRef.current = [];
         setIsPreparing(false);
         return;
       }
@@ -1499,6 +1505,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setSwimlaneGuides([]);
         setIslandGuides([]);
         setHiveGuides([]);
+        baseSwimlaneGuidesRef.current = [];
+        baseIslandGuidesRef.current = [];
+        baseHiveGuidesRef.current = [];
         const layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing);
         layoutConfig = {
           name: 'preset',
@@ -1507,11 +1516,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           padding: 60,
           animate: false,
         };
+        const effSpacing = spacing || 1.0;
+        baseConcentricGuidesRef.current = layoutResult.guides.map((g) => ({
+          ...g,
+          radius: g.radius / effSpacing,
+        }));
         setConcentricGuides(layoutResult.guides);
       } else if (layoutName === 'swimlanes') {
         setConcentricGuides([]);
         setIslandGuides([]);
         setHiveGuides([]);
+        baseConcentricGuidesRef.current = [];
+        baseIslandGuidesRef.current = [];
+        baseHiveGuidesRef.current = [];
         const layoutResult = computeSwimlanesLayout(visibleNodesInput, visibleEdgesInput, spacing);
         layoutConfig = {
           name: 'preset',
@@ -1520,11 +1537,22 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           padding: 60,
           animate: false,
         };
+        const effSpacing = spacing || 1.0;
+        baseSwimlaneGuidesRef.current = layoutResult.lanes.map((g) => ({
+          ...g,
+          x: g.x / effSpacing,
+          y: g.y / effSpacing,
+          width: g.width / effSpacing,
+          height: g.height / effSpacing,
+        }));
         setSwimlaneGuides(layoutResult.lanes);
       } else if (layoutName === 'clusters') {
         setConcentricGuides([]);
         setSwimlaneGuides([]);
         setHiveGuides([]);
+        baseConcentricGuidesRef.current = [];
+        baseSwimlaneGuidesRef.current = [];
+        baseHiveGuidesRef.current = [];
         const layoutResult = computeDomainIslandsLayout(visibleNodesInput, visibleEdgesInput, spacing);
         layoutConfig = {
           name: 'preset',
@@ -1533,11 +1561,22 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           padding: 60,
           animate: false,
         };
+        const effSpacing = spacing || 1.0;
+        baseIslandGuidesRef.current = layoutResult.islands.map((g) => ({
+          ...g,
+          x: g.x / effSpacing,
+          y: g.y / effSpacing,
+          width: g.width / effSpacing,
+          height: g.height / effSpacing,
+        }));
         setIslandGuides(layoutResult.islands);
       } else if (layoutName === 'hive') {
         setConcentricGuides([]);
         setSwimlaneGuides([]);
         setIslandGuides([]);
+        baseConcentricGuidesRef.current = [];
+        baseSwimlaneGuidesRef.current = [];
+        baseIslandGuidesRef.current = [];
         const layoutResult = computeHivePlotLayout(visibleNodesInput, visibleEdgesInput, spacing);
         layoutConfig = {
           name: 'preset',
@@ -1546,12 +1585,21 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           padding: 60,
           animate: false,
         };
+        const effSpacing = spacing || 1.0;
+        baseHiveGuidesRef.current = layoutResult.axes.map((g) => ({
+          ...g,
+          length: g.length / effSpacing,
+        }));
         setHiveGuides(layoutResult.axes);
       } else {
         setConcentricGuides([]);
         setSwimlaneGuides([]);
         setIslandGuides([]);
         setHiveGuides([]);
+        baseConcentricGuidesRef.current = [];
+        baseSwimlaneGuidesRef.current = [];
+        baseIslandGuidesRef.current = [];
+        baseHiveGuidesRef.current = [];
         // Organic Force-Directed (COSE)
         layoutConfig = {
           name: 'cose',
@@ -1638,8 +1686,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       count++;
     });
 
-    const cx = count > 0 ? sumX / count : 0;
-    const cyPos = count > 0 ? sumY / count : 0;
+    let cx = count > 0 ? sumX / count : 0;
+    let cyPos = count > 0 ? sumY / count : 0;
+    if (layoutName === 'concentric' || layoutName === 'hive' || layoutName === 'swimlanes' || layoutName === 'clusters') {
+      cx = 0;
+      cyPos = 0;
+    }
     centroidRef.current = { cx, cy: cyPos };
 
     const baseMap = new Map<string, cytoscape.Position>();
@@ -1650,7 +1702,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       baseMap.set(n.id(), { x: unscaledX, y: unscaledY });
     });
     basePositionsRef.current = baseMap;
-  }, []);
+  }, [layoutName]);
 
   // Real-time radial node spacing (air) adjustment
   const handleSpacingChange = useCallback(
@@ -1680,8 +1732,87 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           }
         });
       });
+
+      // Update layout guides in real time to match new spacing without full relayout
+      if (layoutName === 'concentric') {
+        if (baseConcentricGuidesRef.current.length === 0 && concentricGuides.length > 0) {
+          const cur = spacingFactorRef.current || 1.0;
+          baseConcentricGuidesRef.current = concentricGuides.map((g) => ({
+            ...g,
+            radius: g.radius / cur,
+          }));
+        }
+        if (baseConcentricGuidesRef.current.length > 0) {
+          setConcentricGuides(
+            baseConcentricGuidesRef.current.map((g) => ({
+              ...g,
+              radius: Math.round(g.radius * clamped),
+            }))
+          );
+        }
+      } else if (layoutName === 'swimlanes') {
+        if (baseSwimlaneGuidesRef.current.length === 0 && swimlaneGuides.length > 0) {
+          const cur = spacingFactorRef.current || 1.0;
+          baseSwimlaneGuidesRef.current = swimlaneGuides.map((g) => ({
+            ...g,
+            x: g.x / cur,
+            y: g.y / cur,
+            width: g.width / cur,
+            height: g.height / cur,
+          }));
+        }
+        if (baseSwimlaneGuidesRef.current.length > 0) {
+          setSwimlaneGuides(
+            baseSwimlaneGuidesRef.current.map((g) => ({
+              ...g,
+              x: Math.round(g.x * clamped),
+              y: Math.round(g.y * clamped),
+              width: Math.round(g.width * clamped),
+              height: Math.round(g.height * clamped),
+            }))
+          );
+        }
+      } else if (layoutName === 'clusters') {
+        if (baseIslandGuidesRef.current.length === 0 && islandGuides.length > 0) {
+          const cur = spacingFactorRef.current || 1.0;
+          baseIslandGuidesRef.current = islandGuides.map((g) => ({
+            ...g,
+            x: g.x / cur,
+            y: g.y / cur,
+            width: g.width / cur,
+            height: g.height / cur,
+          }));
+        }
+        if (baseIslandGuidesRef.current.length > 0) {
+          setIslandGuides(
+            baseIslandGuidesRef.current.map((g) => ({
+              ...g,
+              x: Math.round(g.x * clamped),
+              y: Math.round(g.y * clamped),
+              width: Math.round(g.width * clamped),
+              height: Math.round(g.height * clamped),
+            }))
+          );
+        }
+      } else if (layoutName === 'hive') {
+        if (baseHiveGuidesRef.current.length === 0 && hiveGuides.length > 0) {
+          const cur = spacingFactorRef.current || 1.0;
+          baseHiveGuidesRef.current = hiveGuides.map((g) => ({
+            ...g,
+            length: g.length / cur,
+          }));
+        }
+        if (baseHiveGuidesRef.current.length > 0) {
+          setHiveGuides(
+            baseHiveGuidesRef.current.map((g) => ({
+              ...g,
+              length: Math.round(g.length * clamped),
+            }))
+          );
+        }
+      }
     },
-    [recordBasePositions]
+    [recordBasePositions, layoutName, concentricGuides, swimlaneGuides, islandGuides, hiveGuides]
   );
 
   // Wheel sensitivity change handler
