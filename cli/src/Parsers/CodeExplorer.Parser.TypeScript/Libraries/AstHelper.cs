@@ -51,6 +51,15 @@ public static class AstHelper
                 return NormalizeResolvedUrl(subDecomp ?? val);
             }
 
+            if (varName.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
+                varName.Equals("string", StringComparison.OrdinalIgnoreCase) ||
+                varName.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
+                varName.Equals("null", StringComparison.OrdinalIgnoreCase) ||
+                varName.Length <= 3)
+            {
+                return null;
+            }
+
             if (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$") ||
                 varName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
                 varName.EndsWith("TopicName", StringComparison.OrdinalIgnoreCase) ||
@@ -295,7 +304,7 @@ public static class AstHelper
         return false;
     }
 
-    private static string? FindVariableInitializerInAst(Node node, string varName)
+    public static string? FindVariableInitializerInAst(Node node, string varName)
     {
         var cleanVar = varName.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? varName[5..].Trim() : varName;
         var curr = node.Parent;
@@ -555,15 +564,32 @@ public static class AstHelper
                         if (nameNode.IsValid() && string.Equals(nameNode.Text, cleanProp, StringComparison.OrdinalIgnoreCase))
                         {
                             var valNode = member.GetField(TreeSitterSyntax.Fields.Value) ??
-                                          member.GetChildForField("value") ??
-                                          member.Children.LastOrDefault();
+                                          member.GetChildForField("value");
+
+                            if (!valNode.IsValid())
+                            {
+                                var eq = member.Children.FirstOrDefault(c => c.Text == "=");
+                                if (eq.IsValid() && eq.NextSibling.IsValid())
+                                {
+                                    valNode = eq.NextSibling;
+                                }
+                            }
+
                             if (valNode.IsValid())
                             {
+                                if (valNode.Is("type_annotation") || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
+                                {
+                                    continue;
+                                }
                                 if (IsStringLiteralNode(valNode))
                                 {
                                     return valNode.Text.Trim('\'', '"', '`');
                                 }
                                 var identText = valNode.Text.Trim();
+                                if (identText.StartsWith(':') || identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) || identText.Equals("string", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
                                 if (RouteDictionaryRegistry.TryResolve(identText, out var rp, out var rs))
                                 {
                                     return !string.IsNullOrEmpty(rs) ? $"{rs}{rp}" : rp;
@@ -571,6 +597,57 @@ public static class AstHelper
                                 var varVal = FindVariableInitializerInAst(curr, identText);
                                 if (!string.IsNullOrEmpty(varVal)) return varVal;
                                 return identText;
+                            }
+
+                            // If no inline initializer, check constructor for this.<cleanProp> = ...
+                            var ctor = body.Children.FirstOrDefault(c => c.Is("method_definition") && (c.Text.StartsWith("constructor") || c.GetField(TreeSitterSyntax.Fields.Name)?.Text == "constructor"));
+                            if (ctor.IsValid())
+                            {
+                                var match = Regex.Match(ctor.Text, $@"(?:this\.)?{Regex.Escape(cleanProp)}\s*=\s*([^;]+)");
+                                if (match.Success)
+                                {
+                                    var rhs = match.Groups[1].Value.Trim();
+
+                                    // 1. Direct string literal
+                                    if ((rhs.StartsWith('\'') && rhs.EndsWith('\'')) ||
+                                        (rhs.StartsWith('"') && rhs.EndsWith('"')) ||
+                                        (rhs.StartsWith('`') && rhs.EndsWith('`')))
+                                    {
+                                        var lit = rhs.Trim('\'', '"', '`');
+                                        if (!string.IsNullOrEmpty(lit) && !lit.StartsWith(':') && !lit.Equals("string", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            return lit;
+                                        }
+                                    }
+
+                                    // 2. Chained .topic(...) call
+                                    var topicMatch = Regex.Match(rhs, @"\.topic\s*\(\s*([^,\)]+)");
+                                    if (topicMatch.Success)
+                                    {
+                                        var topicArg = topicMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+                                        var cleanTopicArg = topicArg.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? topicArg[5..] : topicArg;
+                                        if (ConstantRegistry.TryResolve(null, cleanTopicArg, out var resTopic))
+                                        {
+                                            return resTopic;
+                                        }
+                                        if (!string.IsNullOrEmpty(topicArg) && !topicArg.StartsWith(':') && !topicArg.Equals("Topic", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            return topicArg;
+                                        }
+                                    }
+
+                                    // 3. Config call
+                                    var cfgMatch = Regex.Match(rhs, @"(?:getString|get)\s*\(\s*['""]([^'""]+)['""]\s*\)");
+                                    if (cfgMatch.Success)
+                                    {
+                                        var key = cfgMatch.Groups[1].Value.Trim();
+                                        if (ConstantRegistry.TryResolve(null, key, out var resKey))
+                                        {
+                                            return resKey;
+                                        }
+                                        return key;
+                                    }
+                                }
                             }
                         }
                     }
@@ -592,15 +669,32 @@ public static class AstHelper
                             if (nameNode.IsValid() && string.Equals(nameNode.Text, cleanProp, StringComparison.OrdinalIgnoreCase))
                             {
                                 var valNode = member.GetField(TreeSitterSyntax.Fields.Value) ??
-                                              member.GetChildForField("value") ??
-                                              member.Children.LastOrDefault();
+                                              member.GetChildForField("value");
+
+                                if (!valNode.IsValid())
+                                {
+                                    var eq = member.Children.FirstOrDefault(c => c.Text == "=");
+                                    if (eq.IsValid() && eq.NextSibling.IsValid())
+                                    {
+                                        valNode = eq.NextSibling;
+                                    }
+                                }
+
                                 if (valNode.IsValid())
                                 {
+                                    if (valNode.Is("type_annotation") || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
+                                    {
+                                        continue;
+                                    }
                                     if (IsStringLiteralNode(valNode))
                                     {
                                         return valNode.Text.Trim('\'', '"', '`');
                                     }
                                     var identText = valNode.Text.Trim();
+                                    if (identText.StartsWith(':') || identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) || identText.Equals("string", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        continue;
+                                    }
                                     if (RouteDictionaryRegistry.TryResolve(identText, out var rp, out var rs))
                                     {
                                         return !string.IsNullOrEmpty(rs) ? $"{rs}{rp}" : rp;

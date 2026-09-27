@@ -53,10 +53,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                         target = AstHelper.ResolveStringOrTemplate(args[0]);
                     }
 
-                    if (!string.IsNullOrEmpty(target))
-                    {
-                        references.Add(new Reference(scopeSymbolId, "rabbitmq:" + target, OntologyConstants.Relationships.PublishesTo));
-                    }
+                    AddPublishReference(references, scopeSymbolId, target);
                 }
                 else if (funcText.EndsWith(".sendToQueue", StringComparison.Ordinal) ||
                          funcText.EndsWith(".sendToExchange", StringComparison.Ordinal))
@@ -65,10 +62,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                     {
                         var queueArg = args[0];
                         var topicName = AstHelper.ResolveStringOrTemplate(queueArg);
-                        if (!string.IsNullOrEmpty(topicName))
-                        {
-                            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + topicName, OntologyConstants.Relationships.PublishesTo));
-                        }
+                        AddPublishReference(references, scopeSymbolId, topicName);
                     }
                 }
                 // 2. Channel Consume
@@ -78,10 +72,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                     {
                         var queueArg = args[0];
                         var topicName = AstHelper.ResolveStringOrTemplate(queueArg);
-                        if (!string.IsNullOrEmpty(topicName))
-                        {
-                            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + topicName, OntologyConstants.Relationships.SubscribesTo));
-                        }
+                        AddSubscribeReference(references, scopeSymbolId, topicName);
                     }
                 }
                 // 3. assertQueue or createQueue (e.g. rabbit.createQueue(PA_PARTNER_QUEUE))
@@ -92,10 +83,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                     {
                         var queueArg = args[0];
                         var topicName = AstHelper.ResolveStringOrTemplate(queueArg);
-                        if (!string.IsNullOrEmpty(topicName))
-                        {
-                            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + topicName, OntologyConstants.Relationships.SubscribesTo));
-                        }
+                        AddSubscribeReference(references, scopeSymbolId, topicName);
                     }
                 }
                 // 4. messaging.subscribe(to, handler, ...)
@@ -104,10 +92,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                     if (args.Count > 0)
                     {
                         var to = AstHelper.ResolveStringOrTemplate(args[0]);
-                        if (!string.IsNullOrEmpty(to))
-                        {
-                            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + to, OntologyConstants.Relationships.SubscribesTo));
-                        }
+                        AddSubscribeReference(references, scopeSymbolId, to);
                     }
                 }
                 // 5. rabbitQueue.send(msg) or paPartnerQueue.send(msg)
@@ -119,10 +104,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                     {
                         var objText = obj.Text;
                         var queueName = ResolveQueueVariableInScope(obj, objText);
-                        if (!string.IsNullOrEmpty(queueName))
-                        {
-                            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + queueName, OntologyConstants.Relationships.PublishesTo));
-                        }
+                        AddPublishReference(references, scopeSymbolId, queueName);
                     }
                 }
                 // 6. rabbitQueue.listen(...) or paPartnerQueue.listen(...)
@@ -134,18 +116,54 @@ public class RabbitMqLibraryParser : ILibraryParser
                     {
                         var objText = obj.Text;
                         var queueName = ResolveQueueVariableInScope(obj, objText);
-                        if (!string.IsNullOrEmpty(queueName))
-                        {
-                            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + queueName, OntologyConstants.Relationships.SubscribesTo));
-                        }
+                        AddSubscribeReference(references, scopeSymbolId, queueName);
                     }
                 }
             }
         }
     }
 
+    private static void AddPublishReference(List<Reference> references, string scopeSymbolId, string? target)
+    {
+        if (IsValidQueueName(target))
+        {
+            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + target!.Trim(), OntologyConstants.Relationships.PublishesTo));
+        }
+    }
+
+    private static void AddSubscribeReference(List<Reference> references, string scopeSymbolId, string? target)
+    {
+        if (IsValidQueueName(target))
+        {
+            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + target!.Trim(), OntologyConstants.Relationships.SubscribesTo));
+        }
+    }
+
+    private static bool IsValidQueueName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var t = name.Trim();
+        if (t.StartsWith(':') ||
+            t.Equals("string", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("null", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            t.Length <= 2)
+        {
+            return false;
+        }
+        return true;
+    }
+
     private static string? ResolveQueueVariableInScope(Node node, string varName)
     {
+        if (ConstantRegistry.TryResolve(null, varName, out var cr) && IsValidQueueName(cr))
+        {
+            return cr;
+        }
+
         var curr = node.Parent;
         while (curr.IsValid())
         {
@@ -160,7 +178,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                         if (match.Success)
                         {
                             var arg = match.Groups[1].Value.Trim().Trim('\'', '"', '`');
-                            if (!string.IsNullOrEmpty(arg)) return arg;
+                            if (IsValidQueueName(arg)) return arg;
                         }
                     }
 
@@ -179,7 +197,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                                     if (match.Success)
                                     {
                                         var arg = match.Groups[1].Value.Trim().Trim('\'', '"', '`');
-                                        if (!string.IsNullOrEmpty(arg)) return arg;
+                                        if (IsValidQueueName(arg)) return arg;
                                     }
                                 }
                             }
@@ -193,7 +211,7 @@ public class RabbitMqLibraryParser : ILibraryParser
         // Fallback: If variable ends with Queue (e.g. userDataQueue -> user_data)
         if (varName.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) && varName.Length > 5)
         {
-            return varName;
+            if (IsValidQueueName(varName)) return varName;
         }
 
         return null;

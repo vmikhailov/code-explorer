@@ -128,32 +128,34 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         // 3. Identify Schema (DataSet)
-        var schemaMatches = Regex.Matches(cleanSql, @"CREATE\s+SCHEMA\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
+        var schemaMatches = Regex.Matches(cleanSql, 
+            @"(?i)\bCREATE\s+SCHEMA\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<schemaName>[^\s\(;]+)");
         foreach (Match match in schemaMatches)
         {
-            var schemaName = match.Groups[1].Value.Trim('[', ']', '"', '`');
+            var rawSchemaName = match.Groups["schemaName"].Value;
+            var schemaName = CleanIdentifier(rawSchemaName);
+            if (string.IsNullOrWhiteSpace(schemaName) || IsDisallowedIdentifier(schemaName)) continue;
+
             var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
-            var schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
-            datasets[schemaName] = schemaNode;
-            AddToParent(schemaNode);
+            if (!datasets.TryGetValue(schemaName, out var schemaNode))
+            {
+                schemaNode = new DataSetNode(schemaNodeId, schemaName, relativePath);
+                datasets[schemaName] = schemaNode;
+                AddToParent(schemaNode);
+            }
         }
 
         // 4. Identify Tables
-        var tableMatches = Regex.Matches(cleanSql, @"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_\.\[\]""#@`]+)", RegexOptions.IgnoreCase);
+        var tableMatches = Regex.Matches(cleanSql, 
+            @"(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMPORARY\s+|TEMP\s+|EXTERNAL\s+)?TABLE\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<tableName>[^\s\(;]+)");
         foreach (Match match in tableMatches)
         {
-            var rawTableName = match.Groups[1].Value;
-            var parts = rawTableName.Split('.');
-            var schemaName = "dbo";
-            var tableName = rawTableName;
-            if (parts.Length > 1)
+            var rawTableName = match.Groups["tableName"].Value;
+            var (schemaName, tableName) = ParseTableIdentifier(rawTableName);
+
+            if (string.IsNullOrWhiteSpace(tableName) || IsDisallowedIdentifier(tableName))
             {
-                schemaName = parts[0].Trim('[', ']', '"', '`');
-                tableName = parts[1].Trim('[', ']', '"', '`');
-            }
-            else
-            {
-                tableName = rawTableName.Trim('[', ']', '"', '`');
+                continue;
             }
 
             var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
@@ -165,30 +167,28 @@ public class SqlParser : IProjectParser, IFileParser
             }
 
             var tableNodeId = $"{schemaNodeId}:table:{tableName.ToLowerInvariant()}";
-            var tableNode = new TableNode(tableNodeId, tableName, relativePath);
-            tables[tableName] = tableNode;
+            if (!tables.TryGetValue(tableName, out var tableNode))
+            {
+                tableNode = new TableNode(tableNodeId, tableName, relativePath);
+                tables[tableName] = tableNode;
+                schemaNode.Children.Add(tableNode);
+            }
             tables[rawTableName] = tableNode;
-            schemaNode.Children.Add(tableNode);
         }
 
         // 5. Identify Procedures / Functions and their boundaries
-        var procMatches = Regex.Matches(cleanSql, @"CREATE\s+(?:OR\s+(?:REPLACE|ALTER)\s+)?(?:PROCEDURE|PROC|FUNCTION)\s+([a-zA-Z0-9_\.\[\]""#@`]+)", RegexOptions.IgnoreCase);
+        var procMatches = Regex.Matches(cleanSql, 
+            @"(?i)\bCREATE\s+(?:OR\s+(?:REPLACE|ALTER)\s+)?(?:PROCEDURE|PROC|FUNCTION)\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<procName>[^\s\(;]+)");
         var tempScopes = new List<(Match Match, string Name, string RawName, string Id, ProcedureNode Node)>();
         for (var i = 0; i < procMatches.Count; i++)
         {
             var match = procMatches[i];
-            var rawProcName = match.Groups[1].Value;
-            var parts = rawProcName.Split('.');
-            var schemaName = "dbo";
-            var procName = rawProcName;
-            if (parts.Length > 1)
+            var rawProcName = match.Groups["procName"].Value;
+            var (schemaName, procName) = ParseTableIdentifier(rawProcName);
+
+            if (string.IsNullOrWhiteSpace(procName) || IsDisallowedIdentifier(procName))
             {
-                schemaName = parts[0].Trim('[', ']', '"', '`');
-                procName = parts[1].Trim('[', ']', '"', '`');
-            }
-            else
-            {
-                procName = rawProcName.Trim('[', ']', '"', '`');
+                continue;
             }
 
             var schemaNodeId = $"{baseParentId}:dataset:{schemaName.ToLowerInvariant()}";
@@ -310,30 +310,109 @@ public class SqlParser : IProjectParser, IFileParser
 
     private void TryDetectDependsOn(string statement, QueryNode queryNode, string queryNodeId, Dictionary<string, TableNode> tables)
     {
+        var matchedTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var tableKvp in tables)
         {
             var tableName = tableKvp.Key;
             var pattern = $@"\b{Regex.Escape(tableName)}\b";
             if (Regex.IsMatch(statement, pattern, RegexOptions.IgnoreCase))
             {
+                if (matchedTables.Add(tableName))
+                {
+                    queryNode.References.Add(new Reference(queryNodeId, tableName, OntologyConstants.Relationships.DependsOn));
+                }
+            }
+        }
+
+        // Match table references after FROM, JOIN, INTO, UPDATE, MERGE
+        var fromMatches = Regex.Matches(statement, 
+            @"(?i)\b(?:FROM|JOIN|INTO|UPDATE|MERGE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()(?<target>[^\s\(;]+)");
+
+        foreach (Match fm in fromMatches)
+        {
+            var raw = fm.Groups["target"].Value;
+            var (_, tableName) = ParseTableIdentifier(raw);
+            if (!string.IsNullOrWhiteSpace(tableName) && !IsDisallowedIdentifier(tableName) && matchedTables.Add(tableName))
+            {
                 queryNode.References.Add(new Reference(queryNodeId, tableName, OntologyConstants.Relationships.DependsOn));
             }
         }
+    }
 
-        var words = Regex.Matches(statement, @"\b[a-zA-Z0-9_]+\b");
-        var uniqueWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match wm in words)
+    private static readonly HashSet<string> DisallowedIdentifiers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "IF", "NOT", "EXISTS", "EXIST", "TABLE", "TEMP", "TEMPORARY", "EXTERNAL",
+        "VIEW", "DATABASE", "SCHEMA", "PROCEDURE", "PROC", "FUNCTION", "TRIGGER", "INDEX",
+        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "DROP", "ALTER", "CREATE",
+        "OPTIONS", "PARTITION", "CLUSTER", "ORDER", "BY", "GROUP", "HAVING",
+        "WHERE", "FROM", "JOIN", "INTO", "VALUES", "SET", "AS", "ON", "AND", "OR",
+        "BEGIN", "END", "RETURN", "RETURNS", "DECLARE", "EXEC", "EXECUTE", "CALL",
+        "EXTERNAL_QUERY", "UNNEST", "GENERATE_SERIES", "TABLE_FUNCTION", "NULL", "TRUE", "FALSE",
+        "PRIMARY", "KEY", "FOREIGN", "REFERENCES", "CONSTRAINT", "DEFAULT", "CHECK", "UNIQUE",
+        "INT", "INT64", "BIGINT", "STRING", "VARCHAR", "DATETIME", "TIMESTAMP", "FLOAT64", "FLOAT"
+    };
+
+    public static string CleanIdentifier(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        return raw.Trim().Trim('[', ']', '"', '`', '\'', '{', '}', '$', ' ', ',');
+    }
+
+    public static bool IsDisallowedIdentifier(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return true;
+        var trimmed = CleanIdentifier(name);
+        if (trimmed.Length <= 1) return true;
+        if (char.IsDigit(trimmed[0])) return true;
+        return DisallowedIdentifiers.Contains(trimmed);
+    }
+
+    public static (string schemaName, string tableName) ParseTableIdentifier(string rawTableName)
+    {
+        if (string.IsNullOrWhiteSpace(rawTableName))
         {
-            uniqueWords.Add(wm.Value);
+            return ("dbo", "");
         }
 
-        foreach (var word in uniqueWords)
+        var trimmed = rawTableName.Trim().TrimEnd(';');
+
+        // If entire token is wrapped in ${...} or {{...}} or {...}
+        if ((trimmed.StartsWith("${") && trimmed.EndsWith("}")) ||
+            (trimmed.StartsWith("{{") && trimmed.EndsWith("}}")) ||
+            (trimmed.StartsWith("{") && trimmed.EndsWith("}")))
         {
-            if (!tables.ContainsKey(word))
+            var inner = trimmed.Trim('$', '{', '}').Trim();
+            if (ConstantRegistry.TryResolve(null, inner, out var resolved))
             {
-                queryNode.References.Add(new Reference(queryNodeId, word, OntologyConstants.Relationships.DependsOn));
+                trimmed = resolved;
+            }
+            else
+            {
+                trimmed = inner;
             }
         }
+
+        var parts = trimmed.Split('.');
+        string schemaName = "dbo";
+        string tableName;
+
+        if (parts.Length > 1)
+        {
+            schemaName = CleanIdentifier(parts[0]);
+            tableName = CleanIdentifier(parts[1]);
+        }
+        else
+        {
+            tableName = CleanIdentifier(parts[0]);
+        }
+
+        if (string.IsNullOrWhiteSpace(schemaName) || IsDisallowedIdentifier(schemaName))
+        {
+            schemaName = "dbo";
+        }
+
+        return (schemaName, tableName);
     }
 
     public void CollectSemanticData(TreeSitter.Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables, List<RawTypeBinding> rawTypeBindings)

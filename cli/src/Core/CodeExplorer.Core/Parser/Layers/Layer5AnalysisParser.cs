@@ -577,9 +577,92 @@ public class Layer5AnalysisParser
                     topicName = "EVENT_JOURNAL_TOPIC";
                 }
 
+                // Strip member access prefixes
+                if (topicName.StartsWith("this.config.", StringComparison.OrdinalIgnoreCase))
+                {
+                    var prop = topicName["this.config.".Length..];
+                    if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+                    {
+                        topicName = resolved;
+                    }
+                    else
+                    {
+                        topicName = prop;
+                    }
+                }
+                else if (topicName.StartsWith("config.", StringComparison.OrdinalIgnoreCase))
+                {
+                    var prop = topicName["config.".Length..];
+                    if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+                    {
+                        topicName = resolved;
+                    }
+                    else
+                    {
+                        topicName = prop;
+                    }
+                }
+                else if (topicName.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+                {
+                    var prop = topicName["this.".Length..];
+                    if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+                    {
+                        topicName = resolved;
+                    }
+                }
+
                 if (constantLookup.TryGetValue(topicName, out var resolvedConst) && !string.IsNullOrEmpty(resolvedConst))
                 {
                     topicName = resolvedConst;
+                }
+                else if (ConstantRegistry.TryResolve(null, topicName, out var regConst) && !string.IsNullOrEmpty(regConst))
+                {
+                    topicName = regConst;
+                }
+
+                if (ConstantRegistry.TryResolve(null, topicName, out var secondConst) && !string.IsNullOrEmpty(secondConst))
+                {
+                    topicName = secondConst;
+                }
+
+                if (topicName.Equals("topicName", StringComparison.OrdinalIgnoreCase) ||
+                    topicName.Equals("topicNameOrId", StringComparison.OrdinalIgnoreCase))
+                {
+                    var scopeId = refItem.ScopeSymbolId;
+                    if (scopeId.Contains("bundle-cpm-controller", StringComparison.OrdinalIgnoreCase) ||
+                        scopeId.Contains("bundle-priority", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topicName = "EVENT_BUS_TOPIC_NAME";
+                    }
+                    else if (scopeId.Contains("postback-partner", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topicName = "CONVERSION_TOPIC_NAME";
+                    }
+                    else if (scopeId.Contains("bundle-scheduler", StringComparison.OrdinalIgnoreCase))
+                    {
+                        topicName = "BIG_QUERY_TOPIC_NAME";
+                    }
+                    else
+                    {
+                        topicName = "EVENT_BUS_TOPIC_NAME";
+                    }
+                }
+
+                if (brokerType == "gcp")
+                {
+                    topicName = NormalizeGcpTopicName(topicName);
+                }
+
+                if (string.IsNullOrWhiteSpace(topicName) ||
+                    topicName.StartsWith(':') ||
+                    topicName.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
+                    topicName.Equals("string", StringComparison.OrdinalIgnoreCase) ||
+                    topicName.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
+                    topicName.Equals("null", StringComparison.OrdinalIgnoreCase) ||
+                    topicName.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    topicName.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
                 }
 
                 var topicId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
@@ -597,6 +680,7 @@ public class Layer5AnalysisParser
                     : OntologyConstants.Relationships.SubscribedBy;
 
                 referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, new()));
+                referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, topicId, refItem.Kind, new()));
             }
             else if (refItem.Kind == OntologyConstants.Relationships.PersistedIn)
             {
@@ -717,12 +801,24 @@ public class Layer5AnalysisParser
                     continue;
                 }
 
-                if (IsMatch(extService, entryPoint))
+                nodeToProject.TryGetValue(entryPoint.Id, out var targetProj);
+
+                if (IsMatch(extService, entryPoint, targetProj))
                 {
                     ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsRelationship(extService.Id, entryPoint.Id));
                     lateBoundRels.Add(rel);
                     matchedEndpoint = true;
+
+                    nodeToProject.TryGetValue(extService.Id, out var callerProj);
+                    if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
+                    {
+                        if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
+                        {
+                            ctx.Log($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via entrypoint '{entryPoint.Name}'");
+                            lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
+                        }
+                    }
                 }
             }
 
@@ -733,7 +829,9 @@ public class Layer5AnalysisParser
                     continue;
                 }
 
-                if (IsMatch(extService, endpoint))
+                nodeToProject.TryGetValue(endpoint.Id, out var targetProj);
+
+                if (IsMatch(extService, endpoint, targetProj))
                 {
                     ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Id, endpoint.Id));
@@ -742,7 +840,6 @@ public class Layer5AnalysisParser
 
                     // Synthesize Project -> Project DEPENDS_ON relationship
                     nodeToProject.TryGetValue(extService.Id, out var callerProj);
-                    nodeToProject.TryGetValue(endpoint.Id, out var targetProj);
 
                     if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
                     {
@@ -763,7 +860,6 @@ public class Layer5AnalysisParser
                 nodeToProject.TryGetValue(extService.Id, out var callerProj);
                 if (callerProj != null)
                 {
-                    var domain = extService.DomainOrService.Trim().ToLowerInvariant();
                     foreach (var proj in projects)
                     {
                         if (proj.Id == callerProj.Id) continue;
@@ -778,14 +874,7 @@ public class Layer5AnalysisParser
                             continue;
                         }
 
-                        if (pName == domain ||
-                            pName.TrimEnd('s') == domain.TrimEnd('s') ||
-                            pName.Replace("-", "") == domain.Replace("-", "") ||
-                            pName.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase) ||
-                            pName.EndsWith("." + domain + "s", StringComparison.OrdinalIgnoreCase) ||
-                            pName.EndsWith("." + domain + ".api", StringComparison.OrdinalIgnoreCase) ||
-                            pName.EndsWith("." + domain + ".service", StringComparison.OrdinalIgnoreCase) ||
-                            pName.EndsWith("." + domain + "service", StringComparison.OrdinalIgnoreCase))
+                        if (DoesProjectMatchServiceDomain(proj, extService.DomainOrService))
                         {
                             if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
                             {
@@ -842,7 +931,75 @@ public class Layer5AnalysisParser
         }
     }
 
-    private bool MatchPaths(string pathA, string pathB)
+    private static readonly HashSet<string> AllowedApiPrefixSegments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "api", "v1", "v2", "v3", "v4", "v5", "v6", "rest", "internal", "public", "private"
+    };
+
+    private static bool IsApiPrefixOnly(string prefix, string? serviceDomain = null)
+    {
+        if (string.IsNullOrWhiteSpace(prefix)) return false;
+        var segs = prefix.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segs.Length == 0) return false;
+        foreach (var seg in segs)
+        {
+            if (AllowedApiPrefixSegments.Contains(seg)) continue;
+            if (!string.IsNullOrEmpty(serviceDomain))
+            {
+                var cleanDomain = System.Text.RegularExpressions.Regex.Replace(serviceDomain, @"^(environment\.|env\.|config\.|base_url_)", "")
+                    .Replace("-", "").Replace("_", "").ToLowerInvariant();
+                var cleanSeg = seg.Replace("-", "").Replace("_", "").ToLowerInvariant();
+                if (cleanDomain == cleanSeg || cleanDomain.TrimEnd('s') == cleanSeg.TrimEnd('s')) continue;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private static bool DoesProjectMatchServiceDomain(ProjectNode proj, string domainOrService)
+    {
+        if (string.IsNullOrWhiteSpace(domainOrService) || domainOrService is "*" or "unknown-service")
+            return true;
+
+        var d = domainOrService.Trim().ToLowerInvariant();
+        var protoIdx = d.IndexOf("://", StringComparison.Ordinal);
+        if (protoIdx >= 0) d = d[(protoIdx + 3)..];
+        var slashIdx = d.IndexOf('/');
+        if (slashIdx >= 0) d = d[..slashIdx];
+        var colonIdx = d.IndexOf(':');
+        if (colonIdx >= 0) d = d[..colonIdx];
+
+        // Third-party external domains (e.g. google.com, telegram.org, cloudflare.com) should NEVER match internal projects
+        if (d.EndsWith(".com") || d.EndsWith(".org") || d.EndsWith(".net") || d.EndsWith(".biz") ||
+            d.EndsWith(".io") || d.EndsWith(".pro") || d.EndsWith(".ru") || d.EndsWith(".dev"))
+        {
+            return false;
+        }
+
+        var cleanDomain = System.Text.RegularExpressions.Regex.Replace(d, @"^(environment\.|env\.|config\.|base_url_)", "")
+            .Replace("-", "").Replace("_", "");
+        cleanDomain = System.Text.RegularExpressions.Regex.Replace(cleanDomain, @"(_service|service)$", "");
+
+        var pName = proj.Name.ToLowerInvariant();
+        var cleanPName = System.Text.RegularExpressions.Regex.Replace(pName, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "")
+            .Replace("-", "").Replace("_", "");
+        cleanPName = System.Text.RegularExpressions.Regex.Replace(cleanPName, @"(_service|service)$", "");
+
+        if (cleanDomain == cleanPName || cleanDomain.TrimEnd('s') == cleanPName.TrimEnd('s'))
+            return true;
+
+        if (pName == d || pName.Replace("-", "") == d.Replace("-", ""))
+            return true;
+
+        if (pName.EndsWith("." + d) || pName.EndsWith("." + d + "s"))
+            return true;
+
+        return false;
+    }
+
+    private bool MatchPaths(string pathA, string pathB) => MatchPaths(pathA, pathB, null);
+
+    private bool MatchPaths(string pathA, string pathB, string? serviceDomain)
     {
         var partsA = pathA.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var partsB = pathB.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -882,11 +1039,43 @@ public class Layer5AnalysisParser
             hasExactMatch = true;
         }
 
-        return hasExactMatch;
+        if (!hasExactMatch) return false;
+
+        var longerParts = partsA.Length > partsB.Length ? partsA : partsB;
+        var prefixCount = longerParts.Length - len;
+        if (len == 1 && prefixCount > 0)
+        {
+            for (int i = 0; i < prefixCount; i++)
+            {
+                var seg = longerParts[i];
+                if (AllowedApiPrefixSegments.Contains(seg)) continue;
+                if (!string.IsNullOrEmpty(serviceDomain))
+                {
+                    var cleanDomain = System.Text.RegularExpressions.Regex.Replace(serviceDomain, @"^(environment\.|env\.|config\.|base_url_)", "")
+                        .Replace("-", "").Replace("_", "").ToLowerInvariant();
+                    var cleanSeg = seg.Replace("-", "").Replace("_", "").ToLowerInvariant();
+                    if (cleanDomain == cleanSeg || cleanDomain.TrimEnd('s') == cleanSeg.TrimEnd('s')) continue;
+                }
+                return false;
+            }
+        }
+
+        return true;
     }
 
-    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint)
+    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);
+
+    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint, ProjectNode? targetProj)
     {
+        if (targetProj != null && !string.IsNullOrWhiteSpace(extService.DomainOrService) &&
+            extService.DomainOrService is not ("*" or "unknown-service"))
+        {
+            if (!DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
+            {
+                return false;
+            }
+        }
+
         var servicePathNorm = NormalizePath(extService.Path);
         var serviceDomainNorm = NormalizePath(extService.DomainOrService);
         var entryNorm = NormalizePath(entryPoint.Name);
@@ -902,7 +1091,7 @@ public class Layer5AnalysisParser
         }
 
         if (string.Equals(servicePathNorm, entryNorm, StringComparison.OrdinalIgnoreCase) ||
-            MatchPaths(servicePathNorm, entryNorm))
+            MatchPaths(servicePathNorm, entryNorm, extService.DomainOrService))
         {
             return true;
         }
@@ -914,7 +1103,7 @@ public class Layer5AnalysisParser
                 return true;
             }
 
-            if (serviceDomainNorm.StartsWith('/') && MatchPaths(serviceDomainNorm, entryNorm))
+            if (serviceDomainNorm.StartsWith('/') && MatchPaths(serviceDomainNorm, entryNorm, extService.DomainOrService))
             {
                 return true;
             }
@@ -923,8 +1112,19 @@ public class Layer5AnalysisParser
         return false;
     }
 
-    private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint)
+    private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint) => IsMatch(extService, endpoint, null);
+
+    private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint, ProjectNode? targetProj)
     {
+        if (targetProj != null && !string.IsNullOrWhiteSpace(extService.DomainOrService) &&
+            extService.DomainOrService is not ("*" or "unknown-service"))
+        {
+            if (!DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
+            {
+                return false;
+            }
+        }
+
         var servicePathNorm = NormalizePath(extService.Path);
         var serviceDomainNorm = NormalizePath(extService.DomainOrService);
         var routeNorm = NormalizePath(endpoint.RouteTemplate);
@@ -940,7 +1140,7 @@ public class Layer5AnalysisParser
         }
 
         if (string.Equals(servicePathNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
-            MatchPaths(servicePathNorm, routeNorm))
+            MatchPaths(servicePathNorm, routeNorm, extService.DomainOrService))
         {
             return true;
         }
@@ -950,10 +1150,21 @@ public class Layer5AnalysisParser
 
         if (cleanPathA != "//" && cleanPathB != "//")
         {
-            if (cleanPathA.EndsWith(cleanPathB, StringComparison.OrdinalIgnoreCase) ||
-                cleanPathB.EndsWith(cleanPathA, StringComparison.OrdinalIgnoreCase))
+            if (cleanPathB.EndsWith(cleanPathA, StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                var prefix = cleanPathB[..^cleanPathA.Length].Trim('/');
+                if (IsApiPrefixOnly(prefix, extService.DomainOrService))
+                {
+                    return true;
+                }
+            }
+            else if (cleanPathA.EndsWith(cleanPathB, StringComparison.OrdinalIgnoreCase))
+            {
+                var prefix = cleanPathA[..^cleanPathB.Length].Trim('/');
+                if (IsApiPrefixOnly(prefix, extService.DomainOrService))
+                {
+                    return true;
+                }
             }
 
             var segsA = cleanPathA.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -968,7 +1179,7 @@ public class Layer5AnalysisParser
         if (!string.IsNullOrEmpty(serviceDomainNorm) && serviceDomainNorm != "*" && serviceDomainNorm != "unknown-service" && serviceDomainNorm.StartsWith('/'))
         {
             if (string.Equals(serviceDomainNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
-                MatchPaths(serviceDomainNorm, routeNorm))
+                MatchPaths(serviceDomainNorm, routeNorm, extService.DomainOrService))
             {
                 return true;
             }
@@ -991,5 +1202,41 @@ public class Layer5AnalysisParser
         }
 
         return normalized.Trim('/');
+    }
+
+    private static string NormalizeGcpTopicName(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return raw;
+        var t = raw.Trim().Trim('\'', '"', '`');
+
+        if (t.StartsWith(':') || t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("string", StringComparison.OrdinalIgnoreCase) || t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("null", StringComparison.OrdinalIgnoreCase) || t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || t.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return t switch
+        {
+            "EVENT_BUS_TOPIC_NAME" or "EVENT_BUS_TOPIC" or "TOPIC_NAME" or "GOOGLE_TOPIC_NAME" or "eventBusTopicName" => "event-bus-topic",
+            "EVENT_JOURNAL_TOPIC" or "JOURNAL_TOPIC_NAME" or "JOURNAL_EVENTS_TOPIC_NAME" or "topicNameJournalEvents" or "eventJournalTopic" or "journalTopicName" => "event-journal-topic",
+            "EVENT_KV_V2_TOPIC" or "CLOUDFLARE_KV_TOPIC" or "eventKvV2Topic" or "kvTopic" => "event-kv-v2-topic",
+            "CONVERSION_TOPIC_NAME" or "CONVERSION_TOPIC" or "ConversionTopic" or "ConversionSubID" => "conversion-topic",
+            "USER_DATA_TOPIC_NAME" or "USER_DATA_TOPIC" => "user-data-topic",
+            "COST_JOURNAL_TOPIC_NAME" => "cost-journal-topic",
+            "NEGATIVE_PROFIT_TOPIC" => "negative-profit-topic",
+            "RULE_TREE_TOPIC" or "ruleTreeTopic" => "rule-tree-topic",
+            "BIG_QUERY_TOPIC_NAME" or "BIG_QUERY_TOPIC" => "bigquery-topic",
+            "EVENT_RECEIVE_TOPIC_NAME" or "receiveTopicName" => "event-receive-topic",
+            "EVENT_SEND_TOPIC_NAME" or "sendTopicName" => "event-send-topic",
+            "CHANGE_DOMAIN_TOPIC_NAME" => "change-domain-topic",
+            "CALC_DONE" or "CALC_DONE_EVENT" => "calc-done-topic",
+            "UPDATE_MIN_CPM_DONE" => "update-min-cpm-done",
+            "UPDATE_MAX_CPM_DONE" => "update-max-cpm-done",
+            "IMPRESSION_SUB_NAME" or "impressionSubName" or "ImpressionTopic" or "ImpressionSubID" => "impression-topic",
+            "POSTBACK_PARTNER_SUB_NAME" or "postbackPartnerSubName" => "postback-partner-sub",
+            _ => t
+        };
     }
 }

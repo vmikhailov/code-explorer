@@ -185,7 +185,7 @@
     "build:dev": "node build.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "esbuild src/webview/commands/CommandManager.test.ts --bundle --platform=node --outfile=dist/test.js && node dist/test.js",
+    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/domainLayouts.test.ts --bundle --platform=node --outdir=dist/test && node dist/test/commands/CommandManager.test.js && node dist/test/layout/concentricLayout.test.js && node dist/test/layout/domainLayouts.test.js",
     "build:binaries": "node scripts/build-extension-binaries.mjs",
     "package": "node scripts/package-extension.mjs",
     "package:all": "node scripts/package-extension.mjs --all",

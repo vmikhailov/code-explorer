@@ -49,10 +49,7 @@ public class GcpLibraryParser : ILibraryParser
             if (args.Count > 0)
             {
                 var topic = AstHelper.ResolveStringOrTemplate(args[0]);
-                if (!string.IsNullOrEmpty(topic))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.PublishesTo));
-                }
+                AddPublishReference(references, scopeSymbolId, topic);
             }
         }
         // B. Chained publish: pubsub.topic(topicName).publishMessage(...) or pubsub.topic(topicName).publish(...)
@@ -77,33 +74,36 @@ public class GcpLibraryParser : ILibraryParser
                 }
             }
 
-            // If not found from receiver call, check if arguments contain topic (e.g. { topicName: ... } or topic argument)
-            if (string.IsNullOrEmpty(topic) && args.Count > 0)
-            {
-                topic = AstHelper.ResolveStringOrTemplate(args[0]);
-                // If args[0] was data and args[1] was topic (e.g. publish(data, topic))
-                if (string.IsNullOrEmpty(topic) && args.Count > 1)
-                {
-                    topic = AstHelper.ResolveStringOrTemplate(args[1]);
-                }
-            }
-
-            // Fallback: check receiver variable name (e.g. this.topic, this.topicJournalEvents)
+            // Check receiver variable name (e.g. this.topic, this.ruleTreeTopic, customTopic)
             if (string.IsNullOrEmpty(topic) && obj.IsValid())
             {
                 topic = ResolveTopicVariableInScope(obj, obj.Text);
             }
 
-            if (!string.IsNullOrEmpty(topic))
+            // If not found from receiver call or variable, check if arguments contain { topicName: ... } or topic argument
+            if (string.IsNullOrEmpty(topic) && args.Count > 0)
             {
-                references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.PublishesTo));
+                if (args[0].Is(TreeSitterSyntax.TypeScript.Object) || args[0].Type == "object")
+                {
+                    if (AstHelper.TryGetObjectProperty(args[0], "topicName", out var tp) ||
+                        AstHelper.TryGetObjectProperty(args[0], "topic", out tp))
+                    {
+                        topic = AstHelper.ResolveStringOrTemplate(tp);
+                    }
+                }
+                else if (args.Count > 1)
+                {
+                    topic = AstHelper.ResolveStringOrTemplate(args[1]);
+                }
             }
+
+            AddPublishReference(references, scopeSymbolId, topic);
         }
         // C. Specific publishing helper methods
         else if (funcText.EndsWith(".publishMessageJournalEvents", StringComparison.Ordinal) ||
                  funcText == "publishMessageJournalEvents")
         {
-            references.Add(new Reference(scopeSymbolId, "gcp:EVENT_JOURNAL_TOPIC", OntologyConstants.Relationships.PublishesTo));
+            AddPublishReference(references, scopeSymbolId, "EVENT_JOURNAL_TOPIC");
         }
         else if (funcText.EndsWith(".publishMessageToJournal", StringComparison.Ordinal) ||
                  funcText.EndsWith(".publishJournalMessage", StringComparison.Ordinal) ||
@@ -119,7 +119,7 @@ public class GcpLibraryParser : ILibraryParser
             {
                 topic = "EVENT_JOURNAL_TOPIC";
             }
-            references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.PublishesTo));
+            AddPublishReference(references, scopeSymbolId, topic);
         }
         else if (funcText.EndsWith(".sendMessageToTopicWithAttributes", StringComparison.Ordinal) ||
                  funcText == "sendMessageToTopicWithAttributes")
@@ -127,10 +127,7 @@ public class GcpLibraryParser : ILibraryParser
             if (args.Count > 0)
             {
                 var topic = AstHelper.ResolveStringOrTemplate(args[0]);
-                if (!string.IsNullOrEmpty(topic))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.PublishesTo));
-                }
+                AddPublishReference(references, scopeSymbolId, topic);
             }
         }
         else if (funcText.EndsWith(".sendMessageToNetwork", StringComparison.Ordinal) ||
@@ -139,10 +136,7 @@ public class GcpLibraryParser : ILibraryParser
             if (args.Count > 1)
             {
                 var topic = AstHelper.ResolveStringOrTemplate(args[1]);
-                if (!string.IsNullOrEmpty(topic))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.PublishesTo));
-                }
+                AddPublishReference(references, scopeSymbolId, topic);
             }
         }
         else if (funcText.EndsWith(".publishToTopic", StringComparison.Ordinal) ||
@@ -152,10 +146,7 @@ public class GcpLibraryParser : ILibraryParser
             if (args.Count > 0)
             {
                 var topic = AstHelper.ResolveStringOrTemplate(args[0]);
-                if (!string.IsNullOrEmpty(topic))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.PublishesTo));
-                }
+                AddPublishReference(references, scopeSymbolId, topic);
             }
         }
 
@@ -170,10 +161,7 @@ public class GcpLibraryParser : ILibraryParser
             if (args.Count > 0)
             {
                 var sub = AstHelper.ResolveStringOrTemplate(args[0]);
-                if (!string.IsNullOrEmpty(sub))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + sub, OntologyConstants.Relationships.SubscribesTo));
-                }
+                AddSubscribeReference(references, scopeSymbolId, sub);
             }
         }
         // B. initPubSub(topicName, subscriptionName)
@@ -182,34 +170,68 @@ public class GcpLibraryParser : ILibraryParser
             if (args.Count > 0)
             {
                 var topic = AstHelper.ResolveStringOrTemplate(args[0]);
-                if (!string.IsNullOrEmpty(topic))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.SubscribesTo));
-                }
+                AddSubscribeReference(references, scopeSymbolId, topic);
             }
             if (args.Count > 1)
             {
                 var sub = AstHelper.ResolveStringOrTemplate(args[1]);
-                if (!string.IsNullOrEmpty(sub))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + sub, OntologyConstants.Relationships.SubscribesTo));
-                }
+                AddSubscribeReference(references, scopeSymbolId, sub);
             }
         }
         // C. Named subscribers in ATS (e.g. subscribeToPostbackPartnerMessages, subscribeToImpressionMessages)
         else if (funcText.EndsWith(".subscribeToPostbackPartnerMessages", StringComparison.Ordinal))
         {
-            references.Add(new Reference(scopeSymbolId, "gcp:POSTBACK_PARTNER_SUB_NAME", OntologyConstants.Relationships.SubscribesTo));
+            AddSubscribeReference(references, scopeSymbolId, "POSTBACK_PARTNER_SUB_NAME");
         }
         else if (funcText.EndsWith(".subscribeToImpressionMessages", StringComparison.Ordinal))
         {
-            references.Add(new Reference(scopeSymbolId, "gcp:IMPRESSION_SUB_NAME", OntologyConstants.Relationships.SubscribesTo));
+            AddSubscribeReference(references, scopeSymbolId, "IMPRESSION_SUB_NAME");
         }
+    }
+
+    private static void AddPublishReference(List<Reference> references, string scopeSymbolId, string? topic)
+    {
+        if (IsValidTopicName(topic))
+        {
+            references.Add(new Reference(scopeSymbolId, "gcp:" + topic!.Trim(), OntologyConstants.Relationships.PublishesTo));
+        }
+    }
+
+    private static void AddSubscribeReference(List<Reference> references, string scopeSymbolId, string? topic)
+    {
+        if (IsValidTopicName(topic))
+        {
+            references.Add(new Reference(scopeSymbolId, "gcp:" + topic!.Trim(), OntologyConstants.Relationships.SubscribesTo));
+        }
+    }
+
+    private static bool IsValidTopicName(string? topic)
+    {
+        if (string.IsNullOrWhiteSpace(topic)) return false;
+        var t = topic.Trim();
+        if (t.StartsWith(':') ||
+            t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("string", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("null", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            t.Length <= 3)
+        {
+            return false;
+        }
+        return true;
     }
 
     private static string? ResolveTopicVariableInScope(Node node, string varName)
     {
         var cleanName = varName.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? varName[5..] : varName;
+
+        if (ConstantRegistry.TryResolve(null, cleanName, out var resolved) && IsValidTopicName(resolved))
+        {
+            return resolved;
+        }
 
         var curr = node.Parent;
         while (curr.IsValid())
@@ -220,16 +242,36 @@ public class GcpLibraryParser : ILibraryParser
                 {
                     if (child.Text.Contains(cleanName) && child.Text.Contains(".topic("))
                     {
-                        var match = Regex.Match(child.Text, @"\.topic\s*\(\s*([^,\)]+)");
+                        var match = Regex.Match(child.Text, $@"(?:this\.)?{Regex.Escape(cleanName)}\s*=\s*[^;]*?\.topic\s*\(\s*([^,\)]+)");
+                        if (!match.Success)
+                        {
+                            match = Regex.Match(child.Text, @"\.topic\s*\(\s*([^,\)]+)");
+                        }
                         if (match.Success)
                         {
                             var arg = match.Groups[1].Value.Trim().Trim('\'', '"', '`');
-                            if (!string.IsNullOrEmpty(arg)) return arg;
+                            var cleanArg = arg.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? arg[5..] : arg;
+                            if (ConstantRegistry.TryResolve(null, cleanArg, out var resArg) && IsValidTopicName(resArg))
+                            {
+                                return resArg;
+                            }
+                            var varVal = AstHelper.FindVariableInitializerInAst(node, cleanArg);
+                            if (!string.IsNullOrEmpty(varVal) && IsValidTopicName(varVal))
+                            {
+                                return varVal;
+                            }
+                            if (IsValidTopicName(arg)) return arg;
                         }
                     }
                 }
             }
             curr = curr.Parent;
+        }
+
+        var varValDirect = AstHelper.FindVariableInitializerInAst(node, cleanName);
+        if (!string.IsNullOrEmpty(varValDirect) && IsValidTopicName(varValDirect))
+        {
+            return varValDirect;
         }
 
         if (cleanName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
@@ -240,7 +282,7 @@ public class GcpLibraryParser : ILibraryParser
             {
                 return "EVENT_JOURNAL_TOPIC";
             }
-            return cleanName;
+            if (IsValidTopicName(cleanName)) return cleanName;
         }
 
         return null;

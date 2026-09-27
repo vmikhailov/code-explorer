@@ -21,7 +21,7 @@ public class DiagramExportTests
 
         var projDir = Path.Combine(_tempDir, "OrderService").Replace('\\', '/');
         Directory.CreateDirectory(projDir);
-        await File.WriteAllTextAsync(Path.Combine(projDir, "OrderService.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+        await File.WriteAllTextAsync(Path.Combine(projDir, "OrderService.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
 
         var code = """
         using System.ComponentModel.DataAnnotations.Schema;

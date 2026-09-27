@@ -162,4 +162,22 @@ public class ResourceReconciliationTests
         Assert.That(dbRel.Properties!["provider"]?.ToString(), Is.EqualTo("typeorm"));
         Assert.That(dbRel.Properties!["is_orm"]?.ToString(), Is.EqualTo("true"));
     }
+
+    [Test]
+    public void CleanProjectNameToDomain_CleansMicroservicePrefixesAndSuffixes()
+    {
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-networks"), Is.EqualTo("networks"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-landers"), Is.EqualTo("landers"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-sources"), Is.EqualTo("sources"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-splits"), Is.EqualTo("splits"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-action-scheduler"), Is.EqualTo("action-scheduler"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("integration-service-postback-partner"), Is.EqualTo("postback-partner"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("integration-service-smart-cpa"), Is.EqualTo("smart-cpa"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-bundle-scheduler"), Is.EqualTo("bundle-scheduler"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("tournament-service"), Is.EqualTo("tournament"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("orders-api"), Is.EqualTo("orders"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("Lidoma.Tournament"), Is.EqualTo("tournament"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("service-billing"), Is.EqualTo("billing"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("ats-users"), Is.EqualTo("users"));
+    }
 }

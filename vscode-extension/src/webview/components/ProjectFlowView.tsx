@@ -80,6 +80,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     messaging: true,
   });
   const visibleEdgeTypes = visibleEdgeTypesProp !== undefined ? visibleEdgeTypesProp : localVisibleEdgeTypes;
+  const [sharedDbsOnly, setSharedDbsOnly] = useState<boolean>(false);
 
   // Legend collapse/expand state (positioned in top-left panel)
   const [isLegendOpen, setIsLegendOpen] = useState(true);
@@ -93,7 +94,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
   const handleToggleEdgeType = onToggleEdgeTypeProp || localToggleEdgeType;
 
   // Build comprehensive graph lookup and communications breakdown from fullGraph (fallback to graph)
-  const { nodeMap, outboundMap, inboundMap, inCountMap, outCountMap, edgeLookup, commsMap } = useMemo(() => {
+  const { nodeMap, outboundMap, inboundMap, inCountMap, outCountMap, edgeLookup, commsMap, dbUsageCounts } = useMemo(() => {
     const dataSource = fullGraph && fullGraph.nodes && fullGraph.nodes.length > 0 ? fullGraph : graph;
 
     const nMap = new Map<string, GraphNode>();
@@ -225,6 +226,23 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       inc[n.name] = inList.length;
     }
 
+    const dbUsageMap = new Map<string, Set<string>>();
+    for (const e of allEdges) {
+      if (e.category === 'database' || e.kind === 'USES_DB') {
+        const tgt = e.target.toLowerCase();
+        let set = dbUsageMap.get(tgt);
+        if (!set) {
+          set = new Set<string>();
+          dbUsageMap.set(tgt, set);
+        }
+        set.add(e.source.toLowerCase());
+      }
+    }
+    const dbUsageCounts = new Map<string, number>();
+    for (const [k, v] of dbUsageMap.entries()) {
+      dbUsageCounts.set(k, v.size);
+    }
+
     return {
       nodeMap: nMap,
       outboundMap: outMap,
@@ -233,6 +251,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
       outCountMap: outc,
       edgeLookup: edgeMap,
       commsMap: cMap,
+      dbUsageCounts,
     };
   }, [fullGraph, graph]);
 
@@ -473,6 +492,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         // Databases out
         if (visibleEdgeTypes.database && activeCats.has('dbOut') && comms?.dbOut) {
           for (const item of comms.dbOut) {
+            if (sharedDbsOnly) {
+              const count = dbUsageCounts.get(item.id.toLowerCase()) || (item.name ? dbUsageCounts.get(item.name.toLowerCase()) : 0) || 0;
+              if (count <= 1) continue;
+            }
             const targetNode = findTargetNode(item.id, item.name);
             if (targetNode && !isAlreadyVisible(targetNode)) {
               visibleNodesMap.set(targetNode.id, targetNode);
@@ -618,6 +641,10 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         let outCat = 'callsOut';
         let inCat: string | null = 'acceptsIn';
         if (category === 'database') {
+          if (sharedDbsOnly) {
+            const count = dbUsageCounts.get(targetId.toLowerCase()) || (tgtNode?.name ? dbUsageCounts.get(tgtNode.name.toLowerCase()) : 0) || 0;
+            if (count <= 1) return;
+          }
           outCat = 'dbOut';
           inCat = null;
         } else if (category === 'messaging') {
@@ -1129,6 +1156,21 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
                       <polygon points="21 2, 32 6, 21 10" fill="#c084fc" />
                     </svg>
                     <span className="edge-legend-label">Database</span>
+                  </label>
+                  <label
+                    className={`edge-legend-item ${sharedDbsOnly ? 'is-active' : 'is-dimmed'}`}
+                    title="Hide databases with only 1 connection (show shared databases only)"
+                    style={{ marginLeft: 6, fontSize: '0.82em', cursor: 'pointer' }}
+                  >
+                    <input
+                      type="checkbox"
+                      className="edge-legend-checkbox"
+                      checked={sharedDbsOnly}
+                      onChange={() => setSharedDbsOnly(!sharedDbsOnly)}
+                    />
+                    <span className="edge-legend-label" style={{ color: sharedDbsOnly ? '#c084fc' : undefined }}>
+                      Shared only
+                    </span>
                   </label>
                   <label className={`edge-legend-item ${!visibleEdgeTypes.library ? 'is-dimmed' : ''}`} title="Toggle Library connections">
                     <input

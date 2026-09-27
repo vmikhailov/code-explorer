@@ -218,6 +218,95 @@ public class ParserValidationTests
     }
 
     [Test]
+    public async Task Test_SqlParser_CreateTable_IfNotExists_And_Templated_Identifiers()
+    {
+        var sqlParser = new Parser.SQL.SqlParser();
+        var tempFile = Path.Combine(Path.GetTempPath(), $"test_sql_{Guid.NewGuid():N}.sql");
+        var sql = """
+            BEGIN
+                DROP TABLE IF EXISTS ${tracker.main_query_result};
+
+                CREATE TABLE IF NOT EXISTS ${tracker.main_query_result}(
+                    id INT
+                );
+
+                CREATE TABLE IF NOT EXISTS {DB_NAME}.bundle_placements (
+                    timestamp DateTime
+                );
+
+                CREATE TABLE IF NOT EXISTS {{BIG_QUERY_DATASET}}.clicktype_rates_history (
+                    tb_id INT64
+                );
+
+                CREATE TABLE IF NOT EXIST legacy_table (
+                    col1 STRING
+                );
+            END
+            """;
+        await File.WriteAllTextAsync(tempFile, sql);
+
+        try
+        {
+            using var syntax = await sqlParser.ParseAsync(tempFile, "parent", "ws", Path.GetTempPath());
+            var fileNode = syntax.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var allTables = new List<TableNode>();
+            void CollectTables(IOntologyNode node)
+            {
+                if (node is TableNode t) allTables.Add(t);
+                foreach (var child in node.Children) CollectTables(child);
+            }
+            CollectTables(fileNode);
+
+            // Assert "IF", "NOT", "EXISTS", "EXIST" are NEVER created as TableNodes
+            Assert.That(allTables.Any(t => t.Name.Equals("IF", StringComparison.OrdinalIgnoreCase)), Is.False, "Table 'IF' must never be created!");
+            Assert.That(allTables.Any(t => t.Name.Equals("NOT", StringComparison.OrdinalIgnoreCase)), Is.False, "Table 'NOT' must never be created!");
+            Assert.That(allTables.Any(t => t.Name.Equals("EXISTS", StringComparison.OrdinalIgnoreCase)), Is.False, "Table 'EXISTS' must never be created!");
+            Assert.That(allTables.Any(t => t.Name.Equals("EXIST", StringComparison.OrdinalIgnoreCase)), Is.False, "Table 'EXIST' must never be created!");
+
+            // Assert templated and legacy tables are correctly recognized
+            Assert.That(allTables.Any(t => t.Name == "main_query_result"), Is.True, "Table 'main_query_result' should be recognized");
+            Assert.That(allTables.Any(t => t.Name == "bundle_placements"), Is.True, "Table 'bundle_placements' should be recognized");
+            Assert.That(allTables.Any(t => t.Name == "clicktype_rates_history"), Is.True, "Table 'clicktype_rates_history' should be recognized");
+            Assert.That(allTables.Any(t => t.Name == "legacy_table"), Is.True, "Table 'legacy_table' should be recognized");
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Test]
+    public void Test_NestedSqlParser_ExternalQuery_And_TableFunctions()
+    {
+        var rawSql = """
+            SELECT * FROM networks.cost_loss_all_sources
+            WHERE source_id IN (
+              SELECT * FROM EXTERNAL_QUERY("eu.system-db",
+                "SELECT source_id FROM defaults.sources WHERE network_name = 'foo'")
+            )
+            """;
+        var queryNode = NestedSqlParser.ParseNestedSql(rawSql, "ws:query:1", "calculation.controller.ts");
+        Assert.That(queryNode, Is.Not.Null);
+
+        var allTables = new List<TableNode>();
+        void CollectTables(IOntologyNode node)
+        {
+            if (node is TableNode t) allTables.Add(t);
+            foreach (var child in node.Children) CollectTables(child);
+        }
+        CollectTables(queryNode!);
+
+        // "EXTERNAL_QUERY" should NEVER be recognized as a TableNode
+        Assert.That(allTables.Any(t => t.Name.Equals("EXTERNAL_QUERY", StringComparison.OrdinalIgnoreCase)), Is.False, "EXTERNAL_QUERY must not be recognized as a table!");
+        
+        // "sources" and "cost_loss_all_sources" should be recognized
+        Assert.That(allTables.Any(t => t.Name == "cost_loss_all_sources"), Is.True, "Table 'cost_loss_all_sources' should be recognized");
+        Assert.That(allTables.Any(t => t.Name == "sources"), Is.True, "Table 'sources' should be recognized");
+    }
+
+    [Test]
     public async Task Test_TypeScriptParser_EmbeddedSql_ComplexTemplate()
     {
         var parser = new TypeScriptParser();

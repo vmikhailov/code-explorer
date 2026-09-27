@@ -2,10 +2,19 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import { GraphData, GraphNode, GraphEdge, isProjectKind } from '../../../../proto/types';
+import {
+  computeEchelonTiers,
+  computeConcentricLayout,
+  ConcentricNodeInput,
+  ConcentricEdgeInput,
+  ConcentricOrbitGuide,
+} from '../layout/concentricLayout';
+import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout';
+import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslandsLayout';
+import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
+import { DomainMatrixView } from './DomainMatrixView';
 
-try {
-  cytoscape.use(dagre);
-} catch {}
+export type DomainLayoutName = 'concentric' | 'swimlanes' | 'clusters' | 'hive' | 'matrix' | 'cose';
 
 export interface DomainArchitectureViewProps {
   graph: GraphData | null;
@@ -109,7 +118,11 @@ export interface SelectedNodeDetail {
   outboundCallsCount: number;
   dbCount: number;
   messagingCount: number;
+  tier?: number;
+  tierLabel?: string;
 }
+
+export type DomainNodeDetail = SelectedNodeDetail;
 
 // Cytoscape stylesheets matching the circular Neo4j / graph ontology styling
 const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
@@ -247,10 +260,11 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'transition-duration': 0.2,
     },
   },
-  // Edge Categories
+  // Edge Categories (Direct connections - Solid lines)
   {
     selector: 'edge[category = "service_call"]',
     style: {
+      'line-style': 'solid',
       'line-color': '#38bdf8',
       'target-arrow-color': '#38bdf8',
     },
@@ -258,6 +272,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge[category = "database"]',
     style: {
+      'line-style': 'solid',
       'line-color': '#c084fc',
       'target-arrow-color': '#c084fc',
     },
@@ -265,27 +280,33 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge[category = "messaging"]',
     style: {
+      'line-style': 'solid',
       'line-color': '#fbbf24',
       'target-arrow-color': '#fbbf24',
-      'line-style': 'dashed',
     },
   },
   {
     selector: 'edge[category = "external"]',
     style: {
+      'line-style': 'solid',
       'line-color': '#34d399',
       'target-arrow-color': '#34d399',
     },
   },
-  // Transitive / Composite Edges (created when hiding intermediate nodes)
+  // Explicit Direct Edges
+  {
+    selector: 'edge[isTransitive = "false"]',
+    style: {
+      'line-style': 'solid',
+    },
+  },
+  // Transitive / Indirect Edges (connecting through hidden entities - Dashed lines)
   {
     selector: 'edge[isTransitive = "true"], edge.transitive-edge',
     style: {
       'line-style': 'dashed',
       'line-dash-pattern': [6, 4],
-      'line-color': '#c084fc',
-      'target-arrow-color': '#c084fc',
-      'opacity': 0.9,
+      'opacity': 0.88,
     },
   },
   // Highlighted Edges
@@ -329,10 +350,54 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [layoutName, setLayoutName] = useState<'cose' | 'dagre' | 'concentric'>('cose');
+  const [layoutName, setLayoutName] = useState<DomainLayoutName>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_layout');
+      if (
+        saved === 'cose' ||
+        saved === 'concentric' ||
+        saved === 'swimlanes' ||
+        saved === 'clusters' ||
+        saved === 'hive' ||
+        saved === 'matrix'
+      ) return saved as DomainLayoutName;
+    } catch { }
+    return 'concentric';
+  });
+  const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
+  const [swimlaneGuides, setSwimlaneGuides] = useState<SwimlaneGuide[]>([]);
+  const [islandGuides, setIslandGuides] = useState<IslandGuide[]>([]);
+  const [hiveGuides, setHiveGuides] = useState<HiveAxisGuide[]>([]);
+  const [cyTransform, setCyTransform] = useState<{ pan: { x: number; y: number }; zoom: number }>({ pan: { x: 0, y: 0 }, zoom: 1 });
   const [selectedNode, setSelectedNode] = useState<SelectedNodeDetail | null>(null);
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(new Set());
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(false);
+  const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(false);
+
+  // Auto-relayout on filter toggle (persisted)
+  const [autoRelayoutOnFilter, setAutoRelayoutOnFilter] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ce_auto_relayout_on_filter');
+      if (saved !== null) return saved === 'true';
+    } catch { }
+    return true;
+  });
+  const [relayoutTrigger, setRelayoutTrigger] = useState(0);
+  const forceRelayoutRef = useRef(false);
+
+  const handleAutoRelayoutChange = useCallback((enabled: boolean) => {
+    setAutoRelayoutOnFilter(enabled);
+    try {
+      localStorage.setItem('ce_auto_relayout_on_filter', String(enabled));
+    } catch { }
+  }, []);
+
+  const handleForceRelayout = useCallback(() => {
+    forceRelayoutRef.current = true;
+    setRelayoutTrigger((prev) => prev + 1);
+  }, []);
+
   const prevLayoutRef = useRef(layoutName);
   const [isPreparing, setIsPreparing] = useState(true);
   const [preparingStatus, setPreparingStatus] = useState('Analyzing domain microservices...');
@@ -369,6 +434,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, [graph]);
 
   const toggleTypeVisibility = useCallback((kind: EntityKind) => {
+    forceRelayoutRef.current = true;
     setHiddenTypes((prev) => {
       const next = new Set(prev);
       if (next.has(kind)) {
@@ -385,6 +451,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
 
   const hideNode = useCallback((nodeId: string) => {
+    forceRelayoutRef.current = true;
     setHiddenNodeIds((prev) => {
       const next = new Set(prev);
       next.add(nodeId);
@@ -397,6 +464,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
 
   const unhideNode = useCallback((nodeId: string) => {
+    forceRelayoutRef.current = true;
     setHiddenNodeIds((prev) => {
       const next = new Set(prev);
       next.delete(nodeId);
@@ -405,8 +473,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
 
   const unhideAll = useCallback(() => {
+    forceRelayoutRef.current = true;
     setHiddenTypes(new Set());
     setHiddenNodeIds(new Set());
+    setHideSingleConnectionDbs(false);
+    setHideIsolatedNodes(false);
   }, []);
 
   // 1. Synthesize Domain Entities & Infrastructure Nodes from GraphData
@@ -430,13 +501,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       projToDomainMap.set(node.id.toLowerCase(), domainKey);
       projToDomainMap.set(node.name.toLowerCase(), domainKey);
 
+      const isLib =
+        node.kind === 'Library' ||
+        node.kind === 'SharedLibrary' ||
+        node.properties?.is_library === 'true';
+
       let pList = domainProjectsMap.get(domainKey);
       if (!pList) {
         pList = [];
         domainProjectsMap.set(domainKey, pList);
 
-        const layer = (node.properties?.layer || node.properties?.layerId || '').toLowerCase();
         const isIngress =
+          !isLib &&
           (node.kind === 'App' || node.kind === 'FrontendApp' || isIngressHint) &&
           node.kind !== 'Service' &&
           node.kind !== 'Worker';
@@ -449,11 +525,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           language: node.properties?.language || node.properties?.project_type,
         });
       }
-
-      const isLib =
-        node.kind === 'Library' ||
-        node.kind === 'SharedLibrary' ||
-        node.properties?.is_library === 'true';
 
       pList.push({
         id: node.id,
@@ -471,6 +542,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         currPrimary?.properties?.is_library === 'true';
       if (!currPrimary || (isCurrLib && !isLib)) {
         domainPrimaryMap.set(domainKey, node);
+        if (!isLib) {
+          domainNameMap.set(domainKey, {
+            name: node.name,
+            displayName: domainDisplayName,
+            framework: node.properties?.framework,
+            language: node.properties?.language || node.properties?.project_type,
+          });
+          const isIngress =
+            (node.kind === 'App' || node.kind === 'FrontendApp' || isIngressHint) &&
+            node.kind !== 'Service' &&
+            node.kind !== 'Worker';
+          domainZoneMap.set(domainKey, isIngress ? 'ingress' : 'service');
+        }
       }
     }
 
@@ -490,7 +574,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         projToDomainMap.set(node.id, node.id);
         projToDomainMap.set(node.id.toLowerCase(), node.id);
       } else if (node.kind === 'Topic' || node.properties?.role === 'topic') {
-        const name = node.name || node.displayName || 'Topic';
+        const rawName = node.name || node.displayName || 'Topic';
+        const isBogus =
+          !rawName ||
+          rawName.startsWith(':') ||
+          rawName.toLowerCase() === 'topic' ||
+          rawName.toLowerCase() === 'string' ||
+          rawName.toLowerCase() === 'undefined' ||
+          rawName.startsWith('http://') ||
+          rawName.startsWith('https://');
+        if (isBogus) continue;
+        const name = rawName;
         topicNodes.set(node.id, {
           id: node.id,
           name,
@@ -549,9 +643,24 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         label = 'USES_DB';
         if (!dbUsage.has(srcDomain)) dbUsage.set(srcDomain, new Set());
         dbUsage.get(srcDomain)!.add(tgtDomain);
-      } else if (topicNodes.has(tgtDomain) || topicNodes.has(srcDomain) || edge.category === 'messaging' || edge.kind === 'TRIGGERS') {
+      } else if (
+        topicNodes.has(tgtDomain) ||
+        topicNodes.has(srcDomain) ||
+        edge.category === 'messaging' ||
+        edge.kind === 'TRIGGERS' ||
+        edge.kind === 'PUBLISHES_TO' ||
+        edge.kind === 'SUBSCRIBES_TO' ||
+        edge.kind === 'PUBLISHED_BY' ||
+        edge.kind === 'SUBSCRIBED_BY'
+      ) {
         cat = 'messaging';
-        label = topicNodes.has(srcDomain) ? 'SUBSCRIBES' : 'PUBLISHES';
+        if (topicNodes.has(srcDomain)) {
+          label = 'TRIGGERS';
+        } else if (edge.kind === 'SUBSCRIBES_TO' || edge.kind === 'SUBSCRIBED_BY') {
+          label = 'SUBSCRIBES';
+        } else {
+          label = 'PUBLISHES';
+        }
         if (topicNodes.has(tgtDomain)) {
           if (!msgUsage.has(srcDomain)) msgUsage.set(srcDomain, new Set());
           msgUsage.get(srcDomain)!.add(tgtDomain);
@@ -599,24 +708,44 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     let ingressCount = 0;
     let serviceCount = 0;
     let workerCount = 0;
-    let libCount = 0;
 
-    // 3a. Service / Ingress / Worker / Library Nodes
+    // 3a. Service / Ingress / Worker Nodes
     for (const [domainId, meta] of domainNameMap.entries()) {
+      const projects = domainProjectsMap.get(domainId) || [];
+      const primaryNode = domainPrimaryMap.get(domainId);
+
+      const isPureLibDomain =
+        projects.length > 0
+          ? projects.every(
+              (p) =>
+                p.isLibrary ||
+                p.kind === 'Library' ||
+                p.kind === 'SharedLibrary' ||
+                p.kind === 'Shared'
+            )
+          : primaryNode?.kind === 'Library' ||
+            primaryNode?.kind === 'SharedLibrary' ||
+            primaryNode?.properties?.is_library === 'true';
+
+      const isUiComponentPackage =
+        projects.length > 0 &&
+        projects.every((p) => {
+          const fp = (p.filePath || '').toLowerCase().replace(/\\/g, '/');
+          return fp.includes('/packages/ui/') || fp.includes('/packages/components/') || fp.includes('/src/components/');
+        });
+
+      if (isPureLibDomain || isUiComponentPackage) {
+        // Pure library & UI component domains MUST NOT appear on Domain Service Map
+        continue;
+      }
+
       const zone = domainZoneMap.get(domainId) || 'service';
       const isIngress = zone === 'ingress';
 
-      const projects = domainProjectsMap.get(domainId) || [];
-      const primaryNode = domainPrimaryMap.get(domainId);
       const isWorker =
         primaryNode?.kind === 'Worker' ||
         primaryNode?.properties?.role === 'Worker' ||
         projects.some((p) => p.kind === 'Worker');
-      const isLibDomain =
-        (primaryNode?.kind === 'Library' ||
-          primaryNode?.kind === 'SharedLibrary' ||
-          primaryNode?.properties?.is_library === 'true') &&
-        !projects.some((p) => p.kind === 'Service' || p.kind === 'App');
 
       let tag = ':Service';
       let nodeKind: EntityKind = 'Service';
@@ -638,13 +767,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         bgColor = '#d97706';
         borderColor = '#92400e';
         size = 48;
-      } else if (isLibDomain) {
-        libCount++;
-        tag = ':Library';
-        nodeKind = 'Library';
-        bgColor = '#475569';
-        borderColor = '#1e293b';
-        size = 44;
       } else {
         serviceCount++;
       }
@@ -846,17 +968,76 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       });
     }
 
+    // 5. Compute connected source services for each database node
+    const dbSourceServicesMap = new Map<string, Set<string>>();
+    for (const e of rawEdges) {
+      if (e.category === 'database' || e.label === 'USES_DB') {
+        let set = dbSourceServicesMap.get(e.target);
+        if (!set) {
+          set = new Set<string>();
+          dbSourceServicesMap.set(e.target, set);
+        }
+        set.add(e.source);
+      }
+    }
+
+    let singleConnDbCount = 0;
+    let sharedDbCount = 0;
+    for (const node of cyNodes) {
+      if ((node.data as any).kind === 'Database') {
+        const id = node.data.id as string;
+        const inboundCount = dbSourceServicesMap.get(id)?.size || 0;
+        if (inboundCount <= 1) {
+          singleConnDbCount++;
+        } else {
+          sharedDbCount++;
+        }
+      }
+    }
+
+    // 6. Compute Stable Architectural Echelon Tiers (0..5) across Full Graph
+    const echelonMap = computeEchelonTiers(
+      cyNodes.map((n) => ({ id: n.data.id as string, kind: (n.data as any).kind as string })),
+      rawEdges
+    );
+
+    for (const node of cyNodes) {
+      const id = node.data.id as string;
+      const ech = echelonMap.get(id) ?? 2;
+      (node.data as any).echelonTier = ech;
+      const detail = detailMap.get(id);
+      if (detail) {
+        detail.tier = ech;
+        detail.tierLabel =
+          ech === 0
+            ? 'Tier 0 (Ingress / Gateway & Frontends)'
+            : ech === 1
+            ? 'Tier 1 (First Echelon / Gateway-facing)'
+            : ech === 2
+            ? 'Tier 2 (Second Echelon / Internal Domain)'
+            : ech === 3
+            ? 'Tier 3 (Third Echelon / Workers & Downstream)'
+            : ech === 4
+            ? 'Tier 4 (Message Topics)'
+            : 'Tier 5 (Databases & External Infrastructure)';
+      }
+    }
+
     return {
       allNodes: cyNodes,
       rawEdges,
       detailMap,
+      echelonMap,
       outAdj,
+      dbSourceServicesMap,
       counts: {
         ingress: ingressCount,
         services: serviceCount,
         workers: workerCount,
-        libraries: libCount,
+        libraries: 0,
         databases: dbCount,
+        singleConnDbs: singleConnDbCount,
+        sharedDbs: sharedDbCount,
         topics: topicCount,
         external: extCount,
         serviceCalls: serviceCallsCount,
@@ -866,12 +1047,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, [graph]);
 
   // 2. Visible Graph Memo with Directional Transitive Contraction
-  const { elements, stats, hiddenCount } = useMemo(() => {
+  const { elements, visibleNodes, visibleEdges, hiddenNodeIdSet, stats, hiddenCount } = useMemo(() => {
     const hiddenNodeIdSet = new Set<string>(hiddenNodeIds);
     for (const node of rawGraph.allNodes) {
       const kind = (node.data as any).kind as EntityKind;
       if (hiddenTypes.has(kind)) {
         hiddenNodeIdSet.add(node.data.id as string);
+      }
+      if (hideSingleConnectionDbs && kind === 'Database') {
+        const inboundCount = rawGraph.dbSourceServicesMap.get(node.data.id as string)?.size || 0;
+        if (inboundCount <= 1) {
+          hiddenNodeIdSet.add(node.data.id as string);
+        }
       }
     }
 
@@ -972,8 +1159,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               transitiveEdgesMap.set(transKey, {
                 source: u,
                 target: v,
-                category: item.category,
-                label: item.label,
+                category: nextEdge.category,
+                label: nextEdge.label || item.label,
                 count: Math.max(item.count, nextEdge.count),
                 viaNames: [...item.viaNames],
               });
@@ -985,8 +1172,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             queue.push({
               curr: v,
               viaNames: [...item.viaNames, name],
-              category: item.category,
-              label: item.label,
+              category: nextEdge.category,
+              label: nextEdge.label || item.label,
               count: item.count,
               depth: item.depth + 1,
             });
@@ -1014,36 +1201,63 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       });
     }
 
-    let visibleCalls = 0;
-    let visibleMsgs = 0;
-    for (const e of visibleEdges) {
-      const cat = (e.data as any).category;
-      const count = (e.data as any).count || 1;
-      if (cat === 'service_call') visibleCalls += count;
-      else if (cat === 'messaging') visibleMsgs += count;
+    let finalVisibleNodes = visibleNodes;
+    if (hideIsolatedNodes) {
+      const connectedNodeIds = new Set<string>();
+      for (const e of visibleEdges) {
+        const s = (e.data as any)?.source as string;
+        const t = (e.data as any)?.target as string;
+        if (s && t) {
+          connectedNodeIds.add(s);
+          connectedNodeIds.add(t);
+        }
+      }
+      finalVisibleNodes = visibleNodes.filter((n) => connectedNodeIds.has(n.data.id as string));
     }
 
-    const visibleNodeIdSet = new Set(visibleNodes.map((n) => n.data.id as string));
+    const visibleNodeIdSet = new Set(finalVisibleNodes.map((n) => n.data.id as string));
     const safeVisibleEdges = visibleEdges.filter((e) => {
       const s = (e.data as any)?.source as string;
       const t = (e.data as any)?.target as string;
       return s && t && visibleNodeIdSet.has(s) && visibleNodeIdSet.has(t);
     });
 
+    let visibleCalls = 0;
+    let visibleMsgs = 0;
+    let directCalls = 0;
+    let transitiveCalls = 0;
+    for (const e of safeVisibleEdges) {
+      const cat = (e.data as any).category;
+      const count = (e.data as any).count || 1;
+      const isTrans = (e.data as any).isTransitive === 'true';
+      if (isTrans) {
+        transitiveCalls += count;
+      } else {
+        directCalls += count;
+      }
+      if (cat === 'service_call') visibleCalls += count;
+      else if (cat === 'messaging') visibleMsgs += count;
+    }
+
     return {
-      elements: [...visibleNodes, ...safeVisibleEdges],
-      hiddenCount: rawGraph.allNodes.length - visibleNodes.length,
+      elements: [...finalVisibleNodes, ...safeVisibleEdges],
+      visibleNodes: finalVisibleNodes,
+      visibleEdges: safeVisibleEdges,
+      hiddenNodeIdSet,
+      hiddenCount: rawGraph.allNodes.length - finalVisibleNodes.length,
       stats: {
-        total: visibleNodes.length,
+        total: finalVisibleNodes.length,
         ingress: rawGraph.counts.ingress,
         services: rawGraph.counts.services,
         databases: rawGraph.counts.databases,
         topics: rawGraph.counts.topics,
         serviceCalls: visibleCalls,
         messages: visibleMsgs,
+        directCalls,
+        transitiveCalls,
       },
     };
-  }, [rawGraph, hiddenTypes, hiddenNodeIds]);
+  }, [rawGraph, hiddenTypes, hiddenNodeIds, hideSingleConnectionDbs, hideIsolatedNodes]);
 
   const nodeDetailMap = rawGraph.detailMap;
 
@@ -1131,10 +1345,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       evt.target.removeClass('hovered');
     });
 
-    // Zoom listener to keep HUD percentage indicator synchronized
-    cy.on('zoom', () => {
+    // Viewport transform listener to keep HUD percentage and SVG guides synchronized
+    const handleViewportSync = () => {
       setCurrentZoom(cy.zoom());
-    });
+      setCyTransform({ pan: { ...cy.pan() }, zoom: cy.zoom() });
+    };
+    cy.on('zoom pan resize render', handleViewportSync);
 
     // Track manually dragged node positions relative to centroid
     cy.on('dragfree', 'node', (evt) => {
@@ -1190,12 +1406,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     let cancelled = false;
 
     const runAsyncLayout = async () => {
-      setIsPreparing(true);
-      setPreparingStatus('Synthesizing domain clusters...');
-
-      // Yield execution to the browser event loop so React renders the loading overlay immediately
-      await new Promise((resolve) => setTimeout(resolve, 30));
-      if (cancelled) return;
+      const isForced = forceRelayoutRef.current;
+      forceRelayoutRef.current = false;
 
       const layoutChanged = prevLayoutRef.current !== layoutName;
       prevLayoutRef.current = layoutName;
@@ -1206,11 +1418,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         savedPositions.set(n.id(), { ...n.position() });
       });
       const hadExisting = savedPositions.size > 0;
+      const isInitial = !hadExisting || layoutChanged || isForced;
+
+      if (isInitial) {
+        setIsPreparing(true);
+        setPreparingStatus('Synthesizing domain clusters...');
+        // Yield execution to the browser event loop so React renders the loading overlay immediately
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        if (cancelled) return;
+      }
 
       cy.elements().remove();
       cy.add(elements);
 
-      if (hadExisting && !layoutChanged) {
+      if (hadExisting && !layoutChanged && layoutName === 'cose') {
         let hasNewNodes = false;
         cy.nodes().forEach((n) => {
           const pos = savedPositions.get(n.id());
@@ -1221,17 +1442,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           }
         });
 
-        // If nodes were already placed and none are new, skip running layout
-        if (!hasNewNodes) {
+        // If auto-relayout is disabled and no new nodes appeared (and not manually forced), keep current positions and return
+        if (!autoRelayoutOnFilter && !hasNewNodes && !isForced) {
           setIsPreparing(false);
           return;
         }
       }
 
       if (cancelled) return;
-      setPreparingStatus('Computing force-directed topology...');
-      await new Promise((resolve) => setTimeout(resolve, 15));
-      if (cancelled) return;
+      if (isInitial) {
+        setPreparingStatus('Computing force-directed topology...');
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        if (cancelled) return;
+      }
 
       if (activeLayoutRef.current) {
         try {
@@ -1240,35 +1463,95 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         activeLayoutRef.current = null;
       }
 
+      if (layoutName === 'matrix') {
+        setConcentricGuides([]);
+        setSwimlaneGuides([]);
+        setIslandGuides([]);
+        setHiveGuides([]);
+        setIsPreparing(false);
+        return;
+      }
+
       let layoutConfig: any;
       const spacing = spacingFactorRef.current || 1.0;
-      if (layoutName === 'dagre') {
+
+      const visibleNodesInput = cy.nodes().map((n) => {
+        const id = n.id();
+        const ech = (n.data('echelonTier') as number) ?? rawGraph.echelonMap.get(id) ?? 2;
+        const detail = rawGraph.detailMap.get(id);
+        return {
+          id,
+          echelonTier: ech,
+          kind: n.data('kind') as string,
+          name: detail?.name || id,
+          displayName: detail?.displayName || id,
+        };
+      });
+
+      const visibleEdgesInput = cy.edges().map((e) => ({
+        source: e.data('source') as string,
+        target: e.data('target') as string,
+        category: e.data('category') as string,
+        count: (e.data('count') as number) || 1,
+      }));
+
+      if (layoutName === 'concentric') {
+        setSwimlaneGuides([]);
+        setIslandGuides([]);
+        setHiveGuides([]);
+        const layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing);
         layoutConfig = {
-          name: 'dagre',
-          rankDir: 'LR',
-          nodeSep: Math.round(60 * spacing),
-          rankSep: Math.round(140 * spacing),
-          animate: false,
+          name: 'preset',
+          positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
           fit: true,
           padding: 60,
-        };
-      } else if (layoutName === 'concentric') {
-        layoutConfig = {
-          name: 'concentric',
-          concentric: (node: any) => {
-            const kind = node.data('kind');
-            if (kind === 'Ingress') return 4;
-            if (kind === 'Service') return 3;
-            if (kind === 'Topic') return 2;
-            return 1;
-          },
-          levelWidth: () => 1,
-          minNodeSpacing: Math.round(50 * spacing),
           animate: false,
+        };
+        setConcentricGuides(layoutResult.guides);
+      } else if (layoutName === 'swimlanes') {
+        setConcentricGuides([]);
+        setIslandGuides([]);
+        setHiveGuides([]);
+        const layoutResult = computeSwimlanesLayout(visibleNodesInput, visibleEdgesInput, spacing);
+        layoutConfig = {
+          name: 'preset',
+          positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
           fit: true,
           padding: 60,
+          animate: false,
         };
+        setSwimlaneGuides(layoutResult.lanes);
+      } else if (layoutName === 'clusters') {
+        setConcentricGuides([]);
+        setSwimlaneGuides([]);
+        setHiveGuides([]);
+        const layoutResult = computeDomainIslandsLayout(visibleNodesInput, visibleEdgesInput, spacing);
+        layoutConfig = {
+          name: 'preset',
+          positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
+          fit: true,
+          padding: 60,
+          animate: false,
+        };
+        setIslandGuides(layoutResult.islands);
+      } else if (layoutName === 'hive') {
+        setConcentricGuides([]);
+        setSwimlaneGuides([]);
+        setIslandGuides([]);
+        const layoutResult = computeHivePlotLayout(visibleNodesInput, visibleEdgesInput, spacing);
+        layoutConfig = {
+          name: 'preset',
+          positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
+          fit: true,
+          padding: 60,
+          animate: false,
+        };
+        setHiveGuides(layoutResult.axes);
       } else {
+        setConcentricGuides([]);
+        setSwimlaneGuides([]);
+        setIslandGuides([]);
+        setHiveGuides([]);
         // Organic Force-Directed (COSE)
         layoutConfig = {
           name: 'cose',
@@ -1339,7 +1622,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         activeLayoutRef.current = null;
       }
     };
-  }, [elements, layoutName]);
+  }, [elements, layoutName, autoRelayoutOnFilter, relayoutTrigger]);
 
   // Record unscaled node positions relative to centroid
   const recordBasePositions = useCallback((cy: cytoscape.Core) => {
@@ -1460,8 +1743,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setCurrentZoom(cy.zoom());
   }, []);
 
-  const handleLayoutChange = useCallback((newLayout: 'cose' | 'dagre' | 'concentric') => {
+  const handleLayoutChange = useCallback((newLayout: DomainLayoutName) => {
     setLayoutName(newLayout);
+    try {
+      localStorage.setItem('ce_domain_layout', newLayout);
+    } catch { }
   }, []);
 
   return (
@@ -1518,16 +1804,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               ⚡ Workers ({rawGraph.counts.workers})
             </button>
           )}
-          {rawGraph.counts.libraries > 0 && (
-            <button
-              className={`hud-type-filter-btn ${hiddenTypes.has('Library') ? 'is-hidden' : 'is-active'}`}
-              onClick={() => toggleTypeVisibility('Library')}
-              title={hiddenTypes.has('Library') ? 'Show Libraries' : 'Hide Libraries'}
-            >
-              {hiddenTypes.has('Library') && <span className="filter-cross">✕</span>}
-              📚 Libs ({rawGraph.counts.libraries})
-            </button>
-          )}
           {rawGraph.counts.databases > 0 && (
             <button
               className={`hud-type-filter-btn ${hiddenTypes.has('Database') ? 'is-hidden' : 'is-active'}`}
@@ -1538,6 +1814,59 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               🗄️ DBs ({rawGraph.counts.databases})
             </button>
           )}
+          {rawGraph.counts.databases > 0 && (
+            <button
+              className={`hud-type-filter-btn ${hideSingleConnectionDbs ? 'is-active is-filter-on' : ''}`}
+              onClick={() => {
+                forceRelayoutRef.current = true;
+                setHideSingleConnectionDbs((prev) => !prev);
+              }}
+              title={
+                hideSingleConnectionDbs
+                  ? `Showing only shared databases (${rawGraph.counts.sharedDbs} shared). Click to show all databases.`
+                  : `Hide databases with only 1 connection (${rawGraph.counts.singleConnDbs} dedicated 1:1 DBs). Keeps only shared databases.`
+              }
+              style={
+                hideSingleConnectionDbs
+                  ? {
+                      background: 'rgba(147, 51, 234, 0.28)',
+                      borderColor: '#a855f7',
+                      color: '#f3e8ff',
+                      fontWeight: 600,
+                    }
+                  : undefined
+              }
+            >
+              {hideSingleConnectionDbs ? '🔗 Shared DBs Only' : '🗄️ Hide 1:1 DBs'}
+              <span style={{ opacity: 0.85, fontSize: '0.88em', marginLeft: 3 }}>
+                ({hideSingleConnectionDbs ? rawGraph.counts.sharedDbs : rawGraph.counts.singleConnDbs})
+              </span>
+            </button>
+          )}
+          <button
+            className={`hud-type-filter-btn ${hideIsolatedNodes ? 'is-active is-filter-on' : ''}`}
+            onClick={() => {
+              forceRelayoutRef.current = true;
+              setHideIsolatedNodes((prev) => !prev);
+            }}
+            title={
+              hideIsolatedNodes
+                ? 'Showing only connected services/nodes. Click to show isolated services.'
+                : 'Hide isolated/disconnected services (leaves only nodes participating in service calls or shared resources)'
+            }
+            style={
+              hideIsolatedNodes
+                ? {
+                    background: 'rgba(234, 179, 8, 0.25)',
+                    borderColor: '#eab308',
+                    color: '#fef08a',
+                    fontWeight: 600,
+                  }
+                : undefined
+            }
+          >
+            {hideIsolatedNodes ? '🏝️ Connected Only' : '🏝️ Hide Isolated'}
+          </button>
           {rawGraph.counts.topics > 0 && (
             <button
               className={`hud-type-filter-btn ${hiddenTypes.has('Topic') ? 'is-hidden' : 'is-active'}`}
@@ -1592,15 +1921,27 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         )}
 
         <div className="domain-hud-stats">
-          <span className="hud-stat-pill" title="Service Calls (RPC / HTTP)">
+          <span
+            className="hud-stat-pill"
+            title="Service Calls (RPC / HTTP): Solid line = Direct call, Dashed line = Indirect call via hidden entities"
+          >
             ⚡ {stats.serviceCalls} Calls
           </span>
+          {stats.transitiveCalls > 0 && (
+            <span
+              className="hud-stat-pill"
+              title={`${stats.transitiveCalls} indirect connections routing through hidden entities (shown as dashed lines)`}
+              style={{ borderColor: 'rgba(192, 132, 252, 0.45)', color: '#c084fc' }}
+            >
+              ╌ {stats.transitiveCalls} via hidden
+            </span>
+          )}
           <span className="hud-stat-pill" title="Message Flows (Pub / Sub)">
             ✉️ {stats.messages} Msgs
           </span>
         </div>
 
-        {/* Layout Selector */}
+        {/* Layout Selector & Auto-Relayout Toggle */}
         <div className="domain-hud-layout-select">
           <select
             value={layoutName}
@@ -1608,10 +1949,39 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             title="Graph Layout"
             className="domain-layout-dropdown"
           >
-            <option value="cose">Force (COSE)</option>
-            <option value="dagre">Hierarchical (Dagre)</option>
-            <option value="concentric">Concentric</option>
+            <option value="concentric">🎯 Concentric (Tiers)</option>
+            <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
+            <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
+            <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
+            <option value="matrix">▦ Dependency Matrix</option>
+            <option value="cose">⚡ Force (COSE)</option>
           </select>
+
+          <label
+            className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
+            title={
+              autoRelayoutOnFilter
+                ? 'Auto-relayout enabled: layout automatically refits and repacks when entities are hidden or filtered. Uncheck to keep node positions unchanged.'
+                : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes. Check to enable automatic graph recalculation.'
+            }
+          >
+            <input
+              type="checkbox"
+              className="domain-hud-checkbox"
+              checked={autoRelayoutOnFilter}
+              onChange={(e) => handleAutoRelayoutChange(e.target.checked)}
+            />
+            <span>🔄 Auto-update graph</span>
+          </label>
+
+          <button
+            className="domain-hud-btn"
+            onClick={handleForceRelayout}
+            title="Recalculate graph layout now (Re-layout)"
+            style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
+          >
+            ⟳
+          </button>
         </div>
 
         {/* Node Spacing / Air Control ("Air") */}
@@ -1687,32 +2057,32 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </div>
 
         {/* Zoom Controls */}
-        <div className="domain-hud-control-group" title="Масштабирование">
+        <div className="domain-hud-control-group" title="Zoom Controls">
           <button
             className="domain-hud-btn"
             onClick={handleZoomOut}
-            title="Отдалить (Zoom Out)"
+            title="Zoom Out"
           >
             −
           </button>
           <button
             className="domain-hud-btn zoom-level-btn"
             onClick={handleResetZoom}
-            title="Сбросить масштаб на 100%"
+            title="Reset Zoom to 100%"
           >
             {Math.round(currentZoom * 100)}%
           </button>
           <button
             className="domain-hud-btn"
             onClick={handleZoomIn}
-            title="Приблизить (Zoom In)"
+            title="Zoom In"
           >
             +
           </button>
           <button
             className="domain-hud-btn fit-btn"
             onClick={handleFitView}
-            title="Вписать в экран (Fit to Screen)"
+            title="Fit to Screen"
           >
             ⛶ Fit
           </button>
@@ -1739,8 +2109,257 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </div>
       </div>
 
-      {/* Full-bleed HTML5 Canvas Container for Cytoscape */}
-      <div ref={containerRef} className="domain-cytoscape-container" />
+      {/* Matrix View or Cytoscape Canvas with SVG Overlays */}
+      {layoutName === 'matrix' ? (
+        <DomainMatrixView
+          nodes={visibleNodes.map((n) => rawGraph.detailMap.get(n.data.id as string)!).filter(Boolean)}
+          edges={visibleEdges.map((e) => ({
+            source: (e.data as any).source,
+            target: (e.data as any).target,
+            category: (e.data as any).category,
+            count: (e.data as any).count || 1,
+            isTransitive: (e.data as any).isTransitive,
+            label: (e.data as any).label,
+          }))}
+          selectedNodeId={selectedNode?.id}
+          onSelectNode={(node) => {
+            setSelectedNode(node);
+            if (node) {
+              const gNode: GraphNode = {
+                id: node.id,
+                name: node.name,
+                displayName: node.displayName,
+                kind: node.kind === 'Service' || node.kind === 'Ingress' ? 'Service' : node.kind,
+                filePath: node.primaryFilePath,
+                properties: {
+                  kind: node.kind,
+                  framework: node.framework || '',
+                  language: node.language || '',
+                  inboundCalls: String(node.inboundCallsCount),
+                  outboundCalls: String(node.outboundCallsCount),
+                  dbCount: String(node.dbCount),
+                  messagingCount: String(node.messagingCount),
+                },
+              };
+              onSelectNode?.(gNode);
+            } else {
+              onSelectNode?.(null);
+            }
+          }}
+          onOpenFile={onOpenFile}
+        />
+      ) : (
+        <>
+          {/* SVG Overlay Guides for Concentric, Swimlanes, Domain Islands, and Hive Plot */}
+          {((layoutName === 'concentric' && concentricGuides.length > 0) ||
+            (layoutName === 'swimlanes' && swimlaneGuides.length > 0) ||
+            (layoutName === 'clusters' && islandGuides.length > 0) ||
+            (layoutName === 'hive' && hiveGuides.length > 0)) && (
+            <svg
+              className="domain-layout-overlay"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                zIndex: 2,
+              }}
+            >
+              <g transform={`translate(${cyTransform.pan.x}, ${cyTransform.pan.y}) scale(${cyTransform.zoom})`}>
+                {/* 1. Concentric Guides */}
+                {layoutName === 'concentric' &&
+                  concentricGuides.map((g, idx) => {
+                    const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
+                    const dashPattern = `${8 / cyTransform.zoom} ${6 / cyTransform.zoom}`;
+                    const badgeWidth = Math.max(180, 260 / cyTransform.zoom);
+                    const badgeHeight = Math.max(18, 22 / cyTransform.zoom);
+                    const badgeY = -g.radius - badgeHeight - 6 / cyTransform.zoom;
+                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
+
+                    return (
+                      <g key={idx}>
+                        <circle
+                          cx={0}
+                          cy={0}
+                          r={g.radius}
+                          fill="none"
+                          stroke="rgba(56, 189, 248, 0.22)"
+                          strokeWidth={strokeW}
+                          strokeDasharray={dashPattern}
+                        />
+                        <rect
+                          x={-badgeWidth / 2}
+                          y={badgeY}
+                          width={badgeWidth}
+                          height={badgeHeight}
+                          rx={4 / cyTransform.zoom}
+                          fill="rgba(15, 23, 42, 0.88)"
+                          stroke="rgba(56, 189, 248, 0.45)"
+                          strokeWidth={1 / cyTransform.zoom}
+                        />
+                        <text
+                          x={0}
+                          y={badgeY + badgeHeight / 2}
+                          fill="#38bdf8"
+                          fontSize={`${fontSize}px`}
+                          fontWeight="700"
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                        >
+                          {g.label} ({g.count})
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                {/* 2. Swimlane Guides */}
+                {layoutName === 'swimlanes' &&
+                  swimlaneGuides.map((g) => {
+                    const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
+                    const dashPattern = `${6 / cyTransform.zoom} ${4 / cyTransform.zoom}`;
+                    const headerHeight = Math.max(22, 28 / cyTransform.zoom);
+                    const fontSize = Math.max(9.5, 11.5 / cyTransform.zoom);
+
+                    return (
+                      <g key={g.id}>
+                        <rect
+                          x={g.x}
+                          y={g.y}
+                          width={g.width}
+                          height={g.height}
+                          rx={8 / cyTransform.zoom}
+                          fill="rgba(15, 23, 42, 0.45)"
+                          stroke={`${g.color}35`}
+                          strokeWidth={strokeW}
+                          strokeDasharray={dashPattern}
+                        />
+                        <rect
+                          x={g.x + 8 / cyTransform.zoom}
+                          y={g.y + 8 / cyTransform.zoom}
+                          width={g.width - 16 / cyTransform.zoom}
+                          height={headerHeight}
+                          rx={4 / cyTransform.zoom}
+                          fill="rgba(15, 23, 42, 0.92)"
+                          stroke={`${g.color}70`}
+                          strokeWidth={1 / cyTransform.zoom}
+                        />
+                        <text
+                          x={g.x + g.width / 2}
+                          y={g.y + 8 / cyTransform.zoom + headerHeight / 2}
+                          fill={g.color}
+                          fontSize={`${fontSize}px`}
+                          fontWeight="700"
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                        >
+                          {g.icon} {g.title} ({g.count})
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                {/* 3. Domain Island Guides */}
+                {layoutName === 'clusters' &&
+                  islandGuides.map((g) => {
+                    const strokeW = Math.max(1, 2 / cyTransform.zoom);
+                    const badgeW = Math.min(g.width - 16 / cyTransform.zoom, Math.max(150, 220 / cyTransform.zoom));
+                    const badgeH = Math.max(20, 26 / cyTransform.zoom);
+                    const fontSize = Math.max(9.5, 11 / cyTransform.zoom);
+
+                    return (
+                      <g key={g.id}>
+                        <rect
+                          x={g.x}
+                          y={g.y}
+                          width={g.width}
+                          height={g.height}
+                          rx={16 / cyTransform.zoom}
+                          fill={g.isSharedCore ? 'rgba(88, 28, 135, 0.14)' : 'rgba(30, 41, 59, 0.35)'}
+                          stroke={`${g.color}50`}
+                          strokeWidth={strokeW}
+                          strokeDasharray={g.isSharedCore ? `${8 / cyTransform.zoom} ${4 / cyTransform.zoom}` : undefined}
+                        />
+                        <rect
+                          x={g.x + 10 / cyTransform.zoom}
+                          y={g.y + 8 / cyTransform.zoom}
+                          width={badgeW}
+                          height={badgeH}
+                          rx={4 / cyTransform.zoom}
+                          fill="rgba(15, 23, 42, 0.92)"
+                          stroke={`${g.color}75`}
+                          strokeWidth={1 / cyTransform.zoom}
+                        />
+                        <text
+                          x={g.x + 10 / cyTransform.zoom + badgeW / 2}
+                          y={g.y + 8 / cyTransform.zoom + badgeH / 2}
+                          fill={g.color}
+                          fontSize={`${fontSize}px`}
+                          fontWeight="700"
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                        >
+                          {g.title} ({g.count})
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                {/* 4. Hive Plot Guides */}
+                {layoutName === 'hive' &&
+                  hiveGuides.map((g) => {
+                    const strokeW = Math.max(1, 1.8 / cyTransform.zoom);
+                    const dashPattern = `${6 / cyTransform.zoom} ${4 / cyTransform.zoom}`;
+                    const tipX = Math.round(g.length * Math.cos(g.angle));
+                    const tipY = Math.round(g.length * Math.sin(g.angle));
+                    const badgeW = Math.max(160, 210 / cyTransform.zoom);
+                    const badgeH = Math.max(22, 26 / cyTransform.zoom);
+                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
+
+                    return (
+                      <g key={g.id}>
+                        <line
+                          x1={0}
+                          y1={0}
+                          x2={tipX}
+                          y2={tipY}
+                          stroke={g.color}
+                          strokeWidth={strokeW}
+                          strokeDasharray={dashPattern}
+                          opacity={0.65}
+                        />
+                        <g transform={`translate(${tipX}, ${tipY})`}>
+                          <rect
+                            x={-badgeW / 2}
+                            y={-badgeH / 2}
+                            width={badgeW}
+                            height={badgeH}
+                            rx={4 / cyTransform.zoom}
+                            fill="rgba(15, 23, 42, 0.94)"
+                            stroke={g.color}
+                            strokeWidth={1 / cyTransform.zoom}
+                          />
+                          <text
+                            x={0}
+                            y={0}
+                            fill={g.color}
+                            fontSize={`${fontSize}px`}
+                            fontWeight="700"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                          >
+                            {g.icon} {g.title} ({g.count})
+                          </text>
+                        </g>
+                      </g>
+                    );
+                  })}
+              </g>
+            </svg>
+          )}
+          <div ref={containerRef} className="domain-cytoscape-container" />
+        </>
+      )}
 
       {/* Floating Node Inspector Panel (when node selected) */}
       {selectedNode && (
@@ -1753,6 +2372,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               <h4 className="inspector-title" title={selectedNode.displayName}>
                 {selectedNode.displayName}
               </h4>
+              {selectedNode.tierLabel && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: selectedNode.tier === 0 ? '#38bdf8' : selectedNode.tier === 1 ? '#4ade80' : selectedNode.tier === 2 ? '#fbbf24' : '#c084fc',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  marginTop: '2px',
+                  marginBottom: '2px',
+                  border: '1px solid rgba(255, 255, 255, 0.12)'
+                }}>
+                  🎯 {selectedNode.tierLabel}
+                </div>
+              )}
               {selectedNode.framework && (
                 <span className="inspector-subtitle">{selectedNode.framework}</span>
               )}

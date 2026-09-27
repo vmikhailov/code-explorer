@@ -207,6 +207,7 @@
 .domain-hud-layout-select {
   display: flex;
   align-items: center;
+  gap: 6px;
 }
 
 .domain-layout-dropdown {
@@ -232,6 +233,42 @@
 .domain-layout-dropdown option {
   background: #181825;
   color: #e2e8f0;
+}
+
+.domain-hud-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 2.5px 7px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #94a3b8;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.domain-hud-checkbox-label:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #f1f5f9;
+}
+
+.domain-hud-checkbox-label.is-active {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #7dd3fc;
+}
+
+.domain-hud-checkbox {
+  cursor: pointer;
+  accent-color: #38bdf8;
+  margin: 0;
+  width: 12px;
+  height: 12px;
 }
 
 /* Air (Spacing) & Zoom Control Groups in HUD */

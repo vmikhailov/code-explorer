@@ -31,7 +31,7 @@ public static class DiagramExporter
         CancellationToken cancellationToken = default)
     {
         var engine = new ArchitectureViewEngine(client);
-        var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries: true, cancellationToken);
+        var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries: false, cancellationToken);
         return ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
     }
 

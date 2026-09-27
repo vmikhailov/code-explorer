@@ -55,7 +55,7 @@ public interface IArchitectureQueryService
     /// <summary>
     /// Retrieves synthesized domain architecture (Bounded Contexts) with macro-edges and statistics.
     /// </summary>
-    Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = true, CancellationToken ct = default);
+    Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = false, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves ingress and egress communication contracts for a given service.

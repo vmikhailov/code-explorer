@@ -143,7 +143,7 @@ public static class ServerRouteBuilderExtensions
             try
             {
                 logger.LogInformation("[REST] GET /api/domain/architecture");
-                var domain = await archQueryService.GetDomainArchitectureAsync(includeLibraries ?? true, ct);
+                var domain = await archQueryService.GetDomainArchitectureAsync(includeLibraries ?? false, ct);
                 return Results.Ok(domain);
             }
             catch (Exception ex)

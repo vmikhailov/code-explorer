@@ -472,5 +472,123 @@ export class AppService {
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_TypeScriptGcpPubSub_ConstructorConfigAndFieldResolution()
+    {
+        var parser = new TypeScriptParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_tsgcp_config_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "rule-tree.service.ts");
+
+        var code = @"
+import { PubSub, Topic } from '@google-cloud/pubsub';
+
+export class RuleTreeService {
+    private readonly ruleTreeTopic: Topic;
+    private readonly topicName: string;
+
+    constructor(
+        private readonly pubsub: PubSub,
+        private readonly configService: any
+    ) {
+        this.ruleTreeTopic = this.pubsub.topic(this.configService.getString('RULE_TREE_TOPIC'));
+        this.topicName = this.configService.getString('EVENT_BUS_TOPIC_NAME');
+    }
+
+    async updateRules(payload: any) {
+        await this.ruleTreeTopic.publishMessage({ json: payload });
+        const customTopic = this.pubsub.topic(this.topicName);
+        await customTopic.publish(Buffer.from(JSON.stringify(payload)));
+    }
 }
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var refs = FindReferences(fileNode.Children);
+
+            // Assert no bogus references to type annotations
+            Assert.That(refs.Any(r => r.TargetName != null && (r.TargetName.Contains(": Topic") || r.TargetName.Contains(": string") || r.TargetName == "gcp:Topic" || r.TargetName == "gcp:string")), Is.False, "Type annotations must never become topic names");
+
+            // Assert resolved or config-extracted topics
+            var ruleTreeRef = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:RULE_TREE_TOPIC" || r.TargetName == "gcp:rule-tree-topic"));
+            Assert.That(ruleTreeRef, Is.Not.Null, "Expected reference for RULE_TREE_TOPIC");
+
+            var eventBusRef = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:EVENT_BUS_TOPIC_NAME" || r.TargetName == "gcp:event-bus-topic"));
+            Assert.That(eventBusRef, Is.Not.Null, "Expected reference for EVENT_BUS_TOPIC_NAME");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_TypeScriptRabbitMq_IgnoresTypeAnnotationsAndUrls()
+    {
+        var parser = new TypeScriptParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_tsrabbit_bogus_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "legacy-queue.ts");
+
+        var code = @"
+import { connect } from 'amqplib';
+
+export class LegacyQueueService {
+    private readonly queueName: string;
+
+    constructor() {
+        this.queueName = 'legacy_orders_queue';
+    }
+
+    async send() {
+        const client = await connect('amqp://localhost');
+        client.sendToQueue('https://wrong-url/queue', Buffer.from('hi'));
+        client.sendToQueue(this.queueName, Buffer.from('valid'));
+    }
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var refs = FindReferences(fileNode.Children);
+
+            // Assert no URLs or type annotations
+            Assert.That(refs.Any(r => r.TargetName != null && (r.TargetName.Contains("http://") || r.TargetName.Contains("https://"))), Is.False, "URLs must never become queue names");
+            Assert.That(refs.Any(r => r.TargetName != null && r.TargetName.Contains(": string")), Is.False, "Type annotations must not become queue names");
+
+            // Assert valid queue is captured
+            var validRef = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:legacy_orders_queue");
+            Assert.That(validRef, Is.Not.Null, "Expected PUBLISHES_TO reference for legacy_orders_queue");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+}
+
 

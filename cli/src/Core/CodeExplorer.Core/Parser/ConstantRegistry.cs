@@ -1,0 +1,321 @@
+using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
+
+namespace CodeExplorer.Core.Parser;
+
+/// <summary>
+/// Thread-safe registry for constants, enums, and compile-time configuration symbols across projects.
+/// Enables early-phase and late-phase AST resolution of table names, schemas, routes, and identifiers.
+/// </summary>
+public static class ConstantRegistry
+{
+    // Project-scoped lookup: "{ProjectName}:{Key}" -> "literal_value"
+    private static readonly ConcurrentDictionary<string, string> _projectConstants =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // Global workspace lookup: "{Key}" -> "literal_value"
+    private static readonly ConcurrentDictionary<string, string> _globalConstants =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public static void Clear()
+    {
+        _projectConstants.Clear();
+        _globalConstants.Clear();
+    }
+
+    public static void Register(string? projectName, string key, string value)
+    {
+        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value)) return;
+
+        var cleanKey = key.Trim();
+        var cleanVal = value.Trim().Trim('\'', '"', '`');
+
+        if (!string.IsNullOrWhiteSpace(projectName))
+        {
+            var pKey = $"{projectName.Trim()}:{cleanKey}";
+            _projectConstants[pKey] = cleanVal;
+        }
+
+        _globalConstants[cleanKey] = cleanVal;
+    }
+
+    public static bool TryResolve(string? projectNameOrFilePath, string key, out string value)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            value = null!;
+            return false;
+        }
+
+        var cleanKey = key.Trim().Trim('\'', '"', '`');
+
+        // Extract project name if a file path was passed
+        var projectName = ExtractProjectName(projectNameOrFilePath);
+
+        // 1. Try project-specific lookup
+        if (!string.IsNullOrWhiteSpace(projectName))
+        {
+            if (_projectConstants.TryGetValue($"{projectName}:{cleanKey}", out var pVal))
+            {
+                value = pVal;
+                return true;
+            }
+        }
+
+        // 2. Try global lookup with exact key
+        if (_globalConstants.TryGetValue(cleanKey, out var gVal))
+        {
+            value = gVal;
+            return true;
+        }
+
+        // 3. Fallback: strip leading "this.config.", "config.", "this.", or "self." if present
+        if (cleanKey.StartsWith("this.config.", StringComparison.OrdinalIgnoreCase))
+        {
+            var subKey = cleanKey["this.config.".Length..];
+            if (TryResolve(projectName, subKey, out value)) return true;
+        }
+        else if (cleanKey.StartsWith("config.", StringComparison.OrdinalIgnoreCase))
+        {
+            var subKey = cleanKey["config.".Length..];
+            if (TryResolve(projectName, subKey, out value)) return true;
+        }
+        else if (cleanKey.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+        {
+            var subKey = cleanKey[5..];
+            if (TryResolve(projectName, subKey, out value)) return true;
+        }
+        else if (cleanKey.StartsWith("self.", StringComparison.OrdinalIgnoreCase))
+        {
+            var subKey = cleanKey[5..];
+            if (TryResolve(projectName, subKey, out value)) return true;
+        }
+
+        // 4. Fallback: if key is an unqualified member (e.g. "SourcesPlacementsBlack" instead of "ModelNames.SourcesPlacementsBlack")
+        if (!cleanKey.Contains('.'))
+        {
+            var suffix = "." + cleanKey;
+            string? matchedVal = null;
+            var matchCount = 0;
+
+            foreach (var kvp in _globalConstants)
+            {
+                if (kvp.Key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchedVal = kvp.Value;
+                    matchCount++;
+                    if (matchCount > 1) break;
+                }
+            }
+
+            if (matchCount == 1 && !string.IsNullOrEmpty(matchedVal))
+            {
+                value = matchedVal;
+                return true;
+            }
+        }
+
+        value = null!;
+        return false;
+    }
+
+    private static string? ExtractProjectName(string? projectNameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectNameOrPath)) return null;
+
+        var s = projectNameOrPath.Replace('\\', '/').Trim();
+        if (!s.Contains('/')) return s;
+
+        // Given a path like "traffic-types/src/modules/foo.ts", extract "traffic-types"
+        var parts = s.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 0)
+        {
+            // If path contains "services/xyz", extract xyz
+            var svcIdx = Array.IndexOf(parts, "services");
+            if (svcIdx >= 0 && svcIdx + 1 < parts.Length)
+            {
+                return parts[svcIdx + 1];
+            }
+            return parts[0];
+        }
+
+        return null;
+    }
+
+    public static void ScanAndRegister(string filePath, string content, string? projectName = null)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        switch (ext)
+        {
+            case ".ts":
+            case ".tsx":
+            case ".js":
+            case ".jsx":
+                ScanAndRegisterTypeScript(content, projectName);
+                break;
+
+            case ".cs":
+                ScanAndRegisterCSharp(content, projectName);
+                break;
+
+            case ".go":
+                ScanAndRegisterGo(content, projectName);
+                break;
+        }
+    }
+
+    public static void ScanAndRegisterTypeScript(string content, string? projectName = null)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+
+        // 1. Enum declarations: enum Name { Key = 'val', Key2 = "val2" }
+        var enumMatches = Regex.Matches(content,
+            @"(?:export\s+)?(?:const\s+)?enum\s+([A-Za-z0-9_]+)\s*\{([\s\S]*?)\}",
+            RegexOptions.Multiline);
+
+        foreach (Match em in enumMatches)
+        {
+            var enumName = em.Groups[1].Value.Trim();
+            var body = em.Groups[2].Value;
+
+            var memberMatches = Regex.Matches(body,
+                @"([A-Za-z0-9_]+)\s*=\s*['""`]([^'""`\r\n]+)['""`]");
+
+            foreach (Match mm in memberMatches)
+            {
+                var memberName = mm.Groups[1].Value.Trim();
+                var memberVal = mm.Groups[2].Value.Trim();
+                Register(projectName, $"{enumName}.{memberName}", memberVal);
+            }
+        }
+
+        // 2. Const objects: const Name = { Key: 'val' } [as const]
+        var constObjMatches = Regex.Matches(content,
+            @"(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*\{([\s\S]*?)\}(?:\s*as\s+const)?(?:\s*;|\n|$)",
+            RegexOptions.Multiline);
+
+        foreach (Match com in constObjMatches)
+        {
+            var objName = com.Groups[1].Value.Trim();
+            var body = com.Groups[2].Value;
+
+            var propMatches = Regex.Matches(body,
+                @"['""]?([A-Za-z0-9_]+)['""]?\s*:\s*['""`]([^'""`\r\n]+)['""`]");
+
+            foreach (Match pm in propMatches)
+            {
+                var propName = pm.Groups[1].Value.Trim();
+                var propVal = pm.Groups[2].Value.Trim();
+                Register(projectName, $"{objName}.{propName}", propVal);
+            }
+        }
+
+        // 3. Top-level const string declarations: export const TABLE_NAME = 'val';
+        var topConstMatches = Regex.Matches(content,
+            @"(?:export\s+)?const\s+([A-Za-z0-9_]+)\s*(?::\s*string)?\s*=\s*['""`]([^'""`\r\n]+)['""`]\s*;?",
+            RegexOptions.Multiline);
+
+        foreach (Match tcm in topConstMatches)
+        {
+            var constName = tcm.Groups[1].Value.Trim();
+            var constVal = tcm.Groups[2].Value.Trim();
+            Register(projectName, constName, constVal);
+        }
+
+        // 4. ConfigService / process.env field and constant assignments:
+        // this.ruleTreeTopic = configService.getString('RULE_TREE_TOPIC');
+        // this.topicName = configService.getString('EVENT_BUS_TOPIC_NAME');
+        // export const TOPIC_NAME = String(process.env.EVENT_BUS_TOPIC_NAME);
+        var configServiceMatches = Regex.Matches(content,
+            @"(?:(?:export\s+)?(?:const|let|var)\s+|this\.)?([A-Za-z0-9_]+)\s*=\s*(?:(?:String|Number)\s*\(\s*)?(?:(?:configService|config)\.(?:getString|get)|process\.env)\s*(?:\(\s*['""`]([A-Za-z0-9_]+)['""`]\s*\)|\.([A-Za-z0-9_]+))",
+            RegexOptions.Multiline);
+
+        foreach (Match csm in configServiceMatches)
+        {
+            var fieldName = csm.Groups[1].Value.Trim();
+            var envVar = !string.IsNullOrEmpty(csm.Groups[2].Value) ? csm.Groups[2].Value.Trim() : csm.Groups[3].Value.Trim();
+            if (!string.IsNullOrEmpty(envVar) && envVar.Length > 2)
+            {
+                Register(projectName, fieldName, envVar);
+                Register(projectName, $"config.{fieldName}", envVar);
+                Register(projectName, $"this.config.{fieldName}", envVar);
+            }
+        }
+    }
+
+    public static void ScanAndRegisterCSharp(string content, string? projectName = null)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+
+        // 1. Static classes with const strings: class TableNames { public const string Users = "users"; }
+        var classMatches = Regex.Matches(content,
+            @"(?:public|internal|private)?\s*(?:static\s+)?class\s+([A-Za-z0-9_]+)\s*\{([\s\S]*?)\}",
+            RegexOptions.Multiline);
+
+        foreach (Match cm in classMatches)
+        {
+            var className = cm.Groups[1].Value.Trim();
+            var body = cm.Groups[2].Value;
+
+            var constMatches = Regex.Matches(body,
+                @"const\s+string\s+([A-Za-z0-9_]+)\s*=\s*@?[""']([^""'\r\n]+)[""']\s*;");
+
+            foreach (Match ctm in constMatches)
+            {
+                var constName = ctm.Groups[1].Value.Trim();
+                var constVal = ctm.Groups[2].Value.Trim();
+                Register(projectName, $"{className}.{constName}", constVal);
+            }
+        }
+
+        // 2. Top-level or field const strings
+        var fieldConstMatches = Regex.Matches(content,
+            @"const\s+string\s+([A-Za-z0-9_]+)\s*=\s*@?[""']([^""'\r\n]+)[""']\s*;",
+            RegexOptions.Multiline);
+
+        foreach (Match fm in fieldConstMatches)
+        {
+            var constName = fm.Groups[1].Value.Trim();
+            var constVal = fm.Groups[2].Value.Trim();
+            Register(projectName, constName, constVal);
+        }
+    }
+
+    public static void ScanAndRegisterGo(string content, string? projectName = null)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+
+        // 1. Const block: const ( UsersTable = "users" )
+        var blockMatches = Regex.Matches(content,
+            @"const\s*\(([\s\S]*?)\)",
+            RegexOptions.Multiline);
+
+        foreach (Match bm in blockMatches)
+        {
+            var body = bm.Groups[1].Value;
+            var constMatches = Regex.Matches(body,
+                @"([A-Za-z0-9_]+)\s*(?:string)?\s*=\s*""([^""\r\n]+)""");
+
+            foreach (Match cm in constMatches)
+            {
+                var constName = cm.Groups[1].Value.Trim();
+                var constVal = cm.Groups[2].Value.Trim();
+                Register(projectName, constName, constVal);
+            }
+        }
+
+        // 2. Single const: const UsersTable = "users"
+        var singleMatches = Regex.Matches(content,
+            @"const\s+([A-Za-z0-9_]+)\s*(?:string)?\s*=\s*""([^""\r\n]+)""\s*",
+            RegexOptions.Multiline);
+
+        foreach (Match sm in singleMatches)
+        {
+            var constName = sm.Groups[1].Value.Trim();
+            var constVal = sm.Groups[2].Value.Trim();
+            Register(projectName, constName, constVal);
+        }
+    }
+}

@@ -1,4 +1,5 @@
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
@@ -105,4 +106,44 @@ public class MessagingConnectionsTests
         Assert.That(liftedOut!.Kind, Is.EqualTo("TRIGGERS"));
         Assert.That(liftedOut.Properties.GetValueOrDefault("semantic_lifted")?.ToString(), Is.EqualTo("true"));
     }
+
+    [Test]
+    public void Test_MaterializeDirectProjectRelationships_PublishedBy_And_SubscribedBy()
+    {
+        var proj = new ProjectNode("ws:project:services/publisher:", "PublisherService", "services/publisher", "typescript", "Service", false);
+        var file = new FileNode("ws:file:services/publisher/app.ts", "app.ts", "services/publisher/app.ts", "c:\\test\\services\\publisher\\app.ts");
+        var symbolId = "ws:symbol:services/publisher/app.ts:Method:send:10";
+        var topicPubId = "ws:res:topic:gcp:event-bus-topic";
+        var topicSubId = "ws:res:topic:gcp:event-journal-topic";
+
+        var rels = new List<Relationship>
+        {
+            new(file.Id, symbolId, OntologyConstants.Relationships.Declares, new()),
+            new(topicPubId, symbolId, OntologyConstants.Relationships.PublishedBy, new()),
+            new(topicSubId, symbolId, OntologyConstants.Relationships.SubscribedBy, new())
+        };
+
+        var nodeKinds = new Dictionary<string, string>
+        {
+            [topicPubId] = OntologyConstants.NodeLabels.Topic,
+            [topicSubId] = OntologyConstants.NodeLabels.Topic
+        };
+
+        var materialized = PostIndexAnalyzer.MaterializeDirectProjectRelationships(
+            [proj],
+            [file],
+            rels,
+            nodeKindsById: nodeKinds
+        );
+
+        var pubRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicPubId && r.Kind == OntologyConstants.Relationships.PublishesTo);
+        Assert.That(pubRel, Is.Not.Null, "Expected project-level PUBLISHES_TO edge from publisher project to topic");
+
+        var subRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicSubId && r.Kind == OntologyConstants.Relationships.SubscribesTo);
+        Assert.That(subRel, Is.Not.Null, "Expected project-level SUBSCRIBES_TO edge from publisher project to topic");
+
+        var trigRel = materialized.FirstOrDefault(r => r.From == topicSubId && r.To == proj.Id && r.Kind == OntologyConstants.Relationships.Triggers);
+        Assert.That(trigRel, Is.Not.Null, "Expected project-level TRIGGERS edge from topic to publisher project");
+    }
 }
+

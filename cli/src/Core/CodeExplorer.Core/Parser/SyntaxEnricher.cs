@@ -329,10 +329,31 @@ public class SyntaxEnricher : ISyntaxEnricher
 
     private static readonly ConcurrentDictionary<string, string> _projectSchemaCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']([^""']+)[""']\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex SchemaConstRegex = new(@"(?:SchemaName|DefaultSchemaName)\s*=\s*[""']([^""']+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex TypeOrmSchemaRegex = new(@"@Entity\s*\(\s*\{[^}]*schema\s*:\s*[""']([^""']+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[""'][^""']+[""']\s*,\s*(?:schema:\s*)?[""']([^""']+)[""']\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']?([^""'\)]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SchemaConstRegex = new(@"(?:SchemaName|DefaultSchemaName)\s*=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex TypeOrmSchemaRegex = new(@"@(?:Entity|ViewEntity|Table)\s*\(\s*\{[^}]*schema\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[""'][^""']+[""']\s*,\s*(?:schema:\s*)?[""']?([A-Za-z0-9_.]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex DataSourceSchemaRegex = new(@"(?:schema|defaultSchema)\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex ScopePrefixRegex = new(
+        @"^(?:internal[-_]+service[-_]+|integration[-_]+service[-_]+|external[-_]+service[-_]+|internal[-_]+|integration[-_]+|external[-_]+|service[-_]+|srv[-_]+|ats[-_]+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex ScopeSuffixRegex = new(
+        @"(?:[-_]+service|[-_]+api|[-_]+srv|[-_]+app|[-_]+worker)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public static string CleanProjectNameToDomain(string projectName)
+    {
+        if (string.IsNullOrWhiteSpace(projectName)) return string.Empty;
+        var pName = projectName.Trim();
+        var lastDot = pName.LastIndexOf('.');
+        var segment = lastDot >= 0 ? pName[(lastDot + 1)..] : pName;
+        var cleaned = ScopePrefixRegex.Replace(segment, "");
+        cleaned = ScopeSuffixRegex.Replace(cleaned, "");
+        cleaned = Regex.Replace(cleaned.ToLowerInvariant(), @"[-_]{2,}", "-").Trim('_', '-');
+        return cleaned;
+    }
 
     public static string? DetectDeclaredSchema(ProjectNode? projectNode, FileNode? fileNode, SyntaxTree? syntaxTree)
     {
@@ -342,6 +363,10 @@ public class SyntaxEnricher : ISyntaxEnricher
             var found = FindSchemaInNode(fileNode);
             if (!string.IsNullOrEmpty(found))
             {
+                if (ConstantRegistry.TryResolve(projectNode?.Name ?? fileNode.Path, found, out var resolved))
+                {
+                    found = resolved;
+                }
                 if (projectNode != null) _projectSchemaCache[projectNode.Id] = found;
                 return found;
             }
@@ -353,6 +378,10 @@ public class SyntaxEnricher : ISyntaxEnricher
             var fileSchema = ScanFileTextForSchema(syntaxTree.FilePath);
             if (!string.IsNullOrEmpty(fileSchema))
             {
+                if (ConstantRegistry.TryResolve(projectNode?.Name ?? syntaxTree.FilePath, fileSchema, out var resolved))
+                {
+                    fileSchema = resolved;
+                }
                 if (projectNode != null) _projectSchemaCache[projectNode.Id] = fileSchema;
                 return fileSchema;
             }
@@ -389,13 +418,10 @@ public class SyntaxEnricher : ISyntaxEnricher
             }
         }
 
-        // 5. Infer from project name if project is named e.g. Lidoma.Tournament or tournament-service
+        // 5. Infer from project name if project is named e.g. Lidoma.Tournament or internal-service-networks
         if (projectNode != null && !string.IsNullOrEmpty(projectNode.Name))
         {
-            var pName = projectNode.Name;
-            var lastDot = pName.LastIndexOf('.');
-            var segment = lastDot >= 0 ? pName[(lastDot + 1)..] : pName;
-            var cleanSegment = segment.ToLowerInvariant().Replace("service", "").Replace("api", "").Trim('_', '-');
+            var cleanSegment = CleanProjectNameToDomain(projectNode.Name);
             if (!string.IsNullOrEmpty(cleanSegment) && !ResourceReconciliationService.IsGenericConfigKey(cleanSegment) && cleanSegment.Length >= 3)
             {
                 return cleanSegment;
@@ -411,16 +437,47 @@ public class SyntaxEnricher : ISyntaxEnricher
         {
             var text = File.ReadAllText(filePath);
             var m1 = SchemaCallRegex.Match(text);
-            if (m1.Success) return m1.Groups[1].Value.Trim();
+            if (m1.Success)
+            {
+                var val = m1.Groups[1].Value.Trim().Trim('\'', '"');
+                if (ConstantRegistry.TryResolve(filePath, val, out var resolved)) return resolved;
+                return val;
+            }
 
             var m2 = SchemaConstRegex.Match(text);
-            if (m2.Success) return m2.Groups[1].Value.Trim();
+            if (m2.Success)
+            {
+                var val = m2.Groups[1].Value.Trim().Trim('\'', '"');
+                if (ConstantRegistry.TryResolve(filePath, val, out var resolved)) return resolved;
+                return val;
+            }
 
             var m3 = TypeOrmSchemaRegex.Match(text);
-            if (m3.Success) return m3.Groups[1].Value.Trim();
+            if (m3.Success)
+            {
+                var val = m3.Groups[1].Value.Trim().Trim('\'', '"');
+                if (ConstantRegistry.TryResolve(filePath, val, out var resolved)) return resolved;
+                return val;
+            }
 
             var m4 = ToTableSchemaRegex.Match(text);
-            if (m4.Success) return m4.Groups[1].Value.Trim();
+            if (m4.Success)
+            {
+                var val = m4.Groups[1].Value.Trim().Trim('\'', '"');
+                if (ConstantRegistry.TryResolve(filePath, val, out var resolved)) return resolved;
+                return val;
+            }
+
+            var m5 = DataSourceSchemaRegex.Match(text);
+            if (m5.Success)
+            {
+                var val = m5.Groups[1].Value.Trim().Trim('\'', '"');
+                if (!val.Equals("true", StringComparison.OrdinalIgnoreCase) && !val.Equals("false", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (ConstantRegistry.TryResolve(filePath, val, out var resolved)) return resolved;
+                    return val;
+                }
+            }
         }
         catch { }
         return null;

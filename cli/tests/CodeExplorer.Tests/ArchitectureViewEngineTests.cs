@@ -263,4 +263,103 @@ public class ArchitectureViewEngineTests
             try { Directory.Delete(tempDir, true); } catch { }
         }
     }
+
+    [Test]
+    public async Task GetServicesOntologySummary_DistinguishesInternalServicesFromExternalApis()
+    {
+        var summaries = await _engine.GetServicesOntologySummaryAsync();
+        var orderSummary = summaries.FirstOrDefault(s => s.ServiceName == "order-service");
+        var paymentSummary = summaries.FirstOrDefault(s => s.ServiceName == "payment-service");
+
+        Assert.That(orderSummary, Is.Not.Null);
+        Assert.That(orderSummary!.ServiceCount, Is.EqualTo(1), "order-service should have 1 downstream service (payment-service)");
+        Assert.That(orderSummary.ExternalCount, Is.EqualTo(0), "order-service should have 0 external APIs");
+        Assert.That(orderSummary.DatabaseCount, Is.EqualTo(1), "order-service should have 1 database (orders_db)");
+
+        Assert.That(paymentSummary, Is.Not.Null);
+        Assert.That(paymentSummary!.ServiceCount, Is.EqualTo(0), "payment-service has 0 downstream services");
+        Assert.That(paymentSummary.ExternalCount, Is.EqualTo(1), "payment-service should have 1 external API (api.stripe.com)");
+        Assert.That(paymentSummary.TopicCount, Is.EqualTo(1), "payment-service should have 1 topic (orders_topic)");
+    }
+
+    [Test]
+    public async Task GetServiceCapabilities_SeparatesServicesAndExternal_AndSortsAlphabetically()
+    {
+        var extraNodes = new List<Node>
+        {
+            new("ws:project:auth-service:", "Project", new() { ["name"] = "auth-service", ["role"] = "Service", ["framework"] = "ASP.NET Core" }),
+            new("ws:es:http:environment.auth", "ExternalService", new() { ["name"] = "environment.auth" }),
+            new("ws:res:service:external:api.github.com", "ExternalService", new() { ["name"] = "api.github.com" }),
+            new("ws:res:service:external:api.cloudflare.com", "ExternalService", new() { ["name"] = "api.cloudflare.com" }),
+            new("ws:res:db:relational:analytics_db", "Database", new() { ["name"] = "analytics_db", ["db_type"] = "clickhouse" }),
+            new("ws:endpoint:orders:GET", "Endpoint", new() { ["name"] = "GET /api/orders", ["path"] = "services/order-service/OrderController.cs" }),
+            new("ws:endpoint:orders:DELETE", "Endpoint", new() { ["name"] = "DELETE /api/orders/{id}", ["path"] = "services/order-service/OrderController.cs" }),
+        };
+        await _db.UploadNodesAsync(extraNodes);
+
+        var extraRels = new List<Relationship>
+        {
+            new("ws:project:order-service:", "ws:project:auth-service:", OntologyConstants.Relationships.ServiceCall, new() { ["dependency_type"] = "service_call" }),
+            new("ws:project:order-service:", "ws:es:http:environment.auth", OntologyConstants.Relationships.ServiceCall, new() { ["dependency_type"] = "service_call" }),
+            new("ws:project:order-service:", "ws:res:service:external:api.github.com", OntologyConstants.Relationships.ServiceCall, new() { ["dependency_type"] = "service_call" }),
+            new("ws:project:order-service:", "ws:res:service:external:api.cloudflare.com", OntologyConstants.Relationships.ServiceCall, new() { ["dependency_type"] = "service_call" }),
+            new("ws:project:order-service:", "ws:res:db:relational:analytics_db", OntologyConstants.Relationships.UsesDb, new() { ["dependency_type"] = "database" }),
+            new("ws:project:order-service:", "ws:endpoint:orders:GET", OntologyConstants.Relationships.Contains, new()),
+            new("ws:project:order-service:", "ws:endpoint:orders:DELETE", OntologyConstants.Relationships.Contains, new()),
+        };
+        await _db.UploadRelationshipsAsync(extraRels);
+
+        var details = await _engine.GetServiceCapabilitiesAsync("order-service");
+
+        Assert.That(details, Is.Not.Null);
+        Assert.That(details.Groups.Count, Is.EqualTo(5));
+
+        var epGroup = details.Groups.First(g => g.CategoryKey == "endpoints");
+        var svcGroup = details.Groups.First(g => g.CategoryKey == "services");
+        var dbGroup = details.Groups.First(g => g.CategoryKey == "databases");
+        var extGroup = details.Groups.First(g => g.CategoryKey == "external");
+
+        // Verify group headers
+        Assert.That(svcGroup.Label, Is.EqualTo("Downstream Services"));
+        Assert.That(svcGroup.Icon, Is.EqualTo("zap"));
+
+        // Verify downstream services contain auth-service and payment-service, and environment.auth was resolved
+        var svcNames = svcGroup.Items.Select(i => i.Name).ToList();
+        Assert.That(svcNames, Does.Contain("auth-service"));
+        Assert.That(svcNames, Does.Contain("payment-service"));
+        Assert.That(svcGroup.Count, Is.EqualTo(2));
+
+        // Verify external APIs contain api.cloudflare.com and api.github.com, and NOT internal services
+        var extNames = extGroup.Items.Select(i => i.Name).ToList();
+        Assert.That(extNames, Does.Contain("api.cloudflare.com"));
+        Assert.That(extNames, Does.Contain("api.github.com"));
+        Assert.That(extNames, Does.Not.Contain("auth-service"));
+        Assert.That(extNames, Does.Not.Contain("payment-service"));
+        Assert.That(extNames, Does.Not.Contain("environment.auth"));
+
+        // Verify alphabetical sorting within EACH capability group
+        Assert.That(epGroup.Items.Select(i => i.Name).ToList(), Is.EqualTo(epGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()), "Endpoints must be sorted alphabetically by Name");
+        Assert.That(svcGroup.Items.Select(i => i.Name).ToList(), Is.EqualTo(svcGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()), "Services must be sorted alphabetically by Name");
+        Assert.That(dbGroup.Items.Select(i => i.Name).ToList(), Is.EqualTo(dbGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()), "Databases must be sorted alphabetically by Name");
+        Assert.That(extGroup.Items.Select(i => i.Name).ToList(), Is.EqualTo(extGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()), "External APIs must be sorted alphabetically by Name");
+    }
+
+    [Test]
+    public async Task GetDomainArchitecture_ExcludesLibrariesFromDomainMap()
+    {
+        // Setup already created order-service (Service), payment-service (Service), and common-dto (Library)
+        var domain = await _engine.GetDomainArchitectureAsync();
+
+        Assert.That(domain.Nodes.Any(n => n.Name == "common-dto" || n.DisplayName == "common-dto"), Is.False, "Libraries must NOT appear on Domain Service Map");
+        Assert.That(domain.Nodes.Any(n => n.Kind == "Library"), Is.False, "No nodes with kind 'Library' should exist on Domain Service Map");
+        Assert.That(domain.Stats.Libraries, Is.EqualTo(0));
+
+        // Verify runnable services are present
+        Assert.That(domain.Nodes.Any(n => n.Name == "order-service"), Is.True, "order-service should be present on Domain Service Map");
+        Assert.That(domain.Nodes.Any(n => n.Name == "payment-service"), Is.True, "payment-service should be present on Domain Service Map");
+
+        // Also verify GraphDataDto representation
+        var graph = await _engine.GetDomainArchitectureGraphAsync();
+        Assert.That(graph.Nodes.Any(n => n.Name == "common-dto" || n.Kind == "Library"), Is.False, "Libraries must not appear in DomainMap GraphDataDto");
+    }
 }

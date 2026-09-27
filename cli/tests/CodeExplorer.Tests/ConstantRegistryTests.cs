@@ -1,0 +1,173 @@
+using CodeExplorer.Core.Parser;
+using CodeExplorer.Parser.TypeScript.Libraries;
+using NUnit.Framework;
+
+namespace CodeExplorer.Tests;
+
+[TestFixture]
+public class ConstantRegistryTests
+{
+    [SetUp]
+    public void SetUp()
+    {
+        ConstantRegistry.Clear();
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        ConstantRegistry.Clear();
+    }
+
+    [Test]
+    public void TypeScript_EnumDeclarations_AreScannedAndResolved()
+    {
+        var code = """
+        export enum Schemas {
+            Defaults = 'defaults',
+            Sources = 'sources',
+            Networks = 'networks',
+            TreeRules = 'tree_rules'
+        }
+
+        enum ModelNames {
+            SourcesPlacementsBlack = 'source_placements_black',
+            SourceRules = 'source_rules',
+            Sources = 'sources'
+        }
+        """;
+
+        ConstantRegistry.ScanAndRegister("sources/src/shared/constants/enums.ts", code, "sources");
+
+        // Project-scoped lookup
+        Assert.That(ConstantRegistry.TryResolve("sources", "Schemas.Sources", out var schemaVal), Is.True);
+        Assert.That(schemaVal, Is.EqualTo("sources"));
+
+        Assert.That(ConstantRegistry.TryResolve("sources", "ModelNames.SourcesPlacementsBlack", out var modelVal), Is.True);
+        Assert.That(modelVal, Is.EqualTo("source_placements_black"));
+
+        // Path-based lookup
+        Assert.That(ConstantRegistry.TryResolve("sources/src/entities/source.entity.ts", "Schemas.TreeRules", out var schemaFromPath), Is.True);
+        Assert.That(schemaFromPath, Is.EqualTo("tree_rules"));
+
+        // Global fallback
+        Assert.That(ConstantRegistry.TryResolve(null, "ModelNames.SourceRules", out var globalVal), Is.True);
+        Assert.That(globalVal, Is.EqualTo("source_rules"));
+
+        // Unqualified member fallback
+        Assert.That(ConstantRegistry.TryResolve(null, "SourcesPlacementsBlack", out var unqualifiedVal), Is.True);
+        Assert.That(unqualifiedVal, Is.EqualTo("source_placements_black"));
+    }
+
+    [Test]
+    public void TypeScript_ConstObjects_AreScannedAndResolved()
+    {
+        var code = """
+        export const ETables = {
+            USER_CONFIGS: 'user_configs',
+            TRACKER_SAVED_STATES: 'tracker_saved_states',
+            TOP_PLACEMENTS_QUERIES: 'top_placements_queries'
+        } as const;
+
+        const ENTITY_NAME = {
+            FULL_BUNDLES: 'full_bundles',
+            BUNDLES: 'bundles'
+        };
+        """;
+
+        ConstantRegistry.ScanAndRegister("bff/src/shared/enums.ts", code, "bff");
+
+        Assert.That(ConstantRegistry.TryResolve("bff", "ETables.TOP_PLACEMENTS_QUERIES", out var tableVal), Is.True);
+        Assert.That(tableVal, Is.EqualTo("top_placements_queries"));
+
+        Assert.That(ConstantRegistry.TryResolve(null, "ENTITY_NAME.BUNDLES", out var bundleVal), Is.True);
+        Assert.That(bundleVal, Is.EqualTo("bundles"));
+    }
+
+    [Test]
+    public void CSharp_StaticClassConstants_AreScannedAndResolved()
+    {
+        var code = """
+        namespace MyApp.Infrastructure;
+
+        public static class TableNames
+        {
+            public const string Users = "users";
+            public const string Orders = "orders";
+            public const string OrderDetails = @"order_details";
+        }
+        """;
+
+        ConstantRegistry.ScanAndRegister("OrderService/Data/TableNames.cs", code, "OrderService");
+
+        Assert.That(ConstantRegistry.TryResolve("OrderService", "TableNames.Users", out var usersVal), Is.True);
+        Assert.That(usersVal, Is.EqualTo("users"));
+
+        Assert.That(ConstantRegistry.TryResolve(null, "TableNames.OrderDetails", out var detailsVal), Is.True);
+        Assert.That(detailsVal, Is.EqualTo("order_details"));
+    }
+
+    [Test]
+    public void Go_ConstBlocks_AreScannedAndResolved()
+    {
+        var code = """
+        package repository
+
+        const (
+            BundlesTable = "bundles"
+            SnapshotsTable = "snapshots"
+        )
+
+        const RoutingTable string = "routing"
+        """;
+
+        ConstantRegistry.ScanAndRegister("aggregator/internal/repo/tables.go", code, "cpm-streaming-aggregator");
+
+        Assert.That(ConstantRegistry.TryResolve("cpm-streaming-aggregator", "BundlesTable", out var bVal), Is.True);
+        Assert.That(bVal, Is.EqualTo("bundles"));
+
+        Assert.That(ConstantRegistry.TryResolve(null, "RoutingTable", out var rVal), Is.True);
+        Assert.That(rVal, Is.EqualTo("routing"));
+    }
+
+    [Test]
+    public void NestedSql_CleanQueryText_InterpolatesResolvedConstants()
+    {
+        ConstantRegistry.Register(null, "Schemas.Networks", "networks");
+        ConstantRegistry.Register(null, "ModelNames.Networks", "networks_table");
+
+        var rawSql = "ALTER TABLE ${Schemas.Networks}.${ModelNames.Networks} ADD COLUMN field varchar(50);";
+        var cleaned = NestedSqlParser.CleanQueryText(rawSql);
+
+        Assert.That(cleaned, Does.Contain("ALTER TABLE networks.networks_table ADD COLUMN field varchar(50);"));
+    }
+
+    [Test]
+    public void SyntaxEnricher_DetectDeclaredSchema_ResolvesUnquotedTypeOrmSchema()
+    {
+        ConstantRegistry.Register("sources", "Schemas.Sources", "sources");
+
+        var dummyFilePath = Path.Combine(Path.GetTempPath(), $"schema_test_{Guid.NewGuid():N}.ts");
+        try
+        {
+            File.WriteAllText(dummyFilePath, """
+            import { Entity } from 'typeorm';
+            import { Schemas } from './enums';
+
+            @Entity({ name: 'my_table', schema: Schemas.Sources })
+            export class MyTableEntity {}
+            """);
+
+            var fileNode = new CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode("f1", "my_table.entity.ts", "my_table.entity.ts", dummyFilePath);
+            var tsParser = new CodeExplorer.Parser.TypeScript.TypeScriptParser();
+            var syntaxTree = new SyntaxTree(dummyFilePath, "test", null, null, null, fileNode, tsParser, [], [], []);
+            var detected = SyntaxEnricher.DetectDeclaredSchema(null, null, syntaxTree);
+
+            Assert.That(detected, Is.EqualTo("sources"));
+        }
+        finally
+        {
+            if (File.Exists(dummyFilePath)) File.Delete(dummyFilePath);
+        }
+    }
+}

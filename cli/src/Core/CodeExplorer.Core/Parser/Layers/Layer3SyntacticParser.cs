@@ -99,7 +99,7 @@ public class Layer3SyntacticParser
                 continue;
             }
 
-            // Pre-scan route/const/config files in this project to populate RouteDictionaryRegistry
+            // Pre-scan route/const/config/enum files in this project to populate RouteDictionaryRegistry and ConstantRegistry
             foreach (var file in projectFiles)
             {
                 if (file.Name.Contains("route", StringComparison.OrdinalIgnoreCase) ||
@@ -108,7 +108,12 @@ public class Layer3SyntacticParser
                     file.Name.Contains("api", StringComparison.OrdinalIgnoreCase) ||
                     file.Name.Contains("env", StringComparison.OrdinalIgnoreCase) ||
                     file.Name.Contains("url", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("endpoint", StringComparison.OrdinalIgnoreCase))
+                    file.Name.Contains("endpoint", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("enum", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("model", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("schema", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("table", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("entity", StringComparison.OrdinalIgnoreCase))
                 {
                     try
                     {
@@ -116,6 +121,7 @@ public class Layer3SyntacticParser
                         {
                             var text = File.ReadAllText(file.FullPath);
                             RouteDictionaryRegistry.ScanAndRegister(text);
+                            ConstantRegistry.ScanAndRegister(file.FullPath, text, project.Name);
                         }
                     }
                     catch
@@ -348,8 +354,13 @@ public class Layer3SyntacticParser
         }
         else if (kind == OntologyConstants.NodeLabels.Table)
         {
-            var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{name.ToLowerInvariant()}";
-            typedNode = new TableNode(tableId, name, relativePath);
+            var resolvedName = name;
+            if (ConstantRegistry.TryResolve(relativePath, name, out var rName))
+            {
+                resolvedName = rName;
+            }
+            var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{resolvedName.ToLowerInvariant()}";
+            typedNode = new TableNode(tableId, resolvedName, relativePath);
         }
         else
         {
@@ -364,8 +375,14 @@ public class Layer3SyntacticParser
 
         foreach (var reference in syntactic.References)
         {
+            var target = reference.TargetName;
+            if (reference.Kind == OntologyConstants.Relationships.PersistedIn &&
+                ConstantRegistry.TryResolve(relativePath, target, out var resolvedTarget))
+            {
+                target = resolvedTarget;
+            }
             var resolvedScopeId = string.IsNullOrEmpty(reference.ScopeSymbolId) ? typedNode.Id : reference.ScopeSymbolId;
-            typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId });
+            typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId, TargetName = target });
         }
 
         foreach (var (k, v) in syntactic.Properties)

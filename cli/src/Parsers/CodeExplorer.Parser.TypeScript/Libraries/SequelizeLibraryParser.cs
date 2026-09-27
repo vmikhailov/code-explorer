@@ -19,6 +19,10 @@ public class SequelizeLibraryParser : ILibraryParser
         {
             return OntologyConstants.NodeLabels.Query;
         }
+        if (IsSequelizeTableDecorator(node))
+        {
+            return OntologyConstants.NodeLabels.Table;
+        }
         return null;
     }
 
@@ -49,6 +53,10 @@ public class SequelizeLibraryParser : ILibraryParser
 
             return "Sequelize Query";
         }
+        if (IsSequelizeTableDecorator(node))
+        {
+            return ExtractTableNameFromDecorator(node);
+        }
         return null;
     }
 
@@ -73,6 +81,151 @@ public class SequelizeLibraryParser : ILibraryParser
                 }
             }
         }
+        else if (IsSequelizeTableDecorator(node))
+        {
+            var tableName = ExtractTableNameFromDecorator(node);
+            if (!string.IsNullOrEmpty(tableName))
+            {
+                references.Add(new Reference(scopeSymbolId, tableName, OntologyConstants.Relationships.PersistedIn));
+            }
+        }
+    }
+
+    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (node.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
+        {
+            var decorators = new List<Node>();
+            decorators.AddRange(node.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+            decorators.AddRange(GetPrecedingDecorators(node));
+
+            if (node.Parent.IsValid())
+            {
+                if (node.Parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
+                {
+                    decorators.AddRange(node.Parent.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+                    decorators.AddRange(GetPrecedingDecorators(node.Parent));
+                }
+            }
+
+            foreach (var dec in decorators)
+            {
+                if (IsSequelizeTableDecorator(dec))
+                {
+                    var tableName = ExtractTableNameFromDecorator(dec);
+                    if (string.IsNullOrEmpty(tableName)) tableName = symbol.Name;
+                    symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.PersistedIn));
+
+                    var schema = ExtractSchemaFromDecorator(dec);
+                    if (!string.IsNullOrEmpty(schema))
+                    {
+                        symbol.Properties["schema"] = schema;
+                    }
+                }
+            }
+        }
+    }
+
+    private static List<Node> GetPrecedingDecorators(Node node)
+    {
+        var result = new List<Node>();
+        var parent = node.Parent;
+        if (!parent.IsValid()) return result;
+        var children = parent.Children;
+        var idx = children.ToList().FindIndex(c => c.Id == node.Id);
+        if (idx <= 0) return result;
+
+        for (var i = idx - 1; i >= 0; i--)
+        {
+            var sibling = children[i];
+            if (sibling.Is(TreeSitterSyntax.TypeScript.Decorator))
+            {
+                result.Add(sibling);
+            }
+            else
+            {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private static bool IsSequelizeTableDecorator(Node node)
+    {
+        if (!node.Is(TreeSitterSyntax.TypeScript.Decorator)) return false;
+        var text = node.Text;
+        return text.StartsWith("@Table", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ExtractTableNameFromDecorator(Node decoratorNode)
+    {
+        var callExpr = decoratorNode.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+        if (callExpr.IsValid())
+        {
+            var str = AstHelper.ExtractFirstStringArgument(callExpr);
+            if (!string.IsNullOrEmpty(str)) return str;
+
+            var argsNode = callExpr.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+            if (argsNode.IsValid())
+            {
+                foreach (var arg in argsNode.Children)
+                {
+                    if (arg.Is(TreeSitterSyntax.TypeScript.Object))
+                    {
+                        if (AstHelper.TryGetObjectProperty(arg, "tableName", out var tVal) && tVal != null && tVal.IsValid())
+                        {
+                            var text = tVal.Text.Trim('\'', '"', '`');
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                if (ConstantRegistry.TryResolve(null, text, out var resolvedName)) return resolvedName;
+                                return text;
+                            }
+                        }
+                        if (AstHelper.TryGetObjectProperty(arg, "name", out var nVal) && nVal != null && nVal.IsValid())
+                        {
+                            var text = nVal.Text.Trim('\'', '"', '`');
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                if (ConstantRegistry.TryResolve(null, text, out var resolvedName)) return resolvedName;
+                                return text;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public static string? ExtractSchemaFromDecorator(Node decoratorNode)
+    {
+        var callExpr = decoratorNode.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+        if (callExpr.IsValid())
+        {
+            var argsNode = callExpr.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+            if (argsNode.IsValid())
+            {
+                foreach (var arg in argsNode.Children)
+                {
+                    if (arg.Is(TreeSitterSyntax.TypeScript.Object))
+                    {
+                        if (AstHelper.TryGetObjectProperty(arg, "schema", out var schemaVal) && schemaVal != null && schemaVal.IsValid())
+                        {
+                            var text = schemaVal.Text.Trim('\'', '"', '`');
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                if (ConstantRegistry.TryResolve(null, text, out var resolvedSchema))
+                                {
+                                    return resolvedSchema;
+                                }
+                                return text;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static bool IsSequelizeCall(Node node)

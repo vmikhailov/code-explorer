@@ -143,7 +143,8 @@ public class TypeOrmLibraryParser : ILibraryParser
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.Decorator)) return false;
         var text = node.Text;
-        return text.StartsWith("@Entity", StringComparison.OrdinalIgnoreCase);
+        return text.StartsWith("@Entity", StringComparison.OrdinalIgnoreCase) ||
+               text.StartsWith("@ViewEntity", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ExtractTableNameFromDecorator(Node decoratorNode)
@@ -164,7 +165,14 @@ public class TypeOrmLibraryParser : ILibraryParser
                         if (AstHelper.TryGetObjectProperty(arg, "name", out var nameVal) && nameVal != null && nameVal.IsValid())
                         {
                             var text = nameVal.Text.Trim('\'', '"', '`');
-                            if (!string.IsNullOrEmpty(text)) return text;
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                if (ConstantRegistry.TryResolve(null, text, out var resolvedName))
+                                {
+                                    return resolvedName;
+                                }
+                                return text;
+                            }
                         }
                     }
                 }
@@ -195,7 +203,14 @@ public class TypeOrmLibraryParser : ILibraryParser
                         if (AstHelper.TryGetObjectProperty(arg, "schema", out var schemaVal) && schemaVal != null && schemaVal.IsValid())
                         {
                             var text = schemaVal.Text.Trim('\'', '"', '`');
-                            if (!string.IsNullOrEmpty(text)) return text;
+                            if (!string.IsNullOrEmpty(text))
+                            {
+                                if (ConstantRegistry.TryResolve(null, text, out var resolvedSchema))
+                                {
+                                    return resolvedSchema;
+                                }
+                                return text;
+                            }
                         }
                     }
                 }

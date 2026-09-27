@@ -63,6 +63,7 @@ export interface ServiceSummaryDto {
   endpointCount: number;
   databaseCount: number;
   topicCount: number;
+  serviceCount?: number;
   externalCount: number;
 }
 
@@ -511,9 +512,24 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       );
       const icon = s.kind === 'Worker' ? 'gear' : s.kind === 'App' || s.kind === 'FrontendApp' ? 'browser' : 'server-process';
       item.iconPath = new vscode.ThemeIcon(icon);
-      item.description = `${s.endpointCount} eps • ${s.databaseCount} dbs`;
+      const parts: string[] = [];
+      if (s.endpointCount > 0) parts.push(`${s.endpointCount} eps`);
+      if (s.databaseCount > 0) parts.push(`${s.databaseCount} dbs`);
+      if (s.serviceCount && s.serviceCount > 0) parts.push(`${s.serviceCount} svcs`);
+      if (s.externalCount > 0) parts.push(`${s.externalCount} ext`);
+      item.description = parts.length > 0 ? parts.join(' • ') : `${s.endpointCount} eps • ${s.databaseCount} dbs`;
+
+      const counts: string[] = [
+        `Endpoints: ${s.endpointCount}`,
+        `Databases: ${s.databaseCount}`,
+        `Topics: ${s.topicCount}`,
+      ];
+      if (s.serviceCount !== undefined && s.serviceCount > 0) {
+        counts.push(`Downstream Services: ${s.serviceCount}`);
+      }
+      counts.push(`External APIs: ${s.externalCount}`);
       item.tooltip = `${s.serviceName} (${s.kind}${s.framework ? ` • ${s.framework}` : ''}${s.language ? ` • ${s.language}` : ''})\n` +
-        `Endpoints: ${s.endpointCount} | Databases: ${s.databaseCount} | Topics: ${s.topicCount} | External APIs: ${s.externalCount}`;
+        counts.join(' | ');
       item.command = {
         command: 'codeExplorer.openNodeGrid',
         title: `Browse ${s.serviceName} in Grid`,
@@ -532,6 +548,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       const kind = g.categoryKey === 'endpoints' ? 'Endpoint'
         : g.categoryKey === 'databases' ? 'Database'
         : g.categoryKey === 'topics' ? 'Topic'
+        : g.categoryKey === 'services' ? 'Service'
         : 'ExternalService';
 
       const item = new CodeExplorerTreeItem(
@@ -555,7 +572,9 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   private getServiceGroupItems(serviceName?: string, categoryKey?: string, items?: ServiceCapabilityItemDto[]): CodeExplorerTreeItem[] {
     if (!items || items.length === 0) return [];
 
-    return items.map((it) => {
+    const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+    return sorted.map((it) => {
       const item = new CodeExplorerTreeItem(
         'service-item',
         it.name,
@@ -566,6 +585,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       const icon = it.kind === 'Endpoint' ? 'radio-tower'
         : it.kind === 'Database' ? 'database'
         : it.kind === 'Topic' ? 'mail'
+        : (it.kind === 'Service' || it.kind === 'App' || it.kind === 'Worker' || it.kind === 'Project' || it.kind === 'FrontendApp') ? 'zap'
         : 'cloud';
 
       item.iconPath = new vscode.ThemeIcon(icon);

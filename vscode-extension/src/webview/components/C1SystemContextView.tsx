@@ -29,6 +29,11 @@ import {
 import { C1FocusEgoView } from './C1FocusEgoView';
 import { C1ChordWheelView } from './C1ChordWheelView';
 import { C1MatrixView } from './C1MatrixView';
+import {
+  computeConcentricLayout,
+  ConcentricNodeInput,
+  ConcentricEdgeInput,
+} from '../layout/concentricLayout';
 
 try {
   cytoscape.use(cytoscapeDagre);
@@ -276,6 +281,10 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
 }) => {
   // Active Layout Variant
   const [variant, setVariant] = useState<C1Variant>('playground');
+
+  // Concentric radial guides & viewport transform state for SVG overlay
+  const [concentricGuides, setConcentricGuides] = useState<Array<{ radius: number; label: string; count: number }>>([]);
+  const [cyTransform, setCyTransform] = useState<{ pan: { x: number; y: number }; zoom: number }>({ pan: { x: 0, y: 0 }, zoom: 1 });
 
   // Filter toggles
   const [showApps, setShowApps] = useState(true);
@@ -1002,35 +1011,138 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
     });
 
     // Run layout based on active variant
-    const layout =
-      variant === 'concentric'
-        ? cy.layout({
-            name: 'concentric',
-            concentric: (node: any) => {
-              const cat = node.data('category');
-              return cat === 'app' ? 3 : cat === 'service' ? 2 : 1;
-            },
-            levelWidth: () => 1,
-            minNodeSpacing: 55 * settings.cytoscapeAir,
-            padding: 40,
-            animate: true,
-            animationDuration: 400,
-          } as any)
-        : cy.layout({
-            name: 'cose',
-            animate: true,
-            animationDuration: 500,
-            nodeRepulsion: () => 45000 * settings.cytoscapeAir,
-            idealEdgeLength: () => 120 * settings.cytoscapeAir,
-            edgeElasticity: () => 32,
-            gravity: 0.25,
-            nodeOverlap: 20,
-          } as any);
+    let layout: cytoscape.Layouts;
+
+    if (variant === 'concentric') {
+      const air = settings.cytoscapeAir || 1.2;
+      const serviceCallAdj = new Map<string, Set<string>>();
+      const inboundCalls = new Map<string, number>();
+      const outboundCalls = new Map<string, number>();
+      const graphAdj = new Map<string, Array<{ neighborId: string; weight: number }>>();
+
+      for (const e of filteredEdges) {
+        const s = e.source;
+        const t = e.target;
+        if (!serviceCallAdj.has(s)) serviceCallAdj.set(s, new Set());
+        serviceCallAdj.get(s)!.add(t);
+        outboundCalls.set(s, (outboundCalls.get(s) || 0) + 1);
+        inboundCalls.set(t, (inboundCalls.get(t) || 0) + 1);
+
+        if (!graphAdj.has(s)) graphAdj.set(s, []);
+        if (!graphAdj.has(t)) graphAdj.set(t, []);
+        const w = e.count || 1;
+        graphAdj.get(s)!.push({ neighborId: t, weight: w });
+        graphAdj.get(t)!.push({ neighborId: s, weight: w });
+      }
+
+      // Topological BFS distance from Ingress / Apps
+      const serviceTiers = new Map<string, number>();
+      const queue: Array<{ id: string; tier: number }> = [];
+
+      // Seed 1: Ingress / Apps (Tier 0)
+      for (const n of filteredNodes) {
+        if (n.category === 'app') {
+          serviceTiers.set(n.id, 0);
+          queue.push({ id: n.id, tier: 0 });
+        }
+      }
+
+      // Seed 2: Root orchestrator services (0 inbound calls, but have outbound calls)
+      for (const n of filteredNodes) {
+        if (n.category === 'service' && !serviceTiers.has(n.id)) {
+          const inc = inboundCalls.get(n.id) || 0;
+          const outc = outboundCalls.get(n.id) || 0;
+          if (inc === 0 && outc > 0) {
+            serviceTiers.set(n.id, 1);
+            queue.push({ id: n.id, tier: 1 });
+          }
+        }
+      }
+
+      // BFS outward propagation
+      while (queue.length > 0) {
+        const { id, tier } = queue.shift()!;
+        const neighbors = serviceCallAdj.get(id);
+        if (neighbors) {
+          for (const nextId of neighbors) {
+            const nextNode = idToNodeMap.get(nextId);
+            if (nextNode && nextNode.category === 'service') {
+              const nextTier = tier + 1;
+              const existingTier = serviceTiers.get(nextId);
+              if (existingTier === undefined || nextTier < existingTier) {
+                serviceTiers.set(nextId, nextTier);
+                queue.push({ id: nextId, tier: nextTier });
+              }
+            }
+          }
+        }
+      }
+
+      // Fallback for unvisited services
+      for (const n of filteredNodes) {
+        if (n.category === 'service' && !serviceTiers.has(n.id)) {
+          const inc = inboundCalls.get(n.id) || 0;
+          const outc = outboundCalls.get(n.id) || 0;
+          serviceTiers.set(n.id, outc > 0 ? 1 : inc > 0 ? 2 : 3);
+        }
+      }
+
+      const visibleNodesInput: ConcentricNodeInput[] = filteredNodes.map((n) => {
+        let ech = 2;
+        if (n.category === 'app') ech = 0;
+        else if (n.category === 'service') {
+          const t = serviceTiers.get(n.id) || 1;
+          ech = t <= 1 ? 1 : t === 2 ? 2 : 3;
+        } else if (n.category === 'external') {
+          ech = 5;
+        }
+        return { id: n.id, echelonTier: ech };
+      });
+
+      const visibleEdgesInput: ConcentricEdgeInput[] = filteredEdges.map((e) => ({
+        source: e.source,
+        target: e.target,
+        category: 'service_call',
+        count: e.count || 1,
+      }));
+
+      const layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, air);
+
+      layout = cy.layout({
+        name: 'preset',
+        positions: (node: any) =>
+          layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
+        fit: true,
+        padding: 60,
+        animate: false,
+      } as any);
+
+      setConcentricGuides(layoutResult.guides);
+    } else {
+      setConcentricGuides([]);
+      layout = cy.layout({
+        name: 'cose',
+        animate: true,
+        animationDuration: 500,
+        nodeRepulsion: () => 45000 * settings.cytoscapeAir,
+        idealEdgeLength: () => 120 * settings.cytoscapeAir,
+        edgeElasticity: () => 32,
+        gravity: 0.25,
+        nodeOverlap: 20,
+      } as any);
+    }
 
     layout.run();
     cyInstanceRef.current = cy;
 
+    const handleViewportChange = () => {
+      setCyTransform({ pan: { ...cy.pan() }, zoom: cy.zoom() });
+    };
+    cy.on('pan zoom resize render', handleViewportChange);
+    const tm = setTimeout(handleViewportChange, 60);
+
     return () => {
+      clearTimeout(tm);
       cy.destroy();
       cyInstanceRef.current = null;
     };
@@ -1188,7 +1300,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
               <option value="focus">🎯 3. Focus / Ego-Network (1 Service + Neighbors)</option>
               <option value="chord">⭕ 4. Chord Wheel (Interactive Circular Ribbons)</option>
               <option value="matrix">▦ 5. Dependency Structure Matrix (DSM)</option>
-              <option value="concentric">🔘 6. Radial Concentric Rings (Ingress → Core → Ext)</option>
+              <option value="concentric">🔘 6. Multi-Tier Concentric Orbits (Ingress → Tier 1 → Tier 2 → Ext)</option>
               <option value="clusters">📦 7. Clustered Bounded Contexts</option>
               <option value="dagre-lr">📊 8. Dagre Hierarchical (L → R)</option>
               <option value="dagre-tb">⬇️ 9. Dagre Hierarchical (Top → Down)</option>
@@ -1627,7 +1739,68 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
             onDrillDownToC2={onDrillDownToC2}
           />
         ) : variant === 'cytoscape' || variant === 'concentric' ? (
-          <div className="c1-cytoscape-container" ref={cyContainerRef} />
+          <div className="c1-cytoscape-wrapper" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+            {variant === 'concentric' && concentricGuides.length > 0 && (
+              <svg
+                className="c1-concentric-orbits-overlay"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+                  zIndex: 2,
+                }}
+              >
+                <g transform={`translate(${cyTransform.pan.x}, ${cyTransform.pan.y}) scale(${cyTransform.zoom})`}>
+                  {concentricGuides.map((g, idx) => {
+                    const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
+                    const dashPattern = `${8 / cyTransform.zoom} ${6 / cyTransform.zoom}`;
+                    const badgeWidth = Math.max(180, 260 / cyTransform.zoom);
+                    const badgeHeight = Math.max(18, 22 / cyTransform.zoom);
+                    const badgeY = -g.radius - badgeHeight - 6 / cyTransform.zoom;
+                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
+
+                    return (
+                      <g key={idx}>
+                        <circle
+                          cx={0}
+                          cy={0}
+                          r={g.radius}
+                          fill="none"
+                          stroke="rgba(56, 189, 248, 0.24)"
+                          strokeWidth={strokeW}
+                          strokeDasharray={dashPattern}
+                        />
+                        <rect
+                          x={-badgeWidth / 2}
+                          y={badgeY}
+                          width={badgeWidth}
+                          height={badgeHeight}
+                          rx={4 / cyTransform.zoom}
+                          fill="rgba(15, 23, 42, 0.88)"
+                          stroke="rgba(56, 189, 248, 0.45)"
+                          strokeWidth={1 / cyTransform.zoom}
+                        />
+                        <text
+                          x={0}
+                          y={badgeY + badgeHeight / 2}
+                          fill="#38bdf8"
+                          fontSize={`${fontSize}px`}
+                          fontWeight="700"
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                        >
+                          {g.label} ({g.count})
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+              </svg>
+            )}
+            <div className="c1-cytoscape-container" ref={cyContainerRef} style={{ width: '100%', height: '100%' }} />
+          </div>
         ) : (
           <ReactFlowProvider>
             <C1ReactFlowCanvas

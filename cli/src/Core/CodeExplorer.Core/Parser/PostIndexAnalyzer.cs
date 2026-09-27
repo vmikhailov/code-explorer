@@ -474,21 +474,28 @@ public class PostIndexAnalyzer(IGraphClient db)
                     }
                 }
             }
-            // 2. Direct Project -> Topic (PUBLISHES_TO)
-            else if (kind == OntologyConstants.Relationships.PublishesTo)
+            // 2. Direct Project -> Topic (PUBLISHES_TO / PUBLISHED_BY)
+            else if (kind == OntologyConstants.Relationships.PublishesTo ||
+                     kind == OntologyConstants.Relationships.PublishedBy)
             {
                 var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
                                     to.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || to.Contains(":topic:") || to.Contains(":res:topic:");
-                if (isTargetTopic)
+                var isSourceTopic = (nodeKindsById?.GetValueOrDefault(from) == OntologyConstants.NodeLabels.Topic) ||
+                                    from.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || from.Contains(":topic:") || from.Contains(":res:topic:");
+
+                var topicId = isTargetTopic ? to : isSourceTopic ? from : null;
+                var symbolId = isTargetTopic ? from : isSourceTopic ? to : null;
+
+                if (topicId != null && symbolId != null)
                 {
-                    var owner = ResolveOwningProject(from);
-                    if (owner != null && owner.Id != to)
+                    var owner = ResolveOwningProject(symbolId);
+                    if (owner != null && owner.Id != topicId)
                     {
-                        if (existingEdges.Add((owner.Id, to, OntologyConstants.Relationships.PublishesTo)))
+                        if (existingEdges.Add((owner.Id, topicId, OntologyConstants.Relationships.PublishesTo)))
                         {
                             materializedRels.Add(new Relationship(
                                 owner.Id,
-                                to,
+                                topicId,
                                 OntologyConstants.Relationships.PublishesTo,
                                 new Dictionary<string, object>
                                 {
@@ -500,47 +507,29 @@ public class PostIndexAnalyzer(IGraphClient db)
                     }
                 }
             }
-            // 3. Topic -> Project (TRIGGERS)
-            else if (kind == OntologyConstants.Relationships.Triggers)
-            {
-                var isSourceTopic = (nodeKindsById?.GetValueOrDefault(from) == OntologyConstants.NodeLabels.Topic) ||
-                                    from.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || from.Contains(":topic:") || from.Contains(":res:topic:");
-                if (isSourceTopic)
-                {
-                    var owner = ResolveOwningProject(to);
-                    if (owner != null && owner.Id != from)
-                    {
-                        if (existingEdges.Add((from, owner.Id, OntologyConstants.Relationships.Triggers)))
-                        {
-                            materializedRels.Add(new Relationship(
-                                from,
-                                owner.Id,
-                                OntologyConstants.Relationships.Triggers,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "messaging",
-                                    ["is_semantic"] = "true"
-                                }
-                            ));
-                        }
-                    }
-                }
-            }
-            // 4. Project -> Topic (SUBSCRIBES_TO)
-            else if (kind == OntologyConstants.Relationships.SubscribesTo)
+            // 3. Topic -> Project (TRIGGERS / SUBSCRIBES_TO / SUBSCRIBED_BY)
+            else if (kind == OntologyConstants.Relationships.Triggers ||
+                     kind == OntologyConstants.Relationships.SubscribesTo ||
+                     kind == OntologyConstants.Relationships.SubscribedBy)
             {
                 var isTargetTopic = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Topic) ||
                                     to.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || to.Contains(":topic:") || to.Contains(":res:topic:");
-                if (isTargetTopic)
+                var isSourceTopic = (nodeKindsById?.GetValueOrDefault(from) == OntologyConstants.NodeLabels.Topic) ||
+                                    from.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || from.Contains(":topic:") || from.Contains(":res:topic:");
+
+                var topicId = isTargetTopic ? to : isSourceTopic ? from : null;
+                var symbolId = isTargetTopic ? from : isSourceTopic ? to : null;
+
+                if (topicId != null && symbolId != null)
                 {
-                    var owner = ResolveOwningProject(from);
-                    if (owner != null && owner.Id != to)
+                    var owner = ResolveOwningProject(symbolId);
+                    if (owner != null && owner.Id != topicId)
                     {
-                        if (existingEdges.Add((owner.Id, to, OntologyConstants.Relationships.SubscribesTo)))
+                        if (existingEdges.Add((owner.Id, topicId, OntologyConstants.Relationships.SubscribesTo)))
                         {
                             materializedRels.Add(new Relationship(
                                 owner.Id,
-                                to,
+                                topicId,
                                 OntologyConstants.Relationships.SubscribesTo,
                                 new Dictionary<string, object>
                                 {
@@ -549,10 +538,10 @@ public class PostIndexAnalyzer(IGraphClient db)
                                 }
                             ));
                         }
-                        if (existingEdges.Add((to, owner.Id, OntologyConstants.Relationships.Triggers)))
+                        if (existingEdges.Add((topicId, owner.Id, OntologyConstants.Relationships.Triggers)))
                         {
                             materializedRels.Add(new Relationship(
-                                to,
+                                topicId,
                                 owner.Id,
                                 OntologyConstants.Relationships.Triggers,
                                 new Dictionary<string, object>
@@ -919,17 +908,20 @@ public class PostIndexAnalyzer(IGraphClient db)
                                 ));
                             }
                         }
-                        // Case 4: Library publishes to Topic
+                        // Case 4: Library publishes or subscribes to Topic
                         else if ((tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
                                  || edge.To.Contains($":{OntologyConstants.IdPrefixes.Topic}:")
                                  || edge.To.Contains(":topic:")
                                  || edge.To.Contains(":res:topic:")
                                  || edge.Kind == OntologyConstants.Relationships.PublishesTo
+                                 || edge.Kind == OntologyConstants.Relationships.SubscribesTo
                                  || edge.Kind == OntologyConstants.Relationships.Triggers)
                         {
-                            var outKind = edge.Kind == OntologyConstants.Relationships.Triggers
+                            var outKind = (edge.Kind == OntologyConstants.Relationships.Triggers)
                                 ? OntologyConstants.Relationships.Triggers
-                                : OntologyConstants.Relationships.PublishesTo;
+                                : (edge.Kind == OntologyConstants.Relationships.SubscribesTo)
+                                    ? OntologyConstants.Relationships.SubscribesTo
+                                    : OntologyConstants.Relationships.PublishesTo;
                             if (existingEdges.Add((service.Id, edge.To, outKind)))
                             {
                                 liftedRels.Add(new Relationship(
@@ -1215,6 +1207,9 @@ public class PostIndexAnalyzer(IGraphClient db)
 
             var (techName, techType, techKey) = CanonicalizeTechnologyOnly(techPrefix, type);
             var schemaPart = dotParts[1].Trim();
+            schemaPart = Regex.Replace(schemaPart, @"^(?:internal|integration|external)[-_]+(?:service[-_]+)?", "", RegexOptions.IgnoreCase);
+            schemaPart = schemaPart.Replace("--", "-").Trim('_', '-');
+
             if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
             {
                 schemaPart = "public";
@@ -1246,6 +1241,9 @@ public class PostIndexAnalyzer(IGraphClient db)
 
             var (techName, techType, techKey) = CanonicalizeTechnologyOnly(effectiveTech, type);
             var schemaPart = rawSchema.Trim();
+            schemaPart = Regex.Replace(schemaPart, @"^(?:internal|integration|external)[-_]+(?:service[-_]+)?", "", RegexOptions.IgnoreCase);
+            schemaPart = schemaPart.Replace("--", "-").Trim('_', '-');
+
             if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
             {
                 schemaPart = "public";

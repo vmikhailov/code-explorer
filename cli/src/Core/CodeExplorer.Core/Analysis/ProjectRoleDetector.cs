@@ -335,6 +335,23 @@ public static class ProjectRoleDetector
 
                 if (!isWebSdk && !isWorkerSdk && !isExe)
                 {
+                    if (name.EndsWith("service", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith("-service", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".service", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith("-api", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".api", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith("-server", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".server", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith("-gateway", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".gateway", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith("-backend", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".backend", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith("-app", StringComparison.OrdinalIgnoreCase) ||
+                        name.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+
                     // If not Web, Worker, or Exe, it's a library
                     return true;
                 }

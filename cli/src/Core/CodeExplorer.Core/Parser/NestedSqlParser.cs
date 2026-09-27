@@ -20,7 +20,7 @@ public class SqlDependencyVisitor : TSqlFragmentVisitor
             var db = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.DatabaseIdentifier?.Value ?? "");
             var schema = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.SchemaIdentifier?.Value ?? "");
             var table = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.BaseIdentifier?.Value ?? "");
-            if (!string.IsNullOrEmpty(table))
+            if (!string.IsNullOrEmpty(table) && !NestedSqlParser.IsSqlKeyword(table))
             {
                 Tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, table));
             }
@@ -151,8 +151,16 @@ public static class NestedSqlParser
             .Replace("\\`", "`")
             .Replace("\\$", "$");
 
-        // Remove Javascript/TypeScript interpolation syntax: ${varName} -> varName
-        cleaned = Regex.Replace(cleaned, @"\$\{\s*([a-zA-Z0-9_\.]+)\s*\}", "$1");
+        // Remove Javascript/TypeScript interpolation syntax: ${varName} -> resolved value or varName
+        cleaned = Regex.Replace(cleaned, @"\$\{\s*([a-zA-Z0-9_\.]+)\s*\}", m =>
+        {
+            var varName = m.Groups[1].Value;
+            if (ConstantRegistry.TryResolve(null, varName, out var resolved))
+            {
+                return resolved;
+            }
+            return varName;
+        });
         cleaned = Regex.Replace(cleaned, @"\$\{(.*?)\}", "$1");
 
         // Convert backticks to square brackets for ScriptDom T-SQL parser compatibility.
@@ -222,6 +230,8 @@ public static class NestedSqlParser
 
             foreach (var t in visitor.Tables)
             {
+                if (IsSqlKeyword(t.Table)) continue;
+                if (!string.IsNullOrEmpty(t.Schema) && IsSqlKeyword(t.Schema)) continue;
                 if (IsVariable(t.Table, rawText) || IsVariable(t.Schema, rawText) || IsVariable(t.Db, rawText)) continue;
                 tables.Add(t);
             }
@@ -237,7 +247,7 @@ public static class NestedSqlParser
         }
 
         // 2. Lexical Fallback: Match identifiers after FROM, JOIN, UPDATE, INTO, MERGE
-        var tableMatches = Regex.Matches(cleanedSql, @"\b(?:FROM|JOIN|UPDATE|INTO|MERGE)\s+([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)", RegexOptions.IgnoreCase);
+        var tableMatches = Regex.Matches(cleanedSql, @"\b(?:FROM|JOIN|UPDATE|INTO|MERGE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)", RegexOptions.IgnoreCase);
         foreach (Match match in tableMatches)
         {
             var rawTableName = match.Groups[1].Value.Trim();
@@ -268,7 +278,8 @@ public static class NestedSqlParser
                 tableName = parts[0];
             }
 
-            if (IsSqlKeyword(tableName)) continue;
+            if (IsSqlKeyword(tableName) || IsSqlKeyword(rawTableName)) continue;
+            if (!string.IsNullOrEmpty(schemaName) && IsSqlKeyword(schemaName)) continue;
             if (IsVariable(tableName, rawText) || IsVariable(schemaName, rawText) || IsVariable(dbName, rawText)) continue;
             tables.Add((dbName, schemaName, tableName));
         }
@@ -591,11 +602,14 @@ public static class NestedSqlParser
         "FROM", "JOIN", "WHERE", "AND", "OR", "IN", "ON", "AS", "INTO", "VALUES", "SET",
         "LATERAL", "INTERVAL", "CROSS", "OUTER", "INNER", "LEFT", "RIGHT", "FULL", "USING",
         "GROUP", "BY", "ORDER", "HAVING", "LIMIT", "OFFSET", "WITH", "RECURSIVE",
-        "CASE", "WHEN", "THEN", "ELSE", "END", "DISTINCT", "ALL", "ANY", "EXISTS",
+        "CASE", "WHEN", "THEN", "ELSE", "END", "DISTINCT", "ALL", "ANY", "EXISTS", "EXIST",
         "PARTITION", "OVER", "WINDOW", "TABLE", "VIEW", "INDEX", "SCHEMA", "DATABASE",
         "PROCEDURE", "FUNCTION", "TRIGGER", "DECLARE", "EXEC", "EXECUTE", "BEGIN", "COMMIT", "ROLLBACK",
+        "IF", "NOT", "DROP", "ALTER", "CREATE", "TEMPORARY", "TEMP", "EXTERNAL",
+        "UNION", "INTERSECT", "EXCEPT", "QUALIFY",
+        "EXTERNAL_QUERY", "UNNEST", "GENERATE_SERIES", "TABLE_FUNCTION",
         "JSONB_ARRAY_ELEMENTS_TEXT", "JSONB_TO_RECORDSET", "JSONB_OBJECT_KEYS", "JSONB_ARRAY_ELEMENTS",
-        "JSONB_EACH", "JSONB_EACH_TEXT", "DBLINK", "UNNEST", "GENERATE_SERIES", "COALESCE",
+        "JSONB_EACH", "JSONB_EACH_TEXT", "DBLINK", "COALESCE",
         "COUNT", "SUM", "AVG", "MIN", "MAX", "NOW",
         "THIS", "THE", "AN", "A", "NULL", "UNDEFINED", "TRUE", "FALSE"
     };
@@ -603,10 +617,11 @@ public static class NestedSqlParser
     public static bool IsSqlKeyword(string? word)
     {
         if (string.IsNullOrWhiteSpace(word)) return true;
-        var trimmed = word.Trim();
+        var trimmed = CleanSqlIdentifier(word);
         if (trimmed.Length <= 1) return true;
         if (char.IsDigit(trimmed[0])) return true;
         if (trimmed.Contains('(') || trimmed.Contains(')')) return true;
+        if (trimmed.StartsWith('{') || trimmed.EndsWith('}') || trimmed.StartsWith('$')) return true;
         return ExtendedSqlKeywords.Contains(trimmed);
     }
 }

@@ -713,6 +713,9 @@ public class ServiceSummaryDto
     [JsonPropertyName("topicCount")]
     public int TopicCount { get; set; }
 
+    [JsonPropertyName("serviceCount")]
+    public int ServiceCount { get; set; }
+
     [JsonPropertyName("externalCount")]
     public int ExternalCount { get; set; }
 }
