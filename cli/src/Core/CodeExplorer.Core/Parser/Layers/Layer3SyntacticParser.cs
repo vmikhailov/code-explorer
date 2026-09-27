@@ -17,6 +17,8 @@ public class Layer3SyntacticParser
     {
         ctx.Log("[Layer3] Starting tree-sitter AST syntactic parsing pass...");
 
+        WorkspaceConventions.LoadFromWorkspace(l2Result.Prev.Workspace.Path);
+
         var syntaxNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.SyntaxStructure}";
         var syntaxStructureNode = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", l2Result.Prev.Workspace.Path);
         l2Result.Prev.Workspace.Children.Add(syntaxStructureNode);

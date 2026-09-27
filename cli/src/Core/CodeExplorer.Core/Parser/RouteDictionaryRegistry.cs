@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -137,10 +138,8 @@ public static class RouteDictionaryRegistry
     {
         if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
 
-        var routeMatch = Regex.Match(raw, @"getServiceDomainByRoute\s*\(\s*['""]([^'""]+)['""]");
-        if (routeMatch.Success)
+        if (WorkspaceConventions.TryMatchRouteFunction(raw, out var routeKey))
         {
-            var routeKey = routeMatch.Groups[1].Value;
             if (TryResolve(routeKey, out var rPath, out var rService))
             {
                 var cleanPath = rPath.Split('?')[0];
@@ -530,26 +529,24 @@ public static class RouteDictionaryRegistry
     {
         if (Uri.TryCreate(val, UriKind.Absolute, out var parsedUri))
         {
-            var absPath = parsedUri.AbsolutePath.Trim('/');
-            if (absPath.StartsWith("identity", StringComparison.OrdinalIgnoreCase))
+            var host = parsedUri.Host;
+            if (!string.IsNullOrEmpty(host) &&
+                !host.Equals("localhost", StringComparison.OrdinalIgnoreCase) &&
+                !host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+                !host.Contains("hostname", StringComparison.OrdinalIgnoreCase) &&
+                !host.Contains("example", StringComparison.OrdinalIgnoreCase))
             {
-                return "identity";
-            }
-            if (absPath.Contains("profile", StringComparison.OrdinalIgnoreCase) || key.Contains("player", StringComparison.OrdinalIgnoreCase))
-            {
-                return "player";
-            }
-            if (absPath.Contains("game", StringComparison.OrdinalIgnoreCase) || absPath.Contains("tournament", StringComparison.OrdinalIgnoreCase) ||
-                key.Contains("game", StringComparison.OrdinalIgnoreCase) || key.Contains("tournament", StringComparison.OrdinalIgnoreCase))
-            {
-                return "tournament";
+                return host;
             }
         }
 
-        var cleanKey = key.ToLowerInvariant();
-        if (cleanKey.Contains("identity") || cleanKey.Contains("user")) return "identity";
-        if (cleanKey.Contains("player") || cleanKey.Contains("profile")) return "player";
-        if (cleanKey.Contains("game") || cleanKey.Contains("tournament")) return "tournament";
+        foreach (var svc in _serviceDomains.Values)
+        {
+            if (!string.IsNullOrEmpty(svc) && key.Contains(svc, StringComparison.OrdinalIgnoreCase))
+            {
+                return svc;
+            }
+        }
 
         return null;
     }

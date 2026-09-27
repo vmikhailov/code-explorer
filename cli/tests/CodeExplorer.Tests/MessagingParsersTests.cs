@@ -424,8 +424,7 @@ export async function sendPartner() {
         var tempFilePath = Path.Combine(tempDir, "pubsub-service.ts");
 
         var code = @"
-import { PubSubService } from '@atsorganization/internal-commons-library/pubsub';
-import { Message } from '@google-cloud/pubsub';
+import { PubSub, Message } from '@google-cloud/pubsub';
 
 export const EVENT_BUS_TOPIC_NAME = 'event-bus-topic';
 

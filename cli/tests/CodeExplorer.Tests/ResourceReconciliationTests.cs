@@ -178,6 +178,6 @@ public class ResourceReconciliationTests
         Assert.That(SyntaxEnricher.CleanProjectNameToDomain("orders-api"), Is.EqualTo("orders"));
         Assert.That(SyntaxEnricher.CleanProjectNameToDomain("Lidoma.Tournament"), Is.EqualTo("tournament"));
         Assert.That(SyntaxEnricher.CleanProjectNameToDomain("service-billing"), Is.EqualTo("billing"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("ats-users"), Is.EqualTo("users"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("srv-users"), Is.EqualTo("users"));
     }
 }

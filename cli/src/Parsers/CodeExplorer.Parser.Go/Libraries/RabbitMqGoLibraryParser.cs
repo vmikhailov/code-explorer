@@ -13,9 +13,7 @@ public class RabbitMqGoLibraryParser : ILibraryParser
     public IReadOnlyList<string> SupportedPatterns =>
     [
         "github.com/rabbitmq/amqp091-go",
-        "github.com/streadway/amqp",
-        "github.com/atsorganization/messaging-go",
-        "github.com/atsorganization/messaging-go/*"
+        "github.com/streadway/amqp"
     ];
     public bool IsImplemented => true;
 

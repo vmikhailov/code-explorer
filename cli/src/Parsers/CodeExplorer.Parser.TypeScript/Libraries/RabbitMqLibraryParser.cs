@@ -15,7 +15,6 @@ public class RabbitMqLibraryParser : ILibraryParser
     [
         "amqplib",
         "amqp-connection-manager",
-        "@atsorganization/ats-lib-messaging",
         "*rabbit*",
         "*Rabbit*"
     ];

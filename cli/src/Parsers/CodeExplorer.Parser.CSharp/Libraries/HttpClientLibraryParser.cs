@@ -104,18 +104,6 @@ public class HttpClientLibraryParser : ILibraryParser
         return false;
     }
 
-    private static readonly Dictionary<string, string> KnownHttpClientResources = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Tournaments"] = "api/v1/tournaments",
-        ["Identity"] = "api/v1",
-        ["Player"] = "api/v1/profiles",
-        ["Profiles"] = "api/v1/profiles",
-        ["Notifications"] = "api/v1/notifications",
-        ["Media"] = "api/v1/Media",
-        ["Games"] = "api/v1/games",
-        ["Teams"] = "api/v1/teams",
-        ["Invitations"] = "api/v1/invitations"
-    };
 
     public static string? ExtractTarget(Node node)
     {
@@ -552,14 +540,14 @@ public class HttpClientLibraryParser : ILibraryParser
         if (text.Contains('.'))
         {
             var propName = text[(text.LastIndexOf('.') + 1)..];
-            if (KnownHttpClientResources.TryGetValue(propName, out var route))
+            if (RouteDictionaryRegistry.TryResolve(propName, out var route, out _))
             {
                 return route;
             }
             return $"api/v1/{propName.ToLowerInvariant()}";
         }
 
-        if (KnownHttpClientResources.TryGetValue(text, out var knownRoute))
+        if (RouteDictionaryRegistry.TryResolve(text, out var knownRoute, out _))
         {
             return knownRoute;
         }

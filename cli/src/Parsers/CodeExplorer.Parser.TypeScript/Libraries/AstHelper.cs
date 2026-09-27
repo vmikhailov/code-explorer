@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -15,10 +16,8 @@ public static class AstHelper
             var text = argNode.Text.Trim('\'', '"', '`');
             if (text.Contains('\n') || text.Length > 500) return null;
 
-            var routeMatch = Regex.Match(text, @"getServiceDomainByRoute\s*\(\s*['""]([^'""]+)['""]");
-            if (routeMatch.Success)
+            if (WorkspaceConventions.TryMatchRouteFunction(text, out var routeKey))
             {
-                var routeKey = routeMatch.Groups[1].Value;
                 if (RouteDictionaryRegistry.TryResolve(routeKey, out var rPath, out var rService))
                 {
                     var cleanPath = rPath.Split('?')[0];

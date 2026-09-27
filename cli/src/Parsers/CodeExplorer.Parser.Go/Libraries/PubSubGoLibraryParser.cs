@@ -14,9 +14,7 @@ public class PubSubGoLibraryParser : ILibraryParser
     public IReadOnlyList<string> SupportedPatterns =>
     [
         "cloud.google.com/go/pubsub",
-        "cloud.google.com/go/pubsub/*",
-        "github.com/atsorganization/messaging-go",
-        "github.com/atsorganization/messaging-go/*"
+        "cloud.google.com/go/pubsub/*"
     ];
     public bool IsImplemented => true;
 

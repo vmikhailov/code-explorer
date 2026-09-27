@@ -17,8 +17,6 @@ public class GcpLibraryParser : ILibraryParser
         "@google-cloud/*",
         "firebase",
         "firebase-admin",
-        "@atsorganization/internal-commons-library*",
-        "@atsorganization/ats-lib-messaging",
         "*pubsub*",
         "*pub-sub*"
     ];
@@ -100,27 +98,6 @@ public class GcpLibraryParser : ILibraryParser
             AddPublishReference(references, scopeSymbolId, topic);
         }
         // C. Specific publishing helper methods
-        else if (funcText.EndsWith(".publishMessageJournalEvents", StringComparison.Ordinal) ||
-                 funcText == "publishMessageJournalEvents")
-        {
-            AddPublishReference(references, scopeSymbolId, "EVENT_JOURNAL_TOPIC");
-        }
-        else if (funcText.EndsWith(".publishMessageToJournal", StringComparison.Ordinal) ||
-                 funcText.EndsWith(".publishJournalMessage", StringComparison.Ordinal) ||
-                 funcText == "sendEventToJournal" ||
-                 funcText.EndsWith(".sendEventToJournal", StringComparison.Ordinal))
-        {
-            string? topic = null;
-            if (args.Count > 1)
-            {
-                topic = AstHelper.ResolveStringOrTemplate(args[1]);
-            }
-            if (string.IsNullOrEmpty(topic))
-            {
-                topic = "EVENT_JOURNAL_TOPIC";
-            }
-            AddPublishReference(references, scopeSymbolId, topic);
-        }
         else if (funcText.EndsWith(".sendMessageToTopicWithAttributes", StringComparison.Ordinal) ||
                  funcText == "sendMessageToTopicWithAttributes")
         {
@@ -177,15 +154,6 @@ public class GcpLibraryParser : ILibraryParser
                 var sub = AstHelper.ResolveStringOrTemplate(args[1]);
                 AddSubscribeReference(references, scopeSymbolId, sub);
             }
-        }
-        // C. Named subscribers in ATS (e.g. subscribeToPostbackPartnerMessages, subscribeToImpressionMessages)
-        else if (funcText.EndsWith(".subscribeToPostbackPartnerMessages", StringComparison.Ordinal))
-        {
-            AddSubscribeReference(references, scopeSymbolId, "POSTBACK_PARTNER_SUB_NAME");
-        }
-        else if (funcText.EndsWith(".subscribeToImpressionMessages", StringComparison.Ordinal))
-        {
-            AddSubscribeReference(references, scopeSymbolId, "IMPRESSION_SUB_NAME");
         }
     }
 
@@ -275,13 +243,8 @@ public class GcpLibraryParser : ILibraryParser
         }
 
         if (cleanName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
-            cleanName.EndsWith("TopicName", StringComparison.OrdinalIgnoreCase) ||
-            cleanName.EndsWith("topicJournalEvents", StringComparison.OrdinalIgnoreCase))
+            cleanName.EndsWith("TopicName", StringComparison.OrdinalIgnoreCase))
         {
-            if (cleanName.Contains("Journal", StringComparison.OrdinalIgnoreCase))
-            {
-                return "EVENT_JOURNAL_TOPIC";
-            }
             if (IsValidTopicName(cleanName)) return cleanName;
         }
 

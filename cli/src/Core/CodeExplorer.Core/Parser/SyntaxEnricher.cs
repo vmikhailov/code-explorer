@@ -336,7 +336,7 @@ public class SyntaxEnricher : ISyntaxEnricher
     private static readonly Regex DataSourceSchemaRegex = new(@"(?:schema|defaultSchema)\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex ScopePrefixRegex = new(
-        @"^(?:internal[-_]+service[-_]+|integration[-_]+service[-_]+|external[-_]+service[-_]+|internal[-_]+|integration[-_]+|external[-_]+|service[-_]+|srv[-_]+|ats[-_]+)",
+        @"^(?:internal[-_]+service[-_]+|integration[-_]+service[-_]+|external[-_]+service[-_]+|internal[-_]+|integration[-_]+|external[-_]+|service[-_]+|srv[-_]+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex ScopeSuffixRegex = new(

@@ -117,10 +117,18 @@ public class AngularHttpLibraryParser : ILibraryParser
                             if (slashIdx > 0)
                             {
                                 var firstPart = path[..slashIdx].ToLowerInvariant();
-                                if (firstPart is "identity" or "player" or "tournament" or "media" or "notification" ||
-                                    RouteDictionaryRegistry.GetAllKnownServices().Any(s => string.Equals(s, firstPart, StringComparison.OrdinalIgnoreCase)))
+                                var rest = path[slashIdx..];
+                                if (!firstPart.Equals("api", StringComparison.OrdinalIgnoreCase) &&
+                                    !firstPart.Equals("v1", StringComparison.OrdinalIgnoreCase) &&
+                                    !firstPart.Equals("v2", StringComparison.OrdinalIgnoreCase) &&
+                                    !firstPart.Equals("v3", StringComparison.OrdinalIgnoreCase) &&
+                                    (rest.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) ||
+                                     rest.StartsWith("/v1/", StringComparison.OrdinalIgnoreCase) ||
+                                     rest.StartsWith("/v2/", StringComparison.OrdinalIgnoreCase) ||
+                                     rest.StartsWith("/v3/", StringComparison.OrdinalIgnoreCase) ||
+                                     RouteDictionaryRegistry.GetAllKnownServices().Any(s => string.Equals(s, firstPart, StringComparison.OrdinalIgnoreCase))))
                                 {
-                                    return $"{firstPart}/{path[slashIdx..].TrimStart('/')}";
+                                    return $"{firstPart}/{rest.TrimStart('/')}";
                                 }
                             }
 

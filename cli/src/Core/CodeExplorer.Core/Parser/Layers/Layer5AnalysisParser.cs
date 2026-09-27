@@ -560,21 +560,11 @@ public class Layer5AnalysisParser
                         {
                             topicName = inner;
                         }
-                        else
-                        {
-                            topicName = "EVENT_JOURNAL_TOPIC";
-                        }
                     }
                     else
                     {
                         continue;
                     }
-                }
-
-                if (topicName.Equals("topic", StringComparison.OrdinalIgnoreCase) ||
-                    topicName.Equals("networkTopic", StringComparison.OrdinalIgnoreCase))
-                {
-                    topicName = "EVENT_JOURNAL_TOPIC";
                 }
 
                 // Strip member access prefixes
@@ -628,29 +618,20 @@ public class Layer5AnalysisParser
                 if (topicName.Equals("topicName", StringComparison.OrdinalIgnoreCase) ||
                     topicName.Equals("topicNameOrId", StringComparison.OrdinalIgnoreCase))
                 {
-                    var scopeId = refItem.ScopeSymbolId;
-                    if (scopeId.Contains("bundle-cpm-controller", StringComparison.OrdinalIgnoreCase) ||
-                        scopeId.Contains("bundle-priority", StringComparison.OrdinalIgnoreCase))
+                    var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+                    if (ConstantRegistry.TryResolve(filePath, "DEFAULT_TOPIC", out var defaultTopic))
                     {
-                        topicName = "EVENT_BUS_TOPIC_NAME";
-                    }
-                    else if (scopeId.Contains("postback-partner", StringComparison.OrdinalIgnoreCase))
-                    {
-                        topicName = "CONVERSION_TOPIC_NAME";
-                    }
-                    else if (scopeId.Contains("bundle-scheduler", StringComparison.OrdinalIgnoreCase))
-                    {
-                        topicName = "BIG_QUERY_TOPIC_NAME";
+                        topicName = defaultTopic;
                     }
                     else
                     {
-                        topicName = "EVENT_BUS_TOPIC_NAME";
+                        topicName = string.Empty;
                     }
                 }
 
                 if (brokerType == "gcp")
                 {
-                    topicName = NormalizeGcpTopicName(topicName);
+                    topicName = WorkspaceConventions.NormalizeTopicName(topicName);
                 }
 
                 if (string.IsNullOrWhiteSpace(topicName) ||
@@ -1204,39 +1185,5 @@ public class Layer5AnalysisParser
         return normalized.Trim('/');
     }
 
-    private static string NormalizeGcpTopicName(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return raw;
-        var t = raw.Trim().Trim('\'', '"', '`');
-
-        if (t.StartsWith(':') || t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("string", StringComparison.OrdinalIgnoreCase) || t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("null", StringComparison.OrdinalIgnoreCase) || t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || t.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            return string.Empty;
-        }
-
-        return t switch
-        {
-            "EVENT_BUS_TOPIC_NAME" or "EVENT_BUS_TOPIC" or "TOPIC_NAME" or "GOOGLE_TOPIC_NAME" or "eventBusTopicName" => "event-bus-topic",
-            "EVENT_JOURNAL_TOPIC" or "JOURNAL_TOPIC_NAME" or "JOURNAL_EVENTS_TOPIC_NAME" or "topicNameJournalEvents" or "eventJournalTopic" or "journalTopicName" => "event-journal-topic",
-            "EVENT_KV_V2_TOPIC" or "CLOUDFLARE_KV_TOPIC" or "eventKvV2Topic" or "kvTopic" => "event-kv-v2-topic",
-            "CONVERSION_TOPIC_NAME" or "CONVERSION_TOPIC" or "ConversionTopic" or "ConversionSubID" => "conversion-topic",
-            "USER_DATA_TOPIC_NAME" or "USER_DATA_TOPIC" => "user-data-topic",
-            "COST_JOURNAL_TOPIC_NAME" => "cost-journal-topic",
-            "NEGATIVE_PROFIT_TOPIC" => "negative-profit-topic",
-            "RULE_TREE_TOPIC" or "ruleTreeTopic" => "rule-tree-topic",
-            "BIG_QUERY_TOPIC_NAME" or "BIG_QUERY_TOPIC" => "bigquery-topic",
-            "EVENT_RECEIVE_TOPIC_NAME" or "receiveTopicName" => "event-receive-topic",
-            "EVENT_SEND_TOPIC_NAME" or "sendTopicName" => "event-send-topic",
-            "CHANGE_DOMAIN_TOPIC_NAME" => "change-domain-topic",
-            "CALC_DONE" or "CALC_DONE_EVENT" => "calc-done-topic",
-            "UPDATE_MIN_CPM_DONE" => "update-min-cpm-done",
-            "UPDATE_MAX_CPM_DONE" => "update-max-cpm-done",
-            "IMPRESSION_SUB_NAME" or "impressionSubName" or "ImpressionTopic" or "ImpressionSubID" => "impression-topic",
-            "POSTBACK_PARTNER_SUB_NAME" or "postbackPartnerSubName" => "postback-partner-sub",
-            _ => t
-        };
-    }
+    private static string NormalizeGcpTopicName(string raw) => WorkspaceConventions.NormalizeTopicName(raw);
 }
