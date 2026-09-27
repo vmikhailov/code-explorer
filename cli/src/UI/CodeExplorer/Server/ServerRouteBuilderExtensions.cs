@@ -258,6 +258,25 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
+        endpoints.MapGet("/api/nodes/usages", async (IArchitectureQueryService archQueryService, string? id, CancellationToken ct) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return Results.BadRequest(new { error = "Query parameter 'id' is required." });
+                }
+                logger.LogInformation("[REST] GET /api/nodes/usages (id: {Id})", id);
+                var usages = await archQueryService.GetNodeUsagesAsync(id, ct);
+                return Results.Ok(usages);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/nodes/usages");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         endpoints.MapGet("/api/diagram", async (IGraphClient graphClient, string? type, string? format, string? project, CancellationToken ct) =>
         {
             try

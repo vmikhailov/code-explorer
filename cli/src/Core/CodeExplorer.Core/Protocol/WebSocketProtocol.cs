@@ -395,6 +395,51 @@ public class NodesResponseDto
     public int Limit { get; set; }
 }
 
+public class NodeUsageDto
+{
+    [JsonPropertyName("sourceId")]
+    public string SourceId { get; set; } = string.Empty;
+
+    [JsonPropertyName("sourceName")]
+    public string SourceName { get; set; } = string.Empty;
+
+    [JsonPropertyName("sourceKind")]
+    public string SourceKind { get; set; } = string.Empty;
+
+    [JsonPropertyName("relationship")]
+    public string Relationship { get; set; } = string.Empty;
+
+    [JsonPropertyName("filePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FilePath { get; set; }
+
+    [JsonPropertyName("lineStart")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LineStart { get; set; }
+
+    [JsonPropertyName("serviceName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServiceName { get; set; }
+}
+
+public class NodeUsagesResponseDto
+{
+    [JsonPropertyName("targetId")]
+    public string TargetId { get; set; } = string.Empty;
+
+    [JsonPropertyName("targetName")]
+    public string TargetName { get; set; } = string.Empty;
+
+    [JsonPropertyName("targetKind")]
+    public string TargetKind { get; set; } = string.Empty;
+
+    [JsonPropertyName("usages")]
+    public List<NodeUsageDto> Usages { get; set; } = [];
+
+    [JsonPropertyName("total")]
+    public int Total => Usages.Count;
+}
+
 // ============================================================================
 // Ontology Layers DTOs (for Tree & Layer Browsing)
 // ============================================================================

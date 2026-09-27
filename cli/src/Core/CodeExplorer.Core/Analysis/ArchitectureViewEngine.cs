@@ -1427,6 +1427,130 @@ public class ArchitectureViewEngine(IGraphClient db)
         return result;
     }
 
+    public async Task<NodeUsagesResponseDto> GetNodeUsagesAsync(string nodeId, CancellationToken ct = default)
+    {
+        var response = new NodeUsagesResponseDto { TargetId = nodeId };
+        if (string.IsNullOrWhiteSpace(nodeId)) return response;
+
+        // 1. Resolve target node details (Name, Kind, discovery file)
+        var targetQuery = "MATCH (t) WHERE t.id = $id OR t.name = $id RETURN t.id AS id, t.name AS name, labels(t)[0] AS kind, coalesce(t.file_path, t.path) AS file_path, t.line AS line LIMIT 1";
+        string? targetName = null;
+        string? targetKind = null;
+        string? declFile = null;
+        int? declLine = null;
+
+        try
+        {
+            var tJson = await db.ExecuteQueryAsync(targetQuery, new Dictionary<string, object> { ["id"] = nodeId }, ct);
+            using var tDoc = JsonDocument.Parse(tJson);
+            var first = tDoc.RootElement.EnumerateArray().FirstOrDefault();
+            if (first.ValueKind == JsonValueKind.Object)
+            {
+                response.TargetId = first.GetStringProp("id", nodeId);
+                response.TargetName = first.GetStringProp("name", nodeId);
+                response.TargetKind = first.GetStringProp("kind", "");
+                targetName = response.TargetName;
+                targetKind = response.TargetKind;
+                declFile = first.GetStringProp("file_path");
+                if (first.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
+                {
+                    declLine = lp.GetInt32();
+                }
+            }
+        }
+        catch { }
+
+        response.TargetName = targetName ?? nodeId;
+        response.TargetKind = targetKind ?? "";
+
+        // 2. Query all relationships connected to target (incoming and outgoing)
+        // Exclude system/structural nodes like SemanticStructure or Workspace
+        var usagesQuery = """
+            MATCH (src)-[r]-(tgt)
+            WHERE (tgt.id = $id OR tgt.name = $name)
+              AND NOT (src:SemanticStructure OR src:Workspace OR src:Layer1 OR src:Layer2 OR src:Layer3 OR src:Layer4)
+            RETURN DISTINCT
+              src.id AS src_id,
+              src.name AS src_name,
+              labels(src)[0] AS src_kind,
+              r.kind AS rel_kind,
+              coalesce(src.file_path, src.path) AS file_path,
+              src.line AS line,
+              json_extract(src.properties, '$.service') AS service,
+              json_extract(src.properties, '$.project_id') AS project_id
+            """;
+
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            var paramsDict = new Dictionary<string, object>
+            {
+                ["id"] = response.TargetId,
+                ["name"] = response.TargetName
+            };
+            var uJson = await db.ExecuteQueryAsync(usagesQuery, paramsDict, ct);
+            using var uDoc = JsonDocument.Parse(uJson);
+            foreach (var row in uDoc.RootElement.EnumerateArray())
+            {
+                var srcId = row.GetStringProp("src_id");
+                if (string.IsNullOrEmpty(srcId) || srcId == response.TargetId) continue;
+
+                var srcName = row.GetStringProp("src_name", srcId);
+                var srcKind = row.GetStringProp("src_kind", "");
+                var relKind = row.GetStringProp("rel_kind", "USES");
+                var filePath = row.GetStringProp("file_path");
+                var service = row.GetStringProp("service");
+                if (string.IsNullOrEmpty(service))
+                {
+                    service = row.GetStringProp("project_id");
+                }
+
+                int? line = null;
+                if (row.TryGetProperty("line", out var lp))
+                {
+                    if (lp.ValueKind == JsonValueKind.Number) line = lp.GetInt32();
+                    else if (lp.ValueKind == JsonValueKind.String && int.TryParse(lp.GetString(), out var pl)) line = pl;
+                }
+
+                var key = $"{srcId}:{relKind}:{filePath}:{line}";
+                if (!seenKeys.Add(key)) continue;
+
+                response.Usages.Add(new NodeUsageDto
+                {
+                    SourceId = srcId,
+                    SourceName = srcName,
+                    SourceKind = srcKind,
+                    Relationship = relKind,
+                    FilePath = string.IsNullOrEmpty(filePath) ? null : filePath,
+                    LineStart = line,
+                    ServiceName = string.IsNullOrEmpty(service) ? null : service
+                });
+            }
+        }
+        catch { }
+
+        // Also if the target node itself has a declaration/discovery file, include it
+        if (!string.IsNullOrEmpty(declFile))
+        {
+            var key = $"decl:{declFile}:{declLine}";
+            if (seenKeys.Add(key))
+            {
+                response.Usages.Insert(0, new NodeUsageDto
+                {
+                    SourceId = response.TargetId,
+                    SourceName = Path.GetFileName(declFile),
+                    SourceKind = "Config",
+                    Relationship = "DECLARED_IN",
+                    FilePath = declFile,
+                    LineStart = declLine
+                });
+            }
+        }
+
+        return response;
+    }
+
     public static bool IsProjectNodeKind(string? kind) =>
         kind != null && (
             kind.Equals("Project", StringComparison.OrdinalIgnoreCase) ||

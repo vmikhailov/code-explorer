@@ -66,5 +66,10 @@ public interface IArchitectureQueryService
     /// Traces end-to-end execution flow across services starting from a service or entry point.
     /// </summary>
     Task<CrossServiceFlowDto> TraceCrossServiceFlowAsync(string startService, string? entryPoint = null, int maxDepth = 3, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves all places (services, files, functions) where a given node (e.g. database or topic) is used.
+    /// </summary>
+    Task<NodeUsagesResponseDto> GetNodeUsagesAsync(string nodeId, CancellationToken ct = default);
 }
 

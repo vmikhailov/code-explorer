@@ -70,4 +70,9 @@ public class ArchitectureQueryService(IGraphClient db) : IArchitectureQueryServi
     {
         return _viewEngine.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, ct);
     }
+
+    public Task<NodeUsagesResponseDto> GetNodeUsagesAsync(string nodeId, CancellationToken ct = default)
+    {
+        return _viewEngine.GetNodeUsagesAsync(nodeId, ct);
+    }
 }

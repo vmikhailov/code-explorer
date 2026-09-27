@@ -52,6 +52,7 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
   const currentKind = category?.kind || '';
   const currentService = category?.service;
   const currentLayer = category?.layerTitle || (currentService ? `Layer 4 › ${currentService}` : 'Graph Nodes');
+  const isResourceCategory = ['database', 'topic'].includes(currentKind.toLowerCase());
 
   // Fetch from server /api/nodes when category or paging changes
   const fetchRemoteNodes = useCallback(async () => {
@@ -336,23 +337,27 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
               <th className="th-kind" onClick={() => handleSort('kind')}>
                 Kind {sortField === 'kind' ? (sortAsc ? '▲' : '▼') : ''}
               </th>
-              <th className="th-location" onClick={() => handleSort('filePath')}>
-                Location {sortField === 'filePath' ? (sortAsc ? '▲' : '▼') : ''}
-              </th>
-              <th className="th-details">Key Details</th>
+              {!isResourceCategory && (
+                <>
+                  <th className="th-location" onClick={() => handleSort('filePath')}>
+                    Location {sortField === 'filePath' ? (sortAsc ? '▲' : '▼') : ''}
+                  </th>
+                  <th className="th-details">Key Details</th>
+                </>
+              )}
               <th className="th-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading && displayedNodes.length === 0 ? (
               <tr>
-                <td colSpan={5} className="grid-loading-cell">
+                <td colSpan={isResourceCategory ? 3 : 5} className="grid-loading-cell">
                   <div className="grid-loading-spinner">⚡ Loading {currentKind || 'nodes'}...</div>
                 </td>
               </tr>
             ) : displayedNodes.length === 0 ? (
               <tr>
-                <td colSpan={5} className="grid-empty-cell">
+                <td colSpan={isResourceCategory ? 3 : 5} className="grid-empty-cell">
                   <div className="empty-icon">🔍</div>
                   <div className="empty-title">No matching nodes found</div>
                   <div className="empty-desc">
@@ -366,14 +371,15 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
               displayedNodes.map((node) => {
                 const name = node.displayName || node.name || node.id;
                 const details = formatKeyDetails(node);
-                const hasFile = Boolean(node.filePath);
+                const isResourceNode = ['database', 'topic'].includes(node.kind?.toLowerCase() || '');
+                const hasFile = Boolean(node.filePath) && !isResourceNode;
 
                 return (
                   <tr
                     key={node.id}
                     className="node-grid-row"
                     onClick={() => onSelectNode && onSelectNode(node as GraphNode)}
-                    onDoubleClick={() => hasFile && onOpenFile(node.filePath!, node.lineStart)}
+                    onDoubleClick={() => hasFile ? onOpenFile(node.filePath!, node.lineStart) : (onSelectNode && onSelectNode(node as GraphNode))}
                     style={{ cursor: 'pointer' }}
                   >
                     <td className="td-name">
@@ -387,25 +393,29 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
                       <span className={`kind-tag ${getKindBadgeClass(node.kind)}`}>{node.kind}</span>
                     </td>
 
-                    <td className="td-location">
-                      {hasFile ? (
-                        <span
-                          className="file-link"
-                          onClick={() => onOpenFile(node.filePath!, node.lineStart)}
-                          title={`Open ${node.filePath}:${node.lineStart || 1} in editor`}
-                        >
-                          {node.filePath}:{node.lineStart || 1}
-                        </span>
-                      ) : (
-                        <span className="location-none">—</span>
-                      )}
-                    </td>
+                    {!isResourceCategory && (
+                      <>
+                        <td className="td-location">
+                          {hasFile ? (
+                            <span
+                              className="file-link"
+                              onClick={() => onOpenFile(node.filePath!, node.lineStart)}
+                              title={`Open ${node.filePath}:${node.lineStart || 1} in editor`}
+                            >
+                              {node.filePath}:{node.lineStart || 1}
+                            </span>
+                          ) : (
+                            <span className="location-none">—</span>
+                          )}
+                        </td>
 
-                    <td className="td-details">
-                      <span className="details-text" title={details}>
-                        {details || '—'}
-                      </span>
-                    </td>
+                        <td className="td-details">
+                          <span className="details-text" title={isResourceNode ? '—' : details}>
+                            {isResourceNode ? '—' : (details || '—')}
+                          </span>
+                        </td>
+                      </>
+                    )}
 
                     <td className="td-actions">
                       <div className="row-action-buttons">
@@ -440,9 +450,9 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
                               e.stopPropagation();
                               onSelectNode(node as GraphNode);
                             }}
-                            title="Inspect full properties in drawer"
+                            title="Inspect usages and details in drawer"
                           >
-                            ℹ️ Info
+                            ℹ️ Details
                           </button>
                         )}
                       </div>

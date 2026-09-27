@@ -162,6 +162,16 @@ export const App: React.FC = () => {
   const [fullGraph, setFullGraph] = useState<GraphData | null>(null);
   const [cypherQuery, setCypherQuery] = useState<string>('');
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
+  const [drawerUsages, setDrawerUsages] = useState<Array<{
+    sourceId: string;
+    sourceName: string;
+    sourceKind: string;
+    relationship: string;
+    filePath?: string;
+    lineStart?: number;
+    serviceName?: string;
+  }> | null>(null);
+  const [drawerUsagesLoading, setDrawerUsagesLoading] = useState<boolean>(false);
   const [showTests, setShowTests] = useState<boolean>(true);
   const [groupLayers, setGroupLayers] = useState<boolean>(true);
 
@@ -542,6 +552,99 @@ export const App: React.FC = () => {
     },
     [selectedDrawerNode, commandManager]
   );
+
+  useEffect(() => {
+    if (!selectedDrawerNode) {
+      setDrawerUsages(null);
+      setDrawerUsagesLoading(false);
+      return;
+    }
+
+    const isResourceNode = ['database', 'topic'].includes(selectedDrawerNode.kind?.toLowerCase() || '');
+    if (!isResourceNode) {
+      setDrawerUsages(null);
+      setDrawerUsagesLoading(false);
+      return;
+    }
+
+    // 1. Initial local graph usages
+    const localUsages: Array<{
+      sourceId: string;
+      sourceName: string;
+      sourceKind: string;
+      relationship: string;
+      filePath?: string;
+      lineStart?: number;
+      serviceName?: string;
+    }> = [];
+    const seen = new Set<string>();
+
+    const checkEdges = (edges?: Array<{ source: string; target: string; kind?: string }>, nodes?: GraphNode[]) => {
+      if (!edges) return;
+      for (const e of edges) {
+        let otherId: string | null = null;
+        if (e.target === selectedDrawerNode.id || e.target.endsWith(`:${selectedDrawerNode.name}`)) {
+          otherId = e.source;
+        } else if (e.source === selectedDrawerNode.id || e.source.endsWith(`:${selectedDrawerNode.name}`)) {
+          otherId = e.target;
+        }
+        if (otherId && otherId !== selectedDrawerNode.id) {
+          const otherNode = nodes?.find((n) => n.id === otherId);
+          const key = `${otherId}:${e.kind || 'USES'}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            localUsages.push({
+              sourceId: otherId,
+              sourceName: otherNode?.displayName || otherNode?.name || otherId,
+              sourceKind: otherNode?.kind || 'Node',
+              relationship: e.kind || 'USES',
+              filePath: otherNode?.filePath,
+              lineStart: otherNode?.lineStart,
+            });
+          }
+        }
+      }
+    };
+
+    checkEdges(fullGraph?.edges, fullGraph?.nodes);
+    checkEdges(flowGraph?.edges, flowGraph?.nodes);
+    setDrawerUsages(localUsages);
+
+    // 2. Fetch comprehensive code-level usages from server /api/nodes/usages?id=...
+    let baseUrl = serverHttpUrl;
+    if (!baseUrl && typeof window !== 'undefined' && window.__CE_CONFIG__?.wsUrl) {
+      baseUrl = window.__CE_CONFIG__.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
+    }
+
+    if (!baseUrl) return;
+
+    let isCancelled = false;
+    setDrawerUsagesLoading(true);
+
+    const fetchUsages = async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/nodes/usages?id=${encodeURIComponent(selectedDrawerNode.id)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isCancelled) return;
+        if (Array.isArray(data.usages) && data.usages.length > 0) {
+          setDrawerUsages(data.usages);
+        }
+      } catch (err) {
+        console.warn('[App] Failed to fetch node usages:', err);
+      } finally {
+        if (!isCancelled) {
+          setDrawerUsagesLoading(false);
+        }
+      }
+    };
+
+    fetchUsages();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedDrawerNode, serverHttpUrl, fullGraph, flowGraph]);
 
   // Keyboard shortcut listener for Undo / Redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Alt+Left, Alt+Right)
   useEffect(() => {
@@ -1340,7 +1443,7 @@ export const App: React.FC = () => {
                     🔀 Inspect in Flow
                   </button>
                 )}
-                {selectedDrawerNode.filePath && (
+                {selectedDrawerNode.filePath && !['database', 'topic'].includes(selectedDrawerNode.kind?.toLowerCase() || '') && (
                   <button
                     className="drawer-action-btn"
                     onClick={() => handleOpenFile(selectedDrawerNode.filePath!, selectedDrawerNode.lineStart)}
@@ -1351,17 +1454,60 @@ export const App: React.FC = () => {
                 )}
               </div>
 
-              {selectedDrawerNode.filePath && (
+              {/* For Database and Topic: show all places where it is used instead of single Location */}
+              {['database', 'topic'].includes(selectedDrawerNode.kind?.toLowerCase() || '') ? (
                 <div className="drawer-field">
-                  <label>Location</label>
-                  <div
-                    className="clickable-code-link"
-                    onClick={() => handleOpenFile(selectedDrawerNode.filePath!, selectedDrawerNode.lineStart)}
-                    title="Click to jump to file"
-                  >
-                    {selectedDrawerNode.filePath}{selectedDrawerNode.lineStart ? `:${selectedDrawerNode.lineStart}` : ''}
-                  </div>
+                  <label>
+                    Used In ({drawerUsages ? drawerUsages.length : (drawerUsagesLoading ? '...' : 0)})
+                  </label>
+                  {drawerUsagesLoading && !drawerUsages && (
+                    <div className="drawer-usages-loading">⏳ Loading usages...</div>
+                  )}
+                  {drawerUsages && drawerUsages.length === 0 && (
+                    <div className="drawer-usages-empty">No direct usages indexed in workspace</div>
+                  )}
+                  {drawerUsages && drawerUsages.length > 0 && (
+                    <div className="drawer-usages-list">
+                      {drawerUsages.map((usage, idx) => (
+                        <div key={idx} className="drawer-usage-item">
+                          <div className="usage-item-header">
+                            <span className={`badge badge-${(usage.sourceKind || '').toLowerCase()}`}>
+                              {usage.sourceKind || 'Symbol'}
+                            </span>
+                            <span className="usage-source-name" title={usage.sourceId}>
+                              {usage.sourceName}
+                            </span>
+                            <span className="usage-rel-badge">
+                              {usage.relationship}
+                            </span>
+                          </div>
+                          {usage.filePath && (
+                            <div
+                              className="clickable-code-link usage-link"
+                              onClick={() => handleOpenFile(usage.filePath!, usage.lineStart)}
+                              title={`Jump to ${usage.filePath}:${usage.lineStart || 1}`}
+                            >
+                              📄 {usage.filePath}{usage.lineStart ? `:${usage.lineStart}` : ''}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              ) : (
+                selectedDrawerNode.filePath && (
+                  <div className="drawer-field">
+                    <label>Location</label>
+                    <div
+                      className="clickable-code-link"
+                      onClick={() => handleOpenFile(selectedDrawerNode.filePath!, selectedDrawerNode.lineStart)}
+                      title="Click to jump to file"
+                    >
+                      {selectedDrawerNode.filePath}{selectedDrawerNode.lineStart ? `:${selectedDrawerNode.lineStart}` : ''}
+                    </div>
+                  </div>
+                )
               )}
 
               {/* Special handling for ExternalReferences packages list */}

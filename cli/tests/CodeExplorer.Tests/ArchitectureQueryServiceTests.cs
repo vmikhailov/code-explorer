@@ -89,4 +89,32 @@ public class ArchitectureQueryServiceTests
         Assert.That(meta.TotalNodes, Is.EqualTo(2));
         Assert.That(meta.TotalEdges, Is.EqualTo(1));
     }
+
+    [Test]
+    public async Task GetNodeUsagesAsync_ReturnsAllUsagesOfDatabase()
+    {
+        await _db.UploadNodesAsync(new List<Node>
+        {
+            new("p1", "Project", new Dictionary<string, object> { ["name"] = "OrderService" }),
+            new("p2", "Project", new Dictionary<string, object> { ["name"] = "BillingService" }),
+            new("f1", "File", new Dictionary<string, object> { ["name"] = "OrderRepository.cs", ["path"] = "src/OrderRepository.cs", ["line"] = 42 }),
+            new("db1", "Database", new Dictionary<string, object> { ["name"] = "orders_db", ["path"] = "appsettings.json", ["line"] = 10 })
+        });
+
+        await _db.UploadRelationshipsAsync(new List<Relationship>
+        {
+            new("p1", "db1", "USES_DB", new Dictionary<string, object>()),
+            new("p2", "db1", "USES_DB", new Dictionary<string, object>()),
+            new("f1", "db1", "WRITES_DATA", new Dictionary<string, object>())
+        });
+
+        var result = await _service.GetNodeUsagesAsync("db1");
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result.TargetName, Is.EqualTo("orders_db"));
+        Assert.That(result.Usages.Count, Is.GreaterThanOrEqualTo(3));
+        Assert.That(result.Usages.Any(u => u.SourceName == "OrderService" && u.Relationship == "USES_DB"), Is.True);
+        Assert.That(result.Usages.Any(u => u.SourceName == "BillingService" && u.Relationship == "USES_DB"), Is.True);
+        Assert.That(result.Usages.Any(u => u.SourceName == "OrderRepository.cs" && u.FilePath == "src/OrderRepository.cs"), Is.True);
+    }
 }
