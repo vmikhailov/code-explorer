@@ -69,15 +69,7 @@ public static class AstHelper
                 return null;
             }
 
-            if (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$") ||
-                varName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("TopicName", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("QueueName", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("Sub", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("SubName", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("SubscriptionName", StringComparison.OrdinalIgnoreCase))
+            if (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$"))
             {
                 return varName;
             }
@@ -154,15 +146,7 @@ public static class AstHelper
                     return NormalizeResolvedUrl(subDecomp ?? val);
                 }
 
-                if (Regex.IsMatch(propText, @"^[A-Z0-9_]{3,}$") ||
-                    propText.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
-                    propText.EndsWith("TopicName", StringComparison.OrdinalIgnoreCase) ||
-                    propText.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
-                    propText.EndsWith("QueueName", StringComparison.OrdinalIgnoreCase) ||
-                    propText.EndsWith("Sub", StringComparison.OrdinalIgnoreCase) ||
-                    propText.EndsWith("SubName", StringComparison.OrdinalIgnoreCase) ||
-                    propText.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
-                    propText.EndsWith("SubscriptionName", StringComparison.OrdinalIgnoreCase))
+                if (Regex.IsMatch(propText, @"^[A-Z0-9_]{3,}$"))
                 {
                     return propText;
                 }
@@ -225,67 +209,171 @@ public static class AstHelper
         return null;
     }
 
+    public static bool IsValidTopicOrQueueLiteral(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        var t = s.Trim();
+        if (t.Length < 2) return false;
+        if (t.StartsWith(':')) return false;
+        if (t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return false;
+        if (t.Equals("string", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("null", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("any", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("unknown", StringComparison.OrdinalIgnoreCase)) return false;
+        return true;
+    }
+
     public static string? ResolveTopicOrQueue(Node? argNode, string? contextOrProject = null)
     {
         if (!argNode.IsValid()) return null;
 
-        // 1. If it's a string literal or template or resolved variable, resolve normally
-        var resolved = ResolveStringOrTemplate(argNode, contextOrProject);
-        if (!string.IsNullOrEmpty(resolved) && !WorkspaceConventions.IsPlaceholderName(resolved))
+        // 1. Literal string or template
+        if (IsStringLiteralNode(argNode))
         {
-            if (WorkspaceConventions.TryGetTopicAlias(resolved, out var mapped))
+            var text = argNode.Text.Trim('\'', '"', '`');
+            if (IsValidTopicOrQueueLiteral(text))
             {
-                return mapped;
+                if (WorkspaceConventions.TryGetTopicAlias(text, out var mapped)) return mapped;
+                return text;
             }
-            return resolved;
+            return null;
         }
 
-        // 2. If it's an Identifier, attempt messaging derivation from identifier name
-        if (argNode.Is(TreeSitterSyntax.TypeScript.Identifier))
-        {
-            var varName = argNode.Text;
-            if (WorkspaceConventions.IsPlaceholderName(varName)) return null;
-
-            if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(varName, out var derivedTopic))
-            {
-                return derivedTopic;
-            }
-
-            var norm = WorkspaceConventions.NormalizeTopicName(varName);
-            if (!string.IsNullOrEmpty(norm) && !WorkspaceConventions.IsPlaceholderName(norm))
-            {
-                return norm;
-            }
-        }
-
-        // 3. If it's a MemberExpression (e.g. process.env.EVENT_BUS_TOPIC_NAME or this.config.ruleTreeTopic)
+        // 2. MemberExpression (process.env.ORDERS_TOPIC, this.config.ruleTreeTopic, this.queueName)
         if (argNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
         {
             var envMatch = Regex.Match(argNode.Text, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
             if (envMatch.Success)
             {
                 var envKey = envMatch.Groups[1].Value;
-                if (WorkspaceConventions.IsPlaceholderName(envKey)) return null;
 
+                // Look up in ConstantRegistry (including .env)
                 if (ConstantRegistry.TryResolve(contextOrProject, envKey, out var envVal) && !string.IsNullOrEmpty(envVal))
                 {
-                    if (!WorkspaceConventions.IsPlaceholderName(envVal))
+                    if (IsValidTopicOrQueueLiteral(envVal))
                     {
                         if (WorkspaceConventions.TryGetTopicAlias(envVal, out var mapped)) return mapped;
                         return envVal;
                     }
                 }
 
+                // If not in .env, derive only if it's an explicit messaging key convention
                 if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(envKey, out var derivedVal))
                 {
                     return derivedVal;
                 }
 
-                var normKey = WorkspaceConventions.NormalizeTopicName(envKey);
-                if (!string.IsNullOrEmpty(normKey) && !WorkspaceConventions.IsPlaceholderName(normKey))
+                if (WorkspaceConventions.TryGetTopicAlias(envKey, out var aliasVal))
                 {
-                    return normKey;
+                    return aliasVal;
                 }
+
+                return null;
+            }
+
+            // Normal member expression: this.topicName, this.ruleTreeTopic
+            var memberVal = ResolveStringOrTemplate(argNode, contextOrProject);
+            if (!string.IsNullOrEmpty(memberVal) && IsValidTopicOrQueueLiteral(memberVal))
+            {
+                if (WorkspaceConventions.TryGetTopicAlias(memberVal, out var mapped)) return mapped;
+                return memberVal;
+            }
+
+            return null;
+        }
+
+        // 3. CallExpression (configService.getString('RULE_TREE_TOPIC'), getTopic('orders'))
+        if (argNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        {
+            var firstArg = ExtractFirstStringArgument(argNode);
+            if (!string.IsNullOrEmpty(firstArg))
+            {
+                if (ConstantRegistry.TryResolve(contextOrProject, firstArg, out var resVal) && !string.IsNullOrEmpty(resVal))
+                {
+                    if (IsValidTopicOrQueueLiteral(resVal))
+                    {
+                        if (WorkspaceConventions.TryGetTopicAlias(resVal, out var mapped)) return mapped;
+                        return resVal;
+                    }
+                }
+
+                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(firstArg, out var derived))
+                {
+                    return derived;
+                }
+
+                if (WorkspaceConventions.TryGetTopicAlias(firstArg, out var alias))
+                {
+                    return alias;
+                }
+
+                if (IsValidTopicOrQueueLiteral(firstArg))
+                {
+                    return firstArg;
+                }
+            }
+
+            var callVal = ResolveStringOrTemplate(argNode, contextOrProject);
+            if (!string.IsNullOrEmpty(callVal) && IsValidTopicOrQueueLiteral(callVal))
+            {
+                return callVal;
+            }
+
+            return null;
+        }
+
+        // 4. Identifier (EVENT_BUS_TOPIC_NAME, topicName)
+        if (argNode.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            var varName = argNode.Text;
+
+            // A. Check ConstantRegistry (file constants, project constants, exported constants)
+            if (ConstantRegistry.TryResolve(contextOrProject, varName, out var constVal) && !string.IsNullOrEmpty(constVal))
+            {
+                if (IsValidTopicOrQueueLiteral(constVal))
+                {
+                    if (WorkspaceConventions.TryGetTopicAlias(constVal, out var mapped)) return mapped;
+                    return constVal;
+                }
+            }
+
+            // B. Check AST variable or field initializer in current scope
+            var astVal = FindVariableInitializerInAst(argNode, varName);
+            if (!string.IsNullOrEmpty(astVal) && IsValidTopicOrQueueLiteral(astVal))
+            {
+                if (WorkspaceConventions.TryGetTopicAlias(astVal, out var mapped)) return mapped;
+                return astVal;
+            }
+
+            // C. Configured alias in conventions.json
+            if (WorkspaceConventions.TryGetTopicAlias(varName, out var alias))
+            {
+                return alias;
+            }
+
+            // D. ONLY if the identifier is explicitly named in SCREAMING_SNAKE_CASE ending in _TOPIC / _QUEUE
+            if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(varName, out var derivedTopic))
+            {
+                return derivedTopic;
+            }
+
+            // Unresolved parameter, type annotation, or local var without initializer -> NEVER guess!
+            return null;
+        }
+
+        // 5. Object literal: { topicName: ... }
+        if (argNode.Is(TreeSitterSyntax.TypeScript.Object) || argNode.Type == "object")
+        {
+            if (TryGetObjectProperty(argNode, "topicName", out var tp) ||
+                TryGetObjectProperty(argNode, "topic", out tp) ||
+                TryGetObjectProperty(argNode, "queue", out tp) ||
+                TryGetObjectProperty(argNode, "queueName", out tp))
+            {
+                return ResolveTopicOrQueue(tp, contextOrProject);
             }
         }
 

@@ -104,6 +104,7 @@ public class Layer3SyntacticParser
             // Pre-scan route/const/config/enum files in this project to populate RouteDictionaryRegistry and ConstantRegistry
             foreach (var file in projectFiles)
             {
+                var normPath = file.FullPath.Replace('\\', '/');
                 if (file.Name.Contains("route", StringComparison.OrdinalIgnoreCase) ||
                     file.Name.Contains("const", StringComparison.OrdinalIgnoreCase) ||
                     file.Name.Contains("config", StringComparison.OrdinalIgnoreCase) ||
@@ -115,7 +116,15 @@ public class Layer3SyntacticParser
                     file.Name.Contains("model", StringComparison.OrdinalIgnoreCase) ||
                     file.Name.Contains("schema", StringComparison.OrdinalIgnoreCase) ||
                     file.Name.Contains("table", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("entity", StringComparison.OrdinalIgnoreCase))
+                    file.Name.Contains("entity", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("topic", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("queue", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("event", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("bus", StringComparison.OrdinalIgnoreCase) ||
+                    file.Name.Contains("message", StringComparison.OrdinalIgnoreCase) ||
+                    normPath.Contains("/constants/", StringComparison.OrdinalIgnoreCase) ||
+                    normPath.Contains("/shared/", StringComparison.OrdinalIgnoreCase) ||
+                    normPath.Contains("/common/", StringComparison.OrdinalIgnoreCase))
                 {
                     try
                     {

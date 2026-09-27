@@ -239,12 +239,6 @@ public class GcpLibraryParser : ILibraryParser
             return varValDirect;
         }
 
-        if (cleanName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
-            cleanName.EndsWith("TopicName", StringComparison.OrdinalIgnoreCase))
-        {
-            if (IsValidTopicName(cleanName)) return cleanName;
-        }
-
         return null;
     }
 }

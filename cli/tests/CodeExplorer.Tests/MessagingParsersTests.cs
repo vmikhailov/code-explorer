@@ -588,6 +588,97 @@ export class LegacyQueueService {
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_TypeScriptMessaging_NeverCreatesTopicsFromMethodParameters()
+    {
+        var parser = new TypeScriptParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_param_reject_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "helper.service.ts");
+
+        var code = @"
+import { connect } from 'amqplib';
+
+export class HelperService {
+    async setupQueue(queueName: string, options: any) {
+        const client = await connect('amqp://localhost');
+        client.sendToQueue(queueName, Buffer.from('payload'));
+    }
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var refs = FindReferences(fileNode.Children);
+            Assert.That(refs.Any(r => r.TargetName == "rabbitmq:queueName" || r.TargetName == "rabbitmq:queue" || r.TargetName == "rabbitmq:string"), Is.False, "Method parameters must NEVER become queue names");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_TypeScriptMessaging_ResolvesExportedConstantFromSharedFile()
+    {
+        var parser = new TypeScriptParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_crossfile_const_" + Guid.NewGuid().ToString("N"));
+        var sharedDir = Path.Combine(tempDir, "shared");
+        Directory.CreateDirectory(sharedDir);
+
+        var constFilePath = Path.Combine(sharedDir, "topics.ts");
+        var constCode = "export const ORDER_COMPLETED_TOPIC = 'orders-completed-v2';\n";
+        await File.WriteAllTextAsync(constFilePath, constCode);
+        ConstantRegistry.ScanAndRegister(constFilePath, constCode, "MyProject");
+
+        var serviceFilePath = Path.Combine(tempDir, "publisher.ts");
+        var serviceCode = @"
+import { PubSub } from '@google-cloud/pubsub';
+import { ORDER_COMPLETED_TOPIC } from './shared/topics';
+
+export class OrderPublisher {
+    constructor(private pubsub: PubSub) {}
+
+    async publish() {
+        await this.pubsub.topic(ORDER_COMPLETED_TOPIC).publishMessage({ json: {} });
+    }
+}
+";
+        await File.WriteAllTextAsync(serviceFilePath, serviceCode);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(serviceFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            Assert.That(fileNode, Is.Not.Null);
+
+            var refs = FindReferences(fileNode.Children);
+            var pubRel = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "gcp:orders-completed-v2");
+            Assert.That(pubRel, Is.Not.Null, "Expected cross-file exported constant to resolve to 'gcp:orders-completed-v2'");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }
 
 

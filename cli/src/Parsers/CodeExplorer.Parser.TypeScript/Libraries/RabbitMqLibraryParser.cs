@@ -41,15 +41,15 @@ public class RabbitMqLibraryParser : ILibraryParser
                     string? target = null;
                     if (args.Count >= 2)
                     {
-                        target = AstHelper.ResolveStringOrTemplate(args[1]);
+                        target = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId);
                         if (string.IsNullOrEmpty(target))
                         {
-                            target = AstHelper.ResolveStringOrTemplate(args[0]);
+                            target = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
                         }
                     }
                     else if (args.Count == 1)
                     {
-                        target = AstHelper.ResolveStringOrTemplate(args[0]);
+                        target = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
                     }
 
                     AddPublishReference(references, scopeSymbolId, target);
@@ -60,7 +60,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                     if (args.Count > 0)
                     {
                         var queueArg = args[0];
-                        var topicName = AstHelper.ResolveStringOrTemplate(queueArg);
+                        var topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
                         AddPublishReference(references, scopeSymbolId, topicName);
                     }
                 }
@@ -70,7 +70,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                     if (args.Count > 0)
                     {
                         var queueArg = args[0];
-                        var topicName = AstHelper.ResolveStringOrTemplate(queueArg);
+                        var topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
                         AddSubscribeReference(references, scopeSymbolId, topicName);
                     }
                 }
@@ -100,7 +100,7 @@ public class RabbitMqLibraryParser : ILibraryParser
                 {
                     if (args.Count > 0)
                     {
-                        var to = AstHelper.ResolveStringOrTemplate(args[0]);
+                        var to = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
                         AddSubscribeReference(references, scopeSymbolId, to);
                     }
                 }
@@ -216,12 +216,6 @@ public class RabbitMqLibraryParser : ILibraryParser
                 }
             }
             curr = curr.Parent;
-        }
-
-        // Fallback: If variable ends with Queue (e.g. userDataQueue -> user_data)
-        if (varName.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) && varName.Length > 5)
-        {
-            if (IsValidQueueName(varName)) return varName;
         }
 
         return null;

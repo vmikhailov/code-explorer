@@ -66,12 +66,10 @@ public static class WorkspaceConventions
     {
         if (string.IsNullOrWhiteSpace(name)) return true;
         var lower = name.Trim().Trim('\'', '"', '`').ToLowerInvariant().Replace('_', '-').Replace('.', '-');
-        return lower is "topic" or "topic-name" or "topic-id" or "default-topic" or "default-topic-name" or "service-topic" or "my-topic" or "sample-topic" or "test-topic"
-            or "queue" or "queue-name" or "queue-id" or "default-queue" or "default-queue-name" or "service-queue" or "my-queue" or "sample-queue" or "test-queue"
-            or "sub" or "sub-id" or "subscription" or "subscription-name" or "default-sub" or "default-sub-id" or "default-subscription" or "default-subscription-name"
-            or "subscriber" or "subscriber-name" or "event-subscriber-name" or "pub-sub-subscription"
-            or "placeholder" or "placeholder-topic" or "placeholder-queue" or "dummy" or "dummy-topic" or "dummy-queue"
-            or "your-topic" or "your-queue" or "your-topic-name" or "your-queue-name";
+        return lower is "topic" or "topic-name" or "queue" or "queue-name" or "subscription" or "subscription-name"
+            or "subscriber" or "subscriber-name" or "event-subscriber-name"
+            or "default-topic" or "default-queue" or "default-sub-id" or "default-subscription-name"
+            or "placeholder" or "dummy";
     }
 
     /// <summary>
