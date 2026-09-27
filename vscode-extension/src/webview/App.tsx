@@ -172,6 +172,7 @@ export const App: React.FC = () => {
     serviceName?: string;
   }> | null>(null);
   const [drawerUsagesLoading, setDrawerUsagesLoading] = useState<boolean>(false);
+  const [drawerUsagesFilter, setDrawerUsagesFilter] = useState<string>('');
   const [showTests, setShowTests] = useState<boolean>(true);
   const [groupLayers, setGroupLayers] = useState<boolean>(true);
 
@@ -554,6 +555,7 @@ export const App: React.FC = () => {
   );
 
   useEffect(() => {
+    setDrawerUsagesFilter('');
     if (!selectedDrawerNode) {
       setDrawerUsages(null);
       setDrawerUsagesLoading(false);
@@ -645,6 +647,19 @@ export const App: React.FC = () => {
       isCancelled = true;
     };
   }, [selectedDrawerNode, serverHttpUrl, fullGraph, flowGraph]);
+
+  const filteredDrawerUsages = useMemo(() => {
+    if (!drawerUsages) return null;
+    if (!drawerUsagesFilter.trim()) return drawerUsages;
+    const q = drawerUsagesFilter.toLowerCase();
+    return drawerUsages.filter(
+      (u) =>
+        u.sourceName.toLowerCase().includes(q) ||
+        (u.filePath && u.filePath.toLowerCase().includes(q)) ||
+        (u.sourceKind && u.sourceKind.toLowerCase().includes(q)) ||
+        (u.relationship && u.relationship.toLowerCase().includes(q))
+    );
+  }, [drawerUsages, drawerUsagesFilter]);
 
   // Keyboard shortcut listener for Undo / Redo (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z, Alt+Left, Alt+Right)
   useEffect(() => {
@@ -1456,19 +1471,31 @@ export const App: React.FC = () => {
 
               {/* For Database and Topic: show all places where it is used instead of single Location */}
               {['database', 'topic'].includes(selectedDrawerNode.kind?.toLowerCase() || '') ? (
-                <div className="drawer-field">
+                <div className="drawer-field drawer-field-usages">
                   <label>
                     Used In ({drawerUsages ? drawerUsages.length : (drawerUsagesLoading ? '...' : 0)})
                   </label>
+                  {drawerUsages && drawerUsages.length > 5 && (
+                    <input
+                      type="text"
+                      className="drawer-group-search-input"
+                      placeholder={`Filter ${drawerUsages.length} usages...`}
+                      value={drawerUsagesFilter}
+                      onChange={(e) => setDrawerUsagesFilter(e.target.value)}
+                    />
+                  )}
                   {drawerUsagesLoading && !drawerUsages && (
                     <div className="drawer-usages-loading">⏳ Loading usages...</div>
                   )}
                   {drawerUsages && drawerUsages.length === 0 && (
                     <div className="drawer-usages-empty">No direct usages indexed in workspace</div>
                   )}
-                  {drawerUsages && drawerUsages.length > 0 && (
+                  {filteredDrawerUsages && filteredDrawerUsages.length === 0 && drawerUsages && drawerUsages.length > 0 && (
+                    <div className="drawer-usages-empty">No matching usages found</div>
+                  )}
+                  {filteredDrawerUsages && filteredDrawerUsages.length > 0 && (
                     <div className="drawer-usages-list">
-                      {drawerUsages.map((usage, idx) => (
+                      {filteredDrawerUsages.map((usage, idx) => (
                         <div key={idx} className="drawer-usage-item">
                           <div className="usage-item-header">
                             <span className={`badge badge-${(usage.sourceKind || '').toLowerCase()}`}>
