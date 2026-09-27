@@ -149,11 +149,7 @@ public class GcpLibraryParser : ILibraryParser
                 var topic = AstHelper.ResolveStringOrTemplate(args[0]);
                 AddSubscribeReference(references, scopeSymbolId, topic);
             }
-            if (args.Count > 1)
-            {
-                var sub = AstHelper.ResolveStringOrTemplate(args[1]);
-                AddSubscribeReference(references, scopeSymbolId, sub);
-            }
+            // args[1] - subscription name, do not register as a topic
         }
     }
 

@@ -43,6 +43,19 @@ public static class AstHelper
                 return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
             }
 
+            if (ConstantRegistry.TryResolve(null, varName, out var cVal) && !string.IsNullOrEmpty(cVal))
+            {
+                return cVal;
+            }
+            if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(varName, out var derivedTopic))
+            {
+                return derivedTopic;
+            }
+            if (varName is "QUEUE_NAME" or "TOPIC_NAME" or "QUEUE" or "TOPIC" or "DEFAULT_TOPIC" or "EVENT_SUBSCRIBER_NAME")
+            {
+                return null;
+            }
+
             var val = FindVariableInitializerInAst(argNode, varName);
             if (val != null)
             {
@@ -87,9 +100,23 @@ public static class AstHelper
                 return NormalizeResolvedUrl(CombineServiceAndPath(rService, cleanPath));
             }
 
+            if (ConstantRegistry.TryResolve(null, argNode.Text, out var directConst) && !string.IsNullOrEmpty(directConst))
+            {
+                return directConst;
+            }
+
             if (argNode.Text.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
             {
                 var propName = argNode.Text[5..].Trim();
+                if (ConstantRegistry.TryResolve(null, argNode.Text, out var thisConst) && !string.IsNullOrEmpty(thisConst))
+                {
+                    return thisConst;
+                }
+                if (ConstantRegistry.TryResolve(null, propName, out var propConst) && !string.IsNullOrEmpty(propConst))
+                {
+                    return propConst;
+                }
+
                 var classVal = FindClassFieldInitializerInAst(argNode, propName);
                 if (!string.IsNullOrEmpty(classVal))
                 {
@@ -101,7 +128,20 @@ public static class AstHelper
             var envMatch = Regex.Match(argNode.Text, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
             if (envMatch.Success)
             {
-                return envMatch.Groups[1].Value;
+                var envKey = envMatch.Groups[1].Value;
+                if (ConstantRegistry.TryResolve(null, envKey, out var envVal) && !string.IsNullOrEmpty(envVal))
+                {
+                    return envVal;
+                }
+                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(envKey, out var derivedVal))
+                {
+                    return derivedVal;
+                }
+                if (envKey is "QUEUE_NAME" or "TOPIC_NAME" or "QUEUE" or "TOPIC" or "EVENT_SUBSCRIBER_NAME")
+                {
+                    return null;
+                }
+                return envKey;
             }
 
             var prop = argNode.GetField(TreeSitterSyntax.Fields.Property);

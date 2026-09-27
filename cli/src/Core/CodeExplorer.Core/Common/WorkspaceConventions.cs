@@ -67,6 +67,13 @@ public static class WorkspaceConventions
             return string.Empty;
         }
 
+        var lowerCheck = t.ToLowerInvariant().Replace('_', '-');
+        if (lowerCheck is "topic" or "topic-name" or "topic-id" or "queue" or "queue-name" or "sub" or "sub-id" or "subscription" or "subscriber" or "event-subscriber-name" or "pub-sub-subscription" ||
+            lowerCheck.EndsWith("-sub-id") || lowerCheck.EndsWith("-subscription-name"))
+        {
+            return string.Empty;
+        }
+
         if (TopicAliases.TryGetValue(t, out var mapped))
         {
             return mapped;

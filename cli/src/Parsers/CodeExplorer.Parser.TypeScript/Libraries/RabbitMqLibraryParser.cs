@@ -78,11 +78,20 @@ public class RabbitMqLibraryParser : ILibraryParser
                 else if (funcText.EndsWith(".assertQueue", StringComparison.Ordinal) ||
                          funcText.EndsWith(".createQueue", StringComparison.Ordinal))
                 {
+                    var obj = funcNode.GetField(TreeSitterSyntax.Fields.Object);
+                    var objText = obj.IsValid() ? obj.Text.ToLowerInvariant() : "";
+                    if (objText.Contains("cache") || objText.Contains("redis"))
+                    {
+                        return; // Пропускаем Redis очередь
+                    }
                     if (args.Count > 0)
                     {
                         var queueArg = args[0];
                         var topicName = AstHelper.ResolveStringOrTemplate(queueArg);
-                        AddSubscribeReference(references, scopeSymbolId, topicName);
+                        if (!string.Equals(topicName, "QUEUE_NAME", StringComparison.OrdinalIgnoreCase))
+                        {
+                            AddSubscribeReference(references, scopeSymbolId, topicName);
+                        }
                     }
                 }
                 // 4. messaging.subscribe(to, handler, ...)

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -146,7 +147,16 @@ public static class ConstantRegistry
     {
         if (string.IsNullOrWhiteSpace(content)) return;
 
+        var fileName = Path.GetFileName(filePath).ToLowerInvariant();
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
+
+        if (fileName.StartsWith(".env") || fileName.EndsWith(".env") || fileName.Contains(".env.") ||
+            (fileName.Contains("env") && ext is not (".ts" or ".tsx" or ".js" or ".jsx" or ".cs" or ".go" or ".json" or ".yaml" or ".yml")))
+        {
+            ScanAndRegisterEnv(content, projectName);
+            return;
+        }
+
         switch (ext)
         {
             case ".ts":
@@ -164,6 +174,66 @@ public static class ConstantRegistry
                 ScanAndRegisterGo(content, projectName);
                 break;
         }
+    }
+
+    public static void ScanAndRegisterEnv(string content, string? projectName = null)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+        var lines = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith('#') || trimmed.StartsWith("//")) continue;
+            var eqIdx = trimmed.IndexOf('=');
+            if (eqIdx <= 0) continue;
+            var key = trimmed[..eqIdx].Trim();
+            var val = trimmed[(eqIdx + 1)..].Trim().Trim('\'', '"', '`');
+            if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(val))
+            {
+                Register(projectName, key, val);
+            }
+        }
+    }
+
+    public static bool TryDeriveTopicOrQueueFromEnvVar(string envVar, out string derived)
+    {
+        derived = string.Empty;
+        if (string.IsNullOrWhiteSpace(envVar)) return false;
+        var upper = envVar.ToUpperInvariant();
+        // 1. Подписки: если это подписка, вычисляем родительский топик
+        if (upper.Contains("SUBSCRIBER") || upper.Contains("SUBSCRIPTION") || upper.Contains("_SUB_") || upper.EndsWith("_SUB"))
+        {
+            var asTopic = upper.Replace("SUBSCRIPTION_NAME", "TOPIC")
+                               .Replace("SUBSCRIBER_NAME", "TOPIC")
+                               .Replace("SUBSCRIPTION", "TOPIC")
+                               .Replace("SUBSCRIBER", "TOPIC");
+            if (asTopic.EndsWith("_SUB")) asTopic = asTopic[..^4] + "_TOPIC";
+            if (asTopic != upper && !asTopic.Equals("TOPIC", StringComparison.OrdinalIgnoreCase))
+            {
+                var norm = WorkspaceConventions.NormalizeTopicName(asTopic);
+                if (!string.IsNullOrEmpty(norm) && !norm.Equals("topic", StringComparison.OrdinalIgnoreCase))
+                {
+                    derived = norm;
+                    return true;
+                }
+            }
+            return false;
+        }
+        // 2. Топики и очереди: EVENT_BUS_TOPIC_NAME -> event-bus-topic
+        if (upper.EndsWith("_TOPIC_NAME") || upper.EndsWith("_TOPIC") ||
+            upper.EndsWith("_QUEUE_NAME") || upper.EndsWith("_QUEUE"))
+        {
+            var raw = upper;
+            if (raw.EndsWith("_NAME")) raw = raw[..^5];
+            if (raw is "TOPIC" or "QUEUE") return false;
+            var norm = WorkspaceConventions.NormalizeTopicName(raw);
+            if (!string.IsNullOrEmpty(norm))
+            {
+                derived = norm;
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void ScanAndRegisterTypeScript(string content, string? projectName = null)
@@ -238,9 +308,23 @@ public static class ConstantRegistry
             var envVar = !string.IsNullOrEmpty(csm.Groups[2].Value) ? csm.Groups[2].Value.Trim() : csm.Groups[3].Value.Trim();
             if (!string.IsNullOrEmpty(envVar) && envVar.Length > 2)
             {
-                Register(projectName, fieldName, envVar);
-                Register(projectName, $"config.{fieldName}", envVar);
-                Register(projectName, $"this.config.{fieldName}", envVar);
+                string resolvedValue;
+                if (TryResolve(projectName, envVar, out var knownVal) && !string.Equals(knownVal, envVar, StringComparison.OrdinalIgnoreCase))
+                {
+                    resolvedValue = knownVal;
+                }
+                else if (TryDeriveTopicOrQueueFromEnvVar(envVar, out var derivedVal))
+                {
+                    resolvedValue = derivedVal;
+                }
+                else
+                {
+                    resolvedValue = envVar;
+                }
+                Register(projectName, fieldName, resolvedValue);
+                Register(projectName, $"this.{fieldName}", resolvedValue);
+                Register(projectName, $"config.{fieldName}", resolvedValue);
+                Register(projectName, $"this.config.{fieldName}", resolvedValue);
             }
         }
     }

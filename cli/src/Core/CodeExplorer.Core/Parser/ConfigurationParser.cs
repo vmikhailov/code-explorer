@@ -267,6 +267,11 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         ParsingContext ctx)
     {
+        if (relativePath.Contains("docker-compose", StringComparison.OrdinalIgnoreCase))
+        {
+            return; // docker-compose описывает локальные контейнеры для dev, а не логику обмена сообщениями
+        }
+
         var lower = key.ToLowerInvariant();
 
         if (lower.Contains("stripe"))

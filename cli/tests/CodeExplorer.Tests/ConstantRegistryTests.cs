@@ -170,4 +170,58 @@ public class ConstantRegistryTests
             if (File.Exists(dummyFilePath)) File.Delete(dummyFilePath);
         }
     }
+
+    [Test]
+    public void DotEnv_File_IsScannedAndRegistered()
+    {
+        var envContent = """
+        # Comments
+        EVENT_BUS_TOPIC_NAME=custom-event-bus-topic
+        RULE_TREE_TOPIC=rule-tree-updates
+        DB_HOST=127.0.0.1
+        IGNORED_LINE_WITHOUT_EQUALS
+        """;
+
+        ConstantRegistry.ScanAndRegister("path/to/.env", envContent, "billing");
+
+        Assert.That(ConstantRegistry.TryResolve("billing", "EVENT_BUS_TOPIC_NAME", out var topicVal), Is.True);
+        Assert.That(topicVal, Is.EqualTo("custom-event-bus-topic"));
+
+        Assert.That(ConstantRegistry.TryResolve("billing", "RULE_TREE_TOPIC", out var ruleVal), Is.True);
+        Assert.That(ruleVal, Is.EqualTo("rule-tree-updates"));
+    }
+
+    [Test]
+    public void TryDeriveTopicOrQueueFromEnvVar_DerivesExpectedTopicNames()
+    {
+        // 1. Subscription -> Topic derivation
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("EVENT_BUS_SUBSCRIPTION_NAME", out var fromSub), Is.True);
+        Assert.That(fromSub, Is.EqualTo("event-bus-topic"));
+
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("ORDER_EVENTS_SUB", out var fromOrderSub), Is.True);
+        Assert.That(fromOrderSub, Is.EqualTo("order-events-topic"));
+
+        // 2. Topic/Queue -> Kebab-case topic derivation
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("EVENT_BUS_TOPIC_NAME", out var fromTopicName), Is.True);
+        Assert.That(fromTopicName, Is.EqualTo("event-bus-topic"));
+
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("PAYMENT_QUEUE", out var fromQueue), Is.True);
+        Assert.That(fromQueue, Is.EqualTo("payment-queue"));
+
+        // 3. Dummy / placeholder names should fail derivation
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("TOPIC_NAME", out _), Is.False);
+        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("QUEUE_NAME", out _), Is.False);
+    }
+
+    [Test]
+    public void WorkspaceConventions_NormalizeTopicName_FiltersPlaceholdersAndSubscriptions()
+    {
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("TOPIC_NAME"), Is.Empty);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("QUEUE_NAME"), Is.Empty);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("EVENT_SUBSCRIBER_NAME"), Is.Empty);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("my-service-sub-id"), Is.Empty);
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("billing-subscription-name"), Is.Empty);
+
+        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("ORDER_EVENTS_TOPIC"), Is.EqualTo("order-events-topic"));
+    }
 }
