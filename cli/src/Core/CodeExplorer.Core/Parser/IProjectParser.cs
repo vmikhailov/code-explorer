@@ -20,7 +20,7 @@ public interface IProjectParser
     /// <summary>
     /// Gets a friendly project name for the project in the given directory (defaults to folder name).
     /// </summary>
-    string GetProjectName(string directoryPath, string[] filesInDirectory) => Path.GetFileName(directoryPath);
+    string GetProjectName(string directoryPath, string[] filesInDirectory) => Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
 
     /// <summary>
     /// Checks if the project in the given directory produces a package, and returns details if so.

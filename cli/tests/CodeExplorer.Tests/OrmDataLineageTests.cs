@@ -312,13 +312,13 @@ export class Product {
         using var docTypeOrm = JsonDocument.Parse(resTypeOrm);
         Assert.That(docTypeOrm.RootElement.EnumerateArray().ToList(), Is.Empty, "TypeORM must NOT be a Database node!");
 
-        var qDb = "MATCH (d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL.' RETURN d.name AS name, d.id AS id";
+        var qDb = "MATCH (d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL' RETURN d.name AS name, d.id AS id";
         var resDb = await _client.ExecuteQueryAsync(qDb);
         using var docDb = JsonDocument.Parse(resDb);
         var dbList = docDb.RootElement.EnumerateArray().ToList();
         Assert.That(dbList, Is.Not.Empty, "Canonical relational Database node should exist in graph");
 
-        var qRel = "MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL.' RETURN p.name AS projName, d.name AS dbName, r.properties AS props";
+        var qRel = "MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL' RETURN p.name AS projName, d.name AS dbName, r.properties AS props";
         var resRel = await _client.ExecuteQueryAsync(qRel);
         using var docRel = JsonDocument.Parse(resRel);
         var relList = docRel.RootElement.EnumerateArray().ToList();

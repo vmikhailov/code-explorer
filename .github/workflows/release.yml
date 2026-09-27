@@ -46,10 +46,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
@@ -91,7 +91,7 @@ jobs:
           Compress-Archive -Path ./out/${{ matrix.rid }}/${{ matrix.bin_name }} -DestinationPath ./ce-${{ matrix.rid }}.zip
 
       - name: Upload Artifact to Job
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: ce-${{ matrix.rid }}
           path: ce-${{ matrix.rid }}.${{ matrix.archive }}
@@ -102,15 +102,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           path: ./dist
           merge-multiple: true
@@ -156,7 +156,7 @@ jobs:
           cat checksums.txt
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             ./dist/*

@@ -124,7 +124,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
             }
         }
 
-        return Path.GetFileName(directoryPath);
+        return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
     }
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)

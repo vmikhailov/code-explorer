@@ -88,7 +88,7 @@ public class CSharpParser : IProjectParser, IFileParser
                 return name;
             }
         }
-        return Path.GetFileName(directoryPath);
+        return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
     }
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
