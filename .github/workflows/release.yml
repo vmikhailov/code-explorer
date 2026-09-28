@@ -197,16 +197,24 @@ jobs:
           npm run package:all
           npm run package:universal
 
-      - name: Publish to Marketplaces
-        working-directory: ./vscode-extension
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npm run publish:all
+      - name: Upload Extension VSIX Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension-vsix
+          path: ./vscode-extension/dist-vsix/*.vsix
+          if-no-files-found: error
 
       - name: Upload Extension VSIX Packages to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ./vscode-extension/dist-vsix/*.vsix
+
+      - name: Publish to Marketplaces
+        continue-on-error: true
+        working-directory: ./vscode-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npm run publish:all
 

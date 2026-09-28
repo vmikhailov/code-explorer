@@ -11,7 +11,7 @@ const binDir = path.resolve(extensionRoot, 'bin');
 const binStoreDir = path.resolve(extensionRoot, '.bin-cache');
 
 const pkgJson = JSON.parse(fs.readFileSync(path.resolve(extensionRoot, 'package.json'), 'utf8'));
-const version = pkgJson.version || '0.1.0';
+const version = pkgJson.version || '2.0.0';
 
 export const TARGET_PLATFORMS = [
   { rid: 'win-x64', vsceTarget: 'win32-x64', binName: 'ce.exe' },

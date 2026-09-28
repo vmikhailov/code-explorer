@@ -1,0 +1,102 @@
+name: Extension Release
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'vscode-extension/**'
+      - '.github/workflows/extension*.yml'
+    tags:
+      - 'ext-v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to attach VSIX to (e.g. v2.0.0, or leave empty for package.json version)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release-extension:
+    name: Package & Release Extension
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./vscode-extension
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: ./vscode-extension
+        run: npm run typecheck
+
+      - name: Run extension unit tests
+        working-directory: ./vscode-extension
+        run: npm run test
+
+      - name: Determine Version and Release Tag
+        id: resolve-version
+        working-directory: ./vscode-extension
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/ext-v* ]]; then
+            VERSION="${GITHUB_REF_NAME#ext-v}"
+            RELEASE_TAG="v${VERSION}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            RELEASE_TAG="v${VERSION}"
+          elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            RELEASE_TAG="${{ github.event.inputs.release_tag }}"
+            VERSION="${RELEASE_TAG#v}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            RELEASE_TAG="v${VERSION}"
+          fi
+
+          echo "Target Version: ${VERSION}"
+          echo "Target Release Tag: ${RELEASE_TAG}"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> $GITHUB_ENV
+
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Build and Package Extension for all Platforms
+        working-directory: ./vscode-extension
+        run: |
+          npm run package:all
+          npm run package:universal
+
+      - name: Upload Extension VSIX Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension-vsix
+          path: ./vscode-extension/dist-vsix/*.vsix
+          if-no-files-found: error
+
+      - name: Upload Extension VSIX Packages to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: |
+            ./vscode-extension/dist-vsix/*.vsix
+
+      - name: Publish to Marketplaces
+        continue-on-error: true
+        working-directory: ./vscode-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npm run publish:all
