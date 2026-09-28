@@ -59,7 +59,8 @@ public class ResourceReconciliationService
 
     public static string BuildCanonicalServiceId(string workspaceId, string scope, string host)
     {
-        var cleanHost = (host ?? "service").ToLowerInvariant().Trim();
+        var cleanHost = WorkspaceConventions.NormalizeServiceName(host);
+        if (string.IsNullOrEmpty(cleanHost)) cleanHost = (host ?? "service").ToLowerInvariant().Trim();
         return $"{workspaceId}:res:service:{scope}:{cleanHost}";
     }
 
@@ -80,6 +81,11 @@ public class ResourceReconciliationService
         lock (_lock)
         {
             var canonicalName = NormalizeResourceName(rawName, engine);
+            if (engine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) &&
+                canonicalName.EndsWith(".default", StringComparison.OrdinalIgnoreCase))
+            {
+                canonicalName = canonicalName[..^8] + ".defaults";
+            }
             var id = BuildCanonicalDatabaseId(workspaceId, dbType, canonicalName);
 
             if (_resourcesById.TryGetValue(id, out var existing))
@@ -326,6 +332,10 @@ public class ResourceReconciliationService
             var dotParts = trimmed.Split('.', 2);
             var eng = NormalizeEngineName(dotParts[0]);
             var sch = dotParts[1].Trim();
+            if (eng.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) && sch.Equals("default", StringComparison.OrdinalIgnoreCase))
+            {
+                sch = "defaults";
+            }
             if (!string.IsNullOrEmpty(sch) && !IsGenericConfigKey(sch))
             {
                 return $"{eng}.{sch}";

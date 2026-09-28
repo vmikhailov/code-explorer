@@ -1193,12 +1193,16 @@ public class PostIndexAnalyzer(IGraphClient db)
 
             var (techName, techType, techKey) = CanonicalizeTechnologyOnly(techPrefix, type);
             var schemaPart = dotParts[1].Trim();
-            schemaPart = Regex.Replace(schemaPart, @"^(?:internal|integration|external)[-_]+(?:service[-_]+)?", "", RegexOptions.IgnoreCase);
+            schemaPart = WorkspaceConventions.NormalizeServiceName(schemaPart);
             schemaPart = schemaPart.Replace("--", "-").Trim('_', '-');
 
             if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
             {
                 schemaPart = "public";
+            }
+            if (schemaPart.Equals("default", StringComparison.OrdinalIgnoreCase) && techName.Equals("BigQuery", StringComparison.OrdinalIgnoreCase))
+            {
+                schemaPart = "defaults";
             }
 
             var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
@@ -1207,11 +1211,25 @@ public class PostIndexAnalyzer(IGraphClient db)
                 schemaClean = GetDefaultSchemaForEngine(techName, techType);
                 schemaPart = schemaClean;
             }
+            if (schemaClean.Equals("default", StringComparison.OrdinalIgnoreCase) && techName.Equals("BigQuery", StringComparison.OrdinalIgnoreCase))
+            {
+                schemaClean = "defaults";
+                schemaPart = "defaults";
+            }
 
             return ($"{techName}.{schemaPart}", techType, $"{techKey}:{schemaClean}");
         }
 
         // 2. If an explicit rawSchema is provided
+        if (!string.IsNullOrWhiteSpace(rawSchema) && rawSchema.Equals("default", StringComparison.OrdinalIgnoreCase))
+        {
+            var effectiveTechCheck = !string.IsNullOrWhiteSpace(effectiveRawEngine) ? effectiveRawEngine : trimmed;
+            if (effectiveTechCheck.Contains("bigquery", StringComparison.OrdinalIgnoreCase))
+            {
+                rawSchema = "defaults";
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(rawSchema) && 
             !rawSchema.Equals("database", StringComparison.OrdinalIgnoreCase) && 
             !rawSchema.Equals("default", StringComparison.OrdinalIgnoreCase))
@@ -1227,16 +1245,25 @@ public class PostIndexAnalyzer(IGraphClient db)
 
             var (techName, techType, techKey) = CanonicalizeTechnologyOnly(effectiveTech, type);
             var schemaPart = rawSchema.Trim();
-            schemaPart = Regex.Replace(schemaPart, @"^(?:internal|integration|external)[-_]+(?:service[-_]+)?", "", RegexOptions.IgnoreCase);
+            schemaPart = WorkspaceConventions.NormalizeServiceName(schemaPart);
             schemaPart = schemaPart.Replace("--", "-").Trim('_', '-');
 
             if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
             {
                 schemaPart = "public";
             }
+            if (schemaPart.Equals("default", StringComparison.OrdinalIgnoreCase) && techName.Equals("BigQuery", StringComparison.OrdinalIgnoreCase))
+            {
+                schemaPart = "defaults";
+            }
 
             var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
             if (string.IsNullOrEmpty(schemaClean)) schemaClean = GetDefaultSchemaForEngine(techName, techType);
+            if (schemaClean.Equals("default", StringComparison.OrdinalIgnoreCase) && techName.Equals("BigQuery", StringComparison.OrdinalIgnoreCase))
+            {
+                schemaClean = "defaults";
+                schemaPart = "defaults";
+            }
             return ($"{techName}.{schemaPart}", techType, $"{techKey}:{schemaClean}");
         }
 
@@ -1261,6 +1288,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         if (lower.Contains("sqlite")) return "main";
         if (lower.Contains("redis")) return "cache";
         if (lower.Contains("mongo")) return "default";
+        if (lower.Contains("bigquery")) return "defaults";
         if (dbType.Equals("cache", StringComparison.OrdinalIgnoreCase)) return "cache";
         return "public";
     }

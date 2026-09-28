@@ -349,7 +349,7 @@ public class SyntaxEnricher : ISyntaxEnricher
         var pName = projectName.Trim();
         var lastDot = pName.LastIndexOf('.');
         var segment = lastDot >= 0 ? pName[(lastDot + 1)..] : pName;
-        var cleaned = ScopePrefixRegex.Replace(segment, "");
+        var cleaned = WorkspaceConventions.NormalizeServiceName(segment);
         cleaned = ScopeSuffixRegex.Replace(cleaned, "");
         cleaned = Regex.Replace(cleaned.ToLowerInvariant(), @"[-_]{2,}", "-").Trim('_', '-');
         return cleaned;
@@ -505,6 +505,7 @@ public class SyntaxEnricher : ISyntaxEnricher
         if (lower.Contains("sqlite")) return "main";
         if (lower.Contains("redis")) return "cache";
         if (lower.Contains("mongo")) return "default";
+        if (lower.Contains("bigquery")) return "defaults";
         if (dbType.Equals("cache", StringComparison.OrdinalIgnoreCase)) return "cache";
         return "public";
     }

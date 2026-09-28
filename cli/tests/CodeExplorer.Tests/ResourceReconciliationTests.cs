@@ -179,5 +179,60 @@ public class ResourceReconciliationTests
         Assert.That(SyntaxEnricher.CleanProjectNameToDomain("Lidoma.Tournament"), Is.EqualTo("tournament"));
         Assert.That(SyntaxEnricher.CleanProjectNameToDomain("service-billing"), Is.EqualTo("billing"));
         Assert.That(SyntaxEnricher.CleanProjectNameToDomain("srv-users"), Is.EqualTo("users"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal--service-networks"), Is.EqualTo("networks"));
+        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("integration--smart-cpa"), Is.EqualTo("smart-cpa"));
+    }
+
+    [Test]
+    public void NormalizeServiceName_StrictStrippingAndLowercase()
+    {
+        Assert.That(WorkspaceConventions.NormalizeServiceName("internal--service-networks"), Is.EqualTo("networks"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("internal--networks"), Is.EqualTo("networks"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("integration--smart-cpa"), Is.EqualTo("smart-cpa"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("integration--service-smart-cpa"), Is.EqualTo("smart-cpa"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("service-billing"), Is.EqualTo("billing"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("ATSAnalyticsDepartment"), Is.EqualTo("atsanalyticsdepartment"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("internal-service-networks"), Is.EqualTo("networks"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("internal-service-action-scheduler"), Is.EqualTo("action-scheduler"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("internal--service-bff"), Is.EqualTo("bff"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName("service-"), Is.EqualTo("service-"));
+        Assert.That(WorkspaceConventions.NormalizeServiceName(""), Is.EqualTo(""));
+    }
+
+    [Test]
+    public void BigQuery_NormalizesDefaultSchemaToDefaults()
+    {
+        // 1. NestedSqlParser in BigQuery context without schema defaults to 'defaults'
+        var q1 = NestedSqlParser.ParseNestedSql("SELECT * FROM networks", "ws:q:1", "bq-calc/src/repo.ts");
+        Assert.That(q1, Is.Not.Null);
+        var dbNode1 = q1!.Children.OfType<DatabaseNode>().FirstOrDefault();
+        Assert.That(dbNode1, Is.Not.Null);
+        Assert.That(dbNode1!.Name, Is.EqualTo("BigQuery.defaults"));
+        Assert.That(dbNode1.Extensions!["schema"], Is.EqualTo("defaults"));
+
+        // 2. NestedSqlParser in BigQuery context with explicit 'default.' normalizes to 'defaults'
+        var q2 = NestedSqlParser.ParseNestedSql("SELECT * FROM default.networks", "ws:q:2", "bq-calc/src/repo.ts");
+        Assert.That(q2, Is.Not.Null);
+        var dbNode2 = q2!.Children.OfType<DatabaseNode>().FirstOrDefault();
+        Assert.That(dbNode2, Is.Not.Null);
+        Assert.That(dbNode2!.Name, Is.EqualTo("BigQuery.defaults"));
+        Assert.That(dbNode2.Extensions!["schema"], Is.EqualTo("defaults"));
+
+        // 3. NestedSqlParser in BigQuery context with explicit 'defaults.' stays 'defaults'
+        var q3 = NestedSqlParser.ParseNestedSql("SELECT * FROM defaults.networks", "ws:q:3", "bq-calc/src/repo.ts");
+        Assert.That(q3, Is.Not.Null);
+        var dbNode3 = q3!.Children.OfType<DatabaseNode>().FirstOrDefault();
+        Assert.That(dbNode3, Is.Not.Null);
+        Assert.That(dbNode3!.Name, Is.EqualTo("BigQuery.defaults"));
+        Assert.That(dbNode3.Extensions!["schema"], Is.EqualTo("defaults"));
+
+        // 4. PostIndexAnalyzer CanonicalizeDatabase BigQuery.default -> BigQuery.defaults
+        var (cName1, _, cKey1) = PostIndexAnalyzer.CanonicalizeDatabase("BigQuery", "analytics", rawSchema: "default");
+        Assert.That(cName1, Is.EqualTo("BigQuery.defaults"));
+        Assert.That(cKey1, Is.EqualTo("bigquery:defaults"));
+
+        var (cName2, _, cKey2) = PostIndexAnalyzer.CanonicalizeDatabase("BigQuery.default", "analytics");
+        Assert.That(cName2, Is.EqualTo("BigQuery.defaults"));
+        Assert.That(cKey2, Is.EqualTo("bigquery:defaults"));
     }
 }

@@ -99,6 +99,6 @@ public class DiagramExportTests
         var domain = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "domain");
         Assert.That(domain, Does.StartWith("flowchart TD"));
         Assert.That(domain, Does.Contain("Databases"));
-        Assert.That(domain, Does.Contain("OrderService"));
+        Assert.That(domain, Does.Contain("OrderService").IgnoreCase);
     }
 }

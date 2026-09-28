@@ -1124,8 +1124,9 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             try
             {
-                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
-                var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["srv"] = service }, ct);
+                var normSrv = WorkspaceConventions.NormalizeServiceName(service);
+                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.name = $normSrv OR s.raw_name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:s:' + $normSrv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
+                var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["srv"] = service, ["normSrv"] = normSrv }, ct);
                 using var sDoc = JsonDocument.Parse(sJson);
                 var first = sDoc.RootElement.EnumerateArray().FirstOrDefault();
                 if (first.ValueKind == JsonValueKind.Object)
@@ -2465,9 +2466,11 @@ public class ArchitectureViewEngine(IGraphClient db)
         foreach (var p in projectNodes)
         {
             lookup.TryAdd(p.Name, p);
-            var clean = Regex.Replace(p.Name, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "", RegexOptions.IgnoreCase)
+            var normP = WorkspaceConventions.NormalizeServiceName(p.Name);
+            var clean = Regex.Replace(normP, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "", RegexOptions.IgnoreCase)
                              .Replace("-", "").Replace("_", "");
             if (clean.Length > 0) lookup.TryAdd(clean, p);
+            if (normP.Length > 0) lookup.TryAdd(normP, p);
             var norm = p.Name.Replace("-", "").Replace("_", "");
             if (norm.Length > 0) lookup.TryAdd(norm, p);
         }
@@ -3560,12 +3563,16 @@ public class ArchitectureViewEngine(IGraphClient db)
                 .Replace("mysql.", "mysql_")
                 .Replace("clickhouse", "ch")
                 .Replace("bigquery", "bq")
+                .Replace("internal--", "")
+                .Replace("integration--", "")
                 .Replace("internal-service-", "")
                 .Replace("internal_service_", "")
                 .Replace("integration-service-", "")
                 .Replace("integration_service_", "")
                 .Replace("external-service-", "")
                 .Replace("external_service_", "")
+                .Replace("service-", "")
+                .Replace("service_", "")
                 .Replace("workspace:database:", "")
                 .Replace("workspace:externalservice:", "")
                 .Replace("workspace:topic:", "")

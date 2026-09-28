@@ -962,19 +962,21 @@ public class Layer5AnalysisParser
             return false;
         }
 
-        var cleanDomain = System.Text.RegularExpressions.Regex.Replace(d, @"^(environment\.|env\.|config\.|base_url_)", "")
+        var normD = WorkspaceConventions.NormalizeServiceName(d);
+        var cleanDomain = System.Text.RegularExpressions.Regex.Replace(normD, @"^(environment\.|env\.|config\.|base_url_)", "")
             .Replace("-", "").Replace("_", "");
         cleanDomain = System.Text.RegularExpressions.Regex.Replace(cleanDomain, @"(_service|service)$", "");
 
         var pName = proj.Name.ToLowerInvariant();
-        var cleanPName = System.Text.RegularExpressions.Regex.Replace(pName, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "")
+        var normP = WorkspaceConventions.NormalizeServiceName(pName);
+        var cleanPName = System.Text.RegularExpressions.Regex.Replace(normP, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "")
             .Replace("-", "").Replace("_", "");
         cleanPName = System.Text.RegularExpressions.Regex.Replace(cleanPName, @"(_service|service)$", "");
 
         if (cleanDomain == cleanPName || cleanDomain.TrimEnd('s') == cleanPName.TrimEnd('s'))
             return true;
 
-        if (pName == d || pName.Replace("-", "") == d.Replace("-", ""))
+        if (pName == d || pName.Replace("-", "") == d.Replace("-", "") || normP == normD)
             return true;
 
         if (pName.EndsWith("." + d) || pName.EndsWith("." + d + "s"))

@@ -100,46 +100,51 @@ public class Layer4SemanticParser
                 ["is_library"] = project.IsLibrary ? "true" : "false"
             };
 
+            var cleanName = WorkspaceConventions.NormalizeServiceName(project.Name);
+            if (string.IsNullOrEmpty(cleanName)) cleanName = project.Name;
+            extensions["raw_name"] = project.Name;
+            extensions["clean_name"] = cleanName;
+
             IOntologyNode workloadNode = project.Role switch
             {
                 OntologyConstants.ProjectRoles.FrontendApp => new AppNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.App}:{project.Name}",
-                    project.Name,
+                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.App}:{cleanName}",
+                    cleanName,
                     project.Path,
                     project.ProjectType,
                     extensions),
 
                 OntologyConstants.ProjectRoles.Service => new ServiceNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{project.Name}",
-                    project.Name,
+                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}",
+                    cleanName,
                     project.Path,
                     project.ProjectType,
                     extensions),
 
                 OntologyConstants.ProjectRoles.Worker => new WorkerNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Worker}:{project.Name}",
-                    project.Name,
+                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Worker}:{cleanName}",
+                    cleanName,
                     project.Path,
                     project.ProjectType,
                     extensions),
 
                 OntologyConstants.ProjectRoles.SharedLibrary => new LibraryNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{project.Name}",
-                    project.Name,
+                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}",
+                    cleanName,
                     project.Path,
                     project.ProjectType,
                     extensions),
 
                 OntologyConstants.ProjectRoles.CliTool => new CliToolNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CliTool}:{project.Name}",
-                    project.Name,
+                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CliTool}:{cleanName}",
+                    cleanName,
                     project.Path,
                     project.ProjectType,
                     extensions),
 
                 _ => project.IsLibrary
-                    ? new LibraryNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{project.Name}", project.Name, project.Path, project.ProjectType, extensions)
-                    : new ServiceNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{project.Name}", project.Name, project.Path, project.ProjectType, extensions)
+                    ? new LibraryNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
+                    : new ServiceNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
             };
 
             if (!semanticStructureNode.Children.Any(c => c.Id == workloadNode.Id))

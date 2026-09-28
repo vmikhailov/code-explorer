@@ -420,11 +420,16 @@ public static class NestedSqlParser
 
             var defaultSchema = targetEngine.Equals("SQL Server", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) ? "main"
-                              : targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ? "default"
+                              : targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ? "defaults"
                               : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : "public";
 
             var schemaName = !string.IsNullOrEmpty(tableRef.Schema) ? tableRef.Schema : defaultSchema;
+            if (targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) &&
+                (string.IsNullOrEmpty(schemaName) || schemaName.Equals("default", StringComparison.OrdinalIgnoreCase)))
+            {
+                schemaName = "defaults";
+            }
             var tableName = tableRef.Table;
 
             var fullDbName = !string.IsNullOrEmpty(concreteDbName)
@@ -484,10 +489,16 @@ public static class NestedSqlParser
 
             var defaultSchema = targetEngine.Equals("SQL Server", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) ? "main"
+                              : targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ? "defaults"
                               : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : "public";
 
             var schemaName = !string.IsNullOrEmpty(procRef.Schema) ? procRef.Schema : defaultSchema;
+            if (targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) &&
+                (string.IsNullOrEmpty(schemaName) || schemaName.Equals("default", StringComparison.OrdinalIgnoreCase)))
+            {
+                schemaName = "defaults";
+            }
             var procName = procRef.Procedure;
 
             var fullDbName = !string.IsNullOrEmpty(concreteDbName)

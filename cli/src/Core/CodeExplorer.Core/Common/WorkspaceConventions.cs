@@ -141,4 +141,78 @@ public static class WorkspaceConventions
 
         return lower;
     }
+
+    /// <summary>
+    /// Normalizes service and project names: converts to lowercase and strictly strips prefixes
+    /// such as "internal--", "integration--", "service-", "internal-service-", etc.
+    /// </summary>
+    public static string NormalizeServiceName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+        var clean = name.Trim().ToLowerInvariant();
+
+        bool changed;
+        do
+        {
+            changed = false;
+            if (clean.StartsWith("internal--"))
+            {
+                clean = clean["internal--".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("integration--"))
+            {
+                clean = clean["integration--".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("external--"))
+            {
+                clean = clean["external--".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("internal-service-"))
+            {
+                clean = clean["internal-service-".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("integration-service-"))
+            {
+                clean = clean["integration-service-".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("external-service-"))
+            {
+                clean = clean["external-service-".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("service-"))
+            {
+                clean = clean["service-".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("internal-"))
+            {
+                clean = clean["internal-".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("integration-"))
+            {
+                clean = clean["integration-".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("external-"))
+            {
+                clean = clean["external-".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("srv-"))
+            {
+                clean = clean["srv-".Length..];
+                changed = true;
+            }
+        } while (changed);
+
+        clean = clean.Trim('-', '_');
+        return string.IsNullOrEmpty(clean) ? name.Trim().ToLowerInvariant() : clean;
+    }
 }

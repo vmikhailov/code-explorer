@@ -596,6 +596,12 @@ public class Layer3SyntacticParser
             domainOrService = domainOrService[..colonPortIdx];
         }
 
+        var normalizedDomain = WorkspaceConventions.NormalizeServiceName(domainOrService);
+        if (!string.IsNullOrEmpty(normalizedDomain) && !domainOrService.Contains('.'))
+        {
+            domainOrService = normalizedDomain;
+        }
+
         var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}";
 
         var ext = new Dictionary<string, string>

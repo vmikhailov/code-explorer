@@ -63,8 +63,8 @@ require (
 
             // 2. Verify ArchitectureViewEngine includes project_type == 'go'
             var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
-            var nodeB = graph.Nodes.FirstOrDefault(n => n.Name == "service-b");
-            var nodeA = graph.Nodes.FirstOrDefault(n => n.Name == "service-a");
+            var nodeB = graph.Nodes.FirstOrDefault(n => n.Name is "service-b" or "b");
+            var nodeA = graph.Nodes.FirstOrDefault(n => n.Name is "service-a" or "a");
 
             Assert.That(nodeB, Is.Not.Null);
             Assert.That(nodeA, Is.Not.Null);
@@ -77,8 +77,8 @@ require (
 
             // 4. Verify neighborhood query for service-b
             var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("service-b", includeLibraries: true);
-            Assert.That(hood.Nodes.Any(n => n.Name == "service-a"), Is.True, "service-a should appear in neighborhood outbound of service-b");
-            var centerNode = hood.Nodes.FirstOrDefault(n => n.Name == "service-b");
+            Assert.That(hood.Nodes.Any(n => n.Name is "service-a" or "a"), Is.True, "service-a should appear in neighborhood outbound of service-b");
+            var centerNode = hood.Nodes.FirstOrDefault(n => n.Name is "service-b" or "b");
             Assert.That(centerNode?.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
         }
         finally

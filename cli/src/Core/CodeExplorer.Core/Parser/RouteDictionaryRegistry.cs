@@ -27,7 +27,14 @@ public static class RouteDictionaryRegistry
     {
         if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(domain))
         {
-            _serviceDomains[key] = domain;
+            var normDomain = WorkspaceConventions.NormalizeServiceName(domain);
+            if (string.IsNullOrEmpty(normDomain)) normDomain = domain;
+            _serviceDomains[key] = normDomain;
+            var normKey = WorkspaceConventions.NormalizeServiceName(key);
+            if (!string.IsNullOrEmpty(normKey))
+            {
+                _serviceDomains[normKey] = normDomain;
+            }
         }
     }
 
@@ -220,7 +227,14 @@ public static class RouteDictionaryRegistry
                         sVal = sVal.Replace("http://", "").Replace("https://", "").Trim('/');
                     }
                 }
-                _serviceDomains[sKey] = sVal;
+                var normSVal = WorkspaceConventions.NormalizeServiceName(sVal);
+                if (string.IsNullOrEmpty(normSVal)) normSVal = sVal;
+                _serviceDomains[sKey] = normSVal;
+                var normSKey = WorkspaceConventions.NormalizeServiceName(sKey);
+                if (!string.IsNullOrEmpty(normSKey))
+                {
+                    _serviceDomains[normSKey] = normSVal;
+                }
             }
         }
 
@@ -246,7 +260,14 @@ public static class RouteDictionaryRegistry
                         sVal = sVal.Replace("http://", "").Replace("https://", "").Trim('/');
                     }
                 }
-                _serviceDomains[sKey] = sVal;
+                var normSVal = WorkspaceConventions.NormalizeServiceName(sVal);
+                if (string.IsNullOrEmpty(normSVal)) normSVal = sVal;
+                _serviceDomains[sKey] = normSVal;
+                var normSKey = WorkspaceConventions.NormalizeServiceName(sKey);
+                if (!string.IsNullOrEmpty(normSKey))
+                {
+                    _serviceDomains[normSKey] = normSVal;
+                }
             }
         }
 
@@ -521,7 +542,14 @@ public static class RouteDictionaryRegistry
                 }
                 catch { }
             }
-            _serviceDomains[sKey] = sVal;
+            var normVal = WorkspaceConventions.NormalizeServiceName(sVal);
+            if (string.IsNullOrEmpty(normVal)) normVal = sVal;
+            _serviceDomains[sKey] = normVal;
+            var normK = WorkspaceConventions.NormalizeServiceName(sKey);
+            if (!string.IsNullOrEmpty(normK))
+            {
+                _serviceDomains[normK] = normVal;
+            }
         }
     }
 
@@ -536,13 +564,15 @@ public static class RouteDictionaryRegistry
                 !host.Contains("hostname", StringComparison.OrdinalIgnoreCase) &&
                 !host.Contains("example", StringComparison.OrdinalIgnoreCase))
             {
-                return host;
+                var normHost = WorkspaceConventions.NormalizeServiceName(host);
+                return !string.IsNullOrEmpty(normHost) ? normHost : host;
             }
         }
 
+        var normKey = WorkspaceConventions.NormalizeServiceName(key);
         foreach (var svc in _serviceDomains.Values)
         {
-            if (!string.IsNullOrEmpty(svc) && key.Contains(svc, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(svc) && (key.Contains(svc, StringComparison.OrdinalIgnoreCase) || normKey.Contains(svc, StringComparison.OrdinalIgnoreCase)))
             {
                 return svc;
             }

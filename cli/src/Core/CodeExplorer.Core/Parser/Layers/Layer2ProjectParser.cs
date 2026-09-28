@@ -82,6 +82,11 @@ public class Layer2ProjectParser
                 projectsStructureNode.Children.Add(projectNode);
                 projects.Add(projectNode);
                 packageToProjectMap[projectName] = projectNode;
+                var normName = WorkspaceConventions.NormalizeServiceName(projectName);
+                if (!string.IsNullOrEmpty(normName))
+                {
+                    packageToProjectMap[normName] = projectNode;
+                }
                 if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
                 {
                     packageToProjectMap[folderName] = projectNode;
@@ -159,6 +164,11 @@ public class Layer2ProjectParser
                             projectsStructureNode.Children.Add(projectNode);
                             projects.Add(projectNode);
                             packageToProjectMap[projectName] = projectNode;
+                            var normName = WorkspaceConventions.NormalizeServiceName(projectName);
+                            if (!string.IsNullOrEmpty(normName))
+                            {
+                                packageToProjectMap[normName] = projectNode;
+                            }
                             if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
                             {
                                 packageToProjectMap[folderName] = projectNode;
