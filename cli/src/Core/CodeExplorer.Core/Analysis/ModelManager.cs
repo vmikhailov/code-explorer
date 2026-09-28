@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Analysis;
 public static class ModelManager
 {
     public const string ModelFileName = "ce-intent-v2-q4_k_m.gguf";
-    public const string DefaultDownloadUrl = "https://huggingface.co/vmikhailov/code-intent/resolve/main/ce-intent-v2-q4_k_m.gguf";
+    public const string DefaultDownloadUrl = "https://huggingface.co/vmikhailov77/code-intent/resolve/main/ce-intent-v2-q4_k_m.gguf";
 
     public static string DefaultCacheDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codeexplorer", "models");
