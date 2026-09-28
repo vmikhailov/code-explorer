@@ -8,13 +8,28 @@ import {
   ConcentricNodeInput,
   ConcentricEdgeInput,
   ConcentricOrbitGuide,
+  ConcentricLayoutResult,
 } from '../layout/concentricLayout';
+import { computeConcentricEquispacedLayout } from '../layout/concentricEquispacedLayout';
+import { computeConcentricPolarForceLayout } from '../layout/concentricPolarForceLayout';
+import { computeConcentricSectorsLayout } from '../layout/concentricSectorsLayout';
 import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout';
 import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslandsLayout';
 import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
 import { DomainMatrixView } from './DomainMatrixView';
 
-export type DomainLayoutName = 'concentric' | 'swimlanes' | 'clusters' | 'hive' | 'matrix' | 'cose';
+export type DomainLayoutName =
+  | 'concentric'
+  | 'concentric-equispaced'
+  | 'concentric-polar-force'
+  | 'concentric-sectors'
+  | 'swimlanes'
+  | 'clusters'
+  | 'hive'
+  | 'matrix'
+  | 'cose';
+
+export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 
 export interface DomainArchitectureViewProps {
   graph: GraphData | null;
@@ -339,7 +354,85 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'border-width': 4,
     },
   },
+  // Dynamic Curve Styles (Straight, Bezier, Unbundled Core Bypass)
+  {
+    selector: 'edge.edge-straight',
+    style: {
+      'curve-style': 'straight',
+    },
+  },
+  {
+    selector: 'edge.edge-bezier',
+    style: {
+      'curve-style': 'bezier',
+    },
+  },
+  {
+    selector: 'edge.edge-unbundled',
+    style: {
+      'curve-style': 'unbundled-bezier',
+      'control-point-distances': 'data(ctrlDist)' as any,
+      'control-point-weights': 'data(ctrlWeight)' as any,
+    },
+  },
 ];
+
+/**
+ * Dynamically toggles line rendering: Straight, Standard Bezier, or Orbit Shield (bypasses inner orbits).
+ */
+export function applyEdgeCurveMode(cy: cytoscape.Core | null, mode: EdgeCurveMode) {
+  if (!cy) return;
+  cy.batch(() => {
+    cy.edges().forEach((edge) => {
+      edge.removeClass('edge-straight edge-bezier edge-unbundled');
+      if (mode === 'straight') {
+        edge.addClass('edge-straight');
+      } else if (mode === 'bezier') {
+        edge.addClass('edge-bezier');
+      } else if (mode === 'avoid-inner') {
+        const srcNode = cy.getElementById(edge.data('source'));
+        const tgtNode = cy.getElementById(edge.data('target'));
+        if (!srcNode || !tgtNode || srcNode.empty() || tgtNode.empty()) {
+          edge.addClass('edge-bezier');
+          return;
+        }
+        const p1 = srcNode.position();
+        const p2 = tgtNode.position();
+        const r1 = Math.hypot(p1.x, p1.y);
+        const r2 = Math.hypot(p2.x, p2.y);
+        const minR = Math.min(r1, r2);
+        const maxR = Math.max(r1, r2);
+
+        // If both endpoints are outer (r > 160)
+        if (minR > 160) {
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const segLenSq = dx * dx + dy * dy;
+          if (segLenSq > 100) {
+            const tProj = -(p1.x * dx + p1.y * dy) / segLenSq;
+            const tClamped = Math.max(0, Math.min(1, tProj));
+            const nearX = p1.x + tClamped * dx;
+            const nearY = p1.y + tClamped * dy;
+            const dMin = Math.hypot(nearX, nearY);
+
+            // If chord slices across inner core (dMin < 85% of min radius)
+            if (dMin < minR * 0.85) {
+              const cross = p2.x * p1.y - p1.x * p2.y;
+              const sign = cross >= 0 ? 1 : -1;
+              const deltaR = maxR - dMin;
+              const ctrlDist = sign * Math.min(360, Math.max(70, deltaR * 1.35));
+              edge.data('ctrlDist', ctrlDist);
+              edge.data('ctrlWeight', 0.5);
+              edge.addClass('edge-unbundled');
+              return;
+            }
+          }
+        }
+        edge.addClass('edge-bezier');
+      }
+    });
+  });
+}
 
 export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   graph,
@@ -358,6 +451,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       if (
         saved === 'cose' ||
         saved === 'concentric' ||
+        saved === 'concentric-equispaced' ||
+        saved === 'concentric-polar-force' ||
+        saved === 'concentric-sectors' ||
         saved === 'swimlanes' ||
         saved === 'clusters' ||
         saved === 'hive' ||
@@ -366,6 +462,28 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     } catch { }
     return 'concentric';
   });
+  const [edgeCurveMode, setEdgeCurveMode] = useState<EdgeCurveMode>(() => {
+    try {
+      const saved = localStorage.getItem('ce_edge_curve_mode');
+      if (saved === 'straight' || saved === 'bezier' || saved === 'avoid-inner') {
+        return saved as EdgeCurveMode;
+      }
+    } catch { }
+    return 'bezier';
+  });
+  const edgeCurveModeRef = useRef<EdgeCurveMode>(edgeCurveMode);
+  edgeCurveModeRef.current = edgeCurveMode;
+
+  const handleEdgeCurveModeChange = useCallback((mode: EdgeCurveMode) => {
+    setEdgeCurveMode(mode);
+    try {
+      localStorage.setItem('ce_edge_curve_mode', mode);
+    } catch { }
+    if (cyRef.current) {
+      applyEdgeCurveMode(cyRef.current, mode);
+    }
+  }, []);
+
   const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
   const [swimlaneGuides, setSwimlaneGuides] = useState<SwimlaneGuide[]>([]);
   const [islandGuides, setIslandGuides] = useState<IslandGuide[]>([]);
@@ -1503,14 +1621,30 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         count: (e.data('count') as number) || 1,
       }));
 
-      if (layoutName === 'concentric') {
+      if (
+        layoutName === 'concentric' ||
+        layoutName === 'concentric-equispaced' ||
+        layoutName === 'concentric-polar-force' ||
+        layoutName === 'concentric-sectors'
+      ) {
         setSwimlaneGuides([]);
         setIslandGuides([]);
         setHiveGuides([]);
         baseSwimlaneGuidesRef.current = [];
         baseIslandGuidesRef.current = [];
         baseHiveGuidesRef.current = [];
-        const layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing);
+
+        let layoutResult: ConcentricLayoutResult;
+        if (layoutName === 'concentric-equispaced') {
+          layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing);
+        } else if (layoutName === 'concentric-polar-force') {
+          layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing);
+        } else if (layoutName === 'concentric-sectors') {
+          layoutResult = computeConcentricSectorsLayout(visibleNodesInput, visibleEdgesInput, spacing);
+        } else {
+          layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing);
+        }
+
         layoutConfig = {
           name: 'preset',
           positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
@@ -1643,6 +1777,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 });
               }
               setCurrentZoom(cy.zoom());
+              applyEdgeCurveMode(cy, edgeCurveModeRef.current);
               setIsPreparing(false);
             }
           },
@@ -1651,6 +1786,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         layout.run();
         setTimeout(() => {
           if (!cancelled) {
+            applyEdgeCurveMode(cy, edgeCurveModeRef.current);
             setIsPreparing(false);
           }
         }, 1200);
@@ -2091,12 +2227,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             title="Graph Layout"
             className="domain-layout-dropdown"
           >
-            <option value="concentric">🎯 Concentric (Tiers)</option>
+            <option value="concentric">🎯 Concentric (Original)</option>
+            <option value="concentric-equispaced">🪐 Concentric: Equispaced (Подход 2)</option>
+            <option value="concentric-polar-force">🪐 Concentric: Polar Force (Подход 1)</option>
+            <option value="concentric-sectors">🪐 Concentric: Domain Sectors (Подход 3)</option>
             <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
             <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
             <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
             <option value="matrix">▦ Dependency Matrix</option>
             <option value="cose">⚡ Force (COSE)</option>
+          </select>
+
+          <select
+            value={edgeCurveMode}
+            onChange={(e) => handleEdgeCurveModeChange(e.target.value as any)}
+            title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
+            className="domain-layout-dropdown"
+          >
+            <option value="bezier">〰️ Bezier Curves</option>
+            <option value="straight">📏 Straight Lines</option>
+            <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
           </select>
 
           <label

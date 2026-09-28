@@ -83,18 +83,20 @@ const CYTO_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge',
     style: {
-      'width': 'mapData(weight, 1, 15, 2, 7)',
+      'width': 'data(weight)',
       'line-color': 'data(edgeColor)',
       'target-arrow-color': 'data(edgeColor)',
       'target-arrow-shape': 'triangle',
+      'arrow-scale': 1.15,
       'curve-style': 'bezier',
-      'opacity': 0.75,
+      'control-point-step-size': 38,
+      'opacity': 0.8,
       'label': 'data(edgeLabel)',
-      'font-size': '9.5px',
-      'font-weight': 600,
-      'color': '#cbd5e1',
-      'text-outline-color': '#0b0f19',
-      'text-outline-width': 2,
+      'font-size': '10px',
+      'font-weight': 700,
+      'color': '#f8fafc',
+      'text-outline-color': '#090d16',
+      'text-outline-width': 2.5,
       'text-rotation': 'autorotate',
       'line-style': 'data(lineStyle)' as any,
     } as any,
@@ -106,9 +108,34 @@ const CYTO_STYLES: cytoscape.StylesheetStyle[] = [
       'line-color': '#38bdf8',
       'target-arrow-color': '#38bdf8',
       'opacity': 1,
+      'z-index': 999,
+    } as any,
+  },
+  {
+    selector: 'edge.edge-straight',
+    style: {
+      'curve-style': 'straight',
+    } as any,
+  },
+  {
+    selector: 'edge.edge-bezier',
+    style: {
+      'curve-style': 'bezier',
+      'control-point-step-size': 38,
     } as any,
   },
 ];
+
+export interface BundledEdgeDetail {
+  id: string;
+  source: string;
+  target: string;
+  sourceDomain: string;
+  targetDomain: string;
+  totalCalls: number;
+  category: string;
+  details: string[];
+}
 
 export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
   graph,
@@ -123,9 +150,12 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
 
   const [viewLayout, setViewLayout] = useState<'graph' | 'cards'>('graph');
   const [cytoLayoutName, setCytoLayoutName] = useState<'cose' | 'concentric' | 'circle' | 'grid'>('cose');
+  const [lineCurveMode, setLineCurveMode] = useState<'bezier' | 'straight'>('bezier');
   const [searchQuery, setSearchQuery] = useState('');
   const [layerFilter, setLayerFilter] = useState('all');
+  const [minCallsFilter, setMinCallsFilter] = useState<number>(2);
   const [selectedContext, setSelectedContext] = useState<BoundedContextDetail | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<BundledEdgeDetail | null>(null);
 
   // Parse Bounded Context records from GraphData
   const { contexts, hasIntents, totalIntents, totalPureDomains } = useMemo(() => {
@@ -242,13 +272,50 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
     });
 
     const validNodeIds = new Set(filteredContexts.map((c) => c.id));
-    const cyEdges: any[] = [];
+    const nodeDomainMap = new Map<string, string>();
+    for (const c of filteredContexts) {
+      nodeDomainMap.set(c.id, c.displayName || c.name);
+    }
+
+    // Directional edge bundling map: key = `${edge.source}->${edge.target}`
+    const bundledMap = new Map<string, BundledEdgeDetail>();
 
     for (const edge of graph?.edges || []) {
       if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) continue;
+      if (edge.source === edge.target) continue;
 
-      const isEvent = edge.category === 'messaging' || edge.kind.toUpperCase().includes('EVENT') || edge.kind.toUpperCase().includes('TOPIC');
-      const isDb = edge.category === 'database' || edge.kind.toUpperCase().includes('DB');
+      const key = `${edge.source}->${edge.target}`;
+      const count = parseInt(edge.properties?.count || '1', 10);
+      const cat = edge.category || (edge.kind.toUpperCase().includes('EVENT') ? 'messaging' : 'service_call');
+      const label = edge.properties?.label || edge.kind || 'calls';
+      const detailStr = edge.properties?.details ? edge.properties.details : `${label} (${count})`;
+
+      const existing = bundledMap.get(key);
+      if (existing) {
+        existing.totalCalls += count;
+        if (!existing.details.includes(detailStr)) {
+          existing.details.push(detailStr);
+        }
+      } else {
+        bundledMap.set(key, {
+          id: key,
+          source: edge.source,
+          target: edge.target,
+          sourceDomain: nodeDomainMap.get(edge.source) || edge.source,
+          targetDomain: nodeDomainMap.get(edge.target) || edge.target,
+          totalCalls: count,
+          category: cat,
+          details: [detailStr],
+        });
+      }
+    }
+
+    const cyEdges: any[] = [];
+    for (const bEdge of bundledMap.values()) {
+      if (bEdge.totalCalls < minCallsFilter) continue;
+
+      const isEvent = bEdge.category === 'messaging';
+      const isDb = bEdge.category === 'database';
 
       let edgeColor = '#60a5fa'; // Blue for direct calls
       let lineStyle = 'solid';
@@ -261,17 +328,21 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
         lineStyle = 'dotted';
       }
 
-      const count = parseInt(edge.properties?.count || '1', 10);
+      // Proportional logarithmic highway width from 2px up to 13px
+      const weight = Math.min(13, Math.max(2, Math.round(Math.log2(bEdge.totalCalls + 1) * 2.5)));
+
       cyEdges.push({
         data: {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          weight: Math.min(15, Math.max(1, count)),
+          id: bEdge.id,
+          source: bEdge.source,
+          target: bEdge.target,
+          weight,
           edgeColor,
           lineStyle,
-          edgeLabel: count > 1 ? `${edge.kind} (${count})` : edge.kind,
+          edgeLabel: `${bEdge.totalCalls}`,
+          edgeData: bEdge,
         },
+        classes: lineCurveMode === 'straight' ? 'edge-straight' : 'edge-bezier',
       });
     }
 
@@ -281,11 +352,22 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       style: CYTO_STYLES,
       layout: {
         name: cytoLayoutName,
-        padding: 50,
+        padding: 60,
         animate: true,
-        animationDuration: 400,
+        animationDuration: 500,
+        ...(cytoLayoutName === 'cose' ? {
+          nodeRepulsion: () => 14000,
+          idealEdgeLength: () => 130,
+          edgeElasticity: () => 32,
+          nestingFactor: 1.2,
+          gravity: 0.15,
+          numIter: 1000,
+          initialTemp: 200,
+          coolingFactor: 0.95,
+          minTemp: 1.0,
+        } : {}),
       } as any,
-      minZoom: 0.3,
+      minZoom: 0.25,
       maxZoom: 3,
       wheelSensitivity: 0.25,
     });
@@ -293,12 +375,21 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
     cy.on('tap', 'node', (evt: EventObject) => {
       const node = evt.target;
       const data = node.data('contextData') as BoundedContextDetail;
+      setSelectedEdge(null);
       setSelectedContext(data);
+    });
+
+    cy.on('tap', 'edge', (evt: EventObject) => {
+      const edge = evt.target;
+      const data = edge.data('edgeData') as BundledEdgeDetail;
+      setSelectedContext(null);
+      setSelectedEdge(data);
     });
 
     cy.on('tap', (evt: EventObject) => {
       if (evt.target === cy) {
         setSelectedContext(null);
+        setSelectedEdge(null);
       }
     });
 
@@ -308,7 +399,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       cy.destroy();
       cyRef.current = null;
     };
-  }, [viewLayout, filteredContexts, graph?.edges, cytoLayoutName]);
+  }, [viewLayout, filteredContexts, graph?.edges, cytoLayoutName, minCallsFilter, lineCurveMode]);
 
   const handleFitView = useCallback(() => {
     if (cyRef.current) {
@@ -368,6 +459,32 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
               <option value="concentric">Concentric</option>
               <option value="circle">Circle</option>
               <option value="grid">Grid</option>
+            </select>
+          )}
+
+          {viewLayout === 'graph' && (
+            <select
+              className="hud-select"
+              value={minCallsFilter}
+              onChange={(e) => setMinCallsFilter(parseInt(e.target.value, 10))}
+              title="Minimum calls threshold to reduce noise"
+            >
+              <option value="1">All Calls (1+)</option>
+              <option value="2">≥ 2 Calls (Filter 1-offs)</option>
+              <option value="5">≥ 5 Calls (Core flows)</option>
+              <option value="10">≥ 10 Calls (Major highways)</option>
+            </select>
+          )}
+
+          {viewLayout === 'graph' && (
+            <select
+              className="hud-select"
+              value={lineCurveMode}
+              onChange={(e) => setLineCurveMode(e.target.value as any)}
+              title="Line Curve Style"
+            >
+              <option value="bezier">〰️ Bezier Curves</option>
+              <option value="straight">📏 Straight Lines</option>
             </select>
           )}
 
@@ -622,6 +739,67 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Slide-Out Detail Drawer for Directional Highway Edge */}
+        {selectedEdge && (
+          <div className="context-detail-drawer">
+            <div className="drawer-header">
+              <div className="drawer-title-group">
+                <span className="drawer-domain-icon">🛣️</span>
+                <div>
+                  <h3 className="drawer-domain-name">Cross-Domain Interaction</h3>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    {selectedEdge.sourceDomain} &nbsp;➔&nbsp; {selectedEdge.targetDomain}
+                  </div>
+                </div>
+              </div>
+              <button
+                className="drawer-close-btn"
+                onClick={() => setSelectedEdge(null)}
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="drawer-content">
+              <div className="drawer-metrics-grid">
+                <div className="drawer-metric-box">
+                  <div className="metric-val" style={{ color: '#38bdf8' }}>{selectedEdge.totalCalls}</div>
+                  <div className="metric-lbl">Total Invocations</div>
+                </div>
+                <div className="drawer-metric-box">
+                  <div className="metric-val" style={{ textTransform: 'capitalize', color: selectedEdge.category === 'messaging' ? '#f59e0b' : '#34d399' }}>
+                    {selectedEdge.category === 'messaging' ? 'Event / Queue' : selectedEdge.category === 'database' ? 'Shared DB' : 'Service Call'}
+                  </div>
+                  <div className="metric-lbl">Flow Type</div>
+                </div>
+              </div>
+
+              <div>
+                <div className="drawer-section-title">📊 Aggregated Call Breakdown</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedEdge.details.map((d, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '8px 12px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontFamily: 'monospace',
+                        color: '#93c5fd',
+                      }}
+                    >
+                      {d}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )}

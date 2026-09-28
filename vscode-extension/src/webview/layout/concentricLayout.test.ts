@@ -188,3 +188,65 @@ test('computeConcentricLayout: Scenario 2 - Full Graph with all 6 echelons', () 
     }
   }
 });
+
+test('computeConcentricEquispacedLayout: guarantees strictly equal spacing and valid positions', async () => {
+  const { computeConcentricEquispacedLayout } = await import('./concentricEquispacedLayout');
+  const visibleNodes: ConcentricNodeInput[] = [
+    { id: 'svc-1', echelonTier: 1 },
+    { id: 'svc-2', echelonTier: 1 },
+    { id: 'db-1', echelonTier: 5 },
+    { id: 'db-2', echelonTier: 5 },
+    { id: 'db-3', echelonTier: 5 },
+    { id: 'db-4', echelonTier: 5 },
+  ];
+  const visibleEdges: ConcentricEdgeInput[] = [
+    { source: 'svc-1', target: 'db-1', category: 'database' },
+    { source: 'svc-2', target: 'db-2', category: 'database' },
+  ];
+
+  const result = computeConcentricEquispacedLayout(visibleNodes, visibleEdges, 1.0);
+  assert.equal(result.positions.size, 6);
+  for (const [id, pos] of result.positions.entries()) {
+    assert.ok(!isNaN(pos.x) && !isNaN(pos.y), `Node ${id} has NaN position`);
+  }
+});
+
+test('computeConcentricPolarForceLayout: converges to valid positions without NaN', async () => {
+  const { computeConcentricPolarForceLayout } = await import('./concentricPolarForceLayout');
+  const visibleNodes: ConcentricNodeInput[] = [
+    { id: 'svc-1', echelonTier: 1 },
+    { id: 'svc-2', echelonTier: 1 },
+    { id: 'db-1', echelonTier: 5 },
+    { id: 'db-2', echelonTier: 5 },
+  ];
+  const visibleEdges: ConcentricEdgeInput[] = [
+    { source: 'svc-1', target: 'db-1', category: 'database' },
+  ];
+
+  const result = computeConcentricPolarForceLayout(visibleNodes, visibleEdges, 1.0);
+  assert.equal(result.positions.size, 4);
+  for (const [id, pos] of result.positions.entries()) {
+    assert.ok(!isNaN(pos.x) && !isNaN(pos.y), `Node ${id} has NaN position`);
+  }
+});
+
+test('computeConcentricSectorsLayout: groups domain nodes in pie slices without NaN', async () => {
+  const { computeConcentricSectorsLayout } = await import('./concentricSectorsLayout');
+  const visibleNodes: ConcentricNodeInput[] = [
+    { id: 'billing-svc', echelonTier: 1 },
+    { id: 'billing-db', echelonTier: 5 },
+    { id: 'traffic-svc', echelonTier: 1 },
+    { id: 'traffic-db', echelonTier: 5 },
+  ];
+  const visibleEdges: ConcentricEdgeInput[] = [
+    { source: 'billing-svc', target: 'billing-db', category: 'database' },
+    { source: 'traffic-svc', target: 'traffic-db', category: 'database' },
+  ];
+
+  const result = computeConcentricSectorsLayout(visibleNodes, visibleEdges, 1.0);
+  assert.equal(result.positions.size, 4);
+  for (const [id, pos] of result.positions.entries()) {
+    assert.ok(!isNaN(pos.x) && !isNaN(pos.y), `Node ${id} has NaN position`);
+  }
+});
+

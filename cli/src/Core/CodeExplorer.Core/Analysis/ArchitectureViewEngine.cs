@@ -3173,14 +3173,22 @@ public class ArchitectureViewEngine(IGraphClient db)
         result.Contexts = contexts.OrderByDescending(c => c.FileCount).ToList();
         result.TotalPureDomains = contexts.Count(c => c.PurityPercentage > 50.0);
 
-        // Load cross-domain interactions
+        // Load cross-domain interactions grouped by direction (Source -> Target)
         var interactions = new List<BoundedContextInteractionDto>();
         var crossCalls = await db.LoadCrossDomainInteractionsAsync(workspaceId ?? "", ct);
-        foreach (var call in crossCalls)
+
+        var groupedCalls = crossCalls
+            .GroupBy(c => (Source: c.SourceDomain.ToLowerInvariant(), Target: c.TargetDomain.ToLowerInvariant()));
+
+        foreach (var group in groupedCalls)
         {
-            var srcId = $"context:{call.SourceDomain.ToLowerInvariant()}";
-            var tgtId = $"context:{call.TargetDomain.ToLowerInvariant()}";
-            var cat = (call.EdgeKind.ToUpperInvariant()) switch
+            var srcId = $"context:{group.Key.Source}";
+            var tgtId = $"context:{group.Key.Target}";
+            var totalCount = group.Sum(x => x.InteractionCount);
+            var details = group.Select(x => $"{x.EdgeKind} ({x.InteractionCount})").ToList();
+
+            var primaryItem = group.OrderByDescending(x => x.InteractionCount).First();
+            var cat = (primaryItem.EdgeKind.ToUpperInvariant()) switch
             {
                 "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => "messaging",
                 "USES_DB" or "ACCESSES_TABLE" => "database",
@@ -3189,51 +3197,14 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             interactions.Add(new BoundedContextInteractionDto
             {
-                Id = $"edge:{srcId}->{tgtId}:{call.EdgeKind}",
+                Id = $"edge:{srcId}->{tgtId}",
                 Source = srcId,
                 Target = tgtId,
                 InteractionType = cat,
-                Label = call.EdgeKind,
-                Count = call.InteractionCount
+                Label = totalCount > 1 ? $"{totalCount} calls" : primaryItem.EdgeKind,
+                Count = totalCount,
+                Details = details
             });
-        }
-
-        // Shared infrastructure couplings
-        var infraLinks = await db.LoadDomainInfrastructureLinksAsync(workspaceId ?? "", ct);
-        var infraToDomains = new Dictionary<string, (string Name, string Kind, HashSet<string> Domains)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var link in infraLinks)
-        {
-            if (!infraToDomains.TryGetValue(link.InfraId, out var tuple))
-            {
-                tuple = (link.InfraName, link.InfraKind, new(StringComparer.OrdinalIgnoreCase));
-                infraToDomains[link.InfraId] = tuple;
-            }
-            tuple.Domains.Add(link.Domain);
-        }
-
-        foreach (var (_, (infName, infKind, domSet)) in infraToDomains)
-        {
-            if (domSet.Count <= 1) continue; // Not shared
-            var domList = domSet.ToList();
-            for (var i = 0; i < domList.Count; i++)
-            {
-                for (var j = i + 1; j < domList.Count; j++)
-                {
-                    var d1 = $"context:{domList[i].ToLowerInvariant()}";
-                    var d2 = $"context:{domList[j].ToLowerInvariant()}";
-                    var isDb = infKind.Equals("Database", StringComparison.OrdinalIgnoreCase);
-                    interactions.Add(new BoundedContextInteractionDto
-                    {
-                        Id = $"edge:shared_{infKind.ToLowerInvariant()}:{d1}<->{d2}",
-                        Source = d1,
-                        Target = d2,
-                        InteractionType = isDb ? "database" : "messaging",
-                        Label = isDb ? "SHARED_DB" : "SHARED_QUEUE",
-                        Count = 1,
-                        Details = [$"Shares {infKind} '{infName}'"]
-                    });
-                }
-            }
         }
 
         result.Interactions = interactions;

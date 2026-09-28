@@ -143,8 +143,8 @@ export class ProcessManager implements vscode.Disposable {
   private async startServer(workspaceRoot: string): Promise<ServerInfo> {
     const config = vscode.workspace.getConfiguration('codeExplorer');
     const customPath = config.get<string>('executablePath', '');
-    const configuredPort = config.get<number>('serverPort', 0);
-    const idleTimeout = config.get<number>('idleTimeout', 60);
+    const configuredPort = config.get<number>('serverPort') ?? 0;
+    const idleTimeout = config.get<number>('idleTimeout') ?? 60;
 
     this.outputChannel.appendLine(`[ProcessManager] Preparing CodeExplorer server for workspace: ${workspaceRoot}`);
     const executable = this.findExecutable(workspaceRoot, customPath);
@@ -161,9 +161,9 @@ export class ProcessManager implements vscode.Disposable {
       '--root',
       workspaceRoot,
       '--port',
-      configuredPort.toString(),
+      (configuredPort ?? 0).toString(),
       '--idle-timeout',
-      idleTimeout.toString(),
+      (idleTimeout ?? 60).toString(),
     ];
 
     this.outputChannel.appendLine(`[ProcessManager] Spawning: ${executable.command} ${serverArgs.join(' ')} (CWD: ${workspaceRoot})`);
