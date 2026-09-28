@@ -31,8 +31,10 @@ public static class ModelCommandHandler
     private static int ShowStatus()
     {
         var (exists, path, sizeBytes) = ModelManager.GetModelStatus();
-        Console.WriteLine($"Intent Model: {ModelManager.ModelFileName}");
-        Console.WriteLine($"Default Path: {ModelManager.DefaultModelPath}");
+        var (device, _) = NativeIntentPredictor.DetectExecutionDevice();
+        Console.WriteLine($"Intent Model:   {ModelManager.ModelFileName}");
+        Console.WriteLine($"Compute Device: {device}");
+        Console.WriteLine($"Default Path:   {ModelManager.DefaultModelPath}");
 
         if (exists && path != null)
         {

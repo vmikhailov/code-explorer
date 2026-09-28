@@ -16,4 +16,13 @@ public class IntentOptions
 
     [Option("reset-errors", Default = false, HelpText = "Reset error counter for files that failed distillation previously.")]
     public bool ResetErrors { get; set; }
+
+    [Option("stop", Default = false, HelpText = "Stop any active intent distillation process running for this workspace.")]
+    public bool Stop { get; set; }
+
+    [Option("status", Default = false, HelpText = "Check status of the intent distillation process for this workspace.")]
+    public bool Status { get; set; }
+
+    [Option("force", Default = false, HelpText = "Force stop any existing intent process before starting a new run.")]
+    public bool Force { get; set; }
 }

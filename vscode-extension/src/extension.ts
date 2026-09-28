@@ -496,34 +496,74 @@ export function activate(context: vscode.ExtensionContext) {
         {
           location: vscode.ProgressLocation.Notification,
           title: 'CodeExplorer: Distilling Architectural Intents...',
-          cancellable: false,
+          cancellable: true,
         },
-        async (progress) => {
+        async (progress, token) => {
+          token.onCancellationRequested(async () => {
+            outputChannel.appendLine('[DistillIntents] Stop requested by user. Terminating process...');
+            try {
+              await pm.runCliCommand(workspaceRoot, ['intent', '--stop'], (l) => outputChannel.appendLine(`[StopIntent] ${l}`));
+            } catch (stopErr: any) {
+              outputChannel.appendLine(`[DistillIntents Stop Error] ${stopErr.message}`);
+            }
+          });
+
           try {
             progress.report({ message: 'Running SLM intent distillation pass...' });
             await pm.runCliCommand(workspaceRoot, ['intent'], (line) => {
-              if (line.includes('[CodeIntent]') || line.includes('Enriched') || line.includes('candidate')) {
+              if (line.includes('[CodeIntent]') || line.includes('Enriched') || line.includes('candidate') || line.includes('Compute Device')) {
                 progress.report({ message: line.replace(/^\[.*?\]\s*/, '') });
               }
             });
             treeDataProvider.refresh();
-            vscode.window
-              .showInformationMessage('CodeExplorer: Intent distillation completed! Knowledge graph enriched.', 'Show Bounded Contexts')
-              .then((choice) => {
-                if (choice === 'Show Bounded Contexts') {
-                  vscode.commands.executeCommand('codeExplorer.openView', 'contexts');
-                }
-              });
+            if (!token.isCancellationRequested) {
+              vscode.window
+                .showInformationMessage('CodeExplorer: Intent distillation completed! Knowledge graph enriched.', 'Show Bounded Contexts')
+                .then((choice) => {
+                  if (choice === 'Show Bounded Contexts') {
+                    vscode.commands.executeCommand('codeExplorer.openView', 'contexts');
+                  }
+                });
+            }
           } catch (err: any) {
             outputChannel.appendLine(`[DistillIntents Error] ${err.message}`);
-            vscode.window
-              .showErrorMessage(`Intent distillation failed: ${err.message}`, 'Show Logs')
-              .then((c) => {
-                if (c === 'Show Logs') outputChannel.show(true);
-              });
+            if (!token.isCancellationRequested) {
+              vscode.window
+                .showErrorMessage(`Intent distillation failed: ${err.message}`, 'Show Logs')
+                .then((c) => {
+                  if (c === 'Show Logs') outputChannel.show(true);
+                });
+            }
           }
         }
       );
+    }
+  );
+
+  // Command: Stop Intent Distillation
+  const stopIntentCommand = vscode.commands.registerCommand(
+    'codeExplorer.stopIntent',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+      const pm = processManager;
+      if (!pm) return;
+
+      try {
+        let resultMsg = '';
+        await pm.runCliCommand(workspaceRoot, ['intent', '--stop'], (line) => {
+          outputChannel.appendLine(`[StopIntent] ${line}`);
+          if (line.includes('✓') || line.includes('ℹ') || line.includes('Stopped')) {
+            resultMsg = line;
+          }
+        });
+        vscode.window.showInformationMessage(resultMsg || 'CodeExplorer: Intent distillation process stopped.');
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Failed to stop intent distillation: ${err.message}`);
+      }
     }
   );
 
@@ -594,6 +634,10 @@ export function activate(context: vscode.ExtensionContext) {
               description: 'Run SLM intent distillation pass',
             },
             {
+              label: '$(debug-stop) Stop Intent Distillation',
+              description: 'Stop any running background intent distillation process',
+            },
+            {
               label: '$(cloud-download) Force Re-download Model',
               description: 'Re-fetch model from repository (~940 MB)',
             },
@@ -615,6 +659,8 @@ export function activate(context: vscode.ExtensionContext) {
 
         if (selection.label.includes('Distill Architectural Intents')) {
           vscode.commands.executeCommand('codeExplorer.distillIntents');
+        } else if (selection.label.includes('Stop Intent Distillation')) {
+          vscode.commands.executeCommand('codeExplorer.stopIntent');
         } else if (selection.label.includes('Force Re-download Model')) {
           vscode.commands.executeCommand('codeExplorer.downloadModel', true);
         } else if (selection.label.includes('Clear Intent Cache')) {
@@ -688,6 +734,7 @@ export function activate(context: vscode.ExtensionContext) {
     reindexFullCommand,
     showLogsCommand,
     distillIntentsCommand,
+    stopIntentCommand,
     downloadModelCommand,
     modelStatusCommand,
     clearIntentsCommand

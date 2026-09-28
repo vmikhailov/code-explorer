@@ -148,23 +148,32 @@ public static class CodeIntentAnalyzer
                 toProcess.Add((fullPath, relPath, projectName, cand, hash, lastMod));
             }
 
-            if (toProcess.Count == 0)
-            {
-                ctx.Log($"[CodeIntent] All {fileGroups.Count} architectural files are up-to-date in cache" +
-                    (skippedErrorLimit > 0 ? $" ({skippedErrorLimit} files skipped due to >=10 errors; run 'ce intent reset-errors' to retry)" : "") + ".");
-                var fastApplied = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
-                return fastApplied;
-            }
-
             var gpuLayers = 99;
             if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_GPU_LAYERS"), out var envLayers))
             {
                 gpuLayers = envLayers;
             }
 
-            using var predictor = new NativeIntentPredictor(modelPath, contextSize: 2048, gpuLayers: gpuLayers);
+            if (toProcess.Count == 0)
+            {
+                var (cachedDevice, _) = NativeIntentPredictor.DetectExecutionDevice(gpuLayers);
+                ctx.Log($"[CodeIntent] Compute Device: {cachedDevice}");
+                ctx.Log($"[CodeIntent] All {fileGroups.Count} architectural files are up-to-date in cache" +
+                    (skippedErrorLimit > 0 ? $" ({skippedErrorLimit} files skipped due to >=10 errors; run 'ce intent reset-errors' to retry)" : "") + ".");
+                var fastApplied = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
+                return fastApplied;
+            }
 
-            ctx.Log($"[CodeIntent] Running batch intent inference on {toProcess.Count} files with {predictor.Concurrency}x parallel batching ({skippedClean} unchanged, {skippedErrorLimit} error-locked)...");
+            var contextSize = 4096;
+            if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_CONTEXT_SIZE"), out var envContext) && envContext >= 1024)
+            {
+                contextSize = envContext;
+            }
+
+            using var predictor = new NativeIntentPredictor(modelPath, contextSize: contextSize, gpuLayers: gpuLayers);
+
+            ctx.Log($"[CodeIntent] Compute Device: {predictor.ExecutionDevice} (GPU layers: {gpuLayers})");
+            ctx.Log($"[CodeIntent] Running batch intent inference on {toProcess.Count} files with {predictor.Concurrency}x parallel batching on {predictor.ExecutionDevice} ({skippedClean} unchanged, {skippedErrorLimit} error-locked)...");
 
             var knownDomains = new System.Collections.Concurrent.ConcurrentBag<string>(
                 existingIntents

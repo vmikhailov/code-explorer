@@ -22,8 +22,103 @@ public sealed class NativeIntentPredictor : IDisposable
     private static readonly NativeLogConfig.LLamaLogCallback SilentLlamaLog = (_, _) => { };
 
     public int Concurrency => _concurrency;
+    public string ExecutionDevice { get; }
+    public bool IsGpuAccelerated { get; }
 
-    public NativeIntentPredictor(string modelPath, int contextSize = 2048, int gpuLayers = 99, int? concurrency = null)
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.Cdecl)]
+    private delegate IntPtr GetBackendDescriptionDelegate(IntPtr handle);
+
+    public static (string DeviceName, bool IsGpu) DetectExecutionDevice(int gpuLayers = 99)
+    {
+        if (gpuLayers <= 0)
+        {
+            return ("CPU (0 GPU layers specified)", false);
+        }
+
+        try
+        {
+            lock (ConfigLock)
+            {
+                if (!_configured)
+                {
+                    NativeLibraryConfig.All
+                        .WithCuda()
+                        .WithVulkan()
+                        .WithAutoFallback()
+                        .WithLogCallback((_, _) => { });
+
+                    NativeLogConfig.llama_log_set(SilentLlamaLog);
+                    _configured = true;
+                }
+            }
+
+            var supportsGpu = NativeApi.llama_supports_gpu_offload();
+            if (!supportsGpu)
+            {
+                return ("CPU (LLama native library without GPU offload)", false);
+            }
+
+            var modules = System.Diagnostics.Process.GetCurrentProcess().Modules
+                .Cast<System.Diagnostics.ProcessModule>()
+                .ToList();
+
+            var ggmlMod = modules.FirstOrDefault(m =>
+                m.ModuleName.StartsWith("ggml-", StringComparison.OrdinalIgnoreCase) &&
+                !m.ModuleName.Equals("ggml-base.dll", StringComparison.OrdinalIgnoreCase) &&
+                !m.ModuleName.Equals("ggml-cpu.dll", StringComparison.OrdinalIgnoreCase));
+
+            string backendName = "GPU";
+            if (ggmlMod != null)
+            {
+                var modName = ggmlMod.ModuleName.ToLowerInvariant();
+                var filePath = (ggmlMod.FileName ?? "").ToLowerInvariant();
+                if (modName.Contains("vulkan") || filePath.Contains("vulkan"))
+                    backendName = "Vulkan";
+                else if (modName.Contains("cuda") || filePath.Contains("cuda"))
+                    backendName = "CUDA";
+                else if (modName.Contains("metal") || filePath.Contains("metal"))
+                    backendName = "Metal";
+            }
+
+            string? deviceDescription = null;
+            var baseMod = modules.FirstOrDefault(m => m.ModuleName.Equals("ggml-base.dll", StringComparison.OrdinalIgnoreCase));
+            if (baseMod != null && System.Runtime.InteropServices.NativeLibrary.TryGetExport(baseMod.BaseAddress, "ggml_backend_dev_description", out var descPtr))
+            {
+                var getDesc = System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer<GetBackendDescriptionDelegate>(descPtr);
+                var devCount = (int)(ulong)NativeApi.ggml_backend_dev_count();
+                for (var i = 0; i < devCount; i++)
+                {
+                    var dev = NativeApi.ggml_backend_dev_get((UIntPtr)i);
+                    if (dev != IntPtr.Zero)
+                    {
+                        var strPtr = getDesc(dev);
+                        if (strPtr != IntPtr.Zero)
+                        {
+                            var desc = System.Runtime.InteropServices.Marshal.PtrToStringUTF8(strPtr);
+                            if (!string.IsNullOrWhiteSpace(desc) && !desc.Equals("CPU", StringComparison.OrdinalIgnoreCase))
+                            {
+                                deviceDescription = desc;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(deviceDescription))
+            {
+                return ($"GPU ({backendName}: {deviceDescription})", true);
+            }
+
+            return ($"GPU ({backendName})", true);
+        }
+        catch
+        {
+            return ("CPU (Fallback)", false);
+        }
+    }
+
+    public NativeIntentPredictor(string modelPath, int contextSize = 4096, int gpuLayers = 99, int? concurrency = null)
     {
         lock (ConfigLock)
         {
@@ -39,6 +134,10 @@ public sealed class NativeIntentPredictor : IDisposable
                 _configured = true;
             }
         }
+
+        var (deviceName, isGpu) = DetectExecutionDevice(gpuLayers);
+        ExecutionDevice = deviceName;
+        IsGpuAccelerated = isGpu;
 
         _parameters = new ModelParams(modelPath)
         {
@@ -158,6 +257,8 @@ public sealed class NativeIntentPredictor : IDisposable
         var inferenceParams = new InferenceParams
         {
             MaxTokens = 512,
+            TokensKeep = 128,
+            OverflowStrategy = ContextOverflowStrategy.TruncateAndReprefill,
             AntiPrompts = ["<|im_end|>", "<|endoftext|>"],
             SamplingPipeline = new DefaultSamplingPipeline
             {
