@@ -49,20 +49,33 @@ public static class ViewCommandHandler
         }
 
         var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
-        var level = opts.Target.Equals("contexts", StringComparison.OrdinalIgnoreCase) ||
-                    opts.Target.Equals("bounded-contexts", StringComparison.OrdinalIgnoreCase) ||
-                    opts.Target.Equals("context-map", StringComparison.OrdinalIgnoreCase)
-            ? "contexts"
-            : opts.Target.Equals("domain", StringComparison.OrdinalIgnoreCase)
-            ? "domain"
-            : opts.Level;
+        string output;
 
-        var output = await repository.GetArchitectureViewAsync(
-            level: level,
-            scope: opts.Scope,
-            includeLibraries: opts.IncludeLibraries,
-            format: opts.Format,
-            workspacePath: ws.RootDirectory);
+        if (opts.Target.Equals("contexts", StringComparison.OrdinalIgnoreCase) ||
+            opts.Target.Equals("bounded-contexts", StringComparison.OrdinalIgnoreCase) ||
+            opts.Target.Equals("context-map", StringComparison.OrdinalIgnoreCase))
+        {
+            output = await repository.GetBoundedContextsAsync(
+                format: opts.Format,
+                workspacePath: ws.RootDirectory);
+        }
+        else if (opts.Target.Equals("domain", StringComparison.OrdinalIgnoreCase) ||
+                 opts.Target.Equals("domains", StringComparison.OrdinalIgnoreCase))
+        {
+            output = await repository.GetDomainArchitectureAsync(
+                includeLibraries: opts.IncludeLibraries,
+                format: opts.Format,
+                workspacePath: ws.RootDirectory);
+        }
+        else
+        {
+            output = await repository.GetArchitectureViewAsync(
+                level: opts.Level,
+                scope: opts.Scope,
+                includeLibraries: opts.IncludeLibraries,
+                format: opts.Format,
+                workspacePath: ws.RootDirectory);
+        }
 
         Console.WriteLine(output);
         return 0;

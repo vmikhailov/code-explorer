@@ -502,21 +502,12 @@ public class CodeExplorerRepository
         var normalizedLevel = level.Trim().ToLowerInvariant();
         var engine = new Analysis.ArchitectureViewEngine(client);
 
-        if (normalizedLevel is "contexts" or "context" or "bounded-context" or "bounded-contexts" or "context-map")
-        {
-            return await GetBoundedContextsAsync(format, workspacePath, cancellationToken);
-        }
-
-        if (normalizedLevel is "domain" or "domain-map" or "domains")
-        {
-            var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries, cancellationToken);
-            return Analysis.ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
-        }
-
         var viewType = normalizedLevel switch
         {
             "c2" or "service" or "flow" or "service-flow" => Analysis.ArchitectureViewType.ServiceFlow,
             "c3" or "component" => Analysis.ArchitectureViewType.Component,
+            "domain" or "domain-map" or "domains" => Analysis.ArchitectureViewType.DomainMap,
+            "contexts" or "context" or "bounded-context" or "bounded-contexts" or "context-map" => Analysis.ArchitectureViewType.BoundedContexts,
             "tiers" or "tiered" => Analysis.ArchitectureViewType.Tiers,
             _ => Analysis.ArchitectureViewType.SystemContext
         };
@@ -530,6 +521,23 @@ public class CodeExplorerRepository
 
         var title = $"{viewType} Architecture View";
         return Analysis.ArchitectureViewEngine.SerializeGraph(graph, format, title);
+    }
+
+    public async Task<string> GetDomainArchitectureAsync(
+        bool includeLibraries = true,
+        string format = "markdown",
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        var engine = new Analysis.ArchitectureViewEngine(client);
+        var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries, cancellationToken);
+        return Analysis.ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
     }
 
     public async Task<string> GetBoundedContextsAsync(
