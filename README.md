@@ -63,6 +63,9 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
     *   *Syntactic Layer (Layer 3)*: Classes, interfaces, methods, functions, structs, fields, and calls.
     *   *Semantic Layer (Layer 4)*: Ingress endpoints (REST, gRPC, GraphQL, WebSocket) with security boundaries (`roles`, `policies`, `is_anonymous`), Egress callers, Code-First ORM entities (EF Core, JPA, TypeORM) mapped to `:Table` nodes, and message queues.
     *   *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, service-to-service links, and CQRS / Event pipelines (MediatR, Spring Events, NestJS CQRS).
+*   **Native Architectural Intent Distillation (Local LLM)**:
+    *   *AI-Powered Semantic Enrichment*: Automatically infers high-level architectural semantics (business domain, layer, architectural pattern, capability tag, operation type, intent summary, target entities, emitted events) using an embedded distilled GGUF model via native `llama.cpp` (with Vulkan GPU acceleration & CPU fallback).
+    *   *Persistent Incremental Caching*: File contents are SHA-256 fingerprinted and cached in an embedded `intents` table inside SQLite. Subsequent scans fast-apply cached intents to graph nodes in <50ms without re-running inference, and the cache is preserved even across `ce scan --clear`.
 *   **Built-in & Custom Query Catalog**:
     *   **22 Built-in Queries**: Architecture maps, entry points, dependencies, CQRS pipelines, refactoring (dead code, god objects), symbol lookup, and graph taxonomy.
     *   **Extensible Domain Queries**: Save custom queries in `.codeexplorer/queries/*.cypher` with companion `.json` metadata sidecars, automatically available to CLI and AI agents.
@@ -198,17 +201,21 @@ ce init MyProject
 # 2. Scan and index code topology, AST, dependencies, and semantic graph
 ce scan
 
-# 3. View workspace health, indexed projects, node kinds, and statistics
+# 3. (Optional) Download local LLM model and enrich graph with architectural intents
+ce model download
+ce intent
+
+# 4. View workspace health, indexed projects, node kinds, and statistics
 ce status
 
-# 4. List all built-in and workspace-custom Cypher queries
+# 5. List all built-in and workspace-custom Cypher queries
 ce queries
 
-# 5. Execute a query by name or run ad-hoc Cypher
+# 6. Execute a query by name or run ad-hoc Cypher
 ce query -n get_architecture_map_workspace
 ce query "MATCH (p:Project) RETURN p.name, p.project_type"
 
-# 6. Start the MCP server for AI coding assistants
+# 7. Start the MCP server for AI coding assistants
 ce mcp
 ```
 
@@ -224,11 +231,12 @@ ce init MyProject -d /path/to/repo
 ```
 
 ### `ce scan [path]` *(alias: `ce index`)*
-Scans source files, parses ASTs (Tree-sitter & ScriptDom), builds structural relationships, and resolves semantic boundaries.
+Scans source files, parses ASTs (Tree-sitter & ScriptDom), builds structural relationships, and resolves semantic boundaries. Fast-applies already cached architectural intents automatically in <50ms without invoking the LLM.
 ```bash
-ce scan                     # Index entire workspace
+ce scan                     # Index workspace (fast-applies cached intents automatically)
 ce scan ./src/AuthService   # Index a specific project subfolder
-ce scan -c                  # Clear previous data for path before re-indexing
+ce scan --clear             # Clear graph topology before re-indexing (preserves intent cache)
+ce scan --intent            # Run LLM architectural intent distillation during indexing pass
 ```
 
 ### `ce status` *(alias: `ce info`)*
@@ -290,10 +298,27 @@ ce export --type cqrs -o event_pipeline.mmd
 ```
 
 ### `ce clear [path]`
-Selectively wipes a subfolder from the index or clears the entire graph database.
+Selectively wipes a subfolder from the index or clears the entire graph database (while preserving the incremental intent cache).
 ```bash
 ce clear ./src/OldModule    # Remove specific subfolder
 ce clear -y                 # Reset entire graph database
+```
+
+### `ce intent [path]`
+Runs incremental architectural intent distillation using a local distilled GGUF model via embedded `llama.cpp` (Vulkan GPU accelerated with CPU fallback). Inferred intents (`domain`, `layer`, `pattern`, `capability_tag`, `intent_summary`, `target_entities`, `emitted_events`) are cached by SHA-256 and file timestamps in the SQLite `intents` table, materializing `:Domain` nodes and `:BELONGS_TO_DOMAIN` relationships.
+```bash
+ce intent                   # Distill intents for all candidate files in workspace
+ce intent --limit 20        # Distill intent for up to 20 candidate files
+ce intent --reset-errors    # Reset error counter for files that failed distillation
+ce intent --clear           # Clear cached intent records for this workspace
+```
+
+### `ce model [action]`
+Manages local GGUF models used for native architectural intent distillation.
+```bash
+ce model status             # Check model status, file location, and size (~940 MB)
+ce model download           # Download the intent model with a console progress bar
+ce model download --force   # Force re-download even if already present
 ```
 
 ---
@@ -414,11 +439,12 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 ├── scripts/                     # Cross-platform single-file publish scripts (publish.cmd, publish.sh, publish.ps1)
 ├── src/
 │   ├── Core/
-│   │   └── CodeExplorer.Core/   # Graph database client, ontology definitions, parser pipeline, and MCP tools
+│   │   └── CodeExplorer.Core/   # Graph database client, ontology definitions, parser pipeline, native intent distillation (llama.cpp), and MCP tools
 │   ├── Cypher/
 │   │   └── CodeExplorer.Cypher/ # Cypher query parser, AST transformer, and SQLite SQL compiler
 │   ├── Parsers/
 │   │   ├── CodeExplorer.Parser.CSharp/       # C# AST Parser (Tree-sitter)
+│   │   ├── CodeExplorer.Parser.ColdFusion/   # ColdFusion CFML/CFC AST Parser (ANTLR4)
 │   │   ├── CodeExplorer.Parser.Go/           # Go AST Parser (Tree-sitter)
 │   │   ├── CodeExplorer.Parser.Java/         # Java AST Parser (Tree-sitter)
 │   │   ├── CodeExplorer.Parser.Python/       # Python AST Parser (Tree-sitter)

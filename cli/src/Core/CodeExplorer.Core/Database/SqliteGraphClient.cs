@@ -175,6 +175,30 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 value TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS intents (
+                file_path TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                file_id TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                last_modified_utc TEXT NOT NULL,
+                domain TEXT,
+                layer TEXT,
+                pattern TEXT,
+                operation_type TEXT,
+                capability_tag TEXT,
+                intent_summary TEXT,
+                target_entities TEXT,
+                emitted_events TEXT,
+                is_pure_domain INTEGER,
+                error_count INTEGER DEFAULT 0,
+                last_error TEXT,
+                analyzed_at_utc TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_intents_ws ON intents(workspace_id);
+            CREATE INDEX IF NOT EXISTS idx_intents_file_id ON intents(file_id);
+            CREATE INDEX IF NOT EXISTS idx_intents_hash ON intents(content_hash);
+            CREATE INDEX IF NOT EXISTS idx_intents_errors ON intents(error_count);
+
             -- Promote workspace package dependencies to direct project DEPENDS_ON links
             INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
             SELECT DISTINCT d.from_id, i.to_id, 'DEPENDS_ON', '{"dependency_type":"library"}'
@@ -1249,8 +1273,16 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     public async Task<List<IntentCandidate>> LoadIntentCandidatesAsync(
         string workspaceId,
+        int? limit = null,
         CancellationToken cancellationToken = default)
     {
+        var effectiveLimit = limit;
+        if (!effectiveLimit.HasValue && int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_MAX_FILES"), out var envLimit) && envLimit > 0)
+        {
+            effectiveLimit = envLimit;
+        }
+
+        var limitClause = effectiveLimit.HasValue ? "LIMIT @limit" : "";
         var results = new List<IntentCandidate>();
 
         await _lock.WaitAsync(cancellationToken);
@@ -1258,8 +1290,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var cmd = _conn.CreateCommand();
             cmd.CommandTimeout = CommandTimeoutSeconds;
+            if (effectiveLimit.HasValue)
+            {
+                cmd.Parameters.AddWithValue("@limit", effectiveLimit.Value);
+            }
+
             // 1. Architectural candidates (classes/interfaces/files)
-            cmd.CommandText = """
+            cmd.CommandText = $"""
                 SELECT id, kind,
                        COALESCE(json_extract(properties, '$.name'), '') AS name,
                        COALESCE(json_extract(properties, '$.path'), json_extract(properties, '$.file_path'), '') AS rel_path,
@@ -1290,7 +1327,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                   AND rel_path NOT LIKE '%/obj/%'
                   AND rel_path NOT LIKE '%/bin/%'
                   AND rel_path NOT LIKE '%/node_modules/%'
-                LIMIT 250;
+                {limitClause};
                 """;
 
             await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
@@ -1310,7 +1347,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             // 2. Fallback if no specific architectural keywords were found: take top Types
             if (results.Count == 0)
             {
-                cmd.CommandText = """
+                cmd.CommandText = $"""
                     SELECT id, kind,
                            COALESCE(json_extract(properties, '$.name'), '') AS name,
                            COALESCE(json_extract(properties, '$.path'), json_extract(properties, '$.file_path'), '') AS rel_path,
@@ -1324,7 +1361,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                       AND rel_path NOT LIKE '%/obj/%'
                       AND rel_path NOT LIKE '%/bin/%'
                       AND rel_path NOT LIKE '%/node_modules/%'
-                    LIMIT 100;
+                    {limitClause};
                     """;
 
                 await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -1469,6 +1506,300 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         {
             _lock.Release();
         }
+    }
+
+    public async Task<List<IntentRecord>> LoadExistingIntentsAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<IntentRecord>();
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandText = """
+                SELECT file_path, workspace_id, file_id, content_hash, last_modified_utc,
+                       domain, layer, pattern, operation_type, capability_tag,
+                       intent_summary, target_entities, emitted_events, is_pure_domain,
+                       error_count, last_error, analyzed_at_utc
+                FROM intents
+                WHERE workspace_id = @workspaceId OR @workspaceId = '';
+                """;
+            cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var filePath = reader.GetString(0);
+                var wsId = reader.GetString(1);
+                var fileId = reader.GetString(2);
+                var contentHash = reader.GetString(3);
+                var lastMod = DateTime.TryParse(reader.GetString(4), out var dt) ? dt : DateTime.UtcNow;
+                var domain = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var layer = reader.IsDBNull(6) ? null : reader.GetString(6);
+                var pattern = reader.IsDBNull(7) ? null : reader.GetString(7);
+                var opType = reader.IsDBNull(8) ? null : reader.GetString(8);
+                var capTag = reader.IsDBNull(9) ? null : reader.GetString(9);
+                var summary = reader.IsDBNull(10) ? null : reader.GetString(10);
+                var targetEntities = reader.IsDBNull(11) ? null : JsonSerializer.Deserialize<List<string>>(reader.GetString(11));
+                var emittedEvents = reader.IsDBNull(12) ? null : JsonSerializer.Deserialize<List<string>>(reader.GetString(12));
+                var isPure = reader.IsDBNull(13) ? (bool?)null : reader.GetInt32(13) == 1;
+                var errorCount = reader.GetInt32(14);
+                var lastError = reader.IsDBNull(15) ? null : reader.GetString(15);
+                var analyzedAt = reader.IsDBNull(16) ? (DateTime?)null : (DateTime.TryParse(reader.GetString(16), out var adt) ? adt : null);
+
+                results.Add(new IntentRecord(
+                    filePath, wsId, fileId, contentHash, lastMod,
+                    domain, layer, pattern, opType, capTag,
+                    summary, targetEntities, emittedEvents, isPure,
+                    errorCount, lastError, analyzedAt
+                ));
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return results;
+    }
+
+    public async Task SaveIntentRecordAsync(
+        IntentRecord record,
+        CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandText = """
+                INSERT INTO intents (
+                    file_path, workspace_id, file_id, content_hash, last_modified_utc,
+                    domain, layer, pattern, operation_type, capability_tag,
+                    intent_summary, target_entities, emitted_events, is_pure_domain,
+                    error_count, last_error, analyzed_at_utc
+                ) VALUES (
+                    @filePath, @workspaceId, @fileId, @contentHash, @lastModifiedUtc,
+                    @domain, @layer, @pattern, @operationType, @capabilityTag,
+                    @intentSummary, @targetEntities, @emittedEvents, @isPureDomain,
+                    0, NULL, @analyzedAtUtc
+                )
+                ON CONFLICT(file_path) DO UPDATE SET
+                    workspace_id = excluded.workspace_id,
+                    file_id = excluded.file_id,
+                    content_hash = excluded.content_hash,
+                    last_modified_utc = excluded.last_modified_utc,
+                    domain = excluded.domain,
+                    layer = excluded.layer,
+                    pattern = excluded.pattern,
+                    operation_type = excluded.operation_type,
+                    capability_tag = excluded.capability_tag,
+                    intent_summary = excluded.intent_summary,
+                    target_entities = excluded.target_entities,
+                    emitted_events = excluded.emitted_events,
+                    is_pure_domain = excluded.is_pure_domain,
+                    error_count = 0,
+                    last_error = NULL,
+                    analyzed_at_utc = excluded.analyzed_at_utc;
+                """;
+
+            cmd.Parameters.AddWithValue("@filePath", record.FilePath);
+            cmd.Parameters.AddWithValue("@workspaceId", record.WorkspaceId);
+            cmd.Parameters.AddWithValue("@fileId", record.FileId);
+            cmd.Parameters.AddWithValue("@contentHash", record.ContentHash);
+            cmd.Parameters.AddWithValue("@lastModifiedUtc", record.LastModifiedUtc.ToString("o"));
+            cmd.Parameters.AddWithValue("@domain", (object?)record.Domain ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@layer", (object?)record.Layer ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@pattern", (object?)record.Pattern ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@operationType", (object?)record.OperationType ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@capabilityTag", (object?)record.CapabilityTag ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@intentSummary", (object?)record.IntentSummary ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@targetEntities", JsonSerializer.Serialize(record.TargetEntities ?? []));
+            cmd.Parameters.AddWithValue("@emittedEvents", JsonSerializer.Serialize(record.EmittedEvents ?? []));
+            cmd.Parameters.AddWithValue("@isPureDomain", record.IsPureDomain.HasValue ? (record.IsPureDomain.Value ? 1 : 0) : DBNull.Value);
+            cmd.Parameters.AddWithValue("@analyzedAtUtc", record.AnalyzedAtUtc?.ToString("o") ?? DateTime.UtcNow.ToString("o"));
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task IncrementIntentErrorAsync(
+        string filePath,
+        string workspaceId,
+        string fileId,
+        string contentHash,
+        DateTime lastModifiedUtc,
+        string error,
+        CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandText = """
+                INSERT INTO intents (
+                    file_path, workspace_id, file_id, content_hash, last_modified_utc,
+                    error_count, last_error
+                ) VALUES (
+                    @filePath, @workspaceId, @fileId, @contentHash, @lastModifiedUtc,
+                    1, @lastError
+                )
+                ON CONFLICT(file_path) DO UPDATE SET
+                    content_hash = excluded.content_hash,
+                    last_modified_utc = excluded.last_modified_utc,
+                    error_count = intents.error_count + 1,
+                    last_error = excluded.last_error;
+                """;
+
+            cmd.Parameters.AddWithValue("@filePath", filePath);
+            cmd.Parameters.AddWithValue("@workspaceId", workspaceId);
+            cmd.Parameters.AddWithValue("@fileId", fileId);
+            cmd.Parameters.AddWithValue("@contentHash", contentHash);
+            cmd.Parameters.AddWithValue("@lastModifiedUtc", lastModifiedUtc.ToString("o"));
+            cmd.Parameters.AddWithValue("@lastError", (object?)error ?? DBNull.Value);
+
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task ResetIntentErrorsAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandText = "UPDATE intents SET error_count = 0, last_error = NULL WHERE workspace_id = @workspaceId OR @workspaceId = '';";
+            cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task ClearIntentsAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandText = "DELETE FROM intents WHERE workspace_id = @workspaceId OR @workspaceId = '';";
+            cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<int> ApplyCachedIntentsToGraphAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
+        var updatedNodes = 0;
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync(cancellationToken);
+
+            // 1. Update matching nodes (File or Type nodes matching file_path or file_id)
+            await using (var updCmd = _conn.CreateCommand())
+            {
+                updCmd.Transaction = tx;
+                updCmd.CommandTimeout = CommandTimeoutSeconds;
+                updCmd.CommandText = """
+                    UPDATE nodes
+                    SET properties = json_set(
+                        properties,
+                        '$.intent_domain', i.domain,
+                        '$.intent_layer', i.layer,
+                        '$.intent_pattern', i.pattern,
+                        '$.intent_operation', i.operation_type,
+                        '$.intent_capability', i.capability_tag,
+                        '$.intent_summary', i.intent_summary,
+                        '$.is_pure_domain', i.is_pure_domain,
+                        '$.target_entities', json(i.target_entities),
+                        '$.emitted_events', json(i.emitted_events)
+                    )
+                    FROM intents i
+                    WHERE (nodes.id = i.file_id 
+                           OR json_extract(nodes.properties, '$.path') = i.file_path 
+                           OR json_extract(nodes.properties, '$.file_path') = i.file_path)
+                      AND i.domain IS NOT NULL;
+                    """;
+                updatedNodes = await updCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            // 2. Materialize Domain nodes from distinct domains in intents
+            await using (var domCmd = _conn.CreateCommand())
+            {
+                domCmd.Transaction = tx;
+                domCmd.CommandTimeout = CommandTimeoutSeconds;
+                domCmd.CommandText = """
+                    INSERT INTO nodes (id, kind, properties)
+                    SELECT DISTINCT
+                        @widPrefix || 'dom:' || lower(domain) AS id,
+                        'Domain' AS kind,
+                        json_object('id', @widPrefix || 'dom:' || lower(domain), 'name', domain) AS properties
+                    FROM intents
+                    WHERE domain IS NOT NULL AND trim(domain) != ''
+                    ON CONFLICT(id) DO NOTHING;
+                    """;
+                domCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                await domCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            // 3. Create BELONGS_TO_DOMAIN edges from nodes to Domain nodes
+            await using (var edgeCmd = _conn.CreateCommand())
+            {
+                edgeCmd.Transaction = tx;
+                edgeCmd.CommandTimeout = CommandTimeoutSeconds;
+                edgeCmd.CommandText = """
+                    INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+                    SELECT DISTINCT
+                        n.id AS from_id,
+                        @widPrefix || 'dom:' || lower(i.domain) AS to_id,
+                        'BELONGS_TO_DOMAIN' AS kind,
+                        '{}' AS properties
+                    FROM nodes n
+                    JOIN intents i ON (n.id = i.file_id 
+                                       OR json_extract(n.properties, '$.path') = i.file_path 
+                                       OR json_extract(n.properties, '$.file_path') = i.file_path)
+                    WHERE i.domain IS NOT NULL AND trim(i.domain) != '';
+                    """;
+                edgeCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                await edgeCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await tx.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return updatedNodes;
     }
 
 

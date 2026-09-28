@@ -10,6 +10,9 @@ public class ScanOptions
 
     [Option("clear", Default = false, HelpText = "Clear previous data for this path before scanning.")]
     public bool Clear { get; set; }
+
+    [Option("intent", Default = false, HelpText = "Run LLM architectural intent distillation (cached intents are applied automatically by default).")]
+    public bool Intent { get; set; }
 }
 
 [Verb("index", HelpText = "Alias for 'scan': index a directory into the nearest workspace.")]

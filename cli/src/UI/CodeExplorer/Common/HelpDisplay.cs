@@ -73,6 +73,8 @@ public static class HelpDisplay
         Console.WriteLine("  mcp                     Run Model Context Protocol server (stdio default, or --port)");
         Console.WriteLine("  serve                   Run real-time WebSocket and HTTP API server (ws:// on --port)");
         Console.WriteLine("  ingest                  Direct batch ingestion of code nodes and relationships");
+        Console.WriteLine("  intent                  Enrich graph with architectural intents using native LLM distillation");
+        Console.WriteLine("  model                   Manage local LLM models (status, download)");
         Console.WriteLine();
 
         Console.ForegroundColor = ConsoleColor.White;

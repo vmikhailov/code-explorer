@@ -39,12 +39,48 @@ public interface IGraphClient : IAsyncDisposable
 
     Task<List<IntentCandidate>> LoadIntentCandidatesAsync(
         string workspaceId,
+        int? limit = null,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new List<IntentCandidate>());
 
     Task SaveIntentPredictionsAsync(
         string workspaceId,
         List<CodeIntentPredictionResult> predictions,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task<List<IntentRecord>> LoadExistingIntentsAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<IntentRecord>());
+
+    Task SaveIntentRecordAsync(
+        IntentRecord record,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task IncrementIntentErrorAsync(
+        string filePath,
+        string workspaceId,
+        string fileId,
+        string contentHash,
+        DateTime lastModifiedUtc,
+        string error,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task<int> ApplyCachedIntentsToGraphAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(0);
+
+    Task ClearIntentsAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task ResetIntentErrorsAsync(
+        string workspaceId,
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
@@ -67,4 +103,24 @@ public record CodeIntentPredictionResult(
     bool? IsPureDomain,
     List<string>? TargetEntities,
     List<string>? EmittedEvents
+);
+
+public record IntentRecord(
+    string FilePath,
+    string WorkspaceId,
+    string FileId,
+    string ContentHash,
+    DateTime LastModifiedUtc,
+    string? Domain,
+    string? Layer,
+    string? Pattern,
+    string? OperationType,
+    string? CapabilityTag,
+    string? IntentSummary,
+    List<string>? TargetEntities,
+    List<string>? EmittedEvents,
+    bool? IsPureDomain,
+    int ErrorCount,
+    string? LastError,
+    DateTime? AnalyzedAtUtc
 );

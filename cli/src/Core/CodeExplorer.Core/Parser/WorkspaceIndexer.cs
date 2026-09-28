@@ -40,15 +40,17 @@ public class WorkspaceIndexer
         string workspacePath,
         bool clear,
         CancellationToken cancellationToken = default,
-        IProgress<IndexingProgress>? progress = null) =>
-        IndexAsync(workspacePath, workspaceRoot: null, clear, cancellationToken, progress);
+        IProgress<IndexingProgress>? progress = null,
+        bool enableIntentAnalysis = false) =>
+        IndexAsync(workspacePath, workspaceRoot: null, clear, cancellationToken, progress, enableIntentAnalysis);
 
     public async Task<(int NodesCount, int RelationshipsCount, Dictionary<string, int> NodesByKind)> IndexAsync(
         string targetPath,
         string? workspaceRoot,
         bool clear,
         CancellationToken cancellationToken = default,
-        IProgress<IndexingProgress>? progress = null)
+        IProgress<IndexingProgress>? progress = null,
+        bool enableIntentAnalysis = false)
     {
         string root;
         string? scanPath = null;
@@ -73,7 +75,7 @@ public class WorkspaceIndexer
             }
         }
 
-        var ctx = CreateContext(root, scanPath, clear, cancellationToken, progress);
+        var ctx = CreateContext(root, scanPath, clear, enableIntentAnalysis, cancellationToken, progress);
 
         await RunParsingPipelineAsync(ctx);
 
@@ -87,6 +89,7 @@ public class WorkspaceIndexer
         string workspacePath,
         string? scanPath,
         bool clear,
+        bool enableIntentAnalysis,
         CancellationToken cancellationToken,
         IProgress<IndexingProgress>? progress)
     {
@@ -125,7 +128,8 @@ public class WorkspaceIndexer
             scanPath: normalizedScanPath,
             cancellationToken: cancellationToken,
             progress: progress,
-            logger: _logger);
+            logger: _logger,
+            enableIntentAnalysis: enableIntentAnalysis);
     }
 
     private async Task RunParsingPipelineAsync(ParsingContext ctx)

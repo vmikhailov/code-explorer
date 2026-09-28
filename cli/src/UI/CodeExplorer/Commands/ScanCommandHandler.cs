@@ -39,7 +39,7 @@ public static class ScanCommandHandler
             }
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
-            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath, ws.RootDirectory, clear: false);
+            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath, ws.RootDirectory, clear: false, enableIntentAnalysis: opts.Intent);
 
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"\n✓ Successfully indexed {nodesCount} nodes and {relsCount} relationships!");

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Database;
@@ -6,12 +5,6 @@ using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Core.Analysis;
 
-public record DistillEnvironment(string DirectoryPath, string ModelPath);
-
-public record BatchInferenceItem(
-    [property: JsonPropertyName("id")] string Id,
-    [property: JsonPropertyName("file_path")] string FilePath
-);
 
 public record BatchInferenceResult(
     [property: JsonPropertyName("id")] string? Id,
@@ -56,147 +49,204 @@ public static class CodeIntentAnalyzer
     {
         if (!ShouldRun(ctx)) return;
 
-        var env = FindDistillEnvironment(ctx);
-        if (env == null)
+        if (!ctx.EnableIntentAnalysis)
         {
-            ctx.Log("[CodeIntent] Intent distillation model not detected; skipping intent enrichment pass.");
+            // Fast path: Apply existing cached architectural intents in <50ms without running LLM
+            try
+            {
+                var applied = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
+                if (applied > 0)
+                {
+                    ctx.Log($"[CodeIntent] Fast-applied cached architectural intents to {applied} nodes.");
+                }
+            }
+            catch (Exception ex)
+            {
+                ctx.LogDebug($"[CodeIntent] Note on applying cached intents: {ex.Message}");
+            }
             return;
         }
 
-        ctx.Log($"[CodeIntent] Found code-intent-distill at '{env.DirectoryPath}' with model '{env.ModelPath}'.");
+        await RunIncrementalIntentAnalysisAsync(ctx, limit: null, cancellationToken);
+    }
+
+    public static async Task<int> RunIncrementalIntentAnalysisAsync(
+        ParsingContext ctx,
+        int? limit = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ShouldRun(ctx)) return 0;
+
+        var modelPath = await ModelManager.EnsureModelAvailableAsync(ctx, cancellationToken);
+        if (string.IsNullOrEmpty(modelPath) || !File.Exists(modelPath))
+        {
+            ctx.Log("[CodeIntent] Intent distillation model not available; skipping intent distillation.");
+            return 0;
+        }
 
         try
         {
-            var candidates = await ctx.DbClient.LoadIntentCandidatesAsync(ctx.WorkspaceId, cancellationToken);
+            var candidates = await ctx.DbClient.LoadIntentCandidatesAsync(ctx.WorkspaceId, limit, cancellationToken);
             if (candidates.Count == 0)
             {
                 ctx.Log("[CodeIntent] No architectural candidates found for intent distillation.");
-                return;
+                return 0;
             }
 
-            // Map unique resolved absolute file paths to list of node IDs
-            var fileToNodes = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            // Load existing intent records to enable incremental skipping
+            var existingIntents = await ctx.DbClient.LoadExistingIntentsAsync(ctx.WorkspaceId, cancellationToken);
+            var existingMap = existingIntents.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
+
+            // Group candidates by distinct resolved file path
+            var fileGroups = new Dictionary<string, (string RelativePath, IntentCandidate PrimaryCand, List<IntentCandidate> AllCands)>(StringComparer.OrdinalIgnoreCase);
             foreach (var cand in candidates)
             {
                 var fullPath = ResolveCandidateFullPath(cand, ctx);
-                if (!string.IsNullOrEmpty(fullPath) && File.Exists(fullPath))
+                if (string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath)) continue;
+
+                var relPath = !string.IsNullOrEmpty(cand.RelativePath)
+                    ? cand.RelativePath.Replace('\\', '/')
+                    : Path.GetRelativePath(ctx.AbsoluteWorkspacePath, fullPath).Replace('\\', '/');
+
+                if (!fileGroups.TryGetValue(fullPath, out var group))
                 {
-                    if (!fileToNodes.TryGetValue(fullPath, out var list))
+                    group = (relPath, cand, [cand]);
+                    fileGroups[fullPath] = group;
+                }
+                else
+                {
+                    group.AllCands.Add(cand);
+                }
+            }
+
+            var toProcess = new List<(string FullPath, string RelativePath, IntentCandidate Cand, string Hash, DateTime LastModifiedUtc)>();
+            var skippedClean = 0;
+            var skippedErrorLimit = 0;
+
+            foreach (var (fullPath, (relPath, cand, _)) in fileGroups)
+            {
+                var bytes = await File.ReadAllBytesAsync(fullPath, cancellationToken);
+                var hash = ComputeSha256(bytes);
+                var lastMod = File.GetLastWriteTimeUtc(fullPath);
+
+                if (existingMap.TryGetValue(relPath, out var existing))
+                {
+                    if (existing.ErrorCount >= 10)
                     {
-                        list = [];
-                        fileToNodes[fullPath] = list;
+                        skippedErrorLimit++;
+                        continue;
                     }
-                    list.Add(cand.Id);
+
+                    if (string.Equals(existing.ContentHash, hash, StringComparison.OrdinalIgnoreCase) && existing.Domain != null)
+                    {
+                        skippedClean++;
+                        continue;
+                    }
                 }
+
+                toProcess.Add((fullPath, relPath, cand, hash, lastMod));
             }
 
-            if (fileToNodes.Count == 0)
+            if (toProcess.Count == 0)
             {
-                ctx.Log("[CodeIntent] No candidate files exist on disk; skipping intent distillation.");
-                return;
+                ctx.Log($"[CodeIntent] All {fileGroups.Count} architectural files are up-to-date in cache" +
+                    (skippedErrorLimit > 0 ? $" ({skippedErrorLimit} files skipped due to >=10 errors; run 'ce intent reset-errors' to retry)" : "") + ".");
+                var fastApplied = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
+                return fastApplied;
             }
 
-            ctx.Log($"[CodeIntent] Running batch intent inference on {fileToNodes.Count} files ({candidates.Count} nodes)...");
+            ctx.Log($"[CodeIntent] Running batch intent inference on {toProcess.Count} files ({skippedClean} unchanged, {skippedErrorLimit} error-locked)...");
 
-            var predictions = await RunBatchInferenceAsync(env, fileToNodes.Keys, cancellationToken);
-            if (predictions.Count == 0)
+            var gpuLayers = 99;
+            if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_GPU_LAYERS"), out var envLayers))
             {
-                ctx.Log("[CodeIntent] Batch inference returned 0 predictions.");
-                return;
+                gpuLayers = envLayers;
             }
 
-            // Expand predictions for all associated nodes
-            var enrichedResults = new List<CodeIntentPredictionResult>();
-            foreach (var pred in predictions)
+            using var predictor = new NativeIntentPredictor(modelPath, contextSize: 2048, gpuLayers: gpuLayers);
+
+            var idx = 0;
+            var successCount = 0;
+            foreach (var item in toProcess)
             {
-                if (string.IsNullOrEmpty(pred.FilePath) || !fileToNodes.TryGetValue(pred.FilePath, out var nodeIds))
+                cancellationToken.ThrowIfCancellationRequested();
+                idx++;
+                var fileName = Path.GetFileName(item.FullPath);
+                ctx.Log($"[CodeIntent] Processing files through LLM: {idx}/{toProcess.Count} ({fileName})...");
+
+                try
                 {
-                    continue;
-                }
+                    var content = await File.ReadAllTextAsync(item.FullPath, cancellationToken);
+                    var (prediction, rawOutput) = await predictor.PredictWithRawAsync(item.FullPath, content, cancellationToken);
 
-                foreach (var nodeId in nodeIds)
+                    if (prediction != null && !string.IsNullOrWhiteSpace(prediction.Domain))
+                    {
+                        var record = new IntentRecord(
+                            FilePath: item.RelativePath,
+                            WorkspaceId: ctx.WorkspaceId,
+                            FileId: item.Cand.Id,
+                            ContentHash: item.Hash,
+                            LastModifiedUtc: item.LastModifiedUtc,
+                            Domain: prediction.Domain,
+                            Layer: prediction.Layer,
+                            Pattern: prediction.Pattern,
+                            OperationType: prediction.OperationType,
+                            CapabilityTag: prediction.CapabilityTag,
+                            IntentSummary: prediction.IntentSummary,
+                            TargetEntities: prediction.TargetEntities,
+                            EmittedEvents: prediction.EmittedEvents,
+                            IsPureDomain: prediction.IsPureDomain,
+                            ErrorCount: 0,
+                            LastError: null,
+                            AnalyzedAtUtc: DateTime.UtcNow
+                        );
+                        await ctx.DbClient.SaveIntentRecordAsync(record, cancellationToken);
+                        successCount++;
+                    }
+                    else
+                    {
+                        ctx.LogWarning($"[CodeIntent] Malformed or empty prediction on '{fileName}' ({idx}/{toProcess.Count})");
+                        await ctx.DbClient.IncrementIntentErrorAsync(
+                            item.RelativePath,
+                            ctx.WorkspaceId,
+                            item.Cand.Id,
+                            item.Hash,
+                            item.LastModifiedUtc,
+                            "LLM output could not be parsed into valid architectural intent JSON",
+                            cancellationToken);
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    enrichedResults.Add(new CodeIntentPredictionResult(
-                        nodeId,
-                        pred.FilePath,
-                        pred.Domain,
-                        pred.Layer,
-                        pred.Pattern,
-                        pred.OperationType,
-                        pred.CapabilityTag,
-                        pred.IntentSummary,
-                        pred.IsPureDomain,
-                        pred.TargetEntities,
-                        pred.EmittedEvents
-                    ));
+                    ctx.LogWarning($"[CodeIntent] Error during inference on '{fileName}' ({idx}/{toProcess.Count}): {ex.Message}");
+                    await ctx.DbClient.IncrementIntentErrorAsync(
+                        item.RelativePath,
+                        ctx.WorkspaceId,
+                        item.Cand.Id,
+                        item.Hash,
+                        item.LastModifiedUtc,
+                        ex.Message,
+                        cancellationToken);
                 }
             }
 
-            if (enrichedResults.Count > 0)
-            {
-                await ctx.DbClient.SaveIntentPredictionsAsync(ctx.WorkspaceId, enrichedResults, cancellationToken);
-                ctx.Log($"[CodeIntent] Enriched {enrichedResults.Count} nodes across {fileToNodes.Count} files with architectural intent.");
-            }
+            ctx.Log($"[CodeIntent] Completed LLM distillation: {successCount}/{toProcess.Count} succeeded.");
+            var appliedCount = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
+            ctx.Log($"[CodeIntent] Applied architectural intents to {appliedCount} graph nodes.");
+            return appliedCount;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ctx.Log($"[CodeIntent] Intent enrichment encountered an issue: {ex.Message}; continuing gracefully.");
+            ctx.LogWarning($"[CodeIntent] Intent distillation encountered an issue: {ex.Message}");
+            return 0;
         }
     }
 
-    public static DistillEnvironment? FindDistillEnvironment(ParsingContext ctx)
+    private static string ComputeSha256(byte[] bytes)
     {
-        var candidateDirs = new List<string>();
-
-        // 1. Explicit environment variable
-        var envVar = Environment.GetEnvironmentVariable("CODE_INTENT_DIR");
-        if (!string.IsNullOrWhiteSpace(envVar))
-        {
-            candidateDirs.Add(envVar);
-        }
-
-        // 2. Relative paths from workspace or current directory
-        if (!string.IsNullOrWhiteSpace(ctx.HostWorkspacePath))
-        {
-            candidateDirs.Add(Path.Combine(ctx.HostWorkspacePath, "..", "code-intent-distill"));
-            candidateDirs.Add(Path.Combine(ctx.HostWorkspacePath, "..", "..", "code-intent-distill"));
-        }
-        candidateDirs.Add(Path.Combine(Environment.CurrentDirectory, "..", "code-intent-distill"));
-        candidateDirs.Add(Path.Combine(Environment.CurrentDirectory, "..", "..", "code-intent-distill"));
-        candidateDirs.Add(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "code-intent-distill"));
-
-        // 3. Well-known local directory
-        candidateDirs.Add(@"C:\Work\Personal\code-intent-distill");
-
-        foreach (var dir in candidateDirs)
-        {
-            try
-            {
-                var fullDir = Path.GetFullPath(dir);
-                if (!Directory.Exists(fullDir)) continue;
-
-                var pyproject = Path.Combine(fullDir, "pyproject.toml");
-                if (!File.Exists(pyproject)) continue;
-
-                var v2Model = Path.Combine(fullDir, "models", "ce-intent-v2");
-                if (Directory.Exists(v2Model))
-                {
-                    return new DistillEnvironment(fullDir, "./models/ce-intent-v2");
-                }
-
-                var v1Model = Path.Combine(fullDir, "models", "ce-intent-v1");
-                if (Directory.Exists(v1Model))
-                {
-                    return new DistillEnvironment(fullDir, "./models/ce-intent-v1");
-                }
-            }
-            catch
-            {
-                // Ignore path errors
-            }
-        }
-
-        return null;
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var hash = sha.ComputeHash(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private static string? ResolveCandidateFullPath(IntentCandidate cand, ParsingContext ctx)
@@ -222,87 +272,5 @@ public static class CodeIntentAnalyzer
         }
 
         return null;
-    }
-
-    private static async Task<List<BatchInferenceResult>> RunBatchInferenceAsync(
-        DistillEnvironment env,
-        IEnumerable<string> filePaths,
-        CancellationToken cancellationToken)
-    {
-        var tempInput = Path.Combine(Path.GetTempPath(), $"ce_intent_in_{Guid.NewGuid():N}.jsonl");
-        var tempOutput = Path.Combine(Path.GetTempPath(), $"ce_intent_out_{Guid.NewGuid():N}.jsonl");
-
-        try
-        {
-            // 1. Write batch input JSONL
-            await using (var writer = new StreamWriter(tempInput, false, System.Text.Encoding.UTF8))
-            {
-                foreach (var path in filePaths)
-                {
-                    var item = new BatchInferenceItem(path, path);
-                    var line = JsonSerializer.Serialize(item, JsonOptions);
-                    await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
-                }
-            }
-
-            // 2. Invoke uv run code-intent batch
-            var psi = new ProcessStartInfo
-            {
-                FileName = "uv",
-                Arguments = $"run --directory \"{env.DirectoryPath}\" code-intent batch --input \"{tempInput}\" --output \"{tempOutput}\" --model \"{env.ModelPath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = new Process { StartInfo = psi };
-            process.Start();
-
-            var timeoutTask = Task.Delay(TimeSpan.FromMinutes(3), cancellationToken);
-            var processTask = process.WaitForExitAsync(cancellationToken);
-
-            var completedTask = await Task.WhenAny(processTask, timeoutTask);
-            if (completedTask == timeoutTask)
-            {
-                try { process.Kill(true); } catch { /* Ignore */ }
-                throw new TimeoutException("Code-intent batch inference timed out after 3 minutes.");
-            }
-
-            if (process.ExitCode != 0)
-            {
-                var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
-                throw new InvalidOperationException($"code-intent batch exited with code {process.ExitCode}: {stderr}");
-            }
-
-            // 3. Read output JSONL
-            var results = new List<BatchInferenceResult>();
-            if (File.Exists(tempOutput))
-            {
-                using var reader = new StreamReader(tempOutput, System.Text.Encoding.UTF8);
-                string? line;
-                while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
-                {
-                    line = line.Trim();
-                    if (string.IsNullOrEmpty(line)) continue;
-                    try
-                    {
-                        var res = JsonSerializer.Deserialize<BatchInferenceResult>(line, JsonOptions);
-                        if (res != null) results.Add(res);
-                    }
-                    catch
-                    {
-                        // Skip malformed lines
-                    }
-                }
-            }
-
-            return results;
-        }
-        finally
-        {
-            try { if (File.Exists(tempInput)) File.Delete(tempInput); } catch { /* Ignore */ }
-            try { if (File.Exists(tempOutput)) File.Delete(tempOutput); } catch { /* Ignore */ }
-        }
     }
 }
