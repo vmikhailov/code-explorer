@@ -95,6 +95,10 @@ public static class CodeIntentAnalyzer
 
             // Load existing intent records to enable incremental skipping
             var existingIntents = await ctx.DbClient.LoadExistingIntentsAsync(ctx.WorkspaceId, cancellationToken);
+            if (existingIntents.Count == 0 && !string.IsNullOrWhiteSpace(ctx.WorkspaceId))
+            {
+                existingIntents = await ctx.DbClient.LoadExistingIntentsAsync("", cancellationToken);
+            }
             var existingMap = existingIntents.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
 
             // Group candidates by distinct resolved file path
