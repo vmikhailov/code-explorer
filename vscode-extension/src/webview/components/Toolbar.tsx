@@ -166,14 +166,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Dynamic Controls based on Mode */}
       <div className="toolbar-controls">
-        {viewMode === 'contexts' && (
-          <div className="contexts-controls button-group">
-            <button onClick={onRefresh} title="Reload Bounded Contexts" className="ctrl-btn icon-btn">
-              <span className="btn-icon">🔄</span>
-              <span className="btn-text">Refresh</span>
-            </button>
-          </div>
-        )}
 
         {viewMode === 'c1' && (
           <div className="c1-controls button-group">

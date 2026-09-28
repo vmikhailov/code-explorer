@@ -396,37 +396,6 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
               ⛶ Fit
             </button>
           )}
-
-          {onRefresh && (
-            <button
-              className="hud-btn-toggle"
-              onClick={onRefresh}
-              title="Reload Bounded Contexts"
-            >
-              🔄 Refresh
-            </button>
-          )}
-
-          {onTriggerIntent && (
-            <button
-              className="hud-btn-toggle"
-              onClick={onTriggerIntent}
-              title="Run local SLM architectural intent distillation"
-              style={{ color: '#a78bfa', borderColor: 'rgba(167, 139, 250, 0.4)' }}
-            >
-              ✨ Distill
-            </button>
-          )}
-
-          {onManageModel && (
-            <button
-              className="hud-btn-toggle"
-              onClick={onManageModel}
-              title="Manage AI Model"
-            >
-              🧠 Model
-            </button>
-          )}
         </div>
       </div>
 
