@@ -1247,6 +1247,230 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
+    public async Task<List<IntentCandidate>> LoadIntentCandidatesAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<IntentCandidate>();
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            // 1. Architectural candidates (classes/interfaces/files)
+            cmd.CommandText = """
+                SELECT id, kind,
+                       COALESCE(json_extract(properties, '$.name'), '') AS name,
+                       COALESCE(json_extract(properties, '$.path'), json_extract(properties, '$.file_path'), '') AS rel_path,
+                       COALESCE(json_extract(properties, '$.full_path'), '') AS full_path
+                FROM nodes
+                WHERE kind IN ('Type', 'File')
+                  AND (
+                      name LIKE '%Service%' OR name LIKE '%Controller%' OR name LIKE '%Repository%'
+                      OR name LIKE '%Handler%' OR name LIKE '%Consumer%' OR name LIKE '%Manager%'
+                      OR name LIKE '%Producer%' OR name LIKE '%Listener%' OR name LIKE '%Worker%'
+                      OR name LIKE '%Job%' OR name LIKE '%Processor%' OR name LIKE '%Store%'
+                      OR name LIKE '%Command%' OR name LIKE '%Query%' OR name LIKE '%Entity%'
+                      OR name LIKE '%DTO%' OR name LIKE '%Model%' OR name LIKE '%Aggregate%'
+                      OR name LIKE '%Policy%' OR name LIKE '%Factory%'
+                      OR rel_path LIKE '%.service.%' OR rel_path LIKE '%.controller.%'
+                      OR rel_path LIKE '%.repository.%' OR rel_path LIKE '%.handler.%'
+                      OR rel_path LIKE '%.consumer.%' OR rel_path LIKE '%.manager.%'
+                      OR rel_path LIKE '%/services/%' OR rel_path LIKE '%/controllers/%'
+                      OR rel_path LIKE '%/repositories/%' OR rel_path LIKE '%/handlers/%'
+                      OR rel_path LIKE '%/consumers/%' OR rel_path LIKE '%/domain/%'
+                      OR rel_path LIKE '%/entities/%' OR rel_path LIKE '%/commands/%'
+                      OR rel_path LIKE '%/queries/%'
+                  )
+                  AND rel_path NOT LIKE '%.spec.%'
+                  AND rel_path NOT LIKE '%.test.%'
+                  AND rel_path NOT LIKE '%/tests/%'
+                  AND rel_path NOT LIKE '%/test/%'
+                  AND rel_path NOT LIKE '%/obj/%'
+                  AND rel_path NOT LIKE '%/bin/%'
+                  AND rel_path NOT LIKE '%/node_modules/%'
+                LIMIT 250;
+                """;
+
+            await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    results.Add(new IntentCandidate(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetString(2),
+                        reader.GetString(3),
+                        reader.IsDBNull(4) ? null : reader.GetString(4)
+                    ));
+                }
+            }
+
+            // 2. Fallback if no specific architectural keywords were found: take top Types
+            if (results.Count == 0)
+            {
+                cmd.CommandText = """
+                    SELECT id, kind,
+                           COALESCE(json_extract(properties, '$.name'), '') AS name,
+                           COALESCE(json_extract(properties, '$.path'), json_extract(properties, '$.file_path'), '') AS rel_path,
+                           COALESCE(json_extract(properties, '$.full_path'), '') AS full_path
+                    FROM nodes
+                    WHERE kind = 'Type'
+                      AND rel_path NOT LIKE '%.spec.%'
+                      AND rel_path NOT LIKE '%.test.%'
+                      AND rel_path NOT LIKE '%/tests/%'
+                      AND rel_path NOT LIKE '%/test/%'
+                      AND rel_path NOT LIKE '%/obj/%'
+                      AND rel_path NOT LIKE '%/bin/%'
+                      AND rel_path NOT LIKE '%/node_modules/%'
+                    LIMIT 100;
+                    """;
+
+                await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    results.Add(new IntentCandidate(
+                        reader.GetString(0),
+                        reader.GetString(1),
+                        reader.GetString(2),
+                        reader.GetString(3),
+                        reader.IsDBNull(4) ? null : reader.GetString(4)
+                    ));
+                }
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return results;
+    }
+
+    public async Task SaveIntentPredictionsAsync(
+        string workspaceId,
+        List<CodeIntentPredictionResult> predictions,
+        CancellationToken cancellationToken = default)
+    {
+        if (predictions.Count == 0) return;
+
+        var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync(cancellationToken);
+
+            // 1. Update node properties with intent fields
+            await using (var updCmd = _conn.CreateCommand())
+            {
+                updCmd.Transaction = tx;
+                updCmd.CommandTimeout = CommandTimeoutSeconds;
+                updCmd.CommandText = """
+                    UPDATE nodes SET properties = json_set(
+                        properties,
+                        '$.intent_domain', @domain,
+                        '$.intent_layer', @layer,
+                        '$.intent_pattern', @pattern,
+                        '$.intent_operation', @operation,
+                        '$.intent_capability', @capability,
+                        '$.intent_summary', @summary,
+                        '$.is_pure_domain', @isPureDomain,
+                        '$.target_entities', json(@targetEntities),
+                        '$.emitted_events', json(@emittedEvents)
+                    ) WHERE id = @id;
+                    """;
+
+                var pId = updCmd.Parameters.Add("@id", SqliteType.Text);
+                var pDomain = updCmd.Parameters.Add("@domain", SqliteType.Text);
+                var pLayer = updCmd.Parameters.Add("@layer", SqliteType.Text);
+                var pPattern = updCmd.Parameters.Add("@pattern", SqliteType.Text);
+                var pOp = updCmd.Parameters.Add("@operation", SqliteType.Text);
+                var pCap = updCmd.Parameters.Add("@capability", SqliteType.Text);
+                var pSummary = updCmd.Parameters.Add("@summary", SqliteType.Text);
+                var pPure = updCmd.Parameters.Add("@isPureDomain", SqliteType.Integer);
+                var pEntities = updCmd.Parameters.Add("@targetEntities", SqliteType.Text);
+                var pEvents = updCmd.Parameters.Add("@emittedEvents", SqliteType.Text);
+
+                foreach (var pred in predictions)
+                {
+                    pId.Value = pred.Id;
+                    pDomain.Value = (object?)pred.Domain ?? DBNull.Value;
+                    pLayer.Value = (object?)pred.Layer ?? DBNull.Value;
+                    pPattern.Value = (object?)pred.Pattern ?? DBNull.Value;
+                    pOp.Value = (object?)pred.OperationType ?? DBNull.Value;
+                    pCap.Value = (object?)pred.CapabilityTag ?? DBNull.Value;
+                    pSummary.Value = (object?)pred.IntentSummary ?? DBNull.Value;
+                    pPure.Value = pred.IsPureDomain.HasValue ? (pred.IsPureDomain.Value ? 1 : 0) : DBNull.Value;
+                    pEntities.Value = JsonSerializer.Serialize(pred.TargetEntities ?? []);
+                    pEvents.Value = JsonSerializer.Serialize(pred.EmittedEvents ?? []);
+
+                    await updCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+            }
+
+            // 2. Materialize Domain nodes and BELONGS_TO_DOMAIN relationships
+            var distinctDomains = predictions
+                .Where(p => !string.IsNullOrWhiteSpace(p.Domain))
+                .Select(p => p.Domain!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (distinctDomains.Count > 0)
+            {
+                await using var domCmd = _conn.CreateCommand();
+                domCmd.Transaction = tx;
+                domCmd.CommandTimeout = CommandTimeoutSeconds;
+                domCmd.CommandText = """
+                    INSERT INTO nodes (id, kind, properties)
+                    VALUES (@id, 'Domain', @props)
+                    ON CONFLICT(id) DO NOTHING;
+                    """;
+                var pDomId = domCmd.Parameters.Add("@id", SqliteType.Text);
+                var pDomProps = domCmd.Parameters.Add("@props", SqliteType.Text);
+
+                foreach (var dom in distinctDomains)
+                {
+                    var domId = $"{widPrefix}dom:{dom.ToLowerInvariant()}";
+                    var domProps = JsonSerializer.Serialize(new Dictionary<string, object>
+                    {
+                        ["id"] = domId,
+                        ["name"] = dom
+                    });
+
+                    pDomId.Value = domId;
+                    pDomProps.Value = domProps;
+                    await domCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                await using var edgeCmd = _conn.CreateCommand();
+                edgeCmd.Transaction = tx;
+                edgeCmd.CommandTimeout = CommandTimeoutSeconds;
+                edgeCmd.CommandText = """
+                    INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+                    VALUES (@fromId, @toId, 'BELONGS_TO_DOMAIN', '{}');
+                    """;
+                var pFromId = edgeCmd.Parameters.Add("@fromId", SqliteType.Text);
+                var pToId = edgeCmd.Parameters.Add("@toId", SqliteType.Text);
+
+                foreach (var pred in predictions.Where(p => !string.IsNullOrWhiteSpace(p.Domain)))
+                {
+                    var domId = $"{widPrefix}dom:{pred.Domain!.Trim().ToLowerInvariant()}";
+                    pFromId.Value = pred.Id;
+                    pToId.Value = domId;
+                    await edgeCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+            }
+
+            await tx.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
 
     private static object? FormatSqliteValue(object val)
     {

@@ -37,7 +37,34 @@ public interface IGraphClient : IAsyncDisposable
             new List<ExternalServiceNode>()
         ));
 
+    Task<List<IntentCandidate>> LoadIntentCandidatesAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<IntentCandidate>());
+
+    Task SaveIntentPredictionsAsync(
+        string workspaceId,
+        List<CodeIntentPredictionResult> predictions,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
     int SchemaVersion => 0;
     bool IsSchemaOutdated => false;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
 }
+
+public record IntentCandidate(string Id, string Kind, string Name, string RelativePath, string? FullPath);
+
+public record CodeIntentPredictionResult(
+    string Id,
+    string? FilePath,
+    string? Domain,
+    string? Layer,
+    string? Pattern,
+    string? OperationType,
+    string? CapabilityTag,
+    string? IntentSummary,
+    bool? IsPureDomain,
+    List<string>? TargetEntities,
+    List<string>? EmittedEvents
+);

@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -66,6 +67,9 @@ public class Layer5AnalysisParser
             ctx.Log("[Layer5] Running in-memory post-indexing analysis via PostIndexAnalyzer...");
             await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
         }
+
+        // 6. Run CodeIntentAnalyzer (if model / code-intent-distill is available)
+        await CodeIntentAnalyzer.EnrichAsync(ctx);
 
         ctx.Log("[Layer5] Late binding and post-indexing analysis pass complete.");
         return new Layer5Result(l4Result, lateBoundRels);

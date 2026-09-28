@@ -36,6 +36,7 @@ public static class OntologyConstants
         public const string GitSettings = "GitSettings";
         public const string ApiInUse = "ApiInUse";
         public const string Counter = "Counter";
+        public const string Domain = "Domain";
     }
 
     public static class IdPrefixes
@@ -67,6 +68,7 @@ public static class OntologyConstants
         public const string EntryPoint = "entry";
         public const string CloudService = "cloud";
         public const string ApiInUse = "api";
+        public const string Domain = "dom";
     }
 
     public static class Layers
@@ -130,6 +132,7 @@ public static class OntologyConstants
         public const string Configures = "CONFIGURES";
         public const string Deploys = "DEPLOYS";
         public const string DeployedBy = "DEPLOYED_BY";
+        public const string BelongsToDomain = "BELONGS_TO_DOMAIN";
     }
 
     public static class LibraryTypes
