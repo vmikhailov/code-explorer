@@ -1104,7 +1104,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             Limit = limit
         };
 
-        var safeKind = !string.IsNullOrWhiteSpace(kind) && System.Text.RegularExpressions.Regex.IsMatch(kind, "^[A-Za-z0-9_]+$")
+        var safeKind = !string.IsNullOrWhiteSpace(kind) && Regex.IsMatch(kind, "^[A-Za-z0-9_]+$")
             ? kind
             : null;
 
@@ -2177,7 +2177,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                             else if (tgtName.StartsWith("environment.", StringComparison.OrdinalIgnoreCase) ||
                                      tgtName.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
                             {
-                                var cleanSvc = System.Text.RegularExpressions.Regex.Replace(tgtName, @"^(environment\.|env\.)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                var cleanSvc = Regex.Replace(tgtName, @"^(environment\.|env\.)", "", RegexOptions.IgnoreCase);
                                 if (seenServiceSvcs.Add($"{srcSummary.ServiceName}->{cleanSvc}"))
                                 {
                                     srcSummary.ServiceCount++;
@@ -2381,7 +2381,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                         else if (tgtName.StartsWith("environment.", StringComparison.OrdinalIgnoreCase) ||
                                  tgtName.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
                         {
-                            var cleanSvc = System.Text.RegularExpressions.Regex.Replace(tgtName, @"^(environment\.|env\.)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            var cleanSvc = Regex.Replace(tgtName, @"^(environment\.|env\.)", "", RegexOptions.IgnoreCase);
                             if (seenServices.Add(cleanSvc))
                             {
                                 svcGroup.Items.Add(new ServiceCapabilityItemDto
@@ -2465,7 +2465,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         foreach (var p in projectNodes)
         {
             lookup.TryAdd(p.Name, p);
-            var clean = System.Text.RegularExpressions.Regex.Replace(p.Name, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+            var clean = Regex.Replace(p.Name, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "", RegexOptions.IgnoreCase)
                              .Replace("-", "").Replace("_", "");
             if (clean.Length > 0) lookup.TryAdd(clean, p);
             var norm = p.Name.Replace("-", "").Replace("_", "");
@@ -2480,7 +2480,7 @@ public class ArchitectureViewEngine(IGraphClient db)
     {
         if (string.IsNullOrWhiteSpace(nameOrDomain)) return null;
         var n = nameOrDomain.Trim();
-        var clean = System.Text.RegularExpressions.Regex.Replace(n, @"^(environment\.|env\.|config\.|base_url_)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+        var clean = Regex.Replace(n, @"^(environment\.|env\.|config\.|base_url_)", "", RegexOptions.IgnoreCase)
                          .Replace("-", "").Replace("_", "");
         if (clean.Length > 0 && internalProjectsByName.TryGetValue(clean, out var matched))
         {
@@ -2504,8 +2504,8 @@ public class ArchitectureViewEngine(IGraphClient db)
     // 6. Domain Architecture (Bounded Contexts & Service Map)
     // =========================================================================
 
-    private static readonly System.Text.RegularExpressions.Regex SubProjectSuffixRegex =
-        new(@"\.(Logic|Client|Contracts|Data|Core|Domain|Infrastructure|Api|Service|Services|Web|Worker|Test|Tests|Shared|Models|Dto|SDK|UnitTests|IntegrationTests)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly Regex SubProjectSuffixRegex =
+        new(@"\.(Logic|Client|Contracts|Data|Core|Domain|Infrastructure|Api|Service|Services|Web|Worker|Test|Tests|Shared|Models|Dto|SDK|UnitTests|IntegrationTests)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly string[] IngressKeywords = ["admin", "app", "ui", "fe", "gateway", "bff", "portal", "web", "client-app", "landing"];
     private static readonly string[] IngressFrameworks = ["angular", "react", "vue", "svelte", "next", "vite", "blazor", "express", "fastify"];
@@ -3474,7 +3474,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToMarkdown(DomainArchitectureDto dto)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("# Domain Microservices Architecture");
         sb.AppendLine();
         sb.AppendLine($"**Domains:** {dto.Stats.TotalDomains} | **Services:** {dto.Stats.Services} | **Apps:** {dto.Stats.Ingress} | **Workers:** {dto.Stats.Workers} | **Databases:** {dto.Stats.Databases} | **Topics:** {dto.Stats.Topics}");
@@ -3501,7 +3501,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToToon(DomainArchitectureDto dto)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("domain_architecture:");
         sb.AppendLine("  stats:");
         sb.AppendLine($"    domains: {dto.Stats.TotalDomains}");
@@ -3545,7 +3545,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             };
 
             var baseName = !string.IsNullOrWhiteSpace(node.DisplayName) ? node.DisplayName : node.Name;
-            baseName = System.Text.RegularExpressions.Regex.Replace(baseName ?? "", @"[^\w\.\-]", "_");
+            baseName = Regex.Replace(baseName ?? "", @"[^\w\.\-]", "_");
 
             var slug = baseName.ToLowerInvariant()
                 .Replace("postgresql.", "pg_")
@@ -3568,7 +3568,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 .Replace("ws:lib:", "")
                 .Replace("domain:", "");
 
-            slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^a-z0-9_]", "_").Trim('_');
+            slug = Regex.Replace(slug, @"[^a-z0-9_]", "_").Trim('_');
             if (string.IsNullOrWhiteSpace(slug)) slug = "item";
 
             var candidate = $"{prefix}_{slug}";
@@ -3583,7 +3583,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             usedIds.Add(finalId);
             idMap[raw] = finalId;
-            idMap[System.Text.RegularExpressions.Regex.Replace(raw, @"[^a-zA-Z0-9_]", "_")] = finalId;
+            idMap[Regex.Replace(raw, @"[^a-zA-Z0-9_]", "_")] = finalId;
         }
 
         return idMap;
@@ -3591,12 +3591,12 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToMermaid(DomainArchitectureDto dto)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("flowchart TD");
         var idMap = BuildShortMermaidIdMap(dto.Nodes);
         var getId = (string s) => idMap.GetValueOrDefault(s) ??
-                                  idMap.GetValueOrDefault(System.Text.RegularExpressions.Regex.Replace(s, @"[^a-zA-Z0-9_]", "_")) ??
-                                  System.Text.RegularExpressions.Regex.Replace(s, @"[^a-zA-Z0-9_]", "_");
+                                  idMap.GetValueOrDefault(Regex.Replace(s, @"[^a-zA-Z0-9_]", "_")) ??
+                                  Regex.Replace(s, @"[^a-zA-Z0-9_]", "_");
         var esc = (string s) => s?.Replace("\"", "'") ?? "";
 
         var ingress = dto.Nodes.Where(n => n.Kind == "Ingress").ToList();
@@ -3667,7 +3667,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToMarkdown(ServiceContractDto dto)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine($"# Service Contract: {dto.ServiceName}");
         sb.AppendLine();
         sb.AppendLine($"**Kind:** `{dto.Kind}` | **Framework:** {dto.Framework ?? "N/A"} | **Language:** {dto.Language ?? "N/A"}");
@@ -3710,7 +3710,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToToon(ServiceContractDto dto)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("service_contract:");
         sb.AppendLine($"  service: {dto.ServiceName}");
         sb.AppendLine($"  kind: {dto.Kind}");
@@ -3737,7 +3737,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToMarkdown(CrossServiceFlowDto dto)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine($"# Cross-Service Execution Flow: {dto.StartService}");
         if (!string.IsNullOrEmpty(dto.EntryPoint)) sb.AppendLine($"**Entry Point:** `{dto.EntryPoint}`");
         sb.AppendLine($"**Max Depth:** {dto.MaxDepth} | **Visited Services:** {string.Join(" -> ", dto.VisitedServices)}");
@@ -3754,7 +3754,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToMermaid(CrossServiceFlowDto dto)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("flowchart LR");
         var sanitize = (string s) => s.Replace(":", "_").Replace("-", "_").Replace(".", "_").Replace("/", "_");
         foreach (var hop in dto.Hops)
@@ -3777,7 +3777,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToMermaid(GraphDataDto graph)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("flowchart TD");
         var sanitize = (string s) => s.Replace(":", "_").Replace("-", "_").Replace(".", "_").Replace("/", "_");
 
@@ -3798,7 +3798,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToToon(GraphDataDto graph)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine("graph_view:");
         sb.AppendLine($"  nodes_count: {graph.Nodes.Count}");
         sb.AppendLine($"  edges_count: {graph.Edges.Count}");
@@ -3820,7 +3820,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static string ToMarkdown(GraphDataDto graph, string title)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.AppendLine($"# {title}");
         sb.AppendLine();
         sb.AppendLine($"**Total Nodes:** {graph.Nodes.Count} | **Total Edges:** {graph.Edges.Count}");

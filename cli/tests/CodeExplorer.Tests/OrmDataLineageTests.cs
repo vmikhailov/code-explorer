@@ -193,22 +193,22 @@ export class Product {
     [Test]
     public void Test_Database_Deduplication_And_Canonicalization()
     {
-        var (tName1, tType1, tKey1) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("typeorm", "relational");
-        var (tName2, tType2, tKey2) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("TypeORM", "relational");
+        var (tName1, tType1, tKey1) = PostIndexAnalyzer.CanonicalizeDatabase("typeorm", "relational");
+        var (tName2, tType2, tKey2) = PostIndexAnalyzer.CanonicalizeDatabase("TypeORM", "relational");
         Assert.That(tName1, Is.EqualTo("Database"));
         Assert.That(tName2, Is.EqualTo("Database"));
         Assert.That(tKey1, Is.EqualTo("database"));
         Assert.That(tKey2, Is.EqualTo("database"));
 
-        var (pName1, _, pKey1) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("postgres", null);
-        var (pName2, _, pKey2) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("PostgreSQL", "relational");
+        var (pName1, _, pKey1) = PostIndexAnalyzer.CanonicalizeDatabase("postgres", null);
+        var (pName2, _, pKey2) = PostIndexAnalyzer.CanonicalizeDatabase("PostgreSQL", "relational");
         Assert.That(pName1, Is.EqualTo("PostgreSQL"));
         Assert.That(pName2, Is.EqualTo("PostgreSQL"));
         Assert.That(pKey1, Is.EqualTo("postgresql"));
         Assert.That(pKey2, Is.EqualTo("postgresql"));
 
-        var (rName1, rType1, rKey1) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("REDIS_HOST", "cache");
-        var (rName2, rType2, rKey2) = CodeExplorer.Core.Parser.PostIndexAnalyzer.CanonicalizeDatabase("redis", "keyvalue");
+        var (rName1, rType1, rKey1) = PostIndexAnalyzer.CanonicalizeDatabase("REDIS_HOST", "cache");
+        var (rName2, rType2, rKey2) = PostIndexAnalyzer.CanonicalizeDatabase("redis", "keyvalue");
         Assert.That(rName1, Is.EqualTo("Redis"));
         Assert.That(rName2, Is.EqualTo("Redis"));
         Assert.That(rType1, Is.EqualTo("cache"));
@@ -227,7 +227,7 @@ export class Product {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
             using var db = new SqliteGraphClient(dbPath);
 
-            var nodes = new List<CodeExplorer.Core.Database.Node>
+            var nodes = new List<Node>
             {
                 new("proj:svc_a", "Project", new Dictionary<string, object> { ["name"] = "ServiceA", ["path"] = "/src/a", ["project_type"] = "typescript" }),
                 new("proj:svc_b", "Project", new Dictionary<string, object> { ["name"] = "ServiceB", ["path"] = "/src/b", ["project_type"] = "typescript" }),
@@ -241,7 +241,7 @@ export class Product {
             };
             await db.UploadNodesAsync(nodes);
 
-            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            var rels = new List<Relationship>
             {
                 new("proj:svc_a", "workspace:project:svc_a:db:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
                 new("proj:svc_b", "workspace:project:svc_b:db:TypeORM", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
@@ -338,14 +338,14 @@ export class Product {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
             using var db = new SqliteGraphClient(dbPath);
 
-            var nodes = new List<CodeExplorer.Core.Database.Node>
+            var nodes = new List<Node>
             {
                 new("proj:svc_a", "Project", new Dictionary<string, object> { ["name"] = "ServiceA", ["path"] = "/src/a", ["project_type"] = "typescript", ["db_type"] = "relational" }),
                 new("ws:db:relational:postgresql", "Database", new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" })
             };
             await db.UploadNodesAsync(nodes);
 
-            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            var rels = new List<Relationship>
             {
                 new("proj:svc_a", "ws:db:relational:postgresql", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" })
             };
@@ -377,7 +377,7 @@ export class Product {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
             using var db = new SqliteGraphClient(dbPath);
 
-            var nodes = new List<CodeExplorer.Core.Database.Node>
+            var nodes = new List<Node>
             {
                 new("workspace:project:order_service", "Project", new Dictionary<string, object> { ["name"] = "OrderService", ["path"] = "/src/order_service" }),
                 new("workspace:project:billing_service", "Project", new Dictionary<string, object> { ["name"] = "BillingService", ["path"] = "/src/billing_service" }),
@@ -390,7 +390,7 @@ export class Product {
             };
             await db.UploadNodesAsync(nodes);
 
-            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            var rels = new List<Relationship>
             {
                 new("workspace:project:order_service", "workspace:project:order_service:db:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
                 new("workspace:project:billing_service", "workspace:database:relational:PostgreSQL", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
@@ -495,9 +495,9 @@ public class MyEntity { public int Id { get; set; } }
             await using var client = new InMemoryGraphClient();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 
-            var csharpParser = new CodeExplorer.Parser.CSharp.CSharpParser();
+            var csharpParser = new CSharpParser();
             using var syntaxTree = await csharpParser.ParseAsync(entityFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            CodeExplorer.Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var projectNode = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
             var enricher = csharpParser.GetSyntaxEnricher(syntaxTree);

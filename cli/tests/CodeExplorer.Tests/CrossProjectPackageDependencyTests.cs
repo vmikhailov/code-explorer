@@ -173,21 +173,21 @@ require (
             using var db = new SqliteGraphClient(dbPath);
 
             // Seed Projects & Database
-            var nodes = new List<CodeExplorer.Core.Database.Node>
+            var nodes = new List<Node>
             {
-                new CodeExplorer.Core.Database.Node("proj:client", "Project", new Dictionary<string, object> { ["name"] = "ClientSvc", ["path"] = "/src/client", ["project_type"] = "csharp" }),
-                new CodeExplorer.Core.Database.Node("proj:server", "Project", new Dictionary<string, object> { ["name"] = "ServerSvc", ["path"] = "/src/server", ["project_type"] = "csharp" }),
-                new CodeExplorer.Core.Database.Node("proj:common", "Project", new Dictionary<string, object> { ["name"] = "CommonLib", ["path"] = "/src/common", ["project_type"] = "library" }),
-                new CodeExplorer.Core.Database.Node("db:main", "Database", new Dictionary<string, object> { ["name"] = "AppDb", ["db_type"] = "PostgreSQL" }),
+                new Node("proj:client", "Project", new Dictionary<string, object> { ["name"] = "ClientSvc", ["path"] = "/src/client", ["project_type"] = "csharp" }),
+                new Node("proj:server", "Project", new Dictionary<string, object> { ["name"] = "ServerSvc", ["path"] = "/src/server", ["project_type"] = "csharp" }),
+                new Node("proj:common", "Project", new Dictionary<string, object> { ["name"] = "CommonLib", ["path"] = "/src/common", ["project_type"] = "library" }),
+                new Node("db:main", "Database", new Dictionary<string, object> { ["name"] = "AppDb", ["db_type"] = "PostgreSQL" }),
             };
             await db.UploadNodesAsync(nodes);
 
             // Seed relationships with dependency_type
-            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            var rels = new List<Relationship>
             {
-                new CodeExplorer.Core.Database.Relationship("proj:client", "proj:server", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON" }),
-                new CodeExplorer.Core.Database.Relationship("proj:client", "proj:common", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "library", ["kind"] = "DEPENDS_ON" }),
-                new CodeExplorer.Core.Database.Relationship("proj:client", "db:main", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                new Relationship("proj:client", "proj:server", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON" }),
+                new Relationship("proj:client", "proj:common", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "library", ["kind"] = "DEPENDS_ON" }),
+                new Relationship("proj:client", "db:main", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
             };
             await db.UploadRelationshipsAsync(rels);
 
@@ -247,23 +247,23 @@ require (
             using var db = new SqliteGraphClient(dbPath);
 
             // Simulate Dedalos-like solution: API project references Core and Models
-            var nodes = new List<CodeExplorer.Core.Database.Node>
+            var nodes = new List<Node>
             {
-                new CodeExplorer.Core.Database.Node("workspace:project:Dobco.PACSONWEB3.API:", "Project", new Dictionary<string, object>
+                new Node("workspace:project:Dobco.PACSONWEB3.API:", "Project", new Dictionary<string, object>
                 {
                     ["name"] = "Dobco.PACSONWEB3.API",
                     ["path"] = "Dobco.PACSONWEB3.API",
                     ["project_type"] = "csharp",
                     ["framework"] = "ASP.NET Core"
                 }),
-                new CodeExplorer.Core.Database.Node("workspace:project:Dobco.PACSONWEB3.Core:", "Project", new Dictionary<string, object>
+                new Node("workspace:project:Dobco.PACSONWEB3.Core:", "Project", new Dictionary<string, object>
                 {
                     ["name"] = "Dobco.PACSONWEB3.Core",
                     ["path"] = "Dobco.PACSONWEB3.Core",
                     ["project_type"] = "csharp",
                     ["framework"] = "ASP.NET Core" // even with legacy misassigned framework
                 }),
-                new CodeExplorer.Core.Database.Node("workspace:project:Dobco.PACSONWEB3.Models:", "Project", new Dictionary<string, object>
+                new Node("workspace:project:Dobco.PACSONWEB3.Models:", "Project", new Dictionary<string, object>
                 {
                     ["name"] = "Dobco.PACSONWEB3.Models",
                     ["path"] = "Dobco.PACSONWEB3.Models",
@@ -273,14 +273,14 @@ require (
             await db.UploadNodesAsync(nodes);
 
             // Seed direct project references (even without dependency_type specified, simulating older scans)
-            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            var rels = new List<Relationship>
             {
-                new CodeExplorer.Core.Database.Relationship(
+                new Relationship(
                     "workspace:project:Dobco.PACSONWEB3.API:",
                     "workspace:project:Dobco.PACSONWEB3.Core:",
                     "DEPENDS_ON",
                     new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
-                new CodeExplorer.Core.Database.Relationship(
+                new Relationship(
                     "workspace:project:Dobco.PACSONWEB3.API:",
                     "workspace:project:Dobco.PACSONWEB3.Models:",
                     "DEPENDS_ON",
@@ -319,11 +319,11 @@ require (
         try
         {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
-            using var db = new CodeExplorer.Core.Database.SqliteGraphClient(dbPath);
+            using var db = new SqliteGraphClient(dbPath);
 
-            var nodes = new List<CodeExplorer.Core.Database.Node>
+            var nodes = new List<Node>
             {
-                new CodeExplorer.Core.Database.Node(
+                new Node(
                     "workspace:project:Admin:",
                     "Project",
                     new Dictionary<string, object>
@@ -332,7 +332,7 @@ require (
                         ["path"] = "Admin",
                         ["project_type"] = "typescript"
                     }),
-                new CodeExplorer.Core.Database.Node(
+                new Node(
                     "workspace:package:@angular/core",
                     "Package",
                     new Dictionary<string, object>
@@ -341,7 +341,7 @@ require (
                         ["version"] = "^13.0.1",
                         ["type"] = "npm"
                     }),
-                new CodeExplorer.Core.Database.Node(
+                new Node(
                     "workspace:package:rxjs",
                     "Package",
                     new Dictionary<string, object>
@@ -353,14 +353,14 @@ require (
             };
             await db.UploadNodesAsync(nodes);
 
-            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            var rels = new List<Relationship>
             {
-                new CodeExplorer.Core.Database.Relationship(
+                new Relationship(
                     "workspace:project:Admin:",
                     "workspace:package:@angular/core",
                     "DEPENDS_ON",
                     new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
-                new CodeExplorer.Core.Database.Relationship(
+                new Relationship(
                     "workspace:project:Admin:",
                     "workspace:package:rxjs",
                     "DEPENDS_ON",

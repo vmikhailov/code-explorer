@@ -373,7 +373,7 @@ public class McpIntegrationTests
         }
 
         await using var client = new SqliteGraphClient(atsDbPath);
-        var repo = new CodeExplorer.Core.Mcp.CodeExplorerRepository(client);
+        var repo = new Core.Mcp.CodeExplorerRepository(client);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var resultJson = await repo.InspectDataLineageAsync("campaigns");

@@ -122,7 +122,7 @@ public static class ServeCommandHandler
             opts.IdleTimeoutSeconds,
             wsRoot,
             AppVersionProvider.GetAppVersion(),
-            sp.GetRequiredService<CodeExplorer.Core.Analysis.IArchitectureQueryService>()
+            sp.GetRequiredService<Core.Analysis.IArchitectureQueryService>()
         ));
 
         builder.WebHost.ConfigureKestrel(serverOptions =>

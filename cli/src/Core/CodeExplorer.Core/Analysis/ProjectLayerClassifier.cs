@@ -77,7 +77,7 @@ public class ProjectClassifierItem
     public string? Role { get; init; }
     public bool IsLibrary { get; init; }
     public int EndpointsCount { get; init; }
-    public IReadOnlyList<CodeExplorer.Core.Common.Nodes.Layer4_Semantic.EntryPointNode> EntryPoints { get; init; } = [];
+    public IReadOnlyList<Common.Nodes.Layer4_Semantic.EntryPointNode> EntryPoints { get; init; } = [];
     public int ExternalServicesCount { get; init; }
     public int UsesDbCount { get; init; }
     public IReadOnlyDictionary<string, string>? Extensions { get; init; }

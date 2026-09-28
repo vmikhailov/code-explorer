@@ -294,7 +294,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             var externalServicesCount = allChildren.OfType<ExternalServiceNode>().Count();
             var usesDbCount = allCombinedRels.Count(r => r.From == p.Id && r.Kind == OntologyConstants.Relationships.UsesDb);
 
-            return new CodeExplorer.Core.Analysis.ProjectClassifierItem
+            return new ProjectClassifierItem
             {
                 Id = p.Id,
                 Name = p.Name,
@@ -314,9 +314,9 @@ public class PostIndexAnalyzer(IGraphClient db)
             .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn ||
                         r.Kind == OntologyConstants.Relationships.ServiceCall ||
                         r.Kind == OntologyConstants.Relationships.UsesDb)
-            .Select(r => new CodeExplorer.Core.Analysis.DependencyItem { SourceId = r.From, TargetId = r.To });
+            .Select(r => new DependencyItem { SourceId = r.From, TargetId = r.To });
 
-        var layerMap = CodeExplorer.Core.Analysis.ProjectLayerClassifier.Classify(classifierItems, dependencyItems);
+        var layerMap = ProjectLayerClassifier.Classify(classifierItems, dependencyItems);
 
         var updatedProjectNodes = new List<Node>();
         foreach (var p in l4Result.Prev.Prev.Projects)
@@ -1342,7 +1342,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                 {
                     return ("Redis", "cache", "redis");
                 }
-                var normName = CodeExplorer.Core.Analysis.ResourceReconciliationService.NormalizeResourceName(trimmed, type);
+                var normName = ResourceReconciliationService.NormalizeResourceName(trimmed, type);
                 var canonicalKey = Regex.Replace(normName.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
                 if (string.IsNullOrEmpty(canonicalKey)) canonicalKey = "db";
                 return (normName, type, canonicalKey);
@@ -1460,11 +1460,11 @@ public class PostIndexAnalyzer(IGraphClient db)
                         ["schema"] = schemaToUse,
                         ["is_canonical"] = "true",
                         ["is_semantic_entity"] = "true",
-                        ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                        ["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                        ["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName,
-                        ["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color,
-                        ["layerIcon"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Icon
+                        ["layer"] = StandardLayers.Foundation.LayerId,
+                        ["layerId"] = StandardLayers.Foundation.LayerId,
+                        ["layerName"] = StandardLayers.Foundation.LayerName,
+                        ["layerColor"] = StandardLayers.Foundation.Color,
+                        ["layerIcon"] = StandardLayers.Foundation.Icon
                     }
                 );
                 canonicalDbNodes[canonicalId] = canonicalNode;
@@ -1499,11 +1499,11 @@ public class PostIndexAnalyzer(IGraphClient db)
                             ["schema"] = ds.Name,
                             ["is_canonical"] = "true",
                             ["is_semantic_entity"] = "true",
-                            ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                            ["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                            ["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName,
-                            ["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color,
-                            ["layerIcon"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Icon
+                            ["layer"] = StandardLayers.Foundation.LayerId,
+                            ["layerId"] = StandardLayers.Foundation.LayerId,
+                            ["layerName"] = StandardLayers.Foundation.LayerName,
+                            ["layerColor"] = StandardLayers.Foundation.Color,
+                            ["layerIcon"] = StandardLayers.Foundation.Icon
                         }
                     );
                     canonicalDbNodes[dsCanonicalId] = dsNode;
@@ -1576,11 +1576,11 @@ public class PostIndexAnalyzer(IGraphClient db)
                             ["schema"] = schemaToUse,
                             ["is_canonical"] = "true",
                             ["is_semantic_entity"] = "true",
-                            ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                            ["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                            ["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName,
-                            ["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color,
-                            ["layerIcon"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Icon
+                            ["layer"] = StandardLayers.Foundation.LayerId,
+                            ["layerId"] = StandardLayers.Foundation.LayerId,
+                            ["layerName"] = StandardLayers.Foundation.LayerName,
+                            ["layerColor"] = StandardLayers.Foundation.Color,
+                            ["layerIcon"] = StandardLayers.Foundation.Icon
                         }
                     );
                     canonicalDbNodes[canonicalId] = canonicalNode;
@@ -1871,11 +1871,11 @@ public class PostIndexAnalyzer(IGraphClient db)
                 ["schema"] = schemaToUse,
                 ["is_canonical"] = "true",
                 ["is_semantic_entity"] = "true",
-                ["layer"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                ["layerId"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerId,
-                ["layerName"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.LayerName,
-                ["layerColor"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Color,
-                ["layerIcon"] = CodeExplorer.Core.Analysis.StandardLayers.Foundation.Icon
+                ["layer"] = StandardLayers.Foundation.LayerId,
+                ["layerId"] = StandardLayers.Foundation.LayerId,
+                ["layerName"] = StandardLayers.Foundation.LayerName,
+                ["layerColor"] = StandardLayers.Foundation.Color,
+                ["layerIcon"] = StandardLayers.Foundation.Icon
             };
             nodesToUpload.Add(new Node(canonicalId, "Database", props));
         }

@@ -159,7 +159,7 @@ public class ConstantRegistryTests
             """);
 
             var fileNode = new CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode("f1", "my_table.entity.ts", "my_table.entity.ts", dummyFilePath);
-            var tsParser = new CodeExplorer.Parser.TypeScript.TypeScriptParser();
+            var tsParser = new Parser.TypeScript.TypeScriptParser();
             var syntaxTree = new SyntaxTree(dummyFilePath, "test", null, null, null, fileNode, tsParser, [], [], []);
             var detected = SyntaxEnricher.DetectDeclaredSchema(null, null, syntaxTree);
 
@@ -227,24 +227,24 @@ public class ConstantRegistryTests
     [Test]
     public void WorkspaceConventions_NormalizeTopicName_FiltersPlaceholdersAndSubscriptions()
     {
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("TOPIC_NAME"), Is.Empty);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("QUEUE_NAME"), Is.Empty);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("EVENT_SUBSCRIBER_NAME"), Is.Empty);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("default-sub-id"), Is.Empty);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("default-subscription-name"), Is.Empty);
+        Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("TOPIC_NAME"), Is.Empty);
+        Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("QUEUE_NAME"), Is.Empty);
+        Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("EVENT_SUBSCRIBER_NAME"), Is.Empty);
+        Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("default-sub-id"), Is.Empty);
+        Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("default-subscription-name"), Is.Empty);
 
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.NormalizeTopicName("ORDER_EVENTS_TOPIC"), Is.EqualTo("order-events-topic"));
+        Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("ORDER_EVENTS_TOPIC"), Is.EqualTo("order-events-topic"));
     }
 
     [Test]
     public void WorkspaceConventions_IsPlaceholderName_DetectsPlaceholdersAccurately()
     {
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("TOPIC_NAME"), Is.True);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("QUEUE_NAME"), Is.True);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("default-topic"), Is.True);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("default-sub-id"), Is.True);
+        Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("TOPIC_NAME"), Is.True);
+        Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("QUEUE_NAME"), Is.True);
+        Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("default-topic"), Is.True);
+        Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("default-sub-id"), Is.True);
 
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("order-events-topic"), Is.False);
-        Assert.That(CodeExplorer.Core.Common.WorkspaceConventions.IsPlaceholderName("payment-queue"), Is.False);
+        Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("order-events-topic"), Is.False);
+        Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("payment-queue"), Is.False);
     }
 }

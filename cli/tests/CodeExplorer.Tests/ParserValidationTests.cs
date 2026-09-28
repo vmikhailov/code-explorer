@@ -1282,7 +1282,7 @@ public interface IUsersApi
 </Project>";
             await File.WriteAllTextAsync(Path.Combine(tempDir, "MyLib.csproj"), csproj);
 
-            var parser = new CodeExplorer.Parser.CSharp.CSharpParser();
+            var parser = new CSharpParser();
             var prod = await parser.GetProducedPackageAsync(tempDir);
 
             Assert.That(prod, Is.Not.Null);

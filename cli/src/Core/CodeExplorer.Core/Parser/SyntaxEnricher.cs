@@ -709,7 +709,7 @@ public class SyntaxEnricher : ISyntaxEnricher
             {
                 var existingConcreteRelational = ctx.ResourceRegistry.AllResources
                     .Where(r => string.Equals(r.DbType, "relational", StringComparison.OrdinalIgnoreCase) &&
-                                !CodeExplorer.Core.Analysis.ResourceReconciliationService.IsGenericConfigKey(r.Engine) &&
+                                !ResourceReconciliationService.IsGenericConfigKey(r.Engine) &&
                                 !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase))
                     .Select(r => r.Engine)
                     .Distinct(StringComparer.OrdinalIgnoreCase)

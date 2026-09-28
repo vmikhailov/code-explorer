@@ -960,11 +960,11 @@ export async function fetchTrafficBacks(baseUrl: string) {
             await File.WriteAllTextAsync(Path.Combine(tempDir, "worker.scratch.ts"), "export const w = 4;");
             await File.WriteAllTextAsync(Path.Combine(tempDir, "main.ts"), "export const real = 5;");
 
-            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+            var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphClient();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
-            var l1Result = await new CodeExplorer.Core.Parser.Layers.Layer1PhysicalParser().ParseAsync(ctx);
+            var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
             var files = l1Result.Files;
 
             var fileNames = files.Select(f => f.Name).ToList();

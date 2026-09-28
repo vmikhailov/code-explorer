@@ -500,7 +500,7 @@ public class CodeExplorerRepository
         }
 
         var normalizedLevel = level?.Trim().ToLowerInvariant() ?? "c1";
-        var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
+        var engine = new Analysis.ArchitectureViewEngine(client);
 
         if (normalizedLevel is "contexts" or "context" or "bounded-context" or "bounded-contexts" or "context-map")
         {
@@ -510,18 +510,18 @@ public class CodeExplorerRepository
         if (normalizedLevel is "domain" or "domain-map" or "domains")
         {
             var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries, cancellationToken);
-            return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
+            return Analysis.ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
         }
 
         var viewType = normalizedLevel switch
         {
-            "c2" or "service" or "flow" or "service-flow" => CodeExplorer.Core.Analysis.ArchitectureViewType.ServiceFlow,
-            "c3" or "component" => CodeExplorer.Core.Analysis.ArchitectureViewType.Component,
-            "tiers" or "tiered" => CodeExplorer.Core.Analysis.ArchitectureViewType.Tiers,
-            _ => CodeExplorer.Core.Analysis.ArchitectureViewType.SystemContext
+            "c2" or "service" or "flow" or "service-flow" => Analysis.ArchitectureViewType.ServiceFlow,
+            "c3" or "component" => Analysis.ArchitectureViewType.Component,
+            "tiers" or "tiered" => Analysis.ArchitectureViewType.Tiers,
+            _ => Analysis.ArchitectureViewType.SystemContext
         };
 
-        var graph = await engine.GetViewAsync(new CodeExplorer.Core.Analysis.ArchitectureViewRequest
+        var graph = await engine.GetViewAsync(new Analysis.ArchitectureViewRequest
         {
             ViewType = viewType,
             Scope = scope,
@@ -529,7 +529,7 @@ public class CodeExplorerRepository
         }, cancellationToken);
 
         var title = $"{viewType} Architecture View";
-        return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeGraph(graph, format, title);
+        return Analysis.ArchitectureViewEngine.SerializeGraph(graph, format, title);
     }
 
     public async Task<string> GetBoundedContextsAsync(
@@ -543,9 +543,9 @@ public class CodeExplorerRepository
             return GetStandbyMessage(format);
         }
 
-        var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
+        var engine = new Analysis.ArchitectureViewEngine(client);
         var mapDto = await engine.GetBoundedContextMapAsync(ct: cancellationToken);
-        return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeBoundedContextMap(mapDto, format);
+        return Analysis.ArchitectureViewEngine.SerializeBoundedContextMap(mapDto, format);
     }
 
     public async Task<string> GetServiceContractsAsync(
@@ -561,9 +561,9 @@ public class CodeExplorerRepository
             return GetStandbyMessage(format);
         }
 
-        var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
+        var engine = new Analysis.ArchitectureViewEngine(client);
         var contract = await engine.GetServiceContractsAsync(serviceName, direction, cancellationToken);
-        return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeServiceContract(contract, format);
+        return Analysis.ArchitectureViewEngine.SerializeServiceContract(contract, format);
     }
 
     public async Task<string> TraceCrossServiceFlowAsync(
@@ -580,9 +580,9 @@ public class CodeExplorerRepository
             return GetStandbyMessage(format);
         }
 
-        var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
+        var engine = new Analysis.ArchitectureViewEngine(client);
         var flow = await engine.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, cancellationToken);
-        return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeCrossServiceFlow(flow, format);
+        return Analysis.ArchitectureViewEngine.SerializeCrossServiceFlow(flow, format);
     }
 
     public async Task<string> GetProjectDependenciesAsync(string? projectFilter = null, string format = "markdown", int limit = 50, string type = "all", string? workspacePath = null, CancellationToken cancellationToken = default)

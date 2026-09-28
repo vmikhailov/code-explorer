@@ -166,13 +166,13 @@ public class LateBindingFixTests
         };
         """;
 
-        CodeExplorer.Core.Parser.RouteDictionaryRegistry.ScanAndRegister(code);
+        Core.Parser.RouteDictionaryRegistry.ScanAndRegister(code);
 
-        Assert.That(CodeExplorer.Core.Parser.RouteDictionaryRegistry.TryResolve("SINGLE_STAGE", out var path, out var service), Is.True);
+        Assert.That(Core.Parser.RouteDictionaryRegistry.TryResolve("SINGLE_STAGE", out var path, out var service), Is.True);
         Assert.That(path, Is.EqualTo("/api/bundles/:bundleId/single-stages"));
         Assert.That(service, Is.EqualTo("bundles"));
 
-        Assert.That(CodeExplorer.Core.Parser.RouteDictionaryRegistry.TryResolve("BUY_DOMAIN", out var buyPath, out var buyService), Is.True);
+        Assert.That(Core.Parser.RouteDictionaryRegistry.TryResolve("BUY_DOMAIN", out var buyPath, out var buyService), Is.True);
         Assert.That(buyPath, Is.EqualTo("/api/v1/domains/buy-domain"));
         Assert.That(buyService, Is.EqualTo("domain-v2"));
     }

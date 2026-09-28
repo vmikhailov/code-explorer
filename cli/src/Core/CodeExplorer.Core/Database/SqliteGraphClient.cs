@@ -261,7 +261,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 await walCmd.ExecuteNonQueryAsync();
             }
 
-            CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
+            Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
         {
@@ -505,7 +505,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             DROP TABLE IF EXISTS temp_ws_del;
             """;
         await cmd.ExecuteNonQueryAsync();
-        CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
+        Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
     public async Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath)
@@ -591,7 +591,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await tx.CommitAsync();
             sw.Stop();
             _logger.LogDebug("[DB:Nodes] Uploaded {Count} nodes in {ElapsedMs:F1}ms", nodes.Count, sw.Elapsed.TotalMilliseconds);
-            CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
+            Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
         {
@@ -641,7 +641,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await tx.CommitAsync();
             sw.Stop();
             _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count, sw.Elapsed.TotalMilliseconds);
-            CodeExplorer.Core.Analysis.ArchitectureViewEngine.InvalidateCache();
+            Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
         {
@@ -2000,7 +2000,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     private static void ValidateQuerySecurity(string query)
     {
-        CodeExplorer.Cypher.Parser.CypherSecurityValidator.ValidateReadOnly(query);
+        CypherSecurityValidator.ValidateReadOnly(query);
     }
 
     public async ValueTask DisposeAsync()

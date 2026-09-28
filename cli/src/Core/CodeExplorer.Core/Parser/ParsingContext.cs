@@ -26,7 +26,7 @@ public class ParsingContext
     public ProjectsStructureNode? ProjectsStructure { get; set; }
     public SyntaxStructureNode? SyntaxStructure { get; set; }
     public SemanticStructureNode? SemanticStructure { get; set; }
-    public CodeExplorer.Core.Analysis.ResourceReconciliationService ResourceRegistry { get; } = new();
+    public ResourceReconciliationService ResourceRegistry { get; } = new();
 
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();
@@ -226,7 +226,7 @@ public class ParsingContext
         string absoluteWorkspacePath,
         string hostWorkspacePath,
         ResourceReconciliationService? resourceRegistry = null)
-        : this(absoluteWorkspacePath, hostWorkspacePath, null!, System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>())
+        : this(absoluteWorkspacePath, hostWorkspacePath, null!, Channel.CreateUnbounded<Func<Task>>())
     {
         if (resourceRegistry != null)
         {

@@ -400,7 +400,7 @@ public class CrossLanguageCommunicationDetectionTests
             using var db = new SqliteGraphClient(dbPath);
 
             // Seed Projects, Libraries, Databases, ExternalServices
-            var nodes = new List<CodeExplorer.Core.Database.Node>
+            var nodes = new List<Node>
             {
                 new("proj:gateway", "Project", new Dictionary<string, object> { ["name"] = "GatewayService", ["path"] = "/src/gateway", ["project_type"] = "typescript" }),
                 new("proj:auth", "Project", new Dictionary<string, object> { ["name"] = "AuthService", ["path"] = "/src/auth", ["project_type"] = "csharp" }),
@@ -417,7 +417,7 @@ public class CrossLanguageCommunicationDetectionTests
             await db.UploadNodesAsync(nodes);
 
             // Seed Relationships
-            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            var rels = new List<Relationship>
             {
                 // Service call: Gateway -> Auth
                 new("proj:gateway", "proj:auth", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON" }),
@@ -491,7 +491,7 @@ public class CrossLanguageCommunicationDetectionTests
             using var db = new SqliteGraphClient(dbPath);
 
             // 1. Seed Nodes: Services, Libraries, Files, Databases
-            var nodes = new List<CodeExplorer.Core.Database.Node>
+            var nodes = new List<Node>
             {
                 new("proj:svc_order", "Project", new Dictionary<string, object> { ["name"] = "order-service", ["path"] = "services/order-service", ["project_type"] = "typescript" }),
                 new("proj:svc_billing", "Project", new Dictionary<string, object> { ["name"] = "billing-service", ["path"] = "services/billing-service", ["project_type"] = "csharp" }),
@@ -509,7 +509,7 @@ public class CrossLanguageCommunicationDetectionTests
             // - Svc uses Library: order-service -[DEPENDS_ON]-> data-access-lib
             // - Svc uses Client Lib: order-service -[DEPENDS_ON]-> billing-client
             // - Client Lib calls billing: billing-client -[DEPENDS_ON]-> billing-service
-            var rels = new List<CodeExplorer.Core.Database.Relationship>
+            var rels = new List<Relationship>
             {
                 new("workspace:file:services/order-service/src/entities/order.entity.ts", "db:postgres", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
                 new("proj:lib_data", "workspace:project:data-access-lib:db:mysql", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),

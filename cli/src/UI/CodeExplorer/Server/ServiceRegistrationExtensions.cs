@@ -12,8 +12,8 @@ public static class ServiceRegistrationExtensions
     public static void RegisterCommonServices(this IServiceCollection services, SqliteGraphClient client, string? workspaceRoot = null)
     {
         services.AddSingleton<IGraphClient>(client);
-        services.AddSingleton<CodeExplorer.Core.Analysis.IArchitectureQueryService>(sp =>
-            new CodeExplorer.Core.Analysis.ArchitectureQueryService(sp.GetRequiredService<IGraphClient>()));
+        services.AddSingleton<Core.Analysis.IArchitectureQueryService>(sp =>
+            new Core.Analysis.ArchitectureQueryService(sp.GetRequiredService<IGraphClient>()));
         services.AddSingleton<ProjectQueryManager>();
         services.AddSingleton(sp => new CodeExplorerRepository(
             sp.GetRequiredService<IGraphClient>(),
