@@ -499,7 +499,7 @@ public class CodeExplorerRepository
             return GetStandbyMessage(format);
         }
 
-        var normalizedLevel = level?.Trim().ToLowerInvariant() ?? "c1";
+        var normalizedLevel = level.Trim().ToLowerInvariant();
         var engine = new Analysis.ArchitectureViewEngine(client);
 
         if (normalizedLevel is "contexts" or "context" or "bounded-context" or "bounded-contexts" or "context-map")
