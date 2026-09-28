@@ -6,6 +6,8 @@ export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
     case 'semantic':
       return 'CodeExplorer: Domain Microservices';
+    case 'contexts':
+      return 'CodeExplorer: Bounded Contexts';
     case 'layers':
       return 'CodeExplorer: Architecture Tiers';
     case 'c1':

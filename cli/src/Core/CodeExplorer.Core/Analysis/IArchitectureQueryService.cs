@@ -58,6 +58,16 @@ public interface IArchitectureQueryService
     Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = false, CancellationToken ct = default);
 
     /// <summary>
+    /// Retrieves AI-distilled Bounded Contexts map with entities, capabilities, CQRS roles, and cross-context links.
+    /// </summary>
+    Task<BoundedContextMapDto> GetBoundedContextMapAsync(string? workspaceId = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves Bounded Contexts graph projection for visualization.
+    /// </summary>
+    Task<GraphDataDto> GetBoundedContextGraphAsync(string? workspaceId = null, CancellationToken ct = default);
+
+    /// <summary>
     /// Retrieves ingress and egress communication contracts for a given service.
     /// </summary>
     Task<ServiceContractDto> GetServiceContractsAsync(string serviceName, string direction = "all", CancellationToken ct = default);

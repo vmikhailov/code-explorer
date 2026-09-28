@@ -61,6 +61,16 @@ public class ArchitectureQueryService(IGraphClient db) : IArchitectureQueryServi
         return _viewEngine.GetDomainArchitectureAsync(includeLibraries, ct);
     }
 
+    public Task<BoundedContextMapDto> GetBoundedContextMapAsync(string? workspaceId = null, CancellationToken ct = default)
+    {
+        return _viewEngine.GetBoundedContextMapAsync(workspaceId, ct);
+    }
+
+    public Task<GraphDataDto> GetBoundedContextGraphAsync(string? workspaceId = null, CancellationToken ct = default)
+    {
+        return _viewEngine.GetBoundedContextGraphAsync(workspaceId, ct);
+    }
+
     public Task<ServiceContractDto> GetServiceContractsAsync(string serviceName, string direction = "all", CancellationToken ct = default)
     {
         return _viewEngine.GetServiceContractsAsync(serviceName, direction, ct);

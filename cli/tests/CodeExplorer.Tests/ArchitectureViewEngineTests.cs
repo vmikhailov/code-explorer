@@ -362,4 +362,127 @@ public class ArchitectureViewEngineTests
         var graph = await _engine.GetDomainArchitectureGraphAsync();
         Assert.That(graph.Nodes.Any(n => n.Name == "common-dto" || n.Kind == "Library"), Is.False, "Libraries must not appear in DomainMap GraphDataDto");
     }
+
+    [Test]
+    public async Task GetBoundedContextMap_ReturnsAggregatedDomainsAndCrossContextInteractions()
+    {
+        // 1. Add sample intent records
+        var intent1 = new IntentRecord(
+            FilePath: "services/orders/OrderService.cs",
+            WorkspaceId: "",
+            FileId: "ws:type:orders:OrderService",
+            ContentHash: "h1",
+            LastModifiedUtc: DateTime.UtcNow,
+            Domain: "OrderManagement",
+            Layer: "Application",
+            Pattern: "Service",
+            OperationType: "Command",
+            CapabilityTag: "PlaceOrder",
+            IntentSummary: "Coordinates order placement workflows.",
+            TargetEntities: ["Order", "OrderItem"],
+            EmittedEvents: ["OrderPlacedEvent"],
+            IsPureDomain: false,
+            ErrorCount: 0,
+            LastError: null,
+            AnalyzedAtUtc: DateTime.UtcNow
+        );
+
+        var intent2 = new IntentRecord(
+            FilePath: "services/orders/Order.cs",
+            WorkspaceId: "",
+            FileId: "ws:type:orders:Order",
+            ContentHash: "h2",
+            LastModifiedUtc: DateTime.UtcNow,
+            Domain: "OrderManagement",
+            Layer: "Domain",
+            Pattern: "Entity",
+            OperationType: "Command",
+            CapabilityTag: "ManageOrderState",
+            IntentSummary: "Pure business domain entity for orders.",
+            TargetEntities: ["Order"],
+            EmittedEvents: [],
+            IsPureDomain: true,
+            ErrorCount: 0,
+            LastError: null,
+            AnalyzedAtUtc: DateTime.UtcNow
+        );
+
+        var intent3 = new IntentRecord(
+            FilePath: "services/payments/PaymentProcessor.cs",
+            WorkspaceId: "",
+            FileId: "ws:type:payments:PaymentProcessor",
+            ContentHash: "h3",
+            LastModifiedUtc: DateTime.UtcNow,
+            Domain: "Payments",
+            Layer: "Infrastructure",
+            Pattern: "Adapter",
+            OperationType: "Command",
+            CapabilityTag: "ChargeCreditCard",
+            IntentSummary: "Processes credit card charges via Stripe.",
+            TargetEntities: ["PaymentTransaction"],
+            EmittedEvents: ["PaymentProcessedEvent"],
+            IsPureDomain: false,
+            ErrorCount: 0,
+            LastError: null,
+            AnalyzedAtUtc: DateTime.UtcNow
+        );
+
+        await _db.SaveIntentRecordAsync(intent1);
+        await _db.SaveIntentRecordAsync(intent2);
+        await _db.SaveIntentRecordAsync(intent3);
+
+        // Upload nodes and cross-domain edge
+        await _db.UploadNodesAsync([
+            new("ws:type:orders:OrderService", "Class", new() { ["name"] = "OrderService", ["path"] = "services/orders/OrderService.cs" }),
+            new("ws:type:orders:Order", "Class", new() { ["name"] = "Order", ["path"] = "services/orders/Order.cs" }),
+            new("ws:type:payments:PaymentProcessor", "Class", new() { ["name"] = "PaymentProcessor", ["path"] = "services/payments/PaymentProcessor.cs" })
+        ]);
+
+        await _db.UploadRelationshipsAsync([
+            new("ws:type:orders:OrderService", "ws:type:payments:PaymentProcessor", "CALLS", new())
+        ]);
+
+        // 2. Query Bounded Context map
+        var map = await _engine.GetBoundedContextMapAsync();
+
+        Assert.That(map.HasIntents, Is.True);
+        Assert.That(map.TotalIntents, Is.EqualTo(3));
+        Assert.That(map.Contexts.Count, Is.EqualTo(2));
+
+        var orderCtx = map.Contexts.FirstOrDefault(c => c.Name == "OrderManagement");
+        Assert.That(orderCtx, Is.Not.Null);
+        Assert.That(orderCtx!.FileCount, Is.EqualTo(2));
+        Assert.That(orderCtx.PureDomainCount, Is.EqualTo(1));
+        Assert.That(orderCtx.PurityPercentage, Is.EqualTo(50.0));
+        Assert.That(orderCtx.TargetEntities, Does.Contain("Order"));
+        Assert.That(orderCtx.TargetEntities, Does.Contain("OrderItem"));
+        Assert.That(orderCtx.Capabilities, Does.Contain("PlaceOrder"));
+        Assert.That(orderCtx.EmittedEvents, Does.Contain("OrderPlacedEvent"));
+
+        var payCtx = map.Contexts.FirstOrDefault(c => c.Name == "Payments");
+        Assert.That(payCtx, Is.Not.Null);
+        Assert.That(payCtx!.FileCount, Is.EqualTo(1));
+        Assert.That(payCtx.TargetEntities, Does.Contain("PaymentTransaction"));
+
+        // 3. Verify cross-domain interactions
+        Assert.That(map.Interactions.Count, Is.GreaterThanOrEqualTo(1));
+        var callEdge = map.Interactions.FirstOrDefault(i => i.Source == "context:ordermanagement" && i.Target == "context:payments");
+        Assert.That(callEdge, Is.Not.Null);
+        if (callEdge != null)
+        {
+            Assert.That(callEdge.InteractionType, Is.EqualTo("service_call"));
+        }
+
+        // 4. Verify Graph Projection (GraphDataDto)
+        var graph = await _engine.GetBoundedContextGraphAsync();
+        Assert.That(graph.Metadata, Is.Not.Null);
+        Assert.That(graph.Metadata!["view"], Is.EqualTo("BoundedContexts"));
+        Assert.That(graph.Nodes.Count, Is.EqualTo(2));
+        Assert.That(graph.Edges.Count, Is.GreaterThanOrEqualTo(1));
+
+        // 5. Verify Serialization
+        var mermaid = ArchitectureViewEngine.SerializeBoundedContextMap(map, "mermaid");
+        Assert.That(mermaid, Does.Contain("Order Management"));
+        Assert.That(mermaid, Does.Contain("Payments"));
+    }
 }

@@ -119,7 +119,7 @@ public static class CodeIntentAnalyzer
                 }
             }
 
-            var toProcess = new List<(string FullPath, string RelativePath, IntentCandidate Cand, string Hash, DateTime LastModifiedUtc)>();
+            var toProcess = new List<(string FullPath, string RelativePath, string ProjectName, IntentCandidate Cand, string Hash, DateTime LastModifiedUtc)>();
             var skippedClean = 0;
             var skippedErrorLimit = 0;
 
@@ -144,7 +144,8 @@ public static class CodeIntentAnalyzer
                     }
                 }
 
-                toProcess.Add((fullPath, relPath, cand, hash, lastMod));
+                var projectName = ExtractProjectOrSubsystem(relPath);
+                toProcess.Add((fullPath, relPath, projectName, cand, hash, lastMod));
             }
 
             if (toProcess.Count == 0)
@@ -155,8 +156,6 @@ public static class CodeIntentAnalyzer
                 return fastApplied;
             }
 
-            ctx.Log($"[CodeIntent] Running batch intent inference on {toProcess.Count} files ({skippedClean} unchanged, {skippedErrorLimit} error-locked)...");
-
             var gpuLayers = 99;
             if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_GPU_LAYERS"), out var envLayers))
             {
@@ -165,22 +164,45 @@ public static class CodeIntentAnalyzer
 
             using var predictor = new NativeIntentPredictor(modelPath, contextSize: 2048, gpuLayers: gpuLayers);
 
+            ctx.Log($"[CodeIntent] Running batch intent inference on {toProcess.Count} files with {predictor.Concurrency}x parallel batching ({skippedClean} unchanged, {skippedErrorLimit} error-locked)...");
+
+            var knownDomains = new System.Collections.Concurrent.ConcurrentBag<string>(
+                existingIntents
+                    .Select(x => x.Domain)
+                    .Where(d => !string.IsNullOrWhiteSpace(d))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)!
+            );
+
             var idx = 0;
             var successCount = 0;
-            foreach (var item in toProcess)
+            var parallelOptions = new ParallelOptions
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                idx++;
+                MaxDegreeOfParallelism = predictor.Concurrency,
+                CancellationToken = cancellationToken
+            };
+
+            await Parallel.ForEachAsync(toProcess, parallelOptions, async (item, ct) =>
+            {
+                var currentIdx = Interlocked.Increment(ref idx);
                 var fileName = Path.GetFileName(item.FullPath);
-                ctx.Log($"[CodeIntent] Processing files through LLM: {idx}/{toProcess.Count} ({fileName})...");
+                ctx.Log($"[CodeIntent] Processing files through LLM: {currentIdx}/{toProcess.Count} ({fileName})...");
 
                 try
                 {
-                    var content = await File.ReadAllTextAsync(item.FullPath, cancellationToken);
-                    var (prediction, rawOutput) = await predictor.PredictWithRawAsync(item.FullPath, content, cancellationToken);
+                    var content = await File.ReadAllTextAsync(item.FullPath, ct);
+                    var currentKnown = knownDomains.Distinct(StringComparer.OrdinalIgnoreCase).Take(12).ToList();
+                    var (prediction, rawOutput) = await predictor.PredictWithRawAsync(
+                        item.FullPath,
+                        content,
+                        projectName: item.ProjectName,
+                        knownDomains: currentKnown,
+                        cancellationToken: ct
+                    );
 
                     if (prediction != null && !string.IsNullOrWhiteSpace(prediction.Domain))
                     {
+                        knownDomains.Add(prediction.Domain);
+
                         var record = new IntentRecord(
                             FilePath: item.RelativePath,
                             WorkspaceId: ctx.WorkspaceId,
@@ -200,12 +222,12 @@ public static class CodeIntentAnalyzer
                             LastError: null,
                             AnalyzedAtUtc: DateTime.UtcNow
                         );
-                        await ctx.DbClient.SaveIntentRecordAsync(record, cancellationToken);
-                        successCount++;
+                        await ctx.DbClient.SaveIntentRecordAsync(record, ct);
+                        Interlocked.Increment(ref successCount);
                     }
                     else
                     {
-                        ctx.LogWarning($"[CodeIntent] Malformed or empty prediction on '{fileName}' ({idx}/{toProcess.Count})");
+                        ctx.LogWarning($"[CodeIntent] Malformed or empty prediction on '{fileName}' ({currentIdx}/{toProcess.Count})");
                         await ctx.DbClient.IncrementIntentErrorAsync(
                             item.RelativePath,
                             ctx.WorkspaceId,
@@ -213,12 +235,12 @@ public static class CodeIntentAnalyzer
                             item.Hash,
                             item.LastModifiedUtc,
                             "LLM output could not be parsed into valid architectural intent JSON",
-                            cancellationToken);
+                            ct);
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    ctx.LogWarning($"[CodeIntent] Error during inference on '{fileName}' ({idx}/{toProcess.Count}): {ex.Message}");
+                    ctx.LogWarning($"[CodeIntent] Error during inference on '{fileName}' ({currentIdx}/{toProcess.Count}): {ex.Message}");
                     await ctx.DbClient.IncrementIntentErrorAsync(
                         item.RelativePath,
                         ctx.WorkspaceId,
@@ -226,9 +248,9 @@ public static class CodeIntentAnalyzer
                         item.Hash,
                         item.LastModifiedUtc,
                         ex.Message,
-                        cancellationToken);
+                        ct);
                 }
-            }
+            });
 
             ctx.Log($"[CodeIntent] Completed LLM distillation: {successCount}/{toProcess.Count} succeeded.");
             var appliedCount = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
@@ -240,6 +262,24 @@ public static class CodeIntentAnalyzer
             ctx.LogWarning($"[CodeIntent] Intent distillation encountered an issue: {ex.Message}");
             return 0;
         }
+    }
+
+    private static string ExtractProjectOrSubsystem(string relativePath)
+    {
+        var normalized = relativePath.Replace('\\', '/').TrimStart('/');
+        var parts = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "Default";
+
+        if (parts.Length > 1 && (parts[0] is "src" or "apps" or "packages" or "libs" or "services" or "modules" or "cli"))
+        {
+            if (parts[0] == "cli" && parts.Length > 2 && parts[1] == "src")
+            {
+                return parts.Length > 3 ? parts[3] : parts[2];
+            }
+            return parts[1];
+        }
+
+        return parts[0];
     }
 
     private static string ComputeSha256(byte[] bytes)

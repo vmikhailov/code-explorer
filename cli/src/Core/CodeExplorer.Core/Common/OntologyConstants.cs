@@ -133,6 +133,8 @@ public static class OntologyConstants
         public const string Deploys = "DEPLOYS";
         public const string DeployedBy = "DEPLOYED_BY";
         public const string BelongsToDomain = "BELONGS_TO_DOMAIN";
+        public const string ExposesDomain = "EXPOSES_DOMAIN";
+        public const string SubdomainOf = "SUBDOMAIN_OF";
     }
 
     public static class LibraryTypes

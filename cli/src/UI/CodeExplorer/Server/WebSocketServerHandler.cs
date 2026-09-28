@@ -225,7 +225,8 @@ public class WebSocketServerHandler
                     {
                         "serviceflow" or "flow" or "c2" => CodeExplorer.Core.Analysis.ArchitectureViewType.ServiceFlow,
                         "component" or "c3" => CodeExplorer.Core.Analysis.ArchitectureViewType.Component,
-                        "domain" or "domainmap" or "domain-map" or "boundedcontext" or "bounded-context" => CodeExplorer.Core.Analysis.ArchitectureViewType.DomainMap,
+                        "domain" or "domainmap" or "domain-map" => CodeExplorer.Core.Analysis.ArchitectureViewType.DomainMap,
+                        "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => CodeExplorer.Core.Analysis.ArchitectureViewType.BoundedContexts,
                         "tiers" or "tiered" => CodeExplorer.Core.Analysis.ArchitectureViewType.Tiers,
                         _ => CodeExplorer.Core.Analysis.ArchitectureViewType.SystemContext
                     };
@@ -240,6 +241,12 @@ public class WebSocketServerHandler
                         Success = true,
                         Graph = viewGraph
                     }, cancellationToken);
+                    break;
+
+                case WsMessageTypes.GetBoundedContextsRequest:
+                case "GET_BOUNDED_CONTEXTS":
+                    var bcMap = await _archQueryService.GetBoundedContextMapAsync(ct: cancellationToken);
+                    await SendResponseAsync(session, WsMessageTypes.GetBoundedContextsResponse, reqId, bcMap, cancellationToken);
                     break;
 
                 case WsMessageTypes.GetOntologyLayersRequest:

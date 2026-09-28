@@ -1,4 +1,6 @@
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
@@ -8,11 +10,12 @@ namespace CodeExplorer.Core.Analysis;
 
 public enum ArchitectureViewType
 {
-    SystemContext, // C1: Macro System Context view (Services, Databases, Topics, ExternalServices)
-    ServiceFlow,   // C2: Container & Service Flow view (Interactions, Messaging, Shared Libraries)
-    Component,     // C3: Component Drill-down for a selected container/project
-    DomainMap,     // Bounded Contexts / Domain Microservices Map
-    Tiers          // Layered Architecture Tiers (Ingress, Domain, Infra, Foundation, Tests)
+    SystemContext,  // C1: Macro System Context view (Services, Databases, Topics, ExternalServices)
+    ServiceFlow,    // C2: Container & Service Flow view (Interactions, Messaging, Shared Libraries)
+    Component,      // C3: Component Drill-down for a selected container/project
+    DomainMap,      // Bounded Contexts / Domain Microservices Map
+    Tiers,          // Layered Architecture Tiers (Ingress, Domain, Infra, Foundation, Tests)
+    BoundedContexts // AI-Distilled Bounded Contexts Map (Logical DDD domains, entities, capabilities, CQRS, and cross-context links)
 }
 
 public class ArchitectureViewRequest
@@ -45,6 +48,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             ArchitectureViewType.Component => await GetComponentViewAsync(request.Scope, ct),
             ArchitectureViewType.DomainMap => await GetDomainArchitectureGraphAsync(false, request.SharedDatabasesOnly, ct),
             ArchitectureViewType.Tiers => await GetTieredArchitectureGraphAsync(request.IncludeLibraries, ct),
+            ArchitectureViewType.BoundedContexts => await GetBoundedContextGraphAsync(request.Scope, ct),
             _ => await GetSystemContextViewAsync(request.IncludeLibraries, request.Scope, request.SharedDatabasesOnly, ct)
         };
     }
@@ -3008,6 +3012,296 @@ public class ArchitectureViewEngine(IGraphClient db)
         return arch;
     }
 
+    private static readonly string[] ContextPalette = [
+        "#3b82f6", // Blue
+        "#10b981", // Emerald
+        "#8b5cf6", // Purple
+        "#f59e0b", // Amber
+        "#ec4899", // Pink
+        "#06b6d4", // Cyan
+        "#f97316", // Orange
+        "#14b8a6", // Teal
+        "#a855f7", // Violet
+        "#6366f1", // Indigo
+        "#84cc16", // Lime
+        "#ef4444"  // Rose
+    ];
+
+    public async Task<BoundedContextMapDto> GetBoundedContextMapAsync(string? workspaceId = null, CancellationToken ct = default)
+    {
+        var intents = await db.LoadExistingIntentsAsync(workspaceId ?? "", ct);
+        var result = new BoundedContextMapDto
+        {
+            HasIntents = intents.Count > 0,
+            TotalIntents = intents.Count
+        };
+
+        if (intents.Count == 0)
+        {
+            return result;
+        }
+
+        // Group intents by domain (case-insensitive)
+        var domainGroups = new Dictionary<string, (string CanonicalName, List<IntentRecord> Records)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rec in intents)
+        {
+            if (string.IsNullOrWhiteSpace(rec.Domain)) continue;
+            var domTrimmed = rec.Domain.Trim();
+            if (!domainGroups.TryGetValue(domTrimmed, out var group))
+            {
+                group = (domTrimmed, []);
+                domainGroups[domTrimmed] = group;
+            }
+            group.Records.Add(rec);
+        }
+
+        var contexts = new List<BoundedContextItemDto>();
+        var colorIdx = 0;
+
+        foreach (var (domainKey, (canonicalName, records)) in domainGroups)
+        {
+            var layers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var patterns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var operations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var entities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var emittedEvents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var handledEvents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var files = new List<BoundedContextFileDto>();
+
+            var pureCount = 0;
+            string? representativeSummary = null;
+
+            foreach (var r in records)
+            {
+                if (r.IsPureDomain == true) pureCount++;
+
+                if (!string.IsNullOrEmpty(r.Layer))
+                    layers[r.Layer] = layers.GetValueOrDefault(r.Layer) + 1;
+                if (!string.IsNullOrEmpty(r.Pattern))
+                    patterns[r.Pattern] = patterns.GetValueOrDefault(r.Pattern) + 1;
+                if (!string.IsNullOrEmpty(r.OperationType))
+                    operations[r.OperationType] = operations.GetValueOrDefault(r.OperationType) + 1;
+
+                if (r.TargetEntities != null)
+                {
+                    foreach (var ent in r.TargetEntities.Where(e => !string.IsNullOrWhiteSpace(e)))
+                        entities.Add(ent.Trim());
+                }
+
+                if (!string.IsNullOrWhiteSpace(r.CapabilityTag))
+                    capabilities.Add(r.CapabilityTag.Trim());
+
+                if (r.EmittedEvents != null)
+                {
+                    foreach (var ev in r.EmittedEvents.Where(e => !string.IsNullOrWhiteSpace(e)))
+                        emittedEvents.Add(ev.Trim());
+                }
+
+                if (r.Pattern is "EventHandler" or "Consumer" && !string.IsNullOrWhiteSpace(r.CapabilityTag))
+                {
+                    handledEvents.Add(r.CapabilityTag.Trim());
+                }
+
+                // Deduce project name from file path if possible
+                var normalizedPath = r.FilePath.Replace('\\', '/');
+                var pathParts = normalizedPath.Split('/');
+                if (pathParts.Length > 1 && !pathParts[0].Equals("src", StringComparison.OrdinalIgnoreCase))
+                {
+                    projects.Add(pathParts[0]);
+                }
+
+                if (representativeSummary == null && !string.IsNullOrWhiteSpace(r.IntentSummary))
+                {
+                    representativeSummary = r.IntentSummary;
+                }
+
+                files.Add(new BoundedContextFileDto
+                {
+                    FilePath = r.FilePath,
+                    Layer = r.Layer,
+                    Pattern = r.Pattern,
+                    OperationType = r.OperationType,
+                    CapabilityTag = r.CapabilityTag,
+                    Summary = r.IntentSummary,
+                    IsPureDomain = r.IsPureDomain
+                });
+            }
+
+            var color = ContextPalette[colorIdx % ContextPalette.Length];
+            colorIdx++;
+
+            var displayName = Regex.Replace(canonicalName, "([a-z])([A-Z])", "$1 $2");
+            var purityPct = records.Count > 0 ? (double)pureCount / records.Count * 100.0 : 0.0;
+
+            contexts.Add(new BoundedContextItemDto
+            {
+                Id = $"context:{domainKey.ToLowerInvariant()}",
+                Name = canonicalName,
+                DisplayName = displayName,
+                Summary = representativeSummary,
+                FileCount = records.Count,
+                PureDomainCount = pureCount,
+                PurityPercentage = Math.Round(purityPct, 1),
+                Layers = layers,
+                Patterns = patterns,
+                Operations = operations,
+                TargetEntities = entities.OrderBy(e => e).ToList(),
+                Capabilities = capabilities.OrderBy(c => c).ToList(),
+                EmittedEvents = emittedEvents.OrderBy(e => e).ToList(),
+                HandledEvents = handledEvents.OrderBy(e => e).ToList(),
+                Projects = projects.OrderBy(p => p).ToList(),
+                Files = files.OrderBy(f => f.FilePath).ToList(),
+                BgColor = color,
+                BorderColor = color,
+                Size = Math.Min(120, Math.Max(52, 48 + records.Count * 2 + entities.Count * 3))
+            });
+        }
+
+        result.Contexts = contexts.OrderByDescending(c => c.FileCount).ToList();
+        result.TotalPureDomains = contexts.Count(c => c.PurityPercentage > 50.0);
+
+        // Load cross-domain interactions
+        var interactions = new List<BoundedContextInteractionDto>();
+        var crossCalls = await db.LoadCrossDomainInteractionsAsync(workspaceId ?? "", ct);
+        foreach (var call in crossCalls)
+        {
+            var srcId = $"context:{call.SourceDomain.ToLowerInvariant()}";
+            var tgtId = $"context:{call.TargetDomain.ToLowerInvariant()}";
+            var cat = (call.EdgeKind.ToUpperInvariant()) switch
+            {
+                "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => "messaging",
+                "USES_DB" or "ACCESSES_TABLE" => "database",
+                _ => "service_call"
+            };
+
+            interactions.Add(new BoundedContextInteractionDto
+            {
+                Id = $"edge:{srcId}->{tgtId}:{call.EdgeKind}",
+                Source = srcId,
+                Target = tgtId,
+                InteractionType = cat,
+                Label = call.EdgeKind,
+                Count = call.InteractionCount
+            });
+        }
+
+        // Shared infrastructure couplings
+        var infraLinks = await db.LoadDomainInfrastructureLinksAsync(workspaceId ?? "", ct);
+        var infraToDomains = new Dictionary<string, (string Name, string Kind, HashSet<string> Domains)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var link in infraLinks)
+        {
+            if (!infraToDomains.TryGetValue(link.InfraId, out var tuple))
+            {
+                tuple = (link.InfraName, link.InfraKind, new(StringComparer.OrdinalIgnoreCase));
+                infraToDomains[link.InfraId] = tuple;
+            }
+            tuple.Domains.Add(link.Domain);
+        }
+
+        foreach (var (_, (infName, infKind, domSet)) in infraToDomains)
+        {
+            if (domSet.Count <= 1) continue; // Not shared
+            var domList = domSet.ToList();
+            for (var i = 0; i < domList.Count; i++)
+            {
+                for (var j = i + 1; j < domList.Count; j++)
+                {
+                    var d1 = $"context:{domList[i].ToLowerInvariant()}";
+                    var d2 = $"context:{domList[j].ToLowerInvariant()}";
+                    var isDb = infKind.Equals("Database", StringComparison.OrdinalIgnoreCase);
+                    interactions.Add(new BoundedContextInteractionDto
+                    {
+                        Id = $"edge:shared_{infKind.ToLowerInvariant()}:{d1}<->{d2}",
+                        Source = d1,
+                        Target = d2,
+                        InteractionType = isDb ? "database" : "messaging",
+                        Label = isDb ? "SHARED_DB" : "SHARED_QUEUE",
+                        Count = 1,
+                        Details = [$"Shares {infKind} '{infName}'"]
+                    });
+                }
+            }
+        }
+
+        result.Interactions = interactions;
+        return result;
+    }
+
+    public async Task<GraphDataDto> GetBoundedContextGraphAsync(string? workspaceId = null, CancellationToken ct = default)
+    {
+        var map = await GetBoundedContextMapAsync(workspaceId, ct);
+        var graph = new GraphDataDto
+        {
+            Metadata = new Dictionary<string, string>
+            {
+                ["view"] = "BoundedContexts",
+                ["level"] = "BoundedContexts",
+                ["graphType"] = "contexts",
+                ["hasIntents"] = map.HasIntents ? "true" : "false",
+                ["totalContexts"] = map.Contexts.Count.ToString(),
+                ["totalIntents"] = map.TotalIntents.ToString(),
+                ["totalPureDomains"] = map.TotalPureDomains.ToString()
+            }
+        };
+
+        foreach (var c in map.Contexts)
+        {
+            graph.Nodes.Add(new GraphNodeDto
+            {
+                Id = c.Id,
+                Kind = "BoundedContext",
+                Name = c.Name,
+                DisplayName = c.DisplayName,
+                Properties = new Dictionary<string, string>
+                {
+                    ["displayTag"] = ":BoundedContext",
+                    ["domain"] = c.Name,
+                    ["displayName"] = c.DisplayName,
+                    ["summary"] = c.Summary ?? "",
+                    ["fileCount"] = c.FileCount.ToString(),
+                    ["pureCount"] = c.PureDomainCount.ToString(),
+                    ["purity"] = c.PurityPercentage.ToString("F1"),
+                    ["entities"] = JsonSerializer.Serialize(c.TargetEntities),
+                    ["capabilities"] = JsonSerializer.Serialize(c.Capabilities),
+                    ["events"] = JsonSerializer.Serialize(c.EmittedEvents),
+                    ["handledEvents"] = JsonSerializer.Serialize(c.HandledEvents),
+                    ["layers"] = JsonSerializer.Serialize(c.Layers),
+                    ["patterns"] = JsonSerializer.Serialize(c.Patterns),
+                    ["operations"] = JsonSerializer.Serialize(c.Operations),
+                    ["projects"] = JsonSerializer.Serialize(c.Projects),
+                    ["files"] = JsonSerializer.Serialize(c.Files),
+                    ["bgColor"] = c.BgColor,
+                    ["borderColor"] = c.BorderColor,
+                    ["size"] = c.Size.ToString()
+                }
+            });
+        }
+
+        var validIds = map.Contexts.Select(c => c.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var edge in map.Interactions.Where(e => validIds.Contains(e.Source) && validIds.Contains(e.Target)))
+        {
+            graph.Edges.Add(new GraphEdgeDto
+            {
+                Id = edge.Id,
+                Source = edge.Source,
+                Target = edge.Target,
+                Kind = edge.Label,
+                Category = edge.InteractionType,
+                Properties = new Dictionary<string, string>
+                {
+                    ["count"] = edge.Count.ToString(),
+                    ["label"] = edge.Label,
+                    ["category"] = edge.InteractionType,
+                    ["details"] = JsonSerializer.Serialize(edge.Details)
+                }
+            });
+        }
+
+        return graph;
+    }
+
     // =========================================================================
     // 7. Service Contracts & Cross-Service Flow Tracing
     // =========================================================================
@@ -3547,6 +3841,79 @@ public class ArchitectureViewEngine(IGraphClient db)
         foreach (var edge in graph.Edges.OrderBy(e => e.Kind).ThenBy(e => e.Source))
         {
             sb.AppendLine($"| **{edge.Source}** | **{edge.Target}** | `{edge.Kind}` | {edge.Category ?? "N/A"} |");
+        }
+        return sb.ToString();
+    }
+
+    public static string SerializeBoundedContextMap(BoundedContextMapDto dto, string format)
+    {
+        return (format.ToLowerInvariant()) switch
+        {
+            "json" => JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = false }),
+            "mermaid" => ToMermaidBoundedContexts(dto),
+            _ => ToMarkdownBoundedContexts(dto)
+        };
+    }
+
+    public static string ToMermaidBoundedContexts(BoundedContextMapDto dto)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("flowchart TD");
+        if (dto.Contexts.Count == 0)
+        {
+            sb.AppendLine("  NoContexts[\"No Bounded Contexts inferred (run 'ce intent')\"]");
+            return sb.ToString();
+        }
+
+        var idMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var idx = 1;
+        foreach (var c in dto.Contexts)
+        {
+            var shortId = $"ctx_{idx++}";
+            idMap[c.Id] = shortId;
+            var entitiesStr = c.TargetEntities.Count > 0 ? string.Join(", ", c.TargetEntities.Take(3)) : "No entities";
+            var label = $"{c.DisplayName}\\n({c.FileCount} files, {c.PurityPercentage}% pure)\\nEntities: {entitiesStr}";
+            sb.AppendLine($"  {shortId}[\"{label}\"]");
+        }
+
+        foreach (var edge in dto.Interactions)
+        {
+            if (idMap.TryGetValue(edge.Source, out var src) && idMap.TryGetValue(edge.Target, out var tgt))
+            {
+                var arrow = edge.InteractionType == "messaging" ? "-.->|" : "-->|";
+                sb.AppendLine($"  {src} {arrow}{edge.Label} ({edge.Count})| {tgt}");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    public static string ToMarkdownBoundedContexts(BoundedContextMapDto dto)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("# AI-Distilled Bounded Contexts Map");
+        sb.AppendLine();
+        sb.AppendLine($"**Total Contexts:** {dto.Contexts.Count} | **Total Files Analyzed:** {dto.TotalIntents} | **High Purity Domains:** {dto.TotalPureDomains}");
+        sb.AppendLine();
+        sb.AppendLine("## Contexts & Ubiquitous Language");
+        sb.AppendLine("| Bounded Context | Files | Purity | Entities | Emitted Events | Primary Layers |");
+        sb.AppendLine("|---|---|---|---|---|---|");
+        foreach (var c in dto.Contexts)
+        {
+            var ents = c.TargetEntities.Count > 0 ? string.Join(", ", c.TargetEntities) : "-";
+            var evts = c.EmittedEvents.Count > 0 ? string.Join(", ", c.EmittedEvents) : "-";
+            var topLayers = string.Join(", ", c.Layers.OrderByDescending(kv => kv.Value).Take(2).Select(kv => $"{kv.Key} ({kv.Value})"));
+            sb.AppendLine($"| **{c.DisplayName}** | {c.FileCount} | {c.PurityPercentage}% | {ents} | {evts} | {topLayers} |");
+        }
+        sb.AppendLine();
+        sb.AppendLine("## Inter-Context Interactions");
+        sb.AppendLine("| Source Context | Target Context | Interaction Type | Label | Count |");
+        sb.AppendLine("|---|---|---|---|---|");
+        foreach (var e in dto.Interactions)
+        {
+            var src = dto.Contexts.FirstOrDefault(c => c.Id == e.Source)?.DisplayName ?? e.Source;
+            var tgt = dto.Contexts.FirstOrDefault(c => c.Id == e.Target)?.DisplayName ?? e.Target;
+            sb.AppendLine($"| {src} | {tgt} | `{e.InteractionType}` | `{e.Label}` | {e.Count} |");
         }
         return sb.ToString();
     }

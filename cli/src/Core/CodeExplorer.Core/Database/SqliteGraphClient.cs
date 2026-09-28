@@ -1792,6 +1792,58 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 await edgeCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            // 4. Create EXPOSES_DOMAIN edges from Project/App nodes to Domain nodes
+            await using (var projDomCmd = _conn.CreateCommand())
+            {
+                projDomCmd.Transaction = tx;
+                projDomCmd.CommandTimeout = CommandTimeoutSeconds;
+                projDomCmd.CommandText = """
+                    INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+                    SELECT DISTINCT
+                        p.id AS from_id,
+                        @widPrefix || 'dom:' || lower(i.domain) AS to_id,
+                        'EXPOSES_DOMAIN' AS kind,
+                        '{}' AS properties
+                    FROM edges e
+                    JOIN nodes p ON e.to_id = p.id AND (p.kind = 'Project' OR p.kind = 'App')
+                    JOIN nodes n ON e.from_id = n.id
+                    JOIN intents i ON (n.id = i.file_id 
+                                       OR json_extract(n.properties, '$.path') = i.file_path 
+                                       OR json_extract(n.properties, '$.file_path') = i.file_path)
+                    WHERE e.kind = 'BELONGS_TO'
+                      AND i.domain IS NOT NULL AND trim(i.domain) != '';
+                    """;
+                projDomCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                await projDomCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            // 5. Connect fine-grained subdomains sharing a project boundary via SUBDOMAIN_OF
+            await using (var subDomCmd = _conn.CreateCommand())
+            {
+                subDomCmd.Transaction = tx;
+                subDomCmd.CommandTimeout = CommandTimeoutSeconds;
+                subDomCmd.CommandText = """
+                    INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+                    SELECT DISTINCT
+                        e_sub.to_id AS from_id,
+                        e_base.to_id AS to_id,
+                        'SUBDOMAIN_OF' AS kind,
+                        '{}' AS properties
+                    FROM edges e_sub
+                    JOIN edges e_base ON e_sub.from_id = e_base.from_id 
+                                     AND e_sub.kind = 'EXPOSES_DOMAIN' 
+                                     AND e_base.kind = 'EXPOSES_DOMAIN'
+                    JOIN nodes d_sub ON e_sub.to_id = d_sub.id AND d_sub.kind = 'Domain'
+                    JOIN nodes d_base ON e_base.to_id = d_base.id AND d_base.kind = 'Domain'
+                    WHERE d_sub.id != d_base.id
+                      AND length(json_extract(d_base.properties, '$.name')) >= 4
+                      AND length(json_extract(d_sub.properties, '$.name')) > length(json_extract(d_base.properties, '$.name'))
+                      AND (lower(json_extract(d_sub.properties, '$.name')) LIKE lower(json_extract(d_base.properties, '$.name')) || '%'
+                           OR lower(json_extract(d_sub.properties, '$.name')) LIKE '%' || lower(json_extract(d_base.properties, '$.name')));
+                    """;
+                await subDomCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
         }
         finally
@@ -1800,6 +1852,115 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
 
         return updatedNodes;
+    }
+
+    public async Task<List<CrossDomainInteractionRecord>> LoadCrossDomainInteractionsAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<CrossDomainInteractionRecord>();
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandText = """
+                SELECT 
+                    i1.domain AS source_domain,
+                    i2.domain AS target_domain,
+                    e.kind AS edge_kind,
+                    COUNT(*) AS interaction_count
+                FROM edges e
+                JOIN nodes n1 ON e.from_id = n1.id
+                JOIN nodes n2 ON e.to_id = n2.id
+                JOIN intents i1 ON (n1.id = i1.file_id 
+                                   OR json_extract(n1.properties, '$.path') = i1.file_path 
+                                   OR json_extract(n1.properties, '$.file_path') = i1.file_path)
+                JOIN intents i2 ON (n2.id = i2.file_id 
+                                   OR json_extract(n2.properties, '$.path') = i2.file_path 
+                                   OR json_extract(n2.properties, '$.file_path') = i2.file_path)
+                WHERE (i1.workspace_id = @workspaceId OR @workspaceId = '')
+                  AND (i2.workspace_id = @workspaceId OR @workspaceId = '')
+                  AND i1.domain IS NOT NULL AND trim(i1.domain) != ''
+                  AND i2.domain IS NOT NULL AND trim(i2.domain) != ''
+                  AND lower(i1.domain) != lower(i2.domain)
+                GROUP BY i1.domain, i2.domain, e.kind;
+                """;
+            cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var src = reader.GetString(0);
+                var tgt = reader.GetString(1);
+                var kind = reader.GetString(2);
+                var count = reader.GetInt32(3);
+                results.Add(new CrossDomainInteractionRecord(src, tgt, kind, count));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[SqliteGraphClient] Note on querying cross-domain interactions: {Message}", ex.Message);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return results;
+    }
+
+    public async Task<List<DomainInfrastructureLinkRecord>> LoadDomainInfrastructureLinksAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<DomainInfrastructureLinkRecord>();
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandText = """
+                SELECT 
+                    i.domain AS domain,
+                    n_infra.id AS infra_id,
+                    COALESCE(json_extract(n_infra.properties, '$.name'), n_infra.id) AS infra_name,
+                    n_infra.kind AS infra_kind,
+                    e.kind AS edge_kind
+                FROM edges e
+                JOIN nodes n ON e.from_id = n.id
+                JOIN nodes n_infra ON e.to_id = n_infra.id
+                JOIN intents i ON (n.id = i.file_id 
+                                   OR json_extract(n.properties, '$.path') = i.file_path 
+                                   OR json_extract(n.properties, '$.file_path') = i.file_path)
+                WHERE (i.workspace_id = @workspaceId OR @workspaceId = '')
+                  AND i.domain IS NOT NULL AND trim(i.domain) != ''
+                  AND n_infra.kind IN ('Database', 'Topic')
+                GROUP BY i.domain, n_infra.id, n_infra.kind, e.kind;
+                """;
+            cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var dom = reader.GetString(0);
+                var infId = reader.GetString(1);
+                var infName = reader.GetString(2);
+                var infKind = reader.GetString(3);
+                var edgeKind = reader.GetString(4);
+                results.Add(new DomainInfrastructureLinkRecord(dom, infId, infName, infKind, edgeKind));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[SqliteGraphClient] Note on querying domain infrastructure links: {Message}", ex.Message);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return results;
     }
 
 

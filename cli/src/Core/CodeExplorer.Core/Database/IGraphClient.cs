@@ -74,6 +74,16 @@ public interface IGraphClient : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         Task.FromResult(0);
 
+    Task<List<CrossDomainInteractionRecord>> LoadCrossDomainInteractionsAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<CrossDomainInteractionRecord>());
+
+    Task<List<DomainInfrastructureLinkRecord>> LoadDomainInfrastructureLinksAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<DomainInfrastructureLinkRecord>());
+
     Task ClearIntentsAsync(
         string workspaceId,
         CancellationToken cancellationToken = default) =>
@@ -123,4 +133,19 @@ public record IntentRecord(
     int ErrorCount,
     string? LastError,
     DateTime? AnalyzedAtUtc
+);
+
+public record CrossDomainInteractionRecord(
+    string SourceDomain,
+    string TargetDomain,
+    string EdgeKind,
+    int InteractionCount
+);
+
+public record DomainInfrastructureLinkRecord(
+    string Domain,
+    string InfraId,
+    string InfraName,
+    string InfraKind,
+    string EdgeKind
 );

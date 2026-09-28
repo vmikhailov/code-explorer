@@ -14,12 +14,16 @@ public sealed class NativeIntentPredictor : IDisposable
 
     private readonly LLamaWeights _weights;
     private readonly ModelParams _parameters;
-    private readonly StatelessExecutor _executor;
+    private readonly System.Collections.Concurrent.ConcurrentBag<StatelessExecutor> _executorPool = new();
+    private readonly SemaphoreSlim _semaphore;
+    private readonly int _concurrency;
     private readonly JsonSerializerOptions _jsonOptions;
     private bool _disposed;
     private static readonly NativeLogConfig.LLamaLogCallback SilentLlamaLog = (_, _) => { };
 
-    public NativeIntentPredictor(string modelPath, int contextSize = 2048, int gpuLayers = 99)
+    public int Concurrency => _concurrency;
+
+    public NativeIntentPredictor(string modelPath, int contextSize = 2048, int gpuLayers = 99, int? concurrency = null)
     {
         lock (ConfigLock)
         {
@@ -43,7 +47,19 @@ public sealed class NativeIntentPredictor : IDisposable
         };
 
         _weights = LLamaWeights.LoadFromFile(_parameters);
-        _executor = new StatelessExecutor(_weights, _parameters);
+
+        var defaultConcurrency = concurrency ?? (gpuLayers > 0 ? 4 : Math.Max(1, Environment.ProcessorCount / 2));
+        if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_CONCURRENCY"), out var envC) && envC > 0)
+        {
+            defaultConcurrency = envC;
+        }
+        _concurrency = Math.Max(1, defaultConcurrency);
+        _semaphore = new SemaphoreSlim(_concurrency, _concurrency);
+
+        for (var i = 0; i < _concurrency; i++)
+        {
+            _executorPool.Add(new StatelessExecutor(_weights, _parameters));
+        }
 
         _jsonOptions = new JsonSerializerOptions
         {
@@ -54,9 +70,11 @@ public sealed class NativeIntentPredictor : IDisposable
     public async Task<BatchInferenceResult?> PredictAsync(
         string filePath,
         string content,
+        string? projectName = null,
+        IReadOnlyList<string>? knownDomains = null,
         CancellationToken cancellationToken = default)
     {
-        var (result, _) = await PredictWithRawAsync(filePath, content, cancellationToken);
+        var (result, _) = await PredictWithRawAsync(filePath, content, projectName, knownDomains, cancellationToken);
         return result;
     }
 
@@ -64,6 +82,10 @@ public sealed class NativeIntentPredictor : IDisposable
         "You are an expert Enterprise Software Architect and Static Code Analyzer.\n" +
         "Analyze the provided code module skeleton (namespace, classes, interfaces, dependencies, method signatures, attributes, and internal calls).\n" +
         "Determine its architectural role, bounded context (business domain), mutations, capabilities, and intent for a Code Knowledge Graph.\n\n" +
+        "BOUNDED CONTEXT RESOLUTION RULES:\n" +
+        "- If 'Known Repository Bounded Contexts' are provided and this file logically belongs to one of them, REUSE that exact domain name.\n" +
+        "- If the project/subsystem has a primary domain, align with it rather than fragmenting into multiple fine-grained domain names.\n" +
+        "- Only introduce a new domain name if the module represents an entirely distinct business capability.\n\n" +
         "STRICT TAXONOMY RULES:\n" +
         "1. layer MUST be strictly one of: [Domain, Application, Infrastructure, Presentation, Shared]\n" +
         "   - Domain: Enterprise business logic, entities, value objects, domain events, domain service contracts. No external dependencies.\n" +
@@ -101,6 +123,8 @@ public sealed class NativeIntentPredictor : IDisposable
     public async Task<(BatchInferenceResult? Result, string RawOutput)> PredictWithRawAsync(
         string filePath,
         string content,
+        string? projectName = null,
+        IReadOnlyList<string>? knownDomains = null,
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -108,33 +132,85 @@ public sealed class NativeIntentPredictor : IDisposable
         var lang = DetectLanguage(filePath);
         var truncated = TruncateContent(content, 4000);
         var fileName = Path.GetFileName(filePath);
-        var userMsg = $"Language: {lang}\nFile: {fileName}\n\nCode Skeleton:\n```\n{truncated}\n```";
+
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Language: {lang}");
+        sbUser.AppendLine($"File: {fileName}");
+        if (!string.IsNullOrWhiteSpace(projectName))
+        {
+            sbUser.AppendLine($"Project / Subsystem: {projectName}");
+        }
+        if (knownDomains != null && knownDomains.Count > 0)
+        {
+            var domainList = string.Join(", ", knownDomains.Take(12));
+            sbUser.AppendLine($"Known Repository Bounded Contexts: [{domainList}]");
+        }
+        sbUser.AppendLine();
+        sbUser.AppendLine("Code Skeleton:");
+        sbUser.AppendLine("```");
+        sbUser.AppendLine(truncated);
+        sbUser.AppendLine("```");
 
         var prompt = $"<|im_start|>system\n{SystemPrompt}<|im_end|>\n"
-                   + $"<|im_start|>user\n{userMsg}<|im_end|>\n"
+                   + $"<|im_start|>user\n{sbUser}<|im_end|>\n"
                    + "<|im_start|>assistant\n";
 
         var inferenceParams = new InferenceParams
         {
-            MaxTokens = 1024,
+            MaxTokens = 512,
             AntiPrompts = ["<|im_end|>", "<|endoftext|>"],
             SamplingPipeline = new DefaultSamplingPipeline
             {
                 Temperature = 0.1f,
-                TopP = 0.95f
+                TopP = 0.95f,
+                RepeatPenalty = 1.15f,
+                Grammar = new Grammar(IntentJsonGrammar, "root")
             }
         };
 
-        var sb = new StringBuilder();
-        await foreach (var token in _executor.InferAsync(prompt, inferenceParams, cancellationToken))
+        await _semaphore.WaitAsync(cancellationToken);
+        StatelessExecutor? executor = null;
+        try
         {
-            sb.Append(token);
-        }
+            if (!_executorPool.TryTake(out executor))
+            {
+                executor = new StatelessExecutor(_weights, _parameters);
+            }
 
-        var raw = sb.ToString();
-        var parsed = ParseJsonResult(raw, filePath);
-        return (parsed, raw);
+            var sb = new StringBuilder();
+            await foreach (var token in executor.InferAsync(prompt, inferenceParams, cancellationToken))
+            {
+                sb.Append(token);
+            }
+
+            var raw = sb.ToString();
+            var parsed = ParseJsonResult(raw, filePath);
+            return (parsed, raw);
+        }
+        finally
+        {
+            if (executor != null)
+            {
+                _executorPool.Add(executor);
+            }
+            _semaphore.Release();
+        }
     }
+
+    public const string IntentJsonGrammar = """
+root ::= "{" ws "\"domain\":" ws string "," ws "\"layer\":" ws layer-enum "," ws "\"pattern\":" ws pattern-enum "," ws "\"operation_type\":" ws op-enum "," ws "\"target_entities\":" ws string-list "," ws "\"emitted_events\":" ws string-list "," ws "\"capability_tag\":" ws string "," ws "\"is_pure_domain\":" ws boolean "," ws "\"intent_summary\":" ws string "}" ws
+
+layer-enum ::= "\"Domain\"" | "\"Application\"" | "\"Infrastructure\"" | "\"Presentation\"" | "\"Shared\""
+
+pattern-enum ::= "\"Entity\"" | "\"ValueObject\"" | "\"Repository\"" | "\"Service\"" | "\"Controller\"" | "\"CommandHandler\"" | "\"QueryHandler\"" | "\"EventHandler\"" | "\"Adapter\"" | "\"Factory\"" | "\"DTO\"" | "\"Middleware\"" | "\"Policy\"" | "\"Utility\""
+
+op-enum ::= "\"Query\"" | "\"Command\"" | "\"EventProducer\"" | "\"EventHandler\"" | "\"Configuration\"" | "\"Utility\""
+
+string-list ::= "[" ws (string ("," ws string)*)? ws "]"
+string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt])* "\""
+boolean ::= "true" | "false"
+ws ::= [ \t\n\r]*
+""";
 
     private BatchInferenceResult? ParseJsonResult(string rawOutput, string filePath)
     {
@@ -253,8 +329,9 @@ public sealed class NativeIntentPredictor : IDisposable
     {
         if (!_disposed)
         {
-            _weights.Dispose();
             _disposed = true;
+            _semaphore.Dispose();
+            _weights.Dispose();
         }
     }
 }

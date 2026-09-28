@@ -18,11 +18,22 @@ public static class DiagramExporter
         {
             "lineage" or "data_lineage" => await GenerateDataLineageDiagramAsync(client, cancellationToken),
             "cqrs" or "saga" or "events" => await GenerateCqrsPipelineDiagramAsync(client, cancellationToken),
-            "domain" or "domains" or "domain-services" or "context" or "bounded-context" => await GenerateDomainDiagramAsync(client, format, cancellationToken),
+            "context" or "contexts" or "bounded-context" or "bounded-contexts" or "context-map" or "contextmap" => await GenerateBoundedContextDiagramAsync(client, format, cancellationToken),
+            "domain" or "domains" or "domain-services" => await GenerateDomainDiagramAsync(client, format, cancellationToken),
             _ => format.ToLowerInvariant() == "c4"
                 ? await GenerateC4ArchitectureAsync(client, projectFilter, cancellationToken)
                 : await GenerateMermaidArchitectureAsync(client, projectFilter, cancellationToken)
         };
+    }
+
+    public static async Task<string> GenerateBoundedContextDiagramAsync(
+        IGraphClient client,
+        string format = "mermaid",
+        CancellationToken cancellationToken = default)
+    {
+        var engine = new ArchitectureViewEngine(client);
+        var mapDto = await engine.GetBoundedContextMapAsync(ct: cancellationToken);
+        return ArchitectureViewEngine.SerializeBoundedContextMap(mapDto, format);
     }
 
     public static async Task<string> GenerateDomainDiagramAsync(

@@ -401,6 +401,13 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         tooltip: 'Domain Architecture — Microservice domains and bounded contexts',
       },
       {
+        mode: 'contexts',
+        label: 'Bounded Context Map',
+        desc: 'AI domain contexts & DDD map',
+        icon: 'circuit-board',
+        tooltip: 'Bounded Context Map — AI-distilled business domains, capabilities, CQRS roles, and ubiquitous entities',
+      },
+      {
         mode: 'mermaid',
         label: 'Mermaid Architecture Diagram',
         desc: 'Mermaid flowchart renderer',

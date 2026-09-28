@@ -74,7 +74,8 @@ public static class ServerRouteBuilderExtensions
                 {
                     "serviceflow" or "flow" or "c2" => ArchitectureViewType.ServiceFlow,
                     "component" or "c3" => ArchitectureViewType.Component,
-                    "domain" or "domainmap" or "domain-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.DomainMap,
+                    "domain" or "domainmap" or "domain-map" => ArchitectureViewType.DomainMap,
+                    "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.BoundedContexts,
                     "tiers" or "tiered" => ArchitectureViewType.Tiers,
                     _ => ArchitectureViewType.SystemContext
                 };

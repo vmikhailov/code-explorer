@@ -151,6 +151,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <div className="view-mode-title-badge">
         <span className="view-mode-badge-text">
           {viewMode === 'semantic' && '🌐 Domain Microservices'}
+          {viewMode === 'contexts' && '🧩 Bounded Context Map'}
           {viewMode === 'layers' && '🏛️ Architecture Tiers'}
           {viewMode === 'c1' && '🌍 C1 System Context'}
           {viewMode === 'flow' && '🔀 Project Flow (C2)'}
@@ -161,6 +162,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Dynamic Controls based on Mode */}
       <div className="toolbar-controls">
+        {viewMode === 'contexts' && (
+          <div className="contexts-controls button-group">
+            <button onClick={onRefresh} title="Reload Bounded Contexts" className="ctrl-btn icon-btn">
+              <span className="btn-icon">🔄</span>
+              <span className="btn-text">Refresh</span>
+            </button>
+          </div>
+        )}
+
         {viewMode === 'c1' && (
           <div className="c1-controls button-group">
             <button onClick={onRefresh} title="Reload C1 system context" className="ctrl-btn icon-btn">

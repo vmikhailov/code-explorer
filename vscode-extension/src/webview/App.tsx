@@ -19,6 +19,7 @@ import { ProjectFlowView, EdgeCategory } from './components/ProjectFlowView';
 import { CytoscapeView } from './components/CytoscapeView';
 import { LayeredArchitectureView } from './components/LayeredArchitectureView';
 import { DomainArchitectureView } from './components/DomainArchitectureView';
+import { BoundedContextMapView } from './components/BoundedContextMapView';
 import { C1SystemContextView } from './components/C1SystemContextView';
 import { NodeGridView, NodeCategorySelection } from './components/NodeGridView';
 import { MermaidDiagramView } from './components/MermaidDiagramView';
@@ -160,6 +161,7 @@ export const App: React.FC = () => {
   });
   const [flowGraph, setFlowGraph] = useState<GraphData | null>(null);
   const [fullGraph, setFullGraph] = useState<GraphData | null>(null);
+  const [contextsGraph, setContextsGraph] = useState<GraphData | null>(null);
   const [cypherQuery, setCypherQuery] = useState<string>('');
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
   const [drawerUsages, setDrawerUsages] = useState<Array<{

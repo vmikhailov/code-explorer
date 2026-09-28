@@ -17,6 +17,7 @@ public static class WsMessageTypes
     public const string ExecuteCypherRequest = "EXECUTE_CYPHER_REQUEST";
     public const string TriggerScanRequest = "TRIGGER_SCAN_REQUEST";
     public const string GetOntologyLayersRequest = "GET_ONTOLOGY_LAYERS_REQUEST";
+    public const string GetBoundedContextsRequest = "GET_BOUNDED_CONTEXTS_REQUEST";
 
     // Server -> Client responses
     public const string HandshakeResponse = "HANDSHAKE_RESPONSE";
@@ -24,6 +25,7 @@ public static class WsMessageTypes
     public const string QueryResponse = "QUERY_RESPONSE";
     public const string GetViewResponse = "GET_VIEW_RESPONSE";
     public const string GetOntologyLayersResponse = "GET_ONTOLOGY_LAYERS_RESPONSE";
+    public const string GetBoundedContextsResponse = "GET_BOUNDED_CONTEXTS_RESPONSE";
     public const string ErrorResponse = "ERROR_RESPONSE";
 
     // Server -> Client broadcast events
@@ -647,6 +649,136 @@ public class DomainArchitectureDto
 
     [JsonPropertyName("stats")]
     public DomainStatsDto Stats { get; set; } = new();
+}
+
+// ============================================================================
+// Bounded Contexts (AI Intent Distillation) DTOs
+// ============================================================================
+
+public class BoundedContextFileDto
+{
+    [JsonPropertyName("filePath")]
+    public string FilePath { get; set; } = string.Empty;
+
+    [JsonPropertyName("layer")]
+    public string? Layer { get; set; }
+
+    [JsonPropertyName("pattern")]
+    public string? Pattern { get; set; }
+
+    [JsonPropertyName("operationType")]
+    public string? OperationType { get; set; }
+
+    [JsonPropertyName("capabilityTag")]
+    public string? CapabilityTag { get; set; }
+
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+
+    [JsonPropertyName("isPureDomain")]
+    public bool? IsPureDomain { get; set; }
+}
+
+public class BoundedContextItemDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    [JsonPropertyName("summary")]
+    public string? Summary { get; set; }
+
+    [JsonPropertyName("fileCount")]
+    public int FileCount { get; set; }
+
+    [JsonPropertyName("pureDomainCount")]
+    public int PureDomainCount { get; set; }
+
+    [JsonPropertyName("purityPercentage")]
+    public double PurityPercentage { get; set; }
+
+    [JsonPropertyName("layers")]
+    public Dictionary<string, int> Layers { get; set; } = [];
+
+    [JsonPropertyName("patterns")]
+    public Dictionary<string, int> Patterns { get; set; } = [];
+
+    [JsonPropertyName("operations")]
+    public Dictionary<string, int> Operations { get; set; } = [];
+
+    [JsonPropertyName("targetEntities")]
+    public List<string> TargetEntities { get; set; } = [];
+
+    [JsonPropertyName("capabilities")]
+    public List<string> Capabilities { get; set; } = [];
+
+    [JsonPropertyName("emittedEvents")]
+    public List<string> EmittedEvents { get; set; } = [];
+
+    [JsonPropertyName("handledEvents")]
+    public List<string> HandledEvents { get; set; } = [];
+
+    [JsonPropertyName("projects")]
+    public List<string> Projects { get; set; } = [];
+
+    [JsonPropertyName("files")]
+    public List<BoundedContextFileDto> Files { get; set; } = [];
+
+    [JsonPropertyName("bgColor")]
+    public string BgColor { get; set; } = "#3b82f6";
+
+    [JsonPropertyName("borderColor")]
+    public string BorderColor { get; set; } = "#1d4ed8";
+
+    [JsonPropertyName("size")]
+    public int Size { get; set; } = 60;
+}
+
+public class BoundedContextInteractionDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = string.Empty;
+
+    [JsonPropertyName("target")]
+    public string Target { get; set; } = string.Empty;
+
+    [JsonPropertyName("interactionType")]
+    public string InteractionType { get; set; } = "call"; // "call", "event", "database"
+
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = "CALLS";
+
+    [JsonPropertyName("count")]
+    public int Count { get; set; } = 1;
+
+    [JsonPropertyName("details")]
+    public List<string> Details { get; set; } = [];
+}
+
+public class BoundedContextMapDto
+{
+    [JsonPropertyName("hasIntents")]
+    public bool HasIntents { get; set; }
+
+    [JsonPropertyName("contexts")]
+    public List<BoundedContextItemDto> Contexts { get; set; } = [];
+
+    [JsonPropertyName("interactions")]
+    public List<BoundedContextInteractionDto> Interactions { get; set; } = [];
+
+    [JsonPropertyName("totalIntents")]
+    public int TotalIntents { get; set; }
+
+    [JsonPropertyName("totalPureDomains")]
+    public int TotalPureDomains { get; set; }
 }
 
 // ============================================================================
