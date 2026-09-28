@@ -175,6 +175,11 @@ export class GraphPanel {
             await vscode.commands.executeCommand('codeExplorer.distillIntents');
             break;
 
+          case 'MANAGE_MODEL':
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] MANAGE_MODEL requested`);
+            await vscode.commands.executeCommand('codeExplorer.modelStatus');
+            break;
+
           case 'OPEN_FILE':
             this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Open file requested: ${message.filePath}:${message.lineStart || 1}`);
             await this.handleOpenFile(message.filePath, message.lineStart, message.lineEnd);

@@ -109,6 +109,26 @@
       {
         "command": "codeExplorer.openNodeGrid",
         "title": "CodeExplorer: Open Node Grid"
+      },
+      {
+        "command": "codeExplorer.distillIntents",
+        "title": "CodeExplorer: Distill Architectural Intents (AI)",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "codeExplorer.downloadModel",
+        "title": "CodeExplorer: Download AI Intent Model",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "codeExplorer.modelStatus",
+        "title": "CodeExplorer: AI Model Management & Status",
+        "icon": "$(hubot)"
+      },
+      {
+        "command": "codeExplorer.clearIntents",
+        "title": "CodeExplorer: Clear AI Intent Cache",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -127,6 +147,11 @@
           "command": "codeExplorer.reindex",
           "when": "view == codeExplorerView",
           "group": "navigation@3"
+        },
+        {
+          "command": "codeExplorer.distillIntents",
+          "when": "view == codeExplorerView",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [

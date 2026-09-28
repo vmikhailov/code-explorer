@@ -27,6 +27,8 @@ export interface ToolbarProps {
   scanProgress?: { phase: string; percentage: number; currentFile?: string; totalFiles?: number; processedFiles?: number } | null;
   onTriggerScan?: (clear?: boolean) => void;
   graphStats?: { totalNodes: number; totalEdges: number; serverVersion?: string } | null;
+  onTriggerIntent?: () => void;
+  onManageModel?: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -54,6 +56,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   scanProgress,
   onTriggerScan,
   graphStats,
+  onTriggerIntent,
+  onManageModel,
 }) => {
   const uniqueProjects = useMemo(() => {
     const seen = new Set<string>();
@@ -183,6 +187,35 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {viewMode === 'semantic' && (
           <div className="semantic-controls button-group">
             <button onClick={onRefresh} title="Reload semantic architecture" className="ctrl-btn icon-btn">
+              <span className="btn-icon">🔄</span>
+              <span className="btn-text">Refresh</span>
+            </button>
+          </div>
+        )}
+
+        {viewMode === 'contexts' && (
+          <div className="contexts-controls button-group">
+            {onTriggerIntent && (
+              <button
+                onClick={onTriggerIntent}
+                title="Distill architectural intents with local SLM"
+                className="ctrl-btn icon-btn highlight"
+              >
+                <span className="btn-icon">✨</span>
+                <span className="btn-text">Distill Intents</span>
+              </button>
+            )}
+            {onManageModel && (
+              <button
+                onClick={onManageModel}
+                title="Manage local AI intent model"
+                className="ctrl-btn icon-btn"
+              >
+                <span className="btn-icon">🧠</span>
+                <span className="btn-text">AI Model</span>
+              </button>
+            )}
+            <button onClick={onRefresh} title="Reload Bounded Contexts" className="ctrl-btn icon-btn">
               <span className="btn-icon">🔄</span>
               <span className="btn-text">Refresh</span>
             </button>

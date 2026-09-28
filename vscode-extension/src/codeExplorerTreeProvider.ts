@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
 import { ProcessManager, ServerInfo } from './processManager';
+import { getModelStatus } from './modelManager';
 
 export interface MetadataDto {
   nodeCounts: Record<string, number>;
@@ -716,7 +717,55 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     };
     items.push(rebuildItem);
 
-    // 3. Restart Server or Start Server
+    // 3. AI Intent Distillation
+    const intentItem = new CodeExplorerTreeItem(
+      'management-item',
+      'Distill AI Intents',
+      vscode.TreeItemCollapsibleState.None
+    );
+    intentItem.description = 'Classify DDD domains';
+    intentItem.iconPath = new vscode.ThemeIcon('sparkle');
+    intentItem.tooltip = 'Enrich knowledge graph with architectural intents and Bounded Contexts using local SLM';
+    intentItem.command = {
+      command: 'codeExplorer.distillIntents',
+      title: 'Distill AI Intents',
+    };
+    items.push(intentItem);
+
+    // 4. Model Management
+    const workspaceRoot = this.getWorkspaceRoot();
+    const modelStatus = getModelStatus(workspaceRoot);
+    if (modelStatus.exists) {
+      const modelItem = new CodeExplorerTreeItem(
+        'management-item',
+        'AI Intent Model',
+        vscode.TreeItemCollapsibleState.None
+      );
+      modelItem.description = `Ready (${modelStatus.sizeMb} MB)`;
+      modelItem.iconPath = new vscode.ThemeIcon('check');
+      modelItem.tooltip = `Model is ready at ${modelStatus.modelPath}. Click to manage model or re-download.`;
+      modelItem.command = {
+        command: 'codeExplorer.modelStatus',
+        title: 'AI Model Management',
+      };
+      items.push(modelItem);
+    } else {
+      const modelItem = new CodeExplorerTreeItem(
+        'management-item',
+        'Download AI Model',
+        vscode.TreeItemCollapsibleState.None
+      );
+      modelItem.description = '~940 MB';
+      modelItem.iconPath = new vscode.ThemeIcon('cloud-download');
+      modelItem.tooltip = 'Download local SLM model (ce-intent-v2-q4_k_m.gguf) for architectural intent distillation';
+      modelItem.command = {
+        command: 'codeExplorer.downloadModel',
+        title: 'Download AI Model',
+      };
+      items.push(modelItem);
+    }
+
+    // 5. Restart Server or Start Server
     if (serverInfo) {
       const restartItem = new CodeExplorerTreeItem(
         'management-item',

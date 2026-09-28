@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ProcessManager } from './processManager';
 import { GraphPanel } from './graphPanel';
 import { CodeExplorerTreeDataProvider } from './codeExplorerTreeProvider';
+import { getModelStatus } from './modelManager';
 import { isProjectKind } from '../../proto/types';
 
 let processManager: ProcessManager | null = null;
@@ -473,9 +474,205 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showWarningMessage('Please open a workspace folder to run architectural intent distillation.');
         return;
       }
-      const term = vscode.window.createTerminal('CodeExplorer Intent');
-      term.show();
-      term.sendText(`ce intent "${workspaceRoot}"`);
+
+      const pm = processManager;
+      if (!pm) return;
+
+      const modelStatus = getModelStatus(workspaceRoot);
+      if (!modelStatus.exists) {
+        const choice = await vscode.window.showInformationMessage(
+          'CodeExplorer AI model (~940 MB) is required for intent distillation. Would you like to download it now?',
+          'Download Model',
+          'Cancel'
+        );
+        if (choice === 'Download Model') {
+          await vscode.commands.executeCommand('codeExplorer.downloadModel', false);
+        } else {
+          return;
+        }
+      }
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'CodeExplorer: Distilling Architectural Intents...',
+          cancellable: false,
+        },
+        async (progress) => {
+          try {
+            progress.report({ message: 'Running SLM intent distillation pass...' });
+            await pm.runCliCommand(workspaceRoot, ['intent'], (line) => {
+              if (line.includes('[CodeIntent]') || line.includes('Enriched') || line.includes('candidate')) {
+                progress.report({ message: line.replace(/^\[.*?\]\s*/, '') });
+              }
+            });
+            treeDataProvider.refresh();
+            vscode.window
+              .showInformationMessage('CodeExplorer: Intent distillation completed! Knowledge graph enriched.', 'Show Bounded Contexts')
+              .then((choice) => {
+                if (choice === 'Show Bounded Contexts') {
+                  vscode.commands.executeCommand('codeExplorer.openView', 'contexts');
+                }
+              });
+          } catch (err: any) {
+            outputChannel.appendLine(`[DistillIntents Error] ${err.message}`);
+            vscode.window
+              .showErrorMessage(`Intent distillation failed: ${err.message}`, 'Show Logs')
+              .then((c) => {
+                if (c === 'Show Logs') outputChannel.show(true);
+              });
+          }
+        }
+      );
+    }
+  );
+
+  // Command: Download AI Model
+  const downloadModelCommand = vscode.commands.registerCommand(
+    'codeExplorer.downloadModel',
+    async (force = false) => {
+      const workspaceRoot = getWorkspaceRoot() || process.cwd();
+      const pm = processManager;
+      if (!pm) return;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'CodeExplorer: Downloading AI Intent Model (~940 MB)...',
+          cancellable: false,
+        },
+        async (progress) => {
+          try {
+            progress.report({ message: 'Starting model download...' });
+            const cliArgs = ['model', 'download'];
+            if (force) {
+              cliArgs.push('--force');
+            }
+            await pm.runCliCommand(workspaceRoot, cliArgs, (line) => {
+              if (line.includes('Downloading:') || line.includes('MB /') || line.includes('successfully')) {
+                progress.report({ message: line.trim() });
+              }
+            });
+            treeDataProvider.refresh();
+            vscode.window
+              .showInformationMessage('CodeExplorer: AI model downloaded successfully! Ready for intent distillation.', 'Run Distillation')
+              .then((choice) => {
+                if (choice === 'Run Distillation') {
+                  vscode.commands.executeCommand('codeExplorer.distillIntents');
+                }
+              });
+          } catch (err: any) {
+            outputChannel.appendLine(`[DownloadModel Error] ${err.message}`);
+            vscode.window
+              .showErrorMessage(`Model download failed: ${err.message}`, 'Show Logs')
+              .then((c) => {
+                if (c === 'Show Logs') outputChannel.show(true);
+              });
+          }
+        }
+      );
+    }
+  );
+
+  // Command: AI Model Management & Status
+  const modelStatusCommand = vscode.commands.registerCommand(
+    'codeExplorer.modelStatus',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      const status = getModelStatus(workspaceRoot);
+
+      if (status.exists) {
+        const selection = await vscode.window.showQuickPick(
+          [
+            {
+              label: '$(check) Model Status: Ready',
+              description: `${status.sizeMb} MB`,
+              detail: status.modelPath,
+            },
+            {
+              label: '$(sparkle) Distill Architectural Intents',
+              description: 'Run SLM intent distillation pass',
+            },
+            {
+              label: '$(cloud-download) Force Re-download Model',
+              description: 'Re-fetch model from repository (~940 MB)',
+            },
+            {
+              label: '$(trash) Clear Intent Cache',
+              description: 'Clear all cached intent records for this workspace',
+            },
+            {
+              label: '$(debug-restart) Reset Intent Errors',
+              description: 'Reset error counter for files that failed distillation',
+            },
+          ],
+          {
+            placeHolder: 'CodeExplorer AI Model Management',
+          }
+        );
+
+        if (!selection) return;
+
+        if (selection.label.includes('Distill Architectural Intents')) {
+          vscode.commands.executeCommand('codeExplorer.distillIntents');
+        } else if (selection.label.includes('Force Re-download Model')) {
+          vscode.commands.executeCommand('codeExplorer.downloadModel', true);
+        } else if (selection.label.includes('Clear Intent Cache')) {
+          vscode.commands.executeCommand('codeExplorer.clearIntents');
+        } else if (selection.label.includes('Reset Intent Errors')) {
+          if (workspaceRoot && processManager) {
+            await processManager.runCliCommand(workspaceRoot, ['intent', '--reset-errors']);
+            vscode.window.showInformationMessage('CodeExplorer: Intent error counters reset.');
+          }
+        }
+      } else {
+        const selection = await vscode.window.showQuickPick(
+          [
+            {
+              label: '$(cloud-download) Download AI Model Now',
+              description: 'Download ce-intent-v2-q4_k_m.gguf (~940 MB)',
+              detail: `Target destination: ${status.modelPath}`,
+            },
+            {
+              label: '$(info) Learn More About Architectural Intents',
+              description: 'Classifies files into DDD Bounded Contexts, CQRS roles, and domain events',
+            },
+          ],
+          {
+            placeHolder: 'CodeExplorer AI Model is not downloaded',
+          }
+        );
+
+        if (selection?.label.includes('Download AI Model Now')) {
+          vscode.commands.executeCommand('codeExplorer.downloadModel', false);
+        }
+      }
+    }
+  );
+
+  // Command: Clear Intent Cache
+  const clearIntentsCommand = vscode.commands.registerCommand(
+    'codeExplorer.clearIntents',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+      const confirm = await vscode.window.showWarningMessage(
+        'Clear all cached intent records for this workspace?',
+        { modal: true },
+        'Clear Intents'
+      );
+      if (confirm === 'Clear Intents' && processManager) {
+        try {
+          await processManager.runCliCommand(workspaceRoot, ['intent', '--clear']);
+          vscode.window.showInformationMessage('CodeExplorer: Intent cache cleared.');
+          treeDataProvider.refresh();
+        } catch (err: any) {
+          vscode.window.showErrorMessage(`Failed to clear intent cache: ${err.message}`);
+        }
+      }
     }
   );
 
@@ -490,7 +687,10 @@ export function activate(context: vscode.ExtensionContext) {
     reindexCommand,
     reindexFullCommand,
     showLogsCommand,
-    distillIntentsCommand
+    distillIntentsCommand,
+    downloadModelCommand,
+    modelStatusCommand,
+    clearIntentsCommand
   );
   outputChannel.appendLine('CodeExplorer extension activated.');
 }

@@ -1223,6 +1223,16 @@ export const App: React.FC = () => {
             scanProgress={scanProgress}
             onTriggerScan={handleTriggerScan}
             graphStats={graphStats}
+            onTriggerIntent={() => {
+              if (vscodeApi) {
+                vscodeApi.postMessage({ type: 'TRIGGER_INTENT' });
+              }
+            }}
+            onManageModel={() => {
+              if (vscodeApi) {
+                vscodeApi.postMessage({ type: 'MANAGE_MODEL' });
+              }
+            }}
           />
         )}
 
@@ -1371,6 +1381,11 @@ export const App: React.FC = () => {
                 onTriggerIntent={() => {
                   if (vscodeApi) {
                     vscodeApi.postMessage({ type: 'TRIGGER_INTENT' });
+                  }
+                }}
+                onManageModel={() => {
+                  if (vscodeApi) {
+                    vscodeApi.postMessage({ type: 'MANAGE_MODEL' });
                   }
                 }}
               />

@@ -38,6 +38,7 @@ export interface BoundedContextMapViewProps {
   onOpenFile?: (filePath: string, lineStart?: number) => void;
   onTriggerScan?: () => void;
   onTriggerIntent?: () => void;
+  onManageModel?: () => void;
 }
 
 const CYTO_STYLES: cytoscape.StylesheetStyle[] = [
@@ -113,6 +114,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
   onOpenFile,
   onTriggerScan,
   onTriggerIntent,
+  onManageModel,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -390,6 +392,27 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
               title="Fit to screen"
             >
               ⛶ Fit
+            </button>
+          )}
+
+          {onTriggerIntent && (
+            <button
+              className="hud-btn-toggle"
+              onClick={onTriggerIntent}
+              title="Run local SLM architectural intent distillation"
+              style={{ color: '#a78bfa', borderColor: 'rgba(167, 139, 250, 0.4)' }}
+            >
+              ✨ Distill
+            </button>
+          )}
+
+          {onManageModel && (
+            <button
+              className="hud-btn-toggle"
+              onClick={onManageModel}
+              title="Manage AI Model"
+            >
+              🧠 Model
             </button>
           )}
         </div>
