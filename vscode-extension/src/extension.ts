@@ -464,6 +464,21 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: Distill Architectural Intents
+  const distillIntentsCommand = vscode.commands.registerCommand(
+    'codeExplorer.distillIntents',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder to run architectural intent distillation.');
+        return;
+      }
+      const term = vscode.window.createTerminal('CodeExplorer Intent');
+      term.show();
+      term.sendText(`ce intent "${workspaceRoot}"`);
+    }
+  );
+
   context.subscriptions.push(
     initAndScanCommand,
     showGraphCommand,
@@ -474,7 +489,8 @@ export function activate(context: vscode.ExtensionContext) {
     openSourceCommand,
     reindexCommand,
     reindexFullCommand,
-    showLogsCommand
+    showLogsCommand,
+    distillIntentsCommand
   );
   outputChannel.appendLine('CodeExplorer extension activated.');
 }

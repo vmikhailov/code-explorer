@@ -170,6 +170,11 @@ export class GraphPanel {
             await vscode.commands.executeCommand('codeExplorer.openView', message.viewMode, message.project);
             break;
 
+          case 'TRIGGER_INTENT':
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] TRIGGER_INTENT requested`);
+            await vscode.commands.executeCommand('codeExplorer.distillIntents');
+            break;
+
           case 'OPEN_FILE':
             this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Open file requested: ${message.filePath}:${message.lineStart || 1}`);
             await this.handleOpenFile(message.filePath, message.lineStart, message.lineEnd);

@@ -49,7 +49,11 @@ public static class ViewCommandHandler
         }
 
         var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
-        var level = opts.Target.Equals("domain", StringComparison.OrdinalIgnoreCase) || opts.Target.Equals("context", StringComparison.OrdinalIgnoreCase)
+        var level = opts.Target.Equals("contexts", StringComparison.OrdinalIgnoreCase) ||
+                    opts.Target.Equals("bounded-contexts", StringComparison.OrdinalIgnoreCase) ||
+                    opts.Target.Equals("context-map", StringComparison.OrdinalIgnoreCase)
+            ? "contexts"
+            : opts.Target.Equals("domain", StringComparison.OrdinalIgnoreCase)
             ? "domain"
             : opts.Level;
 

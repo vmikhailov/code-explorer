@@ -502,7 +502,12 @@ public class CodeExplorerRepository
         var normalizedLevel = level?.Trim().ToLowerInvariant() ?? "c1";
         var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
 
-        if (normalizedLevel is "domain" or "context" or "bounded-context" or "domain-map")
+        if (normalizedLevel is "contexts" or "context" or "bounded-context" or "bounded-contexts" or "context-map")
+        {
+            return await GetBoundedContextsAsync(format, workspacePath, cancellationToken);
+        }
+
+        if (normalizedLevel is "domain" or "domain-map" or "domains")
         {
             var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries, cancellationToken);
             return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
@@ -525,6 +530,22 @@ public class CodeExplorerRepository
 
         var title = $"{viewType} Architecture View";
         return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeGraph(graph, format, title);
+    }
+
+    public async Task<string> GetBoundedContextsAsync(
+        string format = "markdown",
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(client);
+        var mapDto = await engine.GetBoundedContextMapAsync(ct: cancellationToken);
+        return CodeExplorer.Core.Analysis.ArchitectureViewEngine.SerializeBoundedContextMap(mapDto, format);
     }
 
     public async Task<string> GetServiceContractsAsync(

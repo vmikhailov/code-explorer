@@ -131,6 +131,17 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
+    [Description("Retrieves the AI-distilled Bounded Contexts Map (DDD Context Map) containing business domains, ubiquitous language entities, emitted and handled events, layer breakdown, CQRS roles, and cross-context interactions (service calls, shared databases, shared message queues).")]
+    public async Task<CallToolResult> GetBoundedContextsAsync(
+        [Description("Output format: 'markdown', 'mermaid', 'json', or 'toon'. Default: 'markdown'.")] string format = "markdown",
+        [Description("Optional workspace root path. If omitted, uses current workspace context.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(() => repository.GetBoundedContextsAsync(format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
     [Description("Returns a lightweight, high-level overview of the workspace architecture, grouping projects into semantic layers (Core/Domain, Services/Backend, UI/Presentation, Infrastructure/Data, Tests) with project counts, databases, external services, and summary statistics. Ideal starting point for understanding repository structure without heavy payloads.")]
     public async Task<CallToolResult> GetArchitectureOverviewAsync(
         [Description("Optional workspace root path. If omitted, uses current workspace context.")] string? workspacePath = null,

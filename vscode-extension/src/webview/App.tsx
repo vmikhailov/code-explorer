@@ -282,6 +282,15 @@ export const App: React.FC = () => {
     sendWsMessage(req);
   }, [sendWsMessage]);
 
+  const requestContexts = useCallback(() => {
+    const req: WebSocketMessage = {
+      type: 'GET_VIEW_REQUEST',
+      requestId: `req_view_contexts_${Date.now()}`,
+      payload: { view: 'contexts' },
+    };
+    sendWsMessage(req);
+  }, [sendWsMessage]);
+
   const viewModeRef = useRef<ViewMode>(viewMode);
   viewModeRef.current = viewMode;
 
@@ -294,6 +303,9 @@ export const App: React.FC = () => {
   const flowGraphRef = useRef<GraphData | null>(null);
   flowGraphRef.current = flowGraph;
 
+  const contextsGraphRef = useRef<GraphData | null>(null);
+  contextsGraphRef.current = contextsGraph;
+
   const allProjectsRef = useRef<string[]>(allProjects);
   allProjectsRef.current = allProjects;
 
@@ -301,7 +313,7 @@ export const App: React.FC = () => {
   const handleViewModeChange = useCallback(
     (targetMode: ViewMode) => {
       if (viewModeRef.current === targetMode) return;
-      if (targetMode === 'semantic') {
+      if (targetMode === 'semantic' || targetMode === 'contexts') {
         setSelectedDrawerNode(null);
       }
       setViewMode(targetMode);
@@ -317,11 +329,15 @@ export const App: React.FC = () => {
 
       if (targetMode === 'flow' && selectedProjectRef.current && !flowGraphRef.current) {
         requestDependencies(selectedProjectRef.current);
+      } else if (targetMode === 'contexts') {
+        if (!contextsGraphRef.current) {
+          requestContexts();
+        }
       } else if (targetMode !== 'flow' && !fullGraphRef.current) {
         requestArchitecture();
       }
     },
-    [commandManager, requestDependencies, requestArchitecture]
+    [commandManager, requestDependencies, requestArchitecture, requestContexts]
   );
 
   const handleSelectProject = useCallback(
@@ -827,6 +843,9 @@ export const App: React.FC = () => {
               } else {
                 requestDependencies();
               }
+              if (viewModeRef.current === 'contexts') {
+                requestContexts();
+              }
             } else if (scanEv.phase === 'Failed') {
               setIsScanning(false);
               setScanNotification({ type: 'error', text: scanEv.currentFile || 'Scan failed' });
@@ -855,17 +874,21 @@ export const App: React.FC = () => {
             break;
           }
 
+          case 'GET_VIEW_RESPONSE':
           case 'QUERY_RESPONSE': {
             const resp = msg.payload as QueryResponse;
             if (resp.success && resp.graph) {
               const nodeCount = resp.graph.nodes?.length || 0;
               const edgeCount = resp.graph.edges?.length || 0;
+              const isContexts = msg.requestId?.startsWith('req_view_contexts') || resp.graph.metadata?.view === 'BoundedContexts' || resp.graph.metadata?.graphType === 'contexts';
               const isArch = msg.requestId?.startsWith('req_arch') || resp.graph.metadata?.graphType === 'architecture';
               const isFlow = msg.requestId?.startsWith('req_dep') || resp.graph.metadata?.graphType === 'flow';
               const hasColumns = resp.graph.nodes?.some((n) => n.properties?.column);
-              const isFlowGraph = isFlow || (!isArch && hasColumns);
-              logToExtension('INFO', `Query response received: ${nodeCount} nodes, ${edgeCount} edges (type=${isFlowGraph ? 'flow' : 'architecture'})`);
-              if (isFlowGraph) {
+              const isFlowGraph = isFlow || (!isArch && !isContexts && hasColumns);
+              logToExtension('INFO', `Query response received: ${nodeCount} nodes, ${edgeCount} edges (type=${isContexts ? 'contexts' : isFlowGraph ? 'flow' : 'architecture'})`);
+              if (isContexts) {
+                setContextsGraph(resp.graph);
+              } else if (isFlowGraph) {
                 setFlowGraph(resp.graph);
                 const metadata = resp.graph.metadata;
                 if (metadata?.selectedProject) {
@@ -1296,7 +1319,9 @@ export const App: React.FC = () => {
           )}
 
           {/* Global Loading Overlay when fetching initial graph data */}
-          {((viewMode === 'flow' && !flowGraph) || (viewMode !== 'flow' && !fullGraph)) &&
+          {((viewMode === 'flow' && !flowGraph) ||
+            (viewMode === 'contexts' && !contextsGraph && !fullGraph) ||
+            (viewMode !== 'flow' && viewMode !== 'contexts' && !fullGraph)) &&
             connectionStatus !== 'error' &&
             connectionStatus !== 'disconnected' && (
               <div className="view-loading-overlay">
@@ -1306,6 +1331,8 @@ export const App: React.FC = () => {
                     <span className="view-loading-title">
                       {viewMode === 'flow'
                         ? `Loading dependencies for ${selectedProject || 'project'}...`
+                        : viewMode === 'contexts'
+                        ? 'Loading Bounded Context Map...'
                         : 'Loading architecture graph...'}
                     </span>
                     <span className="view-loading-subtitle">
@@ -1332,6 +1359,20 @@ export const App: React.FC = () => {
                 graph={fullGraph}
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
+                onSwitchToContexts={() => handleViewModeChange('contexts')}
+              />
+            )}
+
+            {viewMode === 'contexts' && (
+              <BoundedContextMapView
+                graph={contextsGraph || fullGraph}
+                onOpenFile={handleOpenFile}
+                onTriggerScan={handleTriggerScan}
+                onTriggerIntent={() => {
+                  if (vscodeApi) {
+                    vscodeApi.postMessage({ type: 'TRIGGER_INTENT' });
+                  }
+                }}
               />
             )}
 

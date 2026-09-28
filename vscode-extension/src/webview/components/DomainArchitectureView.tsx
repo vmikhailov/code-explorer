@@ -21,6 +21,7 @@ export interface DomainArchitectureViewProps {
   onFocusInFlow?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
   onSelectNode?: (node: GraphNode | null) => void;
+  onSwitchToContexts?: () => void;
 }
 
 // Common sub-project naming suffixes that belong to a parent domain
@@ -345,6 +346,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   onFocusInFlow,
   onOpenFile,
   onSelectNode,
+  onSwitchToContexts,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -1901,6 +1903,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         <div className="domain-hud-title-badge">
           <span className="domain-hud-label">Macro Architecture</span>
           <span className="domain-hud-title">Domain Microservice Map</span>
+          {onSwitchToContexts && (
+            <button
+              className="domain-hud-switch-contexts-btn"
+              onClick={onSwitchToContexts}
+              title="Switch to AI-distilled Bounded Context Map (Logical DDD contexts)"
+            >
+              🧩 AI Contexts
+            </button>
+          )}
         </div>
 
         {/* Entity Type Toggle Filters */}
