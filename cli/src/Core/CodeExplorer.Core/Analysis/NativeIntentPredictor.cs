@@ -1,11 +1,19 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using CodeExplorer.Core.Database;
 using LLama;
 using LLama.Common;
 using LLama.Native;
 using LLama.Sampling;
 
 namespace CodeExplorer.Core.Analysis;
+
+public record ProjectIntentResult(
+    [property: JsonPropertyName("domain")] string? Domain,
+    [property: JsonPropertyName("project_role")] string? ProjectRole,
+    [property: JsonPropertyName("capabilities")] List<string>? Capabilities
+);
 
 public sealed class NativeIntentPredictor : IDisposable
 {
@@ -171,10 +179,103 @@ public sealed class NativeIntentPredictor : IDisposable
         string content,
         string? projectName = null,
         IReadOnlyList<string>? knownDomains = null,
+        string? projectDomain = null,
+        string? projectRole = null,
         CancellationToken cancellationToken = default)
     {
-        var (result, _) = await PredictWithRawAsync(filePath, content, projectName, knownDomains, cancellationToken);
+        var (result, _) = await PredictWithRawAsync(filePath, content, projectName, knownDomains, projectDomain, projectRole, cancellationToken);
         return result;
+    }
+
+    public const string ProjectSystemPrompt =
+        "You are an expert Enterprise Software Architect.\n" +
+        "Analyze the provided Project Signature (service name, endpoints, databases, tables, and domain types).\n" +
+        "Determine its primary architectural Bounded Context (Domain), its architectural role, and its business purpose.\n\n" +
+        "Respond ONLY with valid JSON in this format:\n" +
+        "{\n" +
+        "  \"domain\": \"PascalCaseDomainName\",\n" +
+        "  \"project_role\": \"1-2 concise sentences describing what this service/project does and its business value\",\n" +
+        "  \"capabilities\": [\"Capability1\", \"Capability2\"]\n" +
+        "}\n";
+
+    public const string ProjectIntentJsonGrammar = """
+root ::= "{" ws "\"domain\":" ws string "," ws "\"project_role\":" ws string "," ws "\"capabilities\":" ws string-list "}" ws
+
+string-list ::= "[" ws (string ("," ws string)*)? ws "]"
+string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt])* "\""
+ws ::= [ \t\n\r]*
+""";
+
+    public async Task<ProjectIntentResult?> PredictProjectIntentAsync(
+        ProjectSignature signature,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Project Name: {signature.Name}");
+        if (signature.Endpoints.Count > 0)
+        {
+            sbUser.AppendLine($"Key Endpoints: {string.Join(", ", signature.Endpoints.Take(12))}");
+        }
+        if (signature.Tables.Count > 0)
+        {
+            sbUser.AppendLine($"Tables / Collections: {string.Join(", ", signature.Tables.Take(12))}");
+        }
+        if (signature.Topics.Count > 0)
+        {
+            sbUser.AppendLine($"Message Topics: {string.Join(", ", signature.Topics.Take(10))}");
+        }
+        if (signature.DomainTypes.Count > 0)
+        {
+            sbUser.AppendLine($"Core Domain Types: {string.Join(", ", signature.DomainTypes.Take(12))}");
+        }
+
+        var prompt = $"<|im_start|>system\n{ProjectSystemPrompt}<|im_end|>\n"
+                   + $"<|im_start|>user\n{sbUser}<|im_end|>\n"
+                   + "<|im_start|>assistant\n";
+
+        var inferenceParams = new InferenceParams
+        {
+            MaxTokens = 256,
+            TokensKeep = 64,
+            OverflowStrategy = ContextOverflowStrategy.TruncateAndReprefill,
+            AntiPrompts = ["<|im_end|>", "<|endoftext|>"],
+            SamplingPipeline = new DefaultSamplingPipeline
+            {
+                Temperature = 0.1f,
+                TopP = 0.95f,
+                RepeatPenalty = 1.15f,
+                Grammar = new Grammar(ProjectIntentJsonGrammar, "root")
+            }
+        };
+
+        await _semaphore.WaitAsync(cancellationToken);
+        StatelessExecutor? executor = null;
+        try
+        {
+            if (!_executorPool.TryTake(out executor))
+            {
+                executor = new StatelessExecutor(_weights, _parameters);
+            }
+
+            var sb = new StringBuilder();
+            await foreach (var token in executor.InferAsync(prompt, inferenceParams, cancellationToken))
+            {
+                sb.Append(token);
+            }
+
+            var raw = sb.ToString();
+            return ParseProjectJsonResult(raw);
+        }
+        finally
+        {
+            if (executor != null)
+            {
+                _executorPool.Add(executor);
+            }
+            _semaphore.Release();
+        }
     }
 
     private const string SystemPrompt =
@@ -182,6 +283,7 @@ public sealed class NativeIntentPredictor : IDisposable
         "Analyze the provided code module skeleton (namespace, classes, interfaces, dependencies, method signatures, attributes, and internal calls).\n" +
         "Determine its architectural role, bounded context (business domain), mutations, capabilities, and intent for a Code Knowledge Graph.\n\n" +
         "BOUNDED CONTEXT RESOLUTION RULES:\n" +
+        "- If 'Parent Project Bounded Context' is provided, ALWAYS reuse that exact domain name unless the module represents an entirely independent cross-cutting utility.\n" +
         "- If 'Known Repository Bounded Contexts' are provided and this file logically belongs to one of them, REUSE that exact domain name.\n" +
         "- If the project/subsystem has a primary domain, align with it rather than fragmenting into multiple fine-grained domain names.\n" +
         "- Only introduce a new domain name if the module represents an entirely distinct business capability.\n\n" +
@@ -224,6 +326,8 @@ public sealed class NativeIntentPredictor : IDisposable
         string content,
         string? projectName = null,
         IReadOnlyList<string>? knownDomains = null,
+        string? projectDomain = null,
+        string? projectRole = null,
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -239,7 +343,15 @@ public sealed class NativeIntentPredictor : IDisposable
         {
             sbUser.AppendLine($"Project / Subsystem: {projectName}");
         }
-        if (knownDomains != null && knownDomains.Count > 0)
+        if (!string.IsNullOrWhiteSpace(projectDomain))
+        {
+            sbUser.AppendLine($"Parent Project Bounded Context: {projectDomain}");
+            if (!string.IsNullOrWhiteSpace(projectRole))
+            {
+                sbUser.AppendLine($"Parent Project Purpose: {projectRole}");
+            }
+        }
+        else if (knownDomains != null && knownDomains.Count > 0)
         {
             var domainList = string.Join(", ", knownDomains.Take(12));
             sbUser.AppendLine($"Known Repository Bounded Contexts: [{domainList}]");
@@ -383,6 +495,78 @@ ws ::= [ \t\n\r]*
         catch
         {
             // Failed to parse or heal JSON
+        }
+
+        return null;
+    }
+
+    private ProjectIntentResult? ParseProjectJsonResult(string rawOutput)
+    {
+        if (string.IsNullOrWhiteSpace(rawOutput)) return null;
+
+        var firstBrace = rawOutput.IndexOf('{');
+        if (firstBrace < 0) return null;
+
+        var lastBrace = rawOutput.LastIndexOf('}');
+        if (lastBrace > firstBrace)
+        {
+            var jsonStr = rawOutput.Substring(firstBrace, lastBrace - firstBrace + 1);
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<ProjectIntentResult>(jsonStr, _jsonOptions);
+                if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Domain))
+                {
+                    return parsed;
+                }
+            }
+            catch
+            {
+                // Fall through to healing
+            }
+        }
+
+        // Attempt healing if truncated
+        try
+        {
+            var candidate = rawOutput[firstBrace..].Trim();
+            if (candidate.EndsWith("```"))
+            {
+                candidate = candidate[..^3].TrimEnd();
+            }
+
+            var openBraces = 0;
+            var openBrackets = 0;
+            var inString = false;
+            var escape = false;
+
+            foreach (var ch in candidate)
+            {
+                if (escape) { escape = false; continue; }
+                if (ch == '\\') { escape = true; continue; }
+                if (ch == '"') { inString = !inString; continue; }
+                if (inString) continue;
+
+                if (ch == '{') openBraces++;
+                else if (ch == '}') openBraces--;
+                else if (ch == '[') openBrackets++;
+                else if (ch == ']') openBrackets--;
+            }
+
+            var sb = new StringBuilder(candidate);
+            if (inString) sb.Append('"');
+            while (openBrackets > 0) { sb.Append(']'); openBrackets--; }
+            while (openBraces > 0) { sb.Append('}'); openBraces--; }
+
+            var healed = sb.ToString();
+            var parsed = JsonSerializer.Deserialize<ProjectIntentResult>(healed, _jsonOptions);
+            if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Domain))
+            {
+                return parsed;
+            }
+        }
+        catch
+        {
+            // Failed to parse
         }
 
         return null;

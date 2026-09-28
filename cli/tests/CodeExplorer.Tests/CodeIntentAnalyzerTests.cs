@@ -168,6 +168,99 @@ public class OrderPlacementService : IOrderService
     }
 
     [Test]
+    public async Task NativeIntentPredictor_ProjectSignature_Inference()
+    {
+        var modelPath = ModelManager.ResolveModelPath();
+        if (string.IsNullOrEmpty(modelPath) || !File.Exists(modelPath))
+        {
+            Assert.Ignore("GGUF model not available on this environment; skipping inference test.");
+            return;
+        }
+
+        using var predictor = new NativeIntentPredictor(modelPath, contextSize: 2048, gpuLayers: 99);
+
+        var testProjects = new[]
+        {
+            (
+                Name: "bq-routes-calculation",
+                Signature: @"
+Endpoints:
+- GET /api/bundle-loss
+- GET /approve-cost-loss
+- GET /api/daily-offers-statistics
+- GET /api/get-sources-with-incorrect-traffic
+Databases & Tables:
+- BigQuery: bundle_cost_loss, calculated_rates_temp, calculation_queue_new_campaigns_results
+Domain Entities:
+- ICalcRatesTbClickType, IDesiredMaxCpmResult, ICampaignResultTable
+"
+            ),
+            (
+                Name: "cpm-streaming-aggregator",
+                Signature: @"
+Endpoints:
+- GET /api/v1/bundles/maxcpm
+- GET /api/v1/results
+- POST /api/v1/bundles
+Tables:
+- bundle_placements, bundle_snapshots, engine_lifecycle
+Domain Entities:
+- BundleCalculator, ConversionEvent, CostJournal, Campaign, BundleLifecycleStatus
+"
+            ),
+            (
+                Name: "domain-checker",
+                Signature: @"
+Endpoints:
+- GET /proxy
+- POST /proxy
+- DELETE /proxy
+- QUERY getProxy
+Tables:
+- domain_check, proxy
+Domain Entities:
+- DomainCheckEntity, CreateProxyDto, GetProxyDto, IGetDomainCheckResponse
+"
+            ),
+            (
+                Name: "rule-tree-updater",
+                Signature: @"
+Endpoints:
+- DELETE /system/bundle-rules
+- DELETE /system/popunders
+- DELETE /system/rates
+- DELETE /system/split-bundles
+Tables:
+- country_traffic_skins, custom_rates, tb_click_type_rates
+Domain Entities:
+- BundleRuleConfig, BbhConfig, IBundleRuleResponse
+"
+            )
+        };
+
+        foreach (var proj in testProjects)
+        {
+            var (result, raw) = await predictor.PredictWithRawAsync(
+                $"{proj.Name}/project-signature.spec",
+                proj.Signature,
+                projectName: proj.Name
+            );
+
+            TestContext.Out.WriteLine($"==================================================");
+            TestContext.Out.WriteLine($"PROJECT: {proj.Name}");
+            TestContext.Out.WriteLine($"RAW:\n{raw}");
+            if (result != null)
+            {
+                TestContext.Out.WriteLine($"--> INFERRED DOMAIN:  {result.Domain}");
+                TestContext.Out.WriteLine($"--> INFERRED LAYER:   {result.Layer}");
+                TestContext.Out.WriteLine($"--> INFERRED PATTERN: {result.Pattern}");
+                TestContext.Out.WriteLine($"--> SUMMARY:          {result.IntentSummary}");
+            }
+            TestContext.Out.WriteLine();
+        }
+    }
+
+    [Test]
     public async Task SqliteGraphClient_IntentCacheLifecycle_PreservedAcrossClearDatabase()
     {
         using var client = new SqliteGraphClient(":memory:");

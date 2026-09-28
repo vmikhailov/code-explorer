@@ -37,6 +37,17 @@ public interface IGraphClient : IAsyncDisposable
             new List<ExternalServiceNode>()
         ));
 
+    Task<List<ProjectSignature>> LoadProjectSignaturesAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<ProjectSignature>());
+
+    Task SaveProjectIntentsAsync(
+        string workspaceId,
+        Dictionary<string, (string Domain, string Summary, List<string> Capabilities)> projectIntents,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
     Task<List<IntentCandidate>> LoadIntentCandidatesAsync(
         string workspaceId,
         int? limit = null,
@@ -98,6 +109,16 @@ public interface IGraphClient : IAsyncDisposable
     bool IsSchemaOutdated => false;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
 }
+
+public record ProjectSignature(
+    string Id,
+    string Name,
+    string RelativePath,
+    List<string> Endpoints,
+    List<string> Tables,
+    List<string> Topics,
+    List<string> DomainTypes
+);
 
 public record IntentCandidate(string Id, string Kind, string Name, string RelativePath, string? FullPath);
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Database;
@@ -177,14 +178,55 @@ public static class CodeIntentAnalyzer
             using var predictor = new NativeIntentPredictor(modelPath, contextSize: contextSize, gpuLayers: gpuLayers);
 
             ctx.Log($"[CodeIntent] Compute Device: {predictor.ExecutionDevice} (GPU layers: {gpuLayers})");
-            ctx.Log($"[CodeIntent] Running batch intent inference on {toProcess.Count} files with {predictor.Concurrency}x parallel batching on {predictor.ExecutionDevice} ({skippedClean} unchanged, {skippedErrorLimit} error-locked)...");
+            // 1. Top-Down Phase 1: Determine architectural Bounded Context & Role per project from signatures
+            var projectSignatures = await ctx.DbClient.LoadProjectSignaturesAsync(ctx.WorkspaceId, cancellationToken);
+            var projectDomainMap = new ConcurrentDictionary<string, (string Domain, string Role)>(StringComparer.OrdinalIgnoreCase);
+            var projectIntentsToSave = new Dictionary<string, (string Domain, string Summary, List<string> Capabilities)>(StringComparer.OrdinalIgnoreCase);
 
-            var knownDomains = new System.Collections.Concurrent.ConcurrentBag<string>(
-                existingIntents
-                    .Select(x => x.Domain)
-                    .Where(d => !string.IsNullOrWhiteSpace(d))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)!
-            );
+            if (projectSignatures.Count > 0)
+            {
+                ctx.Log($"[CodeIntent] Phase 1: Analyzing architectural signatures for {projectSignatures.Count} projects on {predictor.ExecutionDevice}...");
+                var pIdx = 0;
+                var pOptions = new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = predictor.Concurrency,
+                    CancellationToken = cancellationToken
+                };
+
+                await Parallel.ForEachAsync(projectSignatures, pOptions, async (sig, ct) =>
+                {
+                    var pCurrent = Interlocked.Increment(ref pIdx);
+                    try
+                    {
+                        var pResult = await predictor.PredictProjectIntentAsync(sig, ct);
+                        if (pResult != null && !string.IsNullOrWhiteSpace(pResult.Domain))
+                        {
+                            projectDomainMap[sig.Name] = (pResult.Domain, pResult.ProjectRole ?? "");
+                            lock (projectIntentsToSave)
+                            {
+                                projectIntentsToSave[sig.Name] = (
+                                    pResult.Domain,
+                                    pResult.ProjectRole ?? "",
+                                    pResult.Capabilities ?? new List<string>()
+                                );
+                            }
+                        }
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        ctx.LogWarning($"[CodeIntent] Project intent failed for '{sig.Name}': {ex.Message}");
+                    }
+                });
+
+                if (projectIntentsToSave.Count > 0)
+                {
+                    await ctx.DbClient.SaveProjectIntentsAsync(ctx.WorkspaceId, projectIntentsToSave, cancellationToken);
+                    ctx.Log($"[CodeIntent] Phase 1 completed: Identified Bounded Contexts for {projectIntentsToSave.Count}/{projectSignatures.Count} projects.");
+                }
+            }
+
+            // Phase 2: Per-file intent distillation anchored by parent project Bounded Context
+            ctx.Log($"[CodeIntent] Phase 2: Running batch intent inference on {toProcess.Count} files with {predictor.Concurrency}x parallel batching on {predictor.ExecutionDevice} ({skippedClean} unchanged, {skippedErrorLimit} error-locked)...");
 
             var idx = 0;
             var successCount = 0;
@@ -203,19 +245,43 @@ public static class CodeIntentAnalyzer
                 try
                 {
                     var content = await File.ReadAllTextAsync(item.FullPath, ct);
-                    var currentKnown = knownDomains.Distinct(StringComparer.OrdinalIgnoreCase).Take(12).ToList();
+
+                    // Resolve parent project domain anchor
+                    string? projectDomain = null;
+                    string? projectRole = null;
+
+                    if (!string.IsNullOrWhiteSpace(item.ProjectName) && projectDomainMap.TryGetValue(item.ProjectName, out var pInfo))
+                    {
+                        projectDomain = pInfo.Domain;
+                        projectRole = pInfo.Role;
+                    }
+                    else
+                    {
+                        // Fallback matching by longest relative path prefix
+                        var matchedSig = projectSignatures
+                            .Where(s => !string.IsNullOrEmpty(s.RelativePath) && item.RelativePath.Replace('\\', '/').StartsWith(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                            .OrderByDescending(s => s.RelativePath.Length)
+                            .FirstOrDefault();
+
+                        if (matchedSig != null && projectDomainMap.TryGetValue(matchedSig.Name, out var sigInfo))
+                        {
+                            projectDomain = sigInfo.Domain;
+                            projectRole = sigInfo.Role;
+                        }
+                    }
+
                     var (prediction, rawOutput) = await predictor.PredictWithRawAsync(
                         item.FullPath,
                         content,
                         projectName: item.ProjectName,
-                        knownDomains: currentKnown,
+                        knownDomains: null, // Fully eliminate runaway snowballing!
+                        projectDomain: projectDomain,
+                        projectRole: projectRole,
                         cancellationToken: ct
                     );
 
                     if (prediction != null && !string.IsNullOrWhiteSpace(prediction.Domain))
                     {
-                        knownDomains.Add(prediction.Domain);
-
                         var record = new IntentRecord(
                             FilePath: item.RelativePath,
                             WorkspaceId: ctx.WorkspaceId,

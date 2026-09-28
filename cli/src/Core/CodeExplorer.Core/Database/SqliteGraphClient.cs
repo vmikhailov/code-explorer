@@ -1271,6 +1271,241 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
+    public async Task<List<ProjectSignature>> LoadProjectSignaturesAsync(
+        string workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        var projects = new List<(string Id, string Name, string Path)>();
+        var results = new List<ProjectSignature>();
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            // 1. Fetch all projects
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandTimeout = CommandTimeoutSeconds;
+                cmd.CommandText = """
+                    SELECT id,
+                           COALESCE(json_extract(properties, '$.name'), '') AS name,
+                           COALESCE(json_extract(properties, '$.path'), '') AS path
+                    FROM nodes
+                    WHERE kind = 'Project'
+                    ORDER BY length(path) DESC;
+                    """;
+                await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var id = reader.GetString(0);
+                    var name = reader.GetString(1);
+                    var path = reader.GetString(2);
+                    if (string.IsNullOrWhiteSpace(path)) path = name;
+                    path = path.Replace('\\', '/').Trim('/');
+                    projects.Add((id, name, path));
+                }
+            }
+
+            if (projects.Count == 0) return results;
+
+            // 2. Fetch architectural nodes (Endpoints, Tables, Topics, Types)
+            var endpointsByProj = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var tablesByProj = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var topicsByProj = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var typesByProj = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+            await using (var cmd = _conn.CreateCommand())
+            {
+                cmd.CommandTimeout = CommandTimeoutSeconds;
+                cmd.CommandText = """
+                    SELECT kind,
+                           COALESCE(json_extract(properties, '$.name'), '') AS name,
+                           COALESCE(json_extract(properties, '$.path'), json_extract(properties, '$.file_path'), '') AS path,
+                           COALESCE(json_extract(properties, '$.method'), '') AS method
+                    FROM nodes
+                    WHERE kind IN ('Endpoint', 'Table', 'Topic', 'Type');
+                    """;
+                await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var kind = reader.GetString(0);
+                    var name = reader.GetString(1);
+                    var path = reader.GetString(2).Replace('\\', '/').Trim('/');
+                    var method = reader.GetString(3);
+                    if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(path)) continue;
+
+                    // Match to most specific project path
+                    string? matchedProject = null;
+                    foreach (var p in projects)
+                    {
+                        if (path.StartsWith(p.Path, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matchedProject = p.Name;
+                            break;
+                        }
+                    }
+
+                    if (matchedProject == null) continue;
+
+                    if (kind == "Endpoint")
+                    {
+                        var epName = !string.IsNullOrEmpty(method) ? $"{method} {name}".Trim() : name;
+                        if (!endpointsByProj.TryGetValue(matchedProject, out var epSet))
+                        {
+                            epSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            endpointsByProj[matchedProject] = epSet;
+                        }
+                        epSet.Add(epName);
+                    }
+                    else if (kind == "Table")
+                    {
+                        if (!tablesByProj.TryGetValue(matchedProject, out var tblSet))
+                        {
+                            tblSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            tablesByProj[matchedProject] = tblSet;
+                        }
+                        tblSet.Add(name);
+                    }
+                    else if (kind == "Topic")
+                    {
+                        if (!topicsByProj.TryGetValue(matchedProject, out var topSet))
+                        {
+                            topSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            topicsByProj[matchedProject] = topSet;
+                        }
+                        topSet.Add(name);
+                    }
+                    else if (kind == "Type")
+                    {
+                        var lowerPath = path.ToLowerInvariant();
+                        if (lowerPath.Contains("model") || lowerPath.Contains("entity") || lowerPath.Contains("dto") ||
+                            lowerPath.Contains("interface") || lowerPath.Contains("repository") || lowerPath.Contains("service") ||
+                            lowerPath.Contains("controller"))
+                        {
+                            if (!typesByProj.TryGetValue(matchedProject, out var typSet))
+                            {
+                                typSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                typesByProj[matchedProject] = typSet;
+                            }
+                            typSet.Add(name);
+                        }
+                    }
+                }
+            }
+
+            // 3. Assemble ProjectSignature objects
+            foreach (var p in projects)
+            {
+                var endpoints = endpointsByProj.TryGetValue(p.Name, out var ep) ? ep.OrderBy(x => x).Take(15).ToList() : new List<string>();
+                var tables = tablesByProj.TryGetValue(p.Name, out var tb) ? tb.OrderBy(x => x).Take(15).ToList() : new List<string>();
+                var topics = topicsByProj.TryGetValue(p.Name, out var tp) ? tp.OrderBy(x => x).Take(10).ToList() : new List<string>();
+                var types = typesByProj.TryGetValue(p.Name, out var ty) ? ty.OrderBy(x => x).Take(15).ToList() : new List<string>();
+
+                results.Add(new ProjectSignature(p.Id, p.Name, p.Path, endpoints, tables, topics, types));
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return results;
+    }
+
+    public async Task SaveProjectIntentsAsync(
+        string workspaceId,
+        Dictionary<string, (string Domain, string Summary, List<string> Capabilities)> projectIntents,
+        CancellationToken cancellationToken = default)
+    {
+        if (projectIntents.Count == 0) return;
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                foreach (var (projectName, (domain, summary, capabilities)) in projectIntents)
+                {
+                    if (string.IsNullOrWhiteSpace(domain)) continue;
+
+                    // 1. Update Project and Service nodes matching this project name
+                    await using (var cmd = _conn.CreateCommand())
+                    {
+                        cmd.Transaction = tx;
+                        cmd.CommandTimeout = CommandTimeoutSeconds;
+                        cmd.CommandText = """
+                            UPDATE nodes
+                            SET properties = json_set(
+                                json_set(
+                                    json_set(properties, '$.intent_domain', @domain),
+                                    '$.intent_summary', @summary
+                                ),
+                                '$.intent_capabilities', json(@capabilities)
+                            )
+                            WHERE kind IN ('Project', 'Service', 'App', 'Worker')
+                              AND (
+                                  lower(json_extract(properties, '$.name')) = lower(@pname)
+                                  OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
+                                  OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
+                              );
+                            """;
+                        cmd.Parameters.AddWithValue("@domain", domain);
+                        cmd.Parameters.AddWithValue("@summary", summary ?? "");
+                        cmd.Parameters.AddWithValue("@capabilities", JsonSerializer.Serialize(capabilities ?? []));
+                        cmd.Parameters.AddWithValue("@pname", projectName);
+                        await cmd.ExecuteNonQueryAsync(cancellationToken);
+                    }
+
+                    // 2. Ensure Domain node exists and link Project/Service to Domain
+                    var domainId = $"ws:dom:{domain.ToLowerInvariant()}";
+                    await using (var cmd = _conn.CreateCommand())
+                    {
+                        cmd.Transaction = tx;
+                        cmd.CommandTimeout = CommandTimeoutSeconds;
+                        cmd.CommandText = """
+                            INSERT OR IGNORE INTO nodes(id, kind, properties)
+                            VALUES (@id, 'Domain', json_object('id', @id, 'name', @domain));
+                            """;
+                        cmd.Parameters.AddWithValue("@id", domainId);
+                        cmd.Parameters.AddWithValue("@domain", domain);
+                        await cmd.ExecuteNonQueryAsync(cancellationToken);
+                    }
+
+                    await using (var cmd = _conn.CreateCommand())
+                    {
+                        cmd.Transaction = tx;
+                        cmd.CommandTimeout = CommandTimeoutSeconds;
+                        cmd.CommandText = """
+                            INSERT OR IGNORE INTO edges(from_id, to_id, kind, properties)
+                            SELECT id, @domainId, 'BELONGS_TO_DOMAIN', '{}'
+                            FROM nodes
+                            WHERE kind IN ('Project', 'Service', 'App', 'Worker')
+                              AND (
+                                  lower(json_extract(properties, '$.name')) = lower(@pname)
+                                  OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
+                                  OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
+                              );
+                            """;
+                        cmd.Parameters.AddWithValue("@domainId", domainId);
+                        cmd.Parameters.AddWithValue("@pname", projectName);
+                        await cmd.ExecuteNonQueryAsync(cancellationToken);
+                    }
+                }
+
+                await tx.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await tx.RollbackAsync(cancellationToken);
+                throw;
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<List<IntentCandidate>> LoadIntentCandidatesAsync(
         string workspaceId,
         int? limit = null,
