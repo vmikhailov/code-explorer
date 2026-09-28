@@ -39,6 +39,7 @@ export interface BoundedContextMapViewProps {
   onTriggerScan?: () => void;
   onTriggerIntent?: () => void;
   onManageModel?: () => void;
+  onRefresh?: () => void;
 }
 
 const CYTO_STYLES: cytoscape.StylesheetStyle[] = [
@@ -115,6 +116,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
   onTriggerScan,
   onTriggerIntent,
   onManageModel,
+  onRefresh,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -395,6 +397,16 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
             </button>
           )}
 
+          {onRefresh && (
+            <button
+              className="hud-btn-toggle"
+              onClick={onRefresh}
+              title="Reload Bounded Contexts"
+            >
+              🔄 Refresh
+            </button>
+          )}
+
           {onTriggerIntent && (
             <button
               className="hud-btn-toggle"
@@ -431,11 +443,22 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
             <div className="empty-command-box">
               ce intent &nbsp; or &nbsp; ce scan --intent
             </div>
-            {onTriggerIntent && (
-              <button className="empty-action-btn" onClick={onTriggerIntent}>
-                ✨ Distill Architectural Intents
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '14px', justifyContent: 'center' }}>
+              {onRefresh && (
+                <button
+                  className="empty-action-btn"
+                  onClick={onRefresh}
+                  style={{ background: '#334155', color: '#e2e8f0', borderColor: '#475569' }}
+                >
+                  🔄 Check / Reload
+                </button>
+              )}
+              {onTriggerIntent && (
+                <button className="empty-action-btn" onClick={onTriggerIntent}>
+                  ✨ Distill Architectural Intents
+                </button>
+              )}
+            </div>
           </div>
         ) : viewLayout === 'graph' ? (
           <div className="bounded-context-canvas" ref={containerRef} />

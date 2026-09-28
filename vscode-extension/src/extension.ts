@@ -240,6 +240,9 @@ export function activate(context: vscode.ExtensionContext) {
           project
         );
         panel.postMessage({ type: 'SET_VIEW_MODE', viewMode });
+        if (viewMode === 'contexts') {
+          panel.postMessage({ type: 'RELOAD_CONTEXTS' });
+        }
         if (project) {
           panel.postMessage({ type: 'SELECT_PROJECT', project });
         }
@@ -516,6 +519,7 @@ export function activate(context: vscode.ExtensionContext) {
               }
             });
             treeDataProvider.refresh();
+            GraphPanel.broadcast({ type: 'RELOAD_CONTEXTS' });
             if (!token.isCancellationRequested) {
               vscode.window
                 .showInformationMessage('CodeExplorer: Intent distillation completed! Knowledge graph enriched.', 'Show Bounded Contexts')

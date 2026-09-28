@@ -3030,6 +3030,14 @@ public class ArchitectureViewEngine(IGraphClient db)
     public async Task<BoundedContextMapDto> GetBoundedContextMapAsync(string? workspaceId = null, CancellationToken ct = default)
     {
         var intents = await db.LoadExistingIntentsAsync(workspaceId ?? "", ct);
+        if (intents.Count == 0 && !string.IsNullOrWhiteSpace(workspaceId))
+        {
+            intents = await db.LoadExistingIntentsAsync("", ct);
+            if (intents.Count > 0)
+            {
+                workspaceId = "";
+            }
+        }
         var result = new BoundedContextMapDto
         {
             HasIntents = intents.Count > 0,

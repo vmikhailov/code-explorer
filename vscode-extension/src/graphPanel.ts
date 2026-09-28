@@ -33,6 +33,12 @@ export class GraphPanel {
     return GraphPanel.activePanel || GraphPanel.panels.values().next().value;
   }
 
+  public static broadcast(message: any): void {
+    for (const panel of GraphPanel.panels.values()) {
+      panel.postMessage(message);
+    }
+  }
+
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
   private readonly viewMode: string;

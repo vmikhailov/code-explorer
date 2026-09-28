@@ -330,7 +330,7 @@ export const App: React.FC = () => {
       if (targetMode === 'flow' && selectedProjectRef.current && !flowGraphRef.current) {
         requestDependencies(selectedProjectRef.current);
       } else if (targetMode === 'contexts') {
-        if (!contextsGraphRef.current) {
+        if (!contextsGraphRef.current || contextsGraphRef.current.nodes?.length === 0) {
           requestContexts();
         }
       } else if (targetMode !== 'flow' && !fullGraphRef.current) {
@@ -818,6 +818,11 @@ export const App: React.FC = () => {
               } else {
                 requestDependencies();
               }
+
+              // Fetch bounded contexts if initial view mode is contexts
+              if (viewModeRef.current === 'contexts') {
+                requestContexts();
+              }
             }
             break;
           }
@@ -1086,10 +1091,19 @@ export const App: React.FC = () => {
           handleTriggerScanRef.current(Boolean(msg.clear));
           break;
 
+        case 'RELOAD_CONTEXTS':
+          logToExtension('INFO', 'Received RELOAD_CONTEXTS from extension');
+          setContextsGraph(null);
+          requestContexts();
+          break;
+
         case 'SET_VIEW_MODE':
           logToExtension('INFO', `Received SET_VIEW_MODE from extension: ${msg.viewMode}`);
-          if (msg.viewMode && msg.viewMode !== viewModeRef.current) {
+          if (msg.viewMode) {
             handleViewModeChangeRef.current(msg.viewMode as ViewMode);
+            if (msg.viewMode === 'contexts' && (!contextsGraphRef.current || contextsGraphRef.current.nodes?.length === 0)) {
+              requestContexts();
+            }
           }
           break;
 
@@ -1195,6 +1209,8 @@ export const App: React.FC = () => {
             onFitView={() => {
               if (viewMode === 'flow') {
                 requestDependencies(selectedProject);
+              } else if (viewMode === 'contexts') {
+                requestContexts();
               } else {
                 requestArchitecture();
               }
@@ -1202,6 +1218,9 @@ export const App: React.FC = () => {
             onRefresh={() => {
               if (viewMode === 'flow') {
                 requestDependencies(selectedProject);
+              } else if (viewMode === 'contexts') {
+                setContextsGraph(null);
+                requestContexts();
               } else {
                 requestArchitecture();
               }
@@ -1330,7 +1349,7 @@ export const App: React.FC = () => {
 
           {/* Global Loading Overlay when fetching initial graph data */}
           {((viewMode === 'flow' && !flowGraph) ||
-            (viewMode === 'contexts' && !contextsGraph && !fullGraph) ||
+            (viewMode === 'contexts' && !contextsGraph) ||
             (viewMode !== 'flow' && viewMode !== 'contexts' && !fullGraph)) &&
             connectionStatus !== 'error' &&
             connectionStatus !== 'disconnected' && (
@@ -1375,9 +1394,13 @@ export const App: React.FC = () => {
 
             {viewMode === 'contexts' && (
               <BoundedContextMapView
-                graph={contextsGraph || fullGraph}
+                graph={contextsGraph}
                 onOpenFile={handleOpenFile}
                 onTriggerScan={handleTriggerScan}
+                onRefresh={() => {
+                  setContextsGraph(null);
+                  requestContexts();
+                }}
                 onTriggerIntent={() => {
                   if (vscodeApi) {
                     vscodeApi.postMessage({ type: 'TRIGGER_INTENT' });

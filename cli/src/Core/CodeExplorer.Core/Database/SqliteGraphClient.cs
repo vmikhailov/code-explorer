@@ -1524,7 +1524,9 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                        intent_summary, target_entities, emitted_events, is_pure_domain,
                        error_count, last_error, analyzed_at_utc
                 FROM intents
-                WHERE workspace_id = @workspaceId OR @workspaceId = '';
+                WHERE (@workspaceId = '' 
+                       OR workspace_id = @workspaceId COLLATE NOCASE 
+                       OR REPLACE(workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE);
                 """;
             cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
 
@@ -1682,7 +1684,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var cmd = _conn.CreateCommand();
             cmd.CommandTimeout = CommandTimeoutSeconds;
-            cmd.CommandText = "UPDATE intents SET error_count = 0, last_error = NULL WHERE workspace_id = @workspaceId OR @workspaceId = '';";
+            cmd.CommandText = "UPDATE intents SET error_count = 0, last_error = NULL WHERE (@workspaceId = '' OR workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(workspace_id, '\\', '/') = REPLACE(@workspaceId, '\\', '/') COLLATE NOCASE);";
             cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -1701,7 +1703,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var cmd = _conn.CreateCommand();
             cmd.CommandTimeout = CommandTimeoutSeconds;
-            cmd.CommandText = "DELETE FROM intents WHERE workspace_id = @workspaceId OR @workspaceId = '';";
+            cmd.CommandText = "DELETE FROM intents WHERE (@workspaceId = '' OR workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(workspace_id, '\\', '/') = REPLACE(@workspaceId, '\\', '/') COLLATE NOCASE);";
             cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
@@ -1879,8 +1881,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 JOIN intents i2 ON (n2.id = i2.file_id 
                                    OR json_extract(n2.properties, '$.path') = i2.file_path 
                                    OR json_extract(n2.properties, '$.file_path') = i2.file_path)
-                WHERE (i1.workspace_id = @workspaceId OR @workspaceId = '')
-                  AND (i2.workspace_id = @workspaceId OR @workspaceId = '')
+                WHERE (@workspaceId = '' OR i1.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i1.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
+                  AND (@workspaceId = '' OR i2.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i2.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
                   AND i1.domain IS NOT NULL AND trim(i1.domain) != ''
                   AND i2.domain IS NOT NULL AND trim(i2.domain) != ''
                   AND lower(i1.domain) != lower(i2.domain)
@@ -1933,7 +1935,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 JOIN intents i ON (n.id = i.file_id 
                                    OR json_extract(n.properties, '$.path') = i.file_path 
                                    OR json_extract(n.properties, '$.file_path') = i.file_path)
-                WHERE (i.workspace_id = @workspaceId OR @workspaceId = '')
+                WHERE (@workspaceId = '' OR i.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
                   AND i.domain IS NOT NULL AND trim(i.domain) != ''
                   AND n_infra.kind IN ('Database', 'Topic')
                 GROUP BY i.domain, n_infra.id, n_infra.kind, e.kind;
