@@ -205,6 +205,7 @@ public static class ProjectLayerClassifier
     private static bool IsTestOrTool(string name, string path, ProjectClassifierItem p)
     {
         if (string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Test", StringComparison.OrdinalIgnoreCase)) return true;
 
         var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
@@ -221,7 +222,6 @@ public static class ProjectLayerClassifier
                lowerName.Contains(".tests.") ||
                lowerName.Contains("-test-") ||
                lowerName.Contains("-tests-") ||
-               lowerName.Contains("ontologygen") ||
                lowerName.Contains("benchmark") ||
                lowerName.Contains(".spec") ||
                lowerName.Contains("-spec") ||
@@ -270,11 +270,16 @@ public static class ProjectLayerClassifier
 
     private static bool IsLibrary(ProjectClassifierItem p, string name, string path)
     {
-        if (HasProtocolTokens(name, path)) return false;
+        if (p.Extensions != null && (p.Extensions.GetValueOrDefault("has_ingress_contract") == "true" ||
+                                     p.Extensions.GetValueOrDefault("has_graphql") == "true" ||
+                                     p.Extensions.GetValueOrDefault("has_grpc") == "true"))
+            return false;
+
         if (p.IsLibrary) return true;
 
         if (string.Equals(p.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Role, "Library", StringComparison.OrdinalIgnoreCase))
+            string.Equals(p.Role, "Library", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Library", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -290,19 +295,13 @@ public static class ProjectLayerClassifier
         }
 
         var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
-        var lowerName = name.ToLowerInvariant();
 
-        // Angular / React / Nest library paths, e.g. fe/projects/ui/src/lib/*, common-nest, etc.
+        // Standard source library directories (/src/lib/, /src/libs/, /libs/, /lib/, /packages/)
         if (normalizedPath.Contains("/src/lib/") ||
             normalizedPath.Contains("/src/libs/") ||
-            normalizedPath.Contains("/projects/ui/src/lib/") ||
-            (normalizedPath.Contains("/fe/projects/") && normalizedPath.Contains("/lib/")) ||
-            normalizedPath.Contains("/common-nest") ||
-            lowerName.StartsWith("common-") ||
-            lowerName.EndsWith(".lib") ||
-            lowerName.EndsWith("-lib") ||
-            lowerName.Contains("-lib-") ||
-            lowerName.Contains(".lib."))
+            normalizedPath.Contains("/libs/") ||
+            normalizedPath.Contains("/lib/") ||
+            normalizedPath.Contains("/packages/"))
         {
             return true;
         }
@@ -312,7 +311,8 @@ public static class ProjectLayerClassifier
 
     private static bool IsWorker(ProjectClassifierItem p, string name, string path)
     {
-        if (string.Equals(p.Role, "Worker", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(p.Role, "Worker", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Worker", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -364,16 +364,22 @@ public static class ProjectLayerClassifier
     {
         if (IsWorker(p, name, path)) return false;
 
-        // Evidence 0: Protocol Tokens (GraphQL, gRPC, Gateway, BFF, MQTT, Endpoint)
-        // Protocol interface takes precedence over service prefix/name!
-        if (HasProtocolTokens(name, path))
+        // Evidence 0: Ingress contracts / protocols
+        if (p.Extensions != null)
         {
-            return true;
+            var hasIngressContract = p.Extensions.GetValueOrDefault("has_ingress_contract") == "true" ||
+                                     p.Extensions.GetValueOrDefault("has_graphql") == "true" ||
+                                     p.Extensions.GetValueOrDefault("has_grpc") == "true" ||
+                                     p.Extensions.GetValueOrDefault("has_controllers") == "true";
+
+            if (hasIngressContract) return true;
         }
 
         // Evidence 1: Role or Manifest Type
         if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase))
+            string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -390,12 +396,7 @@ public static class ProjectLayerClassifier
             if (frameworkType is "frontend") return true;
 
             var sdk = p.Extensions.GetValueOrDefault("sdk");
-            var hasIngressContract = p.Extensions.GetValueOrDefault("has_ingress_contract") == "true" ||
-                                     p.Extensions.GetValueOrDefault("has_graphql") == "true" ||
-                                     p.Extensions.GetValueOrDefault("has_grpc") == "true" ||
-                                     p.Extensions.GetValueOrDefault("has_controllers") == "true";
-
-            if (sdk == "Microsoft.NET.Sdk.Web" && (hasIngressContract || p.EndpointsCount > 0 || p.EntryPoints.Count > 0 || inDegree == 0))
+            if (sdk == "Microsoft.NET.Sdk.Web" && (p.EndpointsCount > 0 || p.EntryPoints.Count > 0 || inDegree == 0))
             {
                 return true;
             }
@@ -420,17 +421,14 @@ public static class ProjectLayerClassifier
             normalizedPath.Contains("/bff/") ||
             normalizedPath.Contains("/gateway/") ||
             normalizedPath.Contains("/gateways/") ||
-            normalizedPath.Contains("/fe/") ||
             normalizedPath.Contains("/frontend/") ||
-            normalizedPath.Contains("/landing/") ||
-            normalizedPath.Contains("/landers/") ||
             normalizedPath.Contains("/ingress/"))
         {
             return true;
         }
 
         // Evidence 4: Top-level API Gateway / BFF / Ingress by Endpoints + InDegree == 0
-        if (p.EndpointsCount > 0 && inDegree == 0 && (lowerName.Contains("gateway") || lowerName.Contains("bff") || normalizedPath.Contains("/api/")))
+        if (p.EndpointsCount > 0 && inDegree == 0)
         {
             return true;
         }
@@ -442,14 +440,9 @@ public static class ProjectLayerClassifier
             lowerName.EndsWith(".host") ||
             lowerName.EndsWith(".bff") ||
             lowerName.EndsWith(".gateway") ||
-            lowerName.EndsWith(".fe") ||
             lowerName.EndsWith(".frontend") ||
-            lowerName.Equals("codeexplorer", StringComparison.OrdinalIgnoreCase) ||
             lowerName.Contains("gateway") ||
-            lowerName.Contains("bff") ||
-            lowerName.Contains("-fe") ||
-            lowerName.Contains("landing") ||
-            lowerName.Contains("landers"))
+            lowerName.Contains("bff"))
         {
             return true;
         }
@@ -528,12 +521,6 @@ public static class ProjectLayerClassifier
             lowerName.EndsWith(".types") ||
             lowerName.EndsWith("-types") ||
             lowerName.Equals("library", StringComparison.OrdinalIgnoreCase) ||
-            lowerName.Contains("library") ||
-            lowerName.Contains("-lib") ||
-            lowerName.EndsWith(".lib") ||
-            lowerName.Contains("common") ||
-            lowerName.Contains("shared") ||
-            lowerName.Contains("kv") ||
             normalizedPath.Contains("/libs/") ||
             normalizedPath.Contains("/lib/") ||
             normalizedPath.Contains("/libraries/") ||
@@ -553,7 +540,6 @@ public static class ProjectLayerClassifier
 
     private static bool IsComponents(string name, string path)
     {
-        if (HasProtocolTokens(name, path)) return false;
         var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 
@@ -573,16 +559,9 @@ public static class ProjectLayerClassifier
                lowerName.EndsWith(".application") ||
                lowerName.EndsWith(".app") ||
                lowerName.Contains("parser") ||
-               lowerName.Contains("cypher") ||
                lowerName.Contains("service") ||
                lowerName.Contains("handler") ||
                lowerName.Contains("scheduler") ||
-               lowerName.Contains("aggregator") ||
-               lowerName.Contains("decision") ||
-               lowerName.Contains("rule-tree") ||
-               lowerName.Contains("calculator") ||
-               lowerName.Contains("calculation") ||
-               lowerName.Contains("configurator") ||
-               lowerName.Equals("sources", StringComparison.OrdinalIgnoreCase);
+               lowerName.Contains("aggregator");
     }
 }

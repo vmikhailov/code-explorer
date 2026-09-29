@@ -200,23 +200,23 @@ public class ResourceReconciliationTests
     }
 
     [Test]
-    public void BigQuery_NormalizesDefaultSchemaToDefaults()
+    public void BigQuery_HandlesCanonicalDefaultSchema()
     {
-        // 1. NestedSqlParser in BigQuery context without schema defaults to 'defaults'
+        // 1. NestedSqlParser in BigQuery context without schema defaults to 'default'
         var q1 = NestedSqlParser.ParseNestedSql("SELECT * FROM networks", "ws:q:1", "bq-calc/src/repo.ts");
         Assert.That(q1, Is.Not.Null);
         var dbNode1 = q1!.Children.OfType<DatabaseNode>().FirstOrDefault();
         Assert.That(dbNode1, Is.Not.Null);
-        Assert.That(dbNode1!.Name, Is.EqualTo("BigQuery.defaults"));
-        Assert.That(dbNode1.Extensions!["schema"], Is.EqualTo("defaults"));
+        Assert.That(dbNode1!.Name, Is.EqualTo("BigQuery.default"));
+        Assert.That(dbNode1.Extensions!["schema"], Is.EqualTo("default"));
 
-        // 2. NestedSqlParser in BigQuery context with explicit 'default.' normalizes to 'defaults'
+        // 2. NestedSqlParser in BigQuery context with explicit 'default.' stays 'default'
         var q2 = NestedSqlParser.ParseNestedSql("SELECT * FROM default.networks", "ws:q:2", "bq-calc/src/repo.ts");
         Assert.That(q2, Is.Not.Null);
         var dbNode2 = q2!.Children.OfType<DatabaseNode>().FirstOrDefault();
         Assert.That(dbNode2, Is.Not.Null);
-        Assert.That(dbNode2!.Name, Is.EqualTo("BigQuery.defaults"));
-        Assert.That(dbNode2.Extensions!["schema"], Is.EqualTo("defaults"));
+        Assert.That(dbNode2!.Name, Is.EqualTo("BigQuery.default"));
+        Assert.That(dbNode2.Extensions!["schema"], Is.EqualTo("default"));
 
         // 3. NestedSqlParser in BigQuery context with explicit 'defaults.' stays 'defaults'
         var q3 = NestedSqlParser.ParseNestedSql("SELECT * FROM defaults.networks", "ws:q:3", "bq-calc/src/repo.ts");
@@ -226,13 +226,13 @@ public class ResourceReconciliationTests
         Assert.That(dbNode3!.Name, Is.EqualTo("BigQuery.defaults"));
         Assert.That(dbNode3.Extensions!["schema"], Is.EqualTo("defaults"));
 
-        // 4. PostIndexAnalyzer CanonicalizeDatabase BigQuery.default -> BigQuery.defaults
+        // 4. PostIndexAnalyzer CanonicalizeDatabase BigQuery.default -> BigQuery.default
         var (cName1, _, cKey1) = PostIndexAnalyzer.CanonicalizeDatabase("BigQuery", "analytics", rawSchema: "default");
-        Assert.That(cName1, Is.EqualTo("BigQuery.defaults"));
-        Assert.That(cKey1, Is.EqualTo("bigquery:defaults"));
+        Assert.That(cName1, Is.EqualTo("BigQuery.default"));
+        Assert.That(cKey1, Is.EqualTo("bigquery:default"));
 
         var (cName2, _, cKey2) = PostIndexAnalyzer.CanonicalizeDatabase("BigQuery.default", "analytics");
-        Assert.That(cName2, Is.EqualTo("BigQuery.defaults"));
-        Assert.That(cKey2, Is.EqualTo("bigquery:defaults"));
+        Assert.That(cName2, Is.EqualTo("BigQuery.default"));
+        Assert.That(cKey2, Is.EqualTo("bigquery:default"));
     }
 }

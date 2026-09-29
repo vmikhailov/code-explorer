@@ -87,19 +87,10 @@ public static class ConfigurationParser
             }
         }
 
-        // 2. UrlsSettings (Service-to-Service configuration)
-        if (root.TryGetProperty("UrlsSettings", out var urlsSettings) && urlsSettings.ValueKind == JsonValueKind.Object)
-        {
-            ParseUrlsSettings(urlsSettings, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
+        // 2. Generic Discovered Config Endpoints (Service calls & external APIs)
+        ParseDiscoveredConfigEndpoints(relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
 
-        // 3. CloudPayment / CloudPayments
-        if (root.TryGetProperty("CloudPayment", out var cp) || root.TryGetProperty("CloudPayments", out cp))
-        {
-            ParseCloudPayments(cp, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-
-        // 4. Look for top-level known services (Stripe, Redis, RabbitMQ, Kafka, AWS, OpenAI, Auth0, etc.)
+        // 3. Look for top-level known services (Stripe, Redis, RabbitMQ, Kafka, AWS, OpenAI, Auth0, etc.)
         foreach (var prop in root.EnumerateObject())
         {
             var key = prop.Name;
@@ -155,6 +146,8 @@ public static class ConfigurationParser
                 InferServiceFromConfigSection(key, val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
             }
         }
+
+        ParseDiscoveredConfigEndpoints(relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
     }
 
     private static void ParseApplicationProperties(
@@ -175,21 +168,9 @@ public static class ConfigurationParser
             var key = match.Groups[1].Value.Trim();
             var val = match.Groups[2].Value.Trim().Trim('"', '\'');
 
-            if (key.StartsWith("spring.datasource.url", StringComparison.OrdinalIgnoreCase) ||
-                key.StartsWith("spring.data.mongodb.uri", StringComparison.OrdinalIgnoreCase) ||
-                key.StartsWith("spring.redis.url", StringComparison.OrdinalIgnoreCase) ||
-                key.StartsWith("spring.rabbitmq.addresses", StringComparison.OrdinalIgnoreCase) ||
-                key.StartsWith("spring.kafka.bootstrap-servers", StringComparison.OrdinalIgnoreCase))
+            if (LibraryConfigurationRegistry.TryProcess(key, val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx))
             {
-                InferAndCreateServiceFromConnectionString(key, val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-            }
-            else if (key.StartsWith("spring.data.redis.host", StringComparison.OrdinalIgnoreCase))
-            {
-                CreateDatabaseNode("Redis", "cache", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-            }
-            else if (key.StartsWith("spring.rabbitmq.host", StringComparison.OrdinalIgnoreCase))
-            {
-                CreateTopicNode("rabbitmq", "default", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+                continue;
             }
         }
     }
@@ -215,14 +196,18 @@ public static class ConfigurationParser
                 var parts = trimmed.Split(':', 2);
                 if (parts.Length == 2)
                 {
+                    var key = parts[0].Trim();
                     var val = parts[1].Trim().Trim('"', '\'');
-                    InferAndCreateServiceFromConnectionString("spring-datasource", val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+                    if (!LibraryConfigurationRegistry.TryProcess(key, val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx))
+                    {
+                        InferAndCreateServiceFromConnectionString("spring-datasource", val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+                    }
                 }
             }
         }
     }
 
-    private static void InferAndCreateServiceFromConnectionString(
+    public static void InferAndCreateServiceFromConnectionString(
         string name,
         string connStr,
         string relativePath,
@@ -337,8 +322,8 @@ public static class ConfigurationParser
             if (IsValidCatalogName(db)) return db;
         }
 
-        // 2. URI format: (postgres|postgresql|mongodb|mysql|mariadb|redis)://.../[dbname]
-        var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
+        // 2. URI format: (postgres|postgresql|mongodb|mysql|mariadb|redis)://.../[dbname] (including jdbc: prefixes)
+        var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+:.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
         if (uriMatch.Success)
         {
             var db = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
@@ -371,7 +356,7 @@ public static class ConfigurationParser
     private static string ExtractChannelName(string connStr, string defaultName)
     {
         if (string.IsNullOrWhiteSpace(connStr)) return defaultName;
-        var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
+        var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+:.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
         if (uriMatch.Success)
         {
             var ch = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
@@ -380,7 +365,7 @@ public static class ConfigurationParser
         return defaultName;
     }
 
-    private static void CreateDatabaseNode(
+    public static void CreateDatabaseNode(
         string engine,
         string dbType,
         string relativePath,
@@ -471,7 +456,7 @@ public static class ConfigurationParser
         }
     }
 
-    private static void CreateTopicNode(
+    public static void CreateTopicNode(
         string brokerType,
         string topicName,
         string relativePath,
@@ -517,7 +502,7 @@ public static class ConfigurationParser
         }
     }
 
-    private static void CreateCloudServiceNode(
+    public static void CreateCloudServiceNode(
         string cloudName,
         string relativePath,
         string fileNodeId,
@@ -558,8 +543,7 @@ public static class ConfigurationParser
         }
     }
 
-    private static void ParseUrlsSettings(
-        JsonElement urlsSettings,
+    private static void ParseDiscoveredConfigEndpoints(
         string relativePath,
         string fileNodeId,
         string workspaceId,
@@ -568,124 +552,104 @@ public static class ConfigurationParser
         ParsingContext ctx)
     {
         string? projId = null;
+        string? projName = null;
         if (containerNode is ProjectNode pn)
         {
             projId = pn.Id;
+            projName = pn.Name;
         }
         else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
         {
             var id = containerNode.Id;
             if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
             if (!id.EndsWith(':')) id += ":";
-            projId = id;
+            var parts = id.Split(':', StringSplitOptions.RemoveEmptyEntries);
+            projName = parts.Length > 0 ? Path.GetFileName(parts[^1].TrimEnd('/')) : null;
         }
 
-        if (string.IsNullOrEmpty(projId)) return;
+        var discovered = ConfigStore.GetDiscoveredUrls(projName);
+        var normRelPath = relativePath.Replace('\\', '/');
 
-        foreach (var prop in urlsSettings.EnumerateObject())
+        foreach (var ep in discovered)
         {
-            var serviceKey = prop.Name;
-            var urlVal = prop.Value.GetString() ?? "";
-            if (string.IsNullOrWhiteSpace(serviceKey)) continue;
-
-            var targetId = $"{workspaceId}:service_target:{serviceKey.ToLowerInvariant()}";
-            var rel = new Relationship(
-                projId,
-                targetId,
-                OntologyConstants.Relationships.ServiceCall,
-                new Dictionary<string, object>
-                {
-                    ["service_key"] = serviceKey,
-                    ["url"] = urlVal,
-                    ["dependency_type"] = "service_call",
-                    ["is_semantic"] = "true"
-                });
-            relationships.Add(rel);
-            ctx.AddGlobalProjectDependency(rel);
-        }
-    }
-
-    private static void ParseCloudPayments(
-        JsonElement section,
-        string relativePath,
-        string fileNodeId,
-        string workspaceId,
-        IOntologyNode containerNode,
-        List<Relationship> relationships,
-        ParsingContext ctx)
-    {
-        string baseUrl = "https://api.cloudpayments.ru";
-        if (section.ValueKind == JsonValueKind.Object && section.TryGetProperty("BaseUrl", out var bUrl))
-        {
-            var s = bUrl.GetString();
-            if (!string.IsNullOrWhiteSpace(s)) baseUrl = s;
-        }
-
-        var host = "api.cloudpayments.ru";
-        try
-        {
-            if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri))
+            if (!string.IsNullOrEmpty(ep.SourceFilePath))
             {
-                host = uri.Host;
-            }
-        }
-        catch { }
-
-        var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:https:{host}";
-        var extNode = new ExternalServiceNode(
-            extId,
-            "CloudPayments",
-            "https",
-            host,
-            "/",
-            new Dictionary<string, string>
-            {
-                ["file_path"] = relativePath,
-                ["base_url"] = baseUrl,
-                ["is_external"] = "true"
-            }
-        );
-
-        if (!containerNode.Children.Any(c => c.Id == extId))
-        {
-            containerNode.Children.Add(extNode);
-            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, "CloudPayments", extId);
-        }
-
-        if (ctx.SemanticStructure != null && !ctx.SemanticStructure.Children.Any(c => c.Id == extId))
-        {
-            ctx.SemanticStructure.Children.Add(extNode);
-        }
-
-        relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, extId)));
-
-        string? projId = null;
-        if (containerNode is ProjectNode pn)
-        {
-            projId = pn.Id;
-        }
-        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
-        {
-            var id = containerNode.Id;
-            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
-            if (!id.EndsWith(':')) id += ":";
-            projId = id;
-        }
-
-        if (!string.IsNullOrEmpty(projId))
-        {
-            var callRel = new Relationship(
-                projId,
-                extId,
-                OntologyConstants.Relationships.ServiceCall,
-                new Dictionary<string, object>
+                var normSource = ep.SourceFilePath.Replace('\\', '/');
+                if (!normSource.EndsWith(normRelPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    ["dependency_type"] = "service_call",
-                    ["is_semantic"] = "true",
-                    ["is_external"] = "true"
-                });
-            relationships.Add(callRel);
-            ctx.AddGlobalProjectDependency(callRel);
+                    continue;
+                }
+            }
+
+            if (ep.IsExternal)
+            {
+                var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{ep.Scheme}:{ep.Host}";
+                var extNode = new ExternalServiceNode(
+                    extId,
+                    ep.ServiceName,
+                    ep.Scheme,
+                    ep.Host,
+                    "/",
+                    new Dictionary<string, string>
+                    {
+                        ["file_path"] = relativePath,
+                        ["base_url"] = ep.Url,
+                        ["is_external"] = "true",
+                        ["config_key"] = ep.ConfigKey
+                    }
+                );
+
+                if (!containerNode.Children.Any(c => c.Id == extId))
+                {
+                    containerNode.Children.Add(extNode);
+                    ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, ep.ServiceName, extId);
+                }
+
+                if (ctx.SemanticStructure != null && !ctx.SemanticStructure.Children.Any(c => c.Id == extId))
+                {
+                    ctx.SemanticStructure.Children.Add(extNode);
+                }
+
+                relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, extId)));
+
+                if (!string.IsNullOrEmpty(projId))
+                {
+                    var callRel = new Relationship(
+                        projId,
+                        extId,
+                        OntologyConstants.Relationships.ServiceCall,
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "service_call",
+                            ["is_semantic"] = "true",
+                            ["is_external"] = "true",
+                            ["config_key"] = ep.ConfigKey,
+                            ["url"] = ep.Url
+                        });
+                    relationships.Add(callRel);
+                    ctx.AddGlobalProjectDependency(callRel);
+                }
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(projId)) continue;
+
+                var targetId = $"{workspaceId}:service_target:{ep.ServiceName.ToLowerInvariant()}";
+                var rel = new Relationship(
+                    projId,
+                    targetId,
+                    OntologyConstants.Relationships.ServiceCall,
+                    new Dictionary<string, object>
+                    {
+                        ["service_key"] = ep.ServiceName,
+                        ["url"] = ep.Url,
+                        ["dependency_type"] = "service_call",
+                        ["is_semantic"] = "true",
+                        ["config_key"] = ep.ConfigKey
+                    });
+                relationships.Add(rel);
+                ctx.AddGlobalProjectDependency(rel);
+            }
         }
     }
 }

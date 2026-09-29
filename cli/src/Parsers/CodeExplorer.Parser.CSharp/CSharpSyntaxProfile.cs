@@ -5,19 +5,36 @@ namespace CodeExplorer.Parser.CSharp;
 
 public static class CSharpSyntaxProfile
 {
+    static CSharpSyntaxProfile()
+    {
+        LanguageSyntaxProfileRegistry.Register("c-sharp", Instance);
+    }
+
     public static readonly LanguageSyntaxProfile Instance = new()
     {
         ClassDeclarations = new[]
         {
             "class_declaration",
-            "enum_declaration",
             "struct_declaration",
-            "record_declaration"
+            "record_declaration",
+            "record_struct_declaration"
         }.ToFrozenSet(),
 
         InterfaceDeclarations = new[]
         {
             "interface_declaration"
+        }.ToFrozenSet(),
+
+        EnumDeclarations = new[]
+        {
+            "enum_declaration"
+        }.ToFrozenSet(),
+
+        ConstantDeclarations = new[]
+        {
+            "field_declaration",
+            "variable_declarator",
+            "property_declaration"
         }.ToFrozenSet(),
 
         MethodDeclarations = new[]
@@ -47,7 +64,8 @@ public static class CSharpSyntaxProfile
 
         Calls = new[]
         {
-            "invocation_expression"
+            "invocation_expression",
+            "object_creation_expression"
         }.ToFrozenSet(),
 
         Inheritance = new[]
@@ -58,7 +76,31 @@ public static class CSharpSyntaxProfile
         StringLiterals = new[]
         {
             "string_literal",
-            "verbatim_string_literal"
+            "verbatim_string_literal",
+            "raw_string_literal",
+            "character_literal"
+        }.ToFrozenSet(),
+
+        StringInterpolations = new[]
+        {
+            "interpolated_string_expression",
+            "interpolated_verbatim_string_expression",
+            "interpolated_raw_string_expression"
+        }.ToFrozenSet(),
+
+        BinaryExpressions = new[]
+        {
+            "binary_expression"
+        }.ToFrozenSet(),
+
+        MemberAccessExpressions = new[]
+        {
+            "member_access_expression"
+        }.ToFrozenSet(),
+
+        ElementAccessExpressions = new[]
+        {
+            "element_access_expression"
         }.ToFrozenSet(),
 
         ExcludedStringInterpolations = new[]

@@ -41,15 +41,20 @@ public class RabbitMqLibraryParser : ILibraryParser
                     string? target = null;
                     if (args.Count >= 2)
                     {
-                        target = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId);
-                        if (string.IsNullOrEmpty(target))
+                        if (!AstValueResolver.TryResolveTopicOrQueue(args[1], scopeSymbolId, out target) || string.IsNullOrEmpty(target))
                         {
-                            target = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                            if (!AstValueResolver.TryResolveTopicOrQueue(args[0], scopeSymbolId, out target) || string.IsNullOrEmpty(target))
+                            {
+                                target = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId) ?? AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                            }
                         }
                     }
                     else if (args.Count == 1)
                     {
-                        target = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                        if (!AstValueResolver.TryResolveTopicOrQueue(args[0], scopeSymbolId, out target) || string.IsNullOrEmpty(target))
+                        {
+                            target = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                        }
                     }
 
                     AddPublishReference(references, scopeSymbolId, target);
@@ -60,7 +65,10 @@ public class RabbitMqLibraryParser : ILibraryParser
                     if (args.Count > 0)
                     {
                         var queueArg = args[0];
-                        var topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
+                        if (!AstValueResolver.TryResolveTopicOrQueue(queueArg, scopeSymbolId, out var topicName) || string.IsNullOrEmpty(topicName))
+                        {
+                            topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
+                        }
                         AddPublishReference(references, scopeSymbolId, topicName);
                     }
                 }
@@ -70,20 +78,23 @@ public class RabbitMqLibraryParser : ILibraryParser
                     if (args.Count > 0)
                     {
                         var queueArg = args[0];
-                        var topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
+                        if (!AstValueResolver.TryResolveTopicOrQueue(queueArg, scopeSymbolId, out var topicName) || string.IsNullOrEmpty(topicName))
+                        {
+                            topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
+                        }
                         AddSubscribeReference(references, scopeSymbolId, topicName);
                     }
                 }
-                // 3. assertQueue or createQueue (e.g. rabbit.createQueue(PA_PARTNER_QUEUE))
+                // 3. assertQueue or createQueue (e.g. rabbit.createQueue(QUEUE))
                 else if (funcText.EndsWith(".assertQueue", StringComparison.Ordinal) ||
                          funcText.EndsWith(".createQueue", StringComparison.Ordinal))
                 {
                     var obj = funcNode.GetField(TreeSitterSyntax.Fields.Object);
                     var objText = obj.IsValid() ? obj.Text.ToLowerInvariant() : "";
 
-                    // .createQueue is not an amqplib method; only treat as RabbitMQ if object is explicitly rabbit/amqp/channel
+                    // .createQueue is only treated as queue creation if object is a rabbit/amqp/channel/bus client
                     if (funcText.EndsWith(".createQueue", StringComparison.Ordinal) &&
-                        !objText.Contains("rabbit") && !objText.Contains("amqp") && !objText.Contains("channel"))
+                        !objText.Contains("rabbit") && !objText.Contains("amqp") && !objText.Contains("channel") && !objText.Contains("bus"))
                     {
                         return;
                     }
@@ -91,8 +102,17 @@ public class RabbitMqLibraryParser : ILibraryParser
                     if (args.Count > 0)
                     {
                         var queueArg = args[0];
-                        var topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
+                        if (!AstValueResolver.TryResolveTopicOrQueue(queueArg, scopeSymbolId, out var topicName) || string.IsNullOrEmpty(topicName))
+                        {
+                            topicName = AstHelper.ResolveTopicOrQueue(queueArg, scopeSymbolId);
+                        }
                         AddSubscribeReference(references, scopeSymbolId, topicName);
+
+                        var assignedVar = FindAssignedVariableName(node);
+                        if (!string.IsNullOrEmpty(assignedVar) && !string.IsNullOrEmpty(topicName))
+                        {
+                            ConstantRegistry.Register(null, assignedVar, topicName);
+                        }
                     }
                 }
                 // 4. messaging.subscribe(to, handler, ...)
@@ -174,50 +194,86 @@ public class RabbitMqLibraryParser : ILibraryParser
             return cr;
         }
 
-        var curr = node.Parent;
-        while (curr.IsValid())
+        // Trace up to root to find any assignment to varName: varName = await rabbit.createQueue(...)
+        var root = node;
+        while (root.Parent.IsValid())
         {
-            if (curr.IsAny(TreeSitterSyntax.TypeScript.StatementBlock, TreeSitterSyntax.TypeScript.Program))
+            root = root.Parent;
+        }
+
+        foreach (var assign in root.FindDescendantsOfType("assignment_expression"))
+        {
+            var left = assign.GetChildForField(TreeSitterSyntax.Fields.Left) ?? assign.Children.FirstOrDefault();
+            if (left.IsValid() && left.Text == varName)
             {
-                foreach (var child in curr.Children)
+                var right = assign.GetChildForField(TreeSitterSyntax.Fields.Right) ?? assign.Children.LastOrDefault();
+                if (right.IsValid())
                 {
-                    // Check assignments: paPartnerQueue = await rabbit.createQueue(PA_PARTNER_QUEUE)
-                    if (child.Text.Contains(varName) && child.Text.Contains("createQueue"))
+                    while (right.IsValid() && (right.Type is "await_expression" or "parenthesized_expression"))
                     {
-                        var match = Regex.Match(child.Text, @"createQueue\s*\(\s*([^,\)]+)");
-                        if (match.Success)
-                        {
-                            var arg = match.Groups[1].Value.Trim().Trim('\'', '"', '`');
-                            if (IsValidQueueName(arg)) return arg;
-                        }
+                        right = right.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "await" and not "(" and not ")");
                     }
 
-                    // Check declarations: const paPartnerQueue = ...
-                    if (child.IsAny(TreeSitterSyntax.TypeScript.LexicalDeclaration, TreeSitterSyntax.TypeScript.VariableDeclaration))
+                    if (right.IsValid() && right.Type == TreeSitterSyntax.TypeScript.CallExpression)
                     {
-                        foreach (var decl in child.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.VariableDeclarator)))
+                        var args = AstHelper.GetCallArguments(right);
+                        if (args.Count > 0 && (AstValueResolver.TryResolveTopicOrQueue(args[0], null, out var qName) ||
+                                               !string.IsNullOrEmpty(qName = AstHelper.ResolveTopicOrQueue(args[0], null))))
                         {
-                            var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name);
-                            if (nameNode.IsValid() && nameNode.Text == varName)
+                            if (IsValidQueueName(qName))
                             {
-                                var valNode = decl.GetField(TreeSitterSyntax.Fields.Value);
-                                if (valNode.IsValid() && valNode.Text.Contains("createQueue"))
-                                {
-                                    var match = Regex.Match(valNode.Text, @"createQueue\s*\(\s*([^,\)]+)");
-                                    if (match.Success)
-                                    {
-                                        var arg = match.Groups[1].Value.Trim().Trim('\'', '"', '`');
-                                        if (IsValidQueueName(arg)) return arg;
-                                    }
-                                }
+                                ConstantRegistry.Register(null, varName, qName);
+                                return qName;
                             }
                         }
                     }
                 }
             }
+        }
+
+        var declNode = AstValueResolver.FindVariableDeclarationInScope(node, varName);
+        if (declNode.IsValid())
+        {
+            // If the initializer is a call (e.g. rabbit.createQueue(arg) or channel.assertQueue(arg))
+            if (declNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+            {
+                var args = AstHelper.GetCallArguments(declNode);
+                if (args.Count > 0 && AstValueResolver.TryResolveTopicOrQueue(args[0], null, out var qName))
+                {
+                    if (IsValidQueueName(qName)) return qName;
+                }
+            }
+
+            if (AstValueResolver.TryResolveTopicOrQueue(declNode, null, out var resolved) && IsValidQueueName(resolved))
+            {
+                return resolved;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindAssignedVariableName(Node node)
+    {
+        var curr = node.Parent;
+        while (curr.IsValid() && (curr.Type is "await_expression" or "parenthesized_expression"))
+        {
             curr = curr.Parent;
         }
 
+        if (curr.IsValid())
+        {
+            if (curr.Type is "assignment_expression")
+            {
+                var left = curr.GetChildForField(TreeSitterSyntax.Fields.Left) ?? curr.Children.FirstOrDefault();
+                if (left.IsValid()) return left.Text;
+            }
+            else if (curr.Type is "variable_declarator")
+            {
+                var name = curr.GetChildForField(TreeSitterSyntax.Fields.Name) ?? curr.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Common.Identifier);
+                if (name.IsValid()) return name.Text;
+            }
+        }
         return null;
     }
 }

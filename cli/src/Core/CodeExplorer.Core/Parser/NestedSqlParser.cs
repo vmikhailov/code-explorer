@@ -199,16 +199,24 @@ public static class NestedSqlParser
         return queryNode;
     }
 
-    private static bool IsVariable(string? part, string rawText)
+    private static string ResolveSqlIdentifier(string? part, string rawText)
+    {
+        if (string.IsNullOrEmpty(part)) return "";
+        var clean = part.Trim().Trim('`', '"', '\'', '[', ']');
+        if (ConstantRegistry.TryResolve(null, clean, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
+        {
+            return resolved;
+        }
+        return clean;
+    }
+
+    private static bool IsUnresolvedVariable(string? part, string rawText)
     {
         if (string.IsNullOrEmpty(part)) return false;
-        
-        // Check if it is wrapped in `{}` (like `{tableName}` or `${tableName}`)
-        if (rawText.Contains($"{{{part}}}")) return true;
-        
-        // Check if it is preceded by `$` (like `$tableName`)
-        if (rawText.Contains($"${part}")) return true;
-        
+        var clean = part.Trim().Trim('`', '"', '\'', '[', ']');
+        if (ConstantRegistry.TryResolve(null, clean, out _)) return false;
+        if (rawText.Contains($"{{{part}}}") || rawText.Contains($"${part}") || part.StartsWith('$') || part.StartsWith('{'))
+            return true;
         return false;
     }
 
@@ -230,15 +238,23 @@ public static class NestedSqlParser
 
             foreach (var t in visitor.Tables)
             {
-                if (IsSqlKeyword(t.Table)) continue;
-                if (!string.IsNullOrEmpty(t.Schema) && IsSqlKeyword(t.Schema)) continue;
-                if (IsVariable(t.Table, rawText) || IsVariable(t.Schema, rawText) || IsVariable(t.Db, rawText)) continue;
-                tables.Add(t);
+                var table = ResolveSqlIdentifier(t.Table, rawText);
+                var schema = ResolveSqlIdentifier(t.Schema, rawText);
+                var db = ResolveSqlIdentifier(t.Db, rawText);
+
+                if (IsSqlKeyword(table)) continue;
+                if (!string.IsNullOrEmpty(schema) && IsSqlKeyword(schema)) continue;
+                if (IsUnresolvedVariable(table, rawText) || IsUnresolvedVariable(schema, rawText) || IsUnresolvedVariable(db, rawText)) continue;
+                tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, table));
             }
             foreach (var p in visitor.Procedures)
             {
-                if (IsVariable(p.Procedure, rawText) || IsVariable(p.Schema, rawText) || IsVariable(p.Db, rawText)) continue;
-                procedures.Add(p);
+                var proc = ResolveSqlIdentifier(p.Procedure, rawText);
+                var schema = ResolveSqlIdentifier(p.Schema, rawText);
+                var db = ResolveSqlIdentifier(p.Db, rawText);
+
+                if (IsUnresolvedVariable(proc, rawText) || IsUnresolvedVariable(schema, rawText) || IsUnresolvedVariable(db, rawText)) continue;
+                procedures.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, proc));
             }
         }
         catch
@@ -278,10 +294,14 @@ public static class NestedSqlParser
                 tableName = parts[0];
             }
 
+            tableName = ResolveSqlIdentifier(tableName, rawText);
+            schemaName = ResolveSqlIdentifier(schemaName, rawText);
+            dbName = ResolveSqlIdentifier(dbName, rawText);
+
             if (IsSqlKeyword(tableName) || IsSqlKeyword(rawTableName)) continue;
             if (!string.IsNullOrEmpty(schemaName) && IsSqlKeyword(schemaName)) continue;
-            if (IsVariable(tableName, rawText) || IsVariable(schemaName, rawText) || IsVariable(dbName, rawText)) continue;
-            tables.Add((dbName, schemaName, tableName));
+            if (IsUnresolvedVariable(tableName, rawText) || IsUnresolvedVariable(schemaName, rawText) || IsUnresolvedVariable(dbName, rawText)) continue;
+            tables.Add((string.IsNullOrEmpty(dbName) ? null : dbName, string.IsNullOrEmpty(schemaName) ? null : schemaName, tableName));
         }
 
         // 3. Lexical Fallback: Match procedure calls after EXEC/EXECUTE
@@ -316,8 +336,14 @@ public static class NestedSqlParser
                 procName = parts[0];
             }
 
-            if (IsVariable(procName, rawText) || IsVariable(schemaName, rawText) || IsVariable(dbName, rawText)) continue;
-            procedures.Add((dbName, schemaName, procName));
+            procName = ResolveSqlIdentifier(procName, rawText);
+            schemaName = ResolveSqlIdentifier(schemaName, rawText);
+            dbName = ResolveSqlIdentifier(dbName, rawText);
+
+            if (IsSqlKeyword(procName) || IsSqlKeyword(rawProcName)) continue;
+            if (!string.IsNullOrEmpty(schemaName) && IsSqlKeyword(schemaName)) continue;
+            if (IsUnresolvedVariable(procName, rawText) || IsUnresolvedVariable(schemaName, rawText) || IsUnresolvedVariable(dbName, rawText)) continue;
+            procedures.Add((string.IsNullOrEmpty(dbName) ? null : dbName, string.IsNullOrEmpty(schemaName) ? null : schemaName, procName));
         }
     }
 
@@ -420,16 +446,11 @@ public static class NestedSqlParser
 
             var defaultSchema = targetEngine.Equals("SQL Server", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) ? "main"
-                              : targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ? "defaults"
+                              : targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ? "default"
                               : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : "public";
 
             var schemaName = !string.IsNullOrEmpty(tableRef.Schema) ? tableRef.Schema : defaultSchema;
-            if (targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) &&
-                (string.IsNullOrEmpty(schemaName) || schemaName.Equals("default", StringComparison.OrdinalIgnoreCase)))
-            {
-                schemaName = "defaults";
-            }
             var tableName = tableRef.Table;
 
             var fullDbName = !string.IsNullOrEmpty(concreteDbName)
@@ -489,16 +510,11 @@ public static class NestedSqlParser
 
             var defaultSchema = targetEngine.Equals("SQL Server", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) ? "main"
-                              : targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ? "defaults"
+                              : targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) ? "default"
                               : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : "public";
 
             var schemaName = !string.IsNullOrEmpty(procRef.Schema) ? procRef.Schema : defaultSchema;
-            if (targetEngine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) &&
-                (string.IsNullOrEmpty(schemaName) || schemaName.Equals("default", StringComparison.OrdinalIgnoreCase)))
-            {
-                schemaName = "defaults";
-            }
             var procName = procRef.Procedure;
 
             var fullDbName = !string.IsNullOrEmpty(concreteDbName)

@@ -597,6 +597,11 @@ public class HttpClientLibraryParser : ILibraryParser
 
     private static string? ResolveResourceArg(Node argVal)
     {
+        if (AstValueResolver.TryResolveString(argVal, null, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
+        {
+            return resolved;
+        }
+
         if (argVal.Type.Contains("string"))
         {
             return argVal.Text.Trim('"');
@@ -610,12 +615,20 @@ public class HttpClientLibraryParser : ILibraryParser
             {
                 return route;
             }
-            return $"api/v1/{propName.ToLowerInvariant()}";
+            if (ConstantRegistry.TryResolve(null, propName, out var cVal))
+            {
+                return cVal;
+            }
         }
 
         if (RouteDictionaryRegistry.TryResolve(text, out var knownRoute, out _))
         {
             return knownRoute;
+        }
+
+        if (ConstantRegistry.TryResolve(null, text, out var directConst))
+        {
+            return directConst;
         }
 
         return null;

@@ -3134,63 +3134,49 @@ public class ArchitectureViewEngine(IGraphClient db)
     public static (string CanonicalKey, string CanonicalName, string DisplayName, string Summary, string BgColor, string BorderColor) CategorizeBoundedContext(string? rawDomain, string? filePath = null)
     {
         var raw = (rawDomain ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(raw)) return ("shared_kernel", "SharedKernel", "Shared Kernel & Core", "Enterprise data contracts, domain primitives, and shared utilities.", "#a855f7", "#9333ea");
+        if (string.IsNullOrWhiteSpace(raw))
+            return ("shared_kernel", "SharedKernel", "Shared Kernel & Core", "Enterprise data contracts, domain primitives, and shared utilities.", "#a855f7", "#9333ea");
 
-        var lower = raw.ToLowerInvariant();
-
-        if (lower.Contains("vacation") || lower.Contains("pomodoro") || lower.Contains("quartal") || lower.Contains("approval") || lower.Contains("jira") || lower.Contains("knowledge") || lower.Contains("negotiat"))
-            return ("org_workflows", "OrganizationAndWorkflows", "Organization & Workflows", "Internal business workflows, quarterly plans, approval pipelines, and organizational operations.", "#10b981", "#059669");
-
-        // Remove common service prefixes (avoid mutating root words like 'approval' by only stripping 'app' if followed by delimiter or uppercase)
+        // Normalize service / worker / app prefixes
+        var cleaned = raw;
         foreach (var prefix in new[] { "internalservice", "service", "worker", "ats", "integration" })
         {
-            if (lower.StartsWith(prefix) && lower.Length > prefix.Length + 2)
+            if (cleaned.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && cleaned.Length > prefix.Length + 2)
             {
-                lower = lower[prefix.Length..];
+                cleaned = cleaned[prefix.Length..].TrimStart('_', '-', '.');
             }
         }
-        if (lower.StartsWith("app") && (raw.StartsWith("app_", StringComparison.OrdinalIgnoreCase) || raw.StartsWith("app-", StringComparison.OrdinalIgnoreCase) || (raw.Length > 3 && char.IsUpper(raw[3]))))
+        if (cleaned.StartsWith("app", StringComparison.OrdinalIgnoreCase) && (cleaned.StartsWith("app_", StringComparison.OrdinalIgnoreCase) || cleaned.StartsWith("app-", StringComparison.OrdinalIgnoreCase) || (cleaned.Length > 3 && char.IsUpper(cleaned[3]))))
         {
-            lower = lower[3..];
+            cleaned = cleaned[3..].TrimStart('_', '-');
         }
 
-        if (lower.Contains("rule") || lower.Contains("bundl") || lower.Contains("split"))
-            return ("rules_bundling", "RulesAndBundling", "Rules & Bundling", "Decision engines, bundle allocations, split rules, and dynamic tree updating.", "#8b5cf6", "#7c3aed");
+        var pascal = ToPascalCase(cleaned);
+        var key = pascal.ToLowerInvariant();
+        var displayName = Regex.Replace(pascal, "([a-z])([A-Z])", "$1 $2");
 
-        if (lower.Contains("rate") || lower.Contains("calc") || lower.Contains("cpm") || lower.Contains("epm") || lower.Contains("bq") || lower.Contains("discrepanc") || lower.Contains("stat") || lower.Contains("analytic") || lower.Contains("chart") || lower.Contains("revenue") || lower.Contains("cost") || lower.Contains("bid") || lower.Contains("compara") || lower.Contains("compora") || lower.Contains("data") || lower.Contains("math") || lower.Contains("calibrat"))
-            return ("rates_analytics", "RatesAndAnalytics", "Rates & Analytics", "BigQuery pricing pipelines, cost-loss metrics, CPM/EPM estimation, and financial analytics.", "#06b6d4", "#0891b2");
+        // Deterministic color assignment from curated palette based on key hash
+        var colorIndex = Math.Abs(key.GetHashCode()) % ContextPalette.Length;
+        var bgColor = ContextPalette[colorIndex];
+        var borderColor = ContextPalette[(colorIndex + 1) % ContextPalette.Length];
 
-        if (lower.Contains("domain") || lower.Contains("settler") || lower.Contains("checker") || lower.Contains("dynadot") || lower.Contains("dns"))
-            return ("domain_management", "DomainManagement", "Domain Management", "DNS routing, domain verification, proxy configurations, and parking settler workflows.", "#10b981", "#059669");
+        return (key, pascal, displayName, $"Bounded context for {displayName}.", bgColor, borderColor);
+    }
 
-        if (lower.Contains("user") || lower.Contains("partner") || lower.Contains("talent") || lower.Contains("client") || lower.Contains("auth") || lower.Contains("keycloak") || lower.Contains("identity") || lower.Contains("access") || lower.Contains("account"))
-            return ("user_partners", "UserAndPartners", "User & Partners", "Partner onboarding, user account lifecycle, talent brokerage, and permission contracts.", "#ec4899", "#db2777");
-
-        if (lower.Contains("tracker") || lower.Contains("postback") || lower.Contains("click") || lower.Contains("tracking"))
-            return ("tracking_postbacks", "TrackingAndPostbacks", "Tracking & Postbacks", "Click attribution, conversion tracking journals, postback dispatchers, and telemetry logging.", "#f59e0b", "#d97706");
-
-        if (lower.Contains("lander") || lower.Contains("source") || lower.Contains("network") || lower.Contains("inventory") || lower.Contains("dsp"))
-            return ("inventory_sources", "InventoryAndSources", "Inventory & Sources", "Lander catalogs, traffic source providers, advertising network bindings, and publisher inventories.", "#6366f1", "#4f46e5");
-
-        if (lower.Contains("notify") || lower.Contains("notif") || lower.Contains("journal") || lower.Contains("bill") || lower.Contains("profit") || lower.Contains("alert") || lower.Contains("health") || lower.Contains("metric") || lower.Contains("telemetry") || lower.Contains("log") || lower.Contains("shutdown") || lower.Contains("monitor"))
-            return ("operations_monitoring", "OperationsAndMonitoring", "Operations & Monitoring", "Billing reconciliation, event journal audits, alerting webhooks, and health monitoring.", "#14b8a6", "#0d9488");
-
-        if (lower.Contains("bff") || lower.Contains("frontend") || lower.Contains("hub") || lower.Contains("ui") || lower.Contains("gateway") || lower.Contains("landing") || lower.Contains("cfpages") || lower.Contains("menu") || lower.Contains("modal") || lower.Contains("site") || lower.Contains("commonapi") || lower.Contains("portal"))
-            return ("gateway_frontends", "GatewayAndFrontends", "Gateway & Frontends", "Public API gateways, Backends-For-Frontends (BFF), administrative portals, and client web apps.", "#f97316", "#ea580c");
-
-        if (lower.Contains("config") || lower.Contains("system") || lower.Contains("schedul") || lower.Contains("template") || lower.Contains("stage") || lower.Contains("setting") || lower.Contains("kv") || lower.Contains("keyvalue") || lower.Contains("country") || lower.Contains("catalog") || lower == "management" || lower.Contains("servicemanagement"))
-            return ("system_configuration", "SystemConfiguration", "System Configuration", "System-wide parameters, scheduling daemons, cron execution, and key-value templates.", "#64748b", "#475569");
-
-        if (lower.Contains("cpa") || lower.Contains("smartcpa") || lower.Contains("campaign") || lower.Contains("adformat") || lower.Contains("bidding") || lower.Contains("placement") || lower.Contains("popunder") || lower.StartsWith("ad") || lower.Contains("scenario"))
-            return ("campaign_advertising", "CampaignAndAdvertising", "Campaign & Advertising", "Ad format configurations, smart CPA integrations, automated bidding, and campaign placements.", "#e11d48", "#be123c");
-
-        if (lower.Contains("route") || lower.Contains("traffic") || lower.Contains("stream") || lower.Contains("aggregator") || lower.Contains("cfworker") || lower.Contains("cloudflare") || lower.Contains("tbmap") || lower.Contains("tb-map") || lower.Contains("prefetch") || lower.Contains("selection") || lower.Contains("confirm") || lower.Contains("spotlight"))
-            return ("traffic_routing", "TrafficAndRouting", "Traffic & Routing", "High-throughput traffic ingestion, edge workers, real-time routing, and streaming aggregations.", "#3b82f6", "#2563eb");
-
-        // Specific clean single words (e.g. OrderManagement, Payments from tests)
-        var cleanedName = char.ToUpperInvariant(raw[0]) + raw[1..];
-        var key = cleanedName.ToLowerInvariant();
-        return (key, cleanedName, Regex.Replace(cleanedName, "([a-z])([A-Z])", "$1 $2"), $"Bounded context for {cleanedName}.", "#3b82f6", "#1d4ed8");
+    private static string ToPascalCase(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "Default";
+        var parts = text.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries);
+        var sb = new System.Text.StringBuilder();
+        foreach (var p in parts)
+        {
+            if (p.Length > 0)
+            {
+                sb.Append(char.ToUpperInvariant(p[0]));
+                if (p.Length > 1) sb.Append(p[1..]);
+            }
+        }
+        return sb.Length > 0 ? sb.ToString() : text;
     }
 
     public async Task<BoundedContextMapDto> GetBoundedContextMapAsync(string? workspaceId = null, CancellationToken ct = default)

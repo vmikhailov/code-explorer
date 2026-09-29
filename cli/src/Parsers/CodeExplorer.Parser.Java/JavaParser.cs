@@ -10,6 +10,16 @@ namespace CodeExplorer.Parser.Java;
 
 public class JavaParser : IProjectParser, IFileParser
 {
+    static JavaParser()
+    {
+        LibraryConfigurationRegistry.Register(new Libraries.SpringFrameworkConfigurationDescriptor());
+    }
+
+    public JavaParser()
+    {
+        LibraryConfigurationRegistry.Register(new Libraries.SpringFrameworkConfigurationDescriptor());
+    }
+
     public string LanguageName => "java";
 
     public string ProjectType => "java";

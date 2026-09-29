@@ -81,6 +81,35 @@ public class Layer3SyntacticParser
             }
         }
 
+        // Phase 0: Unified ConfigStore early initialization
+        ConfigStore.Clear();
+        ConstantRegistry.Clear();
+
+        var allProjectFileNodeIds = new HashSet<string>(filesByProjectId.Values.SelectMany(v => v).Select(f => f.Id));
+        var workspaceRootFiles = l2Result.Prev.Files.Where(f => !allProjectFileNodeIds.Contains(f.Id)).ToList();
+        foreach (var wfile in workspaceRootFiles)
+        {
+            if (ConfigStore.IsConfigurationFile(wfile.Name))
+            {
+                ConfigStore.LoadFile(wfile.FullPath, null, ctx);
+            }
+        }
+
+        foreach (var project in l2Result.Projects)
+        {
+            if (filesByProjectId.TryGetValue(project.Id, out var pFiles))
+            {
+                foreach (var pfile in pFiles)
+                {
+                    if (ConfigStore.IsConfigurationFile(pfile.Name))
+                    {
+                        ConfigStore.LoadFile(pfile.FullPath, project.Name, ctx);
+                    }
+                }
+            }
+        }
+        ctx.Log($"[ConfigStore] Pre-loaded {ConfigStore.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
+
         foreach (var project in l2Result.Projects)
         {
             nProject++;
@@ -101,47 +130,6 @@ public class Layer3SyntacticParser
                 continue;
             }
 
-            // Pre-scan route/const/config/enum files in this project to populate RouteDictionaryRegistry and ConstantRegistry
-            foreach (var file in projectFiles)
-            {
-                var normPath = file.FullPath.Replace('\\', '/');
-                if (file.Name.Contains("route", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("const", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("config", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("api", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("env", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("url", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("endpoint", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("enum", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("model", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("schema", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("table", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("entity", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("topic", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("queue", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("event", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("bus", StringComparison.OrdinalIgnoreCase) ||
-                    file.Name.Contains("message", StringComparison.OrdinalIgnoreCase) ||
-                    normPath.Contains("/constants/", StringComparison.OrdinalIgnoreCase) ||
-                    normPath.Contains("/shared/", StringComparison.OrdinalIgnoreCase) ||
-                    normPath.Contains("/common/", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        if (File.Exists(file.FullPath))
-                        {
-                            var text = File.ReadAllText(file.FullPath);
-                            RouteDictionaryRegistry.ScanAndRegister(text);
-                            ConstantRegistry.ScanAndRegister(file.FullPath, text, project.Name);
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore unreadable files
-                    }
-                }
-            }
-
             var parallelOptions = new ParallelOptions
             {
                 CancellationToken = ctx.CancellationToken,
@@ -150,6 +138,7 @@ public class Layer3SyntacticParser
 
             var parsedResults = new (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[projectFiles.Count];
 
+            // Pass 1: Parse all syntax trees and discover declarations (constants, enums, raw variables)
             await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, async (i, ct) =>
             {
                 var file = projectFiles[i];
@@ -165,8 +154,16 @@ public class Layer3SyntacticParser
                     var syntaxTree = await fileParser.ParseAsync(file.FullPath, parentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
                     if (syntaxTree.Tree != null)
                     {
-                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);
-                        syntaxTree.Dispose(); // Free native TreeSitter memory immediately
+                        AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
+
+                        for (int v = 0; v < syntaxTree.RawVariables.Count; v++)
+                        {
+                            var rv = syntaxTree.RawVariables[v];
+                            if (!string.IsNullOrWhiteSpace(rv.Name) && !string.IsNullOrWhiteSpace(rv.InitializerText))
+                            {
+                                ConstantRegistry.Register(project.Name, rv.Name, rv.InitializerText);
+                            }
+                        }
                     }
 
                     parsedResults[i] = (file, syntaxTree, parentNode);
@@ -175,6 +172,32 @@ public class Layer3SyntacticParser
                 {
                     ctx.LogWarning($"[Layer3] Error parsing file '{file.Path}': {ex.Message}", ex);
                 }
+            });
+
+            // Pass 2: Traverse ASTs with language visitors and library parsers (now that all constants and symbols are registered)
+            await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, (i, ct) =>
+            {
+                var item = parsedResults[i];
+                if (item == null) return ValueTask.CompletedTask;
+
+                var (_, syntaxTree, _) = item.Value;
+                if (syntaxTree.Tree != null)
+                {
+                    try
+                    {
+                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);
+                    }
+                    catch (Exception ex)
+                    {
+                        ctx.LogWarning($"[Layer3] Error processing visitor for '{syntaxTree.FilePath}': {ex.Message}", ex);
+                    }
+                    finally
+                    {
+                        syntaxTree.Dispose(); // Free native TreeSitter memory immediately after Pass 2
+                    }
+                }
+
+                return ValueTask.CompletedTask;
             });
 
             for (int i = 0; i < projectFiles.Count; i++)

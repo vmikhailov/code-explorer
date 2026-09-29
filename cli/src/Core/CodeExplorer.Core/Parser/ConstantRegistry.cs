@@ -18,6 +18,9 @@ public static class ConstantRegistry
     private static readonly ConcurrentDictionary<string, string> _globalConstants =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public static IReadOnlyDictionary<string, string> ProjectConstants => _projectConstants;
+    public static IReadOnlyDictionary<string, string> GlobalConstants => _globalConstants;
+
     public static void Clear()
     {
         _projectConstants.Clear();
@@ -107,6 +110,36 @@ public static class ConstantRegistry
             return true;
         }
 
+        // 2b. Fallback: try converting colon <-> double underscore (ASP.NET Configuration naming)
+        if (cleanKey.Contains(':'))
+        {
+            var dunderKey = cleanKey.Replace(":", "__");
+            if (_globalConstants.TryGetValue(dunderKey, out var dgVal))
+            {
+                value = dgVal;
+                return true;
+            }
+            if (!string.IsNullOrWhiteSpace(projectName) && _projectConstants.TryGetValue($"{projectName}:{dunderKey}", out var dpVal))
+            {
+                value = dpVal;
+                return true;
+            }
+        }
+        else if (cleanKey.Contains("__"))
+        {
+            var colonKey = cleanKey.Replace("__", ":");
+            if (_globalConstants.TryGetValue(colonKey, out var cgVal))
+            {
+                value = cgVal;
+                return true;
+            }
+            if (!string.IsNullOrWhiteSpace(projectName) && _projectConstants.TryGetValue($"{projectName}:{colonKey}", out var cpVal))
+            {
+                value = cpVal;
+                return true;
+            }
+        }
+
         // 3. Fallback: strip leading "this.config.", "config.", "this.", or "self." if present
         if (cleanKey.StartsWith("this.config.", StringComparison.OrdinalIgnoreCase))
         {
@@ -194,6 +227,10 @@ public static class ConstantRegistry
             return;
         }
 
+        // 1. Run universal TreeSitter AST extraction with topological resolution
+        AstConstantExtractor.ExtractAndRegister(filePath, content, projectName);
+
+        // 2. Run regex scanner for any non-AST / comment / fallback definitions
         switch (ext)
         {
             case ".ts":

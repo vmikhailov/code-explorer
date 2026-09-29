@@ -5,19 +5,34 @@ namespace CodeExplorer.Parser.Java;
 
 public static class JavaSyntaxProfile
 {
+    static JavaSyntaxProfile()
+    {
+        LanguageSyntaxProfileRegistry.Register("java", Instance);
+    }
+
     public static readonly LanguageSyntaxProfile Instance = new()
     {
         ClassDeclarations = new[]
         {
             "class_declaration",
             "record_declaration",
-            "enum_declaration",
             "annotation_type_declaration"
         }.ToFrozenSet(),
 
         InterfaceDeclarations = new[]
         {
             "interface_declaration"
+        }.ToFrozenSet(),
+
+        EnumDeclarations = new[]
+        {
+            "enum_declaration"
+        }.ToFrozenSet(),
+
+        ConstantDeclarations = new[]
+        {
+            "field_declaration",
+            "constant_declaration"
         }.ToFrozenSet(),
 
         MethodDeclarations = new[]
@@ -67,6 +82,23 @@ public static class JavaSyntaxProfile
         {
             "string_literal",
             "text_block"
+        }.ToFrozenSet(),
+
+        StringInterpolations = FrozenSet<string>.Empty,
+
+        BinaryExpressions = new[]
+        {
+            "binary_expression"
+        }.ToFrozenSet(),
+
+        MemberAccessExpressions = new[]
+        {
+            "field_access"
+        }.ToFrozenSet(),
+
+        ElementAccessExpressions = new[]
+        {
+            "array_access"
         }.ToFrozenSet()
     };
 }

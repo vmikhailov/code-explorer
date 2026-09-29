@@ -85,5 +85,49 @@ namespace CodeExplorer.Core.Parser
                 if (child.IsValid() && child.Type == type) yield return child;
             }
         }
+
+        public static Node? FindDescendantOfType(this Node? node, string type)
+        {
+            if (!node.IsValid()) return null;
+            var queue = new Queue<Node>();
+            queue.Enqueue(node);
+
+            while (queue.Count > 0)
+            {
+                var curr = queue.Dequeue();
+                for (int i = 0; i < curr.Children.Count; i++)
+                {
+                    var child = curr.Children[i];
+                    if (child.IsValid())
+                    {
+                        if (child.Type == type) return child;
+                        queue.Enqueue(child);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        public static IEnumerable<Node> FindDescendantsOfType(this Node? node, string type)
+        {
+            if (!node.IsValid()) yield break;
+            var queue = new Queue<Node>();
+            queue.Enqueue(node);
+
+            while (queue.Count > 0)
+            {
+                var curr = queue.Dequeue();
+                for (int i = 0; i < curr.Children.Count; i++)
+                {
+                    var child = curr.Children[i];
+                    if (child.IsValid())
+                    {
+                        if (child.Type == type) yield return child;
+                        queue.Enqueue(child);
+                    }
+                }
+            }
+        }
     }
 }

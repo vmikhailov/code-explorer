@@ -37,16 +37,15 @@ public class GcpLibraryParser : ILibraryParser
 
         // --- 1. PUBLISHERS ---
 
-        // A. Direct pubsub.topic(topicName) or getPubSubTopic(topicName)
-        if (funcText.EndsWith(".topic", StringComparison.Ordinal) ||
-            funcText == "getPubSubTopic" ||
-            funcText.EndsWith(".getPubSubTopic", StringComparison.Ordinal) ||
-            funcText == "createNetworkTopic" ||
-            funcText.EndsWith(".createNetworkTopic", StringComparison.Ordinal))
+        // A. Direct pubsub.topic(topicName)
+        if (funcText.EndsWith(".topic", StringComparison.Ordinal))
         {
             if (args.Count > 0)
             {
-                var topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                if (!AstValueResolver.TryResolveTopicOrQueue(args[0], scopeSymbolId, out var topic) || string.IsNullOrEmpty(topic))
+                {
+                    topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                }
                 AddPublishReference(references, scopeSymbolId, topic);
             }
         }
@@ -67,7 +66,10 @@ public class GcpLibraryParser : ILibraryParser
                     var innerArgs = AstHelper.GetCallArguments(obj);
                     if (innerArgs.Count > 0)
                     {
-                        topic = AstHelper.ResolveTopicOrQueue(innerArgs[0], scopeSymbolId);
+                        if (!AstValueResolver.TryResolveTopicOrQueue(innerArgs[0], scopeSymbolId, out topic) || string.IsNullOrEmpty(topic))
+                        {
+                            topic = AstHelper.ResolveTopicOrQueue(innerArgs[0], scopeSymbolId);
+                        }
                     }
                 }
             }
@@ -86,70 +88,48 @@ public class GcpLibraryParser : ILibraryParser
                     if (AstHelper.TryGetObjectProperty(args[0], "topicName", out var tp) ||
                         AstHelper.TryGetObjectProperty(args[0], "topic", out tp))
                     {
-                        topic = AstHelper.ResolveTopicOrQueue(tp, scopeSymbolId);
+                        if (!AstValueResolver.TryResolveTopicOrQueue(tp, scopeSymbolId, out topic) || string.IsNullOrEmpty(topic))
+                        {
+                            topic = AstHelper.ResolveTopicOrQueue(tp, scopeSymbolId);
+                        }
                     }
                 }
                 else if (args.Count > 1)
                 {
-                    topic = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId);
+                    if (!AstValueResolver.TryResolveTopicOrQueue(args[1], scopeSymbolId, out topic) || string.IsNullOrEmpty(topic))
+                    {
+                        topic = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId);
+                    }
+                }
+                else if (args.Count == 1)
+                {
+                    if (!AstValueResolver.TryResolveTopicOrQueue(args[0], scopeSymbolId, out topic) || string.IsNullOrEmpty(topic))
+                    {
+                        topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                    }
                 }
             }
 
             AddPublishReference(references, scopeSymbolId, topic);
         }
-        // C. Specific publishing helper methods
-        else if (funcText.EndsWith(".sendMessageToTopicWithAttributes", StringComparison.Ordinal) ||
-                 funcText == "sendMessageToTopicWithAttributes")
-        {
-            if (args.Count > 0)
-            {
-                var topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
-                AddPublishReference(references, scopeSymbolId, topic);
-            }
-        }
-        else if (funcText.EndsWith(".sendMessageToNetwork", StringComparison.Ordinal) ||
-                 funcText == "sendMessageToNetwork")
-        {
-            if (args.Count > 1)
-            {
-                var topic = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId);
-                AddPublishReference(references, scopeSymbolId, topic);
-            }
-        }
-        else if (funcText.EndsWith(".publishToTopic", StringComparison.Ordinal) ||
-                 funcText == "publishToTopic" ||
-                 funcText == "sendMessageToTopic")
-        {
-            if (args.Count > 0)
-            {
-                var topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
-                AddPublishReference(references, scopeSymbolId, topic);
-            }
-        }
 
         // --- 2. SUBSCRIBERS ---
 
-        // A. Subscription setup: subscribeToMessages, initSubscription, listenSubscription
+        // A. Subscription setup: subscribeToMessages, initSubscription, listenSubscription, subscription
         else if (funcText.EndsWith(".subscribeToMessages", StringComparison.Ordinal) ||
                  funcText.EndsWith(".initSubscription", StringComparison.Ordinal) ||
                  funcText.EndsWith(".listenSubscription", StringComparison.Ordinal) ||
-                 funcText.EndsWith(".subscription", StringComparison.Ordinal))
+                 funcText.EndsWith(".subscription", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".subscribe", StringComparison.Ordinal))
         {
             if (args.Count > 0)
             {
-                var sub = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                if (!AstValueResolver.TryResolveTopicOrQueue(args[0], scopeSymbolId, out var sub) || string.IsNullOrEmpty(sub))
+                {
+                    sub = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
+                }
                 AddSubscribeReference(references, scopeSymbolId, sub);
             }
-        }
-        // B. initPubSub(topicName, subscriptionName)
-        else if (funcText.EndsWith(".initPubSub", StringComparison.Ordinal))
-        {
-            if (args.Count > 0)
-            {
-                var topic = AstHelper.ResolveTopicOrQueue(args[0], scopeSymbolId);
-                AddSubscribeReference(references, scopeSymbolId, topic);
-            }
-            // args[1] - subscription name, do not register as a topic
         }
     }
 
@@ -198,39 +178,24 @@ public class GcpLibraryParser : ILibraryParser
             return resolved;
         }
 
-        var curr = node.Parent;
-        while (curr.IsValid())
+        var declNode = AstValueResolver.FindVariableDeclarationInScope(node, cleanName) ??
+                       AstValueResolver.FindClassFieldInitializer(node, cleanName);
+
+        if (declNode.IsValid())
         {
-            if (curr.IsAny(TreeSitterSyntax.TypeScript.StatementBlock, TreeSitterSyntax.TypeScript.Program, "class_body"))
+            if (declNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
             {
-                foreach (var child in curr.Children)
+                var args = AstHelper.GetCallArguments(declNode);
+                if (args.Count > 0 && AstValueResolver.TryResolveTopicOrQueue(args[0], null, out var tName))
                 {
-                    if (child.Text.Contains(cleanName) && child.Text.Contains(".topic("))
-                    {
-                        var match = Regex.Match(child.Text, $@"(?:this\.)?{Regex.Escape(cleanName)}\s*=\s*[^;]*?\.topic\s*\(\s*([^,\)]+)");
-                        if (!match.Success)
-                        {
-                            match = Regex.Match(child.Text, @"\.topic\s*\(\s*([^,\)]+)");
-                        }
-                        if (match.Success)
-                        {
-                            var arg = match.Groups[1].Value.Trim().Trim('\'', '"', '`');
-                            var cleanArg = arg.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? arg[5..] : arg;
-                            if (ConstantRegistry.TryResolve(null, cleanArg, out var resArg) && IsValidTopicName(resArg))
-                            {
-                                return resArg;
-                            }
-                            var varVal = AstHelper.FindVariableInitializerInAst(node, cleanArg);
-                            if (!string.IsNullOrEmpty(varVal) && IsValidTopicName(varVal))
-                            {
-                                return varVal;
-                            }
-                            if (IsValidTopicName(arg)) return arg;
-                        }
-                    }
+                    if (IsValidTopicName(tName)) return tName;
                 }
             }
-            curr = curr.Parent;
+
+            if (AstValueResolver.TryResolveTopicOrQueue(declNode, null, out var tRes) && IsValidTopicName(tRes))
+            {
+                return tRes;
+            }
         }
 
         var varValDirect = AstHelper.FindVariableInitializerInAst(node, cleanName);

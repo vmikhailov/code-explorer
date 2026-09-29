@@ -25,6 +25,17 @@ public class WorkspaceIndexer
             if (_fileParsers.All(p => p.GetType() != fileParser.GetType()))
                 _fileParsers.Add(fileParser);
         }
+
+        if (parser is ILibraryConfigurationDescriptor configDesc)
+        {
+            LibraryConfigurationRegistry.Register(configDesc);
+        }
+    }
+
+    public static IFileParser? GetParserForFile(string filePath)
+    {
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        return _fileParsers.FirstOrDefault(p => p.CanParse(ext));
     }
 
     private readonly IGraphClient _dbClient;

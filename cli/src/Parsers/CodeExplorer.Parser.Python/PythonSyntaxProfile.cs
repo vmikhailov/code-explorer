@@ -5,6 +5,11 @@ namespace CodeExplorer.Parser.Python;
 
 public static class PythonSyntaxProfile
 {
+    static PythonSyntaxProfile()
+    {
+        LanguageSyntaxProfileRegistry.Register("python", Instance);
+    }
+
     public static readonly LanguageSyntaxProfile Instance = new()
     {
         ClassDeclarations = new[]
@@ -13,6 +18,13 @@ public static class PythonSyntaxProfile
         }.ToFrozenSet(),
 
         InterfaceDeclarations = FrozenSet<string>.Empty,
+
+        EnumDeclarations = FrozenSet<string>.Empty,
+
+        ConstantDeclarations = new[]
+        {
+            "assignment"
+        }.ToFrozenSet(),
 
         MethodDeclarations = FrozenSet<string>.Empty,
 
@@ -46,6 +58,26 @@ public static class PythonSyntaxProfile
         StringLiterals = new[]
         {
             "string"
+        }.ToFrozenSet(),
+
+        StringInterpolations = new[]
+        {
+            "format_string"
+        }.ToFrozenSet(),
+
+        BinaryExpressions = new[]
+        {
+            "binary_operator"
+        }.ToFrozenSet(),
+
+        MemberAccessExpressions = new[]
+        {
+            "attribute"
+        }.ToFrozenSet(),
+
+        ElementAccessExpressions = new[]
+        {
+            "subscript"
         }.ToFrozenSet()
     };
 }

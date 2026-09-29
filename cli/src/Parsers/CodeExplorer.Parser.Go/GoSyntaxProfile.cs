@@ -5,6 +5,11 @@ namespace CodeExplorer.Parser.Go;
 
 public static class GoSyntaxProfile
 {
+    static GoSyntaxProfile()
+    {
+        LanguageSyntaxProfileRegistry.Register("go", Instance);
+    }
+
     public static readonly LanguageSyntaxProfile Instance = new()
     {
         ClassDeclarations = new[]
@@ -17,6 +22,13 @@ public static class GoSyntaxProfile
         InterfaceDeclarations = new[]
         {
             "interface_type"
+        }.ToFrozenSet(),
+
+        EnumDeclarations = FrozenSet<string>.Empty,
+
+        ConstantDeclarations = new[]
+        {
+            "const_spec"
         }.ToFrozenSet(),
 
         MethodDeclarations = new[]
@@ -60,6 +72,23 @@ public static class GoSyntaxProfile
             "interpreted_string_literal",
             "raw_string_literal",
             "string_literal"
+        }.ToFrozenSet(),
+
+        StringInterpolations = FrozenSet<string>.Empty,
+
+        BinaryExpressions = new[]
+        {
+            "binary_expression"
+        }.ToFrozenSet(),
+
+        MemberAccessExpressions = new[]
+        {
+            "selector_expression"
+        }.ToFrozenSet(),
+
+        ElementAccessExpressions = new[]
+        {
+            "index_expression"
         }.ToFrozenSet()
     };
 }

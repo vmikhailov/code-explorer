@@ -77,9 +77,10 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 > **Detailed Specification:** See [**`semantic-resolution-and-hacks-cleanup-plan.md`**](./semantic-resolution-and-hacks-cleanup-plan.md) and [audit artifact](file:///C:/Users/viach/.gemini/antigravity-ide/brain/c2895c5c-0d94-4e3f-9ccb-9c30cbaa962f/semantic_analysis_and_hacks_audit.md).
 
-- [ ] **0.6 Unified ConfigStore in Layer 2/3**:
+- [x] **0.6 Unified ConfigStore in Layer 2/3**:
   - Relocate configuration parsing (`appsettings*.json`, `.env*`, `application*.yml/properties`) before AST file parsing.
   - Index keys in both hierarchical and screaming-snake notations; auto-register in `ConstantRegistry`.
+  - Generic service-to-service URL discovery across any section (`UrlsSettings`, `Services`, `Endpoints`, `Clients`, `Gateways`).
 - [ ] **0.7 Universal AST Symbol & Constant Graph**:
   - Remove filename filter heuristic (`const`, `route`, etc.) in `Layer3SyntacticParser`.
   - Extract constants, enums, and static fields via TreeSitter CST/AST across all files.
@@ -89,6 +90,7 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
   - Add standard config readers: C# `config["Key"]`, TS `process.env.KEY`, Go `os.Getenv`, Python `os.getenv`.
   - Add local scope reaching definitions (trace argument identifiers back to local assignments).
 - [ ] **0.9 Clean Library Parsers & Remove Ad-Hoc Hacks**:
+  - Clean `ConfigurationParser` (remove hardcoded `ParseCloudPayments` and generalize `ParseUrlsSettings`).
   - Clean `RabbitMqLibraryParser` (remove `paPartnerQueue` and synthetic `createQueue`).
   - Clean `GcpLibraryParser` (remove project-specific wrappers `getPubSubTopic`, `createNetworkTopic`, etc.).
   - Clean `HttpClientLibraryParser` (remove fake fallback URL generator `$"api/v1/{propName.ToLowerInvariant()}"`).
@@ -97,6 +99,10 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 - [ ] **0.10 Decouple Domain Classification from Core Engine**:
   - Purge ad-tech ontology terms (`rules_bundling`, `rates_analytics`, `dynadot`, `cpm`, `tbmap`) from `ArchitectureViewEngine.cs`.
   - Provide domain classification via `.codeexplorer/domains.json`, graph clustering, or SLM Intent Distillation.
+- [ ] **0.11 Evidence-Based Entity Classification & Dynamic Role Engine**:
+  - Two-tier taxonomy: decouple intrinsic Entity Kind (`Service`, `App`, `Worker`, `Library`, `CliTool`, `Function`, `Resource`) from runtime Architectural Role (`Ingress`, `CoreDomain`, `Gateway`, `Integration`, `AsyncProcessor`, `Foundation`).
+  - Evidence accumulator across Layers 1-5 (Packaging, AST listeners, consumer loops, config bindings, graph-flow degrees).
+  - Purge string/name/path heuristics (`Contains("/lib/")`, `HasProtocolTokens()`, `.Contains("worker")`).
 
 ---
 
@@ -183,6 +189,7 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 | **0.8** | Semantics | Universal `AstValueResolver` for multi-language AST expressions, configs, and reaching defs | 🚨 Urgent | ⏳ Pending |
 | **0.9** | Parsers/Clean | Clean library parsers (RabbitMQ, GCP, HttpClient, NestedSql, BigQuery) & purge ad-hoc hacks | 🚨 Urgent | ⏳ Pending |
 | **0.10** | Domain/Clean | Decouple ad-tech ontology from `ArchitectureViewEngine` -> `.codeexplorer/domains.json` / graph clustering | High | ⏳ Pending |
+| **0.11** | EntityKind/Role | Evidence-based entity classification & dynamic role engine (purge name/path heuristics) | 🚨 Urgent | ⏳ Pending |
 | **1.1** | Agent/MCP | Implement `get_architecture_view` MCP tool via `ArchitectureViewEngine` | High | ⏳ Pending |
 | **1.2** | Agent/MCP | Add `--type runtime\|build\|all` filter to `get_project_dependencies` | High | ⏳ Pending |
 | **1.3** | Agent/MCP | Implement `get_service_contracts` MCP tool (ingress / egress) | High | ⏳ Pending |
