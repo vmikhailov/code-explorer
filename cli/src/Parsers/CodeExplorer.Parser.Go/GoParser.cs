@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using CodeExplorer.Core.Parser;
+using TreeSitter;
 
 [assembly: ParserAssembly]
 
@@ -61,6 +62,11 @@ public class GoParser : IProjectParser, IFileParser
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".go", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
+    {
+        GoDeclarationExtractor.Extract(rootNode, registerDeclaration);
     }
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)

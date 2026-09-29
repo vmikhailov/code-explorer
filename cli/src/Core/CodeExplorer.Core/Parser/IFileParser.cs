@@ -50,4 +50,12 @@ public interface IFileParser
     /// The language syntax classification profile for AST traversal.
     /// </summary>
     LanguageSyntaxProfile SyntaxProfile => LanguageSyntaxProfile.Empty;
+
+    /// <summary>
+    /// Traverses the AST root node to discover symbol, constant, and enum declarations
+    /// for early-phase constant propagation into ConstantRegistry.
+    /// </summary>
+    void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
+    {
+    }
 }

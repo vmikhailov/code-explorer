@@ -22,6 +22,11 @@ public class JavaScriptParser : IProjectParser, IFileParser
                fileExtension.Equals(".jsx", StringComparison.OrdinalIgnoreCase);
     }
 
+    public void ExtractDeclarations(TreeSitter.Node rootNode, Action<string, TreeSitter.Node?, string?> registerDeclaration)
+    {
+        TypeScriptDeclarationExtractor.Extract(rootNode, registerDeclaration);
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
         foreach (var file in filesInDirectory)

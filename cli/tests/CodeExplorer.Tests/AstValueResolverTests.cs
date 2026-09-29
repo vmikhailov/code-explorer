@@ -1,5 +1,10 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Parser.CSharp;
+using CodeExplorer.Parser.Go;
+using CodeExplorer.Parser.Java;
+using CodeExplorer.Parser.Python;
+using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -7,6 +12,16 @@ namespace CodeExplorer.Tests;
 [TestFixture]
 public class AstValueResolverTests
 {
+    [OneTimeSetUp]
+    public void OneTimeSetUp()
+    {
+        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.Register(new GoParser());
+        WorkspaceIndexer.Register(new PythonParser());
+        WorkspaceIndexer.Register(new JavaParser());
+    }
+
     [SetUp]
     public void Setup()
     {

@@ -79,6 +79,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
                fileExtension.Equals(".tsx", StringComparison.OrdinalIgnoreCase);
     }
 
+    public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
+    {
+        TypeScriptDeclarationExtractor.Extract(rootNode, registerDeclaration);
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
         foreach (var file in filesInDirectory)

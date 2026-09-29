@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
+using TreeSitter;
 
 [assembly: ParserAssembly]
 
@@ -61,6 +62,11 @@ public class PythonParser : IProjectParser, IFileParser
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".py", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
+    {
+        PythonDeclarationExtractor.Extract(rootNode, registerDeclaration);
     }
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)

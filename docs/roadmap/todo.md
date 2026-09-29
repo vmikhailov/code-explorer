@@ -103,6 +103,10 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
   - Two-tier taxonomy: decouple intrinsic Entity Kind (`Service`, `App`, `Worker`, `Library`, `CliTool`, `Function`, `Resource`) from runtime Architectural Role (`Ingress`, `CoreDomain`, `Gateway`, `Integration`, `AsyncProcessor`, `Foundation`).
   - Evidence accumulator across Layers 1-5 (Packaging, AST listeners, consumer loops, config bindings, graph-flow degrees).
   - Purge string/name/path heuristics (`Contains("/lib/")`, `HasProtocolTokens()`, `.Contains("worker")`).
+- [x] **0.12 Polymorphic AST Declaration Extraction Across Language Parsers**:
+  - Extend `IFileParser` with `ExtractDeclarations(rootNode, registerDeclaration)` to keep CST traversal in native language parser assemblies.
+  - Implement `CSharpDeclarationExtractor`, `TypeScriptDeclarationExtractor`, `GoDeclarationExtractor`, `PythonDeclarationExtractor`, and `JavaDeclarationExtractor`.
+  - Purge all language name switches (`switch (langName)`), file extension switches (`ext switch`), and CST node checks from `AstConstantExtractor.cs`.
 
 ---
 

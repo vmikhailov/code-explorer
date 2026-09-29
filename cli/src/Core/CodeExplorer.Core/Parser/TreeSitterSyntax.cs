@@ -75,6 +75,7 @@ public static class TreeSitterSyntax
         public const string StringLiteral = "string_literal";
         public const string VerbatimStringLiteral = "verbatim_string_literal";
         public const string EqualsValueClause = "equals_value_clause";
+        public const string ArrowExpressionClause = "arrow_expression_clause";
         public const string UsingStatement = "using_statement";
         public const string UsingDirective = "using_directive";
         public const string BaseList = "base_list";

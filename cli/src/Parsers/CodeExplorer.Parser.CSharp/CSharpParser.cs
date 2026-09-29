@@ -64,6 +64,11 @@ public class CSharpParser : IProjectParser, IFileParser
         return fileExtension.Equals(".cs", StringComparison.OrdinalIgnoreCase);
     }
 
+    public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
+    {
+        CSharpDeclarationExtractor.Extract(rootNode, registerDeclaration);
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
         foreach (var file in filesInDirectory)

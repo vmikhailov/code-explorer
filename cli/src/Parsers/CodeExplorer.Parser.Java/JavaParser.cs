@@ -81,6 +81,11 @@ public class JavaParser : IProjectParser, IFileParser
         return fileExtension.Equals(".java", StringComparison.OrdinalIgnoreCase);
     }
 
+    public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
+    {
+        JavaDeclarationExtractor.Extract(rootNode, registerDeclaration);
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
         foreach (var file in filesInDirectory)
