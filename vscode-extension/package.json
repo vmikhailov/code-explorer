@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Interactive code architecture and dependency graph visualizer powered by CodeExplorer (ce)",
-  "version": "1.10.3",
+  "version": "1.11.0",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon.png",
