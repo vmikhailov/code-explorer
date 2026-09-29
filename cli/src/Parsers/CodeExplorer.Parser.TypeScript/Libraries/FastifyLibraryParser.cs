@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class FastifyLibraryParser : ILibraryParser
+public class FastifyLibraryParser : ISemanticExtension
 {
     public string Name => "Fastify";
     public string Id => "fastify";

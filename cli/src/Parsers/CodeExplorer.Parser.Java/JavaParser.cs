@@ -40,7 +40,47 @@ public class JavaParser : IProjectParser, IFileParser
         new Libraries.SpringFrameworkConfigurationDescriptor()
     ];
 
-    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<PackageDescriptor> Packages { get; } =
+    [
+        // Frameworks
+        new PackageDescriptor("spring-boot", "Spring Boot", LibraryRole.WebFramework, "maven", ["org.springframework.boot", "org.springframework"]),
+        new PackageDescriptor("quarkus", "Quarkus", LibraryRole.WebFramework, "maven", ["io.quarkus"]),
+        new PackageDescriptor("micronaut", "Micronaut", LibraryRole.WebFramework, "maven", ["io.micronaut"]),
+        new PackageDescriptor("vertx", "Eclipse Vert.x", LibraryRole.WebFramework, "maven", ["io.vertx"]),
+        new PackageDescriptor("grpc", "gRPC Java", LibraryRole.WebFramework, "maven", ["io.grpc"]),
+
+        // Databases & ORM
+        new PackageDescriptor("postgres", "PostgreSQL", LibraryRole.OrmOrDatabase, "maven", ["org.postgresql"]),
+        new PackageDescriptor("mysql", "MySQL", LibraryRole.OrmOrDatabase, "maven", ["com.mysql.cj.jdbc", "com.mysql.jdbc"]),
+        new PackageDescriptor("oracle", "Oracle DB", LibraryRole.OrmOrDatabase, "maven", ["oracle.jdbc", "com.oracle.database.jdbc"]),
+        new PackageDescriptor("h2", "H2 Database", LibraryRole.OrmOrDatabase, "maven", ["org.h2"]),
+        new PackageDescriptor("sqlite", "SQLite", LibraryRole.OrmOrDatabase, "maven", ["org.sqlite"]),
+        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "maven", ["com.clickhouse.jdbc", "com.clickhouse"]),
+        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "maven", ["com.google.cloud.bigquery"]),
+        new PackageDescriptor("mongodb", "MongoDB", LibraryRole.OrmOrDatabase, "maven", ["org.springframework.data.mongodb", "com.mongodb"]),
+        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "maven", ["org.springframework.data.redis", "redis.clients.jedis", "io.lettuce"]),
+        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "maven", ["org.elasticsearch", "co.elastic.clients", "org.opensearch"]),
+        new PackageDescriptor("cassandra", "Cassandra", LibraryRole.OrmOrDatabase, "maven", ["com.datastax.oss", "org.springframework.data.cassandra"]),
+        new PackageDescriptor("mybatis", "MyBatis", LibraryRole.OrmOrDatabase, "maven", ["org.mybatis", "org.apache.ibatis"]),
+
+        // Messaging & Events
+        new PackageDescriptor("kafka", "Apache Kafka", LibraryRole.MessageBroker, "maven", ["org.apache.kafka", "org.springframework.kafka"]),
+        new PackageDescriptor("rabbitmq", "RabbitMQ", LibraryRole.MessageBroker, "maven", ["com.rabbitmq", "org.springframework.amqp"]),
+        new PackageDescriptor("pulsar", "Apache Pulsar", LibraryRole.MessageBroker, "maven", ["org.apache.pulsar"]),
+        new PackageDescriptor("activemq", "ActiveMQ", LibraryRole.MessageBroker, "maven", ["org.apache.activemq"]),
+
+        // Cloud & External Services
+        new PackageDescriptor("aws", "AWS Java SDK", LibraryRole.CloudSdk, "maven", ["software.amazon.awssdk", "com.amazonaws"]),
+        new PackageDescriptor("gcp", "GCP Java SDK", LibraryRole.CloudSdk, "maven", ["com.google.cloud", "com.google.firebase"]),
+        new PackageDescriptor("azure", "Azure Java SDK", LibraryRole.CloudSdk, "maven", ["com.azure", "com.microsoft.azure"]),
+        new PackageDescriptor("stripe", "Stripe Java", LibraryRole.CloudSdk, "maven", ["com.stripe"]),
+
+        // Test Frameworks
+        new PackageDescriptor("junit", "JUnit", LibraryRole.TestFramework, "maven", ["junit", "org.junit.*", "org.junit.jupiter.*"]),
+        new PackageDescriptor("testng", "TestNG", LibraryRole.TestFramework, "maven", ["org.testng"])
+    ];
+
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
         new Libraries.SpringMvcLibraryParser(),
         new Libraries.SpringGraphQlLibraryParser(),
@@ -48,43 +88,7 @@ public class JavaParser : IProjectParser, IFileParser
         new Libraries.SpringEventsLibraryParser(),
         new Libraries.JpaLibraryParser(),
         new Libraries.JdbcTemplateLibraryParser(),
-        new Libraries.HttpClientJavaLibraryParser(),
-
-        // Databases & ORM
-        new GenericLibraryParser("postgres", "PostgreSQL", "db:relational", ["org.postgresql"]),
-        new GenericLibraryParser("mysql", "MySQL", "db:relational", ["com.mysql.cj.jdbc", "com.mysql.jdbc"]),
-        new GenericLibraryParser("oracle", "Oracle DB", "db:relational", ["oracle.jdbc", "com.oracle.database.jdbc"]),
-        new GenericLibraryParser("h2", "H2 Database", "db:relational", ["org.h2"]),
-        new GenericLibraryParser("sqlite", "SQLite", "db:relational", ["org.sqlite"]),
-        new GenericLibraryParser("clickhouse", "ClickHouse", "db:analytics", ["com.clickhouse.jdbc", "com.clickhouse"]),
-        new GenericLibraryParser("bigquery", "BigQuery", "db:analytics", ["com.google.cloud.bigquery"]),
-        new GenericLibraryParser("mongodb", "MongoDB", "db:document", ["org.springframework.data.mongodb", "com.mongodb"]),
-        new GenericLibraryParser("redis", "Redis", "db:cache", ["org.springframework.data.redis", "redis.clients.jedis", "io.lettuce"]),
-        new GenericLibraryParser("elasticsearch", "Elasticsearch", "db:search", ["org.elasticsearch", "co.elastic.clients", "org.opensearch"]),
-        new GenericLibraryParser("cassandra", "Cassandra", "db:nosql", ["com.datastax.oss", "org.springframework.data.cassandra"]),
-        new GenericLibraryParser("mybatis", "MyBatis", "db:relational", ["org.mybatis", "org.apache.ibatis"]),
-
-        // Messaging & Events
-        new GenericLibraryParser("kafka", "Apache Kafka", "messaging", ["org.apache.kafka", "org.springframework.kafka"]),
-        new GenericLibraryParser("rabbitmq", "RabbitMQ", "messaging", ["com.rabbitmq", "org.springframework.amqp"]),
-        new GenericLibraryParser("pulsar", "Apache Pulsar", "messaging", ["org.apache.pulsar"]),
-        new GenericLibraryParser("activemq", "ActiveMQ", "messaging", ["org.apache.activemq"]),
-
-        // Cloud & External Services
-        new GenericLibraryParser("aws", "AWS Java SDK", "cloud", ["software.amazon.awssdk", "com.amazonaws"]),
-        new GenericLibraryParser("gcp", "GCP Java SDK", "cloud", ["com.google.cloud", "com.google.firebase"]),
-        new GenericLibraryParser("azure", "Azure Java SDK", "cloud", ["com.azure", "com.microsoft.azure"]),
-        new GenericLibraryParser("stripe", "Stripe Java", "cloud", ["com.stripe"]),
-
-        // Frameworks
-        new GenericLibraryParser("spring-boot", "Spring Boot", "framework", ["org.springframework.boot", "org.springframework"], false, LibraryRole.WebService),
-        new GenericLibraryParser("quarkus", "Quarkus", "framework", ["io.quarkus"], false, LibraryRole.WebService),
-        new GenericLibraryParser("micronaut", "Micronaut", "framework", ["io.micronaut"], false, LibraryRole.WebService),
-        new GenericLibraryParser("vertx", "Eclipse Vert.x", "framework", ["io.vertx"], false, LibraryRole.WebService),
-
-        // Test Frameworks
-        new GenericLibraryParser("junit", "JUnit", "testing", ["junit", "org.junit.*", "org.junit.jupiter.*"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("testng", "TestNG", "testing", ["org.testng"], false, LibraryRole.TestFramework)
+        new Libraries.HttpClientJavaLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;
@@ -302,20 +306,20 @@ public class JavaParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
         return new JavaFileVisitor(
             rootNode,
-            activeLibraryParsers,
+            activeExtensions,
             this,
             relativePath,
             absoluteWorkspacePath,
             fileParser,
-            libraryRegistry
+            extensionRegistry
         );
     }
 
@@ -329,7 +333,7 @@ public class JavaParser : IProjectParser, IFileParser
         return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _workspacePackagesCache = new(StringComparer.OrdinalIgnoreCase);
 

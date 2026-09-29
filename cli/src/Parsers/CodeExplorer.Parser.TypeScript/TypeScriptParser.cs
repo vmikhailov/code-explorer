@@ -22,7 +22,69 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return lower.StartsWith(".env");
     }
 
-    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<PackageDescriptor> Packages { get; } =
+    [
+        // Backend Web Frameworks
+        new PackageDescriptor("express", "Express", LibraryRole.WebFramework, "npm", ["express"]),
+        new PackageDescriptor("nestjs", "NestJS", LibraryRole.WebFramework, "npm", ["@nestjs/*", "@nestjs/core"]),
+        new PackageDescriptor("fastify", "Fastify", LibraryRole.WebFramework, "npm", ["fastify"]),
+        new PackageDescriptor("koa", "Koa", LibraryRole.WebFramework, "npm", ["koa"]),
+
+        // Frontend Web Frameworks
+        new PackageDescriptor("nextjs", "Next.js", LibraryRole.FrontendFramework, "npm", ["next"]),
+        new PackageDescriptor("react", "React", LibraryRole.FrontendFramework, "npm", ["react", "react-dom"]),
+        new PackageDescriptor("vue", "Vue", LibraryRole.FrontendFramework, "npm", ["vue"]),
+        new PackageDescriptor("angular", "Angular", LibraryRole.FrontendFramework, "npm", ["@angular/core"]),
+        new PackageDescriptor("svelte", "Svelte", LibraryRole.FrontendFramework, "npm", ["svelte"]),
+        new PackageDescriptor("vite", "Vite", LibraryRole.FrontendFramework, "npm", ["vite"]),
+
+        // Databases / ORMs
+        new PackageDescriptor("prisma", "Prisma", LibraryRole.OrmOrDatabase, "npm", ["@prisma/client", "prisma"]),
+        new PackageDescriptor("typeorm", "TypeORM", LibraryRole.OrmOrDatabase, "npm", ["typeorm"]),
+        new PackageDescriptor("drizzle", "Drizzle ORM", LibraryRole.OrmOrDatabase, "npm", ["drizzle-orm"]),
+        new PackageDescriptor("mongoose", "Mongoose", LibraryRole.OrmOrDatabase, "npm", ["mongoose"]),
+        new PackageDescriptor("mongodb", "MongoDB", LibraryRole.OrmOrDatabase, "npm", ["mongodb"]),
+        new PackageDescriptor("pg", "pg", LibraryRole.OrmOrDatabase, "npm", ["pg"]),
+        new PackageDescriptor("mysql2", "mysql2", LibraryRole.OrmOrDatabase, "npm", ["mysql2"]),
+        new PackageDescriptor("knex", "Knex", LibraryRole.OrmOrDatabase, "npm", ["knex"]),
+        new PackageDescriptor("sequelize", "Sequelize", LibraryRole.OrmOrDatabase, "npm", ["sequelize"]),
+        new PackageDescriptor("sqlite3", "sqlite3", LibraryRole.OrmOrDatabase, "npm", ["sqlite3"]),
+        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "npm", ["redis", "ioredis"]),
+        new PackageDescriptor("neo4j", "Neo4j", LibraryRole.OrmOrDatabase, "npm", ["neo4j-driver"]),
+        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "npm", ["@elastic/elasticsearch"]),
+        new PackageDescriptor("influxdb", "InfluxDB", LibraryRole.OrmOrDatabase, "npm", ["@influxdata/influxdb-client"]),
+        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "npm", ["@google-cloud/bigquery", "bigquery"]),
+        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "npm", ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"]),
+
+        // Messaging
+        new PackageDescriptor("rabbitmq", "RabbitMQ", LibraryRole.MessageBroker, "npm", ["amqplib"]),
+        new PackageDescriptor("kafkajs", "KafkaJS", LibraryRole.MessageBroker, "npm", ["kafkajs"]),
+        new PackageDescriptor("bullmq", "BullMQ", LibraryRole.MessageBroker, "npm", ["bullmq", "bull"]),
+
+        // Generic Cloud Services
+        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "npm", ["stripe"]),
+        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "npm", ["aws-sdk", "@aws-sdk/*"]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "npm", ["@azure/*"]),
+        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "npm", ["@google-cloud/*"]),
+
+        // Generic API Clients & Protocols
+        new PackageDescriptor("axios", "Axios", LibraryRole.General, "npm", ["axios"]),
+        new PackageDescriptor("socketio", "Socket.IO", LibraryRole.General, "npm", ["socket.io", "socket.io-client"]),
+        new PackageDescriptor("signalr", "SignalR", LibraryRole.General, "npm", ["@microsoft/signalr"]),
+        new PackageDescriptor("graphql", "GraphQL", LibraryRole.General, "npm", ["graphql", "@apollo/client"]),
+        new PackageDescriptor("request", "request", LibraryRole.General, "npm", ["request"]),
+        new PackageDescriptor("undici", "undici", LibraryRole.General, "npm", ["undici"]),
+        new PackageDescriptor("urllib", "urllib", LibraryRole.General, "npm", ["urllib"]),
+
+        // Test Frameworks
+        new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "npm", ["jest", "@types/jest", "ts-jest", "babel-jest"]),
+        new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "npm", ["vitest", "@vitest/*"]),
+        new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "npm", ["mocha", "@types/mocha"]),
+        new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "npm", ["cypress"]),
+        new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "npm", ["@playwright/test", "playwright"])
+    ];
+
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
         new Libraries.AxiosLibraryParser(),
         new Libraries.ElasticsearchTsLibraryParser(),
@@ -39,18 +101,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.SequelizeLibraryParser(),
         new Libraries.Sqlite3LibraryParser(),
         new Libraries.TypeOrmLibraryParser(),
-        new GenericLibraryParser("bigquery", "BigQuery", OntologyConstants.LibraryTypes.AnalyticsDb, ["@google-cloud/bigquery", "bigquery"]),
-        new GenericLibraryParser("clickhouse", "ClickHouse", OntologyConstants.LibraryTypes.AnalyticsDb, ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"]),
         new Libraries.GcpLibraryParser(),
         new Libraries.RabbitMqLibraryParser(),
         new Libraries.KafkaJsLibraryParser(),
         new Libraries.BullMqLibraryParser(),
-
-        // Generic Cloud Services
-        new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe"]),
-        new GenericLibraryParser("aws", "AWS", "cloud", ["aws-sdk", "@aws-sdk/*"]),
-        new GenericLibraryParser("azure", "Azure", "cloud", ["@azure/*"]),
-
         new Libraries.NestJsLibraryParser(),
         new Libraries.NestJsCqrsLibraryParser(),
         new Libraries.ExpressLibraryParser(),
@@ -63,22 +117,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.AngularHttpLibraryParser(),
         new Libraries.AngularOidcLibraryParser(),
         new Libraries.SignalRLibraryParser(),
-        new Libraries.GraphQLClientLibraryParser(),
-
-        // Generic Frameworks
-        new GenericLibraryParser("react", "React", "framework", ["react"]),
-
-        // Generic API Clients
-        new GenericLibraryParser("request", "request", "api", ["request"]),
-        new GenericLibraryParser("undici", "undici", "api", ["undici"]),
-        new GenericLibraryParser("urllib", "urllib", "api", ["urllib"]),
-
-        // Test Frameworks
-        new GenericLibraryParser("jest", "Jest", "testing", ["jest", "@types/jest", "ts-jest", "babel-jest"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("vitest", "Vitest", "testing", ["vitest", "@vitest/*"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("mocha", "Mocha", "testing", ["mocha", "@types/mocha"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("cypress", "Cypress", "testing", ["cypress"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("playwright", "Playwright", "testing", ["@playwright/test", "playwright"], false, LibraryRole.TestFramework),
+        new Libraries.GraphQLClientLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;
@@ -277,20 +316,20 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
         return new TypeScriptFileVisitor(
             rootNode,
-            activeLibraryParsers,
+            activeExtensions,
             this,
             relativePath,
             absoluteWorkspacePath,
             fileParser,
-            libraryRegistry
+            extensionRegistry
         );
     }
 
@@ -397,7 +436,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -418,7 +457,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
         // If it matches any registered library parser, it is an external library
         var firstPart = importPath.Contains('/') ? importPath.Split('/')[0] : importPath;
-        if (LibraryParsers.Any(p => p.SupportedPatterns.Any(pat =>
+        if (Packages.Any(p => p.SupportedPatterns.Any(pat =>
             pat.Equals(importPath, StringComparison.OrdinalIgnoreCase) ||
             pat.Equals(firstPart, StringComparison.OrdinalIgnoreCase) ||
             pat.StartsWith(firstPart + "/", StringComparison.OrdinalIgnoreCase))))

@@ -11,13 +11,13 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     public TypeScriptFileVisitor(
         Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         TypeScriptParser parser,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry) :
-        base(rootNode, activeLibraryParsers, relativePath, absoluteWorkspacePath, fileParser, libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry) :
+        base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
         _parser = parser;
 

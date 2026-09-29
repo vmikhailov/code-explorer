@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class SpringEventsLibraryParser : ILibraryParser
+public class SpringEventsLibraryParser : ISemanticExtension
 {
     public string Name => "Spring Events";
     public string Id => "spring-events";

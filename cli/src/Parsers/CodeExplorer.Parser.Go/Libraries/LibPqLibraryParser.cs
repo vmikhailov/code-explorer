@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class LibPqLibraryParser : ILibraryParser
+public class LibPqLibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "PostgreSQL";

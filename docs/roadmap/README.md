@@ -198,11 +198,11 @@ To minimize token usage in LLM reasoning contexts, all architectural projections
   - Expose relationship variables `r` in the symbol table with bindings to `edges.kind` (`type(r)`), `edges.properties_json` (`properties(r)`), `edges.from_id` (`startNode(r)`), and `edges.to_id` (`endNode(r)`).
   - Support attribute extraction directly on relationship variables (`r.via`, `r.call_chain`).
   - Support edge variables across `WITH` clauses and aggregations.
-- [ ] **3.2 Multi-Branch `OPTIONAL MATCH` Cartesian Product Elimination**:
+- [x] **3.2 Multi-Branch `OPTIONAL MATCH` Cartesian Product Elimination**:
   - Transpile independent `OPTIONAL MATCH` branches into discrete correlated subqueries or separate CTEs aggregated by root node ID, preventing $O(N \cdot M \cdot K)$ intermediate row explosion.
-- [ ] **3.3 Path & List Predicates in Transpiler**:
+- [x] **3.3 Path & List Predicates in Transpiler**:
   - Transpile `WHERE EXISTS((n)-[:REL]->(m))` into SQL `EXISTS` subqueries.
-  - Transpile list predicates (`all()`, `any()`, `none()`) over JSON arrays via `json_each()`.
+  - Transpile list predicates (`all()`, `any()`, `none()`, `single()`) over JSON arrays via `json_each()`.
 
 ### Epic 4: Concurrency, Incremental Watcher & Performance 🛡️
 - [ ] **4.1 Incremental File Watcher (`ce watch`)**:
@@ -224,19 +224,19 @@ To minimize token usage in LLM reasoning contexts, all architectural projections
 
 | ID | Epic | Description | Priority | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **1.1** | Agent/MCP | Implement `get_architecture_view` MCP tool backed by `ArchitectureViewEngine` | High | ⏳ Pending |
-| **1.2** | Agent/MCP | Add `--type runtime\|build\|all` filtering to `get_project_dependencies` | High | ⏳ Pending |
-| **1.3** | Agent/MCP | Implement `get_service_contracts` MCP tool (ingress / egress) | High | ⏳ Pending |
-| **1.4** | Agent/MCP | Implement `trace_cross_service_flow` MCP tool | High | ⏳ Pending |
-| **1.5** | CLI | Expose `ce view architecture`, `ce dependencies --type`, `ce contracts` in CLI | High | ⏳ Pending |
-| **1.6** | Formats | Implement compact Markdown, TOON, and Mermaid serializers for architecture views | High | ⏳ Pending |
+| **1.1** | Agent/MCP | Implement `get_architecture_view` MCP tool backed by `ArchitectureViewEngine` | High | ✅ Completed |
+| **1.2** | Agent/MCP | Add `--type runtime\|build\|all` filtering to `get_project_dependencies` | High | ✅ Completed |
+| **1.3** | Agent/MCP | Implement `get_service_contracts` MCP tool (ingress / egress) | High | ✅ Completed |
+| **1.4** | Agent/MCP | Implement `trace_cross_service_flow` MCP tool | High | ✅ Completed |
+| **1.5** | CLI | Expose `ce view architecture`, `ce dependencies --type`, `ce contracts` in CLI | High | ✅ Completed |
+| **1.6** | Formats | Implement compact Markdown, TOON, and Mermaid serializers for architecture views | High | ✅ Completed |
 | **2.1** | Parsers | ASP.NET Core hierarchical route composition and Minimal API `MapGroup` | Medium | ⏳ Pending |
 | **2.2** | Parsers | C# constructor DI mapping and interface call late binding in Layer 5 | Medium | ⏳ Pending |
 | **2.3** | Parsers | Declarative HTTP clients (Refit/RestEase) and HttpClient URI resolution | Medium | ⏳ Pending |
 | **2.4** | Parsers | EF Core `DbSet<T>` / `ToTable` and Dapper SQL lineage | Medium | ⏳ Pending |
-| **3.1** | Cypher | Relationship functions (`type(r)`, `properties(r)`, `startNode`, `endNode`) | Medium | ⏳ Pending |
-| **3.2** | Cypher | Multi-branch `OPTIONAL MATCH` Cartesian product elimination | Medium | ⏳ Pending |
-| **3.3** | Cypher | Path predicates (`EXISTS((a)->(b))`) and list quantifiers (`any`, `all`, `none`) | Low | ⏳ Pending |
+| **3.1** | Cypher | Relationship functions (`type(r)`, `properties(r)`, `startNode`, `endNode`) | Medium | ✅ Completed |
+| **3.2** | Cypher | Multi-branch `OPTIONAL MATCH` Cartesian product elimination | Medium | ✅ Completed |
+| **3.3** | Cypher | Path predicates (`EXISTS((a)->(b))`) and list quantifiers (`any`, `all`, `none`) | Low | ✅ Completed |
 | **4.1** | Concurrency | Incremental file watcher (`ce watch`) with debounced subtree updates | Medium | ⏳ Pending |
 | **4.2** | Concurrency | Enforce `Mode=ReadOnly` connection pooling for MCP read tools | Medium | ⏳ Pending |
 | **5.1** | Testing | Portable synthetic 100k-node graph benchmark fixture for CI/CD | Low | ⏳ Pending |

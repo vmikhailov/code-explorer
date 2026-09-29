@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GoSqlDriverMysqlLibraryParser : ILibraryParser
+public class GoSqlDriverMysqlLibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "MySQL";

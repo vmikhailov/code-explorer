@@ -17,6 +17,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 [OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<PackageNode>(OntologyConstants.Relationships.Produces)]
 [OntologyEdge<ServiceNode>(OntologyConstants.Relationships.Deploys)]
 [OntologyEdge<AppNode>(OntologyConstants.Relationships.Deploys)]
 [OntologyEdge<WorkerNode>(OntologyConstants.Relationships.Deploys)]
@@ -51,6 +52,12 @@ public record ProjectNode(
 
     [JsonPropertyName("is_library"), OntologyProperty("Indicates whether the project is a shared library rather than an executable application.")]
     public bool IsLibrary { get; set; } = IsLibrary;
+
+    [JsonPropertyName("entity_kind"), OntologyProperty("The physical entity classification (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test).")]
+    public ProjectEntityKind EntityKind { get; set; } = ProjectEntityKind.Unknown;
+
+    [JsonPropertyName("sub_kind"), OntologyProperty("Sub-classification for apps (e.g. None, Web, Mobile, Desktop, Cli).")]
+    public ProjectEntitySubKind SubKind { get; set; } = ProjectEntitySubKind.None;
 
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.Project;

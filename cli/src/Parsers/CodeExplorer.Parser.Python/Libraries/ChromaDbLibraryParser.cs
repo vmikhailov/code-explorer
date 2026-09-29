@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class ChromaDbLibraryParser : ILibraryParser
+public class ChromaDbLibraryParser : ISemanticExtension
 {
     public string Type => "db:vector";
     public string Name => "Chroma";

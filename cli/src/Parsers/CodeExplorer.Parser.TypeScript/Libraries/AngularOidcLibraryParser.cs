@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class AngularOidcLibraryParser : ILibraryParser
+public class AngularOidcLibraryParser : ISemanticExtension
 {
     public string Type => "api";
 

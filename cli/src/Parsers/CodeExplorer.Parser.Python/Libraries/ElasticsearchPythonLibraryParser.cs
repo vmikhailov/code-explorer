@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class ElasticsearchPythonLibraryParser : ILibraryParser
+public class ElasticsearchPythonLibraryParser : ISemanticExtension
 {
     public string Type => "db:search";
     public string Name => "Elasticsearch";

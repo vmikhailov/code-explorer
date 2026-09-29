@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class CouchDbPythonLibraryParser : ILibraryParser
+public class CouchDbPythonLibraryParser : ISemanticExtension
 {
     public string Type => "db:document";
     public string Name => "CouchDB";

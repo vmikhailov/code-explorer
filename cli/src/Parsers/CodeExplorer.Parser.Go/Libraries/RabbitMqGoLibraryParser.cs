@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class RabbitMqGoLibraryParser : ILibraryParser
+public class RabbitMqGoLibraryParser : ISemanticExtension
 {
     public string Type => OntologyConstants.LibraryTypes.Queue;
     public string Name => "RabbitMQ";

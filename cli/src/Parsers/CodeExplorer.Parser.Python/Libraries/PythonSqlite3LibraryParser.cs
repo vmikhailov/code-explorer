@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class PythonSqlite3LibraryParser : ILibraryParser
+public class PythonSqlite3LibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "SQLite";

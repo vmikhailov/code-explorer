@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class MySqlDataLibraryParser : ILibraryParser
+public class MySqlDataLibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "MySQL";

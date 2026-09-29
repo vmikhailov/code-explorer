@@ -98,6 +98,11 @@ public partial class SqliteCompiler
             return VisitSourcePropertyAccess(prop.Variable, propSrc, prop.PropertyName);
         }
 
+        if (_withAliases.TryGetValue(prop.Variable, out var withSql))
+        {
+            return $"COALESCE(json_extract({withSql}, '$.properties.' || '{prop.PropertyName}'), json_extract({withSql}, '$.{prop.PropertyName}'))";
+        }
+
         return VisitDefaultPropertyAccess(v, prop.PropertyName, prop.Variable);
     }
 
@@ -470,11 +475,19 @@ public partial class SqliteCompiler
 
     private string? TryVisitAggregateFunction(string fn, FunctionCallExpression func, string distinctStr)
     {
+        var decomposed = TryCompileDecomposedAggregation(func, distinctStr);
+        if (decomposed != null) return decomposed;
+
         if (fn == "count" && func.Arguments.Count == 1)
         {
             if (func.Arguments[0] is WildcardExpression) return $"COUNT({distinctStr}*)";
-            if (func.Arguments[0] is IdentifierExpression id && _declaredNodes.Contains(id.Name))
-                return $"COUNT({distinctStr}{EscapeVar(id.Name)}.id)";
+            if (func.Arguments[0] is IdentifierExpression id)
+            {
+                if (_declaredNodes.Contains(id.Name))
+                    return $"COUNT({distinctStr}{EscapeVar(id.Name)}.id)";
+                if (_declaredRels.Contains(id.Name))
+                    return $"COUNT({distinctStr}{EscapeVar(id.Name)}.rowid)";
+            }
             return $"COUNT({distinctStr}{VisitExpression(func.Arguments[0])})";
         }
 
@@ -503,22 +516,37 @@ public partial class SqliteCompiler
         if (fn == "type" && func.Arguments.Count == 1)
         {
             if (func.Arguments[0] is IdentifierExpression relVar)
-                return $"{EscapeVar(relVar.Name)}.kind";
+            {
+                if (_declaredRels.Contains(relVar.Name))
+                    return $"{EscapeVar(relVar.Name)}.kind";
+                if (_withAliases.TryGetValue(relVar.Name, out var aliasSql))
+                    return $"COALESCE(json_extract({aliasSql}, '$.type'), json_extract({aliasSql}, '$.kind'))";
+            }
             return $"json_extract({VisitExpression(func.Arguments[0])}, '$.type')";
         }
 
         if ((fn == "startnode" || fn == "start_node") && func.Arguments.Count == 1)
         {
             if (func.Arguments[0] is IdentifierExpression startRelVar)
-                return $"{EscapeVar(startRelVar.Name)}.from_id";
-            return $"json_extract({VisitExpression(func.Arguments[0])}, '$.from')";
+            {
+                if (_declaredRels.Contains(startRelVar.Name))
+                    return $"{EscapeVar(startRelVar.Name)}.from_id";
+                if (_withAliases.TryGetValue(startRelVar.Name, out var aliasSql))
+                    return $"COALESCE(json_extract({aliasSql}, '$.from'), json_extract({aliasSql}, '$.from_id'))";
+            }
+            return $"COALESCE(json_extract({VisitExpression(func.Arguments[0])}, '$.from'), json_extract({VisitExpression(func.Arguments[0])}, '$.from_id'))";
         }
 
         if ((fn == "endnode" || fn == "end_node") && func.Arguments.Count == 1)
         {
             if (func.Arguments[0] is IdentifierExpression endRelVar)
-                return $"{EscapeVar(endRelVar.Name)}.to_id";
-            return $"json_extract({VisitExpression(func.Arguments[0])}, '$.to')";
+            {
+                if (_declaredRels.Contains(endRelVar.Name))
+                    return $"{EscapeVar(endRelVar.Name)}.to_id";
+                if (_withAliases.TryGetValue(endRelVar.Name, out var aliasSql))
+                    return $"COALESCE(json_extract({aliasSql}, '$.to'), json_extract({aliasSql}, '$.to_id'))";
+            }
+            return $"COALESCE(json_extract({VisitExpression(func.Arguments[0])}, '$.to'), json_extract({VisitExpression(func.Arguments[0])}, '$.to_id'))";
         }
 
         if (fn == "nodes" && func.Arguments.Count == 1 &&
@@ -530,9 +558,18 @@ public partial class SqliteCompiler
             return VisitRelationshipsFunction(func.Arguments[0]);
 
         if (fn == "properties" && func.Arguments.Count == 1)
-            return func.Arguments[0] is IdentifierExpression nv
-                ? $"json({EscapeVar(nv.Name)}.properties)"
-                : $"json({VisitExpression(func.Arguments[0])})";
+        {
+            if (func.Arguments[0] is IdentifierExpression nv)
+            {
+                if (_declaredNodes.Contains(nv.Name))
+                    return $"json({EscapeVar(nv.Name)}.properties)";
+                if (_declaredRels.Contains(nv.Name))
+                    return $"json({EscapeVar(nv.Name)}.properties)";
+                if (_withAliases.TryGetValue(nv.Name, out var aliasSql))
+                    return $"COALESCE(json_extract({aliasSql}, '$.properties'), json({aliasSql}))";
+            }
+            return $"json({VisitExpression(func.Arguments[0])})";
+        }
 
         if (fn == "keys" && func.Arguments.Count == 1 && func.Arguments[0] is IdentifierExpression nvk)
             return $"(SELECT json_group_array(key) FROM json_each({EscapeVar(nvk.Name)}.properties))";
@@ -690,6 +727,7 @@ public partial class SqliteCompiler
         }
 
         var listSql = VisitExpression(pred.List);
+        var safeListSql = $"CASE WHEN json_valid({listSql}) THEN {listSql} ELSE '[]' END";
         var wasAdded = _unwindVariables.Add(pred.Variable);
         string whereSql;
         try
@@ -706,11 +744,11 @@ public partial class SqliteCompiler
 
         return pred.Quantifier switch
         {
-            "any" => $"(EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))",
-            "none" => $"(NOT EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))",
-            "all" => $"(NOT EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE NOT ({whereSql})))",
-            "single" => $"((SELECT COUNT(1) FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}) = 1)",
-            _ => $"(EXISTS (SELECT 1 FROM json_each({listSql}) AS {pred.Variable} WHERE {whereSql}))"
+            "any" => $"(EXISTS (SELECT 1 FROM json_each({safeListSql}) AS {pred.Variable} WHERE {whereSql}))",
+            "none" => $"(NOT EXISTS (SELECT 1 FROM json_each({safeListSql}) AS {pred.Variable} WHERE {whereSql}))",
+            "all" => $"(NOT EXISTS (SELECT 1 FROM json_each({safeListSql}) AS {pred.Variable} WHERE NOT ({whereSql})))",
+            "single" => $"((SELECT COUNT(1) FROM json_each({safeListSql}) AS {pred.Variable} WHERE {whereSql}) = 1)",
+            _ => $"(EXISTS (SELECT 1 FROM json_each({safeListSql}) AS {pred.Variable} WHERE {whereSql}))"
         };
     }
 

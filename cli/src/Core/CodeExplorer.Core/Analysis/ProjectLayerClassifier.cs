@@ -114,7 +114,7 @@ public static class ProjectLayerClassifier
                     ? new Dictionary<string, string>(p.Extensions)
                     : new Dictionary<string, string>();
 
-                var (detectedRole, isLib, detectedKind) = ProjectRoleDetector.Detect(
+                var (detectedRole, isLib, detectedClassification) = ProjectRoleDetector.Detect(
                     p.FilePath ?? "",
                     [],
                     p.FilePath ?? "",
@@ -125,7 +125,11 @@ public static class ProjectLayerClassifier
 
                 p.Role = detectedRole.ToString();
                 p.IsLibrary = isLib;
-                extDict["entity_kind"] = detectedKind.ToString();
+                extDict["entity_kind"] = detectedClassification.Kind.ToString();
+                if (detectedClassification.SubKind != Common.ProjectEntitySubKind.None)
+                {
+                    extDict["sub_kind"] = detectedClassification.SubKind.ToString();
+                }
                 p.Extensions = extDict;
             }
         }
@@ -375,6 +379,8 @@ public static class ProjectLayerClassifier
         // Evidence 1: Role or Manifest Type
         if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Role, "App", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "App", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase))
         {

@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class Neo4jDriverLibraryParser : ILibraryParser
+public class Neo4jDriverLibraryParser : ISemanticExtension
 {
     public string Type => "db:graph";
     public string Name => "Neo4j";

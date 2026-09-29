@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class PyMysqlLibraryParser : ILibraryParser
+public class PyMysqlLibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "MySQL";

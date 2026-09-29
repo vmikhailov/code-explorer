@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class Neo4jLibraryParser : ILibraryParser
+public class Neo4jLibraryParser : ISemanticExtension
 {
     public string Type => "db:graph";
     public string Name => "Neo4j";

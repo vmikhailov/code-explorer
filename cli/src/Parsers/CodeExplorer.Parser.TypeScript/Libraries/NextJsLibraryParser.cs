@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class NextJsLibraryParser : ILibraryParser
+public class NextJsLibraryParser : ISemanticExtension
 {
     public string Name => "Next.js";
     public string Id => "nextjs";

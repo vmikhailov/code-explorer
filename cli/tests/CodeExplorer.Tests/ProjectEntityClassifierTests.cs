@@ -19,7 +19,7 @@ public class ProjectEntityClassifierTests
             "typescript",
             extensions: new Dictionary<string, string> { ["manifest_type"] = "library" }
         );
-        Assert.That(kind1, Is.EqualTo(ProjectEntityKind.Library));
+        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.Library));
 
         // 2. Standard source library path
         var kind2 = ProjectEntityClassifierRegistry.Classify(
@@ -29,7 +29,7 @@ public class ProjectEntityClassifierTests
             "widgets",
             "typescript"
         );
-        Assert.That(kind2, Is.EqualTo(ProjectEntityKind.Library));
+        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.Library));
 
         // 3. Domain contracts naming
         var kind3 = ProjectEntityClassifierRegistry.Classify(
@@ -39,7 +39,7 @@ public class ProjectEntityClassifierTests
             "Orders.Contracts",
             "csharp"
         );
-        Assert.That(kind3, Is.EqualTo(ProjectEntityKind.Library));
+        Assert.That(kind3?.Kind, Is.EqualTo(ProjectEntityKind.Library));
     }
 
     [Test]
@@ -54,7 +54,7 @@ public class ProjectEntityClassifierTests
             "csharp",
             extensions: new Dictionary<string, string> { ["sdk"] = "Microsoft.NET.Sdk.Web" }
         );
-        Assert.That(kind1, Is.EqualTo(ProjectEntityKind.Service));
+        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.Service));
 
         // 2. Executable backend service
         var kind2 = ProjectEntityClassifierRegistry.Classify(
@@ -65,7 +65,7 @@ public class ProjectEntityClassifierTests
             "typescript",
             dependencies: ["express", "pg"]
         );
-        Assert.That(kind2, Is.EqualTo(ProjectEntityKind.Service));
+        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.Service));
     }
 
     [Test]
@@ -80,7 +80,7 @@ public class ProjectEntityClassifierTests
             "csharp",
             extensions: new Dictionary<string, string> { ["sdk"] = "Microsoft.NET.Sdk.Worker" }
         );
-        Assert.That(kind1, Is.EqualTo(ProjectEntityKind.Worker));
+        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.Worker));
 
         // 2. Cloudflare worker runtime
         var kind2 = ProjectEntityClassifierRegistry.Classify(
@@ -91,7 +91,7 @@ public class ProjectEntityClassifierTests
             "typescript",
             extensions: new Dictionary<string, string> { ["cloud_runtime"] = "cloudflare-worker" }
         );
-        Assert.That(kind2, Is.EqualTo(ProjectEntityKind.Worker));
+        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.Worker));
     }
 
     [Test]
@@ -106,7 +106,8 @@ public class ProjectEntityClassifierTests
             "typescript",
             extensions: new Dictionary<string, string> { ["has_cli_bin"] = "true" }
         );
-        Assert.That(kind1, Is.EqualTo(ProjectEntityKind.CliTool));
+        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.App));
+        Assert.That(kind1?.SubKind, Is.EqualTo(ProjectEntitySubKind.Cli));
 
         // 2. CLI directory & suffix
         var kind2 = ProjectEntityClassifierRegistry.Classify(
@@ -116,7 +117,8 @@ public class ProjectEntityClassifierTests
             "my-tool-cli",
             "csharp"
         );
-        Assert.That(kind2, Is.EqualTo(ProjectEntityKind.CliTool));
+        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.App));
+        Assert.That(kind2?.SubKind, Is.EqualTo(ProjectEntitySubKind.Cli));
     }
 
     [Test]
@@ -130,7 +132,8 @@ public class ProjectEntityClassifierTests
             "typescript",
             dependencies: ["react", "react-dom"]
         );
-        Assert.That(kind, Is.EqualTo(ProjectEntityKind.FrontendApp));
+        Assert.That(kind?.Kind, Is.EqualTo(ProjectEntityKind.App));
+        Assert.That(kind?.SubKind, Is.EqualTo(ProjectEntitySubKind.Web));
     }
 
     [Test]
@@ -143,13 +146,13 @@ public class ProjectEntityClassifierTests
             "migrations",
             "sql"
         );
-        Assert.That(kind, Is.EqualTo(ProjectEntityKind.MigrationTool));
+        Assert.That(kind?.Kind, Is.EqualTo(ProjectEntityKind.DatabaseMigration));
     }
 
     [Test]
     public void Detect_ReturnsComprehensiveEntityKind()
     {
-        var (role, isLib, kind) = ProjectRoleDetector.Detect(
+        var (role, isLib, classification) = ProjectRoleDetector.Detect(
             "/workspace/apps/web",
             ["/workspace/apps/web/next.config.js"],
             "apps/web",
@@ -158,6 +161,7 @@ public class ProjectEntityClassifierTests
         );
         Assert.That(role, Is.EqualTo(ProjectRole.FrontendApp));
         Assert.That(isLib, Is.False);
-        Assert.That(kind, Is.EqualTo(ProjectEntityKind.FrontendApp));
+        Assert.That(classification.Kind, Is.EqualTo(ProjectEntityKind.App));
+        Assert.That(classification.SubKind, Is.EqualTo(ProjectEntitySubKind.Web));
     }
 }

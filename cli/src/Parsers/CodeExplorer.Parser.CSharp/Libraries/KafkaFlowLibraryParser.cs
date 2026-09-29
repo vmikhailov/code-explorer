@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class KafkaFlowLibraryParser : ILibraryParser
+public class KafkaFlowLibraryParser : ISemanticExtension
 {
     public string Name => "KafkaFlow";
     public string Id => "kafkaflow";

@@ -15,7 +15,7 @@ public class ColdFusionFileParser : IFileParser
 
     public bool UsesTreeSitter => false;
 
-    public IReadOnlyList<ILibraryParser> LibraryParsers => [];
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
 
     public bool CanParse(string fileExtension)
     {
@@ -26,11 +26,11 @@ public class ColdFusionFileParser : IFileParser
 
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
         throw new NotSupportedException("ColdFusion parser uses high-resilience native C# token analysis.");
     }

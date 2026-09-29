@@ -467,5 +467,92 @@ public class SqliteCompilerTests
         Assert.That(libLbls, Does.Contain("Project"));
         Assert.That(libLbls, Does.Contain("Library"));
     }
+
+    [Test]
+    public void Test_Epic3_PathPredicates_And_Quantifiers()
+    {
+        var rows = ExecuteCypher("MATCH (a:Function) WHERE EXISTS((a)-[:CALLS]->(:Function)) RETURN a.name AS name");
+        Assert.That(rows, Has.Count.GreaterThan(0));
+
+        var rows2 = ExecuteCypher("MATCH (a:Function) WHERE (a)-[:CALLS]->(:Function) RETURN a.name AS name");
+        Assert.That(rows2, Has.Count.EqualTo(rows.Count));
+
+        // Test quantifiers: any, all, none, single
+        InsertNode("fn:tagged", "Function", new() { ["name"] = "TaggedFn", ["tags"] = new[] { "security", "audit" } });
+        var rowsAny = ExecuteCypher("MATCH (f:Function) WHERE any(t IN f.tags WHERE t = 'security') RETURN f.name AS name");
+        Assert.That(rowsAny, Has.Count.EqualTo(1));
+        Assert.That(rowsAny[0]["name"], Is.EqualTo("TaggedFn"));
+
+        var rowsAll = ExecuteCypher("MATCH (f:Function) WHERE all(t IN ['a', 'b'] WHERE t IN ['a', 'b', 'c']) RETURN f.name AS name LIMIT 1");
+        Assert.That(rowsAll, Has.Count.EqualTo(1));
+
+        var rowsNone = ExecuteCypher("MATCH (f:Function) WHERE none(t IN f.tags WHERE t = 'nonexistent') AND f.name = 'TaggedFn' RETURN f.name AS name");
+        Assert.That(rowsNone, Has.Count.EqualTo(1));
+
+        var rowsSingle = ExecuteCypher("MATCH (f:Function) WHERE single(t IN f.tags WHERE t = 'security') AND f.name = 'TaggedFn' RETURN f.name AS name");
+        Assert.That(rowsSingle, Has.Count.EqualTo(1));
+    }
+
+    [Test]
+    public void Test_Epic3_Relationship_Functions_In_With_And_Aggregations()
+    {
+        // Insert edge with properties
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ('fn:process', 'fn:notify', 'ASYNC_CALL', '{\"via\":\"rabbitmq\",\"call_chain\":\"process->notify\"}')";
+        cmd.ExecuteNonQuery();
+
+        // 1. Direct access to relationship properties: r.via, r.call_chain
+        var rowsDirect = ExecuteCypher("MATCH (a:Function)-[r:ASYNC_CALL]->(b:Function) RETURN r.via AS via, r.call_chain AS chain");
+        Assert.That(rowsDirect, Has.Count.EqualTo(1));
+        Assert.That(rowsDirect[0]["via"], Is.EqualTo("rabbitmq"));
+        Assert.That(rowsDirect[0]["chain"], Is.EqualTo("process->notify"));
+
+        // 2. type(r), startNode(r), endNode(r), properties(r) in WITH
+        var rowsWith = ExecuteCypher(@"
+            MATCH (a:Function)-[r]->(b:Function)
+            WITH type(r) AS relType, startNode(r) AS src, endNode(r) AS dst, properties(r) AS props, count(r) AS cnt
+            RETURN relType, src, dst, cnt
+            ORDER BY relType
+        ");
+        Assert.That(rowsWith, Has.Count.GreaterThan(0));
+
+        // 3. WITH r (passing relationship object itself) and then type(r)
+        var rowsWithRel = ExecuteCypher(@"
+            MATCH (a:Function)-[r:ASYNC_CALL]->(b:Function)
+            WITH r, count(b) AS cnt
+            RETURN type(r) AS t, r.via AS via, cnt
+        ");
+        Assert.That(rowsWithRel, Has.Count.EqualTo(1));
+        Assert.That(rowsWithRel[0]["t"], Is.EqualTo("ASYNC_CALL"));
+        Assert.That(rowsWithRel[0]["via"], Is.EqualTo("rabbitmq"));
+    }
+
+    [Test]
+    public void Test_Epic3_CartesianProduct_Decomposition()
+    {
+        InsertNode("proj:decomp", "Project", new() { ["name"] = "DecompApi" });
+        InsertNode("ep:d1", "Endpoint", new() { ["name"] = "get_orders" });
+        InsertNode("ep:d2", "Endpoint", new() { ["name"] = "create_order" });
+        InsertNode("db:d1", "Database", new() { ["name"] = "orders_db" });
+        InsertNode("db:d2", "Database", new() { ["name"] = "cache_redis" });
+
+        InsertEdge("proj:decomp", "ep:d1", "CONTAINS");
+        InsertEdge("proj:decomp", "ep:d2", "CONTAINS");
+        InsertEdge("proj:decomp", "db:d1", "USES_DB");
+        InsertEdge("proj:decomp", "db:d2", "USES_DB");
+
+        var cypher = @"
+            MATCH (p:Project) WHERE p.name = 'DecompApi'
+            OPTIONAL MATCH (p)-[:CONTAINS]->(ep:Endpoint)
+            OPTIONAL MATCH (p)-[:USES_DB]->(db:Database)
+            RETURN p.name, collect(ep.name) AS eps, collect(db.name) AS dbs, count(ep) AS epCount, count(db) AS dbCount
+        ";
+        var rows = ExecuteCypher(cypher);
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(rows[0]["eps"], Is.EqualTo("[\"get_orders\",\"create_order\"]"));
+        Assert.That(rows[0]["dbs"], Is.EqualTo("[\"orders_db\",\"cache_redis\"]"));
+        Assert.That(Convert.ToInt64(rows[0]["epCount"]), Is.EqualTo(2));
+        Assert.That(Convert.ToInt64(rows[0]["dbCount"]), Is.EqualTo(2));
+    }
 }
 

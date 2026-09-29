@@ -148,14 +148,14 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ## ⚡ EPIC 3: Cypher Query Engine & Transpiler Expansion
 
-- [ ] **3.1 OpenCypher Relationship Functions**:
+- [x] **3.1 OpenCypher Relationship Functions**:
   - Support relationship functions: `type(r)`, `properties(r)`, `startNode(r)`, `endNode(r)` in `WITH` and aggregations.
   - Direct access to edge attributes (`r.via`, `r.call_chain`).
-- [ ] **3.2 Cartesian Product Decomposition in `OPTIONAL MATCH`**:
+- [x] **3.2 Cartesian Product Decomposition in `OPTIONAL MATCH`**:
   - Decompose independent `OPTIONAL MATCH` branches into isolated correlated subqueries/CTEs, eliminating intermediate row explosion $O(N \cdot M \cdot K)$.
-- [ ] **3.3 Path and List Predicates**:
+- [x] **3.3 Path and List Predicates**:
   - Transpile `WHERE EXISTS((n)-[:REL]->(m))` to SQL `EXISTS`.
-  - Quantifiers `any()`, `all()`, `none()` over JSON arrays.
+  - Quantifiers `any()`, `all()`, `none()`, `single()` over JSON arrays with `json_valid` guards.
 
 ---
 
@@ -204,9 +204,9 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 | **2.2** | Parsers | C# constructor DI mapping and resolution to implementations via `[:IMPLEMENTS]` | Medium | ⏳ Pending |
 | **2.3** | Parsers | Declarative HTTP clients (Refit/RestEase) and URI resolution | Medium | ⏳ Pending |
 | **2.4** | Parsers | EF Core `DbSet<T>` / `ToTable` and Dapper SQL lineage | Medium | ⏳ Pending |
-| **3.1** | Cypher | Relationship functions (`type(r)`, `properties(r)`, `startNode`, `endNode`) | Medium | ⏳ Pending |
-| **3.2** | Cypher | Cartesian product decomposition in `OPTIONAL MATCH` | Medium | ⏳ Pending |
-| **3.3** | Cypher | Path predicates (`EXISTS((a)->(b))`) and list quantifiers | Low | ⏳ Pending |
+| **3.1** | Cypher | Relationship functions (`type(r)`, `properties(r)`, `startNode`, `endNode`) | Medium | ✅ Completed |
+| **3.2** | Cypher | Cartesian product decomposition in `OPTIONAL MATCH` | Medium | ✅ Completed |
+| **3.3** | Cypher | Path predicates (`EXISTS((a)->(b))`) and list quantifiers | Low | ✅ Completed |
 | **4.1** | Concurrency | Incremental file watcher `ce watch` with debounce | Medium | ⏳ Pending |
 | **4.2** | Concurrency | Read-only connection pool for MCP tools | Medium | ⏳ Pending |
 | **5.1** | Testing | Synthetic 100k-node benchmark graph for CI | Low | ⏳ Pending |

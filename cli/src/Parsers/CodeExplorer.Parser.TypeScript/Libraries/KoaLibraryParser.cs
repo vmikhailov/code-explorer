@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class KoaLibraryParser : ILibraryParser
+public class KoaLibraryParser : ISemanticExtension
 {
     public string Name => "Koa";
     public string Id => "koa";

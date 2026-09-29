@@ -64,6 +64,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
     {
         CopyInitialParameters();
         PreScanWithClauses(query.WithClauses);
+        DetectDecomposedOptionalMatches(query);
 
         var fromAndJoins = new StringBuilder();
         List<string> whereConditions = [];
@@ -72,6 +73,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
 
         foreach (var match in query.Matches)
         {
+            if (IsMatchDecomposed(match)) continue;
             ProcessMatchClause(match, fromAndJoins, whereConditions);
         }
 
@@ -91,6 +93,22 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         return AppendUnions(sql, query.Unions);
     }
 
+    private bool IsMatchDecomposed(MatchClause match)
+    {
+        if (!match.IsOptional || _decomposedBranches.Count == 0) return false;
+        foreach (var path in match.Paths)
+        {
+            foreach (var elem in path.Chain)
+            {
+                if (elem.Target.Variable != null && _decomposedBranches.ContainsKey(elem.Target.Variable))
+                    return true;
+                if (elem.Relationship.Variable != null && _decomposedBranches.ContainsKey(elem.Relationship.Variable))
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private void PopulateReturnGroupBy(ReturnClause returnClause, List<string> groupByColumns)
     {
         if (groupByColumns.Count > 0 || !returnClause.Items.Any(i => HasAggregation(i.Expression))) return;
@@ -103,6 +121,10 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             if (item.Expression is IdentifierExpression id && _declaredNodes.Contains(id.Name))
             {
                 groupByColumns.Add(_nodeIdSource.TryGetValue(id.Name, out var idSrc) ? idSrc : $"{EscapeVar(id.Name)}.id");
+            }
+            else if (item.Expression is IdentifierExpression relId && _declaredRels.Contains(relId.Name))
+            {
+                groupByColumns.Add($"{EscapeVar(relId.Name)}.rowid");
             }
             else if (!string.IsNullOrEmpty(item.Alias))
             {
@@ -336,6 +358,10 @@ public partial class SqliteCompiler : ICypherVisitor<string>
                 {
                     groupByColumns.Add(_nodeIdSource.TryGetValue(id.Name, out var idSrc) ? idSrc : $"{EscapeVar(id.Name)}.id");
                 }
+                else if (item.Expression is IdentifierExpression relId && _declaredRels.Contains(relId.Name))
+                {
+                    groupByColumns.Add($"{EscapeVar(relId.Name)}.rowid");
+                }
                 else
                 {
                     groupByColumns.Add(VisitExpression(item.Expression));
@@ -344,6 +370,10 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             else if (item.Expression is IdentifierExpression id && _declaredNodes.Contains(id.Name))
             {
                 groupByColumns.Add(_nodeIdSource.TryGetValue(id.Name, out var idSrc) ? idSrc : $"{EscapeVar(id.Name)}.id");
+            }
+            else if (item.Expression is IdentifierExpression relId && _declaredRels.Contains(relId.Name))
+            {
+                groupByColumns.Add($"{EscapeVar(relId.Name)}.rowid");
             }
         }
     }
@@ -367,6 +397,14 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             if (!aggregatedVars.Contains(declaredNode))
             {
                 groupByColumns.Add(_nodeIdSource.TryGetValue(declaredNode, out var idSrc) ? idSrc : $"{EscapeVar(declaredNode)}.id");
+            }
+        }
+
+        foreach (var declaredRel in _declaredRels)
+        {
+            if (!aggregatedVars.Contains(declaredRel))
+            {
+                groupByColumns.Add($"{EscapeVar(declaredRel)}.rowid");
             }
         }
     }

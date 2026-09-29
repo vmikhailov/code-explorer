@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class SequelizeLibraryParser : ILibraryParser
+public class SequelizeLibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "Sequelize";

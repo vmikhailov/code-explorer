@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class CouchbaseLibraryParser : ILibraryParser
+public class CouchbaseLibraryParser : ISemanticExtension
 {
     public string Type => "db:document";
     public string Name => "Couchbase";

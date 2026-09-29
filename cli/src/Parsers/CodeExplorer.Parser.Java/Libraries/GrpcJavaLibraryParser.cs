@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class GrpcJavaLibraryParser : ILibraryParser
+public class GrpcJavaLibraryParser : ISemanticExtension
 {
     public string Type => "framework:grpc";
     public string Name => "gRPC Java";

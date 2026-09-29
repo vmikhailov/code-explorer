@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class PgLibraryParser : ILibraryParser
+public class PgLibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "PostgreSQL";

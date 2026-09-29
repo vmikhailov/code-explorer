@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class ElasticsearchTsLibraryParser : ILibraryParser
+public class ElasticsearchTsLibraryParser : ISemanticExtension
 {
     public string Type => "db:search";
     public string Name => "Elasticsearch";

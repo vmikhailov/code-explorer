@@ -10,7 +10,8 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
-    public IReadOnlyList<ILibraryParser> LibraryParsers => _tsParser.LibraryParsers;
+    public IReadOnlyList<PackageDescriptor> Packages => _tsParser.Packages;
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions => _tsParser.SemanticExtensions;
 
     public bool UsesTreeSitter => true;
 
@@ -154,19 +155,19 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         TreeSitter.Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
         return _tsParser.CreateVisitor(
             rootNode,
-            activeLibraryParsers,
+            activeExtensions,
             relativePath,
             absoluteWorkspacePath,
             fileParser,
-            libraryRegistry
+            extensionRegistry
         );
     }
 

@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class ElasticsearchGoLibraryParser : ILibraryParser
+public class ElasticsearchGoLibraryParser : ISemanticExtension
 {
     public string Type => "db:search";
     public string Name => "Elasticsearch";

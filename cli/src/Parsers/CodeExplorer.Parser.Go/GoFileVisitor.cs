@@ -12,13 +12,13 @@ public class GoFileVisitor : BaseParserVisitor
 
     public GoFileVisitor(
         Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         GoParser parser,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
-        : base(rootNode, activeLibraryParsers, relativePath, absoluteWorkspacePath, fileParser, libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
+        : base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
         _parser = parser;
     }

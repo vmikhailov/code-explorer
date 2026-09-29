@@ -844,18 +844,20 @@ public class ParserValidationTests
         Assert.That(redisNode, Is.Not.Null);
     }
 
+    private record TestSemanticExtension(string Id, string Name, string Type, IReadOnlyList<string> SupportedPatterns) : ISemanticExtension;
+
     [Test]
-    public void Test_LibraryTrieRegistry_Matching()
+    public void Test_SemanticExtensionRegistry_Matching()
     {
-        var parserNest = new GenericLibraryParser("nestjs", "NestJS", "framework", ["@nestjs/*"]);
-        var parserFirebaseGeneric = new GenericLibraryParser("firebase", "Firebase", "cloud", ["firebase*"]);
+        var parserNest = new TestSemanticExtension("nestjs", "NestJS", "framework", ["@nestjs/*"]);
+        var parserFirebaseGeneric = new TestSemanticExtension("firebase", "Firebase", "cloud", ["firebase*"]);
 
         var parserFirebaseSpecific =
-            new GenericLibraryParser("firebaseadmin", "FirebaseAdmin", "cloud", ["firebase-admin"]);
-        var parserSql = new GenericLibraryParser("sqlclient", "SqlClient", "db", ["System.Data"]);
-        var parserGoogleCloud = new GenericLibraryParser("gcp", "GCP", "cloud", ["Google.Cloud."]);
+            new TestSemanticExtension("firebaseadmin", "FirebaseAdmin", "cloud", ["firebase-admin"]);
+        var parserSql = new TestSemanticExtension("sqlclient", "SqlClient", "db", ["System.Data"]);
+        var parserGoogleCloud = new TestSemanticExtension("gcp", "GCP", "cloud", ["Google.Cloud."]);
 
-        var registry = new LibraryTrieRegistry([
+        var registry = new SemanticExtensionRegistry([
             parserNest,
             parserFirebaseGeneric,
             parserFirebaseSpecific,

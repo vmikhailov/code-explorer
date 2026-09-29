@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class MediatRLibraryParser : ILibraryParser
+public class MediatRLibraryParser : ISemanticExtension
 {
     public string Name => "MediatR";
     public string Id => "mediatr";

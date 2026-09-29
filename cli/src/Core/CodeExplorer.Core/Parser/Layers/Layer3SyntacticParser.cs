@@ -273,7 +273,7 @@ public class Layer3SyntacticParser
         return null;
     }
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<IFileParser, (List<ILibraryParser> Active, LibraryTrieRegistry Registry)> _parserRegistryCache = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<IFileParser, (List<ISemanticExtension> Active, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
 
     public static void ProcessVisitor(SyntaxTree syntaxTree, string workspaceId, string absoluteWorkspacePath, ParsingContext? ctx = null)
     {
@@ -284,14 +284,14 @@ public class Layer3SyntacticParser
 
         var (cachedActive, registry) = _parserRegistryCache.GetOrAdd(fileParser, fp =>
         {
-            var active = fp.LibraryParsers.Where(lp => lp.IsImplemented && lp.IsBuiltIn).ToList();
-            var reg = new LibraryTrieRegistry(fp.LibraryParsers);
+            var active = fp.SemanticExtensions.Where(lp => lp.IsImplemented && lp.IsBuiltIn).ToList();
+            var reg = new SemanticExtensionRegistry(fp.SemanticExtensions);
             return (active, reg);
         });
 
-        var activeLibraryParsers = new List<ILibraryParser>(cachedActive);
+        var activeSemanticExtensions = new List<ISemanticExtension>(cachedActive);
 
-        var mainVisitor = fileParser.CreateVisitor(syntaxTree.Tree.RootNode, activeLibraryParsers, relativePath,
+        var mainVisitor = fileParser.CreateVisitor(syntaxTree.Tree.RootNode, activeSemanticExtensions, relativePath,
             absoluteWorkspacePath, fileParser, registry);
 
         mainVisitor.Visit(syntaxTree.Tree.RootNode);

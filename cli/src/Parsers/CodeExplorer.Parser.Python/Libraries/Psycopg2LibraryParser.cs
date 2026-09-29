@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class Psycopg2LibraryParser : ILibraryParser
+public class Psycopg2LibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "PostgreSQL";

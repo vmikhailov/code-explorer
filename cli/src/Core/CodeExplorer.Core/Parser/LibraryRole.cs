@@ -8,9 +8,19 @@ public enum LibraryRole
 {
     General,
     TestFramework,
-    WebService,
+    OrmOrDatabase,
+    MessageBroker,
+    CloudSdk,
+    TelemetryAndLogging,
+    AuthAndSecurity,
+    Utility,
+    WebFramework,
+    WebService = WebFramework,
+    FrontendFramework,
+    MobileFramework,
+    DesktopFramework,
+    CliFramework,
+    FunctionFramework,
     WorkerService,
-    FrontendApp,
-    CliTool,
     DatabaseMigration
 }

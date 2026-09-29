@@ -20,7 +20,50 @@ public class GoParser : IProjectParser, IFileParser
         return lower.StartsWith(".env");
     }
 
-    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<PackageDescriptor> Packages { get; } =
+    [
+        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "go", ["github.com/elastic/go-elasticsearch*"]),
+        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "go", ["github.com/go-redis/redis*", "gopkg.in/redis*"]),
+        new PackageDescriptor("gorm", "GORM", LibraryRole.OrmOrDatabase, "go", ["gorm.io/gorm*"]),
+        new PackageDescriptor("mysql", "MySQL", LibraryRole.OrmOrDatabase, "go", ["github.com/go-sql-driver/mysql*"]),
+        new PackageDescriptor("sqlite3", "SQLite3", LibraryRole.OrmOrDatabase, "go", ["github.com/mattn/go-sqlite3*"]),
+        new PackageDescriptor("sql", "database/sql", LibraryRole.OrmOrDatabase, "go", ["database/sql*"]),
+        new PackageDescriptor("libpq", "PostgreSQL (lib/pq)", LibraryRole.OrmOrDatabase, "go", ["github.com/lib/pq*"]),
+        new PackageDescriptor("mongo", "MongoDB", LibraryRole.OrmOrDatabase, "go", ["go.mongodb.org/mongo-driver*"]),
+
+        // Additional Databases
+        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "go", ["github.com/ClickHouse/clickhouse-go*"]),
+        new PackageDescriptor("postgres-pgx", "PostgreSQL (pgx)", LibraryRole.OrmOrDatabase, "go", ["github.com/jackc/pgx*"]),
+        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "go", ["cloud.google.com/go/bigquery*"]),
+
+        // Additional Cloud & Message Services
+        new PackageDescriptor("pubsub", "Google Cloud Pub/Sub", LibraryRole.MessageBroker, "go", ["cloud.google.com/go/pubsub*"]),
+        new PackageDescriptor("rabbitmq", "RabbitMQ", LibraryRole.MessageBroker, "go", ["github.com/streadway/amqp*", "github.com/rabbitmq/amqp091-go*"]),
+
+        // Generic Cloud Services
+        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "go", ["github.com/stripe/stripe-go*"]),
+        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "go", ["github.com/aws/aws-sdk-go*"]),
+        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "go", ["cloud.google.com/*", "firebase.google.com/*"]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "go", ["*Azure*", "*azure-sdk-for-go*"]),
+
+        // Frameworks
+        new PackageDescriptor("gin", "Gin", LibraryRole.WebService, "go", ["github.com/gin-gonic/gin*"]),
+        new PackageDescriptor("echo", "Echo", LibraryRole.WebService, "go", ["github.com/labstack/echo*"]),
+        new PackageDescriptor("fiber", "Fiber", LibraryRole.WebService, "go", ["github.com/gofiber/fiber*"]),
+
+        // Test Frameworks
+        new PackageDescriptor("testify", "Testify", LibraryRole.TestFramework, "go", ["github.com/stretchr/testify*"]),
+
+        // API Clients
+        new PackageDescriptor("net/http", "http/https", LibraryRole.General, "go", ["net/http*"]),
+        new PackageDescriptor("resty", "Resty", LibraryRole.General, "go", ["github.com/go-resty/resty*"]),
+        new PackageDescriptor("req", "req", LibraryRole.General, "go", ["github.com/imroc/req*"]),
+        new PackageDescriptor("grequests", "grequests", LibraryRole.General, "go", ["github.com/levigross/grequests*"]),
+        new PackageDescriptor("gorequest", "gorequest", LibraryRole.General, "go", ["github.com/parnurzeal/gorequest*"]),
+        new PackageDescriptor("surf", "surf", LibraryRole.General, "go", ["github.com/go-surf/surf*"])
+    ];
+
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
         new Libraries.ElasticsearchGoLibraryParser(),
         new Libraries.GoRedisLegacyLibraryParser(),
@@ -31,37 +74,8 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.GoSqlLibraryParser(),
         new Libraries.LibPqLibraryParser(),
         new Libraries.MongoGoLibraryParser(),
-
-        // Additional Databases
-        new GenericLibraryParser("clickhouse", "ClickHouse", "db:analytics", ["github.com/ClickHouse/clickhouse-go", "github.com/ClickHouse/clickhouse-go/v2"]),
-        new GenericLibraryParser("postgres-pgx", "PostgreSQL", "db:relational", ["github.com/jackc/pgx", "github.com/jackc/pgx/v5"]),
-        new GenericLibraryParser("bigquery", "BigQuery", "db:analytics", ["cloud.google.com/go/bigquery"]),
-
-        // Additional Cloud & Message Services
         new Libraries.PubSubGoLibraryParser(),
-        new Libraries.RabbitMqGoLibraryParser(),
-
-        // Generic Cloud Services
-        new GenericLibraryParser("stripe", "Stripe", "cloud", ["github.com/stripe/stripe-go"]),
-        new GenericLibraryParser("aws", "AWS", "cloud", ["github.com/aws/aws-sdk-go"]),
-        new GenericLibraryParser("gcp", "GCP", "cloud", ["cloud.google.com/", "firebase.google.com/"]),
-        new GenericLibraryParser("azure", "Azure", "cloud", ["/Azure/", "/azure-sdk-for-go"]),
-
-        // Generic Frameworks
-        new GenericLibraryParser("gin", "Gin", "framework", ["github.com/gin-gonic/gin"], false, LibraryRole.WebService),
-        new GenericLibraryParser("echo", "Echo", "framework", ["github.com/labstack/echo"], false, LibraryRole.WebService),
-        new GenericLibraryParser("fiber", "Fiber", "framework", ["github.com/gofiber/fiber"], false, LibraryRole.WebService),
-
-        // Test Frameworks
-        new GenericLibraryParser("testify", "Testify", "testing", ["github.com/stretchr/testify*"], false, LibraryRole.TestFramework),
-
-        // Generic API Clients
-        new GenericLibraryParser("net/http", "http/https", "api", ["net/http"], isBuiltIn: true),
-        new GenericLibraryParser("resty", "Resty", "api", ["github.com/go-resty/resty"]),
-        new GenericLibraryParser("req", "req", "api", ["github.com/imroc/req"]),
-        new GenericLibraryParser("grequests", "grequests", "api", ["github.com/levigross/grequests"]),
-        new GenericLibraryParser("gorequest", "gorequest", "api", ["github.com/parnurzeal/gorequest"]),
-        new GenericLibraryParser("surf", "surf", "api", ["github.com/go-surf/surf"]),
+        new Libraries.RabbitMqGoLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;
@@ -93,20 +107,20 @@ public class GoParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         TreeSitter.Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
         return new GoFileVisitor(
             rootNode,
-            activeLibraryParsers,
+            activeExtensions,
             this,
             relativePath,
             absoluteWorkspacePath,
             fileParser,
-            libraryRegistry
+            extensionRegistry
         );
     }
 
@@ -246,7 +260,7 @@ public class GoParser : IProjectParser, IFileParser
         return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
 
     private readonly ConcurrentDictionary<string, string> _goModCache = new(StringComparer.OrdinalIgnoreCase);
 

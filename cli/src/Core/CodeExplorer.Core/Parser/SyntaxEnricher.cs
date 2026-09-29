@@ -14,15 +14,49 @@ namespace CodeExplorer.Core.Parser;
 
 public class SyntaxEnricher : ISyntaxEnricher
 {
-    private readonly IReadOnlyList<ILibraryParser> _libraryParsers;
-    private readonly LibraryTrieRegistry _trieRegistry;
+    private readonly IReadOnlyList<ISemanticExtension> _semanticExtensions;
+    private readonly SemanticExtensionRegistry _trieRegistry;
     private readonly SyntaxTree _syntaxTree;
 
-    public SyntaxEnricher(IReadOnlyList<ILibraryParser> libraryParsers, SyntaxTree syntaxTree)
+    public SyntaxEnricher(
+        IReadOnlyList<ISemanticExtension> semanticExtensions,
+        SyntaxTree syntaxTree,
+        IReadOnlyList<PackageDescriptor>? packages = null)
     {
-        _libraryParsers = libraryParsers;
-        _trieRegistry = new LibraryTrieRegistry(libraryParsers);
+        var allExtensions = new List<ISemanticExtension>(semanticExtensions);
+        if (packages != null)
+        {
+            var existingIds = semanticExtensions.Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var pkg in packages)
+            {
+                if (!existingIds.Contains(pkg.Id))
+                {
+                    allExtensions.Add(new PackageSemanticExtensionAdapter(pkg));
+                }
+            }
+        }
+
+        _semanticExtensions = allExtensions;
+        _trieRegistry = new SemanticExtensionRegistry(allExtensions);
         _syntaxTree = syntaxTree;
+    }
+
+    private sealed record PackageSemanticExtensionAdapter(PackageDescriptor Package) : ISemanticExtension
+    {
+        public string Id => Package.Id;
+        public string Name => Package.Name;
+        public string Type => Package.Role switch
+        {
+            LibraryRole.CloudSdk => "cloud",
+            LibraryRole.OrmOrDatabase => Package.Type.StartsWith("db") ? Package.Type : "db",
+            LibraryRole.WebFramework or LibraryRole.FrontendFramework => OntologyConstants.LibraryTypes.Framework,
+            LibraryRole.MessageBroker => "messaging",
+            LibraryRole.General => "api",
+            _ => "library"
+        };
+        public LibraryRole Role => Package.Role;
+        public IReadOnlyList<string> SupportedPatterns => Package.SupportedPatterns;
+        public bool IsImplemented => false;
     }
 
     private static readonly Regex ConfigRegex = new(
@@ -53,7 +87,7 @@ public class SyntaxEnricher : ISyntaxEnricher
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Detect and enrich project-level framework using the Trie
-        ILibraryParser? frameworkParser = null;
+        ISemanticExtension? frameworkParser = null;
         if (packageNames.Count > 0)
         {
             foreach (var pkg in packageNames)
@@ -77,7 +111,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                 .Select(i => i.Path)
                 .ToList();
 
-            var matchedParsers = new List<ILibraryParser>();
+            var matchedParsers = new List<ISemanticExtension>();
             foreach (var import in fileImports)
             {
                 var match = _trieRegistry.Match(import);

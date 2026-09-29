@@ -34,7 +34,7 @@ public static class ProjectEntityClassifierRegistry
         }
     }
 
-    public static ProjectEntityKind Classify(
+    public static ProjectClassification Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -67,10 +67,10 @@ public static class ProjectEntityClassifierRegistry
                             (!string.IsNullOrEmpty(projectType) ? CodeExplorer.Core.Parser.WorkspaceIndexer.GetProjectParser(projectType) : null);
         if (dialectParser != null)
         {
-            var dialectKind = dialectParser.ClassifyProject(projectContext);
-            if (dialectKind.HasValue && dialectKind.Value != ProjectEntityKind.Unknown)
+            var dialectClassification = dialectParser.ClassifyProject(projectContext);
+            if (dialectClassification != null && dialectClassification.Kind != ProjectEntityKind.Unknown)
             {
-                return dialectKind.Value;
+                return dialectClassification;
             }
         }
 
@@ -83,7 +83,7 @@ public static class ProjectEntityClassifierRegistry
 
         for (int i = 0; i < snapshot.Length; i++)
         {
-            var kind = snapshot[i].Classify(
+            var classification = snapshot[i].Classify(
                 directoryPath,
                 filesInDirectory,
                 relativeProjectDir,
@@ -92,13 +92,13 @@ public static class ProjectEntityClassifierRegistry
                 dependencies,
                 extensions);
 
-            if (kind.HasValue && kind.Value != ProjectEntityKind.Unknown)
+            if (classification != null && classification.Kind != ProjectEntityKind.Unknown)
             {
-                return kind.Value;
+                return classification;
             }
         }
 
-        return ProjectEntityKind.Service;
+        return ProjectClassification.Service;
     }
 }
 
@@ -109,7 +109,7 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
 {
     public int Order => 10;
 
-    public ProjectEntityKind? Classify(
+    public ProjectClassification? Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -126,25 +126,27 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
         var cloudRuntime = extensions.GetValueOrDefault("cloud_runtime");
         var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
 
-        if (manifestType == "library") return ProjectEntityKind.Library;
-        if (manifestType == "cli" || hasCliBin) return ProjectEntityKind.CliTool;
-        if (manifestType == "worker" || frameworkType == "worker") return ProjectEntityKind.Worker;
-        if (manifestType == "migration") return ProjectEntityKind.MigrationTool;
-        if (manifestType == "test") return ProjectEntityKind.Test;
-        if (manifestType == "function" || manifestType == "serverless") return ProjectEntityKind.Function;
+        if (manifestType == "library") return ProjectClassification.Library;
+        if (manifestType == "cli" || hasCliBin) return ProjectClassification.CliApp;
+        if (manifestType == "worker" || frameworkType == "worker") return ProjectClassification.Worker;
+        if (manifestType == "migration") return ProjectClassification.DatabaseMigration;
+        if (manifestType == "test") return ProjectClassification.Test;
+        if (manifestType is "function" or "serverless") return ProjectClassification.FunctionApp;
+        if (manifestType == "mobile" || frameworkType == "mobile") return ProjectClassification.MobileApp;
+        if (manifestType == "desktop" || frameworkType == "desktop") return ProjectClassification.DesktopApp;
 
-        if (cloudRuntime == "cloudflare-worker") return ProjectEntityKind.Worker;
+        if (cloudRuntime == "cloudflare-worker") return ProjectClassification.Worker;
 
         if (frameworkType == "frontend")
         {
             if (normRelPath.Contains("/src/lib/") || normRelPath.Contains("/libs/") || normRelPath.Contains("/lib/"))
             {
-                return ProjectEntityKind.Library;
+                return ProjectClassification.Library;
             }
-            return ProjectEntityKind.FrontendApp;
+            return ProjectClassification.WebApp;
         }
 
-        if (frameworkType == "web") return ProjectEntityKind.Service;
+        if (frameworkType == "web") return ProjectClassification.Service;
 
         return null;
     }
@@ -157,7 +159,7 @@ public sealed class TestEvidenceClassifier : IProjectEntityClassifier
 {
     public int Order => 20;
 
-    public ProjectEntityKind? Classify(
+    public ProjectClassification? Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -173,7 +175,7 @@ public sealed class TestEvidenceClassifier : IProjectEntityClassifier
             normRelPath.Contains("/spec/") || normRelPath.Contains("/specs/") ||
             normRelPath.Contains("/__tests__/") || normRelPath.Contains("/e2e/"))
         {
-            return ProjectEntityKind.Test;
+            return ProjectClassification.Test;
         }
 
         if (normName.EndsWith(".tests") || normName.EndsWith("-tests") || normName.EndsWith("_tests") ||
@@ -182,7 +184,7 @@ public sealed class TestEvidenceClassifier : IProjectEntityClassifier
             normName.EndsWith(".spec") || normName.EndsWith("-spec") ||
             normName is "test" or "tests" or "spec" or "specs")
         {
-            return ProjectEntityKind.Test;
+            return ProjectClassification.Test;
         }
 
         var codeFiles = filesInDirectory.Where(f =>
@@ -200,7 +202,7 @@ public sealed class TestEvidenceClassifier : IProjectEntityClassifier
                    fn.EndsWith("test.java");
         }))
         {
-            return ProjectEntityKind.Test;
+            return ProjectClassification.Test;
         }
 
         return null;
@@ -219,7 +221,7 @@ public sealed class FrontendEvidenceClassifier : IProjectEntityClassifier
         "react", "react-dom", "@angular/core", "vue", "svelte", "solid-js", "preact"
     };
 
-    public ProjectEntityKind? Classify(
+    public ProjectClassification? Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -252,7 +254,7 @@ public sealed class FrontendEvidenceClassifier : IProjectEntityClassifier
                          "angular.json" or "vue.config.js" or "svelte.config.js";
         }))
         {
-            return ProjectEntityKind.FrontendApp;
+            return ProjectClassification.WebApp;
         }
 
         if (dependencies != null && dependencies.Any(d => FrontendPackageTokens.Contains(d)))
@@ -260,7 +262,7 @@ public sealed class FrontendEvidenceClassifier : IProjectEntityClassifier
             if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase)) ||
                 filesInDirectory.Any(f => Path.GetFileName(f).Equals("main.ts", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f).Equals("main.tsx", StringComparison.OrdinalIgnoreCase)))
             {
-                return ProjectEntityKind.FrontendApp;
+                return ProjectClassification.WebApp;
             }
         }
 
@@ -268,13 +270,13 @@ public sealed class FrontendEvidenceClassifier : IProjectEntityClassifier
         {
             if (projectType is "typescript" or "javascript" || filesInDirectory.Any(f => Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase)))
             {
-                return ProjectEntityKind.FrontendApp;
+                return ProjectClassification.WebApp;
             }
         }
 
         if (normName.EndsWith("-ui") || normName.EndsWith("-web") || normName.EndsWith("-frontend") || normName.EndsWith("-client") || normName.EndsWith("-fe"))
         {
-            return ProjectEntityKind.FrontendApp;
+            return ProjectClassification.WebApp;
         }
 
         return null;
@@ -288,7 +290,7 @@ public sealed class WorkerEvidenceClassifier : IProjectEntityClassifier
 {
     public int Order => 40;
 
-    public ProjectEntityKind? Classify(
+    public ProjectClassification? Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -305,14 +307,14 @@ public sealed class WorkerEvidenceClassifier : IProjectEntityClassifier
             normName.EndsWith("-scheduler") || normName.EndsWith("_scheduler") || normName.EndsWith(".scheduler") ||
             normName.EndsWith("-jobs") || normName.EndsWith("_jobs") || normName.EndsWith(".jobs"))
         {
-            return ProjectEntityKind.Worker;
+            return ProjectClassification.Worker;
         }
 
         if (normRelPath.Contains("/worker/") || normRelPath.Contains("/workers/") ||
             normRelPath.Contains("/consumer/") || normRelPath.Contains("/consumers/") ||
             normRelPath.Contains("/jobs/") || normRelPath.Contains("/scheduler/"))
         {
-            return ProjectEntityKind.Worker;
+            return ProjectClassification.Worker;
         }
 
         var csproj = filesInDirectory.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
@@ -323,7 +325,7 @@ public sealed class WorkerEvidenceClassifier : IProjectEntityClassifier
                 var content = File.ReadAllText(csproj);
                 if (content.Contains("Microsoft.NET.Sdk.Worker", StringComparison.OrdinalIgnoreCase))
                 {
-                    return ProjectEntityKind.Worker;
+                    return ProjectClassification.Worker;
                 }
             }
             catch { }
@@ -340,7 +342,7 @@ public sealed class CliEvidenceClassifier : IProjectEntityClassifier
 {
     public int Order => 50;
 
-    public ProjectEntityKind? Classify(
+    public ProjectClassification? Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -356,14 +358,14 @@ public sealed class CliEvidenceClassifier : IProjectEntityClassifier
             normName.EndsWith("-tool") || normName.EndsWith("_tool") || normName.EndsWith(".tool") ||
             normName.EndsWith("-console") || normName.EndsWith(".console") || normName == "cli")
         {
-            return ProjectEntityKind.CliTool;
+            return ProjectClassification.CliApp;
         }
 
         if (normRelPath.EndsWith("/cli/") || normRelPath.Contains("/src/cli/") || normRelPath.Contains("/tools/") || normRelPath.Contains("/cmd/"))
         {
             if (!normRelPath.Contains("/src/core/") && !normRelPath.Contains("/src/parsers/") && !normRelPath.Contains("/src/cypher/") && !normRelPath.Contains("/src/libs/"))
             {
-                return ProjectEntityKind.CliTool;
+                return ProjectClassification.CliApp;
             }
         }
 
@@ -378,7 +380,7 @@ public sealed class MigrationEvidenceClassifier : IProjectEntityClassifier
 {
     public int Order => 60;
 
-    public ProjectEntityKind? Classify(
+    public ProjectClassification? Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -390,20 +392,20 @@ public sealed class MigrationEvidenceClassifier : IProjectEntityClassifier
         var normName = (projectName ?? "").Trim().ToLowerInvariant();
         var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
 
-        if (projectType == "sql") return ProjectEntityKind.MigrationTool;
+        if (projectType == "sql") return ProjectClassification.DatabaseMigration;
 
         if (normRelPath.Contains("/migration/") || normRelPath.Contains("/migrations/") ||
             normRelPath.Contains("/flyway/") || normRelPath.Contains("/liquibase/") ||
             normRelPath.Contains("/db-migrations/") || normRelPath.Contains("/db/migrations/"))
         {
-            return ProjectEntityKind.MigrationTool;
+            return ProjectClassification.DatabaseMigration;
         }
 
         if (normName.EndsWith("-migration") || normName.EndsWith("-migrations") ||
             normName.EndsWith(".migration") || normName.EndsWith(".migrations") ||
             normName.EndsWith("_migrations") || normName == "migrations" || normName == "flyway")
         {
-            return ProjectEntityKind.MigrationTool;
+            return ProjectClassification.DatabaseMigration;
         }
 
         return null;
@@ -417,7 +419,7 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
 {
     public int Order => 70;
 
-    public ProjectEntityKind? Classify(
+    public ProjectClassification? Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -432,7 +434,7 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
         // 1. Angular library manifest (ng-package.json or ngPackage in package.json)
         if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase)))
         {
-            return ProjectEntityKind.Library;
+            return ProjectClassification.Library;
         }
 
         var pkgJson = Path.Combine(directoryPath, "package.json");
@@ -443,7 +445,7 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
                 var content = File.ReadAllText(pkgJson);
                 if (content.Contains("\"ngPackage\"", StringComparison.OrdinalIgnoreCase))
                 {
-                    return ProjectEntityKind.Library;
+                    return ProjectClassification.Library;
                 }
             }
             catch { }
@@ -455,7 +457,7 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
             normRelPath.Contains("/common/") || normRelPath.Contains("/shared/") || normRelPath.Contains("/contracts/") ||
             normRelPath.Contains("/dto/") || normRelPath.Contains("/dtos/"))
         {
-            return ProjectEntityKind.Library;
+            return ProjectClassification.Library;
         }
 
         // 3. Standard architectural library suffixes
@@ -474,7 +476,7 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
             normName.EndsWith(".infra") || normName.EndsWith(".infrastructure") ||
             normName.EndsWith(".data") || normName.EndsWith(".db"))
         {
-            return ProjectEntityKind.Library;
+            return ProjectClassification.Library;
         }
 
         // 4. C# Class Library check (OutputType Library and not Web SDK)
@@ -507,7 +509,7 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
                         return null;
                     }
 
-                    return ProjectEntityKind.Library;
+                    return ProjectClassification.Library;
                 }
             }
             catch { }

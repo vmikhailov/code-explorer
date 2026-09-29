@@ -90,6 +90,7 @@ public static class OntologyConstants
         public const string InheritsFrom = "INHERITS_FROM";
         public const string PotentialType = "POTENTIAL_TYPE";
         public const string ImplementedBy = "IMPLEMENTED_BY";
+        public const string Produces = "PRODUCES";
         public const string UsesDb = "USES_DB";
         public const string TransformsTo = "TRANSFORMS_TO";
         public const string PublishesTo = "PUBLISHES_TO";

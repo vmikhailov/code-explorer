@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class Mysql2LibraryParser : ILibraryParser
+public class Mysql2LibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "MySQL";

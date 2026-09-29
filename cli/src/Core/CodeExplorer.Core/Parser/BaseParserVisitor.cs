@@ -6,25 +6,27 @@ namespace CodeExplorer.Core.Parser;
 
 public abstract class BaseParserVisitor : TreeSitterAstVisitor
 {
-    protected readonly List<ILibraryParser> LibraryParsers;
+    protected readonly List<ISemanticExtension> SemanticExtensions;
+    protected List<ISemanticExtension> LibraryParsers => SemanticExtensions;
     protected readonly LanguageSyntaxProfile Profile;
 
     public string RelativePath { get; }
     public string AbsoluteWorkspacePath { get; }
     public IFileParser FileParser { get; }
-    public LibraryTrieRegistry LibraryRegistry { get; }
+    public SemanticExtensionRegistry ExtensionRegistry { get; }
+    public SemanticExtensionRegistry LibraryRegistry => ExtensionRegistry;
 
-    public void ResolveAndInjectLibraryParser(string importPath)
+    public void ResolveAndInjectExtension(string importPath)
     {
         var type = FileParser.ResolveImportType(importPath, RelativePath, AbsoluteWorkspacePath);
-        if (type == ImportType.External || LibraryRegistry.Match(importPath) != null)
+        if (type == ImportType.External || ExtensionRegistry.Match(importPath) != null)
         {
-            var matches = LibraryRegistry.MatchAll(importPath);
+            var matches = ExtensionRegistry.MatchAll(importPath);
             foreach (var match in matches)
             {
-                if (match.IsImplemented && !LibraryParsers.Contains(match))
+                if (match.IsImplemented && !SemanticExtensions.Contains(match))
                 {
-                    LibraryParsers.Add(match);
+                    SemanticExtensions.Add(match);
                 }
             }
         }
@@ -33,31 +35,33 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             // For local imports referencing messaging/queue helpers (e.g. ./rabbit/rabbit, ../util/pubsub/GoogleCloudPublisher)
             if (importPath.Contains("rabbit", StringComparison.OrdinalIgnoreCase))
             {
-                var matches = LibraryRegistry.MatchAll("amqplib");
-                if (matches.Count == 0) matches = LibraryRegistry.MatchAll("github.com/rabbitmq/amqp091-go");
+                var matches = ExtensionRegistry.MatchAll("amqplib");
+                if (matches.Count == 0) matches = ExtensionRegistry.MatchAll("github.com/rabbitmq/amqp091-go");
                 foreach (var match in matches)
                 {
-                    if (match.IsImplemented && !LibraryParsers.Contains(match))
+                    if (match.IsImplemented && !SemanticExtensions.Contains(match))
                     {
-                        LibraryParsers.Add(match);
+                        SemanticExtensions.Add(match);
                     }
                 }
             }
             if (importPath.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
                 importPath.Contains("pub-sub", StringComparison.OrdinalIgnoreCase))
             {
-                var matches = LibraryRegistry.MatchAll("@google-cloud/pubsub");
-                if (matches.Count == 0) matches = LibraryRegistry.MatchAll("cloud.google.com/go/pubsub");
+                var matches = ExtensionRegistry.MatchAll("@google-cloud/pubsub");
+                if (matches.Count == 0) matches = ExtensionRegistry.MatchAll("cloud.google.com/go/pubsub");
                 foreach (var match in matches)
                 {
-                    if (match.IsImplemented && !LibraryParsers.Contains(match))
+                    if (match.IsImplemented && !SemanticExtensions.Contains(match))
                     {
-                        LibraryParsers.Add(match);
+                        SemanticExtensions.Add(match);
                     }
                 }
             }
         }
     }
+
+    public void ResolveAndInjectLibraryParser(string importPath) => ResolveAndInjectExtension(importPath);
 
     public List<RawImport> RawImports { get; } = [];
     public List<RawVariable> RawVariables { get; } = [];
@@ -71,17 +75,17 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected BaseParserVisitor(
         Node rootNode,
-        List<ILibraryParser> libraryParsers,
+        List<ISemanticExtension> semanticExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
-        LibraryParsers = libraryParsers;
+        SemanticExtensions = semanticExtensions;
         RelativePath = relativePath;
         AbsoluteWorkspacePath = absoluteWorkspacePath;
         FileParser = fileParser;
-        LibraryRegistry = libraryRegistry;
+        ExtensionRegistry = extensionRegistry;
         Profile = fileParser.SyntaxProfile ?? LanguageSyntaxProfile.Empty;
         RootSymbol = new SyntacticSymbol("file", "root", rootNode);
         SymbolStack.Push(RootSymbol);

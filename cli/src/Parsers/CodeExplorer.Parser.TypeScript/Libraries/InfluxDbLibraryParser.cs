@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class InfluxDbLibraryParser : ILibraryParser
+public class InfluxDbLibraryParser : ISemanticExtension
 {
     public string Type => "db:timeseries";
     public string Name => "InfluxDB";

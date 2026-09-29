@@ -14,10 +14,10 @@ public interface IProjectEntityClassifier
     int Order { get; }
 
     /// <summary>
-    /// Attempts to classify the project entity kind based on concrete evidence.
+    /// Attempts to classify the project entity based on concrete evidence.
     /// Returns null if this classifier does not have sufficient evidence.
     /// </summary>
-    ProjectEntityKind? Classify(
+    ProjectClassification? Classify(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,

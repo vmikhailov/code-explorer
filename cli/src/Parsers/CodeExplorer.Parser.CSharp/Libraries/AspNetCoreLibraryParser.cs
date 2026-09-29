@@ -5,7 +5,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class AspNetCoreLibraryParser : ILibraryParser
+public class AspNetCoreLibraryParser : ISemanticExtension
 {
     public string Name => "ASP.NET Core";
     public string Id => "aspnetcore";
@@ -29,7 +29,7 @@ public class AspNetCoreLibraryParser : ILibraryParser
             {
                 foreach (var pattern in SupportedPatterns)
                 {
-                    if (ILibraryParser.IsLibraryMatch(dep, pattern))
+                    if (ISemanticExtension.IsLibraryMatch(dep, pattern))
                         return true;
                 }
             }

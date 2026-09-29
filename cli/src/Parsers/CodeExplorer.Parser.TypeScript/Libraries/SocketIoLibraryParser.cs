@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class SocketIoLibraryParser : ILibraryParser
+public class SocketIoLibraryParser : ISemanticExtension
 {
     public string Name => "Socket.io";
     public string Id => "socketio";

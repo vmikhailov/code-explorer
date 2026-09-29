@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -6,7 +6,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class HttpClientLibraryParser : ILibraryParser
+public class HttpClientLibraryParser : ISemanticExtension
 {
     public string Name => "HttpClient";
     public string Id => "httpclient";

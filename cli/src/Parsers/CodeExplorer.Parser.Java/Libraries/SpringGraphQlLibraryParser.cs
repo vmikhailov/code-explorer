@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class SpringGraphQlLibraryParser : ILibraryParser
+public class SpringGraphQlLibraryParser : ISemanticExtension
 {
     public string Type => "framework:graphql";
     public string Name => "Spring GraphQL";

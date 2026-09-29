@@ -95,12 +95,14 @@ graph TD
     Library -->|CONTAINS| Function
     Member -->|DECLARED_IN| File
     Member -->|OF_TYPE| Type
+    Package -->|PRODUCES| Project
     Package -->|IMPLEMENTED_BY| Project
     Procedure -->|CONTAINS| Query
     Project -->|LOCATED_IN| Folder
     Project -->|LOCATED_IN| Workspace
     Project -->|DEPENDS_ON| Project
     Project -->|DEPENDS_ON| Package
+    Project -->|PRODUCES| Package
     Project -->|DEPLOYS| Service
     Project -->|DEPLOYS| App
     Project -->|DEPLOYS| Worker
@@ -370,6 +372,7 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
+| `PRODUCES` | `Project` |
 | `IMPLEMENTED_BY` | `Project` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -377,6 +380,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `Project` | `DEPENDS_ON` |
+| `Project` | `PRODUCES` |
 
 **Properties:**
 
@@ -384,7 +388,8 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the entity. |
 | `Version` | `string` | The package version. |
-| `Type` | `string` | The package type or entity type. |
+| `IsInternal` | `bool` | Whether this package is produced internally by a workspace project. |
+| `Ecosystem` | `string` | The package ecosystem (e.g. nuget, npm, maven, pip, go). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `IsExternal` | `bool` | Whether this package is an external third-party dependency. |
 
@@ -402,6 +407,7 @@ graph TD
 | `LOCATED_IN` | `Workspace` |
 | `DEPENDS_ON` | `Project` |
 | `DEPENDS_ON` | `Package` |
+| `PRODUCES` | `Package` |
 | `DEPLOYS` | `Service` |
 | `DEPLOYS` | `App` |
 | `DEPLOYS` | `Worker` |
@@ -415,6 +421,7 @@ graph TD
 | `App` | `DEPLOYED_BY` |
 | `CliTool` | `DEPLOYED_BY` |
 | `Library` | `DEPLOYED_BY` |
+| `Package` | `PRODUCES` |
 | `Package` | `IMPLEMENTED_BY` |
 | `Project` | `DEPENDS_ON` |
 | `ProjectsStructure` | `CONTAINS` |
@@ -433,6 +440,8 @@ graph TD
 | `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
 | `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
 | `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
+| `EntityKind` | `ProjectEntityKind` | The physical entity classification (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
+| `SubKind` | `ProjectEntitySubKind` | Sub-classification for apps (e.g. None, Web, Mobile, Desktop, Cli). |
 
 ---
 
@@ -1113,6 +1122,7 @@ graph TD
 | `OF_TYPE` | Links a member variable or field to its declared type. |
 | `PERSISTED_IN` | Links an ORM entity or model class to its physical database table. |
 | `POTENTIAL_TYPE` | Links a variable or parameter to concrete classes that implement its declared interface type. |
+| `PRODUCES` | Indicates that a library project builds and produces a package. |
 | `PUBLISHED_BY` | Links a topic to the function that publishes to it. |
 | `PUBLISHES_TO` | Links a service or function to a message queue or topic it publishes messages or events to. |
 | `QUERIED_BY` | Links a database or table to the function or query that accesses it. |
@@ -1142,7 +1152,7 @@ graph TD
 | Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:fs` |
 | Layer 1: Physical Topology | `Folder` | `{workspaceId}:dir:{relativeDirectoryPath}` |
 | Layer 1: Physical Topology | `GitSettings` | `{workspaceId}:git` |
-| Layer 2: Project Boundary | `Package` | `{workspaceId}:pkg:{packageName}` |
+| Layer 2: Project Boundary | `Package` | `{workspaceId}:pkg:{ecosystem}:{packageName}` |
 | Layer 2: Project Boundary | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |
 | Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:ps` |
 | Layer 3: Syntactic Structure | `Function` | `{workspaceId}:sym:{filePath}:Function:{name}:{line}` |

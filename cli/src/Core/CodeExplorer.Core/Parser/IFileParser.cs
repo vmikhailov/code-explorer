@@ -29,11 +29,11 @@ public interface IFileParser
     /// </summary>
     BaseParserVisitor CreateVisitor(
         Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry
+        SemanticExtensionRegistry extensionRegistry
     );
 
     /// <summary>
@@ -42,9 +42,9 @@ public interface IFileParser
     ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath);
 
     /// <summary>
-    /// The library-specific parsers registered for this language.
+    /// The semantic AST extensions registered for this language.
     /// </summary>
-    IReadOnlyList<ILibraryParser> LibraryParsers { get; }
+    IReadOnlyList<ISemanticExtension> SemanticExtensions { get; }
 
     /// <summary>
     /// The language syntax classification profile for AST traversal.

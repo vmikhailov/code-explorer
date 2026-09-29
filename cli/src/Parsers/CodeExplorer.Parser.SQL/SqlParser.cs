@@ -28,7 +28,8 @@ public class SqlParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => [];
 
-    public IReadOnlyList<ILibraryParser> LibraryParsers => [];
+    public IReadOnlyList<PackageDescriptor> Packages => [];
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions => [];
 
     public bool CanParse(string fileExtension)
     {
@@ -43,11 +44,11 @@ public class SqlParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         TreeSitter.Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
         throw new NotSupportedException("SQL Parser does not use TreeSitter visitors.");
     }

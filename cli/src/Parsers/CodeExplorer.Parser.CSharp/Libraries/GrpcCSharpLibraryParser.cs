@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class GrpcCSharpLibraryParser : ILibraryParser
+public class GrpcCSharpLibraryParser : ISemanticExtension
 {
     public string Name => "gRPC C#";
     public string Id => "grpc-csharp";

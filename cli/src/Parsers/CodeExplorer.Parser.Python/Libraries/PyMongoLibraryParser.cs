@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class PyMongoLibraryParser : ILibraryParser
+public class PyMongoLibraryParser : ISemanticExtension
 {
     public string Type => "db:document";
     public string Name => "MongoDB";

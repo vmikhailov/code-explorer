@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class FetchLibraryParser : ILibraryParser
+public class FetchLibraryParser : ISemanticExtension
 {
     public string Name => "Fetch";
     public string Id => "fetch";

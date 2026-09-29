@@ -19,44 +19,24 @@ public enum ProjectEntityKind
     Service,
 
     /// <summary>
+    /// Serverless function application (e.g. Azure Functions, AWS Lambda, Cloudflare Worker).
+    /// </summary>
+    FunctionApp,
+
+    /// <summary>
+    /// Client application (Web, Mobile, Desktop, Cli) differentiated by ProjectEntitySubKind.
+    /// </summary>
+    App,
+
+    /// <summary>
     /// Background queue consumer, worker service, or batch job processor.
     /// </summary>
     Worker,
 
     /// <summary>
-    /// Serverless function (e.g. Azure Functions, AWS Lambda, Cloudflare Worker).
-    /// </summary>
-    Function,
-
-    /// <summary>
-    /// Web client application (SPA, SSR, React, Angular, Vue, Vite, Next.js, Nuxt).
-    /// </summary>
-    FrontendApp,
-
-    /// <summary>
-    /// Mobile client application (iOS, Android, React Native, Flutter, MAUI).
-    /// </summary>
-    MobileApp,
-
-    /// <summary>
-    /// Desktop client application (Electron, WPF, WinUI, Avalonia).
-    /// </summary>
-    DesktopApp,
-
-    /// <summary>
-    /// Command-line executable or administrative tool.
-    /// </summary>
-    CliTool,
-
-    /// <summary>
     /// Database schema migration runner or SQL script bundle.
     /// </summary>
-    MigrationTool,
-
-    /// <summary>
-    /// Infrastructure and deployment definitions (Terraform, Docker Compose, Helm).
-    /// </summary>
-    Resource,
+    DatabaseMigration,
 
     /// <summary>
     /// Test suite (unit, integration, e2e, benchmark).

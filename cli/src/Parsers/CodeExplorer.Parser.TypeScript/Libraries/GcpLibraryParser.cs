@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -6,7 +6,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class GcpLibraryParser : ILibraryParser
+public class GcpLibraryParser : ISemanticExtension
 {
     public string Type => OntologyConstants.LibraryTypes.Queue;
     public string Name => "GCP";

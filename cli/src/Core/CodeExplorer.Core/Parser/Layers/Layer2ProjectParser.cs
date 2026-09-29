@@ -94,7 +94,7 @@ public class Layer2ProjectParser
 
                 if (depInfo != null)
                 {
-                    AttachDependencies(projectNode, projectNodeId, depInfo, dir, dependencies, packages, ctx);
+                    AttachDependencies(projectNode, projectNodeId, depInfo, dir, dependencies, packages, projectParser, ctx);
                     projectDepList.Add((projectNode, depInfo));
                 }
 
@@ -176,7 +176,7 @@ public class Layer2ProjectParser
 
                             if (depInfo != null)
                             {
-                                AttachDependencies(projectNode, projectNodeId, depInfo, dir, dependencies, packages, ctx);
+                                AttachDependencies(projectNode, projectNodeId, depInfo, dir, dependencies, packages, projectParser, ctx);
                                 projectDepList.Add((projectNode, depInfo));
                             }
 
@@ -282,20 +282,28 @@ public class Layer2ProjectParser
                                         projectsStructureNode.Children.Add(libProjectNode);
                                         projects.Add(libProjectNode);
 
+                                        var ecosystem = !string.IsNullOrEmpty(prod.Type) ? prod.Type.ToLowerInvariant() : subParser.ProjectType.ToLowerInvariant();
+                                        var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{ecosystem}:{prod.Name.ToLowerInvariant()}";
                                         packageToProjectMap[folderName] = libProjectNode;
                                         packageToProjectMap[prod.Name] = libProjectNode;
-                                        packageToProjectMap[$"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prod.Name.ToLowerInvariant()}"] = libProjectNode;
+                                        packageToProjectMap[packageNodeId] = libProjectNode;
                                         if (prod.Name.Contains('/'))
                                         {
                                             packageToProjectMap.TryAdd(prod.Name.Split('/')[^1], libProjectNode);
                                         }
 
-                                        var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{prod.Name.ToLowerInvariant()}";
-                                        var packageNode = new PackageNode(packageNodeId, prod.Name, prod.Version, prod.Type, libProjectNode.Path);
+                                        var packageNode = new PackageNode(
+                                            Id: packageNodeId,
+                                            Name: prod.Name,
+                                            Version: prod.Version,
+                                            IsInternal: true,
+                                            Ecosystem: ecosystem,
+                                            Path: libProjectNode.Path);
                                         libProjectNode.Children.Add(packageNode);
+                                        var producesRel = Relationship.FromRelationship(new ProducesRelationship(subProjId, packageNodeId));
                                         var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, subProjId));
-                                        await ctx.EnqueueUploadRelationshipsAsync([implRel]);
-                                        ctx.AddRelsCount(1);
+                                        await ctx.EnqueueUploadRelationshipsAsync([producesRel, implRel]);
+                                        ctx.AddRelsCount(2);
                                     }
                                 }
                             }
@@ -376,6 +384,7 @@ public class Layer2ProjectParser
         string projectDir,
         List<Relationship> dependencies,
         List<PackageNode> packages,
+        IProjectParser projectParser,
         ParsingContext ctx)
     {
         // A. Process local project dependencies (DependsOn relationships)
@@ -400,12 +409,25 @@ public class Layer2ProjectParser
         {
             foreach (var extPack in depInfo.ExternalPackages)
             {
-                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{extPack.Name.ToLowerInvariant()}";
+                var ecosystem = !string.IsNullOrEmpty(extPack.Type) ? extPack.Type.ToLowerInvariant() : projectParser.ProjectType.ToLowerInvariant();
+                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{ecosystem}:{extPack.Name.ToLowerInvariant()}";
 
-                var packageNode = new PackageNode(packageNodeId, extPack.Name, extPack.Version, extPack.Type,
-                    string.Empty, IsExternal: true);
+                var packageNode = new PackageNode(
+                    Id: packageNodeId,
+                    Name: extPack.Name,
+                    Version: extPack.Version,
+                    IsInternal: false,
+                    Ecosystem: ecosystem,
+                    Path: string.Empty);
                 projectNode.Children.Add(packageNode);
                 packages.Add(packageNode);
+
+                var dependsOnPkgRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, packageNodeId, new() { ["dependency_type"] = "package" }));
+                if (!dependencies.Any(d => d.From == projectNodeId && d.To == packageNodeId && d.Kind == OntologyConstants.Relationships.DependsOn))
+                {
+                    dependencies.Add(dependsOnPkgRel);
+                    ctx.AddGlobalProjectDependency(dependsOnPkgRel);
+                }
             }
         }
     }
@@ -426,17 +448,23 @@ public class Layer2ProjectParser
 
             if (producedPackage != null)
             {
-                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{producedPackage.Name.ToLowerInvariant()}";
+                var ecosystem = !string.IsNullOrEmpty(producedPackage.Type) ? producedPackage.Type.ToLowerInvariant() : projectParser.ProjectType.ToLowerInvariant();
+                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{ecosystem}:{producedPackage.Name.ToLowerInvariant()}";
 
-                var packageNode = new PackageNode(packageNodeId, producedPackage.Name, producedPackage.Version,
-                    producedPackage.Type, projectNode.Path);
+                var packageNode = new PackageNode(
+                    Id: packageNodeId,
+                    Name: producedPackage.Name,
+                    Version: producedPackage.Version,
+                    IsInternal: true,
+                    Ecosystem: ecosystem,
+                    Path: projectNode.Path);
 
                 projectNode.Children.Add(packageNode);
 
-                var implRel =
-                    Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, projectNodeId));
-                await ctx.EnqueueUploadRelationshipsAsync([implRel]);
-                ctx.AddRelsCount(1);
+                var producesRel = Relationship.FromRelationship(new ProducesRelationship(projectNodeId, packageNodeId));
+                var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, projectNodeId));
+                await ctx.EnqueueUploadRelationshipsAsync([producesRel, implRel]);
+                ctx.AddRelsCount(2);
 
                 packageDetected = true;
                 resultName = producedPackage.Name;
@@ -453,15 +481,22 @@ public class Layer2ProjectParser
 
             if (!string.IsNullOrEmpty(dirName))
             {
-                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{dirName.ToLowerInvariant()}";
-                var packageNode = new PackageNode(packageNodeId, dirName, "1.0.0", "unknown", projectNode.Path);
+                var ecosystem = projectParser.ProjectType.ToLowerInvariant();
+                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{ecosystem}:{dirName.ToLowerInvariant()}";
+                var packageNode = new PackageNode(
+                    Id: packageNodeId,
+                    Name: dirName,
+                    Version: "1.0.0",
+                    IsInternal: true,
+                    Ecosystem: ecosystem,
+                    Path: projectNode.Path);
 
                 projectNode.Children.Add(packageNode);
 
-                var implRel =
-                    Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, projectNodeId));
-                await ctx.EnqueueUploadRelationshipsAsync([implRel]);
-                ctx.AddRelsCount(1);
+                var producesRel = Relationship.FromRelationship(new ProducesRelationship(projectNodeId, packageNodeId));
+                var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, projectNodeId));
+                await ctx.EnqueueUploadRelationshipsAsync([producesRel, implRel]);
+                ctx.AddRelsCount(2);
 
                 resultName = dirName;
             }

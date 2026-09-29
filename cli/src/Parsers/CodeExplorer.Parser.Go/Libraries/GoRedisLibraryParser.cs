@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
-public class GoRedisLibraryParser : ILibraryParser
+public class GoRedisLibraryParser : ISemanticExtension
 {
     public string Type => "db:keyvalue";
     public string Name => "Redis";

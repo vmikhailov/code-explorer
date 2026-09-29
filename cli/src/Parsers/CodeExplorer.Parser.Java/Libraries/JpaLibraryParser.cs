@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class JpaLibraryParser : ILibraryParser
+public class JpaLibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "JPA / Hibernate / Spring Data";

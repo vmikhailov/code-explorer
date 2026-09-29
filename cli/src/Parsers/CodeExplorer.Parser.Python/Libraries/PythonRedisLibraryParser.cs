@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class PythonRedisLibraryParser : ILibraryParser
+public class PythonRedisLibraryParser : ISemanticExtension
 {
     public string Type => "db:keyvalue";
     public string Name => "Redis";

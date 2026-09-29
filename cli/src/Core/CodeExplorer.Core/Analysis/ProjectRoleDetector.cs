@@ -21,7 +21,7 @@ public static class ProjectRoleDetector
         return (role, isLib);
     }
 
-    public static (ProjectRole Role, bool IsLibrary, ProjectEntityKind EntityKind) Detect(
+    public static (ProjectRole Role, bool IsLibrary, ProjectClassification Classification) Detect(
         string directoryPath,
         string[] filesInDirectory,
         string relativeProjectDir,
@@ -30,7 +30,7 @@ public static class ProjectRoleDetector
         IReadOnlyList<string>? dependencies = null,
         IReadOnlyDictionary<string, string>? extensions = null)
     {
-        var kind = ProjectEntityClassifierRegistry.Classify(
+        var classification = ProjectEntityClassifierRegistry.Classify(
             directoryPath,
             filesInDirectory,
             relativeProjectDir,
@@ -39,22 +39,23 @@ public static class ProjectRoleDetector
             dependencies,
             extensions);
 
-        var (role, isLib) = kind switch
+        var (role, isLib) = classification.Kind switch
         {
             ProjectEntityKind.Library => (ProjectRole.SharedLibrary, true),
             ProjectEntityKind.Test => (ProjectRole.Test, true),
-            ProjectEntityKind.FrontendApp => (ProjectRole.FrontendApp, false),
+            ProjectEntityKind.App => classification.SubKind switch
+            {
+                ProjectEntitySubKind.Cli => (ProjectRole.CliTool, false),
+                _ => (ProjectRole.FrontendApp, false)
+            },
             ProjectEntityKind.Worker => (ProjectRole.Worker, false),
-            ProjectEntityKind.CliTool => (ProjectRole.CliTool, false),
-            ProjectEntityKind.MigrationTool => (ProjectRole.DatabaseMigration, false),
-            ProjectEntityKind.Function => (ProjectRole.Service, false),
+            ProjectEntityKind.DatabaseMigration => (ProjectRole.DatabaseMigration, false),
+            ProjectEntityKind.FunctionApp => (ProjectRole.Service, false),
             ProjectEntityKind.Service => (ProjectRole.Service, false),
-            ProjectEntityKind.MobileApp => (ProjectRole.FrontendApp, false),
-            ProjectEntityKind.DesktopApp => (ProjectRole.FrontendApp, false),
             _ => (ProjectRole.Service, false)
         };
 
-        return (role, isLib, kind);
+        return (role, isLib, classification);
     }
 
     public static bool HasProtocolTokens(string name, string relPath)

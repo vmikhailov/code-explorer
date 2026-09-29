@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class PineconeLibraryParser : ILibraryParser
+public class PineconeLibraryParser : ISemanticExtension
 {
     public string Type => "db:vector";
     public string Name => "Pinecone";

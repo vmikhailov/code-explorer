@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class MassTransitLibraryParser : ILibraryParser
+public class MassTransitLibraryParser : ISemanticExtension
 {
     public string Name => "MassTransit";
     public string Id => "masstransit";

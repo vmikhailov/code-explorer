@@ -21,7 +21,52 @@ public class CSharpParser : IProjectParser, IFileParser
         return lower.StartsWith("appsettings") && lower.EndsWith(".json");
     }
 
-    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<PackageDescriptor> Packages { get; } =
+    [
+        new PackageDescriptor("aspnetcore", "ASP.NET Core", LibraryRole.WebFramework, "nuget", ["Microsoft.AspNetCore", "Microsoft.AspNetCore.Mvc"], CustomMatch: ctx => ctx.ManifestProperties?.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk.Web"),
+        new PackageDescriptor("hotchocolate", "HotChocolate", LibraryRole.WebFramework, "nuget", ["HotChocolate"]),
+        new PackageDescriptor("grpc", "gRPC", LibraryRole.WebFramework, "nuget", ["Grpc.AspNetCore", "Grpc.Net.Client"]),
+
+        new PackageDescriptor("couchbase", "Couchbase", LibraryRole.OrmOrDatabase, "nuget", ["CouchbaseNetClient"]),
+        new PackageDescriptor("dapper", "Dapper", LibraryRole.OrmOrDatabase, "nuget", ["Dapper"]),
+        new PackageDescriptor("efcore", "EF Core", LibraryRole.OrmOrDatabase, "nuget", ["Microsoft.EntityFrameworkCore"]),
+        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "nuget", ["Elasticsearch.Net"]),
+        new PackageDescriptor("sqlclient", "Microsoft.Data.SqlClient", LibraryRole.OrmOrDatabase, "nuget", ["Microsoft.Data.SqlClient", "System.Data.SqlClient"]),
+        new PackageDescriptor("mongodb", "MongoDB", LibraryRole.OrmOrDatabase, "nuget", ["MongoDB.Driver"]),
+        new PackageDescriptor("mysql", "MySql.Data", LibraryRole.OrmOrDatabase, "nuget", ["MySql.Data", "MySqlConnector"]),
+        new PackageDescriptor("nest", "NEST", LibraryRole.OrmOrDatabase, "nuget", ["Nest"]),
+        new PackageDescriptor("npgsql", "Npgsql", LibraryRole.OrmOrDatabase, "nuget", ["Npgsql"]),
+        new PackageDescriptor("oracle", "Oracle.ManagedDataAccess", LibraryRole.OrmOrDatabase, "nuget", ["Oracle.ManagedDataAccess"]),
+        new PackageDescriptor("redis", "StackExchange.Redis", LibraryRole.OrmOrDatabase, "nuget", ["StackExchange.Redis"]),
+        new PackageDescriptor("neo4j", "Neo4j", LibraryRole.OrmOrDatabase, "nuget", ["Neo4j.Driver"]),
+
+        new PackageDescriptor("masstransit", "MassTransit", LibraryRole.MessageBroker, "nuget", ["MassTransit"]),
+        new PackageDescriptor("mediatr", "MediatR", LibraryRole.General, "nuget", ["MediatR"]),
+        new PackageDescriptor("kafkaflow", "KafkaFlow", LibraryRole.MessageBroker, "nuget", ["KafkaFlow"]),
+        new PackageDescriptor("orleans", "Microsoft.Orleans", LibraryRole.General, "nuget", ["Microsoft.Orleans"]),
+        new PackageDescriptor("flurl", "Flurl", LibraryRole.General, "nuget", ["Flurl.Http"]),
+        new PackageDescriptor("httpclient", "HttpClient", LibraryRole.General, "nuget", ["System.Net.Http"]),
+        new PackageDescriptor("restsharp", "RestSharp", LibraryRole.General, "nuget", ["RestSharp"]),
+        new PackageDescriptor("refit", "Refit", LibraryRole.General, "nuget", ["Refit"]),
+        new PackageDescriptor("webapiclient", "WebApiClient", LibraryRole.General, "nuget", ["WebApiClient"]),
+        new PackageDescriptor("apizr", "Apizr", LibraryRole.General, "nuget", ["Apizr"]),
+        new PackageDescriptor("notoriousclient", "NotoriousClient", LibraryRole.General, "nuget", ["NotoriousClient"]),
+
+        // Generic Cloud Services
+        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "nuget", ["stripe", "Stripe"]),
+        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "nuget", ["Amazon.S3", "AWSSDK"]),
+        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "nuget", ["Google.Cloud."]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "nuget", ["Azure."]),
+
+        // Test Frameworks
+        new PackageDescriptor("nunit", "NUnit", LibraryRole.TestFramework, "nuget", ["nunit", "nunit3testadapter"]),
+        new PackageDescriptor("xunit", "xUnit", LibraryRole.TestFramework, "nuget", ["xunit", "xunit.runner.*", "xunit.v3.*"]),
+        new PackageDescriptor("mstest", "MSTest", LibraryRole.TestFramework, "nuget", ["mstest", "mstest.testframework", "mstest.testadapter"]),
+        new PackageDescriptor("benchmarkdotnet", "BenchmarkDotNet", LibraryRole.TestFramework, "nuget", ["benchmarkdotnet"]),
+        new PackageDescriptor("nettestsdk", "Microsoft.NET.Test.Sdk", LibraryRole.TestFramework, "nuget", ["microsoft.net.test.sdk"])
+    ];
+
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
         new Libraries.CouchbaseLibraryParser(),
         new Libraries.DapperLibraryParser(),
@@ -44,26 +89,8 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.MediatRLibraryParser(),
         new Libraries.KafkaFlowLibraryParser(),
         new Libraries.OrleansLibraryParser(),
-
-        // Generic Cloud Services
-        new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe", "Stripe"]),
-        new GenericLibraryParser("aws", "AWS", "cloud", ["Amazon.S3", "AWSSDK"]),
-        new GenericLibraryParser("gcp", "GCP", "cloud", ["Google.Cloud."]),
-        new GenericLibraryParser("azure", "Azure", "cloud", ["Azure."]),
-
-        // Generic API Clients
         new Libraries.RestSharpLibraryParser(),
-        new Libraries.RefitLibraryParser(),
-        new GenericLibraryParser("webapiclient", "WebApiClient", "api", ["WebApiClient"]),
-        new GenericLibraryParser("apizr", "Apizr", "api", ["Apizr"]),
-        new GenericLibraryParser("notoriousclient", "NotoriousClient", "api", ["NotoriousClient"]),
-
-        // Test Frameworks
-        new GenericLibraryParser("nunit", "NUnit", "testing", ["nunit", "nunit3testadapter"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("xunit", "xUnit", "testing", ["xunit", "xunit.runner.*", "xunit.v3.*"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("mstest", "MSTest", "testing", ["mstest", "mstest.testframework", "mstest.testadapter"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("benchmarkdotnet", "BenchmarkDotNet", "testing", ["benchmarkdotnet"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("nettestsdk", "Microsoft.NET.Test.Sdk", "testing", ["microsoft.net.test.sdk"], false, LibraryRole.TestFramework),
+        new Libraries.RefitLibraryParser()
     ];
 
     public LanguageSyntaxProfile SyntaxProfile => CSharpSyntaxProfile.Instance;
@@ -110,15 +137,15 @@ public class CSharpParser : IProjectParser, IFileParser
         return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
     }
 
-    public ProjectEntityKind? ClassifyProject(ProjectContext context)
+    public ProjectClassification? ClassifyProject(ProjectContext context)
     {
         if (context.ManifestProperties != null)
         {
             var sdk = context.ManifestProperties.GetValueOrDefault("sdk");
-            if (sdk == "Microsoft.NET.Sdk.Worker") return ProjectEntityKind.Worker;
-            if (sdk == "Microsoft.NET.Sdk.BlazorWebAssembly") return ProjectEntityKind.FrontendApp;
-            if (sdk == "Microsoft.NET.Sdk.Web") return ProjectEntityKind.Service;
-            if (sdk == "Microsoft.Azure.Functions.Worker") return ProjectEntityKind.Function;
+            if (sdk == "Microsoft.NET.Sdk.Worker") return ProjectClassification.Worker;
+            if (sdk == "Microsoft.NET.Sdk.BlazorWebAssembly") return ProjectClassification.WebApp;
+            if (sdk == "Microsoft.NET.Sdk.Web") return ProjectClassification.Service;
+            if (sdk == "Microsoft.Azure.Functions.Worker") return ProjectClassification.FunctionApp;
         }
 
         return IProjectParser.DefaultClassifyProject(this, context);
@@ -300,20 +327,20 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
         return new CSharpFileVisitor(
             rootNode,
-            activeLibraryParsers,
+            activeExtensions,
             this,
             relativePath,
             absoluteWorkspacePath,
             fileParser,
-            libraryRegistry
+            extensionRegistry
         );
     }
 
@@ -465,7 +492,7 @@ public class CSharpParser : IProjectParser, IFileParser
         return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
 
     private readonly ConcurrentDictionary<string, string> _csProjCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string?> _dirToCsprojCache = new(StringComparer.OrdinalIgnoreCase);

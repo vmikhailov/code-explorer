@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class GotKyLibraryParser : ILibraryParser
+public class GotKyLibraryParser : ISemanticExtension
 {
     public string Type => "api";
     public string Name => "Got / Ky HTTP Clients";

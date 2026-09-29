@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
-public class SqlAlchemyLibraryParser : ILibraryParser
+public class SqlAlchemyLibraryParser : ISemanticExtension
 {
     public string Type => "db:relational";
     public string Name => "SQLAlchemy";

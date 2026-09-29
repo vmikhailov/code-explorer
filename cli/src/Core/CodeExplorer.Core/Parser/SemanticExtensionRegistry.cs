@@ -1,21 +1,24 @@
 namespace CodeExplorer.Core.Parser;
 
-public class LibraryTrieRegistry
+/// <summary>
+/// Fast Trie-based registry for matching active ISemanticExtension instances against imports and namespaces.
+/// </summary>
+public class SemanticExtensionRegistry
 {
     private readonly TrieNode _root = new();
 
-    public LibraryTrieRegistry(IEnumerable<ILibraryParser> parsers)
+    public SemanticExtensionRegistry(IEnumerable<ISemanticExtension> extensions)
     {
-        foreach (var parser in parsers)
+        foreach (var ext in extensions)
         {
-            foreach (var pattern in parser.SupportedPatterns)
+            foreach (var pattern in ext.SupportedPatterns)
             {
-                AddPattern(pattern, parser);
+                AddPattern(pattern, ext);
             }
         }
     }
 
-    private void AddPattern(string pattern, ILibraryParser parser)
+    private void AddPattern(string pattern, ISemanticExtension extension)
     {
         if (string.IsNullOrEmpty(pattern)) return;
 
@@ -32,15 +35,15 @@ public class LibraryTrieRegistry
             current = child;
         }
 
-        current.Parsers.Add((parser, pattern));
+        current.Extensions.Add((extension, pattern));
     }
 
-    public ILibraryParser? Match(string import)
+    public ISemanticExtension? Match(string import)
     {
         return MatchAll(import).FirstOrDefault();
     }
 
-    public List<ILibraryParser> MatchAll(string import)
+    public List<ISemanticExtension> MatchAll(string import)
     {
         if (string.IsNullOrEmpty(import)) return [];
 
@@ -54,18 +57,17 @@ public class LibraryTrieRegistry
         return results
             .OrderByDescending(r => r.Pattern.Length)
             .ThenBy(r => r.Pattern, StringComparer.Ordinal)
-            .Select(r => r.Parser)
+            .Select(r => r.Extension)
             .Distinct()
             .ToList();
     }
 
     private void MatchRecursive(TrieNode node, string[] importSegments, int index, List<MatchResult> results)
     {
-        // 1. If we have reached a terminal node with parsers
-        if (node.Parsers.Count > 0)
+        // 1. If we have reached a terminal node with extensions
+        if (node.Extensions.Count > 0)
         {
-            // A registered parser matches its own package root AND any deeper subpaths (e.g. "mysql2" matches "mysql2/promise")
-            foreach (var (p, pat) in node.Parsers)
+            foreach (var (p, pat) in node.Extensions)
             {
                 results.Add(new MatchResult(pat, p));
             }
@@ -89,9 +91,9 @@ public class LibraryTrieRegistry
                     var prefix = childKey[..^1];
                     if (segment.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (childNode.Parsers.Count > 0)
+                        if (childNode.Extensions.Count > 0)
                         {
-                            foreach (var (p, pat) in childNode.Parsers)
+                            foreach (var (p, pat) in childNode.Extensions)
                             {
                                 results.Add(new MatchResult(pat, p));
                             }
@@ -104,20 +106,20 @@ public class LibraryTrieRegistry
                 {
                     MatchRecursive(childNode, importSegments, index + 1, results);
 
-                    if (childNode.Parsers.Count > 0)
+                    if (childNode.Extensions.Count > 0)
                     {
-                        foreach (var (p, pat) in childNode.Parsers)
+                        foreach (var (p, pat) in childNode.Extensions)
                         {
                             results.Add(new MatchResult(pat, p));
                         }
                     }
                 }
-                // Fallback namespace match (using IsLibraryMatch)
-                else if (ILibraryParser.IsLibraryMatch(segment, childKey))
+                // Fallback namespace match
+                else if (PackageDescriptor.IsLibraryMatch(segment, childKey))
                 {
-                    if (childNode.Parsers.Count > 0 && index == importSegments.Length - 1)
+                    if (childNode.Extensions.Count > 0 && index == importSegments.Length - 1)
                     {
-                        foreach (var (p, pat) in childNode.Parsers)
+                        foreach (var (p, pat) in childNode.Extensions)
                         {
                             results.Add(new MatchResult(pat, p));
                         }
@@ -128,12 +130,11 @@ public class LibraryTrieRegistry
         }
         else // index == importSegments.Length
         {
-            // If the import is fully consumed, but the pattern had a wildcard segment at the end (e.g., @nestjs/* matches @nestjs)
             foreach (var (childKey, childNode) in node.Children)
             {
-                if (childKey == "*" && childNode.Parsers.Count > 0)
+                if (childKey == "*" && childNode.Extensions.Count > 0)
                 {
-                    foreach (var (p, pat) in childNode.Parsers)
+                    foreach (var (p, pat) in childNode.Extensions)
                     {
                         results.Add(new MatchResult(pat, p));
                     }
@@ -145,8 +146,8 @@ public class LibraryTrieRegistry
     private class TrieNode
     {
         public Dictionary<string, TrieNode> Children { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public List<(ILibraryParser Parser, string Pattern)> Parsers { get; } = [];
+        public List<(ISemanticExtension Extension, string Pattern)> Extensions { get; } = [];
     }
 
-    private record struct MatchResult(string Pattern, ILibraryParser Parser);
+    private record struct MatchResult(string Pattern, ISemanticExtension Extension);
 }

@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class SpringMvcLibraryParser : ILibraryParser
+public class SpringMvcLibraryParser : ISemanticExtension
 {
     public string Type => "framework:web";
     public string Name => "Spring Web / MVC";

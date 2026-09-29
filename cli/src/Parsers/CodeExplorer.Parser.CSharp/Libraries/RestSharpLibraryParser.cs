@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class RestSharpLibraryParser : ILibraryParser
+public class RestSharpLibraryParser : ISemanticExtension
 {
     public string Name => "RestSharp";
     public string Id => "restsharp";

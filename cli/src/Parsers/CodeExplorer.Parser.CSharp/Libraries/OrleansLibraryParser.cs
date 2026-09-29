@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class OrleansLibraryParser : ILibraryParser
+public class OrleansLibraryParser : ISemanticExtension
 {
     public string Name => "Microsoft Orleans";
     public string Id => "orleans";

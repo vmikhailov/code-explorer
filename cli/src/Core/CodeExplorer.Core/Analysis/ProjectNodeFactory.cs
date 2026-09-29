@@ -22,7 +22,7 @@ public static class ProjectNodeFactory
     {
         extensions ??= new Dictionary<string, string>();
 
-        var (role, isLibrary, entityKind) = ProjectRoleDetector.Detect(
+        var (role, isLibrary, classification) = ProjectRoleDetector.Detect(
             directoryPath,
             filesInDirectory,
             relativeProjectDir,
@@ -35,8 +35,16 @@ public static class ProjectNodeFactory
         extensions["role"] = role.ToString();
         extensions["is_library"] = isLibrary ? "true" : "false";
         extensions["entity_type"] = isLibrary ? "library" : "service";
-        extensions["entity_kind"] = entityKind.ToString();
+        extensions["entity_kind"] = classification.Kind.ToString();
+        if (classification.SubKind != ProjectEntitySubKind.None)
+        {
+            extensions["sub_kind"] = classification.SubKind.ToString();
+        }
 
-        return new ProjectNode(id, projectName, relativeProjectDir, projectType, role.ToString(), isLibrary, extensions);
+        return new ProjectNode(id, projectName, relativeProjectDir, projectType, role.ToString(), isLibrary, extensions)
+        {
+            EntityKind = classification.Kind,
+            SubKind = classification.SubKind
+        };
     }
 }

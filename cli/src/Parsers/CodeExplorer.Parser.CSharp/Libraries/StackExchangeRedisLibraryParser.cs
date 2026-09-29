@@ -1,10 +1,10 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class StackExchangeRedisLibraryParser : ILibraryParser
+public class StackExchangeRedisLibraryParser : ISemanticExtension
 {
     public string Type => "db:keyvalue";
     public string Name => "Redis";

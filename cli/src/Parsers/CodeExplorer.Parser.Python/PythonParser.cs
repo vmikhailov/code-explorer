@@ -22,7 +22,47 @@ public class PythonParser : IProjectParser, IFileParser
         return lower.StartsWith(".env");
     }
 
-    public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
+    public IReadOnlyList<PackageDescriptor> Packages { get; } =
+    [
+        // Frameworks
+        new PackageDescriptor("django", "Django", LibraryRole.WebFramework, "pypi", ["django"]),
+        new PackageDescriptor("flask", "Flask", LibraryRole.WebFramework, "pypi", ["flask"]),
+        new PackageDescriptor("fastapi", "FastAPI", LibraryRole.WebFramework, "pypi", ["fastapi"]),
+
+        // Databases / ORMs
+        new PackageDescriptor("sqlalchemy", "SQLAlchemy", LibraryRole.OrmOrDatabase, "pypi", ["sqlalchemy"]),
+        new PackageDescriptor("peewee", "Peewee", LibraryRole.OrmOrDatabase, "pypi", ["peewee"]),
+        new PackageDescriptor("psycopg2", "psycopg2", LibraryRole.OrmOrDatabase, "pypi", ["psycopg2", "psycopg"]),
+        new PackageDescriptor("pymysql", "PyMySQL", LibraryRole.OrmOrDatabase, "pypi", ["pymysql"]),
+        new PackageDescriptor("mysql-connector", "MySQL Connector", LibraryRole.OrmOrDatabase, "pypi", ["mysql.connector"]),
+        new PackageDescriptor("pymongo", "PyMongo", LibraryRole.OrmOrDatabase, "pypi", ["pymongo"]),
+        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "pypi", ["redis"]),
+        new PackageDescriptor("sqlite3", "sqlite3", LibraryRole.OrmOrDatabase, "pypi", ["sqlite3"]),
+        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "pypi", ["elasticsearch"]),
+        new PackageDescriptor("couchdb", "CouchDB", LibraryRole.OrmOrDatabase, "pypi", ["couchdb"]),
+        new PackageDescriptor("chromadb", "ChromaDB", LibraryRole.OrmOrDatabase, "pypi", ["chromadb"]),
+        new PackageDescriptor("pinecone", "Pinecone", LibraryRole.OrmOrDatabase, "pypi", ["pinecone-client", "pinecone"]),
+        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "pypi", ["google-cloud-bigquery", "google.cloud.bigquery"]),
+        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "pypi", ["clickhouse-connect", "clickhouse-driver"]),
+
+        // Generic Cloud Services
+        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "pypi", ["stripe"]),
+        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "pypi", ["boto3"]),
+        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "pypi", ["google-cloud-", "google.cloud", "firebase-admin"]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "pypi", ["azure-", "azure."]),
+
+        // Test Frameworks
+        new PackageDescriptor("pytest", "Pytest", LibraryRole.TestFramework, "pypi", ["pytest", "pytest-*"]),
+        new PackageDescriptor("unittest", "Unittest", LibraryRole.TestFramework, "pypi", ["unittest"]),
+
+        // Generic API Clients
+        new PackageDescriptor("requests", "requests", LibraryRole.General, "pypi", ["requests"]),
+        new PackageDescriptor("urllib", "urllib", LibraryRole.General, "pypi", ["urllib.request", "urllib3", "urllib"]),
+        new PackageDescriptor("httpx", "httpx", LibraryRole.General, "pypi", ["httpx"]),
+        new PackageDescriptor("aiohttp", "aiohttp", LibraryRole.General, "pypi", ["aiohttp"])
+    ];
+
+    public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
         new Libraries.ChromaDbLibraryParser(),
         new Libraries.CouchDbPythonLibraryParser(),
@@ -35,30 +75,7 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.PyMysqlLibraryParser(),
         new Libraries.PythonRedisLibraryParser(),
         new Libraries.PythonSqlite3LibraryParser(),
-        new Libraries.SqlAlchemyLibraryParser(),
-        new GenericLibraryParser("bigquery", "BigQuery", OntologyConstants.LibraryTypes.AnalyticsDb, ["google-cloud-bigquery", "google.cloud.bigquery"]),
-        new GenericLibraryParser("clickhouse", "ClickHouse", OntologyConstants.LibraryTypes.AnalyticsDb, ["clickhouse-connect", "clickhouse-driver"]),
-
-        // Generic Cloud Services
-        new GenericLibraryParser("stripe", "Stripe", "cloud", ["stripe"]),
-        new GenericLibraryParser("aws", "AWS", "cloud", ["boto3"]),
-        new GenericLibraryParser("gcp", "GCP", "cloud", ["google-cloud-", "google.cloud", "firebase-admin"]),
-        new GenericLibraryParser("azure", "Azure", "cloud", ["azure-", "azure."]),
-
-        // Generic Frameworks
-        new GenericLibraryParser("django", "Django", "framework", ["django"], false, LibraryRole.WebService),
-        new GenericLibraryParser("flask", "Flask", "framework", ["flask"], false, LibraryRole.WebService),
-        new GenericLibraryParser("fastapi", "FastAPI", "framework", ["fastapi"], false, LibraryRole.WebService),
-
-        // Test Frameworks
-        new GenericLibraryParser("pytest", "Pytest", "testing", ["pytest", "pytest-*"], false, LibraryRole.TestFramework),
-        new GenericLibraryParser("unittest", "Unittest", "testing", ["unittest"], false, LibraryRole.TestFramework),
-
-        // Generic API Clients
-        new GenericLibraryParser("requests", "requests", "api", ["requests"]),
-        new GenericLibraryParser("urllib", "requests", "api", ["urllib.request", "urllib3", "urllib"], isBuiltIn: true),
-        new GenericLibraryParser("httpx", "httpx", "api", ["httpx"]),
-        new GenericLibraryParser("aiohttp", "aiohttp", "api", ["aiohttp"]),
+        new Libraries.SqlAlchemyLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;
@@ -94,20 +111,20 @@ public class PythonParser : IProjectParser, IFileParser
 
     public BaseParserVisitor CreateVisitor(
         TreeSitter.Node rootNode,
-        List<ILibraryParser> activeLibraryParsers,
+        List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
         IFileParser fileParser,
-        LibraryTrieRegistry libraryRegistry)
+        SemanticExtensionRegistry extensionRegistry)
     {
         return new PythonFileVisitor(
             rootNode,
-            activeLibraryParsers,
+            activeExtensions,
             this,
             relativePath,
             absoluteWorkspacePath,
             fileParser,
-            libraryRegistry
+            extensionRegistry
         );
     }
 
@@ -282,7 +299,7 @@ public class PythonParser : IProjectParser, IFileParser
         return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(LibraryParsers, syntaxTree);
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _pyRootCache = new(StringComparer.OrdinalIgnoreCase);
 

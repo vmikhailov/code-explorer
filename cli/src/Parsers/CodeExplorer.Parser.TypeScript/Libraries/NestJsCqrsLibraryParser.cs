@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
-public class NestJsCqrsLibraryParser : ILibraryParser
+public class NestJsCqrsLibraryParser : ISemanticExtension
 {
     public string Name => "NestJS CQRS";
     public string Id => "nestjs-cqrs";

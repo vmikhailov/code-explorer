@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
-public class MongoDbCsLibraryParser : ILibraryParser
+public class MongoDbCsLibraryParser : ISemanticExtension
 {
     public string Type => "db:document";
     public string Name => "MongoDB";

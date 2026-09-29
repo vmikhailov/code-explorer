@@ -1,11 +1,11 @@
-using CodeExplorer.Common;
+﻿using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
-public class HttpClientJavaLibraryParser : ILibraryParser
+public class HttpClientJavaLibraryParser : ISemanticExtension
 {
     public string Type => "api:client";
     public string Name => "Java HTTP Clients (HttpClient / RestTemplate / WebClient / OkHttp / Feign)";
