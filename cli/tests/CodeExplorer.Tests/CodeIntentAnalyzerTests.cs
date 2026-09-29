@@ -416,5 +416,25 @@ Domain Entities:
         );
         Assert.That(cCpuHigh, Is.EqualTo(3));
     }
+
+    [Test]
+    public void ComputeSha256_NormalizesLineEndings_ProducesIdenticalHashForCrlfAndLf()
+    {
+        var crlfContent = "using System;\r\n\r\npublic class Service\r\n{\r\n    public void Run() => Console.WriteLine(\"test\");\r\n}\r\n";
+        var lfContent = "using System;\n\npublic class Service\n{\n    public void Run() => Console.WriteLine(\"test\");\n}\n";
+        var differentContent = "using System;\n\npublic class Service\n{\n    public void Run() => Console.WriteLine(\"other\");\n}\n";
+
+        var crlfBytes = System.Text.Encoding.UTF8.GetBytes(crlfContent);
+        var lfBytes = System.Text.Encoding.UTF8.GetBytes(lfContent);
+        var diffBytes = System.Text.Encoding.UTF8.GetBytes(differentContent);
+
+        var crlfHash = CodeIntentAnalyzer.ComputeSha256(crlfBytes);
+        var lfHash = CodeIntentAnalyzer.ComputeSha256(lfBytes);
+        var diffHash = CodeIntentAnalyzer.ComputeSha256(diffBytes);
+
+        Assert.That(crlfHash, Is.EqualTo(lfHash));
+        Assert.That(crlfHash, Is.Not.EqualTo(diffHash));
+        Assert.That(crlfHash.Length, Is.EqualTo(64));
+    }
 }
 
