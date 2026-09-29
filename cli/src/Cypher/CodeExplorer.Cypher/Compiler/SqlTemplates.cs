@@ -114,4 +114,11 @@ public static class SqlTemplates
         var whereClause = !string.IsNullOrEmpty(filterSql) ? $" WHERE {filterSql}" : "";
         return $"(SELECT json_group_array({projSql}) FROM json_each({safeListSql}) AS {variable}{whereClause})";
     }
+
+    public static string RenderCollectedArray(bool isDistinct, string projSql, string? filterSql)
+    {
+        var dist = isDistinct ? "DISTINCT " : "";
+        var filterClause = !string.IsNullOrEmpty(filterSql) ? $" FILTER (WHERE {filterSql})" : "";
+        return $"json_group_array({dist}{projSql}){filterClause}";
+    }
 }

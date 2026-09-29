@@ -630,13 +630,14 @@ public partial class SqliteCompiler
         }
 
         var listSql = VisitExpression(comp.List);
+        var safeListSql = $"CASE WHEN json_valid({listSql}) THEN {listSql} ELSE '[]' END";
         var wasAdded = _unwindVariables.Add(comp.Variable);
         string projSql;
-        string filterSql;
+        string? filterSql;
         try
         {
             projSql = comp.Projection != null ? VisitExpression(comp.Projection) : $"{comp.Variable}.value";
-            filterSql = comp.Filter != null ? $" WHERE {VisitExpression(comp.Filter)}" : "";
+            filterSql = comp.Filter != null ? VisitExpression(comp.Filter) : null;
         }
         finally
         {
@@ -646,21 +647,20 @@ public partial class SqliteCompiler
             }
         }
 
-        return $"(SELECT json_group_array({projSql}) FROM json_each({listSql}) AS {comp.Variable}{filterSql})";
+        return SqlTemplates.RenderListComprehension(safeListSql, comp.Variable, filterSql, projSql);
     }
 
     private string VisitCollectedListComprehension(
         ListComprehensionExpression comp,
         CollectExpressionInfo collectInfo)
     {
-        var distinctStr = collectInfo.IsDistinct ? "DISTINCT " : "";
         var innerExpr = collectInfo.InnerExpr;
 
         string? compFilterSql = null;
         if (comp.Filter != null)
         {
             var substitutedFilter = SubstituteComprehensionVariable(comp.Filter, comp.Variable, innerExpr);
-            compFilterSql = $" FILTER (WHERE {VisitExpression(substitutedFilter)})";
+            compFilterSql = VisitExpression(substitutedFilter);
         }
 
         var projExpr = comp.Projection != null
@@ -668,7 +668,7 @@ public partial class SqliteCompiler
             : innerExpr;
 
         var compProjSql = VisitExpression(projExpr);
-        return $"json_group_array({distinctStr}{compProjSql}){compFilterSql ?? ""}";
+        return SqlTemplates.RenderCollectedArray(collectInfo.IsDistinct, compProjSql, compFilterSql);
     }
 
     private static Expression SubstituteComprehensionVariable(Expression expr, string varName, Expression innerExpr)
