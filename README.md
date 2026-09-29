@@ -1,14 +1,77 @@
-# CodeExplorer (`ce`) 🔍
+# CodeExplorer (`ce`) 🔭
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
 [![NuGet](https://img.shields.io/nuget/v/CodeExplorer.Cli.svg)](https://www.nuget.org/packages/CodeExplorer.Cli)
+[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension-blueviolet.svg)](https://marketplace.visualstudio.com/)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Containers-success.svg)](https://github.com/vmikhailov/code-explorer)
 
-**CodeExplorer (`ce`)** is a fast, single-file CLI and Model Context Protocol (MCP) server for deep codebase intelligence. It transforms polyglot repositories into a rich, queryable knowledge graph stored in an **embedded SQLite graph database** (with native Cypher query compilation) — with zero external dependencies, no Docker containers, and no complex configuration.
+**Next-Generation Codebase Intelligence, Interactive Architectural Studio & Graph Engine for Developers and AI Agents.**
 
-With `ce`, both developers and AI agents (Claude, Cursor, Copilot, ChatGPT, Antigravity) can perform architectural discovery, trace cross-service dependency topologies, analyze refactoring blast radiuses, and run Cypher graph queries directly from their terminal or editor.
+CodeExplorer transforms complex polyglot repositories, distributed microservices, and enterprise monorepos into an **interactive visual knowledge graph** powered by an **embedded SQLite graph database with native Cypher query compilation** — with **zero external dependencies, zero Docker containers, and zero configuration**.
 
-![Codebase Ontology Graph Example](https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/graph-example.png)
+Whether you are a software architect mapping distributed event-driven systems, an engineer refactoring legacy services, or an AI coding assistant (Cursor, Claude, Copilot, ChatGPT, Antigravity, Windsurf) reasoning across multi-hop dependencies, CodeExplorer delivers instantaneous, deterministic codebase comprehension.
+
+---
+
+<p align="center">
+  <img src="docs/all_services.png" alt="CodeExplorer Macro Architecture Concentric Orbits" width="100%" />
+</p>
+<p align="center">
+  <em>Figure 1: Full-system microservice topology projected across 5 Concentric Architectural Orbits (Tiers 0–4: Ingress Gateways, Public Services, Message Brokers, Domain Services, and Databases) with live transitive dependency routing.</em>
+</p>
+
+---
+
+## ⚡ What Makes CodeExplorer Unique?
+
+*   🪐 **Interactive Visual Architecture Studio**: Built directly into VS Code. Explore microservice topologies across **5 concentric architectural orbits**, architectural swimlanes, bounded context islands, hive plots, and C1/C2 project flow diagrams.
+*   🔄 **Interactive Orbit Customization**: Live drag-and-drop reordering of orbit rings directly inside the legend. Adjust bezier curve routing factors (-200 to +200) in real time to suit any presentation.
+*   🔀 **Directional Transitive Contraction**: Automatically synthesizes clean, dashed transitive links when intermediate brokers (Kafka, RabbitMQ, SQS, proxies) are hidden or filtered, preserving 100% architectural fidelity without visual noise.
+*   🤖 **AI-Native MCP Superpowers**: Standard Model Context Protocol (MCP) server giving LLMs instant access to architectural maps, call chains, downstream blast-radius analysis, and arbitrary Cypher queries without burning context tokens on raw file searches.
+*   💾 **Embedded SQLite Graph with Cypher**: High-performance embedded graph engine with a native Cypher-to-SQL compiler. Zero Neo4j, zero Redis, zero JVM, zero cloud subscriptions.
+*   🧠 **Local LLM Architectural Intent Distillation**: Automatically enriches graph nodes with business domains, architectural patterns, and capability tags using an embedded GGUF model (`llama.cpp` with Vulkan GPU acceleration and SHA-256 caching).
+*   🌐 **True Polyglot Understanding**: Seamlessly bridges C#, Java, TypeScript, JavaScript, Go, Python, ColdFusion, and SQL into a single unified semantic knowledge graph.
+
+---
+
+## 🎨 Interactive Visual Architecture Studio (VS Code)
+
+CodeExplorer features an interactive visual architecture cockpit right inside your editor (`⚡ Code Graph`). Designed for high-density architectures, it provides unparalleled clarity into distributed systems and monoliths alike:
+
+### 1. Focused Neighborhood & Transitive Contraction
+
+<p align="center">
+  <img src="docs/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
+</p>
+<p align="center">
+  <em>Figure 2: Focused sub-graph inspection with live HUD metrics, real-time orbit reordering, edge curvature sliders, and dashed transitive links resolving broker-mediated message flows.</em>
+</p>
+
+*   **Smart Transitive Contraction**: When intermediate message topics or broker nodes are toggled off in the HUD, CodeExplorer detects that Service A publishes to Topic X and Service B subscribes to Topic X, automatically synthesizing a direct **`[SUBSCRIBES (via Topic X)]`** transitive dashed connection.
+*   **Custom Orbit Legend Controls**: Reorder orbital tiers on the fly by dragging legend badges, allowing architects to highlight edge gateways, flip database tiers, or group domain boundaries dynamically.
+*   **Edge Curvature Tuning**: Interactive bezier curvature factor slider (-200 to +200) with automatic collision avoidance for high-density cross-orbit calls.
+*   **Live HUD Filter**: Instant multi-criteria filtering by node category (Gateways, Services, Topics, Databases, External APIs), search query, and neighborhood depth.
+
+---
+
+### 2. Project Flow & C1 System Context
+
+<p align="center">
+  <img src="docs/project_flow.png" alt="CodeExplorer Project Flow & Service Cards" width="100%" />
+</p>
+<p align="center">
+  <em>Figure 3: Project Flow view showing structured service cards, inbound/outbound connection counts, database dependencies, framework tags, and instant Click-to-Code navigation.</em>
+</p>
+
+*   **Interactive Service Cards**: Each project node displays incoming callers, outgoing dependencies, registered databases, and framework metadata.
+*   **Click-to-Code Jump**: Double-click any node or click "Jump to Code" in the inspector drawer to navigate immediately to the exact declaration line in your workspace.
+*   **Multi-Projection Layouts**:
+    *   **Concentric Orbits**: Equispaced, Polar Force, and Domain Sectors.
+    *   **Architectural Swimlanes**: Horizontal echelons (Ingress → Core → Data).
+    *   **Bounded Context Islands**: Organic clusters based on inferred Domain-Driven Design (DDD) boundaries.
+    *   **Hive Plots & Dependency Matrices**: Mathematical symmetry and structural coupling metrics.
+    *   **COSE Force**: High-performance physics-based graph layout.
 
 ---
 
@@ -113,9 +176,18 @@ Once the syntactic structure is captured:
 
 ## 📦 Quick Installation
 
-CodeExplorer (`ce`) is distributed as a **zero-dependency, single-file self-contained binary** with embedded Tree-sitter parsers and SQLite engine. No .NET runtime or SDK installation is required.
+CodeExplorer is available as both an **Interactive VS Code Extension** and a **zero-dependency, single-file self-contained CLI/MCP binary** with embedded Tree-sitter parsers and SQLite engine. No external database or runtime installation is required.
 
-### ⚡ One-Line Install (Recommended)
+### 🎨 1. VS Code Extension (Recommended for Visual Exploration)
+
+Install directly from the VS Code Marketplace or Extension view (`Ctrl+Shift+X` / `Cmd+Shift+X`):
+1. Search for **`CodeExplorer`** and click **Install**.
+2. Open any project workspace and click the **`⚡ Code Graph`** button in the status bar or run `CodeExplorer: Show Architecture Graph` from the Command Palette (`Ctrl+Shift+P`).
+3. *Batteries included:* The extension automatically bundles pre-compiled native `ce` binaries for Windows (x64/ARM64), macOS (Apple Silicon/Intel), and Linux (x64/ARM64).
+
+---
+
+### ⚡ 2. One-Line CLI Install (Recommended for Terminal & MCP)
 
 **macOS & Linux (Bash / Zsh):**
 ```bash
@@ -129,7 +201,7 @@ irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/scripts/inst
 
 ---
 
-### 📦 .NET Global Tool
+### 📦 3. .NET Global Tool
 
 If you have [.NET SDK](https://dotnet.microsoft.com/download) installed:
 
@@ -143,7 +215,7 @@ dotnet tool update -g CodeExplorer.Cli
 
 ---
 
-### 🍺 Homebrew (macOS & Linux)
+### 🍺 4. Homebrew (macOS & Linux)
 
 ```bash
 brew tap vmikhailov/tap
@@ -152,7 +224,7 @@ brew install ce
 
 ---
 
-### 📥 Manual Download
+### 📥 5. Manual Download
 
 Download the pre-compiled binary for your platform from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest):
 
@@ -166,7 +238,7 @@ Download the pre-compiled binary for your platform from [GitHub Releases](https:
 
 ---
 
-### 🛠️ Build from Source
+### 🛠️ 6. Build from Source
 
 If you have [.NET 10.0 SDK](https://dotnet.microsoft.com/download) installed:
 
@@ -435,29 +507,24 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 ## 📂 Project Structure
 
 ```text
-├── docs/                        # Architectural, ontology, and query specifications
-├── scripts/                     # Cross-platform single-file publish scripts (publish.cmd, publish.sh, publish.ps1)
-├── src/
-│   ├── Core/
-│   │   └── CodeExplorer.Core/   # Graph database client, ontology definitions, parser pipeline, native intent distillation (llama.cpp), and MCP tools
-│   ├── Cypher/
-│   │   └── CodeExplorer.Cypher/ # Cypher query parser, AST transformer, and SQLite SQL compiler
-│   ├── Parsers/
-│   │   ├── CodeExplorer.Parser.CSharp/       # C# AST Parser (Tree-sitter)
-│   │   ├── CodeExplorer.Parser.ColdFusion/   # ColdFusion CFML/CFC AST Parser (ANTLR4)
-│   │   ├── CodeExplorer.Parser.Go/           # Go AST Parser (Tree-sitter)
-│   │   ├── CodeExplorer.Parser.Java/         # Java AST Parser (Tree-sitter)
-│   │   ├── CodeExplorer.Parser.Python/       # Python AST Parser (Tree-sitter)
-│   │   ├── CodeExplorer.Parser.SQL/          # SQL ScriptDom Parser
-│   │   └── CodeExplorer.Parser.TypeScript/   # TypeScript & JavaScript AST Parser (Tree-sitter)
-│   ├── Tools/
-│   │   └── CodeExplorer.OntologyGen/         # Ontological markdown generation tool
-│   └── UI/
-│       └── CodeExplorer/        # 'ce' CLI tool and MCP host (stdio & HTTP)
-├── tests/
-│   ├── CodeExplorer.Cypher.Tests/ # Cypher compiler unit & regression tests
-│   └── CodeExplorer.Tests/        # CLI, indexing, integration, and MCP tests
-└── CodeExplorer.slnx            # Solution layout file
+├── cli/                                  # .NET Core Engine, Graph Engine, CLI & MCP Server
+│   ├── src/
+│   │   ├── Core/CodeExplorer.Core/       # SQLite graph client, ontology models, pipeline, llama.cpp intent engine, MCP tools
+│   │   ├── Cypher/CodeExplorer.Cypher/   # OpenCypher parser, AST transformer, and SQLite SQL compiler
+│   │   ├── Parsers/                      # Polyglot AST parsers (Tree-sitter & ScriptDom for C#, Java, TS, Go, Py, SQL, CF)
+│   │   ├── Tools/CodeExplorer.OntologyGen/# Self-descriptive ontology generator
+│   │   └── UI/CodeExplorer/              # Single-file 'ce' CLI tool, WebSocket server, and MCP host
+│   ├── tests/
+│   │   ├── CodeExplorer.Cypher.Tests/    # Cypher compiler unit & regression tests
+│   │   └── CodeExplorer.Tests/           # CLI, indexing, integration, and MCP tests
+│   └── CodeExplorer.slnx                 # .NET solution layout file
+├── vscode-extension/                     # Interactive Architecture Visual Studio (VS Code Extension)
+│   ├── src/                              # Extension host, WebSocket client, Cytoscape webview controllers
+│   ├── media/                            # Webview UI styles, icons, and bundles
+│   └── package.json                      # VS Code extension manifest & settings
+├── docs/                                 # Visual screenshots, ontology dictionary, and architecture specifications
+├── proto/                                # Protocol buffer contracts for high-speed streaming
+└── scripts/                              # Cross-platform installation and single-file build scripts
 ```
 
 ---

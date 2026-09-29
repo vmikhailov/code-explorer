@@ -10,6 +10,9 @@ Welcome to the **CodeExplorer (`ce`)** documentation suite. This portal organize
 docs/
 ├── README.md                                 # This Documentation Portal & Index
 ├── ontology.md                               # Live Auto-Generated Ontology Reference
+├── all_services.png                          # Macro Architecture & Concentric Orbits
+├── selected_services.png                     # Sub-Graph Neighborhood & Orbit Legend Reordering
+├── project_flow.png                          # Project Flow, Service Cards & C1 System Context
 ├── graph-example.png                         # Knowledge Graph Visual Diagram
 │
 ├── architecture/                             # Core Technical Architecture & Foundations
