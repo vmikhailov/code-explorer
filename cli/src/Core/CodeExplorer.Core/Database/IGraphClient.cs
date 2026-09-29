@@ -117,7 +117,9 @@ public record ProjectSignature(
     List<string> Endpoints,
     List<string> Tables,
     List<string> Topics,
-    List<string> DomainTypes
+    List<string> DomainTypes,
+    string? ExistingDomain = null,
+    string? ExistingRole = null
 );
 
 public record IntentCandidate(string Id, string Kind, string Name, string RelativePath, string? FullPath);

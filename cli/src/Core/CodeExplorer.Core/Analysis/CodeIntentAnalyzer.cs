@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Database;
@@ -178,6 +179,7 @@ public static class CodeIntentAnalyzer
             using var predictor = new NativeIntentPredictor(modelPath, contextSize: contextSize, gpuLayers: gpuLayers);
 
             ctx.Log($"[CodeIntent] Compute Device: {predictor.ExecutionDevice} (GPU layers: {gpuLayers})");
+            ctx.Log($"[CodeIntent] Concurrency: {predictor.Concurrency}x ({predictor.ConcurrencyReason})");
             // 1. Top-Down Phase 1: Determine architectural Bounded Context & Role per project from signatures
             var projectSignatures = await ctx.DbClient.LoadProjectSignaturesAsync(ctx.WorkspaceId, cancellationToken);
             var projectDomainMap = new ConcurrentDictionary<string, (string Domain, string Role)>(StringComparer.OrdinalIgnoreCase);
@@ -185,43 +187,117 @@ public static class CodeIntentAnalyzer
 
             if (projectSignatures.Count > 0)
             {
-                ctx.Log($"[CodeIntent] Phase 1: Analyzing architectural signatures for {projectSignatures.Count} projects on {predictor.ExecutionDevice}...");
-                var pIdx = 0;
-                var pOptions = new ParallelOptions
-                {
-                    MaxDegreeOfParallelism = predictor.Concurrency,
-                    CancellationToken = cancellationToken
-                };
+                var relevantProjects = toProcess
+                    .Select(x => x.ProjectName)
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                await Parallel.ForEachAsync(projectSignatures, pOptions, async (sig, ct) =>
+                var pendingLlm = new List<ProjectSignature>();
+                var cachedCount = 0;
+                var trivialCount = 0;
+
+                foreach (var sig in projectSignatures)
                 {
-                    var pCurrent = Interlocked.Increment(ref pIdx);
-                    try
+                    // 1. Check if project already has intent_domain saved in SQLite
+                    if (!string.IsNullOrWhiteSpace(sig.ExistingDomain))
                     {
-                        var pResult = await predictor.PredictProjectIntentAsync(sig, ct);
-                        if (pResult != null && !string.IsNullOrWhiteSpace(pResult.Domain))
+                        projectDomainMap[sig.Name] = (sig.ExistingDomain, sig.ExistingRole ?? "");
+                        cachedCount++;
+                        continue;
+                    }
+
+                    // 2. Trivial/empty signature (no endpoints, tables, topics, or domain types)
+                    var isEmpty = sig.Endpoints.Count == 0 &&
+                                  sig.Tables.Count == 0 &&
+                                  sig.Topics.Count == 0 &&
+                                  sig.DomainTypes.Count == 0;
+
+                    if (isEmpty)
+                    {
+                        var (fastDomain, fastRole) = ResolveTrivialProjectIntent(sig);
+                        projectDomainMap[sig.Name] = (fastDomain, fastRole);
+                        projectIntentsToSave[sig.Name] = (fastDomain, fastRole, new List<string>());
+                        trivialCount++;
+                        continue;
+                    }
+
+                    // 3. If limit was passed (e.g. quick testing), skip LLM for projects with no files in toProcess
+                    if (limit.HasValue && !relevantProjects.Contains(sig.Name))
+                    {
+                        var (fastDomain, fastRole) = ResolveTrivialProjectIntent(sig);
+                        projectDomainMap[sig.Name] = (fastDomain, fastRole);
+                        projectIntentsToSave[sig.Name] = (fastDomain, fastRole, new List<string>());
+                        trivialCount++;
+                        continue;
+                    }
+
+                    pendingLlm.Add(sig);
+                }
+
+                if (cachedCount > 0)
+                {
+                    ctx.Log($"[CodeIntent] Phase 1: Loaded cached Bounded Contexts for {cachedCount} projects.");
+                }
+                if (trivialCount > 0)
+                {
+                    ctx.Log($"[CodeIntent] Phase 1: Heuristically resolved {trivialCount} projects with no architectural endpoints/tables.");
+                }
+
+                if (pendingLlm.Count > 0)
+                {
+                    ctx.Log($"[CodeIntent] Phase 1: Distilling Bounded Contexts for {pendingLlm.Count} projects on {predictor.ExecutionDevice} (concurrency: {predictor.Concurrency})...");
+                    var pIdx = 0;
+                    var pOptions = new ParallelOptions
+                    {
+                        MaxDegreeOfParallelism = predictor.Concurrency,
+                        CancellationToken = cancellationToken
+                    };
+
+                    await Parallel.ForEachAsync(pendingLlm, pOptions, async (sig, ct) =>
+                    {
+                        var pCurrent = Interlocked.Increment(ref pIdx);
+                        ctx.Log($"[CodeIntent] Phase 1: [{pCurrent}/{pendingLlm.Count}] Analyzing signature for '{sig.Name}' (EPs: {sig.Endpoints.Count}, Tables: {sig.Tables.Count}, Topics: {sig.Topics.Count}, Types: {sig.DomainTypes.Count})...");
+
+                        try
                         {
-                            projectDomainMap[sig.Name] = (pResult.Domain, pResult.ProjectRole ?? "");
-                            lock (projectIntentsToSave)
+                            var pResult = await predictor.PredictProjectIntentAsync(sig, ct);
+                            if (pResult != null && !string.IsNullOrWhiteSpace(pResult.Domain))
                             {
-                                projectIntentsToSave[sig.Name] = (
-                                    pResult.Domain,
-                                    pResult.ProjectRole ?? "",
-                                    pResult.Capabilities ?? new List<string>()
-                                );
+                                projectDomainMap[sig.Name] = (pResult.Domain, pResult.ProjectRole ?? "");
+                                lock (projectIntentsToSave)
+                                {
+                                    projectIntentsToSave[sig.Name] = (
+                                        pResult.Domain,
+                                        pResult.ProjectRole ?? "",
+                                        pResult.Capabilities ?? new List<string>()
+                                    );
+                                }
+                                ctx.Log($"[CodeIntent] Phase 1: [{pCurrent}/{pendingLlm.Count}] '{sig.Name}' -> Bounded Context: {pResult.Domain} ({pResult.ProjectRole})");
+                            }
+                            else
+                            {
+                                var (fallbackDomain, fallbackRole) = ResolveTrivialProjectIntent(sig);
+                                projectDomainMap[sig.Name] = (fallbackDomain, fallbackRole);
+                                lock (projectIntentsToSave)
+                                {
+                                    projectIntentsToSave[sig.Name] = (fallbackDomain, fallbackRole, new List<string>());
+                                }
+                                ctx.Log($"[CodeIntent] Phase 1: [{pCurrent}/{pendingLlm.Count}] '{sig.Name}' -> Fallback Domain: {fallbackDomain}");
                             }
                         }
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        ctx.LogWarning($"[CodeIntent] Project intent failed for '{sig.Name}': {ex.Message}");
-                    }
-                });
+                        catch (Exception ex) when (ex is not OperationCanceledException)
+                        {
+                            ctx.LogWarning($"[CodeIntent] Project intent failed for '{sig.Name}': {ex.Message}");
+                            var (fallbackDomain, fallbackRole) = ResolveTrivialProjectIntent(sig);
+                            projectDomainMap[sig.Name] = (fallbackDomain, fallbackRole);
+                        }
+                    });
+                }
 
                 if (projectIntentsToSave.Count > 0)
                 {
                     await ctx.DbClient.SaveProjectIntentsAsync(ctx.WorkspaceId, projectIntentsToSave, cancellationToken);
-                    ctx.Log($"[CodeIntent] Phase 1 completed: Identified Bounded Contexts for {projectIntentsToSave.Count}/{projectSignatures.Count} projects.");
+                    ctx.Log($"[CodeIntent] Phase 1 completed: Established Bounded Contexts for {projectDomainMap.Count}/{projectSignatures.Count} projects.");
                 }
             }
 
@@ -391,5 +467,43 @@ public static class CodeIntentAnalyzer
         }
 
         return null;
+    }
+
+    private static (string Domain, string Role) ResolveTrivialProjectIntent(ProjectSignature sig)
+    {
+        var name = sig.Name;
+        var lower = name.ToLowerInvariant();
+
+        if (lower.Contains("ui") || lower.Contains("component") || lower.Contains("style") || lower.Contains("theme") || lower.Contains("frontend"))
+            return ("UserInterface", "UI and presentation component library");
+        if (lower.Contains("cli") || lower.Contains("tool"))
+            return ("DeveloperTooling", "Command-line and developer tooling");
+        if (lower.Contains("common") || lower.Contains("core") || lower.Contains("shared") || lower.Contains("util"))
+            return ("SharedKernel", "Shared utilities and foundational library");
+        if (lower.Contains("gateway") || lower.Contains("proxy") || lower.Contains("ingress"))
+            return ("ApiGateway", "API Gateway and reverse proxy routing");
+        if (lower.Contains("worker") || lower.Contains("job") || lower.Contains("scheduler"))
+            return ("BackgroundProcessing", "Background worker and task scheduler");
+        if (lower.Contains("test") || lower.Contains("mock") || lower.Contains("fixture"))
+            return ("TestingInfrastructure", "Test fixtures and testing infrastructure");
+
+        var clean = ToPascalCase(name);
+        return (!string.IsNullOrWhiteSpace(clean) ? clean : "CoreDomain", "Internal service subsystem");
+    }
+
+    private static string ToPascalCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return "";
+        var parts = input.Split(['-', '_', '.', ' '], StringSplitOptions.RemoveEmptyEntries);
+        var sb = new StringBuilder();
+        foreach (var p in parts)
+        {
+            if (p.Length > 0)
+            {
+                sb.Append(char.ToUpperInvariant(p[0]));
+                if (p.Length > 1) sb.Append(p.Substring(1));
+            }
+        }
+        return sb.ToString();
     }
 }

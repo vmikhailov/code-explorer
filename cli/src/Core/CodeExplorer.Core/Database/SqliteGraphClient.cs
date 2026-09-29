@@ -1275,7 +1275,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         string workspaceId,
         CancellationToken cancellationToken = default)
     {
-        var projects = new List<(string Id, string Name, string Path)>();
+        var projects = new List<(string Id, string Name, string Path, string? Domain, string? Summary)>();
         var results = new List<ProjectSignature>();
 
         await _lock.WaitAsync(cancellationToken);
@@ -1288,7 +1288,9 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 cmd.CommandText = """
                     SELECT id,
                            COALESCE(json_extract(properties, '$.name'), '') AS name,
-                           COALESCE(json_extract(properties, '$.path'), '') AS path
+                           COALESCE(json_extract(properties, '$.path'), '') AS path,
+                           json_extract(properties, '$.intent_domain') AS intent_domain,
+                           json_extract(properties, '$.intent_summary') AS intent_summary
                     FROM nodes
                     WHERE kind = 'Project'
                     ORDER BY length(path) DESC;
@@ -1299,9 +1301,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                     var id = reader.GetString(0);
                     var name = reader.GetString(1);
                     var path = reader.GetString(2);
+                    var domain = reader.IsDBNull(3) ? null : reader.GetString(3);
+                    var summary = reader.IsDBNull(4) ? null : reader.GetString(4);
                     if (string.IsNullOrWhiteSpace(path)) path = name;
                     path = path.Replace('\\', '/').Trim('/');
-                    projects.Add((id, name, path));
+                    projects.Add((id, name, path, domain, summary));
                 }
             }
 
@@ -1400,7 +1404,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 var topics = topicsByProj.TryGetValue(p.Name, out var tp) ? tp.OrderBy(x => x).Take(10).ToList() : new List<string>();
                 var types = typesByProj.TryGetValue(p.Name, out var ty) ? ty.OrderBy(x => x).Take(15).ToList() : new List<string>();
 
-                results.Add(new ProjectSignature(p.Id, p.Name, p.Path, endpoints, tables, topics, types));
+                results.Add(new ProjectSignature(p.Id, p.Name, p.Path, endpoints, tables, topics, types, p.Domain, p.Summary));
             }
         }
         finally
@@ -1938,7 +1942,12 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var cmd = _conn.CreateCommand();
             cmd.CommandTimeout = CommandTimeoutSeconds;
-            cmd.CommandText = "DELETE FROM intents WHERE (@workspaceId = '' OR workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(workspace_id, '\\', '/') = REPLACE(@workspaceId, '\\', '/') COLLATE NOCASE);";
+            cmd.CommandText = """
+                DELETE FROM intents WHERE (@workspaceId = '' OR workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(workspace_id, '\\', '/') = REPLACE(@workspaceId, '\\', '/') COLLATE NOCASE);
+                UPDATE nodes
+                SET properties = json_remove(properties, '$.intent_domain', '$.intent_summary', '$.intent_capabilities')
+                WHERE json_extract(properties, '$.intent_domain') IS NOT NULL;
+                """;
             cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
             await cmd.ExecuteNonQueryAsync(cancellationToken);
         }

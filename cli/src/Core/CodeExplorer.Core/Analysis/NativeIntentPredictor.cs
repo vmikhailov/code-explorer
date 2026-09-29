@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -30,6 +31,7 @@ public sealed class NativeIntentPredictor : IDisposable
     private static readonly NativeLogConfig.LLamaLogCallback SilentLlamaLog = (_, _) => { };
 
     public int Concurrency => _concurrency;
+    public string ConcurrencyReason { get; }
     public string ExecutionDevice { get; }
     public bool IsGpuAccelerated { get; }
 
@@ -126,6 +128,123 @@ public sealed class NativeIntentPredictor : IDisposable
         }
     }
 
+    public static ulong GetTotalMemoryBytes()
+    {
+        try
+        {
+            var mem = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+            if (mem > 0) return (ulong)mem;
+        }
+        catch { }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("sysctl", "-n hw.memsize")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var p = System.Diagnostics.Process.Start(psi);
+                if (p != null)
+                {
+                    var str = p.StandardOutput.ReadToEnd().Trim();
+                    if (ulong.TryParse(str, out var bytes) && bytes > 0) return bytes;
+                }
+            }
+            catch { }
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && File.Exists("/proc/meminfo"))
+        {
+            try
+            {
+                foreach (var line in File.ReadLines("/proc/meminfo"))
+                {
+                    if (line.StartsWith("MemTotal:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2 && ulong.TryParse(parts[1], out var kb) && kb > 0)
+                        {
+                            return kb * 1024UL;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return (ulong)Math.Max(1, Environment.ProcessorCount) * 2UL * 1024 * 1024 * 1024;
+    }
+
+    public static (int Concurrency, string Reason) CalculateOptimalConcurrency(
+        int? explicitConcurrency,
+        bool isGpu,
+        string executionDevice,
+        int gpuLayers,
+        int? cpuCoreCount = null,
+        ulong? memoryBytes = null)
+    {
+        // 1. Explicit override via caller parameter
+        if (explicitConcurrency.HasValue && explicitConcurrency.Value > 0)
+        {
+            return (explicitConcurrency.Value, $"explicitly requested ({explicitConcurrency.Value}x)");
+        }
+
+        // 2. Explicit override via environment variable
+        if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_CONCURRENCY"), out var envC) && envC > 0)
+        {
+            return (envC, $"configured via CODE_INTENT_CONCURRENCY ({envC}x)");
+        }
+
+        var cpuCores = cpuCoreCount ?? Environment.ProcessorCount;
+        var totalMemBytes = memoryBytes ?? GetTotalMemoryBytes();
+        var totalMemGb = totalMemBytes / (1024.0 * 1024.0 * 1024.0);
+
+        var isOsx = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        var isMetal = isOsx && (executionDevice.Contains("Metal", StringComparison.OrdinalIgnoreCase) || isGpu);
+        var isCudaOrVulkan = isGpu && !isMetal;
+
+        // 3. Apple Silicon Metal GPU:
+        // Metal command queue serializes and synchronizes on ggml_metal_synchronize.
+        // On base/Pro Apple Silicon (or < 32 GB unified RAM / < 12 CPU cores), concurrent contexts
+        // cause severe command buffer contention and memory thrashing.
+        // High-end M-series Max/Ultra with >= 32 GB RAM and >= 12 cores can benefit from 2x parallelism.
+        if (isMetal && gpuLayers > 0)
+        {
+            if (totalMemGb >= 32.0 && cpuCores >= 12)
+            {
+                return (2, $"auto-tuned for Apple Silicon Max/Ultra ({cpuCores} cores, {totalMemGb:F1} GB unified RAM)");
+            }
+
+            return (1, $"auto-tuned for Apple Silicon Metal ({cpuCores} cores, {totalMemGb:F1} GB unified RAM - single stream prevents command queue contention)");
+        }
+
+        // 4. Discrete GPU (CUDA / Vulkan on Windows / Linux):
+        if (isCudaOrVulkan && gpuLayers > 0)
+        {
+            if (totalMemGb >= 32.0 && cpuCores >= 16)
+            {
+                return (4, $"auto-tuned for high-end GPU workstation ({cpuCores} cores, {totalMemGb:F1} GB RAM)");
+            }
+            if (totalMemGb >= 16.0 && cpuCores >= 8)
+            {
+                return (2, $"auto-tuned for discrete GPU ({cpuCores} cores, {totalMemGb:F1} GB RAM)");
+            }
+            return (1, $"auto-tuned for discrete GPU ({cpuCores} cores, {totalMemGb:F1} GB RAM)");
+        }
+
+        // 5. CPU-only fallback:
+        if (totalMemGb < 12.0 || cpuCores <= 4)
+        {
+            return (1, $"auto-tuned for CPU inference ({cpuCores} cores, {totalMemGb:F1} GB RAM)");
+        }
+
+        var cpuConcurrency = Math.Clamp(cpuCores / 4, 1, 3);
+        return (cpuConcurrency, $"auto-tuned for multi-core CPU ({cpuCores} cores, {totalMemGb:F1} GB RAM)");
+    }
+
     public NativeIntentPredictor(string modelPath, int contextSize = 4096, int gpuLayers = 99, int? concurrency = null)
     {
         lock (ConfigLock)
@@ -155,12 +274,9 @@ public sealed class NativeIntentPredictor : IDisposable
 
         _weights = LLamaWeights.LoadFromFile(_parameters);
 
-        var defaultConcurrency = concurrency ?? (gpuLayers > 0 ? 4 : Math.Max(1, Environment.ProcessorCount / 2));
-        if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_CONCURRENCY"), out var envC) && envC > 0)
-        {
-            defaultConcurrency = envC;
-        }
-        _concurrency = Math.Max(1, defaultConcurrency);
+        var (concurrencyVal, reason) = CalculateOptimalConcurrency(concurrency, isGpu, deviceName, gpuLayers);
+        _concurrency = Math.Max(1, concurrencyVal);
+        ConcurrencyReason = reason;
         _semaphore = new SemaphoreSlim(_concurrency, _concurrency);
 
         for (var i = 0; i < _concurrency; i++)

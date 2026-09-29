@@ -336,5 +336,85 @@ Domain Entities:
         var emptyIntents = await client.LoadExistingIntentsAsync("ws");
         Assert.That(emptyIntents.Count, Is.EqualTo(0));
     }
+
+    [Test]
+    public void NativeIntentPredictor_CalculateOptimalConcurrency_HardwareBased()
+    {
+        // 1. Explicit caller override
+        var (cExplicit, rExplicit) = NativeIntentPredictor.CalculateOptimalConcurrency(
+            explicitConcurrency: 3,
+            isGpu: true,
+            executionDevice: "GPU (Metal)",
+            gpuLayers: 99
+        );
+        Assert.That(cExplicit, Is.EqualTo(3));
+        Assert.That(rExplicit, Does.Contain("explicitly requested"));
+
+        // 2. Apple Silicon Metal with typical memory (8 cores, 24 GB) -> 1
+        var (cM2, rM2) = NativeIntentPredictor.CalculateOptimalConcurrency(
+            explicitConcurrency: null,
+            isGpu: true,
+            executionDevice: "GPU (Metal: Apple M2)",
+            gpuLayers: 99,
+            cpuCoreCount: 8,
+            memoryBytes: 24UL * 1024 * 1024 * 1024
+        );
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+        {
+            Assert.That(cM2, Is.EqualTo(1));
+            Assert.That(rM2, Does.Contain("single stream prevents command queue contention"));
+        }
+
+        // 3. Apple Silicon Metal Max/Ultra (16 cores, 64 GB) -> 2
+        var (cMax, rMax) = NativeIntentPredictor.CalculateOptimalConcurrency(
+            explicitConcurrency: null,
+            isGpu: true,
+            executionDevice: "GPU (Metal: Apple M3 Max)",
+            gpuLayers: 99,
+            cpuCoreCount: 16,
+            memoryBytes: 64UL * 1024 * 1024 * 1024
+        );
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+        {
+            Assert.That(cMax, Is.EqualTo(2));
+            Assert.That(rMax, Does.Contain("Max/Ultra"));
+        }
+
+        // 4. Discrete GPU (CUDA) on 16-core workstation with 32 GB RAM -> 4
+        var (cCudaHigh, rCudaHigh) = NativeIntentPredictor.CalculateOptimalConcurrency(
+            explicitConcurrency: null,
+            isGpu: true,
+            executionDevice: "GPU (CUDA: NVIDIA RTX 4090)",
+            gpuLayers: 99,
+            cpuCoreCount: 16,
+            memoryBytes: 32UL * 1024 * 1024 * 1024
+        );
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+        {
+            Assert.That(cCudaHigh, Is.EqualTo(4));
+        }
+
+        // 5. CPU-only with low resources (4 cores, 8 GB RAM) -> 1
+        var (cCpuLow, _) = NativeIntentPredictor.CalculateOptimalConcurrency(
+            explicitConcurrency: null,
+            isGpu: false,
+            executionDevice: "CPU",
+            gpuLayers: 0,
+            cpuCoreCount: 4,
+            memoryBytes: 8UL * 1024 * 1024 * 1024
+        );
+        Assert.That(cCpuLow, Is.EqualTo(1));
+
+        // 6. CPU-only with high resources (16 cores, 32 GB RAM) -> 3
+        var (cCpuHigh, _) = NativeIntentPredictor.CalculateOptimalConcurrency(
+            explicitConcurrency: null,
+            isGpu: false,
+            executionDevice: "CPU",
+            gpuLayers: 0,
+            cpuCoreCount: 16,
+            memoryBytes: 32UL * 1024 * 1024 * 1024
+        );
+        Assert.That(cCpuHigh, Is.EqualTo(3));
+    }
 }
 
