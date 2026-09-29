@@ -736,7 +736,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             var rows = await ReadRowsAsync(reader, cancellationToken);
             sw.Stop();
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "[DB:Query] Completed in {ElapsedMs:F1}ms (rows: {RowCount}): {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds,
                 rows.Count,
@@ -785,7 +785,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         if (await TryExecutePostIndexWriteAsync(query, paramDict))
         {
             sw.Stop();
-            _logger.LogInformation("[DB:Write] PostIndex write completed in {ElapsedMs:F1}ms: {QueryPreview}",
+            _logger.LogDebug("[DB:Write] PostIndex write completed in {ElapsedMs:F1}ms: {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
             return;
         }
@@ -803,7 +803,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await cmd.ExecuteNonQueryAsync(cancellationToken);
             sw.Stop();
 
-            _logger.LogInformation("[DB:Write] Write completed in {ElapsedMs:F1}ms: {QueryPreview}",
+            _logger.LogDebug("[DB:Write] Write completed in {ElapsedMs:F1}ms: {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
