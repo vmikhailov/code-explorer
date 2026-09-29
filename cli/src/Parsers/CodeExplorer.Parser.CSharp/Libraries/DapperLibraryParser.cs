@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -84,10 +84,28 @@ public class DapperLibraryParser : ISemanticExtension
             var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
             if (arg.IsValid())
             {
-                var valNode = arg.Children.FirstOrDefault(c => c.IsValid());
+                var valNode = arg.GetField(TreeSitterSyntax.Fields.Expression)
+                              ?? arg.Children.FirstOrDefault(c => c.IsValid() && c.Type != ",");
                 if (valNode.IsValid())
                 {
-                    return CSharpFileVisitor.ExtractFullStringText(valNode).Trim('"');
+                    if (AstValueResolver.TryResolveExpression(valNode, null, null, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
+                    {
+                        return resolved;
+                    }
+
+                    if (ConstantRegistry.TryResolve(null, valNode.Text.Trim(), out var constVal) && !string.IsNullOrWhiteSpace(constVal))
+                    {
+                        return constVal;
+                    }
+
+                    if (valNode.Type.Contains("string") || valNode.Is(TreeSitterSyntax.CSharp.InterpolatedStringExpression))
+                    {
+                        var rawText = CSharpFileVisitor.ExtractFullStringText(valNode).Trim('"');
+                        if (!string.IsNullOrWhiteSpace(rawText))
+                        {
+                            return rawText;
+                        }
+                    }
                 }
             }
         }

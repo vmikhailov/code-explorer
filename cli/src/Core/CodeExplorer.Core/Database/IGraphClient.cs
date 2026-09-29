@@ -60,6 +60,23 @@ public interface IGraphClient : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
+    Task RunIncrementalVacuumAsync(int pages = 500, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task<Dictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>> LoadFileRegistryAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new Dictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>(StringComparer.OrdinalIgnoreCase));
+
+    Task SaveFileRegistryEntriesAsync(
+        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath)> entries,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    Task DeleteFileRegistryEntriesAsync(
+        IEnumerable<string> relativePaths,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
     Task<List<IntentRecord>> LoadExistingIntentsAsync(
         string workspaceId,
         CancellationToken cancellationToken = default) =>

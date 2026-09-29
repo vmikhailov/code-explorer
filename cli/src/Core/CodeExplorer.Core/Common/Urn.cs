@@ -75,6 +75,11 @@ public readonly record struct Urn
         {
             case "symbol":
             case "sym":
+            case "function":
+            case "fn":
+            case "method":
+            case "m":
+            case "type":
                 return TryParseSymbol(text, prefix, domain, body, out urn);
 
             case "project":

@@ -77,6 +77,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             PRAGMA cache_size = -64000;
             PRAGMA temp_store = MEMORY;
             PRAGMA mmap_size = 268435456;
+            PRAGMA auto_vacuum = INCREMENTAL;
             """;
         cmd.ExecuteNonQuery();
     }
@@ -207,11 +208,12 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 kind TEXT NOT NULL,
                 properties JSON NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(from_id);
-            CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(to_id);
-            CREATE INDEX IF NOT EXISTS idx_edges_kind ON edges(kind);
-            CREATE INDEX IF NOT EXISTS idx_edges_from_kind ON edges(from_id, kind);
-            CREATE INDEX IF NOT EXISTS idx_edges_to_kind ON edges(to_id, kind);
+            DROP INDEX IF EXISTS idx_edges_from;
+            DROP INDEX IF EXISTS idx_edges_to;
+            DROP INDEX IF EXISTS idx_edges_kind;
+            DROP INDEX IF EXISTS idx_edges_from_kind;
+            DROP INDEX IF EXISTS idx_edges_to_kind;
+
             CREATE INDEX IF NOT EXISTS idx_edges_from_kind_to ON edges(from_id, kind, to_id);
             CREATE INDEX IF NOT EXISTS idx_edges_to_kind_from ON edges(to_id, kind, from_id);
             CREATE INDEX IF NOT EXISTS idx_edges_kind_from_to ON edges(kind, from_id, to_id);
@@ -219,6 +221,14 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 SELECT min(rowid) FROM edges GROUP BY from_id, to_id, kind
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique ON edges(from_id, to_id, kind);
+
+            CREATE TABLE IF NOT EXISTS file_registry (
+                relative_path TEXT PRIMARY KEY,
+                content_hash TEXT NOT NULL,
+                last_modified_utc TEXT NOT NULL,
+                project_path TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_file_registry_hash ON file_registry(content_hash);
 
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY,
@@ -2295,6 +2305,124 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
 
         return result;
+    }
+
+    public async Task RunIncrementalVacuumAsync(int pages = 500, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = $"PRAGMA incremental_vacuum({pages});";
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<Dictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>> LoadFileRegistryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            var result = new Dictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>(StringComparer.OrdinalIgnoreCase);
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT relative_path, content_hash, last_modified_utc, project_path FROM file_registry;";
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var relPath = reader.GetString(0);
+                var hash = reader.GetString(1);
+                var lastModStr = reader.GetString(2);
+                var projPath = reader.GetString(3);
+                var lastMod = DateTime.TryParse(lastModStr, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
+                    ? dt
+                    : DateTime.MinValue;
+                result[relPath] = (hash, lastMod, projPath);
+            }
+            return result;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task SaveFileRegistryEntriesAsync(
+        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath)> entries,
+        CancellationToken cancellationToken = default)
+    {
+        var entryList = entries.ToList();
+        if (entryList.Count == 0) return;
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            using var tx = await _conn.BeginTransactionAsync(cancellationToken);
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = (SqliteTransaction)tx;
+            cmd.CommandText = """
+                INSERT INTO file_registry (relative_path, content_hash, last_modified_utc, project_path)
+                VALUES (@relPath, @hash, @lastMod, @projPath)
+                ON CONFLICT(relative_path) DO UPDATE SET
+                    content_hash = excluded.content_hash,
+                    last_modified_utc = excluded.last_modified_utc,
+                    project_path = excluded.project_path;
+                """;
+
+            var pRel = cmd.Parameters.Add("@relPath", SqliteType.Text);
+            var pHash = cmd.Parameters.Add("@hash", SqliteType.Text);
+            var pLastMod = cmd.Parameters.Add("@lastMod", SqliteType.Text);
+            var pProj = cmd.Parameters.Add("@projPath", SqliteType.Text);
+
+            foreach (var (relPath, hash, lastMod, projPath) in entryList)
+            {
+                pRel.Value = relPath;
+                pHash.Value = hash;
+                pLastMod.Value = lastMod.ToString("o");
+                pProj.Value = projPath;
+                await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await tx.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task DeleteFileRegistryEntriesAsync(
+        IEnumerable<string> relativePaths,
+        CancellationToken cancellationToken = default)
+    {
+        var pathList = relativePaths.ToList();
+        if (pathList.Count == 0) return;
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            using var tx = await _conn.BeginTransactionAsync(cancellationToken);
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = (SqliteTransaction)tx;
+            cmd.CommandText = "DELETE FROM file_registry WHERE relative_path = @relPath;";
+            var pRel = cmd.Parameters.Add("@relPath", SqliteType.Text);
+
+            foreach (var relPath in pathList)
+            {
+                pRel.Value = relPath;
+                await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await tx.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     private static void ValidateQuerySecurity(string query)

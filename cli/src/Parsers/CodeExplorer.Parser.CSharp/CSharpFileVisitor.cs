@@ -87,6 +87,14 @@ public class CSharpFileVisitor : BaseParserVisitor
             {
                 return null;
             }
+            if (Libraries.RefitLibraryParser.IsRefitMethodAttribute(node))
+            {
+                var refitTarget = Libraries.RefitLibraryParser.ExtractRefitTarget(node);
+                if (!string.IsNullOrEmpty(refitTarget))
+                {
+                    return refitTarget;
+                }
+            }
             return Libraries.AspNetCoreLibraryParser.ExtractRoute(node) ?? ExtractCSharpAttributeRoute(node);
         }
 
@@ -278,6 +286,7 @@ public class CSharpFileVisitor : BaseParserVisitor
 
                         if (resolvedTypeName != "var")
                         {
+                            resolvedTypeName = resolvedTypeName.TrimEnd('?');
                             var scopeName = GetContainingScopeName(node);
                             RawTypeBindings.Add(new RawTypeBinding(varName, resolvedTypeName, "", scopeName));
                             RawTypeBindings.Add(new RawTypeBinding("this." + varName, resolvedTypeName, "", scopeName));
@@ -296,11 +305,65 @@ public class CSharpFileVisitor : BaseParserVisitor
         var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
         if (typeNode.IsValid() && nameNode.IsValid())
         {
+            var cleanType = typeNode.Text.TrimEnd('?');
             var scopeName = GetContainingScopeName(node);
-            RawTypeBindings.Add(new RawTypeBinding(nameNode.Text, typeNode.Text, "", scopeName));
-            RawTypeBindings.Add(new RawTypeBinding("this." + nameNode.Text, typeNode.Text, "", scopeName));
+            RawTypeBindings.Add(new RawTypeBinding(nameNode.Text, cleanType, "", scopeName));
+            RawTypeBindings.Add(new RawTypeBinding("this." + nameNode.Text, cleanType, "", scopeName));
         }
         VisitChildren(node, depth);
+    }
+
+    protected override void VisitFunctionDeclaration(Node node, int depth)
+    {
+        if (node.Is(TreeSitterSyntax.CSharp.ConstructorDeclaration))
+        {
+            InspectConstructorAssignments(node);
+        }
+        base.VisitFunctionDeclaration(node, depth);
+    }
+
+    private void InspectConstructorAssignments(Node constructorNode)
+    {
+        var scopeName = GetContainingScopeName(constructorNode);
+        var paramTypes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var paramList = constructorNode.FindChildOfType(TreeSitterSyntax.CSharp.ParameterList);
+        if (paramList.IsValid())
+        {
+            foreach (var param in paramList.FindChildrenOfType(TreeSitterSyntax.CSharp.Parameter))
+            {
+                var pType = param.GetField(TreeSitterSyntax.Fields.Type);
+                var pName = param.GetField(TreeSitterSyntax.Fields.Name) ?? param.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+                if (pType.IsValid() && pName.IsValid())
+                {
+                    paramTypes[pName.Text] = pType.Text.TrimEnd('?');
+                }
+            }
+        }
+
+        if (paramTypes.Count == 0) return;
+
+        foreach (var assign in constructorNode.FindDescendantsOfType(TreeSitterSyntax.Common.AssignmentExpression))
+        {
+            var left = assign.GetField(TreeSitterSyntax.Fields.Left);
+            var right = assign.GetField(TreeSitterSyntax.Fields.Right);
+            if (left.IsValid() && right.IsValid())
+            {
+                var rightName = right.Text.Trim();
+                if (paramTypes.TryGetValue(rightName, out var typeName))
+                {
+                    var leftName = left.Text.Trim();
+                    RawTypeBindings.Add(new RawTypeBinding(leftName, typeName, "", scopeName));
+                    if (leftName.StartsWith("this."))
+                    {
+                        RawTypeBindings.Add(new RawTypeBinding(leftName["this.".Length..], typeName, "", scopeName));
+                    }
+                    else
+                    {
+                        RawTypeBindings.Add(new RawTypeBinding("this." + leftName, typeName, "", scopeName));
+                    }
+                }
+            }
+        }
     }
 
     protected override void VisitImportStatement(Node node, int depth)

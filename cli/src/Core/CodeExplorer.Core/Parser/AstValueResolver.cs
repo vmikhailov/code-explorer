@@ -76,6 +76,17 @@ public static class AstValueResolver
             }
         }
 
+        // 2c. Equals value clause: unwrap inner expression
+        if (type is TreeSitterSyntax.CSharp.EqualsValueClause or "equals_value_clause")
+        {
+            var valChild = node.GetField(TreeSitterSyntax.Fields.Value) ??
+                           node.Children.LastOrDefault(c => c.IsValid() && c.Type != "=");
+            if (valChild.IsValid() && valChild.Id != node.Id)
+            {
+                return TryResolveStringInternal(valChild, contextOrProject, depth + 1, visitedVars, out result);
+            }
+        }
+
         // 3. Parenthesized Expression: unwrap inner
         if (type is "parenthesized_expression")
         {
@@ -456,7 +467,7 @@ public static class AstValueResolver
                     // C# local declaration
                     if (child.IsAny(TreeSitterSyntax.CSharp.LocalDeclarationStatement, TreeSitterSyntax.CSharp.VariableDeclaration))
                     {
-                        var declarators = child.FindChildrenOfType(TreeSitterSyntax.CSharp.VariableDeclarator);
+                        var declarators = child.FindDescendantsOfType(TreeSitterSyntax.CSharp.VariableDeclarator);
                         foreach (var decl in declarators)
                         {
                             var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name) ??
@@ -465,13 +476,27 @@ public static class AstValueResolver
                             if (nameNode.IsValid() && nameNode.Text == varName)
                             {
                                 var valNode = decl.GetField(TreeSitterSyntax.Fields.Value);
-                                if (valNode.IsValid()) return valNode;
+                                if (valNode.IsValid())
+                                {
+                                    if (valNode.Is(TreeSitterSyntax.CSharp.EqualsValueClause) || valNode.Type == "equals_value_clause")
+                                    {
+                                        var inner = valNode.GetField(TreeSitterSyntax.Fields.Value) ??
+                                                    valNode.Children.LastOrDefault(c => c.IsValid() && c.Type != "=");
+                                        if (inner.IsValid()) return inner;
+                                    }
+                                    return valNode;
+                                }
 
                                 var eq = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                                if (eq.IsValid() && eq.Children.Count > 1)
+                                if (eq.IsValid())
                                 {
-                                    return eq.Children[1];
+                                    var eqVal = eq.GetField(TreeSitterSyntax.Fields.Value) ??
+                                                eq.Children.LastOrDefault(c => c.IsValid() && c.Type != "=");
+                                    if (eqVal.IsValid()) return eqVal;
                                 }
+
+                                var afterEq = decl.Children.LastOrDefault(c => c.IsValid() && c.Type != "=" && c.Id != nameNode.Id);
+                                if (afterEq.IsValid()) return afterEq;
                             }
                         }
                     }

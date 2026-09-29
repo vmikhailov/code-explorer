@@ -554,5 +554,32 @@ public class SqliteCompilerTests
         Assert.That(Convert.ToInt64(rows[0]["epCount"]), Is.EqualTo(2));
         Assert.That(Convert.ToInt64(rows[0]["dbCount"]), Is.EqualTo(2));
     }
+
+    [Test]
+    public void Test_Epic3_ListComprehension_TemplateRendering()
+    {
+        InsertNode("fn:comp", "Function", new() { ["name"] = "CompFn", ["tags"] = new[] { "security", "audit", "internal" } });
+
+        // 1. Direct List Comprehension over JSON property (uses RenderListComprehension)
+        var rowsDirect = ExecuteCypher(@"
+            MATCH (f:Function) WHERE f.name = 'CompFn'
+            RETURN [t IN f.tags WHERE t <> 'audit' | toUpper(t)] AS activeTags
+        ");
+        Assert.That(rowsDirect, Has.Count.EqualTo(1));
+        var tags = (string)rowsDirect[0]["activeTags"]!;
+        Assert.That(tags, Does.Contain("SECURITY"));
+        Assert.That(tags, Does.Contain("INTERNAL"));
+        Assert.That(tags, Does.Not.Contain("audit"));
+
+        // 2. List Comprehension over collected array in WITH (uses RenderCollectedArray)
+        var rowsCollected = ExecuteCypher(@"
+            MATCH (f:Function)
+            WITH collect(f.name) AS allNames
+            RETURN [name IN allNames WHERE name STARTS WITH 'Comp' | toLower(name)] AS compNames
+        ");
+        Assert.That(rowsCollected, Has.Count.EqualTo(1));
+        var compNames = (string)rowsCollected[0]["compNames"]!;
+        Assert.That(compNames, Does.Contain("compfn"));
+    }
 }
 

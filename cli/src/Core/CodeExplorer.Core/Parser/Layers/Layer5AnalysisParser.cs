@@ -90,10 +90,12 @@ public class Layer5AnalysisParser
     {
         public readonly string TypeName;
         public readonly string? ScopeMarker;
+        public readonly string? ScopeId;
 
         public IndexedBinding(string typeName, string? scopeId)
         {
-            TypeName = typeName;
+            TypeName = typeName.TrimEnd('?');
+            ScopeId = scopeId;
             ScopeMarker = string.IsNullOrEmpty(scopeId) ? null : $":{scopeId}:";
         }
     }
@@ -102,9 +104,21 @@ public class Layer5AnalysisParser
     {
         if (Urn.TryParse(scopeSymbolId, out var urn) && !string.IsNullOrEmpty(urn.Path))
         {
-            return urn.Path;
+            var p = urn.Path;
+            var colonIdx = p.IndexOf(':');
+            if (colonIdx > 1) // preserve Windows drive letters like C:/
+            {
+                p = p[..colonIdx];
+            }
+            return p.Replace('\\', '/');
         }
-        string[] markers = [$":{OntologyConstants.IdPrefixes.Symbol}:", ":symbol:"];
+        string[] markers =
+        [
+            $":{OntologyConstants.IdPrefixes.Symbol}:", ":symbol:", ":sym:",
+            ":function:", ":fn:",
+            $":{OntologyConstants.IdPrefixes.Procedure}:", ":procedure:", ":proc:",
+            ":m:", ":method:", ":type:"
+        ];
         foreach (var marker in markers)
         {
             var markerIdx = scopeSymbolId.IndexOf(marker, StringComparison.Ordinal);
@@ -114,7 +128,7 @@ public class Layer5AnalysisParser
                 var end = scopeSymbolId.IndexOf(':', start);
                 if (end > start)
                 {
-                    return scopeSymbolId[start..end];
+                    return scopeSymbolId[start..end].Replace('\\', '/');
                 }
             }
         }
@@ -279,20 +293,6 @@ public class Layer5AnalysisParser
                     }
 
                     inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
-
-                    var className = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
-                    if (!string.IsNullOrEmpty(className))
-                    {
-                        if (!interfaceToImplementors.TryGetValue(refItem.TargetName, out var implList))
-                        {
-                            implList = [];
-                            interfaceToImplementors[refItem.TargetName] = implList;
-                        }
-                        if (!implList.Contains(className))
-                        {
-                            implList.Add(className);
-                        }
-                    }
                 }
                 else if (refItem.Kind == OntologyConstants.Relationships.Implements)
                 {
@@ -310,20 +310,45 @@ public class Layer5AnalysisParser
                         inheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
                     }
                 }
+
+                // Always map interface to implementors even if interface symbol is from an external assembly
+                var className = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
+                if (!string.IsNullOrEmpty(className))
+                {
+                    if (!interfaceToImplementors.TryGetValue(refItem.TargetName, out var implList))
+                    {
+                        implList = [];
+                        interfaceToImplementors[refItem.TargetName] = implList;
+                    }
+                    if (!implList.Contains(className))
+                    {
+                        implList.Add(className);
+                    }
+                }
             }
         }
 
         // Index RawTypeBindings by (FilePath, VariableName) for O(1) fast member-call lookup
         var bindingsLookup = new Dictionary<(string FilePath, string VarName), List<IndexedBinding>>(ctx.RawTypeBindings.Count);
+        var globalBindingsLookup = new Dictionary<string, List<IndexedBinding>>(StringComparer.Ordinal);
         foreach (var b in ctx.RawTypeBindings)
         {
-            var key = (b.FilePath, b.VariableName);
+            var normPath = b.FilePath.Replace('\\', '/');
+            var key = (normPath, b.VariableName);
             if (!bindingsLookup.TryGetValue(key, out var list))
             {
                 list = new List<IndexedBinding>(1);
                 bindingsLookup[key] = list;
             }
-            list.Add(new IndexedBinding(b.TypeName, b.ScopeId));
+            var ib = new IndexedBinding(b.TypeName, b.ScopeId);
+            list.Add(ib);
+
+            if (!globalBindingsLookup.TryGetValue(b.VariableName, out var gList))
+            {
+                gList = new List<IndexedBinding>(1);
+                globalBindingsLookup[b.VariableName] = gList;
+            }
+            gList.Add(ib);
         }
 
         // Index RawVariables constants for resolving constant topic/queue names across files
@@ -402,12 +427,15 @@ public class Layer5AnalysisParser
                     {
                         if (bindingsLookup.TryGetValue((filePath, varName), out var candidates))
                         {
-                            // Priority 1: Match by scope name
+                            // Priority 1: Match by scope name or scope ID
                             for (int i = 0; i < candidates.Count; i++)
                             {
                                 var candidate = candidates[i];
-                                if (candidate.ScopeMarker != null &&
-                                    refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal))
+                                if (candidate.ScopeId != null &&
+                                    (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker!, StringComparison.Ordinal) ||
+                                     refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
+                                     refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
+                                     refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
                                 {
                                     targetTypeName = candidate.TypeName;
                                     break;
@@ -416,6 +444,24 @@ public class Layer5AnalysisParser
 
                             // Priority 2: Fallback to any binding in the same file
                             targetTypeName ??= candidates[0].TypeName;
+                        }
+                        else if (globalBindingsLookup.TryGetValue(varName, out var globalCandidates))
+                        {
+                            // Priority 3: Fallback across project/workspace
+                            for (int i = 0; i < globalCandidates.Count; i++)
+                            {
+                                var candidate = globalCandidates[i];
+                                if (candidate.ScopeId != null &&
+                                    (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker!, StringComparison.Ordinal) ||
+                                     refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
+                                     refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
+                                     refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    targetTypeName = candidate.TypeName;
+                                    break;
+                                }
+                            }
+                            targetTypeName ??= globalCandidates[0].TypeName;
                         }
 
                         if (targetTypeName != null)
@@ -469,10 +515,21 @@ public class Layer5AnalysisParser
             }
             else if (refItem.Kind == OntologyConstants.Relationships.DependsOn)
             {
-                if (tableSymbols.TryGetValue(refItem.TargetName, out var targetTableId))
+                var found = tableSymbols.TryGetValue(refItem.TargetName, out var targetTableId);
+                if (!found && refItem.TargetName.Contains('.'))
+                {
+                    var dotIdx = refItem.TargetName.LastIndexOf('.');
+                    found = tableSymbols.TryGetValue(refItem.TargetName[(dotIdx + 1)..], out targetTableId);
+                }
+
+                if (found && targetTableId != null)
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new QueriedByRelationship(targetTableId, refItem.ScopeSymbolId)));
+                    if (refItem.ScopeSymbolId.Contains($":{OntologyConstants.IdPrefixes.Query}:") || refItem.ScopeSymbolId.Contains(":query:"))
+                    {
+                        referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId)));
+                    }
                 }
             }
             else if (refItem.Kind == OntologyConstants.Relationships.UsesType)

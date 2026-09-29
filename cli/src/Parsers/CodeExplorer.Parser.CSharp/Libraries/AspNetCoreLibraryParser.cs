@@ -73,7 +73,7 @@ public class AspNetCoreLibraryParser : ISemanticExtension
             }
             if (IsInsideInterface(node))
             {
-                return ExtractDeclarativeClientRoute(node);
+                return RefitLibraryParser.ExtractRefitTarget(node) ?? ExtractDeclarativeClientRoute(node);
             }
             return ExtractRoute(node);
         }
@@ -917,6 +917,49 @@ public class AspNetCoreLibraryParser : ISemanticExtension
 
         if (!classDecl.IsValid()) return null;
 
+        var prefix = ExtractRoutePrefixFromClassNode(classDecl);
+        if (!string.IsNullOrEmpty(prefix)) return prefix;
+
+        var baseList = classDecl.FindChildOfType(TreeSitterSyntax.CSharp.BaseList);
+        if (baseList.IsValid())
+        {
+            var fileUnit = classDecl;
+            while (fileUnit.Parent.IsValid()) fileUnit = fileUnit.Parent;
+
+            foreach (var baseType in baseList.Children)
+            {
+                var baseName = baseType.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text ?? baseType.Text;
+                if (!string.IsNullOrEmpty(baseName) && baseName != ":" && baseName != ",")
+                {
+                    var baseClassDecl = fileUnit.FindDescendantsOfType(TreeSitterSyntax.CSharp.ClassDeclaration)
+                        .FirstOrDefault(c => c.GetField(TreeSitterSyntax.Fields.Name)?.Text == baseName);
+                    if (baseClassDecl.IsValid())
+                    {
+                        var basePrefix = ExtractRoutePrefixFromClassNode(baseClassDecl, replaceTokens: false);
+                        if (!string.IsNullOrEmpty(basePrefix))
+                        {
+                            var classNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);
+                            if (classNameNode.IsValid() && basePrefix.Contains("[controller]"))
+                            {
+                                var className = classNameNode.Text;
+                                if (className.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    className = className[..^"Controller".Length];
+                                }
+                                basePrefix = basePrefix.Replace("[controller]", className, StringComparison.OrdinalIgnoreCase);
+                            }
+                            return basePrefix;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ExtractRoutePrefixFromClassNode(Node classDecl, bool replaceTokens = true)
+    {
         foreach (var child in classDecl.FindChildrenOfType(TreeSitterSyntax.CSharp.AttributeList))
         {
             foreach (var attr in child.FindChildrenOfType(TreeSitterSyntax.CSharp.Attribute))
@@ -951,15 +994,18 @@ public class AspNetCoreLibraryParser : ISemanticExtension
 
                             if (!string.IsNullOrEmpty(prefix))
                             {
-                                var classNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);
-                                if (classNameNode.IsValid() && prefix.Contains("[controller]"))
+                                if (replaceTokens)
                                 {
-                                    var className = classNameNode.Text;
-                                    if (className.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
+                                    var classNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);
+                                    if (classNameNode.IsValid() && prefix.Contains("[controller]"))
                                     {
-                                        className = className[..^"Controller".Length];
+                                        var className = classNameNode.Text;
+                                        if (className.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            className = className[..^"Controller".Length];
+                                        }
+                                        prefix = prefix.Replace("[controller]", className, StringComparison.OrdinalIgnoreCase);
                                     }
-                                    prefix = prefix.Replace("[controller]", className, StringComparison.OrdinalIgnoreCase);
                                 }
                                 return prefix;
                             }

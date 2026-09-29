@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -7,10 +7,10 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class RefitLibraryParser : ISemanticExtension
 {
-    public string Name => "Refit";
+    public string Name => "Refit / RestEase";
     public string Id => "refit";
     public string Type => "api";
-    public IReadOnlyList<string> SupportedPatterns => ["Refit", "Refit.*"];
+    public IReadOnlyList<string> SupportedPatterns => ["Refit", "Refit.*", "RestEase", "RestEase.*"];
     public bool IsImplemented => true;
 
     private static readonly HashSet<string> RefitMethodAttributes =
@@ -40,7 +40,7 @@ public class RefitLibraryParser : ISemanticExtension
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
 
-    private static bool IsRefitMethodAttribute(Node node)
+    public static bool IsRefitMethodAttribute(Node node)
     {
         if (!node.Is(TreeSitterSyntax.CSharp.Attribute)) return false;
 
@@ -60,7 +60,7 @@ public class RefitLibraryParser : ISemanticExtension
         return false;
     }
 
-    private static string? ExtractRefitTarget(Node node)
+    public static string? ExtractRefitTarget(Node node)
     {
         var argList = node.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
         var routeVal = "/";
@@ -69,13 +69,15 @@ public class RefitLibraryParser : ISemanticExtension
             var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgument);
             if (arg.IsValid())
             {
-                var strNode = arg.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                if (strNode.IsValid()) routeVal = strNode.Text.Trim('"');
+                var extracted = ExtractStringOrExpression(arg);
+                if (!string.IsNullOrEmpty(extracted)) routeVal = extracted;
             }
         }
 
         var current = node.Parent;
         string interfaceName = "api-client";
+        string? basePath = null;
+
         while (current.IsValid())
         {
             if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))
@@ -83,31 +85,94 @@ public class RefitLibraryParser : ISemanticExtension
                 var idNode = current.GetField(TreeSitterSyntax.Fields.Name);
                 if (idNode.IsValid())
                 {
-                    interfaceName = idNode.Text;
-                    if (interfaceName.StartsWith("I") && interfaceName.Length > 1 && char.IsUpper(interfaceName[1]))
+                    interfaceName = CleanInterfaceName(idNode.Text);
+                }
+
+                // Check for interface-level [BasePath("...")] or [Route("...")]
+                foreach (var attrList in current.FindChildrenOfType(TreeSitterSyntax.CSharp.AttributeList))
+                {
+                    foreach (var attr in attrList.FindChildrenOfType(TreeSitterSyntax.CSharp.Attribute))
                     {
-                        interfaceName = interfaceName[1..];
+                        var aNameNode = attr.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+                        if (aNameNode.IsValid() && (aNameNode.Text is "BasePath" or "BasePathAttribute" or "Route" or "RouteAttribute" or "RoutePrefix"))
+                        {
+                            var bpArgList = attr.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgumentList);
+                            var bpArg = bpArgList?.FindChildOfType(TreeSitterSyntax.CSharp.AttributeArgument);
+                            if (bpArg != null && bpArg.IsValid())
+                            {
+                                var bpVal = ExtractStringOrExpression(bpArg);
+                                if (!string.IsNullOrEmpty(bpVal))
+                                {
+                                    basePath = bpVal;
+                                    break;
+                                }
+                            }
+                        }
                     }
-                    if (interfaceName.EndsWith("Api", StringComparison.OrdinalIgnoreCase))
-                    {
-                        interfaceName = interfaceName[..^"Api".Length];
-                    }
-                    else if (interfaceName.EndsWith("Client", StringComparison.OrdinalIgnoreCase))
-                    {
-                        interfaceName = interfaceName[..^"Client".Length];
-                    }
-                    else if (interfaceName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
-                    {
-                        interfaceName = interfaceName[..^"Service".Length];
-                    }
+                    if (basePath != null) break;
                 }
                 break;
             }
             current = current.Parent;
         }
 
-        routeVal = "/" + routeVal.Trim('/');
+        routeVal = routeVal.Trim('/');
+        if (!string.IsNullOrEmpty(basePath))
+        {
+            var cleanBase = basePath.Trim('/');
+            routeVal = string.IsNullOrEmpty(routeVal) ? cleanBase : $"{cleanBase}/{routeVal}";
+        }
+
+        routeVal = "/" + routeVal;
         var cleanService = interfaceName.ToLowerInvariant();
-        return $"{cleanService}{routeVal}";
+        return $"http:{cleanService}{routeVal}";
+    }
+
+    private static string CleanInterfaceName(string name)
+    {
+        var interfaceName = name;
+        if (interfaceName.StartsWith("I") && interfaceName.Length > 1 && char.IsUpper(interfaceName[1]))
+        {
+            interfaceName = interfaceName[1..];
+        }
+        while (true)
+        {
+            if (interfaceName.EndsWith("Client", StringComparison.OrdinalIgnoreCase))
+            {
+                interfaceName = interfaceName[..^"Client".Length];
+            }
+            else if (interfaceName.EndsWith("Api", StringComparison.OrdinalIgnoreCase))
+            {
+                interfaceName = interfaceName[..^"Api".Length];
+            }
+            else if (interfaceName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+            {
+                interfaceName = interfaceName[..^"Service".Length];
+            }
+            else
+            {
+                break;
+            }
+        }
+        return interfaceName;
+    }
+
+    private static string? ExtractStringOrExpression(Node argNode)
+    {
+        var strNode = argNode.Children.FirstOrDefault(c => c.Type.Contains("string"));
+        if (strNode.IsValid()) return strNode.Text.Trim('"');
+
+        if (AstValueResolver.TryResolveExpression(argNode, null, null, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
+        {
+            return resolved;
+        }
+
+        var raw = argNode.Text.Trim();
+        if (ConstantRegistry.TryResolve(null, raw, out var constVal) && !string.IsNullOrWhiteSpace(constVal))
+        {
+            return constVal;
+        }
+
+        return null;
     }
 }

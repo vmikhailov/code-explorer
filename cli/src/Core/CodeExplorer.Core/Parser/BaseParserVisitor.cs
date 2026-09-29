@@ -130,6 +130,14 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 foreach (var libParser in LibraryParsers)
                 {
                     libParser.CollectReferences(node, "", currentScope.References, null!);
+                    if (currentScope.Kind == OntologyConstants.NodeLabels.Query)
+                    {
+                        var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == OntologyConstants.NodeLabels.Function);
+                        if (enclosingFunc != null)
+                        {
+                            libParser.CollectReferences(node, "", enclosingFunc.References, null!);
+                        }
+                    }
                 }
             }
 
@@ -313,6 +321,16 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         if (kind == OntologyConstants.NodeLabels.Query)
         {
             NestedSqlParser.TryDetectSqlDependencies(node.Text, "", syntacticNode.References);
+            if (parent.Kind == OntologyConstants.NodeLabels.Function)
+            {
+                foreach (var r in syntacticNode.References)
+                {
+                    if (r.Kind == OntologyConstants.Relationships.DependsOn && !parent.References.Contains(r))
+                    {
+                        parent.References.Add(r);
+                    }
+                }
+            }
         }
 
         CollectCustomReferencesForSymbol(node, syntacticNode, parent);

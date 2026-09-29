@@ -356,8 +356,20 @@ public class Layer3SyntacticParser
         }
         else if (kind == OntologyConstants.NodeLabels.Query)
         {
-            typedNode = NestedSqlParser.ParseNestedSql(syntactic.Text ?? node.Text, symbolId, relativePath, ctx) ??
-                        new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(syntactic.Text ?? node.Text), relativePath);
+            var sqlCandidate = syntactic.Text ?? node.Text;
+            if (!NestedSqlParser.TryParseSql(sqlCandidate, out _, out _))
+            {
+                if (name.Contains(':'))
+                {
+                    var afterColon = name[(name.IndexOf(':') + 1)..].Trim();
+                    if (NestedSqlParser.TryParseSql(afterColon, out _, out _))
+                    {
+                        sqlCandidate = afterColon;
+                    }
+                }
+            }
+            typedNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx) ??
+                        new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(sqlCandidate), relativePath);
         }
         else if (kind == OntologyConstants.NodeLabels.EntryPoint)
         {
@@ -508,8 +520,7 @@ public class Layer3SyntacticParser
             cleanName.Length > 256 ||
             cleanName.Contains('\n') ||
             cleanName.Contains('\r') ||
-            cleanName.Contains('{') ||
-            cleanName.Contains('}') ||
+            (!cleanName.StartsWith("http", StringComparison.OrdinalIgnoreCase) && (cleanName.Contains('{') || cleanName.Contains('}'))) ||
             cleanName.Contains('<') ||
             cleanName.Contains('>') ||
             cleanName.Contains('+') ||
@@ -626,7 +637,8 @@ public class Layer3SyntacticParser
         {
             { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
         };
-        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path, ext);
+        var displayName = !string.IsNullOrEmpty(path) && path != "/" ? $"{protocol}:{domainOrService}{path}" : domainOrService;
+        return new ExternalServiceNode(extServiceId, displayName, protocol, domainOrService, path, ext);
     }
 
     private static string GetProjectNameFromRelativePath(string relativePath)

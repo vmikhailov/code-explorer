@@ -49,14 +49,11 @@ public class SqliteIndicesTests
             "idx_nodes_kind_file_path",
             "idx_nodes_kind_name",
             "idx_nodes_kind_lower_path",
-            "idx_edges_from",
-            "idx_edges_to",
-            "idx_edges_kind",
-            "idx_edges_from_kind",
-            "idx_edges_to_kind",
             "idx_edges_from_kind_to",
             "idx_edges_to_kind_from",
-            "idx_edges_kind_from_to"
+            "idx_edges_kind_from_to",
+            "idx_edges_unique",
+            "idx_file_registry_hash"
         };
 
         foreach (var expected in expectedIndices)
