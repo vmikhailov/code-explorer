@@ -9,10 +9,11 @@ import {
   ConcentricEdgeInput,
   ConcentricOrbitGuide,
   ConcentricLayoutResult,
+  DomainSectorGuide,
 } from '../layout/concentricLayout';
 import { computeConcentricEquispacedLayout } from '../layout/concentricEquispacedLayout';
 import { computeConcentricPolarForceLayout } from '../layout/concentricPolarForceLayout';
-import { computeConcentricSectorsLayout } from '../layout/concentricSectorsLayout';
+import { computeConcentricSectorsLayout, describeAnnularSector } from '../layout/concentricSectorsLayout';
 import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout';
 import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslandsLayout';
 import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
@@ -710,10 +711,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [swimlaneGuides, setSwimlaneGuides] = useState<SwimlaneGuide[]>([]);
   const [islandGuides, setIslandGuides] = useState<IslandGuide[]>([]);
   const [hiveGuides, setHiveGuides] = useState<HiveAxisGuide[]>([]);
+  const [sectorGuides, setSectorGuides] = useState<DomainSectorGuide[]>([]);
   const baseConcentricGuidesRef = useRef<ConcentricOrbitGuide[]>([]);
   const baseSwimlaneGuidesRef = useRef<SwimlaneGuide[]>([]);
   const baseIslandGuidesRef = useRef<IslandGuide[]>([]);
   const baseHiveGuidesRef = useRef<HiveAxisGuide[]>([]);
+  const baseSectorGuidesRef = useRef<DomainSectorGuide[]>([]);
   const [cyTransform, setCyTransform] = useState<{ pan: { x: number; y: number }; zoom: number }>({ pan: { x: 0, y: 0 }, zoom: 1 });
   const [selectedNode, setSelectedNode] = useState<SelectedNodeDetail | null>(null);
   const selectedNodeRef = useRef<SelectedNodeDetail | null>(null);
@@ -2082,14 +2085,58 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
         const effectiveOrder = customOrbitOrderRef.current || undefined;
         let layoutResult: ConcentricLayoutResult;
-        if (layoutName === 'concentric-equispaced') {
-          layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
-        } else if (layoutName === 'concentric-polar-force') {
-          layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
-        } else if (layoutName === 'concentric-sectors') {
-          layoutResult = computeConcentricSectorsLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+        if (layoutName === 'concentric-sectors') {
+          const nodeDomainMap = new Map<string, string>();
+          const domainDetailsMap = new Map<string, { name: string; displayName: string }>();
+
+          for (const [id, detail] of rawGraph.detailMap.entries()) {
+            if (detail.kind === 'Service' || detail.kind === 'Ingress' || detail.kind === 'Worker') {
+              nodeDomainMap.set(id, id);
+              domainDetailsMap.set(id, { name: detail.name, displayName: detail.displayName });
+            } else if (detail.kind === 'Database') {
+              const callers = Array.from(rawGraph.dbSourceServicesMap.get(id) || []);
+              if (callers.length === 1) {
+                nodeDomainMap.set(id, callers[0]);
+              } else if (callers.length > 1) {
+                nodeDomainMap.set(id, '__shared__');
+              }
+            } else if (detail.kind === 'Topic') {
+              const pubs = Array.from(rawGraph.topicPublishers.get(id) || []);
+              const subs = Array.from(rawGraph.topicSubscribers.get(id) || []);
+              const allParties = new Set([...pubs, ...subs]);
+              if (allParties.size === 1) {
+                nodeDomainMap.set(id, allParties.values().next().value!);
+              } else if (allParties.size > 1) {
+                nodeDomainMap.set(id, '__shared__');
+              }
+            }
+          }
+
+          layoutResult = computeConcentricSectorsLayout(
+            visibleNodesInput,
+            visibleEdgesInput,
+            spacing,
+            effectiveOrder,
+            nodeDomainMap,
+            domainDetailsMap
+          );
+          const effSpacing = spacing || 1.0;
+          setSectorGuides(layoutResult.sectors || []);
+          baseSectorGuidesRef.current = (layoutResult.sectors || []).map((s) => ({
+            ...s,
+            innerRadius: s.innerRadius / effSpacing,
+            outerRadius: s.outerRadius / effSpacing,
+          }));
         } else {
-          layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+          setSectorGuides([]);
+          baseSectorGuidesRef.current = [];
+          if (layoutName === 'concentric-equispaced') {
+            layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+          } else if (layoutName === 'concentric-polar-force') {
+            layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+          } else {
+            layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+          }
         }
 
         layoutConfig = {
@@ -2120,9 +2167,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setOrbitLegendItems([]);
         setIslandGuides([]);
         setHiveGuides([]);
+        setSectorGuides([]);
         baseConcentricGuidesRef.current = [];
         baseIslandGuidesRef.current = [];
         baseHiveGuidesRef.current = [];
+        baseSectorGuidesRef.current = [];
         const layoutResult = computeSwimlanesLayout(visibleNodesInput, visibleEdgesInput, spacing);
         layoutConfig = {
           name: 'preset',
@@ -2145,9 +2194,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setOrbitLegendItems([]);
         setSwimlaneGuides([]);
         setHiveGuides([]);
+        setSectorGuides([]);
         baseConcentricGuidesRef.current = [];
         baseSwimlaneGuidesRef.current = [];
         baseHiveGuidesRef.current = [];
+        baseSectorGuidesRef.current = [];
         const layoutResult = computeDomainIslandsLayout(visibleNodesInput, visibleEdgesInput, spacing);
         layoutConfig = {
           name: 'preset',
@@ -2170,9 +2221,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setOrbitLegendItems([]);
         setSwimlaneGuides([]);
         setIslandGuides([]);
+        setSectorGuides([]);
         baseConcentricGuidesRef.current = [];
         baseSwimlaneGuidesRef.current = [];
         baseIslandGuidesRef.current = [];
+        baseSectorGuidesRef.current = [];
         const layoutResult = computeHivePlotLayout(visibleNodesInput, visibleEdgesInput, spacing);
         layoutConfig = {
           name: 'preset',
@@ -2193,10 +2246,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setSwimlaneGuides([]);
         setIslandGuides([]);
         setHiveGuides([]);
+        setSectorGuides([]);
         baseConcentricGuidesRef.current = [];
         baseSwimlaneGuidesRef.current = [];
         baseIslandGuidesRef.current = [];
         baseHiveGuidesRef.current = [];
+        baseSectorGuidesRef.current = [];
         // Organic Force-Directed (COSE)
         layoutConfig = {
           name: 'cose',
@@ -2349,6 +2404,25 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             }))
           );
         }
+        if (layoutName === 'concentric-sectors') {
+          if (baseSectorGuidesRef.current.length === 0 && sectorGuides.length > 0) {
+            const cur = spacingFactorRef.current || 1.0;
+            baseSectorGuidesRef.current = sectorGuides.map((g) => ({
+              ...g,
+              innerRadius: g.innerRadius / cur,
+              outerRadius: g.outerRadius / cur,
+            }));
+          }
+          if (baseSectorGuidesRef.current.length > 0) {
+            setSectorGuides(
+              baseSectorGuidesRef.current.map((g) => ({
+                ...g,
+                innerRadius: Math.round(g.innerRadius * clamped),
+                outerRadius: Math.round(g.outerRadius * clamped),
+              }))
+            );
+          }
+        }
       } else if (layoutName === 'swimlanes') {
         if (baseSwimlaneGuidesRef.current.length === 0 && swimlaneGuides.length > 0) {
           const cur = spacingFactorRef.current || 1.0;
@@ -2413,7 +2487,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       applyEdgeCurveMode(cy, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
     },
-    [recordBasePositions, layoutName, concentricGuides, swimlaneGuides, islandGuides, hiveGuides]
+    [recordBasePositions, layoutName, concentricGuides, swimlaneGuides, islandGuides, hiveGuides, sectorGuides]
   );
 
   // Concentric Orbit Reordering Handlers (drag-and-drop or ▲/▼)
@@ -2451,12 +2525,45 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       let layoutResult: ConcentricLayoutResult;
       if (layoutName === 'concentric-equispaced') {
         layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+        setSectorGuides([]);
+        baseSectorGuidesRef.current = [];
       } else if (layoutName === 'concentric-polar-force') {
         layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+        setSectorGuides([]);
+        baseSectorGuidesRef.current = [];
       } else if (layoutName === 'concentric-sectors') {
-        layoutResult = computeConcentricSectorsLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+        const nodeDomainMap = new Map<string, string>();
+        const domainDetailsMap = new Map<string, { displayName?: string; color?: string }>();
+        for (const [nid, node] of rawGraph.detailMap.entries()) {
+          if (node.domain) {
+            nodeDomainMap.set(nid, node.domain);
+          }
+        }
+        for (const [did, d] of rawGraph.domainMap.entries()) {
+          domainDetailsMap.set(did, {
+            displayName: d.displayName || d.name || did,
+            color: d.color,
+          });
+        }
+        layoutResult = computeConcentricSectorsLayout(
+          visibleNodesInput,
+          visibleEdgesInput,
+          spacing,
+          effectiveOrder,
+          nodeDomainMap,
+          domainDetailsMap
+        );
+        const effSpacing = spacing || 1.0;
+        setSectorGuides(layoutResult.sectors || []);
+        baseSectorGuidesRef.current = (layoutResult.sectors || []).map((s) => ({
+          ...s,
+          innerRadius: s.innerRadius / effSpacing,
+          outerRadius: s.outerRadius / effSpacing,
+        }));
       } else {
         layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+        setSectorGuides([]);
+        baseSectorGuidesRef.current = [];
       }
 
       const effSpacing = spacing || 1.0;
@@ -3198,7 +3305,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       ) : (
         <>
           {/* SVG Overlay Guides for Concentric, Swimlanes, Domain Islands, and Hive Plot */}
-          {((layoutName.startsWith('concentric') && concentricGuides.length > 0) ||
+          {((layoutName.startsWith('concentric') && (concentricGuides.length > 0 || sectorGuides.length > 0)) ||
             (layoutName === 'swimlanes' && swimlaneGuides.length > 0) ||
             (layoutName === 'clusters' && islandGuides.length > 0) ||
             (layoutName === 'hive' && hiveGuides.length > 0)) && (
@@ -3214,8 +3321,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               }}
             >
               <g transform={`translate(${cyTransform.pan.x}, ${cyTransform.pan.y}) scale(${cyTransform.zoom})`}>
-                {/* 1. Concentric Guides */}
+                {/* 1. Standard Concentric Guides */}
                 {layoutName.startsWith('concentric') &&
+                  layoutName !== 'concentric-sectors' &&
                   concentricGuides.map((g, idx) => {
                     const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
                     const dashPattern = `${8 / cyTransform.zoom} ${6 / cyTransform.zoom}`;
@@ -3263,6 +3371,87 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       </g>
                     );
                   })}
+
+                {/* 1.1 Concentric Domain Sector Guides */}
+                {layoutName === 'concentric-sectors' && (
+                  <g className="concentric-sectors-overlay">
+                    {/* Subtle concentric orbit rings */}
+                    {concentricGuides.map((cg, cIdx) => (
+                      <circle
+                        key={`orbit-${cIdx}`}
+                        cx={0}
+                        cy={0}
+                        r={cg.radius}
+                        fill="none"
+                        stroke="rgba(148, 163, 184, 0.12)"
+                        strokeWidth={Math.max(1, 1 / cyTransform.zoom)}
+                        strokeDasharray={`${6 / cyTransform.zoom} ${6 / cyTransform.zoom}`}
+                      />
+                    ))}
+
+                    {/* Sector wedges and headers */}
+                    {sectorGuides.map((g) => {
+                      const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
+                      const dashPattern = `${6 / cyTransform.zoom} ${4 / cyTransform.zoom}`;
+                      const guideFontSize = Math.max(9.5, 12 / cyTransform.zoom);
+                      const labelText = `${g.displayName} (${g.count})`;
+                      const textWidth = labelText.length * guideFontSize * 0.65;
+                      const hPad = Math.max(16, 20 / cyTransform.zoom);
+                      const badgeWidth = Math.max(textWidth + hPad, 85 / cyTransform.zoom);
+                      const badgeHeight = Math.max(20, 24 / cyTransform.zoom);
+
+                      const wedgePath = describeAnnularSector(
+                        0,
+                        0,
+                        g.innerRadius,
+                        g.outerRadius,
+                        g.startAngle,
+                        g.endAngle
+                      );
+
+                      // Place badge just outside outer radius along centerAngle
+                      const badgeDist = g.outerRadius + Math.max(22, 28 / cyTransform.zoom);
+                      const badgeX = Math.round(badgeDist * Math.cos(g.centerAngle));
+                      const badgeY = Math.round(badgeDist * Math.sin(g.centerAngle));
+
+                      return (
+                        <g key={g.id}>
+                          {/* Annular sector filled wedge */}
+                          <path
+                            d={wedgePath}
+                            fill={g.color.startsWith('#') ? `${g.color}18` : 'rgba(56, 189, 248, 0.08)'}
+                            stroke={g.color.startsWith('#') ? `${g.color}50` : 'rgba(56, 189, 248, 0.35)'}
+                            strokeWidth={strokeW}
+                            strokeDasharray={g.isShared ? dashPattern : undefined}
+                          />
+
+                          {/* Sector Label Pill Badge */}
+                          <rect
+                            x={badgeX - badgeWidth / 2}
+                            y={badgeY - badgeHeight / 2}
+                            width={badgeWidth}
+                            height={badgeHeight}
+                            rx={5 / cyTransform.zoom}
+                            fill="rgba(15, 23, 42, 0.94)"
+                            stroke={g.color.startsWith('#') ? `${g.color}90` : '#38bdf8'}
+                            strokeWidth={1.5 / cyTransform.zoom}
+                          />
+                          <text
+                            x={badgeX}
+                            y={badgeY}
+                            fill={g.color}
+                            fontSize={`${guideFontSize}px`}
+                            fontWeight="700"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                          >
+                            {labelText}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </g>
+                )}
 
                 {/* 2. Swimlane Guides */}
                 {layoutName === 'swimlanes' &&

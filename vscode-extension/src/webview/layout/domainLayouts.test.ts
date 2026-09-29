@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { computeSwimlanesLayout, SwimlaneNodeInput, SwimlaneEdgeInput } from './swimlanesLayout';
 import { computeDomainIslandsLayout, IslandNodeInput, IslandEdgeInput } from './domainIslandsLayout';
 import { computeHivePlotLayout, HiveNodeInput, HiveEdgeInput } from './hivePlotLayout';
+import { computeConcentricSectorsLayout, describeAnnularSector } from './concentricSectorsLayout';
 
 const sampleNodes = [
   { id: 'ats-front', name: 'ats-front', kind: 'Ingress', echelonTier: 0 },
@@ -84,4 +85,66 @@ test('computeHivePlotLayout: distributes nodes along canonical axes without NaN 
   // Verify axis angles are separated by 72 deg (2*PI/5)
   const diff1 = Math.abs(result.axes[1].angle - result.axes[0].angle);
   assert.ok(Math.abs(diff1 - (2 * Math.PI) / 5) < 0.05, 'Axes must be 72 deg apart');
+});
+
+test('computeConcentricSectorsLayout: allocates proportional sector angles and guides without overlap', () => {
+  const nodes = [
+    { id: 'p1', name: 'player-svc', kind: 'Service', echelonTier: 2, domain: 'domain-player' },
+    { id: 'p2', name: 'player-db', kind: 'Database', echelonTier: 5, domain: 'domain-player' },
+    { id: 'p3', name: 'player-worker', kind: 'Worker', echelonTier: 3, domain: 'domain-player' },
+    { id: 'p4', name: 'player-cache', kind: 'Database', echelonTier: 5, domain: 'domain-player' },
+    { id: 'b1', name: 'billing-svc', kind: 'Service', echelonTier: 2, domain: 'domain-billing' },
+  ];
+  const edges = [
+    { source: 'p1', target: 'p2', category: 'database' },
+    { source: 'p1', target: 'p3', category: 'service_call' },
+    { source: 'p1', target: 'p4', category: 'database' },
+  ];
+  const nodeDomainMap = new Map([
+    ['p1', 'domain-player'],
+    ['p2', 'domain-player'],
+    ['p3', 'domain-player'],
+    ['p4', 'domain-player'],
+    ['b1', 'domain-billing'],
+  ]);
+  const domainDetailsMap = new Map([
+    ['domain-player', { displayName: 'Player Domain', color: '#38bdf8' }],
+    ['domain-billing', { displayName: 'Billing Domain', color: '#f59e0b' }],
+  ]);
+
+  const result = computeConcentricSectorsLayout(nodes, edges, 1.0, undefined, nodeDomainMap, domainDetailsMap);
+
+  assert.equal(result.positions.size, 5, 'All 5 nodes must have positions');
+  assert.ok(result.sectors && result.sectors.length >= 2, 'Must produce at least 2 sector guides');
+
+  const playerSector = result.sectors!.find((s) => s.id === 'domain-player');
+  const billingSector = result.sectors!.find((s) => s.id === 'domain-billing');
+
+  assert.ok(playerSector, 'Player sector must exist');
+  assert.ok(billingSector, 'Billing sector must exist');
+
+  // Player domain has 4 nodes vs Billing domain 1 node -> Player sector must have a wider angle span!
+  const playerSpan = playerSector!.endAngle - playerSector!.startAngle;
+  const billingSpan = billingSector!.endAngle - billingSector!.startAngle;
+  assert.ok(playerSpan > billingSpan, 'Domain with 4 nodes must receive larger angular sector than domain with 1 node');
+
+  // Verify node angles are inside their sector boundaries
+  for (const n of nodes) {
+    const pos = result.positions.get(n.id)!;
+    assert.ok(Number.isFinite(pos.x) && Number.isFinite(pos.y), `Node ${n.id} position must be finite`);
+    const angle = result.nodeAngles?.get(n.id);
+    assert.ok(angle !== undefined, `Node ${n.id} must have assigned angle`);
+    const sector = n.domain === 'domain-player' ? playerSector! : billingSector!;
+    assert.ok(
+      angle! >= sector.startAngle - 0.05 && angle! <= sector.endAngle + 0.05,
+      `Node ${n.id} angle ${angle} must fall within sector [${sector.startAngle}, ${sector.endAngle}]`
+    );
+  }
+
+  // Verify describeAnnularSector produces valid SVG path
+  const svgPath = describeAnnularSector(0, 0, 100, 300, 0, Math.PI / 2);
+  assert.ok(svgPath.startsWith('M '), 'SVG path must start with M');
+  assert.ok(svgPath.endsWith('Z'), 'SVG path must end with Z');
+  assert.ok(svgPath.includes('A 300 300'), 'SVG path must contain outer arc');
+  assert.ok(svgPath.includes('A 100 100'), 'SVG path must contain inner arc');
 });

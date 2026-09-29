@@ -6,6 +6,10 @@
 export interface ConcentricNodeInput {
   id: string;
   echelonTier: number;
+  kind?: string;
+  name?: string;
+  displayName?: string;
+  domain?: string;
 }
 
 export interface ConcentricEdgeInput {
@@ -24,6 +28,21 @@ export interface ConcentricOrbitGuide {
   count: number;
 }
 
+export interface DomainSectorGuide {
+  id: string;
+  domainName: string;
+  displayName: string;
+  startAngle: number;
+  endAngle: number;
+  centerAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  color: string;
+  count: number;
+  nodeIds: string[];
+  isShared?: boolean;
+}
+
 export interface ConcentricLayoutResult {
   positions: Map<string, { x: number; y: number }>;
   nodeAngles: Map<string, number>;
@@ -37,6 +56,7 @@ export interface ConcentricLayoutResult {
     nodeIds: string[];
     radius: number;
   }>;
+  sectors?: DomainSectorGuide[];
 }
 
 export const ORBIT_TITLES: Record<number, string> = {
