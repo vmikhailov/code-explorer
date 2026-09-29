@@ -59,9 +59,7 @@ public static class CSharpDeclarationExtractor
 
         if (type is TreeSitterSyntax.CSharp.FieldDeclaration)
         {
-            var isConstOrReadonly = node.Children.Any(c => c.Text is "const" or "readonly" or "static" || c.Type is "const" or "readonly" or "static") ||
-                                    node.FindDescendantsOfType("modifier").Any(m => m.Text is "const" or "readonly" or "static");
-            if (isConstOrReadonly)
+            if (HasAnyModifier(node, "const", "readonly", "static"))
             {
                 var declarators = node.FindDescendantsOfType(TreeSitterSyntax.CSharp.VariableDeclarator);
                 foreach (var decl in declarators)
@@ -75,8 +73,7 @@ public static class CSharpDeclarationExtractor
                         var valNode = decl.GetChildForField(TreeSitterSyntax.Fields.Value);
                         if (!valNode.IsValid())
                         {
-                            var eq = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause) ??
-                                     decl.FindDescendantOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
+                            var eq = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
                             if (eq.IsValid())
                             {
                                 valNode = eq.GetChildForField(TreeSitterSyntax.Fields.Value) ??
@@ -101,8 +98,7 @@ public static class CSharpDeclarationExtractor
 
         if (type is TreeSitterSyntax.CSharp.PropertyDeclaration)
         {
-            var isStatic = node.Children.Any(c => c.Text is "static" || c.Type is "static");
-            if (isStatic)
+            if (HasAnyModifier(node, "static"))
             {
                 var arrow = node.FindChildOfType(TreeSitterSyntax.CSharp.ArrowExpressionClause);
                 if (arrow.IsValid())
@@ -129,5 +125,11 @@ public static class CSharpDeclarationExtractor
         {
             ExtractInternal(child, currentScope, register);
         }
+    }
+
+    private static bool HasAnyModifier(Node node, params string[] modifiers)
+    {
+        return node.Children.Any(c => modifiers.Contains(c.Text) || modifiers.Contains(c.Type)) ||
+               node.FindDescendantsOfType("modifier").Any(m => modifiers.Contains(m.Text));
     }
 }
