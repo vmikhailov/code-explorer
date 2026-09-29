@@ -852,6 +852,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     const outCalls = new Map<string, number>();
     const dbUsage = new Map<string, Set<string>>();
     const msgUsage = new Map<string, Set<string>>();
+    const topicPublishers = new Map<string, Set<string>>();
+    const topicSubscribers = new Map<string, Set<string>>();
+    const directPubSubChords = new Map<string, { source: string; target: string; label: string; count: number }>();
 
     for (const edge of graph?.edges || []) {
       const srcDomain =
@@ -881,11 +884,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         dbUsage.get(srcDomain)!.add(tgtDomain);
       } else if (isTopicEdge) {
         cat = 'messaging';
-        if (edge.kind === 'SUBSCRIBES_TO' || edge.kind === 'SUBSCRIBED_BY' || (topicNodes.has(srcDomain) && !topicNodes.has(tgtDomain))) {
-          label = 'SUBSCRIBES';
+        const isSub =
+          edge.kind === 'SUBSCRIBES_TO' ||
+          edge.kind === 'SUBSCRIBED_BY' ||
+          (topicNodes.has(srcDomain) && !topicNodes.has(tgtDomain));
+        label = isSub ? 'SUBSCRIBES' : 'PUBLISHES';
+
+        const tDomain = topicNodes.has(tgtDomain) ? tgtDomain : srcDomain;
+        const sDomain = topicNodes.has(tgtDomain) ? srcDomain : tgtDomain;
+
+        if (isSub) {
+          if (!topicSubscribers.has(tDomain)) topicSubscribers.set(tDomain, new Set());
+          topicSubscribers.get(tDomain)!.add(sDomain);
         } else {
-          label = 'PUBLISHES';
+          if (!topicPublishers.has(tDomain)) topicPublishers.set(tDomain, new Set());
+          topicPublishers.get(tDomain)!.add(sDomain);
         }
+
         if (topicNodes.has(tgtDomain)) {
           if (!msgUsage.has(srcDomain)) msgUsage.set(srcDomain, new Set());
           msgUsage.get(srcDomain)!.add(tgtDomain);
@@ -908,10 +923,25 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         edge.kind === 'SUBSCRIBES_TO' ||
         edge.kind === 'SUBSCRIBED_BY' ||
         edge.kind === 'PUBLISHES_TO' ||
-        edge.kind === 'PUBLISHED_BY'
+        edge.kind === 'PUBLISHED_BY' ||
+        edge.category === 'messaging'
       ) {
-        // Direct pub/sub chord between services without a topic node is a phantom artifact
-        // of unrolled event subscriptions or shared contracts. Drop it so it does not clutter the architecture graph.
+        // Direct pub/sub relation between two services (unrolled contract / shared event).
+        // Record as a direct pub/sub candidate chord.
+        const chordLabel =
+          edge.kind === 'SUBSCRIBES_TO' || edge.kind === 'SUBSCRIBED_BY' ? 'SUBSCRIBES' : 'PUBLISHES';
+        const chordKey = `${srcDomain}->${tgtDomain}`;
+        const existingChord = directPubSubChords.get(chordKey);
+        if (existingChord) {
+          existingChord.count += 1;
+        } else {
+          directPubSubChords.set(chordKey, {
+            source: srcDomain,
+            target: tgtDomain,
+            label: chordLabel,
+            count: 1,
+          });
+        }
         continue;
       } else {
         const isClientLib = edge.target.toLowerCase().includes('.client') || edge.target.toLowerCase().endsWith('client');
@@ -1267,6 +1297,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       echelonMap,
       outAdj,
       dbSourceServicesMap,
+      topicPublishers,
+      topicSubscribers,
+      directPubSubChords,
       counts: {
         ingress: ingressCount,
         services: serviceCount,
@@ -1324,7 +1357,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
 
-    // Directional Transitive Contraction BFS (u -> hidden... -> v)
+    // Directional Transitive Contraction (u -> hidden... -> v)
     interface TransitivePath {
       curr: string;
       viaNames: string[];
@@ -1346,6 +1379,73 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     >();
 
+    // A. Contract hidden Topic nodes: connecting subscribers to publishers
+    for (const topicId of hiddenNodeIdSet) {
+      if (!rawGraph.topicPublishers.has(topicId) && !rawGraph.topicSubscribers.has(topicId)) continue;
+      const pubs = rawGraph.topicPublishers.get(topicId) || new Set<string>();
+      const subs = rawGraph.topicSubscribers.get(topicId) || new Set<string>();
+      const tDetail = rawGraph.detailMap.get(topicId);
+      const tName = tDetail?.displayName || topicId;
+
+      for (const p of pubs) {
+        for (const s of subs) {
+          if (p === s) continue;
+          if (visibleNodeIds.has(s) && visibleNodeIds.has(p)) {
+            // Direct edge takes precedence
+            if (directVisibleEdgeKeys.has(`${s}->${p}`)) continue;
+
+            const transKey = `${s}->${p}:messaging`;
+            const existing = transitiveEdgesMap.get(transKey);
+            if (existing) {
+              existing.count += 1;
+              if (!existing.viaNames.includes(tName)) {
+                existing.viaNames.push(tName);
+              }
+            } else {
+              transitiveEdgesMap.set(transKey, {
+                source: s,
+                target: p,
+                category: 'messaging',
+                label: 'SUBSCRIBES',
+                count: 1,
+                viaNames: [tName],
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // B. Direct service-to-service pub/sub chords (when no visible topic connects them)
+    for (const chord of rawGraph.directPubSubChords.values()) {
+      if (visibleNodeIds.has(chord.source) && visibleNodeIds.has(chord.target)) {
+        // Check if there is an active visible topic connecting them
+        const hasVisibleTopic = Array.from(rawGraph.topicPublishers.keys()).some(
+          (tId) =>
+            visibleNodeIds.has(tId) &&
+            ((rawGraph.topicPublishers.get(tId)?.has(chord.target) &&
+              rawGraph.topicSubscribers.get(tId)?.has(chord.source)) ||
+              (rawGraph.topicPublishers.get(tId)?.has(chord.source) &&
+                rawGraph.topicSubscribers.get(tId)?.has(chord.target)))
+        );
+
+        if (!hasVisibleTopic) {
+          const transKey = `${chord.source}->${chord.target}:messaging`;
+          if (!directVisibleEdgeKeys.has(`${chord.source}->${chord.target}`) && !transitiveEdgesMap.has(transKey)) {
+            transitiveEdgesMap.set(transKey, {
+              source: chord.source,
+              target: chord.target,
+              category: 'messaging',
+              label: chord.label,
+              count: chord.count,
+              viaNames: ['event-bus'],
+            });
+          }
+        }
+      }
+    }
+
+    // C. General Hidden-Node BFS for multi-hop service/worker/infrastructure chains
     for (const u of visibleNodeIds) {
       const queue: TransitivePath[] = [];
       const visitedHidden = new Set<string>();
@@ -1372,8 +1472,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         const item = queue[qIdx++];
         if (item.depth > 6) continue;
 
-        const outEdges = rawGraph.outAdj.get(item.curr) || [];
-        for (const nextEdge of outEdges) {
+        // If current hidden node is a topic, downstream nodes are its subscribers
+        const isTopic = rawGraph.topicSubscribers.has(item.curr);
+        const nextHops: Array<{ target: string; category: any; label: string; count: number }> = isTopic
+          ? Array.from(rawGraph.topicSubscribers.get(item.curr) || []).map((sub) => ({
+              target: sub,
+              category: 'messaging' as const,
+              label: 'SUBSCRIBES',
+              count: 1,
+            }))
+          : (rawGraph.outAdj.get(item.curr) || []);
+
+        for (const nextEdge of nextHops) {
           const v = nextEdge.target;
           if (v === u) continue; // Skip self loops
 
