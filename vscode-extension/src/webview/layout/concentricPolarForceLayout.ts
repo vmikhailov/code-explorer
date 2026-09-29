@@ -14,6 +14,7 @@ import {
   ConcentricEdgeInput,
   ConcentricLayoutResult,
   ConcentricOrbitGuide,
+  ORBIT_TITLES,
   ORBIT_NAMES,
   cleanEntityToken,
   normalizeAngle,
@@ -38,14 +39,20 @@ export function computeConcentricPolarForceLayout(
     radius: number;
   }> = [];
 
+  let displayIdx = 0;
   for (const idx of [0, 1, 2, 3, 4, 5]) {
     if (orbitBuckets[idx].length > 0) {
+      const title = ORBIT_TITLES[idx] || `Tier ${idx}`;
+      const shortLabel = `Orbit ${displayIdx}`;
       populatedOrbits.push({
         levelIndex: idx,
-        label: ORBIT_NAMES[idx] || `Orbit ${idx}`,
+        label: `${shortLabel}: ${title}`,
+        shortLabel,
+        title,
         nodeIds: orbitBuckets[idx],
         radius: 0,
       });
+      displayIdx++;
     }
   }
 
@@ -213,11 +220,16 @@ export function computeConcentricPolarForceLayout(
     });
   });
 
-  const guides: ConcentricOrbitGuide[] = populatedOrbits.map((orbit) => ({
-    radius: orbit.radius,
-    label: orbit.label,
-    count: orbit.nodeIds.length,
-  }));
+  const guides: ConcentricOrbitGuide[] = populatedOrbits
+    .filter((orbit) => orbit.radius > 0)
+    .map((orbit) => ({
+      radius: orbit.radius,
+      label: orbit.label,
+      shortLabel: orbit.shortLabel,
+      title: orbit.title,
+      levelIndex: orbit.levelIndex,
+      count: orbit.nodeIds.length,
+    }));
 
   return {
     positions,

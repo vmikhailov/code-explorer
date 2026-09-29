@@ -124,6 +124,34 @@ const CYTO_STYLES: cytoscape.StylesheetStyle[] = [
       'control-point-step-size': 38,
     } as any,
   },
+  {
+    selector: '.faded',
+    style: {
+      'opacity': 0.12,
+      'text-opacity': 0.1,
+    } as any,
+  },
+  {
+    selector: 'node.highlighted',
+    style: {
+      'border-color': '#38bdf8',
+      'border-width': 5,
+      'shadow-blur': 25,
+      'shadow-color': '#38bdf8',
+      'shadow-opacity': 0.9,
+      'z-index': 9999,
+    } as any,
+  },
+  {
+    selector: 'edge.highlighted',
+    style: {
+      'opacity': 1,
+      'line-color': '#38bdf8',
+      'target-arrow-color': '#38bdf8',
+      'z-index': 9998,
+      'width': 'data(weight)',
+    } as any,
+  },
 ];
 
 export interface BundledEdgeDetail {
@@ -148,9 +176,9 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
 
-  const [viewLayout, setViewLayout] = useState<'graph' | 'cards'>('graph');
   const [cytoLayoutName, setCytoLayoutName] = useState<'cose' | 'concentric' | 'circle' | 'grid'>('cose');
   const [lineCurveMode, setLineCurveMode] = useState<'bezier' | 'straight'>('bezier');
+  const [bezierCurvature, setBezierCurvature] = useState<number>(40);
   const [searchQuery, setSearchQuery] = useState('');
   const [layerFilter, setLayerFilter] = useState('all');
   const [minCallsFilter, setMinCallsFilter] = useState<number>(2);
@@ -248,7 +276,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
 
   // Cytoscape initialization and graph updates
   useEffect(() => {
-    if (viewLayout !== 'graph' || !containerRef.current || contexts.length === 0) {
+    if (!containerRef.current || contexts.length === 0) {
       if (cyRef.current) {
         cyRef.current.destroy();
         cyRef.current = null;
@@ -353,18 +381,18 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       layout: {
         name: cytoLayoutName,
         padding: 60,
-        animate: true,
-        animationDuration: 500,
+        animate: false,
         ...(cytoLayoutName === 'cose' ? {
-          nodeRepulsion: () => 14000,
-          idealEdgeLength: () => 130,
+          nodeRepulsion: () => 6000,
+          idealEdgeLength: () => 120,
           edgeElasticity: () => 32,
           nestingFactor: 1.2,
-          gravity: 0.15,
-          numIter: 1000,
-          initialTemp: 200,
+          gravity: 0.25,
+          numIter: 150,
+          initialTemp: 100,
           coolingFactor: 0.95,
           minTemp: 1.0,
+          randomize: false,
         } : {}),
       } as any,
       minZoom: 0.25,
@@ -377,6 +405,15 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       const data = node.data('contextData') as BoundedContextDetail;
       setSelectedEdge(null);
       setSelectedContext(data);
+
+      // Ego-graph isolation: fade all other nodes/edges, highlight ego node and direct neighbors
+      cy.batch(() => {
+        cy.elements().removeClass('highlighted').addClass('faded');
+        node.removeClass('faded').addClass('highlighted');
+        const connectedEdges = node.connectedEdges();
+        connectedEdges.removeClass('faded').addClass('highlighted');
+        connectedEdges.connectedNodes().removeClass('faded').addClass('highlighted');
+      });
     });
 
     cy.on('tap', 'edge', (evt: EventObject) => {
@@ -384,14 +421,29 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       const data = edge.data('edgeData') as BundledEdgeDetail;
       setSelectedContext(null);
       setSelectedEdge(data);
+
+      // Highlight edge and its 2 endpoints
+      cy.batch(() => {
+        cy.elements().removeClass('highlighted').addClass('faded');
+        edge.removeClass('faded').addClass('highlighted');
+        edge.connectedNodes().removeClass('faded').addClass('highlighted');
+      });
     });
 
     cy.on('tap', (evt: EventObject) => {
       if (evt.target === cy) {
         setSelectedContext(null);
         setSelectedEdge(null);
+        cy.batch(() => {
+          cy.elements().removeClass('faded').removeClass('highlighted');
+        });
       }
     });
+
+    cy.style()
+      .selector('edge.edge-bezier')
+      .style('control-point-step-size', bezierCurvature)
+      .update();
 
     cyRef.current = cy;
 
@@ -399,7 +451,16 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       cy.destroy();
       cyRef.current = null;
     };
-  }, [viewLayout, filteredContexts, graph?.edges, cytoLayoutName, minCallsFilter, lineCurveMode]);
+  }, [filteredContexts, graph?.edges, cytoLayoutName, minCallsFilter, lineCurveMode]);
+
+  // Dynamic live adjustment of bezier curvature without recreating Cytoscape
+  useEffect(() => {
+    if (!cyRef.current) return;
+    cyRef.current.style()
+      .selector('edge.edge-bezier')
+      .style('control-point-step-size', bezierCurvature)
+      .update();
+  }, [bezierCurvature]);
 
   const handleFitView = useCallback(() => {
     if (cyRef.current) {
@@ -449,70 +510,84 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
             <option value="Presentation">Has Presentation</option>
           </select>
 
-          {viewLayout === 'graph' && (
-            <select
-              className="hud-select"
-              value={cytoLayoutName}
-              onChange={(e) => setCytoLayoutName(e.target.value as any)}
-            >
-              <option value="cose">Force Layout</option>
-              <option value="concentric">Concentric</option>
-              <option value="circle">Circle</option>
-              <option value="grid">Grid</option>
-            </select>
-          )}
+          <select
+            className="hud-select"
+            value={cytoLayoutName}
+            onChange={(e) => setCytoLayoutName(e.target.value as any)}
+          >
+            <option value="cose">Force Layout</option>
+            <option value="concentric">Concentric</option>
+            <option value="circle">Circle</option>
+            <option value="grid">Grid</option>
+          </select>
 
-          {viewLayout === 'graph' && (
-            <select
-              className="hud-select"
-              value={minCallsFilter}
-              onChange={(e) => setMinCallsFilter(parseInt(e.target.value, 10))}
-              title="Minimum calls threshold to reduce noise"
-            >
-              <option value="1">All Calls (1+)</option>
-              <option value="2">≥ 2 Calls (Filter 1-offs)</option>
-              <option value="5">≥ 5 Calls (Core flows)</option>
-              <option value="10">≥ 10 Calls (Major highways)</option>
-            </select>
-          )}
+          <select
+            className="hud-select"
+            value={minCallsFilter}
+            onChange={(e) => setMinCallsFilter(parseInt(e.target.value, 10))}
+            title="Minimum calls threshold to reduce noise"
+          >
+            <option value="1">All Calls (1+)</option>
+            <option value="2">≥ 2 Calls (Filter 1-offs)</option>
+            <option value="5">≥ 5 Calls (Core flows)</option>
+            <option value="10">≥ 10 Calls (Major highways)</option>
+          </select>
 
-          {viewLayout === 'graph' && (
-            <select
-              className="hud-select"
-              value={lineCurveMode}
-              onChange={(e) => setLineCurveMode(e.target.value as any)}
-              title="Line Curve Style"
-            >
-              <option value="bezier">〰️ Bezier Curves</option>
-              <option value="straight">📏 Straight Lines</option>
-            </select>
+          <select
+            className="hud-select"
+            value={lineCurveMode}
+            onChange={(e) => setLineCurveMode(e.target.value as any)}
+            title="Line Curve Style"
+          >
+            <option value="bezier">〰️ Bezier Curves</option>
+            <option value="straight">📏 Straight Lines</option>
+          </select>
+
+          {lineCurveMode === 'bezier' && (
+            <div className="hud-slider-group" title={`Bezier Curvature: ${bezierCurvature}px`}>
+              <span className="hud-slider-label">Curve:</span>
+              <button
+                type="button"
+                className="hud-step-btn"
+                onClick={() => setBezierCurvature((prev) => Math.max(10, prev - 5))}
+                title="Decrease curvature (-)"
+              >
+                -
+              </button>
+              <input
+                type="range"
+                min="10"
+                max="100"
+                step="5"
+                value={bezierCurvature}
+                onChange={(e) => setBezierCurvature(parseInt(e.target.value, 10))}
+                className="hud-slider"
+              />
+              <button
+                type="button"
+                className="hud-step-btn"
+                onClick={() => setBezierCurvature((prev) => Math.min(100, prev + 5))}
+                title="Increase curvature (+)"
+              >
+                +
+              </button>
+              <span
+                className="hud-value-badge"
+                onClick={() => setBezierCurvature(40)}
+                title="Reset curvature to 40px"
+              >
+                {bezierCurvature}px
+              </span>
+            </div>
           )}
 
           <button
-            className={`hud-btn-toggle ${viewLayout === 'graph' ? 'active' : ''}`}
-            onClick={() => setViewLayout('graph')}
-            title="Graph View"
+            className="hud-btn-toggle"
+            onClick={handleFitView}
+            title="Fit to screen"
           >
-            🕸️ Graph
+            ⛶ Fit
           </button>
-
-          <button
-            className={`hud-btn-toggle ${viewLayout === 'cards' ? 'active' : ''}`}
-            onClick={() => setViewLayout('cards')}
-            title="Cards Matrix View"
-          >
-            🗂️ Cards
-          </button>
-
-          {viewLayout === 'graph' && (
-            <button
-              className="hud-btn-toggle"
-              onClick={handleFitView}
-              title="Fit to screen"
-            >
-              ⛶ Fit
-            </button>
-          )}
         </div>
       </div>
 
@@ -546,79 +621,8 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
               )}
             </div>
           </div>
-        ) : viewLayout === 'graph' ? (
-          <div className="bounded-context-canvas" ref={containerRef} />
         ) : (
-          <div className="bounded-context-cards-container">
-            <div className="bounded-context-cards-grid">
-              {filteredContexts.map((ctx) => {
-                const totalFiles = ctx.fileCount || 1;
-                const dPct = ((ctx.layers['Domain'] || 0) / totalFiles) * 100;
-                const aPct = ((ctx.layers['Application'] || 0) / totalFiles) * 100;
-                const iPct = ((ctx.layers['Infrastructure'] || 0) / totalFiles) * 100;
-                const pPct = ((ctx.layers['Presentation'] || 0) / totalFiles) * 100;
-                const sPct = ((ctx.layers['Shared'] || 0) / totalFiles) * 100;
-
-                return (
-                  <div
-                    key={ctx.id}
-                    className={`context-card ${selectedContext?.id === ctx.id ? 'selected' : ''}`}
-                    style={{ '--card-accent': ctx.bgColor } as React.CSSProperties}
-                    onClick={() => setSelectedContext(ctx)}
-                  >
-                    <div className="card-header">
-                      <div className="card-title-group">
-                        <div className="card-domain-name">{ctx.displayName}</div>
-                        <div className="card-canonical-name">{ctx.name}</div>
-                      </div>
-                      <div className={`card-purity-badge ${ctx.purityPercentage < 40 ? 'impure' : ''}`}>
-                        {ctx.purityPercentage}% Pure
-                      </div>
-                    </div>
-
-                    {ctx.summary && <div className="card-summary">{ctx.summary}</div>}
-
-                    {/* Stacked Layers Progress Bar */}
-                    <div className="card-layers-bar" title="Layer Distribution: Domain (Blue), Application (Green), Infrastructure (Amber), Presentation (Pink)">
-                      {dPct > 0 && <div className="layer-bar-segment Domain" style={{ width: `${dPct}%` }} />}
-                      {aPct > 0 && <div className="layer-bar-segment Application" style={{ width: `${aPct}%` }} />}
-                      {iPct > 0 && <div className="layer-bar-segment Infrastructure" style={{ width: `${iPct}%` }} />}
-                      {pPct > 0 && <div className="layer-bar-segment Presentation" style={{ width: `${pPct}%` }} />}
-                      {sPct > 0 && <div className="layer-bar-segment Shared" style={{ width: `${sPct}%` }} />}
-                    </div>
-
-                    {/* Target Entities Chips */}
-                    {ctx.targetEntities.length > 0 && (
-                      <div className="card-entities-section">
-                        {ctx.targetEntities.slice(0, 4).map((ent, idx) => (
-                          <span key={idx} className="entity-chip">
-                            🏷️ {ent}
-                          </span>
-                        ))}
-                        {ctx.targetEntities.length > 4 && (
-                          <span className="entity-chip">+{ctx.targetEntities.length - 4} more</span>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="card-footer">
-                      <div className="card-stat-pill">
-                        📄 <strong>{ctx.fileCount}</strong> files
-                      </div>
-                      <div className="card-stat-pill">
-                        ⚡ <strong>{ctx.capabilities.length}</strong> capabilities
-                      </div>
-                      {ctx.emittedEvents.length > 0 && (
-                        <div className="card-stat-pill">
-                          📡 <strong>{ctx.emittedEvents.length}</strong> events
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <div className="bounded-context-canvas" ref={containerRef} />
         )}
 
         {/* Slide-Out Detail Drawer */}

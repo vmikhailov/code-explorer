@@ -1756,10 +1756,14 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
                   {concentricGuides.map((g, idx) => {
                     const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
                     const dashPattern = `${8 / cyTransform.zoom} ${6 / cyTransform.zoom}`;
-                    const badgeWidth = Math.max(180, 260 / cyTransform.zoom);
+                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
+                    const shortLabel = g.shortLabel || (g.label.includes(':') ? g.label.split(':')[0] : g.label);
+                    const labelText = `${shortLabel} (${g.count})`;
+                    const textWidth = labelText.length * fontSize * 0.65;
+                    const hPad = Math.max(14, 18 / cyTransform.zoom);
+                    const badgeWidth = Math.max(textWidth + hPad, 75 / cyTransform.zoom);
                     const badgeHeight = Math.max(18, 22 / cyTransform.zoom);
                     const badgeY = -g.radius - badgeHeight - 6 / cyTransform.zoom;
-                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
 
                     return (
                       <g key={idx}>
@@ -1791,7 +1795,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
                           textAnchor="middle"
                           dominantBaseline="central"
                         >
-                          {g.label} ({g.count})
+                          {labelText}
                         </text>
                       </g>
                     );

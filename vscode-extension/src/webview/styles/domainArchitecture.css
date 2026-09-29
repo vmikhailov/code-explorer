@@ -379,7 +379,7 @@
   font-size: 10px;
   font-family: var(--font-mono, monospace);
   font-weight: 600;
-  min-width: 28px;
+  min-width: 38px;
   text-align: center;
   cursor: pointer;
   padding: 1px 3px;
@@ -722,3 +722,114 @@
   color: #ffffff;
   border-color: #ef4444;
 }
+
+/* Floating Concentric Orbit Legend HUD */
+.domain-orbit-legend {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  max-width: 400px;
+  min-width: 240px;
+  font-family: inherit;
+  color: #e2e8f0;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.domain-orbit-legend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #38bdf8;
+}
+
+.domain-orbit-legend-header:hover {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.domain-orbit-legend-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.domain-orbit-legend-title .legend-icon {
+  font-size: 14px;
+}
+
+.domain-orbit-legend-header .legend-toggle {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.domain-orbit-legend-body {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.domain-orbit-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.domain-orbit-legend-item:hover {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.orbit-legend-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  white-space: nowrap;
+}
+
+.orbit-legend-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: #cbd5e1;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.domain-orbit-legend-item:hover .orbit-legend-title {
+  color: #f8fafc;
+}
+
+.orbit-legend-count {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+}
+

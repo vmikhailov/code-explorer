@@ -380,55 +380,98 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
 /**
  * Dynamically toggles line rendering: Straight, Standard Bezier, or Orbit Shield (bypasses inner orbits).
  */
-export function applyEdgeCurveMode(cy: cytoscape.Core | null, mode: EdgeCurveMode) {
+export function applyEdgeCurveMode(
+  cy: cytoscape.Core | null,
+  mode: EdgeCurveMode,
+  center = { x: 0, y: 0 },
+  curveFactor = 35
+) {
   if (!cy) return;
   cy.batch(() => {
     cy.edges().forEach((edge) => {
-      edge.removeClass('edge-straight edge-bezier edge-unbundled');
       if (mode === 'straight') {
-        edge.addClass('edge-straight');
-      } else if (mode === 'bezier') {
-        edge.addClass('edge-bezier');
-      } else if (mode === 'avoid-inner') {
-        const srcNode = cy.getElementById(edge.data('source'));
-        const tgtNode = cy.getElementById(edge.data('target'));
-        if (!srcNode || !tgtNode || srcNode.empty() || tgtNode.empty()) {
-          edge.addClass('edge-bezier');
-          return;
-        }
-        const p1 = srcNode.position();
-        const p2 = tgtNode.position();
-        const r1 = Math.hypot(p1.x, p1.y);
-        const r2 = Math.hypot(p2.x, p2.y);
-        const minR = Math.min(r1, r2);
-        const maxR = Math.max(r1, r2);
+        edge.style({
+          'curve-style': 'straight',
+        });
+        return;
+      }
 
-        // If both endpoints are outer (r > 160)
-        if (minR > 160) {
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const segLenSq = dx * dx + dy * dy;
-          if (segLenSq > 100) {
-            const tProj = -(p1.x * dx + p1.y * dy) / segLenSq;
-            const tClamped = Math.max(0, Math.min(1, tProj));
-            const nearX = p1.x + tClamped * dx;
-            const nearY = p1.y + tClamped * dy;
-            const dMin = Math.hypot(nearX, nearY);
+      const srcNode = edge.source();
+      const tgtNode = edge.target();
+      if (!srcNode || !tgtNode || srcNode.empty() || tgtNode.empty()) {
+        return;
+      }
 
-            // If chord slices across inner core (dMin < 85% of min radius)
-            if (dMin < minR * 0.85) {
-              const cross = p2.x * p1.y - p1.x * p2.y;
-              const sign = cross >= 0 ? 1 : -1;
-              const deltaR = maxR - dMin;
-              const ctrlDist = sign * Math.min(360, Math.max(70, deltaR * 1.35));
-              edge.data('ctrlDist', ctrlDist);
-              edge.data('ctrlWeight', 0.5);
-              edge.addClass('edge-unbundled');
-              return;
-            }
-          }
+      const src = srcNode.position();
+      const tgt = tgtNode.position();
+
+      const edx = tgt.x - src.x;
+      const edy = tgt.y - src.y;
+      const chordLen = Math.hypot(edx, edy);
+
+      if (chordLen < 1) return;
+
+      const r1 = Math.hypot(src.x - center.x, src.y - center.y);
+      const r2 = Math.hypot(tgt.x - center.x, tgt.y - center.y);
+      const minNodeRadius = Math.min(r1, r2);
+
+      // Midpoint of the straight chord
+      const mx = (src.x + tgt.x) / 2;
+      const my = (src.y + tgt.y) / 2;
+      const vx = mx - center.x;
+      const vy = my - center.y;
+
+      // In Cytoscape unbundled-bezier, vectorNormInverse is (-edy / chordLen, edx / chordLen).
+      // Dot product with outward vector from center to chord midpoint determines if positive distance points outward:
+      let dotOutward = (-edy * vx + edx * vy) / chordLen;
+      if (Math.abs(dotOutward) < 1e-4) {
+        dotOutward = -edy * (src.x - center.x) + edx * (src.y - center.y);
+      }
+      const sign = dotOutward >= 0 ? 1 : -1;
+
+      const scale = curveFactor / 35;
+
+      if (mode === 'bezier') {
+        // Expressive fluid Bezier curves with natural organic sweep
+        const pushDistance = Math.min(60, Math.max(16, chordLen * 0.08)) * scale;
+        edge.style({
+          'curve-style': 'unbundled-bezier',
+          'control-point-distances': [sign * pushDistance],
+          'control-point-weights': [0.5],
+        });
+        return;
+      }
+
+      if (mode === 'avoid-inner') {
+        // Base curvature so all edges curve smoothly and respond dynamically to the curve slider
+        const baseCurve = Math.min(32, Math.max(14, chordLen * 0.05)) * scale;
+
+        // Projection of (center - src) onto (tgt - src) to find closest point on segment to center:
+        const tProj = Math.max(0, Math.min(1, -((src.x - center.x) * edx + (src.y - center.y) * edy) / (chordLen * chordLen)));
+        const closestX = src.x + tProj * edx - center.x;
+        const closestY = src.y + tProj * edy - center.y;
+        const dMin = Math.hypot(closestX, closestY);
+
+        // Penetration depth: how far closer to the center the segment reaches below the inner-most endpoint
+        const penetration = Math.max(0, minNodeRadius - dMin);
+
+        if (penetration > 15 && minNodeRadius > 100) {
+          // Edge cuts into inner orbits: add outward clearance so the curve bypasses the inner core
+          const bypassPush = Math.min(160, penetration * 0.45 + 25) * scale;
+          const pushDistance = baseCurve + bypassPush;
+          edge.style({
+            'curve-style': 'unbundled-bezier',
+            'control-point-distances': [sign * pushDistance],
+            'control-point-weights': [0.5],
+          });
+        } else {
+          // Edge does not penetrate inner orbits: render with clean base curvature
+          edge.style({
+            'curve-style': 'unbundled-bezier',
+            'control-point-distances': [sign * baseCurve],
+            'control-point-weights': [0.5],
+          });
         }
-        edge.addClass('edge-bezier');
       }
     });
   });
@@ -474,17 +517,52 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const edgeCurveModeRef = useRef<EdgeCurveMode>(edgeCurveMode);
   edgeCurveModeRef.current = edgeCurveMode;
 
+  const [curveFactor, setCurveFactor] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('ce_curve_factor');
+      if (saved !== null) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed)) {
+          return Math.max(-200, Math.min(200, parsed));
+        }
+      }
+    } catch { }
+    return 35;
+  });
+  const curveFactorRef = useRef<number>(curveFactor);
+  curveFactorRef.current = curveFactor;
+
+  const handleCurveFactorChange = useCallback((val: number) => {
+    const clamped = Math.max(-200, Math.min(200, val));
+    setCurveFactor(clamped);
+    try {
+      localStorage.setItem('ce_curve_factor', String(clamped));
+    } catch { }
+    if (cyRef.current) {
+      applyEdgeCurveMode(cyRef.current, edgeCurveModeRef.current, { x: 0, y: 0 }, clamped);
+    }
+  }, []);
+
   const handleEdgeCurveModeChange = useCallback((mode: EdgeCurveMode) => {
     setEdgeCurveMode(mode);
     try {
       localStorage.setItem('ce_edge_curve_mode', mode);
     } catch { }
     if (cyRef.current) {
-      applyEdgeCurveMode(cyRef.current, mode);
+      applyEdgeCurveMode(cyRef.current, mode, { x: 0, y: 0 }, curveFactorRef.current);
     }
   }, []);
 
   const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
+  const [orbitLegendItems, setOrbitLegendItems] = useState<Array<{
+    levelIndex: number;
+    shortLabel: string;
+    title: string;
+    count: number;
+    radius: number;
+    nodeIds: string[];
+  }>>([]);
+  const [isOrbitLegendOpen, setIsOrbitLegendOpen] = useState(true);
   const [swimlaneGuides, setSwimlaneGuides] = useState<SwimlaneGuide[]>([]);
   const [islandGuides, setIslandGuides] = useState<IslandGuide[]>([]);
   const [hiveGuides, setHiveGuides] = useState<HiveAxisGuide[]>([]);
@@ -494,6 +572,32 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const baseHiveGuidesRef = useRef<HiveAxisGuide[]>([]);
   const [cyTransform, setCyTransform] = useState<{ pan: { x: number; y: number }; zoom: number }>({ pan: { x: 0, y: 0 }, zoom: 1 });
   const [selectedNode, setSelectedNode] = useState<SelectedNodeDetail | null>(null);
+  const selectedNodeRef = useRef<SelectedNodeDetail | null>(null);
+  selectedNodeRef.current = selectedNode;
+
+  const highlightOrbitNodes = useCallback((nodeIds: string[]) => {
+    const cy = cyRef.current;
+    if (!cy || nodeIds.length === 0) return;
+    const nodeSet = new Set(nodeIds);
+    cy.batch(() => {
+      cy.nodes().forEach((n) => {
+        if (nodeSet.has(n.id())) {
+          n.addClass('highlighted').removeClass('dimmed');
+        } else {
+          n.addClass('dimmed').removeClass('highlighted');
+        }
+      });
+      cy.edges().addClass('dimmed');
+    });
+  }, []);
+
+  const clearOrbitHighlight = useCallback(() => {
+    const cy = cyRef.current;
+    if (!cy || selectedNodeRef.current) return;
+    cy.batch(() => {
+      cy.elements().removeClass('highlighted dimmed');
+    });
+  }, []);
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(new Set());
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(false);
@@ -1136,12 +1240,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             : ech === 1
             ? 'Tier 1 (First Echelon / Gateway-facing)'
             : ech === 2
-            ? 'Tier 2 (Second Echelon / Internal Domain)'
+            ? 'Tier 2 (Message Topics & Queues)'
             : ech === 3
-            ? 'Tier 3 (Third Echelon / Workers & Downstream)'
-            : ech === 4
-            ? 'Tier 4 (Message Topics)'
-            : 'Tier 5 (Databases & External Infrastructure)';
+            ? 'Tier 3 (Second Echelon / Internal Domain Services & Workers)'
+            : 'Tier 4 (Databases & External Infrastructure)';
       }
     }
 
@@ -1473,6 +1575,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       setCyTransform({ pan: { ...cy.pan() }, zoom: cy.zoom() });
     };
     cy.on('zoom pan resize render', handleViewportSync);
+    cy.on('layoutstop', () => {
+      applyEdgeCurveMode(cy, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
+    });
 
     // Track manually dragged node positions relative to centroid
     cy.on('dragfree', 'node', (evt) => {
@@ -1587,6 +1692,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       if (layoutName === 'matrix') {
         setConcentricGuides([]);
+        setOrbitLegendItems([]);
         setSwimlaneGuides([]);
         setIslandGuides([]);
         setHiveGuides([]);
@@ -1658,8 +1764,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           radius: g.radius / effSpacing,
         }));
         setConcentricGuides(layoutResult.guides);
+        setOrbitLegendItems(
+          layoutResult.populatedOrbits.map((o) => ({
+            levelIndex: o.levelIndex,
+            shortLabel: o.shortLabel,
+            title: o.title,
+            count: o.nodeIds.length,
+            radius: o.radius,
+            nodeIds: o.nodeIds,
+          }))
+        );
       } else if (layoutName === 'swimlanes') {
         setConcentricGuides([]);
+        setOrbitLegendItems([]);
         setIslandGuides([]);
         setHiveGuides([]);
         baseConcentricGuidesRef.current = [];
@@ -1684,6 +1801,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setSwimlaneGuides(layoutResult.lanes);
       } else if (layoutName === 'clusters') {
         setConcentricGuides([]);
+        setOrbitLegendItems([]);
         setSwimlaneGuides([]);
         setHiveGuides([]);
         baseConcentricGuidesRef.current = [];
@@ -1708,6 +1826,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setIslandGuides(layoutResult.islands);
       } else if (layoutName === 'hive') {
         setConcentricGuides([]);
+        setOrbitLegendItems([]);
         setSwimlaneGuides([]);
         setIslandGuides([]);
         baseConcentricGuidesRef.current = [];
@@ -1729,6 +1848,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setHiveGuides(layoutResult.axes);
       } else {
         setConcentricGuides([]);
+        setOrbitLegendItems([]);
         setSwimlaneGuides([]);
         setIslandGuides([]);
         setHiveGuides([]);
@@ -1777,7 +1897,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 });
               }
               setCurrentZoom(cy.zoom());
-              applyEdgeCurveMode(cy, edgeCurveModeRef.current);
+              applyEdgeCurveMode(cy, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
               setIsPreparing(false);
             }
           },
@@ -1786,7 +1906,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         layout.run();
         setTimeout(() => {
           if (!cancelled) {
-            applyEdgeCurveMode(cy, edgeCurveModeRef.current);
+            applyEdgeCurveMode(cy, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
             setIsPreparing(false);
           }
         }, 1200);
@@ -1826,7 +1946,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
     let cx = count > 0 ? sumX / count : 0;
     let cyPos = count > 0 ? sumY / count : 0;
-    if (layoutName === 'concentric' || layoutName === 'hive' || layoutName === 'swimlanes' || layoutName === 'clusters') {
+    if (layoutName.startsWith('concentric') || layoutName === 'hive' || layoutName === 'swimlanes' || layoutName === 'clusters') {
       cx = 0;
       cyPos = 0;
     }
@@ -1872,7 +1992,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       });
 
       // Update layout guides in real time to match new spacing without full relayout
-      if (layoutName === 'concentric') {
+      if (layoutName.startsWith('concentric')) {
         if (baseConcentricGuidesRef.current.length === 0 && concentricGuides.length > 0) {
           const cur = spacingFactorRef.current || 1.0;
           baseConcentricGuidesRef.current = concentricGuides.map((g) => ({
@@ -1949,6 +2069,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           );
         }
       }
+
+      applyEdgeCurveMode(cy, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
     },
     [recordBasePositions, layoutName, concentricGuides, swimlaneGuides, islandGuides, hiveGuides]
   );
@@ -2249,6 +2371,45 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
           </select>
 
+          {edgeCurveMode !== 'straight' && (
+            <div className="domain-hud-control-group" title="Curve: Adjust edge curvature (-200 to 200)">
+              <span className="domain-hud-group-label">Curve:</span>
+              <button
+                type="button"
+                className="domain-hud-step-btn"
+                onClick={() => handleCurveFactorChange(Math.max(-200, curveFactor - 10))}
+                title="Decrease curve (-)"
+              >
+                -
+              </button>
+              <input
+                type="range"
+                min="-200"
+                max="200"
+                step="5"
+                value={curveFactor}
+                onChange={(e) => handleCurveFactorChange(parseInt(e.target.value, 10))}
+                className="domain-hud-slider"
+                title={`Curve: ${curveFactor > 0 ? '+' : ''}${curveFactor}px`}
+              />
+              <button
+                type="button"
+                className="domain-hud-step-btn"
+                onClick={() => handleCurveFactorChange(Math.min(200, curveFactor + 10))}
+                title="Increase curve (+)"
+              >
+                +
+              </button>
+              <span
+                className="domain-hud-value-badge"
+                onClick={() => handleCurveFactorChange(35)}
+                title="Reset curve to +35px"
+              >
+                {curveFactor > 0 ? `+${curveFactor}` : curveFactor}px
+              </span>
+            </div>
+          )}
+
           <label
             className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
             title={
@@ -2443,7 +2604,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       ) : (
         <>
           {/* SVG Overlay Guides for Concentric, Swimlanes, Domain Islands, and Hive Plot */}
-          {((layoutName === 'concentric' && concentricGuides.length > 0) ||
+          {((layoutName.startsWith('concentric') && concentricGuides.length > 0) ||
             (layoutName === 'swimlanes' && swimlaneGuides.length > 0) ||
             (layoutName === 'clusters' && islandGuides.length > 0) ||
             (layoutName === 'hive' && hiveGuides.length > 0)) && (
@@ -2460,14 +2621,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             >
               <g transform={`translate(${cyTransform.pan.x}, ${cyTransform.pan.y}) scale(${cyTransform.zoom})`}>
                 {/* 1. Concentric Guides */}
-                {layoutName === 'concentric' &&
+                {layoutName.startsWith('concentric') &&
                   concentricGuides.map((g, idx) => {
                     const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
                     const dashPattern = `${8 / cyTransform.zoom} ${6 / cyTransform.zoom}`;
-                    const badgeWidth = Math.max(180, 260 / cyTransform.zoom);
+                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
+                    const shortLabel = g.shortLabel || (g.label.includes(':') ? g.label.split(':')[0] : g.label);
+                    const labelText = `${shortLabel} (${g.count})`;
+                    const textWidth = labelText.length * fontSize * 0.65;
+                    const hPad = Math.max(14, 18 / cyTransform.zoom);
+                    const badgeWidth = Math.max(textWidth + hPad, 75 / cyTransform.zoom);
                     const badgeHeight = Math.max(18, 22 / cyTransform.zoom);
                     const badgeY = -g.radius - badgeHeight - 6 / cyTransform.zoom;
-                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
 
                     return (
                       <g key={idx}>
@@ -2499,7 +2664,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           textAnchor="middle"
                           dominantBaseline="central"
                         >
-                          {g.label} ({g.count})
+                          {labelText}
                         </text>
                       </g>
                     );
@@ -2651,6 +2816,41 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           )}
           <div ref={containerRef} className="domain-cytoscape-container" />
         </>
+      )}
+
+      {/* Floating Concentric Orbit Legend HUD */}
+      {layoutName.startsWith('concentric') && orbitLegendItems.length > 0 && (
+        <div className="domain-orbit-legend">
+          <div
+            className="domain-orbit-legend-header"
+            onClick={() => setIsOrbitLegendOpen((prev) => !prev)}
+            title={isOrbitLegendOpen ? 'Collapse Orbit Legend' : 'Expand Orbit Legend'}
+          >
+            <div className="domain-orbit-legend-title">
+              <span className="legend-icon">🪐</span>
+              <span>Orbit Legend</span>
+            </div>
+            <span className="legend-toggle">{isOrbitLegendOpen ? '▾' : '▸'}</span>
+          </div>
+
+          {isOrbitLegendOpen && (
+            <div className="domain-orbit-legend-body">
+              {orbitLegendItems.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="domain-orbit-legend-item"
+                  onMouseEnter={() => highlightOrbitNodes(item.nodeIds)}
+                  onMouseLeave={clearOrbitHighlight}
+                  title={`${item.shortLabel}: ${item.title} (${item.count} nodes)`}
+                >
+                  <span className="orbit-legend-pill">{item.shortLabel}</span>
+                  <span className="orbit-legend-title">{item.title}</span>
+                  <span className="orbit-legend-count">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Floating Node Inspector Panel (when node selected) */}

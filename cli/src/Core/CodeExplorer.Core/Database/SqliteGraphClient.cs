@@ -2118,6 +2118,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                                    OR json_extract(n2.properties, '$.file_path') = i2.file_path)
                 WHERE (@workspaceId = '' OR i1.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i1.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
                   AND (@workspaceId = '' OR i2.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i2.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
+                  AND e.kind IN ('CALLS', 'CALLS_ENDPOINT', 'USES_API', 'PUBLISHES', 'SUBSCRIBES', 'TRIGGERS', 'CONSUMES', 'USES_DB')
                   AND i1.domain IS NOT NULL AND trim(i1.domain) != ''
                   AND i2.domain IS NOT NULL AND trim(i2.domain) != ''
                   AND lower(i1.domain) != lower(i2.domain)
