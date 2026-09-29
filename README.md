@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
 [![NuGet](https://img.shields.io/nuget/v/CodeExplorer.Cli.svg)](https://www.nuget.org/packages/CodeExplorer.Cli)
-[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension-blueviolet.svg)](https://marketplace.visualstudio.com/)
+[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension-blueviolet.svg)](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Containers-success.svg)](https://github.com/vmikhailov/code-explorer)
 
 **Next-Generation Codebase Intelligence, Interactive Architectural Studio & Graph Engine for Developers and AI Agents.**
@@ -19,6 +19,17 @@ Whether you are a software architect mapping distributed event-driven systems, a
 </p>
 <p align="center">
   <em>Figure 1: Full-system microservice topology projected across 5 Concentric Architectural Orbits (Tiers 0–4: Ingress Gateways, Public Services, Message Brokers, Domain Services, and Databases) with live transitive dependency routing.</em>
+</p>
+
+<p align="center">
+  <a href="#-what-makes-codeexplorer-unique"><b>Why CodeExplorer</b></a> •
+  <a href="#-interactive-visual-architecture-studio-vs-code"><b>Visual Studio</b></a> •
+  <a href="#-codeexplorer-vs-classic-lsp-language-server-protocol"><b>vs. LSP</b></a> •
+  <a href="#-key-features"><b>Key Features</b></a> •
+  <a href="#-quick-installation"><b>Installation</b></a> •
+  <a href="#-quick-start-workflow"><b>Quick Start</b></a> •
+  <a href="#-cli-command-reference"><b>CLI Reference</b></a> •
+  <a href="#-model-context-protocol-mcp-setup"><b>MCP Setup</b></a>
 </p>
 
 ---
@@ -119,6 +130,7 @@ While classic LSPs are optimized for local, real-time editing experiences, CodeE
     *   **JavaScript** (`.js`, `.jsx`)
     *   **Go** (`.go`)
     *   **Python** (`.py`)
+    *   **ColdFusion** (`.cfc`, `.cfm`)
     *   **SQL & Embedded SQL** (`.sql` scripts, and inline SQL queries in C#, Java, JS, TS, Python, Go)
 *   **Rich Structural Ontology**: Maps codebases across a 5-layer decoupled graph architecture (see [Ontology Model](docs/architecture/ontology-model.md) and [Live Schema Reference](docs/ontology.md)):
     *   *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `pom.xml`, `build.gradle`, `go.mod`, `package.json`), folders, files, configuration files (`appsettings.json`, `application.properties`/`.yml`, `docker-compose.yml`, `.env`), and git topology.
@@ -191,12 +203,12 @@ Install directly from the VS Code Marketplace or Extension view (`Ctrl+Shift+X` 
 
 **macOS & Linux (Bash / Zsh):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell as Administrator or User):**
 ```powershell
-irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.ps1 | iex
 ```
 
 ---
@@ -244,13 +256,13 @@ If you have [.NET 10.0 SDK](https://dotnet.microsoft.com/download) installed:
 
 ```bash
 # 1. Build and run all unit tests
-./scripts/build.sh
+./cli/scripts/build.sh
 
 # 2. Publish single-file binary for your current machine
-./scripts/publish.sh
+./cli/scripts/publish.sh
 
 # Or publish for all supported platforms
-./scripts/publish.sh all
+./cli/scripts/publish.sh all
 ```
 
 Targets produced in `.Build/bin/`:
@@ -386,7 +398,7 @@ ce intent --clear           # Clear cached intent records for this workspace
 ```
 
 ### `ce model [action]`
-Manages local GGUF models used for native architectural intent distillation.
+Manages local GGUF models used for native architectural intent distillation (powered by [`ce-intent-v2-q4_k_m.gguf`](https://huggingface.co/vmikhailov77/code-intent) — a compact 4-bit quantized distilled model running 100% locally and privately via `llama.cpp`).
 ```bash
 ce model status             # Check model status, file location, and size (~940 MB)
 ce model download           # Download the intent model with a console progress bar
@@ -508,6 +520,7 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 
 ```text
 ├── cli/                                  # .NET Core Engine, Graph Engine, CLI & MCP Server
+│   ├── scripts/                          # Cross-platform installation and single-file build scripts
 │   ├── src/
 │   │   ├── Core/CodeExplorer.Core/       # SQLite graph client, ontology models, pipeline, llama.cpp intent engine, MCP tools
 │   │   ├── Cypher/CodeExplorer.Cypher/   # OpenCypher parser, AST transformer, and SQLite SQL compiler
@@ -523,8 +536,7 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 │   ├── media/                            # Webview UI styles, icons, and bundles
 │   └── package.json                      # VS Code extension manifest & settings
 ├── docs/                                 # Visual screenshots, ontology dictionary, and architecture specifications
-├── proto/                                # Protocol buffer contracts for high-speed streaming
-└── scripts/                              # Cross-platform installation and single-file build scripts
+└── proto/                                # Protocol buffer contracts for high-speed streaming
 ```
 
 ---
