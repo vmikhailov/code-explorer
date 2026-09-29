@@ -315,18 +315,18 @@ public partial class SqliteCompiler
             foreach (var r in addedRels) _declaredRels.Remove(r);
         }
 
-        var whereClause = conditions.Count > 0 ? $" WHERE {string.Join(" AND ", conditions)}" : "";
+        var whereSql = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
         branch.IsCompiled = true;
 
         if (func.FunctionName.Equals("collect", StringComparison.OrdinalIgnoreCase))
         {
-            return $"(SELECT json_group_array({distinctStr}{projSql}) FILTER (WHERE {projSql} IS NOT NULL) FROM {fromJoins}{whereClause})";
+            return SqlTemplates.RenderCollectSubquery(func.IsDistinct, projSql, fromJoins.ToString(), whereSql);
         }
 
         if (func.FunctionName.Equals("count", StringComparison.OrdinalIgnoreCase))
         {
             var countTarget = func.Arguments[0] is WildcardExpression ? "*" : "1";
-            return $"(SELECT COUNT({distinctStr}{countTarget}) FROM {fromJoins}{whereClause})";
+            return SqlTemplates.RenderCountSubquery(func.IsDistinct, countTarget, fromJoins.ToString(), whereSql);
         }
 
         return null;

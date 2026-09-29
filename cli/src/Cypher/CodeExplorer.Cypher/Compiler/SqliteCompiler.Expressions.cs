@@ -742,14 +742,7 @@ public partial class SqliteCompiler
             }
         }
 
-        return pred.Quantifier switch
-        {
-            "any" => $"(EXISTS (SELECT 1 FROM json_each({safeListSql}) AS {pred.Variable} WHERE {whereSql}))",
-            "none" => $"(NOT EXISTS (SELECT 1 FROM json_each({safeListSql}) AS {pred.Variable} WHERE {whereSql}))",
-            "all" => $"(NOT EXISTS (SELECT 1 FROM json_each({safeListSql}) AS {pred.Variable} WHERE NOT ({whereSql})))",
-            "single" => $"((SELECT COUNT(1) FROM json_each({safeListSql}) AS {pred.Variable} WHERE {whereSql}) = 1)",
-            _ => $"(EXISTS (SELECT 1 FROM json_each({safeListSql}) AS {pred.Variable} WHERE {whereSql}))"
-        };
+        return SqlTemplates.RenderQuantifier(pred.Quantifier, safeListSql, pred.Variable, whereSql);
     }
 
     private string? TryOptimizeLabelsPredicate(ListPredicateExpression pred)
@@ -906,8 +899,8 @@ public partial class SqliteCompiler
     private string VisitPatternExpression(PatternExpression pat)
     {
         var (fromJoins, conditions) = BuildSubqueryPath(pat.Path, "_pe");
-        var whereClause = conditions.Count > 0 ? $" WHERE {string.Join(" AND ", conditions)}" : "";
-        return $"(EXISTS (SELECT 1 FROM {fromJoins}{whereClause}))";
+        var whereSql = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
+        return SqlTemplates.RenderExistsSubquery(fromJoins.ToString(), whereSql);
     }
 
     private string VisitPatternComprehension(PatternComprehensionExpression patComp)
@@ -919,8 +912,8 @@ public partial class SqliteCompiler
         }
 
         var projSql = VisitExpression(patComp.Projection);
-        var whereClause = conditions.Count > 0 ? $" WHERE {string.Join(" AND ", conditions)}" : "";
-        return $"(SELECT json_group_array({projSql}) FROM {fromJoins}{whereClause})";
+        var whereSql = conditions.Count > 0 ? string.Join(" AND ", conditions) : null;
+        return SqlTemplates.RenderCollectSubquery(false, projSql, fromJoins.ToString(), whereSql);
     }
 
     private string VisitReduce(ReduceExpression red)

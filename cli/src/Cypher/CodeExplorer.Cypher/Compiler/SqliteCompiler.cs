@@ -521,66 +521,41 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         List<string> groupByColumns,
         List<string> havingConditions)
     {
-        var sb = new StringBuilder();
-        if (_ctes.Count > 0)
-        {
-            sb.Append("WITH RECURSIVE ");
-            sb.Append(string.Join(",\n", _ctes));
-            sb.AppendLine();
-        }
-
-        var distinctStr = (query.Return.IsDistinct || query.WithClauses?.LastOrDefault()?.IsDistinct == true) ? "DISTINCT " : "";
-        sb.Append("SELECT ").Append(distinctStr).AppendLine(string.Join(", ", selectColumns));
-        sb.Append(fromAndJoins);
-
-        AppendFilterAndGrouping(sb, whereConditions, groupByColumns, havingConditions);
-        AppendOrderByAndPagination(sb, query);
-        return sb.ToString().TrimEnd();
-    }
-
-    private static void AppendFilterAndGrouping(
-        StringBuilder sb,
-        List<string> whereConditions,
-        List<string> groupByColumns,
-        List<string> havingConditions)
-    {
-        if (whereConditions.Count > 0)
-        {
-            sb.AppendLine().Append("WHERE ").Append(string.Join(" AND ", whereConditions));
-        }
-
-        if (groupByColumns.Count > 0)
-        {
-            sb.AppendLine().Append("GROUP BY ").Append(string.Join(", ", groupByColumns.Distinct()));
-        }
-
-        if (havingConditions.Count > 0)
-        {
-            sb.AppendLine().Append("HAVING ").Append(string.Join(" AND ", havingConditions));
-        }
-    }
-
-    private void AppendOrderByAndPagination(StringBuilder sb, CypherQuery query)
-    {
+        List<string> orderItems = [];
         if (query.OrderBy is { Items.Count: > 0 })
         {
-            sb.AppendLine();
-            sb.Append("ORDER BY ");
-            var orderItems = query.OrderBy.Items.Select(item =>
-                $"{VisitExpression(item.Expression)} {(item.IsDescending ? "DESC" : "ASC")}");
-            sb.Append(string.Join(", ", orderItems));
+            orderItems = query.OrderBy.Items.Select(item =>
+                $"{VisitExpression(item.Expression)} {(item.IsDescending ? "DESC" : "ASC")}").ToList();
         }
 
+        string? limitVal = null;
+        string? offsetVal = null;
         if (query.Limit != null || query.Skip != null)
         {
-            sb.AppendLine();
-            var limitVal = query.Limit != null ? VisitExpression(query.Limit.Expression) : "-1";
-            sb.Append($"LIMIT {limitVal}");
+            limitVal = query.Limit != null ? VisitExpression(query.Limit.Expression) : "-1";
             if (query.Skip != null)
             {
-                sb.Append($" OFFSET {VisitExpression(query.Skip.Expression)}");
+                offsetVal = VisitExpression(query.Skip.Expression);
             }
         }
+
+        var isDistinct = query.Return.IsDistinct || query.WithClauses?.LastOrDefault()?.IsDistinct == true;
+
+        var model = new SqlQueryModel
+        {
+            Ctes = _ctes,
+            IsDistinct = isDistinct,
+            SelectColumns = selectColumns,
+            FromAndJoins = fromAndJoins.ToString(),
+            WhereConditions = whereConditions,
+            GroupByColumns = groupByColumns,
+            HavingConditions = havingConditions,
+            OrderByItems = orderItems,
+            Limit = limitVal,
+            Offset = offsetVal,
+        };
+
+        return SqlTemplates.RenderQuery(model);
     }
 
     private string AppendUnions(string baseSql, List<UnionClause>? unions)
