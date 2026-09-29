@@ -3205,7 +3205,7 @@ public class ArchitectureViewEngine(IGraphClient db)
     {
         if (string.IsNullOrWhiteSpace(text)) return "Default";
         var parts = text.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries);
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         foreach (var p in parts)
         {
             if (p.Length > 0)

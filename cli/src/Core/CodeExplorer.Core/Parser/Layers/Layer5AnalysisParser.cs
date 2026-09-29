@@ -139,11 +139,19 @@ public class Layer5AnalysisParser
     {
         if (Urn.TryParse(symbolId, out var urn) && !string.IsNullOrEmpty(urn.Name))
         {
-            return urn.Name;
+            var n = urn.Name;
+            var hashIdx = n.IndexOf('#');
+            return hashIdx > 0 ? n[..hashIdx] : n;
         }
-        // Format: {workspaceId}:symbol:{relativePath}:{mappedKind}:{name}:{row}
+        // Format: {workspaceId}:symbol:{relativePath}:{mappedKind}:{name} OR with :{row}
         var parts = symbolId.Split(':');
-        return parts.Length >= 2 ? parts[^2] : null;
+        if (parts.Length >= 2)
+        {
+            var raw = int.TryParse(parts[^1], out _) ? parts[^2] : parts[^1];
+            var hashIdx = raw.IndexOf('#');
+            return hashIdx > 0 ? raw[..hashIdx] : raw;
+        }
+        return null;
     }
 
     private async Task PreloadTargetedSymbolsAsync(ParsingContext ctx, Dictionary<string, List<string>> interfaceToImplementors)

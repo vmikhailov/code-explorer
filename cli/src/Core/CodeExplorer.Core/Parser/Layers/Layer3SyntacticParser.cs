@@ -296,10 +296,16 @@ public class Layer3SyntacticParser
 
         mainVisitor.Visit(syntaxTree.Tree.RootNode);
 
+        var rootCounts = new Dictionary<(string Kind, string Name), int>();
         foreach (var childSyntactic in mainVisitor.RootSymbol.Children)
         {
+            var key = (childSyntactic.Kind, childSyntactic.Name);
+            rootCounts.TryGetValue(key, out var count);
+            count++;
+            rootCounts[key] = count;
+
             var childNode = MapSyntacticSymbolToOntology(childSyntactic, Path.GetFileName(syntaxTree.FilePath),
-                relativePath, workspaceId, syntaxTree.FileNode.Id, ctx);
+                relativePath, workspaceId, syntaxTree.FileNode.Id, ctx, count > 1 ? count : 0);
             syntaxTree.FileNode.Children.Add(childNode);
         }
 
@@ -328,7 +334,8 @@ public class Layer3SyntacticParser
         string relativePath,
         string workspaceId,
         string parentScopeId,
-        ParsingContext? ctx = null)
+        ParsingContext? ctx = null,
+        int overloadIndex = 0)
     {
         var node = syntactic.Node;
         var kind = syntactic.Kind;
@@ -336,7 +343,8 @@ public class Layer3SyntacticParser
 
         var isType = kind == "Class" || kind == "Interface" || kind == OntologyConstants.NodeLabels.Type;
         var mappedKind = isType ? "Type" : kind;
-        var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:{mappedKind}:{name}:{node.StartPosition.Row}";
+        var idSuffix = overloadIndex > 1 ? $"#{overloadIndex}" : "";
+        var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:{mappedKind}:{name}{idSuffix}";
 
         IOntologyNode typedNode;
         if (kind == "Class")
@@ -413,9 +421,15 @@ public class Layer3SyntacticParser
             throw new InvalidOperationException($"Unsupported symbol type: {kind}");
         }
 
+        var childCounts = new Dictionary<(string Kind, string Name), int>();
         foreach (var childSyntactic in syntactic.Children)
         {
-            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx);
+            var key = (childSyntactic.Kind, childSyntactic.Name);
+            childCounts.TryGetValue(key, out var count);
+            count++;
+            childCounts[key] = count;
+
+            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx, count > 1 ? count : 0);
             typedNode.Children.Add(childNode);
         }
 

@@ -106,7 +106,7 @@ public class GoParser : IProjectParser, IFileParser
     }
 
     public BaseParserVisitor CreateVisitor(
-        TreeSitter.Node rootNode,
+        Node rootNode,
         List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,

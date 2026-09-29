@@ -13,6 +13,9 @@ public class ScanOptions
 
     [Option("intent", Default = false, HelpText = "Run LLM architectural intent distillation (cached intents are applied automatically by default).")]
     public bool Intent { get; set; }
+
+    [Option("watch", Default = false, HelpText = "Watch directory for file changes and reindex incrementally in background.")]
+    public bool Watch { get; set; }
 }
 
 [Verb("index", HelpText = "Alias for 'scan': index a directory into the nearest workspace.")]

@@ -437,31 +437,8 @@ public static class CodeIntentAnalyzer
         return parts[0];
     }
 
-    public static string ComputeSha256(ReadOnlySpan<byte> bytes)
-    {
-        using var sha = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
-
-        // Normalize line endings: strip carriage return '\r' (0x0D) so CRLF and LF yield identical hashes across OSes
-        var remaining = bytes;
-        while (!remaining.IsEmpty)
-        {
-            var idx = remaining.IndexOf((byte)'\r');
-            if (idx < 0)
-            {
-                sha.AppendData(remaining);
-                break;
-            }
-            if (idx > 0)
-            {
-                sha.AppendData(remaining[..idx]);
-            }
-            remaining = remaining[(idx + 1)..];
-        }
-
-        Span<byte> hashBytes = stackalloc byte[32];
-        sha.GetHashAndReset(hashBytes);
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
-    }
+    public static string ComputeSha256(ReadOnlySpan<byte> bytes) =>
+        Parser.Incremental.HashUtility.ComputeSha256(bytes);
 
     private static string? ResolveCandidateFullPath(IntentCandidate cand, ParsingContext ctx)
     {

@@ -35,7 +35,7 @@ public sealed class NativeIntentPredictor : IDisposable
     public string ExecutionDevice { get; }
     public bool IsGpuAccelerated { get; }
 
-    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.Cdecl)]
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate IntPtr GetBackendDescriptionDelegate(IntPtr handle);
 
     public static (string DeviceName, bool IsGpu) DetectExecutionDevice(int gpuLayers = 99)
@@ -92,9 +92,9 @@ public sealed class NativeIntentPredictor : IDisposable
 
             string? deviceDescription = null;
             var baseMod = modules.FirstOrDefault(m => m.ModuleName.Equals("ggml-base.dll", StringComparison.OrdinalIgnoreCase));
-            if (baseMod != null && System.Runtime.InteropServices.NativeLibrary.TryGetExport(baseMod.BaseAddress, "ggml_backend_dev_description", out var descPtr))
+            if (baseMod != null && NativeLibrary.TryGetExport(baseMod.BaseAddress, "ggml_backend_dev_description", out var descPtr))
             {
-                var getDesc = System.Runtime.InteropServices.Marshal.GetDelegateForFunctionPointer<GetBackendDescriptionDelegate>(descPtr);
+                var getDesc = Marshal.GetDelegateForFunctionPointer<GetBackendDescriptionDelegate>(descPtr);
                 var devCount = (int)(ulong)NativeApi.ggml_backend_dev_count();
                 for (var i = 0; i < devCount; i++)
                 {
@@ -104,7 +104,7 @@ public sealed class NativeIntentPredictor : IDisposable
                         var strPtr = getDesc(dev);
                         if (strPtr != IntPtr.Zero)
                         {
-                            var desc = System.Runtime.InteropServices.Marshal.PtrToStringUTF8(strPtr);
+                            var desc = Marshal.PtrToStringUTF8(strPtr);
                             if (!string.IsNullOrWhiteSpace(desc) && !desc.Equals("CPU", StringComparison.OrdinalIgnoreCase))
                             {
                                 deviceDescription = desc;

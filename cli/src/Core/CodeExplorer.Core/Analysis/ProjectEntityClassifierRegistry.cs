@@ -54,7 +54,7 @@ public static class ProjectEntityClassifierRegistry
         else if (normType is "golang")
             normType = "go";
 
-        var projectContext = new CodeExplorer.Core.Parser.ProjectContext(
+        var projectContext = new Parser.ProjectContext(
             directoryPath,
             relativeProjectDir,
             projectName,
@@ -63,8 +63,8 @@ public static class ProjectEntityClassifierRegistry
             dependencies ?? [],
             extensions ?? new Dictionary<string, string>());
 
-        var dialectParser = CodeExplorer.Core.Parser.WorkspaceIndexer.GetProjectParser(normType) ??
-                            (!string.IsNullOrEmpty(projectType) ? CodeExplorer.Core.Parser.WorkspaceIndexer.GetProjectParser(projectType) : null);
+        var dialectParser = Parser.WorkspaceIndexer.GetProjectParser(normType) ??
+                            (!string.IsNullOrEmpty(projectType) ? Parser.WorkspaceIndexer.GetProjectParser(projectType) : null);
         if (dialectParser != null)
         {
             var dialectClassification = dialectParser.ClassifyProject(projectContext);

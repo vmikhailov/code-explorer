@@ -46,16 +46,103 @@ public static class ScanCommandHandler
             }
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
-            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath, ws.RootDirectory, clear: shouldClear, enableIntentAnalysis: opts.Intent);
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"\n✓ Successfully indexed {nodesCount} nodes and {relsCount} relationships!");
-            Console.ResetColor();
-
-            Console.WriteLine("Nodes breakdown:");
-            foreach (var (kind, count) in nodesByKind.OrderByDescending(x => x.Value))
+            var performedFullIndex = false;
+            if (!shouldClear)
             {
-                Console.WriteLine($"  - {kind,-20}: {count,6}");
+                var fileReg = await client.LoadFileRegistryAsync();
+                if (fileReg.Count > 0)
+                {
+                    logger.LogInformation("Running fast incremental scan check...");
+                    var changed = await indexer.IndexIncrementalAsync(targetPath, ws.RootDirectory, enableIntentAnalysis: opts.Intent);
+                    if (!changed)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("\n✓ Workspace is up to date (0 changes detected). Use --clear to force a full re-index.");
+                        Console.ResetColor();
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("\n✓ Incremental indexing completed successfully!");
+                        Console.ResetColor();
+                    }
+                }
+                else
+                {
+                    performedFullIndex = true;
+                }
+            }
+            else
+            {
+                performedFullIndex = true;
+            }
+
+            if (performedFullIndex)
+            {
+                var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath, ws.RootDirectory, clear: shouldClear, enableIntentAnalysis: opts.Intent);
+
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"\n✓ Successfully indexed {nodesCount} nodes and {relsCount} relationships!");
+                Console.ResetColor();
+
+                Console.WriteLine("Nodes breakdown:");
+                foreach (var (kind, count) in nodesByKind.OrderByDescending(x => x.Value))
+                {
+                    Console.WriteLine($"  - {kind,-20}: {count,6}");
+                }
+            }
+
+            if (opts.Watch)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"\n[Watch] Watching for file changes in {targetPath} (press Ctrl+C to exit)...");
+                Console.ResetColor();
+
+                using var cts = new CancellationTokenSource();
+                Console.CancelKeyPress += (s, e) =>
+                {
+                    e.Cancel = true;
+                    cts.Cancel();
+                };
+
+                using var watcher = new FileWatcher(
+                    targetPath,
+                    async batch =>
+                    {
+                        logger.LogInformation("[Watch] File changes detected ({Count} file(s)). Reindexing...", batch.Count);
+                        try
+                        {
+                            var changed = await indexer.IndexIncrementalAsync(targetPath, ws.RootDirectory, cancellationToken: cts.Token, enableIntentAnalysis: opts.Intent);
+                            if (changed)
+                            {
+                                logger.LogInformation("[Watch] Incremental indexing complete.");
+                            }
+                            else
+                            {
+                                logger.LogInformation("[Watch] No graph changes needed.");
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Cancellation requested
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "[Watch] Incremental indexing failed: {Message}", ex.Message);
+                        }
+                    });
+
+                watcher.Start();
+
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    logger.LogInformation("[Watch] Stopped watching.");
+                }
             }
 
             return 0;

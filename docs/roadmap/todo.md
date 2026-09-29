@@ -161,12 +161,15 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ## 🛡️ EPIC 4: Concurrency & Incremental Watcher
 
-- [ ] **4.1 Incremental File Watcher (`ce watch`)**:
-  - File change tracking with 500ms debounce.
-  - Targeted execution of `ParsingContext.IsSubtreeScan` on changed files.
+- [x] **4.1 Incremental File Watcher & Semantic AST Diffing (`ce index --watch`)**:
+  - Fine-grained semantic AST diffing (`SemanticGraphDiffer`, `SymbolFootprint`, `FileGraphSnapshot`).
+  - Logic-only modifications (e.g. `2+2`, internal statements) produce 0 graph rewiring and skip LLM intent distillation.
+  - Stable symbol URN identity decoupled from line numbers (`#overloadIndex`).
+  - Two-tier fast changeset detection (timestamps + SHA-256) via `FileRegistry`.
+  - Configurable debounced file watching via `FileWatcher`.
+  - SQLite database optimization (5 redundant index pruning, -34.5% DB size reduction, incremental `auto_vacuum`).
 - [ ] **4.2 Read-Only Connection Pool for MCP Tools**:
   - Enforce `Mode=ReadOnly;Cache=Shared;` mode to eliminate reader/writer locks in SQLite.
-- [ ] **4.3 Macro-Structure Caching**:
   - Thread-safe in-memory cache for `SystemContext` and `Taxonomy` with auto-invalidation on changes.
 
 ---
@@ -200,13 +203,13 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 | **1.4** | Agent/MCP | Implement `trace_cross_service_flow` MCP tool | High | ✅ Completed |
 | **1.5** | CLI | Add commands `ce view architecture`, `ce dependencies --type`, `ce contracts` | High | ✅ Completed |
 | **1.6** | Formats | Add TOON, Mermaid, and Markdown serializers to `ArchitectureViewEngine` | High | ✅ Completed |
-| **2.1** | Parsers | ASP.NET Core route composition and Minimal API `MapGroup` | Medium | ⏳ Pending |
-| **2.2** | Parsers | C# constructor DI mapping and resolution to implementations via `[:IMPLEMENTS]` | Medium | ⏳ Pending |
-| **2.3** | Parsers | Declarative HTTP clients (Refit/RestEase) and URI resolution | Medium | ⏳ Pending |
-| **2.4** | Parsers | EF Core `DbSet<T>` / `ToTable` and Dapper SQL lineage | Medium | ⏳ Pending |
+| **2.1** | Parsers | ASP.NET Core route composition and Minimal API `MapGroup` | Medium | ✅ Completed |
+| **2.2** | Parsers | C# constructor DI mapping and resolution to implementations via `[:IMPLEMENTS]` | Medium | ✅ Completed |
+| **2.3** | Parsers | Declarative HTTP clients (Refit/RestEase) and URI resolution | Medium | ✅ Completed |
+| **2.4** | Parsers | EF Core `DbSet<T>` / `ToTable` and Dapper SQL lineage | Medium | ✅ Completed |
 | **3.1** | Cypher | Relationship functions (`type(r)`, `properties(r)`, `startNode`, `endNode`) | Medium | ✅ Completed |
 | **3.2** | Cypher | Cartesian product decomposition in `OPTIONAL MATCH` | Medium | ✅ Completed |
 | **3.3** | Cypher | Path predicates (`EXISTS((a)->(b))`) and list quantifiers | Low | ✅ Completed |
-| **4.1** | Concurrency | Incremental file watcher `ce watch` with debounce | Medium | ⏳ Pending |
+| **4.1** | Concurrency | Incremental file watcher & semantic AST differ (`ce index --watch`) | Medium | ✅ Completed |
 | **4.2** | Concurrency | Read-only connection pool for MCP tools | Medium | ⏳ Pending |
 | **5.1** | Testing | Synthetic 100k-node benchmark graph for CI | Low | ⏳ Pending |
