@@ -506,8 +506,10 @@ public partial class SqliteCompiler
         {
             var v = EscapeVar(nodeVar.Name);
             return $"CASE " +
-                   $"WHEN {v}.kind IN ('Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool') " +
+                   $"WHEN {v}.kind IN ('Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool', 'DatabaseMigration', 'FunctionApp', 'Test') " +
                    $"THEN json_array({v}.kind, 'Project') " +
+                   $"WHEN {v}.kind = 'Project' AND json_extract({v}.properties, '$.kind') IS NOT NULL " +
+                   $"THEN json_array({v}.kind, json_extract({v}.properties, '$.kind')) " +
                    $"WHEN {v}.kind = 'Project' AND json_extract({v}.properties, '$.role') IS NOT NULL " +
                    $"THEN json_array({v}.kind, json_extract({v}.properties, '$.role')) " +
                    $"ELSE json_array({v}.kind) END";

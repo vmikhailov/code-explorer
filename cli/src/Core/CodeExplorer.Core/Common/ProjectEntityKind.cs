@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace CodeExplorer.Core.Common;
 
 /// <summary>
 /// Unambiguous classification of what a project or module is as a physical or build artifact.
 /// Determined from build manifests, packaging, compiler configurations, and declared entry points.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ProjectEntityKind
 {
     Unknown = 0,

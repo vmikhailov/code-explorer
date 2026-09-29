@@ -32,14 +32,21 @@ public static class ScanCommandHandler
 
             await using var client = new SqliteGraphClient(ws.DbPath, clientLogger);
 
-            if (opts.Clear)
+            var shouldClear = opts.Clear || client.IsSchemaOutdated;
+            if (client.IsSchemaOutdated)
+            {
+                logger.LogWarning("Database schema version is outdated (v{Version} < v{Current}). Automatically performing clean rescan...",
+                    client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
+            }
+
+            if (shouldClear)
             {
                 logger.LogInformation("Clearing existing data for {TargetPath}...", targetPath);
                 await client.ClearWorkspaceAsync(targetPath);
             }
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
-            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath, ws.RootDirectory, clear: false, enableIntentAnalysis: opts.Intent);
+            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath, ws.RootDirectory, clear: shouldClear, enableIntentAnalysis: opts.Intent);
 
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"\n✓ Successfully indexed {nodesCount} nodes and {relsCount} relationships!");

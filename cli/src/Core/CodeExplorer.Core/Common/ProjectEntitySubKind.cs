@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace CodeExplorer.Core.Common;
 
 /// <summary>
 /// Secondary sub-kind categorization for client applications (App) and specialized project runtimes.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ProjectEntitySubKind
 {
     None = 0,

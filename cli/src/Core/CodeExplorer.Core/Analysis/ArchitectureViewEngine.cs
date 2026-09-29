@@ -709,9 +709,12 @@ public class ArchitectureViewEngine(IGraphClient db)
              n.Id.Equals(targetName, StringComparison.OrdinalIgnoreCase) ||
              (n.FilePath != null && n.FilePath.Equals(targetName, StringComparison.OrdinalIgnoreCase)) ||
              n.Id.Equals($"workspace:project:{targetName}:", StringComparison.OrdinalIgnoreCase) ||
+             n.Id.Equals($"workspace:{OntologyConstants.IdPrefixes.Project}:{targetName}:", StringComparison.OrdinalIgnoreCase) ||
              n.Id.Equals($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:{targetName}:", StringComparison.OrdinalIgnoreCase) ||
              (n.Id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase) &&
               n.Id["workspace:project:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase)) ||
+             (n.Id.StartsWith($"workspace:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) &&
+              n.Id[$"workspace:{OntologyConstants.IdPrefixes.Project}:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase)) ||
              (n.Id.StartsWith($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) &&
               n.Id[$"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase))));
 
@@ -996,6 +999,10 @@ public class ArchitectureViewEngine(IGraphClient db)
                         {
                             path = id[$"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:".Length..];
                         }
+                        else if (id.StartsWith($"workspace:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            path = id[$"workspace:{OntologyConstants.IdPrefixes.Project}:".Length..];
+                        }
                         else if (id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase))
                         {
                             path = id["workspace:project:".Length..];
@@ -1194,7 +1201,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             try
             {
                 var normSrv = WorkspaceConventions.NormalizeServiceName(service);
-                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.name = $normSrv OR s.raw_name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:s:' + $normSrv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
+                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.name = $normSrv OR s.raw_name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:s:' + $normSrv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
                 var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["srv"] = service, ["normSrv"] = normSrv }, ct);
                 using var sDoc = JsonDocument.Parse(sJson);
                 var first = sDoc.RootElement.EnumerateArray().FirstOrDefault();

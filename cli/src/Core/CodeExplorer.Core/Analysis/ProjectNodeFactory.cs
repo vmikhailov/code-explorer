@@ -31,15 +31,19 @@ public static class ProjectNodeFactory
             externalPackages,
             extensions);
 
+        var kindStr = classification.Kind != ProjectEntityKind.Unknown 
+            ? classification.Kind.ToString() 
+            : role.ToString();
+
         extensions ??= new Dictionary<string, string>();
         extensions["role"] = role.ToString();
         extensions["is_library"] = isLibrary ? "true" : "false";
         extensions["entity_type"] = isLibrary ? "library" : "service";
         extensions["entity_kind"] = classification.Kind.ToString();
-        if (classification.SubKind != ProjectEntitySubKind.None)
-        {
-            extensions["sub_kind"] = classification.SubKind.ToString();
-        }
+        extensions["kind"] = kindStr;
+        extensions["sub_kind"] = classification.SubKind.ToString();
+        extensions["language"] = projectType;
+        extensions["project_type"] = projectType;
 
         return new ProjectNode(id, projectName, relativeProjectDir, projectType, role.ToString(), isLibrary, extensions)
         {

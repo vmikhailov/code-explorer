@@ -28,7 +28,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
     public int CommandTimeoutSeconds { get; set; } = 15;
     public string DbPath => _conn.DataSource;
 
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
     public int SchemaVersion { get; private set; }
     public bool IsSchemaOutdated => SchemaVersion < CurrentSchemaVersion;
 
@@ -113,6 +113,56 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             cmd.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
             cmd.ExecuteNonQuery();
             SchemaVersion = CurrentSchemaVersion;
+        }
+        else if (ver < CurrentSchemaVersion)
+        {
+            try
+            {
+                using var migrateCmd = _conn.CreateCommand();
+                migrateCmd.CommandText = $"""
+                    DELETE FROM edges WHERE from_id IN (
+                        SELECT p1.id FROM nodes p1
+                        WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
+                        AND EXISTS (
+                            SELECT 1 FROM nodes p2 
+                            WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                            AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
+                        )
+                    );
+                    DELETE FROM edges WHERE to_id IN (
+                        SELECT p1.id FROM nodes p1
+                        WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
+                        AND EXISTS (
+                            SELECT 1 FROM nodes p2 
+                            WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                            AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
+                        )
+                    );
+                    DELETE FROM nodes 
+                    WHERE kind = 'Project' AND (id LIKE '%:project:%' OR id LIKE '%:project')
+                    AND EXISTS (
+                        SELECT 1 FROM nodes p2 
+                        WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                        AND json_extract(p2.properties, '$.path') = json_extract(nodes.properties, '$.path')
+                    );
+                    DELETE FROM edges WHERE from_id IN (
+                        SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
+                    );
+                    DELETE FROM edges WHERE to_id IN (
+                        SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
+                    );
+                    DELETE FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%';
+                    DELETE FROM edges WHERE from_id NOT IN (SELECT id FROM nodes) OR to_id NOT IN (SELECT id FROM nodes);
+                    PRAGMA user_version = {CurrentSchemaVersion};
+                    """;
+                migrateCmd.ExecuteNonQuery();
+                SchemaVersion = CurrentSchemaVersion;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Schema migration from v{From} to v{To} encountered an error: {Message}", ver, CurrentSchemaVersion, ex.Message);
+                SchemaVersion = ver;
+            }
         }
         else
         {
@@ -362,6 +412,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                    OR lower(replace(id, '\', '/')) = 'ws:file:' || @relPath
                    OR lower(replace(id, '\', '/')) LIKE 'ws:p:' || @relPath || ':%'
                    OR lower(replace(id, '\', '/')) = 'ws:p:' || @relPath || ':'
+                   OR lower(replace(id, '\', '/')) LIKE 'workspace:p:' || @relPath || ':%'
+                   OR lower(replace(id, '\', '/')) = 'workspace:p:' || @relPath || ':'
                    OR lower(replace(id, '\', '/')) LIKE 'workspace:project:' || @relPath || ':%'
                    OR lower(replace(id, '\', '/')) = 'workspace:project:' || @relPath || ':'
                    OR lower(replace(id, '\', '/')) LIKE 'ws:project:' || @relPath || ':%'

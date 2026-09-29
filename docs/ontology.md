@@ -438,6 +438,8 @@ graph TD
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `Language` | `string` | The programming language (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `KindValue` | `string` | The physical entity classification kind (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
 | `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
 | `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
 | `EntityKind` | `ProjectEntityKind` | The physical entity classification (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |

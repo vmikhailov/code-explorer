@@ -39,6 +39,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         await CanonicalizeDatabasesAsync(db, widPrefix);
         await NormalizeEdgesAsync(db, widPrefix);
         await PurgePhantomExternalServicesAsync(db, widPrefix);
+        await DeduplicateProjectNodesAsync(db, widPrefix);
 
         if (db is SqliteGraphClient sqliteClient)
         {
@@ -336,6 +337,11 @@ public class PostIndexAnalyzer(IGraphClient db)
             p.Extensions["is_library"] = p.IsLibrary ? "true" : "false";
             p.Extensions["entity_type"] = p.IsLibrary ? "library" : "service";
             p.Extensions["is_semantic_entity"] = p.IsLibrary ? "false" : "true";
+            p.Extensions["entity_kind"] = p.EntityKind.ToString();
+            p.Extensions["sub_kind"] = p.SubKind.ToString();
+            p.Extensions["kind"] = p.EntityKind != ProjectEntityKind.Unknown ? p.EntityKind.ToString() : p.Role;
+            p.Extensions["language"] = p.ProjectType;
+            p.Extensions["project_type"] = p.ProjectType;
 
             updatedProjectNodes.Add(Node.FromNode(p));
         }
@@ -370,6 +376,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         // Normalize edges in SQLite graph database
         await NormalizeEdgesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await PurgePhantomExternalServicesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
+        await DeduplicateProjectNodesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
 
         ctx.Log($"[PostIndexAnalyzer] In-memory analysis complete: {result.TransitivelyCalls.Count} TRANSITIVELY_CALLS, {result.AttributedTo.Count} ATTRIBUTED_TO, {directProjectRels.Count} direct project edges, {liftedSemanticRels.Count} lifted semantic edges, {result.ProjectExternalApis.Count} project external_apis.");
     }
@@ -2431,5 +2438,49 @@ public class PostIndexAnalyzer(IGraphClient db)
             await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @id OR to_id = @id;", new { id }, cancellationToken);
             await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @id;", new { id }, cancellationToken);
         }
+    }
+
+    public static async Task DeduplicateProjectNodesAsync(
+        IGraphClient db,
+        string widPrefix,
+        CancellationToken cancellationToken = default)
+    {
+        // When both modern :p: project nodes and legacy :project: / :project_semantic / :project_syntax nodes exist,
+        // purge the legacy duplicates and their connected edges.
+        await db.ExecuteWriteAsync("""
+            DELETE FROM edges WHERE from_id IN (
+                SELECT p1.id FROM nodes p1
+                WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
+                AND EXISTS (
+                    SELECT 1 FROM nodes p2 
+                    WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                    AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
+                )
+            );
+            DELETE FROM edges WHERE to_id IN (
+                SELECT p1.id FROM nodes p1
+                WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
+                AND EXISTS (
+                    SELECT 1 FROM nodes p2 
+                    WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                    AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
+                )
+            );
+            DELETE FROM nodes 
+            WHERE kind = 'Project' AND (id LIKE '%:project:%' OR id LIKE '%:project')
+            AND EXISTS (
+                SELECT 1 FROM nodes p2 
+                WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                AND json_extract(p2.properties, '$.path') = json_extract(nodes.properties, '$.path')
+            );
+            DELETE FROM edges WHERE from_id IN (
+                SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
+            );
+            DELETE FROM edges WHERE to_id IN (
+                SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
+            );
+            DELETE FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%';
+            DELETE FROM edges WHERE from_id NOT IN (SELECT id FROM nodes) OR to_id NOT IN (SELECT id FROM nodes);
+            """, null, cancellationToken);
     }
 }
