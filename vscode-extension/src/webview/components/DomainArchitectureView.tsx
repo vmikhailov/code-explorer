@@ -2677,9 +2677,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 className="domain-layout-dropdown"
               >
                 <option value="concentric">🎯 Concentric (Original)</option>
-                <option value="concentric-equispaced">🪐 Concentric: Equispaced (Подход 2)</option>
-                <option value="concentric-polar-force">🪐 Concentric: Polar Force (Подход 1)</option>
-                <option value="concentric-sectors">🪐 Concentric: Domain Sectors (Подход 3)</option>
+                <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
+                <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
+                <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
                 <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
                 <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
                 <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
