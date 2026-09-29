@@ -75,17 +75,11 @@
   background: rgba(10, 16, 31, 0.5);
 }
 
-.domain-hud-title-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
 .domain-hud-title-badge {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  flex-shrink: 0;
 }
 
 .domain-hud-label {
@@ -103,31 +97,6 @@
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
-}
-
-.domain-hud-switch-contexts-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 0;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.35) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.5);
-  color: #c7d2fe;
-  padding: 2.5px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease-in-out;
-}
-
-.domain-hud-switch-contexts-btn:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.4) 0%, rgba(139, 92, 246, 0.55) 100%);
-  border-color: #a78bfa;
-  color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 }
 
 .domain-hud-controls-group {

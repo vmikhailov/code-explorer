@@ -2659,21 +2659,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       <header className="domain-map-hud">
         {/* Tier 1: View Identity, Context Jump & Studio Canvas Controls */}
         <div className="domain-hud-row domain-hud-primary-row">
-          <div className="domain-hud-title-group">
-            <div className="domain-hud-title-badge">
-              <span className="domain-hud-label">Macro Architecture</span>
-              <span className="domain-hud-title">Domain Microservice Map</span>
-            </div>
-            {onSwitchToContexts && (
-              <button
-                type="button"
-                className="domain-hud-switch-contexts-btn"
-                onClick={onSwitchToContexts}
-                title="Switch to AI-distilled Bounded Context Map (Logical DDD contexts)"
-              >
-                🧩 AI Contexts
-              </button>
-            )}
+          <div className="domain-hud-title-badge">
+            <span className="domain-hud-label">Macro Architecture</span>
+            <span className="domain-hud-title">Domain Microservice Map</span>
           </div>
 
           <div className="domain-hud-controls-group">
