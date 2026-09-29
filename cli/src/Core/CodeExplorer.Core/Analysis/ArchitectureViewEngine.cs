@@ -83,13 +83,32 @@ public class ArchitectureViewEngine(IGraphClient db)
         var dbIdToCanonicalId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // Query macro nodes: Services, Apps, Libraries, Workers, CliTools, Databases, Topics, ExternalServices, Packages
+        // Query macro nodes: Services, Apps, Libraries, Workers, CliTools, Databases, Topics (excluding in-memory MediatR), ExternalServices, Packages
         var nodesQuery = includeLibraries
-            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'Database', 'Topic', 'ExternalService'] OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
-            : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'Database', 'Topic', 'ExternalService'] OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' AND n.role <> 'Test' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
+            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
+            : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' AND n.role <> 'Test' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
 
         var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
         using var nodesDoc = JsonDocument.Parse(nodesJson);
+
+        var internalProjectsLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var elem in nodesDoc.RootElement.EnumerateArray())
+        {
+            var k = elem.GetStringProp("kind");
+            var nid = elem.GetStringProp("id");
+            var nname = elem.GetStringProp("name");
+            if (string.IsNullOrEmpty(nid) || string.IsNullOrEmpty(nname)) continue;
+            if (k is "Project" or "Service" or "App" or "Worker" or "Library" or "CliTool")
+            {
+                internalProjectsLookup.TryAdd(nname, nid);
+                var domain = SyntaxEnricher.CleanProjectNameToDomain(nname);
+                if (!string.IsNullOrEmpty(domain))
+                {
+                    internalProjectsLookup.TryAdd(domain, nid);
+                    internalProjectsLookup.TryAdd(domain.ToLowerInvariant(), nid);
+                }
+            }
+        }
 
         string? primaryRelationalEngine = null;
         foreach (var elem in nodesDoc.RootElement.EnumerateArray())
@@ -273,6 +292,13 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 if (nodeMap.ContainsKey(id)) continue;
                 var broker = elem.GetStringProp("broker_type", props.GetValueOrDefault("broker_type", "Topic"));
+                var isInternal = string.Equals(broker, "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(broker, "in-memory", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(props.GetValueOrDefault("is_internal"), "true", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(props.GetValueOrDefault("scope"), "internal", StringComparison.OrdinalIgnoreCase) ||
+                                 id.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
+                                 id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase);
+                if (isInternal) continue;
                 props["broker_type"] = broker;
                 props["role"] = "topic";
                 props["entity_type"] = "topic";
@@ -306,6 +332,28 @@ public class ArchitectureViewEngine(IGraphClient db)
             else if (kind == "ExternalService")
             {
                 if (nodeMap.ContainsKey(id)) continue;
+                if (name is "*" or "unknown-service" or "httprequest" || PostIndexAnalyzer.IsGarbageExternalService(name)) continue;
+
+                var isExplicitExternal = props.GetValueOrDefault("is_external") == "true";
+                if (!isExplicitExternal)
+                {
+                    var domain = SyntaxEnricher.CleanProjectNameToDomain(name);
+                    string? matchedProjId = null;
+                    if (internalProjectsLookup.TryGetValue(name, out var mpId) ||
+                        internalProjectsLookup.TryGetValue(domain, out mpId) ||
+                        internalProjectsLookup.TryGetValue(name.ToLowerInvariant(), out mpId) ||
+                        internalProjectsLookup.TryGetValue(PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id), out mpId))
+                    {
+                        matchedProjId = mpId;
+                    }
+
+                    if (matchedProjId != null)
+                    {
+                        projectToWorkloadMap[id] = matchedProjId;
+                        continue; // Do NOT add as external service cloud!
+                    }
+                }
+
                 var st = elem.GetStringProp("service_type", props.GetValueOrDefault("service_type", "Service"));
                 var isMsg = st.Equals("MessageBroker", StringComparison.OrdinalIgnoreCase) ||
                             st.Equals("Kafka", StringComparison.OrdinalIgnoreCase) ||
@@ -1791,6 +1839,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                         if (!nodesById.TryGetValue(inEdge.Source, out var srcNode)) continue;
                         if (srcNode.Kind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase) || inEdge.Kind == "TRIGGERS" || inEdge.Kind == "SUBSCRIBES_TO")
                         {
+                            if (IsInternalTopic(srcNode) || inEdge.Properties?.GetValueOrDefault("is_internal") == "true") continue;
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == srcNode.Id && e.Kind == "SUBSCRIBES_TO")))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
@@ -1888,6 +1937,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                         // Case 4: Library publishes to Topic -> Lift direct PUBLISHES_TO
                         else if (targetNode.Kind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
                         {
+                            if (IsInternalTopic(targetNode) || edge.Properties?.GetValueOrDefault("is_internal") == "true") continue;
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && (e.Kind == "TRIGGERS" || e.Kind == "PUBLISHES_TO"))))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
@@ -2165,7 +2215,11 @@ public class ArchitectureViewEngine(IGraphClient db)
                     }
                     else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == "Topic")
                     {
-                        if (seenServiceTopics.Add($"{srcSummary.ServiceName}->{tgtName}"))
+                        var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         string.Equals(tgtNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                         edge.Target.Contains(":mediatr:");
+                        if (!isInternal && seenServiceTopics.Add($"{srcSummary.ServiceName}->{tgtName}"))
                         {
                             srcSummary.TopicCount++;
                         }
@@ -2221,7 +2275,11 @@ public class ArchitectureViewEngine(IGraphClient db)
                     if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBED_BY" or "SUBSCRIBES_TO" || srcNode?.Kind == "Topic")
                     {
                         var topicName = srcNode?.Name ?? edge.Source;
-                        if (seenServiceTopics.Add($"{tgtSummary.ServiceName}<-{topicName}"))
+                        var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         srcNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         string.Equals(srcNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                         edge.Source.Contains(":mediatr:");
+                        if (!isInternal && seenServiceTopics.Add($"{tgtSummary.ServiceName}<-{topicName}"))
                         {
                             tgtSummary.TopicCount++;
                         }
@@ -2593,6 +2651,17 @@ public class ArchitectureViewEngine(IGraphClient db)
         return ($"domain:{lowerName}", name, isIngress);
     }
 
+    public static bool IsInternalTopic(GraphNodeDto node)
+    {
+        if (!string.Equals(node.Kind, OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase)) return false;
+        var broker = node.Properties?.GetValueOrDefault("broker_type")?.ToLowerInvariant() ?? "";
+        return broker is "mediatr" or "in-memory" ||
+               string.Equals(node.Properties?.GetValueOrDefault("is_internal"), "true", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(node.Properties?.GetValueOrDefault("scope"), "internal", StringComparison.OrdinalIgnoreCase) ||
+               node.Id.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
+               node.Id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = false, CancellationToken ct = default)
     {
         var archGraph = await GetSystemContextViewAsync(includeLibraries: includeLibraries, projectFilter: null, ct: ct);
@@ -2677,6 +2746,10 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
             else if (node.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase))
             {
+                if (IsInternalTopic(node))
+                {
+                    continue;
+                }
                 var name = node.DisplayName ?? node.Name ?? "";
                 if (string.IsNullOrWhiteSpace(name) ||
                     name.StartsWith(':') ||
@@ -3431,7 +3504,11 @@ public class ArchitectureViewEngine(IGraphClient db)
                     {
                         var srcNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Source, StringComparison.OrdinalIgnoreCase));
                         var topicName = srcNode?.Name ?? edge.Source;
-                        if (!contract.SubscribedTopics.Contains(topicName))
+                        var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         srcNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         string.Equals(srcNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                         edge.Source.Contains(":mediatr:");
+                        if (!isInternal && !contract.SubscribedTopics.Contains(topicName))
                         {
                             contract.SubscribedTopics.Add(topicName);
                         }
@@ -3456,7 +3533,11 @@ public class ArchitectureViewEngine(IGraphClient db)
                     }
                     else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == "Topic")
                     {
-                        if (!contract.PublishedTopics.Contains(tgtName)) contract.PublishedTopics.Add(tgtName);
+                        var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         string.Equals(tgtNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                         edge.Target.Contains(":mediatr:");
+                        if (!isInternal && !contract.PublishedTopics.Contains(tgtName)) contract.PublishedTopics.Add(tgtName);
                     }
                     else if (tgtNode?.Kind == "ExternalService")
                     {

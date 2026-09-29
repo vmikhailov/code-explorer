@@ -16,13 +16,15 @@ public class HotChocolateLibraryParser : ILibraryParser
 
     private static readonly HashSet<string> GraphQlAttributes =
     [
-        "Query", "Mutation", "Subscription", "ExtendObjectType", "GraphQLName",
-        "QueryAttribute", "MutationAttribute", "SubscriptionAttribute", "ExtendObjectTypeAttribute"
+        "Query", "Mutation", "Subscription", "GraphQLName",
+        "QueryAttribute", "MutationAttribute", "SubscriptionAttribute",
+        "UsePaging", "UseFiltering", "UseSorting", "UseProjection",
+        "UsePagingAttribute", "UseFilteringAttribute", "UseSortingAttribute", "UseProjectionAttribute"
     ];
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsGraphQlAttribute(node)) return OntologyConstants.NodeLabels.EntryPoint;
+        if (IsGraphQlAttribute(node) || IsGraphQlMethodDeclaration(node)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
     }
 
@@ -48,6 +50,13 @@ public class HotChocolateLibraryParser : ILibraryParser
 
             return $"{opType}:unknown";
         }
+        if (IsGraphQlMethodDeclaration(node))
+        {
+            var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
+            var methodName = nameNode.IsValid() ? nameNode.Text : "anonymous";
+            var opType = GetGraphQlOperationTypeFromClass(node);
+            return $"{opType}:{methodName}";
+        }
         return null;
     }
 
@@ -55,18 +64,36 @@ public class HotChocolateLibraryParser : ILibraryParser
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
-        if (!IsGraphQlAttribute(node)) return;
-
-        symbol.Protocol = "GraphQL";
-        var attrName = GetAttributeName(node);
-        symbol.OperationType = attrName switch
+        if (IsGraphQlAttribute(node))
         {
-            "Mutation" or "MutationAttribute" => "Mutation",
-            "Subscription" or "SubscriptionAttribute" => "Subscription",
-            _ => "Query"
-        };
+            symbol.Protocol = "GraphQL";
+            var attrName = GetAttributeName(node);
+            symbol.OperationType = attrName switch
+            {
+                "Mutation" or "MutationAttribute" => "Mutation",
+                "Subscription" or "SubscriptionAttribute" => "Subscription",
+                _ => "Query"
+            };
+        }
+        else if (IsGraphQlMethodDeclaration(node))
+        {
+            symbol.Protocol = "GraphQL";
+            var op = GetGraphQlOperationTypeFromClass(node);
+            symbol.OperationType = op switch
+            {
+                "MUTATION" => "Mutation",
+                "SUBSCRIPTION" => "Subscription",
+                _ => "Query"
+            };
+        }
+        else
+        {
+            return;
+        }
 
-        var parentDecl = node.Parent?.Parent;
+        var parentDecl = node.Is(TreeSitterSyntax.CSharp.MethodDeclaration)
+            ? node
+            : (node.Parent?.Parent ?? default);
         if (parentDecl.IsValid() && parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
         {
             // Response type
@@ -111,6 +138,11 @@ public class HotChocolateLibraryParser : ILibraryParser
     {
         if (node.Is(TreeSitterSyntax.CSharp.Attribute))
         {
+            var parentDecl = node.Parent?.Parent;
+            if (!parentDecl.IsValid() || !parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
+            {
+                return false;
+            }
             var name = GetAttributeName(node);
             return GraphQlAttributes.Contains(name);
         }
@@ -148,5 +180,55 @@ public class HotChocolateLibraryParser : ILibraryParser
     private static bool IsPrimitiveOrSystemType(string type)
     {
         return type is "int" or "long" or "string" or "bool" or "double" or "float" or "decimal" or "Guid" or "DateTime" or "DateTimeOffset" or "CancellationToken" or "ClaimsPrincipal" or "object";
+    }
+    private static bool IsGraphQlMethodDeclaration(Node node)
+    {
+        if (!node.Is(TreeSitterSyntax.CSharp.MethodDeclaration)) return false;
+
+        // If the method already has explicit GraphQL attributes, let attribute handling take precedence
+        var attrList = node.FindChildOfType(TreeSitterSyntax.CSharp.AttributeList);
+        if (attrList.IsValid())
+        {
+            foreach (var attr in attrList.Children)
+            {
+                if (attr.Is(TreeSitterSyntax.CSharp.Attribute) && IsGraphQlAttribute(attr))
+                {
+                    return false;
+                }
+            }
+        }
+
+        var parentClass = GetParentClassName(node);
+        if (string.IsNullOrEmpty(parentClass)) return false;
+
+        return parentClass.EndsWith("Query", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Queries", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Mutation", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Mutations", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
+               parentClass.EndsWith("Subscriptions", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetGraphQlOperationTypeFromClass(Node node)
+    {
+        var parentClass = GetParentClassName(node) ?? "";
+        if (parentClass.Contains("Mutation", StringComparison.OrdinalIgnoreCase)) return "MUTATION";
+        if (parentClass.Contains("Subscription", StringComparison.OrdinalIgnoreCase)) return "SUBSCRIPTION";
+        return "QUERY";
+    }
+
+    private static string? GetParentClassName(Node node)
+    {
+        var parent = node.Parent;
+        while (parent.IsValid())
+        {
+            if (parent.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+            {
+                var name = parent.GetField(TreeSitterSyntax.Fields.Name);
+                if (name.IsValid()) return name.Text;
+            }
+            parent = parent.Parent;
+        }
+        return null;
     }
 }

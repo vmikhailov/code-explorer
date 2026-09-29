@@ -97,7 +97,7 @@ public static class DiagramExporter
         if (hasDbs) sb.Append(dbSb);
 
         // 3. Query Topics / Message Brokers
-        var topicQuery = "MATCH (t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker";
+        var topicQuery = "MATCH (t:Topic) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true') RETURN t.id AS id, t.name AS name, t.broker_type AS broker";
         var topicJson = await client.ExecuteQueryAsync(topicQuery, null, cancellationToken);
         using var topicDoc = JsonDocument.Parse(topicJson);
 
@@ -138,10 +138,10 @@ public static class DiagramExporter
         MATCH (a)-[r:USES_DB|USES_CLOUD|USES_API|CONFIGURES]->(b)
         RETURN a.id AS from_id, b.id AS to_id, type(r) AS rel_type
         UNION
-        MATCH (t:Topic)-[:PUBLISHED_BY]->(producer)
+        MATCH (t:Topic)-[:PUBLISHED_BY]->(producer) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true')
         RETURN producer.id AS from_id, t.id AS to_id, 'PUBLISHES_TO' AS rel_type
         UNION
-        MATCH (t:Topic)-[:SUBSCRIBED_BY]->(consumer)
+        MATCH (t:Topic)-[:SUBSCRIBED_BY]->(consumer) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true')
         RETURN t.id AS from_id, consumer.id AS to_id, 'SUBSCRIBES_TO' AS rel_type
         """;
         var relsJson = await client.ExecuteQueryAsync(relsQuery, null, cancellationToken);
@@ -205,7 +205,7 @@ public static class DiagramExporter
         }
 
         // 3. Topics / Queues
-        var topicQuery = "MATCH (t:Topic) RETURN t.id AS id, t.name AS name, t.broker_type AS broker";
+        var topicQuery = "MATCH (t:Topic) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true') RETURN t.id AS id, t.name AS name, t.broker_type AS broker";
         var topicJson = await client.ExecuteQueryAsync(topicQuery, null, cancellationToken);
         using var topicDoc = JsonDocument.Parse(topicJson);
 
@@ -236,10 +236,10 @@ public static class DiagramExporter
         MATCH (a)-[r:USES_DB|USES_CLOUD|USES_API]->(b)
         RETURN a.id AS from_id, b.id AS to_id, type(r) AS rel_type
         UNION
-        MATCH (t:Topic)-[:PUBLISHED_BY]->(producer)
+        MATCH (t:Topic)-[:PUBLISHED_BY]->(producer) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true')
         RETURN producer.id AS from_id, t.id AS to_id, 'Publishes to' AS rel_type
         UNION
-        MATCH (t:Topic)-[:SUBSCRIBED_BY]->(consumer)
+        MATCH (t:Topic)-[:SUBSCRIBED_BY]->(consumer) WHERE (t.broker_type IS NULL OR (t.broker_type <> 'mediatr' AND t.broker_type <> 'in-memory')) AND (t.is_internal IS NULL OR t.is_internal <> 'true')
         RETURN t.id AS from_id, consumer.id AS to_id, 'Subscribes from' AS rel_type
         """;
         var relsJson = await client.ExecuteQueryAsync(relsQuery, null, cancellationToken);

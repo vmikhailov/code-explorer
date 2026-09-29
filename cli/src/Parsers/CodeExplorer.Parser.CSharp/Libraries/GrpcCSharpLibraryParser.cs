@@ -102,6 +102,12 @@ public class GrpcCSharpLibraryParser : ILibraryParser
     {
         if (!node.Is(TreeSitterSyntax.CSharp.MethodDeclaration)) return false;
 
+        var parentClass = GetParentClassName(node);
+        if (!string.IsNullOrEmpty(parentClass) && (parentClass.EndsWith("GrpcService", StringComparison.OrdinalIgnoreCase) || parentClass.EndsWith("Grpc", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
         var paramList = node.GetField(TreeSitterSyntax.Fields.Parameters)
                         ?? node.FindChildOfType(TreeSitterSyntax.CSharp.ParameterList);
         if (!paramList.IsValid()) return false;

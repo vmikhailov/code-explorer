@@ -87,11 +87,26 @@ public static class ConfigurationParser
             }
         }
 
-        // 2. Look for top-level known services (Stripe, Redis, RabbitMQ, Kafka, AWS, OpenAI, Auth0, etc.)
+        // 2. UrlsSettings (Service-to-Service configuration)
+        if (root.TryGetProperty("UrlsSettings", out var urlsSettings) && urlsSettings.ValueKind == JsonValueKind.Object)
+        {
+            ParseUrlsSettings(urlsSettings, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+        }
+
+        // 3. CloudPayment / CloudPayments
+        if (root.TryGetProperty("CloudPayment", out var cp) || root.TryGetProperty("CloudPayments", out cp))
+        {
+            ParseCloudPayments(cp, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+        }
+
+        // 4. Look for top-level known services (Stripe, Redis, RabbitMQ, Kafka, AWS, OpenAI, Auth0, etc.)
         foreach (var prop in root.EnumerateObject())
         {
             var key = prop.Name;
             if (key.Equals("ConnectionStrings", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("UrlsSettings", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("CloudPayment", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("CloudPayments", StringComparison.OrdinalIgnoreCase) ||
                 key.Equals("Logging", StringComparison.OrdinalIgnoreCase) ||
                 key.Equals("AllowedHosts", StringComparison.OrdinalIgnoreCase))
             {
@@ -521,5 +536,156 @@ public static class ConfigurationParser
         }
 
         relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, cloudId)));
+
+        string? projId = null;
+        if (containerNode is ProjectNode pn)
+        {
+            projId = pn.Id;
+        }
+        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
+        {
+            var id = containerNode.Id;
+            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
+            if (!id.EndsWith(':')) id += ":";
+            projId = id;
+        }
+
+        if (!string.IsNullOrEmpty(projId))
+        {
+            var usesCloudRel = new UsesCloudRelationship(projId, cloudId);
+            relationships.Add(Relationship.FromRelationship(usesCloudRel));
+            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesCloudRel));
+        }
+    }
+
+    private static void ParseUrlsSettings(
+        JsonElement urlsSettings,
+        string relativePath,
+        string fileNodeId,
+        string workspaceId,
+        IOntologyNode containerNode,
+        List<Relationship> relationships,
+        ParsingContext ctx)
+    {
+        string? projId = null;
+        if (containerNode is ProjectNode pn)
+        {
+            projId = pn.Id;
+        }
+        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
+        {
+            var id = containerNode.Id;
+            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
+            if (!id.EndsWith(':')) id += ":";
+            projId = id;
+        }
+
+        if (string.IsNullOrEmpty(projId)) return;
+
+        foreach (var prop in urlsSettings.EnumerateObject())
+        {
+            var serviceKey = prop.Name;
+            var urlVal = prop.Value.GetString() ?? "";
+            if (string.IsNullOrWhiteSpace(serviceKey)) continue;
+
+            var targetId = $"{workspaceId}:service_target:{serviceKey.ToLowerInvariant()}";
+            var rel = new Relationship(
+                projId,
+                targetId,
+                OntologyConstants.Relationships.ServiceCall,
+                new Dictionary<string, object>
+                {
+                    ["service_key"] = serviceKey,
+                    ["url"] = urlVal,
+                    ["dependency_type"] = "service_call",
+                    ["is_semantic"] = "true"
+                });
+            relationships.Add(rel);
+            ctx.AddGlobalProjectDependency(rel);
+        }
+    }
+
+    private static void ParseCloudPayments(
+        JsonElement section,
+        string relativePath,
+        string fileNodeId,
+        string workspaceId,
+        IOntologyNode containerNode,
+        List<Relationship> relationships,
+        ParsingContext ctx)
+    {
+        string baseUrl = "https://api.cloudpayments.ru";
+        if (section.ValueKind == JsonValueKind.Object && section.TryGetProperty("BaseUrl", out var bUrl))
+        {
+            var s = bUrl.GetString();
+            if (!string.IsNullOrWhiteSpace(s)) baseUrl = s;
+        }
+
+        var host = "api.cloudpayments.ru";
+        try
+        {
+            if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri))
+            {
+                host = uri.Host;
+            }
+        }
+        catch { }
+
+        var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:https:{host}";
+        var extNode = new ExternalServiceNode(
+            extId,
+            "CloudPayments",
+            "https",
+            host,
+            "/",
+            new Dictionary<string, string>
+            {
+                ["file_path"] = relativePath,
+                ["base_url"] = baseUrl,
+                ["is_external"] = "true"
+            }
+        );
+
+        if (!containerNode.Children.Any(c => c.Id == extId))
+        {
+            containerNode.Children.Add(extNode);
+            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, "CloudPayments", extId);
+        }
+
+        if (ctx.SemanticStructure != null && !ctx.SemanticStructure.Children.Any(c => c.Id == extId))
+        {
+            ctx.SemanticStructure.Children.Add(extNode);
+        }
+
+        relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, extId)));
+
+        string? projId = null;
+        if (containerNode is ProjectNode pn)
+        {
+            projId = pn.Id;
+        }
+        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
+        {
+            var id = containerNode.Id;
+            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
+            if (!id.EndsWith(':')) id += ":";
+            projId = id;
+        }
+
+        if (!string.IsNullOrEmpty(projId))
+        {
+            var callRel = new Relationship(
+                projId,
+                extId,
+                OntologyConstants.Relationships.ServiceCall,
+                new Dictionary<string, object>
+                {
+                    ["dependency_type"] = "service_call",
+                    ["is_semantic"] = "true",
+                    ["is_external"] = "true"
+                });
+            relationships.Add(callRel);
+            ctx.AddGlobalProjectDependency(callRel);
+        }
     }
 }

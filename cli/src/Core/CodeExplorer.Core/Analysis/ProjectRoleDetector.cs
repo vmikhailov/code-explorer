@@ -42,7 +42,7 @@ public static class ProjectRoleDetector
             var hasCliBin = extensions.GetValueOrDefault("has_cli_bin") == "true";
             var sdk = extensions.GetValueOrDefault("sdk");
 
-            if (manifestType == "library")
+            if (manifestType == "library" && !HasProtocolTokens(normName, normRelPath))
             {
                 return (ProjectRole.SharedLibrary, true);
             }
@@ -293,8 +293,47 @@ public static class ProjectRoleDetector
         return false;
     }
 
+    public static bool HasProtocolTokens(string name, string relPath)
+    {
+        var lowerName = (name ?? "").ToLowerInvariant();
+        var normalizedPath = (relPath ?? "").Replace('\\', '/').ToLowerInvariant();
+
+        if (lowerName.EndsWith(".graphql") || lowerName.EndsWith(".grapql") ||
+            lowerName.EndsWith(".grpc") || lowerName.EndsWith(".gateway") ||
+            lowerName.EndsWith(".bff") || lowerName.EndsWith(".endpoint") ||
+            lowerName.EndsWith(".endpoints") || lowerName.EndsWith("-graphql") ||
+            lowerName.EndsWith("-grapql") || lowerName.EndsWith("-grpc") ||
+            lowerName.EndsWith("-gateway") || lowerName.EndsWith("-bff") ||
+            lowerName.EndsWith("-mqtt") || lowerName.EndsWith("-endpoint"))
+        {
+            return true;
+        }
+
+        if (normalizedPath.Contains("/graphql/") || normalizedPath.Contains("/grapql/") ||
+            normalizedPath.Contains("/grpc/") || normalizedPath.Contains("/gateway/") ||
+            normalizedPath.Contains("/gateways/") || normalizedPath.Contains("/bff/") ||
+            normalizedPath.Contains("/mqtt/") || normalizedPath.Contains("/endpoint/") ||
+            normalizedPath.Contains("/endpoints/"))
+        {
+            return true;
+        }
+
+        var parts = lowerName.Split('.', '-', '_');
+        var protocolTokens = new[] { "graphql", "grapql", "grpc", "gateway", "gateways", "bff", "mqtt", "endpoint", "endpoints" };
+        if (parts.Any(p => protocolTokens.Contains(p)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsSharedLibrary(string name, string relPath, string[] files, string projType)
     {
+        if (HasProtocolTokens(name, relPath))
+        {
+            return false;
+        }
         // 1. Explicit library directory paths
         if (relPath.Contains("/libs/") || relPath.Contains("/lib/") || relPath.Contains("/libraries/") ||
             relPath.Contains("/common/") || relPath.Contains("/shared/") || relPath.Contains("/contracts/") ||

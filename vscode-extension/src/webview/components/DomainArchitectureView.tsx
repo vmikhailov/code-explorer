@@ -42,10 +42,10 @@ export interface DomainArchitectureViewProps {
 
 // Common sub-project naming suffixes that belong to a parent domain
 const SUB_PROJECT_SUFFIX_REGEX =
-  /\.(Logic|Client|Contracts|Data|Core|Domain|Infrastructure|Api|Service|Services|Web|Worker|Test|Tests|Shared|Models|Dto|SDK|UnitTests|IntegrationTests)$/i;
+  /\.(Logic|Client|Contracts|Data|Core|Domain|Infrastructure|Api|Service|Services|Web|Worker|Test|Tests|Shared|Models|Dto|SDK|UnitTests|IntegrationTests|GraphQL|GrapQL|Grpc|Gateway|Bff|Endpoint)$/i;
 
 // Ingress / Frontend indicators
-const INGRESS_KEYWORDS = ['admin', 'app', 'ui', 'fe', 'gateway', 'bff', 'portal', 'web', 'client-app', 'landing'];
+const INGRESS_KEYWORDS = ['admin', 'app', 'ui', 'fe', 'gateway', 'bff', 'portal', 'web', 'client-app', 'landing', 'graphql', 'grapql', 'grpc', 'mqtt', 'endpoint'];
 const INGRESS_FRAMEWORKS = ['angular', 'react', 'vue', 'svelte', 'next', 'vite', 'blazor'];
 
 /**
@@ -56,6 +56,13 @@ function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayNa
   const path = (node.filePath || '').toLowerCase().replace(/\\/g, '/');
   const lowerName = name.toLowerCase();
 
+  const isProtocolIngress =
+    INGRESS_KEYWORDS.some((kw) => lowerName.includes(kw) || path.includes(`/${kw}/`)) ||
+    INGRESS_FRAMEWORKS.some((fw) => (node.properties?.framework || '').toLowerCase().includes(fw)) ||
+    node.properties?.has_ingress_contract === 'true' ||
+    node.properties?.layer === 'layer_ingress' ||
+    node.properties?.layerId === 'layer_ingress';
+
   // 1. Check if name ends with standard architectural suffix (e.g. Lidoma.Services.Player.Logic)
   const suffixMatch = name.match(SUB_PROJECT_SUFFIX_REGEX);
   if (suffixMatch) {
@@ -65,7 +72,7 @@ function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayNa
     return {
       domainKey: `domain:${parentName.toLowerCase()}`,
       domainDisplayName: `${shortName} Service`,
-      isIngressHint: false,
+      isIngressHint: isProtocolIngress,
     };
   }
 
@@ -79,7 +86,7 @@ function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayNa
       return {
         domainKey: `domain:${folderDomain.toLowerCase()}`,
         domainDisplayName: `${cleanName} Service`,
-        isIngressHint: false,
+        isIngressHint: isProtocolIngress,
       };
     }
 
@@ -123,6 +130,7 @@ export interface SelectedNodeDetail {
   name: string;
   displayName: string;
   kind: EntityKind;
+  domain?: string;
   displayTag: string;
   bgColor: string;
   borderColor: string;
@@ -337,6 +345,31 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'arrow-scale': 2.3,
     },
   },
+  // Hovered Edge
+  {
+    selector: 'edge.hovered',
+    style: {
+      'width': 3.5,
+      'opacity': 1,
+      'z-index': 998,
+      'target-arrow-shape': 'triangle',
+      'arrow-scale': 2.3,
+    },
+  },
+  // Edge Label Hover-Only Mode: Hide label by default
+  {
+    selector: 'edge.label-hover-only',
+    style: {
+      'label': '',
+    },
+  },
+  // In hover-only mode, reveal label on hover, selection, or highlight
+  {
+    selector: 'edge.label-hover-only.hovered, edge.label-hover-only:selected, edge.label-hover-only.highlighted',
+    style: {
+      'label': 'data(label)',
+    },
+  },
   // Preserve Category Colors on Highlight & Selection
   {
     selector: 'edge[category = "service_call"].highlighted, edge[category = "service_call"]:selected',
@@ -468,6 +501,20 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     },
   },
 ];
+
+/**
+ * Toggles edge label visibility: always visible or visible only on hover / selection / highlight.
+ */
+export function applyEdgeLabelVisibility(cy: cytoscape.Core | null, onHoverOnly: boolean) {
+  if (!cy) return;
+  cy.batch(() => {
+    if (onHoverOnly) {
+      cy.edges().addClass('label-hover-only');
+    } else {
+      cy.edges().removeClass('label-hover-only');
+    }
+  });
+}
 
 /**
  * Dynamically toggles line rendering: Straight, Standard Bezier, or Orbit Shield (bypasses inner orbits).
@@ -689,6 +736,27 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     } catch { }
     if (cyRef.current) {
       applyEdgeCurveMode(cyRef.current, mode, { x: 0, y: 0 }, curveFactorRef.current);
+    }
+  }, []);
+
+  const [edgeLabelsOnHover, setEdgeLabelsOnHover] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ce_edge_labels_on_hover');
+      return saved !== null ? saved === 'true' : false;
+    } catch { }
+    return false;
+  });
+  const edgeLabelsOnHoverRef = useRef<boolean>(edgeLabelsOnHover);
+  edgeLabelsOnHoverRef.current = edgeLabelsOnHover;
+
+  const handleEdgeLabelsOnHoverChange = useCallback((onHoverOnly: boolean) => {
+    setEdgeLabelsOnHover(onHoverOnly);
+    edgeLabelsOnHoverRef.current = onHoverOnly;
+    try {
+      localStorage.setItem('ce_edge_labels_on_hover', String(onHoverOnly));
+    } catch { }
+    if (cyRef.current) {
+      applyEdgeLabelVisibility(cyRef.current, onHoverOnly);
     }
   }, []);
 
@@ -921,7 +989,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     const domainProjectsMap = new Map<string, DomainProjectInfo[]>();
     const domainPrimaryMap = new Map<string, GraphNode>();
     const domainZoneMap = new Map<string, 'ingress' | 'service'>();
-    const domainNameMap = new Map<string, { name: string; displayName: string; framework?: string; language?: string }>();
+    const domainNameMap = new Map<string, { name: string; displayName: string; framework?: string; language?: string; color?: string }>();
 
     // 1a. Categorize Projects into Domains
     for (const node of graph?.nodes || []) {
@@ -945,8 +1013,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
         const isIngress =
           !isLib &&
-          (node.kind === 'App' || node.kind === 'FrontendApp' || isIngressHint) &&
-          node.kind !== 'Service' &&
+          (node.kind === 'App' ||
+           node.kind === 'FrontendApp' ||
+           node.properties?.layer === 'layer_ingress' ||
+           node.properties?.layerId === 'layer_ingress' ||
+           node.properties?.has_ingress_contract === 'true' ||
+           isIngressHint) &&
           node.kind !== 'Worker';
         domainZoneMap.set(domainKey, isIngress ? 'ingress' : 'service');
 
@@ -982,8 +1054,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             language: node.properties?.language || node.properties?.project_type,
           });
           const isIngress =
-            (node.kind === 'App' || node.kind === 'FrontendApp' || isIngressHint) &&
-            node.kind !== 'Service' &&
+            (node.kind === 'App' ||
+             node.kind === 'FrontendApp' ||
+             node.properties?.layer === 'layer_ingress' ||
+             node.properties?.layerId === 'layer_ingress' ||
+             node.properties?.has_ingress_contract === 'true' ||
+             isIngressHint) &&
             node.kind !== 'Worker';
           domainZoneMap.set(domainKey, isIngress ? 'ingress' : 'service');
         }
@@ -1006,6 +1082,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         projToDomainMap.set(node.id, node.id);
         projToDomainMap.set(node.id.toLowerCase(), node.id);
       } else if (node.kind === 'Topic' || node.properties?.role === 'topic') {
+        const broker = (node.properties?.broker_type || '').toLowerCase();
+        const isInternal =
+          node.properties?.is_internal === 'true' ||
+          node.properties?.scope === 'internal' ||
+          broker === 'mediatr' ||
+          broker === 'in-memory' ||
+          node.id.includes(':mediatr:') ||
+          node.id.includes(':in-memory:');
+        if (isInternal) continue;
+
         const rawName = node.name || node.displayName || 'Topic';
         const isBogus =
           !rawName ||
@@ -1055,6 +1141,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     const directPubSubChords = new Map<string, { source: string; target: string; label: string; count: number }>();
 
     for (const edge of graph?.edges || []) {
+      const isInternalEdge =
+        edge.properties?.is_internal === 'true' ||
+        edge.properties?.scope === 'internal' ||
+        edge.properties?.broker_type === 'mediatr' ||
+        edge.source.includes(':mediatr:') ||
+        edge.target.includes(':mediatr:');
+      if (isInternalEdge) continue;
+
       const srcDomain =
         projToDomainMap.get(edge.source) ||
         projToDomainMap.get(edge.source.toLowerCase()) ||
@@ -1242,6 +1336,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         id: domainId,
         name: meta.name,
         displayName: meta.displayName,
+        domain: domainId,
         kind: nodeKind,
         displayTag: tag,
         bgColor,
@@ -1498,6 +1593,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       topicPublishers,
       topicSubscribers,
       directPubSubChords,
+      domainMap: domainNameMap,
       counts: {
         ingress: ingressCount,
         services: serviceCount,
@@ -1890,6 +1986,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       evt.target.removeClass('hovered');
     });
 
+    cy.on('mouseover', 'edge', (evt) => {
+      containerRef.current?.classList.add('edge-hover');
+      evt.target.addClass('hovered');
+    });
+
+    cy.on('mouseout', 'edge', (evt) => {
+      containerRef.current?.classList.remove('edge-hover');
+      evt.target.removeClass('hovered');
+    });
+
     // Viewport transform listener to keep HUD percentage and SVG guides synchronized
     const handleViewportSync = () => {
       setCurrentZoom(cy.zoom());
@@ -1918,6 +2024,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       .selector('edge')
       .style('font-size', `${Math.max(6, Math.round(fontSizeRef.current * 0.82))}px`)
       .update();
+    applyEdgeLabelVisibility(cy, edgeLabelsOnHoverRef.current);
 
     return () => {
       cy.destroy();
@@ -1936,6 +2043,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         .update();
     }
   }, [fontSize]);
+
+  // Keep Cytoscape edge label visibility synchronized with edgeLabelsOnHover state
+  useEffect(() => {
+    if (cyRef.current) {
+      applyEdgeLabelVisibility(cyRef.current, edgeLabelsOnHover);
+    }
+  }, [edgeLabelsOnHover]);
 
   // Keyboard shortcut to hide selected node (Delete, Backspace, 'h') or dismiss inspector (Escape)
   useEffect(() => {
@@ -2000,6 +2114,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       cy.elements().remove();
       cy.add(elements);
+      applyEdgeLabelVisibility(cy, edgeLabelsOnHoverRef.current);
 
       if (hadExisting && !layoutChanged && layoutName === 'cose') {
         let hasNewNodes = false;
@@ -2998,6 +3113,56 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           title="Increase sensitivity"
                         >
                           +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 5. Edge Labels Visibility Control */}
+                    <div className="display-setting-row" title="Control when edge text labels are shown: always or only on hover">
+                      <div className="setting-label-row">
+                        <span className="setting-icon">🏷️</span>
+                        <span className="setting-name">Edge Labels</span>
+                        <span
+                          className={`domain-hud-value-badge ${edgeLabelsOnHover ? 'is-active' : ''}`}
+                          onClick={() => handleEdgeLabelsOnHoverChange(!edgeLabelsOnHover)}
+                          title="Click to toggle: Always Show vs On Hover Only"
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {edgeLabelsOnHover ? 'On Hover' : 'Always'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                        <button
+                          type="button"
+                          className={`domain-hud-btn ${!edgeLabelsOnHover ? 'is-active' : ''}`}
+                          onClick={() => handleEdgeLabelsOnHoverChange(false)}
+                          title="Always show text labels on all edges"
+                          style={{
+                            flex: 1,
+                            padding: '3px 8px',
+                            fontSize: '10.5px',
+                            background: !edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                            borderColor: !edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
+                            color: !edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
+                          }}
+                        >
+                          Always
+                        </button>
+                        <button
+                          type="button"
+                          className={`domain-hud-btn ${edgeLabelsOnHover ? 'is-active' : ''}`}
+                          onClick={() => handleEdgeLabelsOnHoverChange(true)}
+                          title="Hide text labels by default, reveal on edge hover or selection"
+                          style={{
+                            flex: 1,
+                            padding: '3px 8px',
+                            fontSize: '10.5px',
+                            background: edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                            borderColor: edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
+                            color: edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
+                          }}
+                        >
+                          On Hover Only
                         </button>
                       </div>
                     </div>

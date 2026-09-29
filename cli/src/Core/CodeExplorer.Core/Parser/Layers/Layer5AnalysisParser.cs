@@ -651,12 +651,22 @@ public class Layer5AnalysisParser
                     continue;
                 }
 
+                var isInternal = string.Equals(brokerType, "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(brokerType, "in-memory", StringComparison.OrdinalIgnoreCase);
+
                 var topicId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
 
                 if (!createdTopicIds.Contains(topicId))
                 {
                     createdTopicIds.Add(topicId);
-                    var topicNode = new TopicNode(topicId, topicName, "", brokerType);
+                    var topicExt = new Dictionary<string, string>
+                    {
+                        ["is_internal"] = isInternal ? "true" : "false",
+                        ["scope"] = isInternal ? "internal" : "external",
+                        ["message_type"] = isInternal ? "internal" : "external",
+                        ["is_semantic_entity"] = isInternal ? "false" : "true"
+                    };
+                    var topicNode = new TopicNode(topicId, topicName, "", brokerType, topicExt);
                     newTopicNodes.Add(topicNode);
                     ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
                 }
@@ -665,8 +675,21 @@ public class Layer5AnalysisParser
                     ? OntologyConstants.Relationships.PublishedBy
                     : OntologyConstants.Relationships.SubscribedBy;
 
-                referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, new()));
-                referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, topicId, refItem.Kind, new()));
+                var relProps = new Dictionary<string, object>
+                {
+                    ["is_internal"] = isInternal ? "true" : "false",
+                    ["scope"] = isInternal ? "internal" : "external",
+                    ["category"] = "messaging",
+                    ["dependency_type"] = "messaging",
+                    ["broker_type"] = brokerType
+                };
+                if (isInternal)
+                {
+                    relProps["is_semantic"] = "false";
+                }
+
+                referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, relProps));
+                referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, topicId, refItem.Kind, relProps));
             }
             else if (refItem.Kind == OntologyConstants.Relationships.PersistedIn)
             {
@@ -944,7 +967,7 @@ public class Layer5AnalysisParser
 
     private static bool DoesProjectMatchServiceDomain(ProjectNode proj, string domainOrService)
     {
-        if (string.IsNullOrWhiteSpace(domainOrService) || domainOrService is "*" or "unknown-service")
+        if (string.IsNullOrWhiteSpace(domainOrService) || domainOrService is "*" or "unknown-service" or "localhost" or "127.0.0.1" or "0.0.0.0")
             return true;
 
         var d = domainOrService.Trim().ToLowerInvariant();

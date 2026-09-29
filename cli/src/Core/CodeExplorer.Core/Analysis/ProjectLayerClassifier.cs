@@ -130,12 +130,12 @@ public static class ProjectLayerClassifier
                 continue;
             }
 
-            // 2. Library Priority (is_library == true / role == SharedLibrary / manifest_type == "library" / Library path)
-            // If project is a library (e.g., fe/projects/ui/src/lib/* or common-nest),
-            // it immediately goes to Storage & Foundation, avoiding /ui/ or /integrations/.
-            if (IsLibrary(p, name, path))
+            // 2. Ingress Priority for Protocol Interfaces and Web Ingress Services
+            // If project is a protocol interface (GraphQL, gRPC, Gateway, BFF, MQTT, Endpoint)
+            // or Web SDK with ingress contracts, it MUST be classified as Ingress, NOT Foundation or Components.
+            if (IsIngress(name, path, inDegree, p))
             {
-                result[p.Id] = StandardLayers.Foundation;
+                result[p.Id] = StandardLayers.Ingress;
                 continue;
             }
 
@@ -147,10 +147,12 @@ public static class ProjectLayerClassifier
                 continue;
             }
 
-            // 4. Ingress (Entry Points, APIs, UI, Web, Gateways, BFF, CLI)
-            if (IsIngress(name, path, inDegree, p))
+            // 4. Library Priority (is_library == true / role == SharedLibrary / manifest_type == "library" / Library path)
+            // If project is a library (e.g., fe/projects/ui/src/lib/* or common-nest or domain contracts),
+            // it goes to Storage & Foundation.
+            if (IsLibrary(p, name, path))
             {
-                result[p.Id] = StandardLayers.Ingress;
+                result[p.Id] = StandardLayers.Foundation;
                 continue;
             }
 
@@ -227,8 +229,48 @@ public static class ProjectLayerClassifier
                normalizedPath.Contains("/test/");
     }
 
+    private static readonly HashSet<string> ProtocolTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "graphql", "grapql", "grpc", "gateway", "gateways", "bff", "mqtt", "endpoint", "endpoints"
+    };
+
+    public static bool HasProtocolTokens(string name, string path)
+    {
+        var lowerName = (name ?? "").ToLowerInvariant();
+        var normalizedPath = (path ?? "").Replace('\\', '/').ToLowerInvariant();
+
+        if (lowerName.EndsWith(".graphql") || lowerName.EndsWith(".grapql") ||
+            lowerName.EndsWith(".grpc") || lowerName.EndsWith(".gateway") ||
+            lowerName.EndsWith(".bff") || lowerName.EndsWith(".endpoint") ||
+            lowerName.EndsWith(".endpoints") || lowerName.EndsWith("-graphql") ||
+            lowerName.EndsWith("-grapql") || lowerName.EndsWith("-grpc") ||
+            lowerName.EndsWith("-gateway") || lowerName.EndsWith("-bff") ||
+            lowerName.EndsWith("-mqtt") || lowerName.EndsWith("-endpoint"))
+        {
+            return true;
+        }
+
+        if (normalizedPath.Contains("/graphql/") || normalizedPath.Contains("/grapql/") ||
+            normalizedPath.Contains("/grpc/") || normalizedPath.Contains("/gateway/") ||
+            normalizedPath.Contains("/gateways/") || normalizedPath.Contains("/bff/") ||
+            normalizedPath.Contains("/mqtt/") || normalizedPath.Contains("/endpoint/") ||
+            normalizedPath.Contains("/endpoints/"))
+        {
+            return true;
+        }
+
+        var parts = lowerName.Split('.', '-', '_');
+        if (parts.Any(p => ProtocolTokens.Contains(p)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsLibrary(ProjectClassifierItem p, string name, string path)
     {
+        if (HasProtocolTokens(name, path)) return false;
         if (p.IsLibrary) return true;
 
         if (string.Equals(p.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
@@ -321,7 +363,13 @@ public static class ProjectLayerClassifier
     private static bool IsIngress(string name, string path, int inDegree, ProjectClassifierItem p)
     {
         if (IsWorker(p, name, path)) return false;
-        if (IsLibrary(p, name, path)) return false;
+
+        // Evidence 0: Protocol Tokens (GraphQL, gRPC, Gateway, BFF, MQTT, Endpoint)
+        // Protocol interface takes precedence over service prefix/name!
+        if (HasProtocolTokens(name, path))
+        {
+            return true;
+        }
 
         // Evidence 1: Role or Manifest Type
         if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
@@ -342,11 +390,18 @@ public static class ProjectLayerClassifier
             if (frameworkType is "frontend") return true;
 
             var sdk = p.Extensions.GetValueOrDefault("sdk");
-            if (sdk == "Microsoft.NET.Sdk.Web" && (p.EndpointsCount > 0 || inDegree == 0))
+            var hasIngressContract = p.Extensions.GetValueOrDefault("has_ingress_contract") == "true" ||
+                                     p.Extensions.GetValueOrDefault("has_graphql") == "true" ||
+                                     p.Extensions.GetValueOrDefault("has_grpc") == "true" ||
+                                     p.Extensions.GetValueOrDefault("has_controllers") == "true";
+
+            if (sdk == "Microsoft.NET.Sdk.Web" && (hasIngressContract || p.EndpointsCount > 0 || p.EntryPoints.Count > 0 || inDegree == 0))
             {
                 return true;
             }
         }
+
+        if (IsLibrary(p, name, path)) return false;
 
         // Evidence 2: EntryPoints (e.g. CLI command entrypoint)
         if (p.EntryPoints.Any(ep => ep.EntryType == "cli"))
@@ -498,6 +553,7 @@ public static class ProjectLayerClassifier
 
     private static bool IsComponents(string name, string path)
     {
+        if (HasProtocolTokens(name, path)) return false;
         var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 

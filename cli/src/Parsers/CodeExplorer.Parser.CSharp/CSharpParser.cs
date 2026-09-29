@@ -181,6 +181,72 @@ public class CSharpParser : IProjectParser, IFileParser
                 props["has_cli_bin"] = "true";
                 props["manifest_type"] = "cli";
             }
+
+            // 5. Inspect Ingress Contracts (GraphQL, gRPC, Controllers) for Web / Service projects
+            var sdk = props.GetValueOrDefault("sdk");
+            var isWeb = sdk == "Microsoft.NET.Sdk.Web" ||
+                        string.Equals(props.GetValueOrDefault("framework_type"), "web", StringComparison.OrdinalIgnoreCase);
+
+            var hasGraphQl = content.Contains("HotChocolate", StringComparison.OrdinalIgnoreCase) ||
+                             content.Contains("GraphQL", StringComparison.OrdinalIgnoreCase) ||
+                             content.Contains("GrapQL", StringComparison.OrdinalIgnoreCase);
+            var hasGrpc = content.Contains("Grpc.AspNetCore", StringComparison.OrdinalIgnoreCase) ||
+                          content.Contains("Grpc.Tools", StringComparison.OrdinalIgnoreCase) ||
+                          content.Contains("<Protobuf", StringComparison.OrdinalIgnoreCase);
+
+            if (hasGraphQl) props["has_graphql"] = "true";
+            if (hasGrpc) props["has_grpc"] = "true";
+
+            try
+            {
+                var csFiles = Directory.GetFiles(directoryPath, "*.cs", SearchOption.AllDirectories);
+                foreach (var file in csFiles)
+                {
+                    var fileName = Path.GetFileName(file);
+                    if (fileName.EndsWith("Controller.cs", StringComparison.OrdinalIgnoreCase))
+                    {
+                        props["has_controllers"] = "true";
+                    }
+                    else if (fileName.EndsWith("Query.cs", StringComparison.OrdinalIgnoreCase) ||
+                             fileName.EndsWith("Queries.cs", StringComparison.OrdinalIgnoreCase) ||
+                             fileName.EndsWith("Mutation.cs", StringComparison.OrdinalIgnoreCase) ||
+                             fileName.EndsWith("Mutations.cs", StringComparison.OrdinalIgnoreCase) ||
+                             fileName.EndsWith("Subscription.cs", StringComparison.OrdinalIgnoreCase))
+                    {
+                        props["has_graphql"] = "true";
+                    }
+                    else if (fileName.EndsWith("GrpcService.cs", StringComparison.OrdinalIgnoreCase) ||
+                             fileName.EndsWith("Grpc.cs", StringComparison.OrdinalIgnoreCase))
+                    {
+                        props["has_grpc"] = "true";
+                    }
+
+                    if (fileName is "Startup.cs" or "Program.cs" or "ServiceStartup.cs" || fileName.EndsWith("Module.cs", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var fileText = File.ReadAllText(file);
+                        if (fileText.Contains("AddGraphQLServer") || fileText.Contains("MapGraphQL") ||
+                            fileText.Contains("AddQueryType") || fileText.Contains("AddMutationType"))
+                        {
+                            props["has_graphql"] = "true";
+                        }
+                        if (fileText.Contains("MapGrpcService") || fileText.Contains("AddGrpcService") || fileText.Contains("AddGrpcClient"))
+                        {
+                            props["has_grpc"] = "true";
+                        }
+                        if (fileText.Contains("MapControllers") || fileText.Contains("AddControllers") ||
+                            fileText.Contains("[ApiController]") || fileText.Contains("ControllerBase"))
+                        {
+                            props["has_controllers"] = "true";
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            if (isWeb && (props.ContainsKey("has_graphql") || props.ContainsKey("has_grpc") || props.ContainsKey("has_controllers")))
+            {
+                props["has_ingress_contract"] = "true";
+            }
         }
         catch { }
 

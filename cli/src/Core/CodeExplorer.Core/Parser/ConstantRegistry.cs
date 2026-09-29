@@ -24,6 +24,27 @@ public static class ConstantRegistry
         _globalConstants.Clear();
     }
 
+        private static readonly HashSet<string> TechSuffixes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "data", "logic", "graphql", "grapql", "contracts", "contract", "services", "service",
+        "host", "api", "client", "tests", "test", "grpc", "common", "infrastructure"
+    };
+
+    public static string? ExtractDomainNameFromProject(string? projectName)
+    {
+        if (string.IsNullOrWhiteSpace(projectName)) return null;
+        var parts = projectName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 1)
+        {
+            var filtered = parts.Where(p => !TechSuffixes.Contains(p)).ToList();
+            if (filtered.Count > 0)
+            {
+                return filtered[^1];
+            }
+        }
+        return projectName;
+    }
+
     public static void Register(string? projectName, string key, string value)
     {
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value)) return;
@@ -35,6 +56,13 @@ public static class ConstantRegistry
         {
             var pKey = $"{projectName.Trim()}:{cleanKey}";
             _projectConstants[pKey] = cleanVal;
+
+            var domain = ExtractDomainNameFromProject(projectName);
+            if (!string.IsNullOrWhiteSpace(domain) && !domain.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                _projectConstants[$"{domain}:{cleanKey}"] = cleanVal;
+            }
+
             _globalConstants.TryAdd(cleanKey, cleanVal);
         }
         else
@@ -62,6 +90,12 @@ public static class ConstantRegistry
             if (_projectConstants.TryGetValue($"{projectName}:{cleanKey}", out var pVal))
             {
                 value = pVal;
+                return true;
+            }
+            var domain = ExtractDomainNameFromProject(projectName);
+            if (!string.IsNullOrWhiteSpace(domain) && _projectConstants.TryGetValue($"{domain}:{cleanKey}", out var dVal))
+            {
+                value = dVal;
                 return true;
             }
         }
@@ -367,7 +401,7 @@ public static class ConstantRegistry
 
         // 1. Static classes with const strings: class TableNames { public const string Users = "users"; }
         var classMatches = Regex.Matches(content,
-            @"(?:public|internal|private)?\s*(?:static\s+)?class\s+([A-Za-z0-9_]+)\s*\{([\s\S]*?)\}",
+            @"(?:public|internal|private|protected)?\s*(?:static\s+|sealed\s+|abstract\s+|partial\s+)*(?:class|record|struct)\s+([A-Za-z0-9_]+)(?:\s*:[^{]+)?\s*\{([\s\S]*?)\}",
             RegexOptions.Multiline);
 
         foreach (Match cm in classMatches)

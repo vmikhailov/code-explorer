@@ -279,8 +279,16 @@ public class ResourceReconciliationService
             }
         }
 
-        // Fallback by engine
-        if (!string.IsNullOrWhiteSpace(expectedEngine))
+        // Fallback by engine: only if no specific name/schema was requested, or alias is a generic client/engine reference
+        var isGenericAlias = string.IsNullOrWhiteSpace(aliasOrName) ||
+                             IsGenericConfigKey(aliasOrName) ||
+                             aliasOrName.EndsWith("_client", StringComparison.OrdinalIgnoreCase) ||
+                             aliasOrName.EndsWith("-client", StringComparison.OrdinalIgnoreCase) ||
+                             (!string.IsNullOrWhiteSpace(expectedEngine) && 
+                              (aliasOrName.Equals(expectedEngine, StringComparison.OrdinalIgnoreCase) ||
+                               aliasOrName.StartsWith($"{expectedEngine}_", StringComparison.OrdinalIgnoreCase)));
+
+        if (isGenericAlias && !string.IsNullOrWhiteSpace(expectedEngine))
         {
             var matchingEngine = _resourcesById.Values.Where(r => string.Equals(r.Engine, expectedEngine, StringComparison.OrdinalIgnoreCase)).ToList();
             if (matchingEngine.Count == 1) return matchingEngine[0];

@@ -24,12 +24,22 @@ public class HttpClientLibraryParser : ILibraryParser
     private static readonly string[] NonHttpReceiverKeywords =
     [
         "dicom", "channel", "queue", "bus", "stream", "pipe", "socket",
-        "reader", "writer", "mediat", "broker", "eventhub", "producer", "consumer"
+        "reader", "writer", "mediat", "broker", "eventhub", "producer", "consumer",
+        "repository", "repo", "store", "dao", "context", "manager", "cache",
+        "session", "storage", "db", "database", "table", "entity", "factory",
+        "builder", "helper", "validator", "mapper", "converter", "hub"
     ];
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsHttpClientCall(node)) return OntologyConstants.NodeLabels.ExternalService;
+        if (IsHttpClientCall(node))
+        {
+            var target = ExtractTarget(node);
+            if (!string.IsNullOrEmpty(target) && !target.Equals("http:unknown-service", StringComparison.OrdinalIgnoreCase))
+            {
+                return OntologyConstants.NodeLabels.ExternalService;
+            }
+        }
         return null;
     }
 
@@ -74,7 +84,7 @@ public class HttpClientLibraryParser : ILibraryParser
                 }
             }
 
-            // Check argument list: first argument must not be pure CancellationToken, unless fluent HTTP builder is used
+            // Check argument list: first argument must not be pure CancellationToken or entity ID / non-URL argument
             var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
             if (argList.IsValid())
             {
@@ -86,6 +96,11 @@ public class HttpClientLibraryParser : ILibraryParser
                     {
                         if (!HasFluentHttpRequestInReceiver(exprChild))
                             return false;
+                    }
+
+                    if (IsNonUrlArgument(firstArg, argText, methodName))
+                    {
+                        return false;
                     }
                 }
             }
@@ -101,6 +116,42 @@ public class HttpClientLibraryParser : ILibraryParser
         if (text.Contains("CancellationToken", StringComparison.OrdinalIgnoreCase)) return true;
         if (text.EndsWith("Token", StringComparison.OrdinalIgnoreCase)) return true;
         if (text.Equals("ct", StringComparison.OrdinalIgnoreCase) || text.Equals("token", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    public static bool IsNonUrlArgument(Node argNode, string argText, string methodName)
+    {
+        if (string.IsNullOrWhiteSpace(argText)) return false;
+        if (methodName.Equals("SendAsync", StringComparison.OrdinalIgnoreCase)) return false;
+
+        // 1. Literal numbers / primitives / Guid
+        if (int.TryParse(argText, out _) || long.TryParse(argText, out _) || Guid.TryParse(argText, out _))
+            return true;
+
+        // 2. Null-forgiveness or property chains like validationResult.CustomerId!.Value
+        if (argText.Contains('!'))
+            return true;
+
+        var lower = argText.ToLowerInvariant();
+
+        // 3. ID / Key variables or properties (e.g. id, customerId, orderId, item.Id, query.Id)
+        if (lower.EndsWith(".id") || lower.EndsWith(".value") || lower.EndsWith(".key") ||
+            (lower.EndsWith("id") && (lower.StartsWith("request.") || lower.StartsWith("query.") || lower.StartsWith("validationresult.") || lower.StartsWith("model.") || lower.StartsWith("input."))) ||
+            lower is "id" or "key" or "guid" or "customerid" or "orderid" or "userid" or "entityid" or "item")
+        {
+            return true;
+        }
+
+        // 4. Dot navigation without URL characteristics
+        if (argText.Contains('.') && !argText.Contains('/') && !argText.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!lower.Contains("url") && !lower.Contains("uri") && !lower.Contains("endpoint") &&
+                !lower.Contains("path") && !lower.Contains("route") && !lower.Contains("address"))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -121,10 +172,10 @@ public class HttpClientLibraryParser : ILibraryParser
 
         // 2. Standard HttpClient arguments
         var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
-        if (!argList.IsValid()) return "http:unknown-service";
+        if (!argList.IsValid()) return null;
 
         var args = argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument).ToList();
-        if (args.Count == 0) return "http:unknown-service";
+        if (args.Count == 0) return null;
 
         var namedService = TryResolveNamedClientService(node);
 
@@ -204,15 +255,30 @@ public class HttpClientLibraryParser : ILibraryParser
                 return norm;
             }
 
-            if (text.Contains('/') || text.Contains('.') || text.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            if (text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                return $"http:{text}";
+                return NormalizeUrl(text);
             }
 
-            return "http:unknown-service";
+            if (text.StartsWith('/'))
+            {
+                return NormalizeUrl(!string.IsNullOrEmpty(namedService) ? $"{namedService}{text}" : text);
+            }
+
+            if (ConstantRegistry.TryResolve(null, text, out var resolvedConst))
+            {
+                var normConst = NormalizeUrl(resolvedConst);
+                if (!string.IsNullOrEmpty(namedService) && normConst.StartsWith('/'))
+                {
+                    return $"{namedService}{normConst}";
+                }
+                return normConst;
+            }
+
+            return null;
         }
 
-        return "http:unknown-service";
+        return null;
     }
 
     private static string? TryResolveNamedClientService(Node node)

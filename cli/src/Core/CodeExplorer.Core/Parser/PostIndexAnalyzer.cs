@@ -38,6 +38,7 @@ public class PostIndexAnalyzer(IGraphClient db)
 
         await CanonicalizeDatabasesAsync(db, widPrefix);
         await NormalizeEdgesAsync(db, widPrefix);
+        await PurgePhantomExternalServicesAsync(db, widPrefix);
 
         if (db is SqliteGraphClient sqliteClient)
         {
@@ -368,6 +369,7 @@ public class PostIndexAnalyzer(IGraphClient db)
 
         // Normalize edges in SQLite graph database
         await NormalizeEdgesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
+        await PurgePhantomExternalServicesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
 
         ctx.Log($"[PostIndexAnalyzer] In-memory analysis complete: {result.TransitivelyCalls.Count} TRANSITIVELY_CALLS, {result.AttributedTo.Count} ATTRIBUTED_TO, {directProjectRels.Count} direct project edges, {liftedSemanticRels.Count} lifted semantic edges, {result.ProjectExternalApis.Count} project external_apis.");
     }
@@ -488,21 +490,32 @@ public class PostIndexAnalyzer(IGraphClient db)
 
                 if (topicId != null && symbolId != null)
                 {
-                    var owner = ResolveOwningProject(symbolId);
-                    if (owner != null && owner.Id != topicId)
+                    // Internal in-process messages (MediatR / in-memory) remain strictly within services
+                    // and are NOT materialized as macro cross-service project dependencies.
+                    var isInternal = topicId.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
+                                     topicId.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(rel.Properties?.GetValueOrDefault("is_internal")?.ToString(), "true", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(rel.Properties?.GetValueOrDefault("scope")?.ToString(), "internal", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isInternal)
                     {
-                        if (existingEdges.Add((owner.Id, topicId, OntologyConstants.Relationships.PublishesTo)))
+                        var owner = ResolveOwningProject(symbolId);
+                        if (owner != null && owner.Id != topicId)
                         {
-                            materializedRels.Add(new Relationship(
-                                owner.Id,
-                                topicId,
-                                OntologyConstants.Relationships.PublishesTo,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "messaging",
-                                    ["is_semantic"] = "true"
-                                }
-                            ));
+                            if (existingEdges.Add((owner.Id, topicId, OntologyConstants.Relationships.PublishesTo)))
+                            {
+                                materializedRels.Add(new Relationship(
+                                    owner.Id,
+                                    topicId,
+                                    OntologyConstants.Relationships.PublishesTo,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "messaging",
+                                        ["is_semantic"] = "true",
+                                        ["category"] = "messaging"
+                                    }
+                                ));
+                            }
                         }
                     }
                 }
@@ -522,21 +535,32 @@ public class PostIndexAnalyzer(IGraphClient db)
 
                 if (topicId != null && symbolId != null)
                 {
-                    var owner = ResolveOwningProject(symbolId);
-                    if (owner != null && owner.Id != topicId)
+                    // Internal in-process messages (MediatR / in-memory) remain strictly within services
+                    // and are NOT materialized as macro cross-service project dependencies.
+                    var isInternal = topicId.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
+                                     topicId.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(rel.Properties?.GetValueOrDefault("is_internal")?.ToString(), "true", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(rel.Properties?.GetValueOrDefault("scope")?.ToString(), "internal", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isInternal)
                     {
-                        if (existingEdges.Add((owner.Id, topicId, OntologyConstants.Relationships.SubscribesTo)))
+                        var owner = ResolveOwningProject(symbolId);
+                        if (owner != null && owner.Id != topicId)
                         {
-                            materializedRels.Add(new Relationship(
-                                owner.Id,
-                                topicId,
-                                OntologyConstants.Relationships.SubscribesTo,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "messaging",
-                                    ["is_semantic"] = "true"
-                                }
-                            ));
+                            if (existingEdges.Add((owner.Id, topicId, OntologyConstants.Relationships.SubscribesTo)))
+                            {
+                                materializedRels.Add(new Relationship(
+                                    owner.Id,
+                                    topicId,
+                                    OntologyConstants.Relationships.SubscribesTo,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "messaging",
+                                        ["is_semantic"] = "true",
+                                        ["category"] = "messaging"
+                                    }
+                                ));
+                            }
                         }
                     }
                 }
@@ -563,6 +587,30 @@ public class PostIndexAnalyzer(IGraphClient db)
                     }
                 }
             }
+            // 5b. Service Target from configuration -> Project -> Project SERVICE_CALL
+            else if (to.Contains(":service_target:"))
+            {
+                var serviceKey = to.Split(":service_target:", 2)[1];
+                var targetProj = FindMatchingServiceProject(serviceKey, projList);
+                var callerOwner = ResolveOwningProject(from);
+                if (callerOwner != null && targetProj != null && callerOwner.Id != targetProj.Id)
+                {
+                    if (existingEdges.Add((callerOwner.Id, targetProj.Id, OntologyConstants.Relationships.ServiceCall)))
+                    {
+                        materializedRels.Add(new Relationship(
+                            callerOwner.Id,
+                            targetProj.Id,
+                            OntologyConstants.Relationships.ServiceCall,
+                            new Dictionary<string, object>
+                            {
+                                ["dependency_type"] = "service_call",
+                                ["is_semantic"] = "true",
+                                ["service_name"] = serviceKey
+                            }
+                        ));
+                    }
+                }
+            }
             // 6. External Service invocation -> Project -> ExternalService SERVICE_CALL
             else if (kind == OntologyConstants.Relationships.ServiceCall ||
                      kind == OntologyConstants.Relationships.UsesApi ||
@@ -575,18 +623,40 @@ public class PostIndexAnalyzer(IGraphClient db)
                     var callerOwner = ResolveOwningProject(from);
                     if (callerOwner != null && callerOwner.Id != to)
                     {
-                        if (existingEdges.Add((callerOwner.Id, to, OntologyConstants.Relationships.ServiceCall)))
+                        var extDomain = ExtractDomainFromExternalServiceId(to);
+                        var internalTargetProj = FindMatchingServiceProject(extDomain, projList);
+
+                        if (internalTargetProj != null && callerOwner.Id != internalTargetProj.Id)
                         {
-                            materializedRels.Add(new Relationship(
-                                callerOwner.Id,
-                                to,
-                                OntologyConstants.Relationships.ServiceCall,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "service_call",
-                                    ["is_semantic"] = "true"
-                                }
-                            ));
+                            if (existingEdges.Add((callerOwner.Id, internalTargetProj.Id, OntologyConstants.Relationships.ServiceCall)))
+                            {
+                                materializedRels.Add(new Relationship(
+                                    callerOwner.Id,
+                                    internalTargetProj.Id,
+                                    OntologyConstants.Relationships.ServiceCall,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "service_call",
+                                        ["is_semantic"] = "true"
+                                    }
+                                ));
+                            }
+                        }
+                        else if (internalTargetProj == null && !IsGarbageExternalService(extDomain))
+                        {
+                            if (existingEdges.Add((callerOwner.Id, to, OntologyConstants.Relationships.ServiceCall)))
+                            {
+                                materializedRels.Add(new Relationship(
+                                    callerOwner.Id,
+                                    to,
+                                    OntologyConstants.Relationships.ServiceCall,
+                                    new Dictionary<string, object>
+                                    {
+                                        ["dependency_type"] = "service_call",
+                                        ["is_semantic"] = "true"
+                                    }
+                                ));
+                            }
                         }
                     }
                 }
@@ -1131,7 +1201,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         "typeorm", "sequelize", "prisma", "drizzle", "dapper", "ef-core"
     };
 
-    public static bool IsLikelyDatabaseName(string? name)
+    public static bool IsLikelyDatabaseName(string? name, string? engine = null)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
@@ -1141,13 +1211,35 @@ public class PostIndexAnalyzer(IGraphClient db)
         
         // Reject SQL keywords, stopwords, functions, and PostgreSQL system catalogs
         if (NestedSqlParser.IsSqlKeyword(lower)) return false;
-        if (lower.StartsWith("pg_") || lower.StartsWith("information_schema")) return false;
+        if (lower.StartsWith("pg_") || lower.StartsWith("information_schema") || lower == "sys" || lower == "guest") return false;
 
         // <Technology>.<Schema> pattern (e.g. PostgreSQL.tournament, PostgreSQL.tree_rules)
         if (trimmed.Contains('.'))
         {
             var parts = trimmed.Split('.', 2);
-            if (KnownDbEnginesAndNames.Contains(parts[0].ToLowerInvariant()))
+            var tech = parts[0].ToLowerInvariant();
+            var schema = parts[1].ToLowerInvariant();
+
+            // Reject system schemas in <Technology>.<Schema>
+            if (schema == "information_schema" || schema.StartsWith("pg_") || schema == "sys" || schema == "guest")
+            {
+                return false;
+            }
+
+            if (KnownDbEnginesAndNames.Contains(tech))
+            {
+                return true;
+            }
+        }
+
+        // If a concrete known database engine is associated (e.g. PostgreSQL, MySQL, Redis, Mongo),
+        // and name is not a generic config token, recognize it as a valid database even with custom project name (e.g. "Lightning")
+        if (!string.IsNullOrWhiteSpace(engine) &&
+            !engine.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+            !engine.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+            KnownDbEnginesAndNames.Contains(engine.ToLowerInvariant()))
+        {
+            if (!ResourceReconciliationService.IsGenericConfigKey(lower))
             {
                 return true;
             }
@@ -1414,7 +1506,10 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             if (node is DatabaseNode db)
             {
-                if (IsLikelyDatabaseName(db.Name) || IsLikelyDatabaseName(db.Id))
+                var eng = (db.Extensions != null && db.Extensions.TryGetValue("engine", out var eVal) && !string.IsNullOrWhiteSpace(eVal))
+                    ? eVal
+                    : (db.Extensions != null && db.Extensions.TryGetValue("technology", out var tVal) ? tVal : null);
+                if (IsLikelyDatabaseName(db.Name, eng) || IsLikelyDatabaseName(db.Id, eng))
                 {
                     allDbNodes.Add(db);
                 }
@@ -1551,12 +1646,6 @@ public class PostIndexAnalyzer(IGraphClient db)
                 var rawName = parts.Length > 0 ? parts[^1] : "";
                 if (string.IsNullOrWhiteSpace(rawName)) continue;
 
-                // STRICT VALIDATION: Only canonicalize if rawName is a genuine database!
-                if (!IsLikelyDatabaseName(rawName))
-                {
-                    continue;
-                }
-
                 var rawType = "relational";
                 if (rel.Properties.TryGetValue("db_type", out var dtObj) && dtObj != null)
                 {
@@ -1568,6 +1657,12 @@ public class PostIndexAnalyzer(IGraphClient db)
                 var rawSchema = rel.Properties.TryGetValue("schema", out var schObj) && schObj != null
                     ? schObj.ToString()
                     : null;
+
+                // STRICT VALIDATION: Only canonicalize if rawName is a genuine database!
+                if (!IsLikelyDatabaseName(rawName, rawEngine))
+                {
+                    continue;
+                }
 
                 var (cName, cType, cKey) = CanonicalizeDatabase(rawName, rawType, rawEngine, rawSchema, primaryRelationalEngine);
                 var canonicalId = BuildCanonicalDatabaseId(rel.To, cType, cKey, ctx.WorkspaceId);
@@ -1822,10 +1917,10 @@ public class PostIndexAnalyzer(IGraphClient db)
             {
                 var id = GetStringProp(row, "id");
                 var name = GetStringProp(row, "name", id);
-                if (!IsLikelyDatabaseName(name) && !IsLikelyDatabaseName(id)) continue;
+                var rawEngine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String ? eg.GetString() : null;
+                if (!IsLikelyDatabaseName(name, rawEngine) && !IsLikelyDatabaseName(id, rawEngine)) continue;
 
                 var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String ? (dt.GetString() ?? "Database") : "Database";
-                var rawEngine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String ? eg.GetString() : null;
                 var rawSchema = row.TryGetProperty("schema", out var sc) && sc.ValueKind == JsonValueKind.String ? sc.GetString() : null;
 
                 var (cName, cType, cKey) = CanonicalizeDatabase(name, dbType, rawEngine, rawSchema, primaryRelationalEngine);
@@ -2248,5 +2343,121 @@ public class PostIndexAnalyzer(IGraphClient db)
         return elem.TryGetProperty(prop, out var val) && val.ValueKind == JsonValueKind.String
             ? (val.GetString() ?? fallback)
             : fallback;
+    }
+    public static ProjectNode? FindMatchingServiceProject(string key, IEnumerable<ProjectNode> projects)
+    {
+        if (string.IsNullOrWhiteSpace(key) || key is "*" or "unknown-service") return null;
+
+        var cleanKey = key.Trim().ToLowerInvariant();
+        var protoIdx = cleanKey.IndexOf("://", StringComparison.Ordinal);
+        if (protoIdx >= 0) cleanKey = cleanKey[(protoIdx + 3)..];
+        var slashIdx = cleanKey.IndexOf('/');
+        if (slashIdx >= 0) cleanKey = cleanKey[..slashIdx];
+        var colonIdx = cleanKey.IndexOf(':');
+        if (colonIdx >= 0) cleanKey = cleanKey[..colonIdx];
+
+        var normKey = cleanKey.Replace("-", "").Replace("_", "").Replace("service", "");
+        if (string.IsNullOrWhiteSpace(normKey)) return null;
+
+        var projList = projects.ToList();
+
+        // 1. Exact domain match on non-library project
+        var exactNonLib = projList.FirstOrDefault(p =>
+            !p.IsLibrary &&
+            SyntaxEnricher.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase));
+        if (exactNonLib != null) return exactNonLib;
+
+        // 2. Exact domain match on any project
+        var exactAny = projList.FirstOrDefault(p =>
+            SyntaxEnricher.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase));
+        if (exactAny != null) return exactAny;
+
+        // 3. Name ends with .Services.{key} or .Gateways.{key}
+        var nameMatch = projList.FirstOrDefault(p =>
+            !p.IsLibrary &&
+            (p.Name.EndsWith($".Services.{key}", StringComparison.OrdinalIgnoreCase) ||
+             p.Name.EndsWith($".Gateways.{key}", StringComparison.OrdinalIgnoreCase)));
+        if (nameMatch != null) return nameMatch;
+
+        // 4. Substring contains on domain name (e.g. 'tracking' matches 'DeviceTracking')
+        var subMatches = projList.Where(p =>
+            SyntaxEnricher.CleanProjectNameToDomain(p.Name).Contains(normKey, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (subMatches.Count > 0)
+        {
+            return subMatches.OrderBy(p => p.IsLibrary ? 1 : 0)
+                             .ThenBy(p => p.Name.Count(c => c == '.'))
+                             .FirstOrDefault();
+        }
+
+        return null;
+    }
+
+    public static string ExtractDomainFromExternalServiceId(string extId)
+    {
+        var lastColon = extId.LastIndexOf(':');
+        if (lastColon >= 0 && lastColon < extId.Length - 1)
+        {
+            return extId[(lastColon + 1)..];
+        }
+        return extId;
+    }
+
+    public static bool IsGarbageExternalService(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain)) return true;
+        var lower = domain.Trim().ToLowerInvariant();
+        if (lower is "*" or "unknown-service" or "httprequest" or "pageurl" or "string" or "undefined" or "null") return true;
+        if (lower.Contains('!') || lower.EndsWith(".value") || lower.EndsWith(".id") || lower.EndsWith(".key") || lower.StartsWith("config.")) return true;
+        return false;
+    }
+
+    public static async Task PurgePhantomExternalServicesAsync(
+        IGraphClient db,
+        string widPrefix,
+        CancellationToken cancellationToken = default)
+    {
+        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
+        var projsJson = await db.ExecuteQueryAsync(projQuery, null, cancellationToken);
+        using var projsDoc = JsonDocument.Parse(projsJson);
+        var projectList = new List<ProjectNode>();
+        foreach (var row in projsDoc.RootElement.EnumerateArray())
+        {
+            var pId = GetStringProp(row, "id");
+            var pName = GetStringProp(row, "name");
+            var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
+            if (!string.IsNullOrEmpty(pId))
+            {
+                projectList.Add(new ProjectNode(pId, pName, pPath ?? "", ""));
+            }
+        }
+
+        var extQuery = "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.is_external') AS is_ext";
+        var extJson = await db.ExecuteQueryAsync(extQuery, null, cancellationToken);
+        using var extDoc = JsonDocument.Parse(extJson);
+
+        var idsToDelete = new List<string>();
+        foreach (var row in extDoc.RootElement.EnumerateArray())
+        {
+            var id = GetStringProp(row, "id");
+            var name = GetStringProp(row, "name");
+            var domain = GetStringProp(row, "domain");
+            var isExt = GetStringProp(row, "is_ext");
+
+            if (isExt == "true") continue;
+
+            var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
+            if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
+
+            if (IsGarbageExternalService(cand))
+            {
+                idsToDelete.Add(id);
+            }
+        }
+
+        foreach (var id in idsToDelete)
+        {
+            await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @id OR to_id = @id;", new { id }, cancellationToken);
+            await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @id;", new { id }, cancellationToken);
+        }
     }
 }

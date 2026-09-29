@@ -162,10 +162,33 @@ public class EfCoreLibraryParser : ILibraryParser
         return null;
     }
 
+    private static bool IsSchemaStopWord(string? schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema)) return true;
+        var clean = schema.Trim('"', '\'', ' ', ';');
+        return clean.Equals("DefaultSchemaName", StringComparison.OrdinalIgnoreCase) ||
+               clean.Equals("SchemaName", StringComparison.OrdinalIgnoreCase) ||
+               clean.Equals("Schema", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerable<Node> GetClassFields(Node classNode)
+    {
+        var declList = classNode.FindChildOfType(TreeSitterSyntax.CSharp.DeclarationList);
+        if (declList.IsValid())
+        {
+            foreach (var f in declList.FindChildrenOfType(TreeSitterSyntax.CSharp.FieldDeclaration))
+                yield return f;
+        }
+        foreach (var f in classNode.FindChildrenOfType(TreeSitterSyntax.CSharp.FieldDeclaration))
+        {
+            yield return f;
+        }
+    }
+
     public static string? FindConstantValueInClass(Node classNode, string? constName = null)
     {
         if (!classNode.IsValid()) return null;
-        foreach (var field in classNode.FindChildrenOfType(TreeSitterSyntax.CSharp.FieldDeclaration))
+        foreach (var field in GetClassFields(classNode))
         {
             var text = field.Text;
             if (text.Contains("const") && text.Contains("string"))
@@ -216,7 +239,8 @@ public class EfCoreLibraryParser : ILibraryParser
                         var strNode = firstArg.Children.FirstOrDefault(c => c.Type.Contains("string"));
                         if (strNode.IsValid())
                         {
-                            return strNode.Text.Trim('"');
+                            var val = strNode.Text.Trim('"', '\'');
+                            if (!IsSchemaStopWord(val)) return val;
                         }
                         var idNode = firstArg.FindChildOfType(TreeSitterSyntax.Common.Identifier);
                         if (idNode.IsValid())
@@ -225,9 +249,9 @@ public class EfCoreLibraryParser : ILibraryParser
                             if (parentClass != null && parentClass.IsValid())
                             {
                                 var constVal = FindConstantValueInClass(parentClass, idNode.Text);
-                                if (!string.IsNullOrEmpty(constVal)) return constVal;
+                                if (!string.IsNullOrEmpty(constVal) && !IsSchemaStopWord(constVal)) return constVal;
                             }
-                            return idNode.Text;
+                            return null;
                         }
                     }
                 }

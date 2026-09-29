@@ -546,30 +546,31 @@ public class Layer3SyntacticParser
         }
         else if (slashIdx == 0)
         {
-            var nextSlash = domainOrService.IndexOf('/', 1);
-            if (nextSlash > 1)
+            path = domainOrService;
+            var segments = domainOrService.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            string? candidate = null;
+            foreach (var seg in segments)
             {
-                var candidate = domainOrService[1..nextSlash];
-                if (candidate.EndsWith("service", StringComparison.OrdinalIgnoreCase) ||
-                    candidate.EndsWith("client", StringComparison.OrdinalIgnoreCase) ||
-                    candidate.Contains('-') ||
-                    candidate.Contains('_') ||
-                    RouteDictionaryRegistry.GetAllKnownServices().Any(s => string.Equals(s, candidate, StringComparison.OrdinalIgnoreCase)))
-                {
-                    path = domainOrService;
-                    domainOrService = candidate;
-                }
-                else
-                {
-                    path = domainOrService;
-                    domainOrService = "*";
-                }
+                if (seg.Equals("api", StringComparison.OrdinalIgnoreCase)) continue;
+                if (seg.StartsWith("v", StringComparison.OrdinalIgnoreCase) && seg.Length <= 4 && seg.Skip(1).All(char.IsDigit)) continue;
+                candidate = seg;
+                break;
+            }
+
+            if (!string.IsNullOrWhiteSpace(candidate) && candidate.All(c => char.IsLetterOrDigit(c) || c is '-' or '_'))
+            {
+                domainOrService = candidate;
             }
             else
             {
-                path = domainOrService;
                 domainOrService = "*";
             }
+        }
+
+        var colonPortIdx = domainOrService.LastIndexOf(':');
+        if (colonPortIdx > 0 && int.TryParse(domainOrService[(colonPortIdx + 1)..], out _))
+        {
+            domainOrService = domainOrService[..colonPortIdx];
         }
 
         if (domainOrService.Contains('.'))
@@ -588,12 +589,6 @@ public class Layer3SyntacticParser
             {
                 domainOrService = "unknown-service";
             }
-        }
-
-        var colonPortIdx = domainOrService.LastIndexOf(':');
-        if (colonPortIdx > 0 && int.TryParse(domainOrService[(colonPortIdx + 1)..], out _))
-        {
-            domainOrService = domainOrService[..colonPortIdx];
         }
 
         var normalizedDomain = WorkspaceConventions.NormalizeServiceName(domainOrService);

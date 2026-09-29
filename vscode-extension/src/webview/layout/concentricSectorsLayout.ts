@@ -68,7 +68,7 @@ export function computeConcentricSectorsLayout(
   spacing = 1.0,
   customOrbitOrder?: number[],
   explicitDomainMap?: Map<string, string>,
-  explicitDomainDetails?: Map<string, { name: string; displayName: string }>
+  explicitDomainDetails?: Map<string, { name?: string; displayName?: string; color?: string }>
 ): ConcentricLayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   const nodeAngles = new Map<string, number>();

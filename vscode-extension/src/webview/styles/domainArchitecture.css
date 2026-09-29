@@ -28,7 +28,8 @@
   outline: none;
 }
 
-.domain-cytoscape-container.node-hover {
+.domain-cytoscape-container.node-hover,
+.domain-cytoscape-container.edge-hover {
   cursor: pointer;
 }
 

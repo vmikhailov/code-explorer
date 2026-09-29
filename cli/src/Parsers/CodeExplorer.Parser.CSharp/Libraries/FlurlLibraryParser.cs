@@ -21,7 +21,11 @@ public class FlurlLibraryParser : ILibraryParser
     {
         if (IsFlurlCall(node))
         {
-            return OntologyConstants.NodeLabels.ExternalService;
+            var target = ExtractIdentifier(node, ctx);
+            if (!string.IsNullOrEmpty(target) && target != "flurl-service")
+            {
+                return OntologyConstants.NodeLabels.ExternalService;
+            }
         }
         return null;
     }
@@ -37,13 +41,16 @@ public class FlurlLibraryParser : ILibraryParser
                 {
                     return uri.Host;
                 }
-                var clean = rootUrl.Trim('"').Trim();
-                if (!string.IsNullOrEmpty(clean) && !clean.Contains(' '))
+                if (rootUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || rootUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 {
-                    return clean;
+                    return rootUrl;
+                }
+                if (ConstantRegistry.TryResolve(null, rootUrl, out var resolved) && Uri.TryCreate(resolved, UriKind.Absolute, out var rUri))
+                {
+                    return rUri.Host;
                 }
             }
-            return "flurl-service";
+            return null;
         }
         return null;
     }

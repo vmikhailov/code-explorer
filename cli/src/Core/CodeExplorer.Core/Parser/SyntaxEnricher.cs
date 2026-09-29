@@ -343,12 +343,35 @@ public class SyntaxEnricher : ISyntaxEnricher
         @"(?:[-_]+service|[-_]+api|[-_]+srv|[-_]+app|[-_]+worker)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly HashSet<string> TechnicalLayerSuffixes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "data", "logic", "graphql", "grapql", "contracts", "contract", "services", "service",
+        "host", "api", "client", "tests", "test", "grpc", "common", "infrastructure", "infra",
+        "repository", "repositories", "core", "models", "dto"
+    };
+
     public static string CleanProjectNameToDomain(string projectName)
     {
         if (string.IsNullOrWhiteSpace(projectName)) return string.Empty;
         var pName = projectName.Trim();
-        var lastDot = pName.LastIndexOf('.');
-        var segment = lastDot >= 0 ? pName[(lastDot + 1)..] : pName;
+
+        var parts = pName.Split('.', StringSplitOptions.RemoveEmptyEntries).ToList();
+        while (parts.Count > 1 && TechnicalLayerSuffixes.Contains(parts[^1]))
+        {
+            parts.RemoveAt(parts.Count - 1);
+        }
+
+        var servicesIdx = parts.FindLastIndex(p => p.Equals("services", StringComparison.OrdinalIgnoreCase) || p.Equals("service", StringComparison.OrdinalIgnoreCase));
+        string segment;
+        if (servicesIdx >= 0 && servicesIdx + 1 < parts.Count)
+        {
+            segment = parts[servicesIdx + 1];
+        }
+        else
+        {
+            segment = parts[^1];
+        }
+
         var cleaned = WorkspaceConventions.NormalizeServiceName(segment);
         cleaned = ScopeSuffixRegex.Replace(cleaned, "");
         cleaned = Regex.Replace(cleaned.ToLowerInvariant(), @"[-_]{2,}", "-").Trim('_', '-');
@@ -431,6 +454,15 @@ public class SyntaxEnricher : ISyntaxEnricher
         return null;
     }
 
+    private static bool IsSchemaStopWord(string? schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema)) return true;
+        var clean = schema.Trim('\'', '"', ' ', ';');
+        return clean.Equals("DefaultSchemaName", StringComparison.OrdinalIgnoreCase) ||
+               clean.Equals("SchemaName", StringComparison.OrdinalIgnoreCase) ||
+               clean.Equals("Schema", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string? ScanFileTextForSchema(string filePath)
     {
         try
@@ -440,16 +472,16 @@ public class SyntaxEnricher : ISyntaxEnricher
             if (m1.Success)
             {
                 var val = m1.Groups[1].Value.Trim().Trim('\'', '"');
-                if (ConstantRegistry.TryResolve(filePath, val, out var resolved)) return resolved;
-                return val;
+                if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && !IsSchemaStopWord(resolved)) return resolved;
+                if (!IsSchemaStopWord(val)) return val;
             }
 
             var m2 = SchemaConstRegex.Match(text);
             if (m2.Success)
             {
                 var val = m2.Groups[1].Value.Trim().Trim('\'', '"');
-                if (ConstantRegistry.TryResolve(filePath, val, out var resolved)) return resolved;
-                return val;
+                if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && !IsSchemaStopWord(resolved)) return resolved;
+                if (!IsSchemaStopWord(val)) return val;
             }
 
             var m3 = TypeOrmSchemaRegex.Match(text);

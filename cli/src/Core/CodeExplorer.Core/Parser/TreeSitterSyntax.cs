@@ -58,6 +58,7 @@ public static class TreeSitterSyntax
         public const string ConstructorDeclaration = "constructor_declaration";
         public const string PropertyDeclaration = "property_declaration";
         public const string FieldDeclaration = "field_declaration";
+        public const string DeclarationList = "declaration_list";
         public const string LocalDeclarationStatement = "local_declaration_statement";
         public const string VariableDeclaration = "variable_declaration";
         public const string VariableDeclarator = "variable_declarator";
