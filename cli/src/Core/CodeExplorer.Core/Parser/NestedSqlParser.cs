@@ -179,14 +179,14 @@ public static class NestedSqlParser
         return cleaned;
     }
 
-    public static QueryNode? ParseNestedSql(string rawText, string id, string filePath, ParsingContext? ctx = null)
+    public static QueryNode? ParseNestedSql(string rawText, string id, string filePath, ParsingContext? ctx = null, string? customQueryName = null)
     {
         if (!TryParseSql(rawText, out var firstWord, out var cleanedSql))
         {
             return null;
         }
 
-        var queryName = $"{firstWord} Query";
+        var queryName = !string.IsNullOrEmpty(customQueryName) ? customQueryName : $"{firstWord} Query";
         var queryNode = new QueryNode(
             id,
             queryName,

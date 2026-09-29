@@ -132,15 +132,15 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ## 🔍 EPIC 2: Parser Intelligence & High-Fidelity Lineage
 
-- [ ] **2.1 ASP.NET Core Hierarchical Route Composition**:
+- [x] **2.1 ASP.NET Core Hierarchical Route Composition**:
   - Stitch `[Route("api/[controller]")]` with action methods `[HttpGet("{id}")]`, token replacement (`[controller]`, `[action]`).
   - Support Minimal API chaining: `app.MapGroup("/api/v1")`.
-- [ ] **2.2 C# Constructor Dependency Injection Mapping**:
+- [x] **2.2 C# Constructor Dependency Injection Mapping**:
   - Bind constructor parameters to private fields (`_orderService`).
   - Resolve interface calls via `[:IMPLEMENTS]` to concrete implementation classes in Layer 5.
-- [ ] **2.3 Declarative HTTP Clients and Egress**:
+- [x] **2.3 Declarative HTTP Clients and Egress**:
   - Extract URLs and routes from `HttpClient`, `RestSharp`, `Refit`, `RestEase`.
-- [ ] **2.4 ORM Data Lineage Mapping (EF Core & Dapper)**:
+- [x] **2.4 ORM Data Lineage Mapping (EF Core & Dapper)**:
   - Extract tables from `DbSet<T>` and Fluent API `ToTable("...")`.
   - Bind raw SQL queries directly to DB table nodes in `inspect_data_lineage`.
 

@@ -222,15 +222,15 @@ public class InventoryRepository
         // Expected ExternalService route: http:user/api/v3/users/{id}/details
         var services = await QueryAsync(@"
             MATCH (es:ExternalService)
-            RETURN es.name AS name, es.id AS id");
+            RETURN es.name AS name, es.id AS id, es.path AS path, es.domain_or_service AS domain_or_service");
 
-        foreach (var s in services) TestContext.WriteLine($"Service: {s["name"]} -> {s["id"]}");
+        foreach (var s in services) TestContext.WriteLine($"Service: {s["name"]} -> {s["id"]} (path: {s["path"]})");
         foreach (var kvp in ConstantRegistry.GlobalConstants) TestContext.WriteLine($"GlobalConst: {kvp.Key} = {kvp.Value}");
 
         Assert.That(services, Has.Count.GreaterThanOrEqualTo(1));
-        var match = services.FirstOrDefault(r => r["name"].Contains("api/v3/users/{id}/details"));
+        var match = services.FirstOrDefault(r => r["path"] == "/api/v3/users/{id}/details");
         Assert.That(match, Is.Not.Null, "Expected ExternalService with composed BasePath and endpoint");
-        Assert.That(match!["name"], Is.EqualTo("http:user/api/v3/users/{id}/details"));
+        Assert.That(match!["domain_or_service"], Is.EqualTo("user"));
     }
 
     [Test]

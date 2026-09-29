@@ -368,7 +368,7 @@ public class Layer3SyntacticParser
                     }
                 }
             }
-            typedNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx) ??
+            typedNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx, name) ??
                         new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(sqlCandidate), relativePath);
         }
         else if (kind == OntologyConstants.NodeLabels.EntryPoint)
@@ -637,8 +637,7 @@ public class Layer3SyntacticParser
         {
             { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
         };
-        var displayName = !string.IsNullOrEmpty(path) && path != "/" ? $"{protocol}:{domainOrService}{path}" : domainOrService;
-        return new ExternalServiceNode(extServiceId, displayName, protocol, domainOrService, path, ext);
+        return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path, ext);
     }
 
     private static string GetProjectNameFromRelativePath(string relativePath)
