@@ -40,10 +40,7 @@
   max-width: 100%;
   z-index: 30;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 12px;
+  flex-direction: column;
   background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
@@ -51,25 +48,38 @@
   border-left: none;
   border-right: none;
   border-radius: 0;
-  padding: 6px 14px;
+  padding: 0;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
   flex-shrink: 0;
 }
 
-.domain-hud-left-section {
+.domain-hud-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  justify-content: space-between;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.domain-hud-right-section {
+.domain-hud-primary-row {
+  padding: 5px 14px;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.domain-hud-secondary-row {
+  padding: 4px 14px;
+  gap: 12px;
+  background: rgba(10, 16, 31, 0.5);
+}
+
+.domain-hud-title-group {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-left: auto;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .domain-hud-title-badge {
@@ -84,27 +94,31 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
+  line-height: 1;
 }
 
 .domain-hud-title {
   color: #f1f5f9;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .domain-hud-switch-contexts-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-top: 3px;
+  margin-top: 0;
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.35) 100%);
   border: 1px solid rgba(139, 92, 246, 0.5);
   color: #c7d2fe;
-  padding: 2px 7px;
+  padding: 2.5px 8px;
   border-radius: 4px;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.15s ease-in-out;
 }
 
@@ -116,13 +130,36 @@
   box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 }
 
+.domain-hud-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.domain-hud-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 1px 0;
+}
+
+.domain-hud-filter-group::-webkit-scrollbar {
+  display: none;
+}
+
 .domain-hud-stats {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 6px;
+  padding-left: 10px;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: none;
+  flex-shrink: 0;
 }
 
 .hud-stat-pill {

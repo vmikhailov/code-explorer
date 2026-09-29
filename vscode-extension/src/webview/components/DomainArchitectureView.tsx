@@ -2657,11 +2657,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       {/* Docked Top Studio Bar */}
       <header className="domain-map-hud">
-        {/* Left Section: Navigation & Type Filter Pills & Stats */}
-        <div className="domain-hud-left-section">
-          <div className="domain-hud-title-badge">
-            <span className="domain-hud-label">Macro Architecture</span>
-            <span className="domain-hud-title">Domain Microservice Map</span>
+        {/* Tier 1: View Identity, Context Jump & Studio Canvas Controls */}
+        <div className="domain-hud-row domain-hud-primary-row">
+          <div className="domain-hud-title-group">
+            <div className="domain-hud-title-badge">
+              <span className="domain-hud-label">Macro Architecture</span>
+              <span className="domain-hud-title">Domain Microservice Map</span>
+            </div>
             {onSwitchToContexts && (
               <button
                 type="button"
@@ -2674,8 +2676,332 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             )}
           </div>
 
-          {/* Entity Type Toggle Filters */}
-          <div className="domain-hud-type-filters">
+          <div className="domain-hud-controls-group">
+            {/* Layout & Curve Selector */}
+            <div className="domain-hud-layout-select">
+              <select
+                value={layoutName}
+                onChange={(e) => handleLayoutChange(e.target.value as any)}
+                title="Graph Layout"
+                className="domain-layout-dropdown"
+              >
+                <option value="concentric">🎯 Concentric (Original)</option>
+                <option value="concentric-equispaced">🪐 Concentric: Equispaced (Подход 2)</option>
+                <option value="concentric-polar-force">🪐 Concentric: Polar Force (Подход 1)</option>
+                <option value="concentric-sectors">🪐 Concentric: Domain Sectors (Подход 3)</option>
+                <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
+                <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
+                <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
+                <option value="matrix">▦ Dependency Matrix</option>
+                <option value="cose">⚡ Force (COSE)</option>
+              </select>
+
+              <select
+                value={edgeCurveMode}
+                onChange={(e) => handleEdgeCurveModeChange(e.target.value as any)}
+                title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
+                className="domain-layout-dropdown"
+              >
+                <option value="bezier">〰️ Bezier Curves</option>
+                <option value="straight">📏 Straight Lines</option>
+                <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
+              </select>
+            </div>
+
+            {/* Display & Sliders Tuning Popover */}
+            <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
+              <button
+                type="button"
+                className={`domain-hud-btn domain-hud-display-btn ${isDisplayOpen ? 'is-active' : ''}`}
+                onClick={() => setIsDisplayOpen((prev) => !prev)}
+                title="Fine-tune display settings (Font size, Edge curvature, Air spacing, Wheel sensitivity)"
+              >
+                🎛️ Display <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
+              </button>
+
+              {isDisplayOpen && (
+                <div className="domain-display-popover">
+                  <div className="display-popover-header">
+                    <span>Display & Tuning</span>
+                    <button
+                      type="button"
+                      className="display-popover-close"
+                      onClick={() => setIsDisplayOpen(false)}
+                      title="Close"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="display-popover-body">
+                    {/* 1. Font Size Control */}
+                    <div className="display-setting-row" title="Adjust graph label font size (7px - 24px)">
+                      <div className="setting-label-row">
+                        <span className="setting-icon">🔤</span>
+                        <span className="setting-name">Font Size</span>
+                        <span
+                          className="domain-hud-value-badge"
+                          onClick={() => handleFontSizeChange(10)}
+                          title="Click to reset font size to 10px"
+                        >
+                          {fontSize}px
+                        </span>
+                      </div>
+                      <div className="setting-slider-row">
+                        <button
+                          type="button"
+                          className="domain-hud-step-btn"
+                          onClick={() => handleFontSizeChange(fontSize - 1)}
+                          title="Decrease font size (-1px)"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="range"
+                          min="7"
+                          max="24"
+                          step="1"
+                          value={fontSize}
+                          onChange={(e) => handleFontSizeChange(parseInt(e.target.value, 10))}
+                          className="domain-hud-slider"
+                        />
+                        <button
+                          type="button"
+                          className="domain-hud-step-btn"
+                          onClick={() => handleFontSizeChange(fontSize + 1)}
+                          title="Increase font size (+1px)"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2. Edge Curvature Control */}
+                    {edgeCurveMode !== 'straight' && (
+                      <div className="display-setting-row" title="Adjust edge curvature (-200px to +200px)">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">〰️</span>
+                          <span className="setting-name">Edge Curvature</span>
+                          <span
+                            className="domain-hud-value-badge"
+                            onClick={() => handleCurveFactorChange(35)}
+                            title="Click to reset curve to +35px"
+                          >
+                            {curveFactor > 0 ? `+${curveFactor}` : curveFactor}px
+                          </span>
+                        </div>
+                        <div className="setting-slider-row">
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleCurveFactorChange(Math.max(-200, curveFactor - 10))}
+                            title="Decrease curve (-10px)"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min="-200"
+                            max="200"
+                            step="5"
+                            value={curveFactor}
+                            onChange={(e) => handleCurveFactorChange(parseInt(e.target.value, 10))}
+                            className="domain-hud-slider"
+                          />
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleCurveFactorChange(Math.min(200, curveFactor + 10))}
+                            title="Increase curve (+10px)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Node Spacing / Air Control */}
+                    <div className="display-setting-row" title="Adjust node spacing / distance between orbits">
+                      <div className="setting-label-row">
+                        <span className="setting-icon">💨</span>
+                        <span className="setting-name">Node Air (Spacing)</span>
+                        <span
+                          className="domain-hud-value-badge"
+                          onClick={() => handleSpacingChange(1.0)}
+                          title="Click to reset air to 1.0x"
+                        >
+                          {spacingFactor.toFixed(1)}x
+                        </span>
+                      </div>
+                      <div className="setting-slider-row">
+                        <button
+                          type="button"
+                          className="domain-hud-step-btn"
+                          onClick={() => handleSpacingChange(Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)))}
+                          title="Decrease spacing"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="3.0"
+                          step="0.1"
+                          value={spacingFactor}
+                          onChange={(e) => handleSpacingChange(parseFloat(e.target.value))}
+                          className="domain-hud-slider"
+                        />
+                        <button
+                          type="button"
+                          className="domain-hud-step-btn"
+                          onClick={() => handleSpacingChange(Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)))}
+                          title="Increase spacing"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 4. Mouse Wheel Zoom Sensitivity */}
+                    <div className="display-setting-row" title="Adjust mouse wheel zoom sensitivity">
+                      <div className="setting-label-row">
+                        <span className="setting-icon">🖱️</span>
+                        <span className="setting-name">Wheel Sensitivity</span>
+                        <span
+                          className="domain-hud-value-badge"
+                          onClick={() => handleWheelSensitivityChange(2.5)}
+                          title="Click to reset sensitivity to 2.5x"
+                        >
+                          {wheelSensitivity.toFixed(1)}x
+                        </span>
+                      </div>
+                      <div className="setting-slider-row">
+                        <button
+                          type="button"
+                          className="domain-hud-step-btn"
+                          onClick={() => handleWheelSensitivityChange(Math.max(0.5, +(wheelSensitivity - 0.5).toFixed(1)))}
+                          title="Decrease sensitivity"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="5.0"
+                          step="0.1"
+                          value={wheelSensitivity}
+                          onChange={(e) => handleWheelSensitivityChange(parseFloat(e.target.value))}
+                          className="domain-hud-slider"
+                        />
+                        <button
+                          type="button"
+                          className="domain-hud-step-btn"
+                          onClick={() => handleWheelSensitivityChange(Math.min(5.0, +(wheelSensitivity + 0.5).toFixed(1)))}
+                          title="Increase sensitivity"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="display-popover-divider" />
+
+                    {/* 5. Auto-update graph & Relayout */}
+                    <div className="display-popover-actions">
+                      <label
+                        className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
+                        title={
+                          autoRelayoutOnFilter
+                            ? 'Auto-relayout enabled: layout automatically refits when entities are hidden. Uncheck to keep node positions unchanged.'
+                            : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes.'
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          className="domain-hud-checkbox"
+                          checked={autoRelayoutOnFilter}
+                          onChange={(e) => handleAutoRelayoutChange(e.target.checked)}
+                        />
+                        <span>🔄 Auto-recalc</span>
+                      </label>
+                      <button
+                        type="button"
+                        className="domain-hud-btn"
+                        onClick={handleForceRelayout}
+                        title="Recalculate graph layout now (Re-layout)"
+                        style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
+                      >
+                        ⟳ Re-layout
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Zoom Controls */}
+            <div className="domain-hud-control-group" title="Zoom Controls">
+              <button
+                type="button"
+                className="domain-hud-btn"
+                onClick={handleZoomOut}
+                title="Zoom Out"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                className="domain-hud-btn zoom-level-btn"
+                onClick={handleResetZoom}
+                title="Reset Zoom to 100%"
+              >
+                {Math.round(currentZoom * 100)}%
+              </button>
+              <button
+                type="button"
+                className="domain-hud-btn"
+                onClick={handleZoomIn}
+                title="Zoom In"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="domain-hud-btn fit-btn"
+                onClick={handleFitView}
+                title="Fit to Screen"
+              >
+                ⛶ Fit
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="domain-hud-search">
+              <input
+                type="text"
+                className="domain-search-input"
+                placeholder="Search domain or service..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="domain-search-clear"
+                  onClick={() => setSearchQuery('')}
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tier 2: Entity Filter Ribbon & Live Graph Telemetry */}
+        <div className="domain-hud-row domain-hud-secondary-row">
+          {/* Entity Type Toggle Filters Ribbon */}
+          <div className="domain-hud-filter-group">
             {rawGraph.counts.ingress > 0 && (
               <button
                 type="button"
@@ -2797,19 +3123,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 🔌 External ({rawGraph.counts.external})
               </button>
             )}
-          </div>
 
-          {/* Reset Filters / Hidden Button */}
-          {hiddenCount > 0 && (
-            <button
-              type="button"
-              className="domain-hud-reset-hidden-btn"
-              onClick={unhideAll}
-              title="Reset all hidden nodes and type filters"
-            >
-              👁️ Reset All ({hiddenCount})
-            </button>
-          )}
+            {/* Reset Filters / Hidden Button */}
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                className="domain-hud-reset-hidden-btn"
+                onClick={unhideAll}
+                title="Reset all hidden nodes and type filters"
+              >
+                👁️ Reset All ({hiddenCount})
+              </button>
+            )}
+          </div>
 
           {/* Stats Badges */}
           <div className="domain-hud-stats">
@@ -2831,328 +3157,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             <span className="hud-stat-pill" title="Message Flows (Pub / Sub)">
               ✉️ {stats.messages} Msgs
             </span>
-          </div>
-        </div>
-
-        {/* Right Section: Layout, Line Style, Display Popover, Zoom Controls, Search */}
-        <div className="domain-hud-right-section">
-          {/* Layout & Curve Selector */}
-          <div className="domain-hud-layout-select">
-            <select
-              value={layoutName}
-              onChange={(e) => handleLayoutChange(e.target.value as any)}
-              title="Graph Layout"
-              className="domain-layout-dropdown"
-            >
-              <option value="concentric">🎯 Concentric (Original)</option>
-              <option value="concentric-equispaced">🪐 Concentric: Equispaced (Подход 2)</option>
-              <option value="concentric-polar-force">🪐 Concentric: Polar Force (Подход 1)</option>
-              <option value="concentric-sectors">🪐 Concentric: Domain Sectors (Подход 3)</option>
-              <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
-              <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
-              <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
-              <option value="matrix">▦ Dependency Matrix</option>
-              <option value="cose">⚡ Force (COSE)</option>
-            </select>
-
-            <select
-              value={edgeCurveMode}
-              onChange={(e) => handleEdgeCurveModeChange(e.target.value as any)}
-              title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
-              className="domain-layout-dropdown"
-            >
-              <option value="bezier">〰️ Bezier Curves</option>
-              <option value="straight">📏 Straight Lines</option>
-              <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
-            </select>
-          </div>
-
-          {/* Display & Sliders Tuning Popover */}
-          <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
-            <button
-              type="button"
-              className={`domain-hud-btn domain-hud-display-btn ${isDisplayOpen ? 'is-active' : ''}`}
-              onClick={() => setIsDisplayOpen((prev) => !prev)}
-              title="Fine-tune display settings (Font size, Edge curvature, Air spacing, Wheel sensitivity)"
-            >
-              🎛️ Display <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
-            </button>
-
-            {isDisplayOpen && (
-              <div className="domain-display-popover">
-                <div className="display-popover-header">
-                  <span>Display & Tuning</span>
-                  <button
-                    type="button"
-                    className="display-popover-close"
-                    onClick={() => setIsDisplayOpen(false)}
-                    title="Close"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="display-popover-body">
-                  {/* 1. Font Size Control */}
-                  <div className="display-setting-row" title="Adjust graph label font size (7px - 24px)">
-                    <div className="setting-label-row">
-                      <span className="setting-icon">🔤</span>
-                      <span className="setting-name">Font Size</span>
-                      <span
-                        className="domain-hud-value-badge"
-                        onClick={() => handleFontSizeChange(10)}
-                        title="Click to reset font size to 10px"
-                      >
-                        {fontSize}px
-                      </span>
-                    </div>
-                    <div className="setting-slider-row">
-                      <button
-                        type="button"
-                        className="domain-hud-step-btn"
-                        onClick={() => handleFontSizeChange(fontSize - 1)}
-                        title="Decrease font size (-1px)"
-                      >
-                        −
-                      </button>
-                      <input
-                        type="range"
-                        min="7"
-                        max="24"
-                        step="1"
-                        value={fontSize}
-                        onChange={(e) => handleFontSizeChange(parseInt(e.target.value, 10))}
-                        className="domain-hud-slider"
-                      />
-                      <button
-                        type="button"
-                        className="domain-hud-step-btn"
-                        onClick={() => handleFontSizeChange(fontSize + 1)}
-                        title="Increase font size (+1px)"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 2. Edge Curvature Control */}
-                  {edgeCurveMode !== 'straight' && (
-                    <div className="display-setting-row" title="Adjust edge curvature (-200px to +200px)">
-                      <div className="setting-label-row">
-                        <span className="setting-icon">〰️</span>
-                        <span className="setting-name">Edge Curvature</span>
-                        <span
-                          className="domain-hud-value-badge"
-                          onClick={() => handleCurveFactorChange(35)}
-                          title="Click to reset curve to +35px"
-                        >
-                          {curveFactor > 0 ? `+${curveFactor}` : curveFactor}px
-                        </span>
-                      </div>
-                      <div className="setting-slider-row">
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => handleCurveFactorChange(Math.max(-200, curveFactor - 10))}
-                          title="Decrease curve (-10px)"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="range"
-                          min="-200"
-                          max="200"
-                          step="5"
-                          value={curveFactor}
-                          onChange={(e) => handleCurveFactorChange(parseInt(e.target.value, 10))}
-                          className="domain-hud-slider"
-                        />
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => handleCurveFactorChange(Math.min(200, curveFactor + 10))}
-                          title="Increase curve (+10px)"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 3. Node Spacing / Air Control */}
-                  <div className="display-setting-row" title="Adjust node spacing / distance between orbits">
-                    <div className="setting-label-row">
-                      <span className="setting-icon">💨</span>
-                      <span className="setting-name">Node Air (Spacing)</span>
-                      <span
-                        className="domain-hud-value-badge"
-                        onClick={() => handleSpacingChange(1.0)}
-                        title="Click to reset air to 1.0x"
-                      >
-                        {spacingFactor.toFixed(1)}x
-                      </span>
-                    </div>
-                    <div className="setting-slider-row">
-                      <button
-                        type="button"
-                        className="domain-hud-step-btn"
-                        onClick={() => handleSpacingChange(Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)))}
-                        title="Decrease spacing"
-                      >
-                        −
-                      </button>
-                      <input
-                        type="range"
-                        min="0.5"
-                        max="3.0"
-                        step="0.1"
-                        value={spacingFactor}
-                        onChange={(e) => handleSpacingChange(parseFloat(e.target.value))}
-                        className="domain-hud-slider"
-                      />
-                      <button
-                        type="button"
-                        className="domain-hud-step-btn"
-                        onClick={() => handleSpacingChange(Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)))}
-                        title="Increase spacing"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 4. Mouse Wheel Zoom Sensitivity */}
-                  <div className="display-setting-row" title="Adjust mouse wheel zoom sensitivity">
-                    <div className="setting-label-row">
-                      <span className="setting-icon">🖱️</span>
-                      <span className="setting-name">Wheel Sensitivity</span>
-                      <span
-                        className="domain-hud-value-badge"
-                        onClick={() => handleWheelSensitivityChange(2.5)}
-                        title="Click to reset sensitivity to 2.5x"
-                      >
-                        {wheelSensitivity.toFixed(1)}x
-                      </span>
-                    </div>
-                    <div className="setting-slider-row">
-                      <button
-                        type="button"
-                        className="domain-hud-step-btn"
-                        onClick={() => handleWheelSensitivityChange(Math.max(0.5, +(wheelSensitivity - 0.5).toFixed(1)))}
-                        title="Decrease sensitivity"
-                      >
-                        −
-                      </button>
-                      <input
-                        type="range"
-                        min="0.5"
-                        max="5.0"
-                        step="0.1"
-                        value={wheelSensitivity}
-                        onChange={(e) => handleWheelSensitivityChange(parseFloat(e.target.value))}
-                        className="domain-hud-slider"
-                      />
-                      <button
-                        type="button"
-                        className="domain-hud-step-btn"
-                        onClick={() => handleWheelSensitivityChange(Math.min(5.0, +(wheelSensitivity + 0.5).toFixed(1)))}
-                        title="Increase sensitivity"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="display-popover-divider" />
-
-                  {/* 5. Auto-update graph & Relayout */}
-                  <div className="display-popover-actions">
-                    <label
-                      className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
-                      title={
-                        autoRelayoutOnFilter
-                          ? 'Auto-relayout enabled: layout automatically refits when entities are hidden. Uncheck to keep node positions unchanged.'
-                          : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes.'
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        className="domain-hud-checkbox"
-                        checked={autoRelayoutOnFilter}
-                        onChange={(e) => handleAutoRelayoutChange(e.target.checked)}
-                      />
-                      <span>🔄 Auto-recalc</span>
-                    </label>
-                    <button
-                      type="button"
-                      className="domain-hud-btn"
-                      onClick={handleForceRelayout}
-                      title="Recalculate graph layout now (Re-layout)"
-                      style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
-                    >
-                      ⟳ Re-layout
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Zoom Controls */}
-          <div className="domain-hud-control-group" title="Zoom Controls">
-            <button
-              type="button"
-              className="domain-hud-btn"
-              onClick={handleZoomOut}
-              title="Zoom Out"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              className="domain-hud-btn zoom-level-btn"
-              onClick={handleResetZoom}
-              title="Reset Zoom to 100%"
-            >
-              {Math.round(currentZoom * 100)}%
-            </button>
-            <button
-              type="button"
-              className="domain-hud-btn"
-              onClick={handleZoomIn}
-              title="Zoom In"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              className="domain-hud-btn fit-btn"
-              onClick={handleFitView}
-              title="Fit to Screen"
-            >
-              ⛶ Fit
-            </button>
-          </div>
-
-          {/* Search */}
-          <div className="domain-hud-search">
-            <input
-              type="text"
-              className="domain-search-input"
-              placeholder="Search domain or service..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="domain-search-clear"
-                onClick={() => setSearchQuery('')}
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
           </div>
         </div>
       </header>
