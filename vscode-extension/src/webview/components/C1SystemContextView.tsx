@@ -33,6 +33,7 @@ import {
   computeConcentricLayout,
   ConcentricNodeInput,
   ConcentricEdgeInput,
+  ConcentricOrbitGuide,
 } from '../layout/concentricLayout';
 
 try {
@@ -283,7 +284,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
   const [variant, setVariant] = useState<C1Variant>('playground');
 
   // Concentric radial guides & viewport transform state for SVG overlay
-  const [concentricGuides, setConcentricGuides] = useState<Array<{ radius: number; label: string; count: number }>>([]);
+  const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
   const [cyTransform, setCyTransform] = useState<{ pan: { x: number; y: number }; zoom: number }>({ pan: { x: 0, y: 0 }, zoom: 1 });
 
   // Filter toggles
