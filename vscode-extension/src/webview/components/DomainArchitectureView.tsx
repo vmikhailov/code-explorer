@@ -2657,14 +2657,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       {/* Docked Top Studio Bar */}
       <header className="domain-map-hud">
-        {/* Tier 1: View Identity, Context Jump & Studio Canvas Controls */}
-        <div className="domain-hud-row domain-hud-primary-row">
-          <div className="domain-hud-title-badge">
-            <span className="domain-hud-label">Macro Architecture</span>
-            <span className="domain-hud-title">Domain Microservice Map</span>
-          </div>
+        {/* Left Brand Column (Rowspan 2) */}
+        <div className="domain-hud-brand">
+          <span className="domain-hud-label">Macro Architecture</span>
+          <span className="domain-hud-title">Domain Microservice Map</span>
+        </div>
 
-          <div className="domain-hud-controls-group">
+        {/* Right Content Column: Two Stacked Rows of Controls */}
+        <div className="domain-hud-content">
+          {/* Row 1: Studio Canvas Controls */}
+          <div className="domain-hud-row domain-hud-primary-row">
+            <div className="domain-hud-controls-left">
             {/* Layout & Curve Selector */}
             <div className="domain-hud-layout-select">
               <select
@@ -2962,27 +2965,27 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 ⛶ Fit
               </button>
             </div>
+          </div>
 
-            {/* Search */}
-            <div className="domain-hud-search">
-              <input
-                type="text"
-                className="domain-search-input"
-                placeholder="Search domain or service..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  className="domain-search-clear"
-                  onClick={() => setSearchQuery('')}
-                  title="Clear search"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+          {/* Search */}
+          <div className="domain-hud-search">
+            <input
+              type="text"
+              className="domain-search-input"
+              placeholder="Search domain or service..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="domain-search-clear"
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 
@@ -3147,7 +3150,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             </span>
           </div>
         </div>
-      </header>
+      </div>
+    </header>
 
       {/* Main Graph Canvas Area */}
       <div className="domain-cytoscape-wrapper">
