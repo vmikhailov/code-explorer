@@ -218,9 +218,9 @@ export const C1FocusEgoView: React.FC<C1FocusEgoViewProps> = ({
                 <button
                   className="hero-btn primary"
                   onClick={() => onDrillDownToC2(currentNode.name)}
-                  title="Open C2 Project Component Flow"
+                  title="Open Project Component Flow"
                 >
-                  🔀 Drill Down to C2
+                  🔀 Drill Down to Flow
                 </button>
               )}
               {onOpenFile && currentNode.filePath && (

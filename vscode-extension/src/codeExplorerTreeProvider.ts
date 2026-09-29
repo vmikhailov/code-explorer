@@ -293,7 +293,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         vscode.TreeItemCollapsibleState.Expanded
       );
       diagramsRoot.iconPath = new vscode.ThemeIcon('layout');
-      diagramsRoot.tooltip = 'High-level C1 & C2 architectural visualizers and Mermaid diagrams';
+      diagramsRoot.tooltip = 'Architecture diagrams, domain microservice maps, tiers, and project flow visualizers';
 
       // 2. Graph Layers (Ontology Layers 1 - 5)
       const layersRoot = new CodeExplorerTreeItem(
@@ -373,27 +373,27 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         icon: 'layers',
         tooltip: 'Architecture Tiers — Tiered system view (Presentation, Application, Domain, Infrastructure)',
       },
-      {
-        mode: 'c1',
-        label: 'C1: System Context',
-        desc: 'Apps, Services & External APIs',
-        icon: 'globe',
-        tooltip: 'C1: System Context — Apps, Services, and External Services (Dagre & Mermaid)',
-      },
+      // {
+      //   mode: 'c1',
+      //   label: 'System Context',
+      //   desc: 'Apps, Services & External APIs',
+      //   icon: 'globe',
+      //   tooltip: 'System Context — Apps, Services, and External Services',
+      // },
       {
         mode: 'flow',
-        label: 'C2: Project Flow',
+        label: 'Project Flow',
         desc: 'Focused dependency & call flow',
         icon: 'git-compare',
-        tooltip: 'C2: Project Flow — Topological dependency columns, call chains, and message flows',
+        tooltip: 'Project Flow — Topological dependency columns, call chains, and message flows',
       },
-      {
-        mode: 'full',
-        label: 'Project Dependency Graph',
-        desc: 'Interactive full project graph',
-        icon: 'type-hierarchy-sub',
-        tooltip: 'Physical Dependency Graph — Complete workspace graph of all projects and dependencies',
-      },
+      // {
+      //   mode: 'full',
+      //   label: 'Project Dependency Graph',
+      //   desc: 'Interactive full project graph',
+      //   icon: 'type-hierarchy-sub',
+      //   tooltip: 'Physical Dependency Graph — Complete workspace graph of all projects and dependencies',
+      // },
       {
         mode: 'semantic',
         label: 'Domain Microservice Map',
@@ -408,13 +408,13 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         icon: 'circuit-board',
         tooltip: 'Bounded Context Map — AI-distilled business domains, capabilities, CQRS roles, and ubiquitous entities',
       },
-      {
-        mode: 'mermaid',
-        label: 'Mermaid Architecture Diagram',
-        desc: 'Mermaid flowchart renderer',
-        icon: 'graph',
-        tooltip: 'Mermaid Architecture Diagram — Interactive SVG diagram with exportable Markdown',
-      },
+      // {
+      //   mode: 'mermaid',
+      //   label: 'Mermaid Architecture Diagram',
+      //   desc: 'Mermaid flowchart renderer',
+      //   icon: 'graph',
+      //   tooltip: 'Mermaid Architecture Diagram — Interactive SVG diagram with exportable Markdown',
+      // },
     ];
 
     return diagrams.map((d) => {

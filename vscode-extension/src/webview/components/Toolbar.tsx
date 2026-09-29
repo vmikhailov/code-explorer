@@ -163,22 +163,21 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             title="Switch Architecture View Mode"
           >
             <option value="semantic">🌐 Domain Microservices</option>
-            <option value="c1">🌍 C1 System Context</option>
             <option value="contexts">🧩 Bounded Contexts</option>
             <option value="layers">🏛️ Architecture Tiers</option>
-            <option value="flow">🔀 Project Flow (C2)</option>
+            <option value="flow">🔀 Project Flow</option>
+            {/* Kept commented out:
+            <option value="c1">🌍 System Context</option>
             <option value="full">🕸️ Physical Graph</option>
             <option value="mermaid">📊 Mermaid Architecture</option>
+            */}
           </select>
         ) : (
           <span className="view-mode-badge-text">
             {viewMode === 'semantic' && '🌐 Domain Microservices'}
             {viewMode === 'contexts' && '🧩 Bounded Context Map'}
             {viewMode === 'layers' && '🏛️ Architecture Tiers'}
-            {viewMode === 'c1' && '🌍 C1 System Context'}
-            {viewMode === 'flow' && '🔀 Project Flow (C2)'}
-            {viewMode === 'full' && '🕸️ Physical Dependency Graph'}
-            {viewMode === 'mermaid' && '📊 Mermaid Architecture'}
+            {viewMode === 'flow' && '🔀 Project Flow'}
           </span>
         )}
       </div>

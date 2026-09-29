@@ -100,7 +100,7 @@ export const C1LaconicCardNode = memo((props: any) => {
             e.stopPropagation();
             data.onDrillDownToC2?.(data.name);
           }}
-          title="Open C2 Project Flow"
+          title="Open Project Flow"
         >
           🔀
         </button>
@@ -238,7 +238,7 @@ export const C1ServiceCardNode = memo((props: any) => {
                 e.stopPropagation();
                 data.onDrillDownToC2?.(data.name);
               }}
-              title="Drill down into C2 Project Flow"
+              title="Drill down into Project Flow"
             >
               🔀
             </button>

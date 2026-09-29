@@ -3760,9 +3760,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     <button
                       className="inspector-action-btn primary"
                       onClick={() => onFocusInFlow(selectedNode.name)}
-                      title="Drill down to Project Flow (C2) view"
+                      title="Drill down to Project Flow view"
                     >
-                      Explore in Flow (C2) ➔
+                      Explore in Flow ➔
                     </button>
                   )}
                   {selectedNode.primaryFilePath && onOpenFile && (
