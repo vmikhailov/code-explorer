@@ -479,14 +479,33 @@ export function applyEdgeCurveMode(
 ) {
   if (!cy) return;
   cy.batch(() => {
-    cy.edges().forEach((edge) => {
-      if (mode === 'straight') {
+    if (mode === 'straight') {
+      cy.edges().forEach((edge) => {
         edge.style({
           'curve-style': 'straight',
         });
-        return;
-      }
+      });
+      return;
+    }
 
+    // Group edges by connected node pair to fan out parallel/multi edges
+    const pairMap = new Map<string, cytoscape.EdgeSingular[]>();
+    cy.edges().forEach((edge) => {
+      const s = edge.source().id();
+      const t = edge.target().id();
+      if (!s || !t) return;
+      const key = s < t ? `${s}--${t}` : `${t}--${s}`;
+      let list = pairMap.get(key);
+      if (!list) {
+        list = [];
+        pairMap.set(key, list);
+      }
+      list.push(edge);
+    });
+
+    const scale = curveFactor / 35;
+
+    cy.edges().forEach((edge) => {
       const srcNode = edge.source();
       const tgtNode = edge.target();
       if (!srcNode || !tgtNode || srcNode.empty() || tgtNode.empty()) {
@@ -505,6 +524,7 @@ export function applyEdgeCurveMode(
       const r1 = Math.hypot(src.x - center.x, src.y - center.y);
       const r2 = Math.hypot(tgt.x - center.x, tgt.y - center.y);
       const minNodeRadius = Math.min(r1, r2);
+      const maxNodeRadius = Math.max(r1, r2);
 
       // Midpoint of the straight chord
       const mx = (src.x + tgt.x) / 2;
@@ -520,11 +540,38 @@ export function applyEdgeCurveMode(
       }
       const sign = dotOutward >= 0 ? 1 : -1;
 
-      const scale = curveFactor / 35;
+      // Angular span between endpoints around center [0..PI]
+      const angle1 = Math.atan2(src.y - center.y, src.x - center.x);
+      const angle2 = Math.atan2(tgt.y - center.y, tgt.x - center.x);
+      let dTheta = Math.abs(angle1 - angle2);
+      if (dTheta > Math.PI) {
+        dTheta = 2 * Math.PI - dTheta;
+      }
+      const spanFactor = Math.sin(dTheta / 2); // 0 at adjacent, 0.707 at 90 deg, 1.0 at 180 deg
+
+      // Deterministic hash based on edge ID for subtle organic variation (+/- 10%)
+      let hash = 0;
+      const idStr = edge.id();
+      for (let i = 0; i < idStr.length; i++) {
+        hash = (hash * 31 + idStr.charCodeAt(i)) & 0xffffffff;
+      }
+      const subtleVariation = 1.0 + ((hash % 17) - 8) * 0.015;
+
+      // Multi-edge parallel spread
+      const sId = srcNode.id();
+      const tId = tgtNode.id();
+      const pairKey = sId < tId ? `${sId}--${tId}` : `${tId}--${sId}`;
+      const pairEdges = pairMap.get(pairKey) || [edge];
+      const edgeIdx = pairEdges.indexOf(edge);
+      const pairCount = pairEdges.length;
+      const multiEdgeSpread = pairCount > 1
+        ? (edgeIdx - (pairCount - 1) / 2) * 22 * Math.max(0.6, Math.abs(scale))
+        : 0;
 
       if (mode === 'bezier') {
-        // Expressive fluid Bezier curves with natural organic sweep
-        const pushDistance = Math.min(60, Math.max(16, chordLen * 0.08)) * scale;
+        // Expressive fluid Bezier curves scaling gracefully with chord length and angular span
+        const baseDeflection = chordLen * (0.05 + 0.07 * spanFactor);
+        const pushDistance = (baseDeflection * subtleVariation + multiEdgeSpread) * scale;
         edge.style({
           'curve-style': 'unbundled-bezier',
           'control-point-distances': [sign * pushDistance],
@@ -534,10 +581,7 @@ export function applyEdgeCurveMode(
       }
 
       if (mode === 'avoid-inner') {
-        // Base curvature so all edges curve smoothly and respond dynamically to the curve slider
-        const baseCurve = Math.min(32, Math.max(14, chordLen * 0.05)) * scale;
-
-        // Projection of (center - src) onto (tgt - src) to find closest point on segment to center:
+        // Projection of (center - src) onto (tgt - src) to find closest approach of chord to center:
         const tProj = Math.max(0, Math.min(1, -((src.x - center.x) * edx + (src.y - center.y) * edy) / (chordLen * chordLen)));
         const closestX = src.x + tProj * edx - center.x;
         const closestY = src.y + tProj * edy - center.y;
@@ -546,23 +590,26 @@ export function applyEdgeCurveMode(
         // Penetration depth: how far closer to the center the segment reaches below the inner-most endpoint
         const penetration = Math.max(0, minNodeRadius - dMin);
 
-        if (penetration > 15 && minNodeRadius > 100) {
-          // Edge cuts into inner orbits: add outward clearance so the curve bypasses the inner core
-          const bypassPush = Math.min(160, penetration * 0.45 + 25) * scale;
-          const pushDistance = baseCurve + bypassPush;
-          edge.style({
-            'curve-style': 'unbundled-bezier',
-            'control-point-distances': [sign * pushDistance],
-            'control-point-weights': [0.5],
-          });
+        // Dynamic base curvature tailored to angular span and chord
+        const baseNatural = chordLen * (0.06 + 0.10 * spanFactor);
+
+        let pushDistance: number;
+        if (penetration > 12 && minNodeRadius > 80) {
+          // Edge cuts into inner orbits: calculate proportional clearance based on penetration,
+          // angular span, and outer orbit radius so that outer edges curve wider than inner edges!
+          const radiusBoost = 0.5 + 0.35 * Math.min(1.5, maxNodeRadius / 500);
+          const bypassClearance = penetration * (0.6 + 0.3 * spanFactor) * radiusBoost;
+          pushDistance = (baseNatural + bypassClearance) * scale * subtleVariation + multiEdgeSpread;
         } else {
-          // Edge does not penetrate inner orbits: render with clean base curvature
-          edge.style({
-            'curve-style': 'unbundled-bezier',
-            'control-point-distances': [sign * baseCurve],
-            'control-point-weights': [0.5],
-          });
+          // Edge does not penetrate inner orbits: render with clean natural curvature
+          pushDistance = baseNatural * scale * subtleVariation + multiEdgeSpread;
         }
+
+        edge.style({
+          'curve-style': 'unbundled-bezier',
+          'control-point-distances': [sign * pushDistance],
+          'control-point-weights': [0.5],
+        });
       }
     });
   });
