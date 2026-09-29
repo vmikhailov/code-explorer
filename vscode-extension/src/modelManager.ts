@@ -54,9 +54,6 @@ export function getModelStatus(workspaceRoot?: string): ModelStatus {
     candidates.push(path.join(workspaceRoot, '..', 'code-intent-distill', 'models', MODEL_FILE_NAME));
     candidates.push(path.join(workspaceRoot, '..', '..', 'code-intent-distill', 'models', MODEL_FILE_NAME));
   }
-  if (process.platform === 'win32') {
-    candidates.push(`C:\\Work\\Personal\\code-intent-distill\\models\\${MODEL_FILE_NAME}`);
-  }
 
   for (const cand of candidates) {
     try {

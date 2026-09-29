@@ -39,7 +39,6 @@ public static class ModelManager
 
         candidates.Add(Path.Combine(Environment.CurrentDirectory, "..", "code-intent-distill", "models", ModelFileName));
         candidates.Add(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "code-intent-distill", "models", ModelFileName));
-        candidates.Add(@"C:\Work\Personal\code-intent-distill\models\ce-intent-v2-q4_k_m.gguf");
 
         foreach (var cand in candidates)
         {

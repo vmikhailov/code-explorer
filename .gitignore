@@ -3,7 +3,8 @@ bin/
 obj/
 [Bb]in/
 [Oo]bj/
-[Tt]est[Rr]esults/
+**/[Tt]est[Rr]esults/
+*.trx
 
 # --- IDE Config & User Settings ---
 .vs/

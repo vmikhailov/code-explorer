@@ -366,9 +366,10 @@ public class McpIntegrationTests
     [Test]
     public async Task Test_InspectDataLineage_AtsProject_Performance()
     {
-        const string atsDbPath = "/Users/slava/Projects/ATS/src/.codeexplorer/graph.db";
-        if (!File.Exists(atsDbPath))
+        var atsDbPath = Environment.GetEnvironmentVariable("ATS_GRAPH_DB_PATH");
+        if (string.IsNullOrWhiteSpace(atsDbPath) || !File.Exists(atsDbPath))
         {
+            Assert.Ignore("ATS_GRAPH_DB_PATH environment variable not set or file not found.");
             return;
         }
 

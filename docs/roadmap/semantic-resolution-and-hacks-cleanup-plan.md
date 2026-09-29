@@ -2,7 +2,6 @@
 
 > **Status:** Implemented & Verified in v1.11.10 ✅  
 > **Target Release:** v1.11.10  
-> **Reference Document:** [semantic_analysis_and_hacks_audit.md](file:///C:/Users/viach/.gemini/antigravity-ide/brain/c2895c5c-0d94-4e3f-9ccb-9c30cbaa962f/semantic_analysis_and_hacks_audit.md)  
 > **Tracking Epic:** [docs/roadmap/todo.md](./todo.md) (EPIC 0)
 
 ---
