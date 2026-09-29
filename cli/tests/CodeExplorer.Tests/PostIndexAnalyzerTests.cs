@@ -236,5 +236,95 @@ public class PostIndexAnalyzerTests
         Assert.That(attrStripe.Hops, Is.EqualTo(3));
         Assert.That(attrStripe.SinkKind, Is.EqualTo("ExternalService"));
     }
+
+    [Test]
+    public async Task DeduplicateProjectNodesAsync_RemovesLegacyDuplicates_WhenCanonicalExists()
+    {
+        // 1. Setup duplicate project nodes sharing the same path
+        var nodes = new List<Node>
+        {
+            new("ws:p:app:", "Project", new() { ["name"] = "App", ["path"] = "src/app/App.csproj", ["kind"] = "App" }),
+            new("ws:project:app:", "Project", new() { ["name"] = "App", ["path"] = "src/app/App.csproj" }),
+            new("ws:folder:app", "Folder", new() { ["name"] = "app" })
+        };
+        await _client.UploadNodesAsync(nodes);
+
+        var edges = new List<Relationship>
+        {
+            new("ws:p:app:", "ws:folder:app", "LOCATED_IN", new()),
+            new("ws:project:app:", "ws:folder:app", "LOCATED_IN", new())
+        };
+        await _client.UploadRelationshipsAsync(edges);
+
+        // 2. Run deduplication
+        var analyzer = new PostIndexAnalyzer(_client);
+        await analyzer.DeduplicateProjectNodesAsync();
+
+        // 3. Verify that only ws:p:app: remains and legacy edges removed
+        using var conn = new SqliteConnection($"Data Source={_tempDbPath};Mode=ReadOnly");
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT id FROM nodes WHERE kind = 'Project'";
+        using (var reader = cmd.ExecuteReader())
+        {
+            var remainingIds = new List<string>();
+            while (reader.Read()) remainingIds.Add(reader.GetString(0));
+            Assert.That(remainingIds, Has.Count.EqualTo(1));
+            Assert.That(remainingIds[0], Is.EqualTo("ws:p:app:"));
+        }
+
+        // Verify dangling edge from legacy project was removed
+        cmd.CommandText = "SELECT COUNT(*) FROM edges WHERE from_id = 'ws:project:app:' OR to_id = 'ws:project:app:'";
+        var count = Convert.ToInt64(cmd.ExecuteScalar());
+        Assert.That(count, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task DeduplicateProjectNodesAsync_RetainsLegacy_WhenNoCanonicalExists()
+    {
+        // Setup only legacy project node
+        var nodes = new List<Node>
+        {
+            new("ws:project:legacy:", "Project", new() { ["name"] = "Legacy", ["path"] = "src/legacy/Legacy.csproj" })
+        };
+        await _client.UploadNodesAsync(nodes);
+
+        var analyzer = new PostIndexAnalyzer(_client);
+        await analyzer.DeduplicateProjectNodesAsync();
+
+        using var conn = new SqliteConnection($"Data Source={_tempDbPath};Mode=ReadOnly");
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT id FROM nodes WHERE kind = 'Project'";
+        using var reader = cmd.ExecuteReader();
+        var remainingIds = new List<string>();
+        while (reader.Read()) remainingIds.Add(reader.GetString(0));
+        Assert.That(remainingIds, Has.Count.EqualTo(1));
+        Assert.That(remainingIds[0], Is.EqualTo("ws:project:legacy:"));
+    }
+
+    [Test]
+    public void DeduplicateProjectNodes_InMemory_RemovesLegacyDuplicates()
+    {
+        var nodes = new List<Node>
+        {
+            new("ws:p:api:", "Project", new() { ["name"] = "Api", ["path"] = "src/api/Api.csproj", ["kind"] = "Service" }),
+            new("ws:project:api:", "Project", new() { ["name"] = "Api", ["path"] = "src/api/Api.csproj" }),
+            new("ws:file:api", "File", new() { ["name"] = "Program.cs" })
+        };
+        var edges = new List<Relationship>
+        {
+            new("ws:p:api:", "ws:file:api", "CONTAINS", new()),
+            new("ws:project:api:", "ws:file:api", "CONTAINS", new())
+        };
+
+        PostIndexAnalyzer.DeduplicateProjectNodes(nodes, edges);
+
+        Assert.That(nodes.Count(n => n.Kind == "Project"), Is.EqualTo(1));
+        Assert.That(nodes.Any(n => n.Id == "ws:p:api:"), Is.True);
+        Assert.That(nodes.Any(n => n.Id == "ws:project:api:"), Is.False);
+        Assert.That(edges.Any(e => e.From == "ws:project:api:"), Is.False);
+    }
 }
+
 

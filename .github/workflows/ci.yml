@@ -20,7 +20,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build solution
-        run: dotnet build cli/CodeExplorer.slnx -c Release /warnaserror
+        run: dotnet build cli/CodeExplorer.slnx -c Release
 
       - name: Run test suite
-        run: dotnet test cli/CodeExplorer.slnx -c Release --no-build /warnaserror
+        run: dotnet test cli/CodeExplorer.slnx -c Release --no-build

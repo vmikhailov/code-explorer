@@ -2440,9 +2440,33 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
     }
 
+    public Task DeduplicateProjectNodesAsync(string widPrefix = "", CancellationToken cancellationToken = default)
+        => DeduplicateProjectNodesAsync(db, widPrefix, cancellationToken);
+
+    public static void DeduplicateProjectNodes(List<Node> nodes, List<Relationship> relationships)
+    {
+        var canonicalPaths = new HashSet<string>(
+            nodes.Where(n => n.Kind == "Project" && n.Id.Contains(":p:"))
+                 .Select(n => n.Properties.TryGetValue("path", out var p) ? p?.ToString() ?? "" : "")
+                 .Where(p => !string.IsNullOrEmpty(p))
+        );
+
+        var removedIds = new HashSet<string>(
+            nodes.Where(n => n.Kind == "Project" && (n.Id.Contains(":project:") || n.Id.EndsWith(":project"))
+                             && n.Properties.TryGetValue("path", out var p) && canonicalPaths.Contains(p?.ToString() ?? ""))
+                 .Select(n => n.Id)
+        );
+
+        if (removedIds.Count > 0)
+        {
+            nodes.RemoveAll(n => removedIds.Contains(n.Id));
+            relationships.RemoveAll(r => removedIds.Contains(r.From) || removedIds.Contains(r.To));
+        }
+    }
+
     public static async Task DeduplicateProjectNodesAsync(
         IGraphClient db,
-        string widPrefix,
+        string widPrefix = "",
         CancellationToken cancellationToken = default)
     {
         // When both modern :p: project nodes and legacy :project: / :project_semantic / :project_syntax nodes exist,

@@ -798,6 +798,7 @@ public class Layer5AnalysisParser
 
         var lateBoundRels = new List<Relationship>();
         var addedProjectDeps = new HashSet<(string From, string To)>();
+        var boundServicesCount = 0;
 
         foreach (var extService in externalServices)
         {
@@ -814,10 +815,11 @@ public class Layer5AnalysisParser
 
                 if (IsMatch(extService, entryPoint, targetProj))
                 {
-                    ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
+                    ctx.LogDebug($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsRelationship(extService.Id, entryPoint.Id));
                     lateBoundRels.Add(rel);
                     matchedEndpoint = true;
+                    boundServicesCount++;
 
                     nodeToProject.TryGetValue(extService.Id, out var callerProj);
                     if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
@@ -842,10 +844,11 @@ public class Layer5AnalysisParser
 
                 if (IsMatch(extService, endpoint, targetProj))
                 {
-                    ctx.Log($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
+                    ctx.LogDebug($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
                     var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Id, endpoint.Id));
                     lateBoundRels.Add(rel);
                     matchedEndpoint = true;
+                    boundServicesCount++;
 
                     // Synthesize Project -> Project DEPENDS_ON relationship
                     nodeToProject.TryGetValue(extService.Id, out var callerProj);
@@ -894,6 +897,11 @@ public class Layer5AnalysisParser
                     }
                 }
             }
+        }
+
+        if (boundServicesCount > 0)
+        {
+            ctx.Log($"[Layer5] [LateBinding] Successfully bound {boundServicesCount} ExternalService call(s) to endpoints/entrypoints.");
         }
 
         if (lateBoundRels.Count > 0)

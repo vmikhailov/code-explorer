@@ -633,4 +633,65 @@ public class RealLifeExecutionTests
         Assert.That(dbs.ValueKind, Is.EqualTo(JsonValueKind.Array));
         Assert.That(dbs.GetArrayLength(), Is.GreaterThanOrEqualTo(1));
     }
+
+    [Test]
+    public void Test_MatchProject_ReturnsKindAndLanguage()
+    {
+        InsertNode("ws:1:p:shipping", "Project", new()
+        {
+            ["name"] = "ShippingLib",
+            ["kind"] = "Library",
+            ["entity_kind"] = "Library",
+            ["sub_kind"] = "SharedLibrary",
+            ["language"] = "csharp",
+            ["project_type"] = "csharp"
+        });
+
+        var cypher = "MATCH (p:Project) WHERE p.name = 'ShippingLib' RETURN p.kind AS kind, p.language AS language, p.entity_kind AS entityKind, p.sub_kind AS subKind";
+        var ast = CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = compiled.Sql;
+        foreach (var (k, v) in compiled.Parameters)
+        {
+            cmd.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
+        }
+        using var reader = cmd.ExecuteReader();
+        Assert.That(reader.Read(), Is.True);
+        Assert.That(reader["kind"], Is.EqualTo("Library"));
+        Assert.That(reader["language"], Is.EqualTo("csharp"));
+        Assert.That(reader["entityKind"], Is.EqualTo("Library"));
+        Assert.That(reader["subKind"], Is.EqualTo("SharedLibrary"));
+    }
+
+    [Test]
+    public void Test_MatchVirtualLabel_And_LabelsIntrospection()
+    {
+        InsertNode("ws:1:p:billing", "Project", new()
+        {
+            ["name"] = "BillingService",
+            ["kind"] = "Service",
+            ["language"] = "csharp"
+        });
+
+        // 1. MATCH (s:Service)
+        var cypher1 = "MATCH (s:Service) WHERE s.name = 'BillingService' RETURN s.name AS name, labels(s) AS lbls";
+        var ast1 = CypherQueryParser.Parse(cypher1);
+        var compiled1 = SqliteCompiler.Compile(ast1);
+        using var cmd1 = _conn.CreateCommand();
+        cmd1.CommandText = compiled1.Sql;
+        foreach (var (k, v) in compiled1.Parameters)
+        {
+            cmd1.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
+        }
+        using var reader1 = cmd1.ExecuteReader();
+        Assert.That(reader1.Read(), Is.True);
+        Assert.That(reader1["name"], Is.EqualTo("BillingService"));
+        var lblsJson = reader1.GetString(1);
+        using var doc = JsonDocument.Parse(lblsJson);
+        var labels = doc.RootElement.EnumerateArray().Select(e => e.GetString()).ToList();
+        Assert.That(labels, Does.Contain("Project"));
+        Assert.That(labels, Does.Contain("Service"));
+    }
 }
+
