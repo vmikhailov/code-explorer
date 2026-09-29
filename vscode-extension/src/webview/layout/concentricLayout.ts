@@ -363,7 +363,8 @@ export function optimizeOrbitPermutation(
 export function computeConcentricLayout(
   visibleNodes: ConcentricNodeInput[],
   visibleEdges: ConcentricEdgeInput[],
-  spacing = 1.0
+  spacing = 1.0,
+  customOrbitOrder?: number[]
 ): ConcentricLayoutResult {
   const orbitBuckets: Record<number, string[]> = {
     0: [],
@@ -394,12 +395,19 @@ export function computeConcentricLayout(
   }
 
   const populatedTiers = [0, 1, 2, 3, 4, 5].filter((idx) => orbitBuckets[idx].length > 0);
-  const optimalOrder = optimizeOrbitPermutation(
-    populatedTiers,
-    orbitBuckets,
-    weightedEdges,
-    spacing
-  );
+  let optimalOrder: number[];
+  if (customOrbitOrder && customOrbitOrder.length > 0) {
+    const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
+    const missing = populatedTiers.filter((t) => !validCustom.includes(t));
+    optimalOrder = [...validCustom, ...missing];
+  } else {
+    optimalOrder = optimizeOrbitPermutation(
+      populatedTiers,
+      orbitBuckets,
+      weightedEdges,
+      spacing
+    );
+  }
 
   const populatedOrbits: Array<{
     levelIndex: number;

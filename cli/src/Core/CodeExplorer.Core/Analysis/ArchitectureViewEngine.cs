@@ -512,6 +512,24 @@ public class ArchitectureViewEngine(IGraphClient db)
             edgeProps["category"] = category;
             edgeProps["dependency_type"] = depType;
 
+            var isTopicEdge = string.Equals(srcNode.Kind, "Topic", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(tgtNode.Kind, "Topic", StringComparison.OrdinalIgnoreCase);
+
+            if (category == "messaging" && !isTopicEdge)
+            {
+                // In event-driven architectures, services cannot directly subscribe to/publish to other services.
+                // If neither endpoint is a Topic, drop phantom direct pub/sub edges between services when no topic is involved.
+                if (rKind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "PUBLISHES_TO" or "PUBLISHED_BY")
+                {
+                    continue;
+                }
+
+                category = "service_call";
+                depType = "service_call";
+                edgeProps["category"] = category;
+                edgeProps["dependency_type"] = depType;
+            }
+
             var outKind = category switch
             {
                 "library" => "LIBRARY",
@@ -2698,6 +2716,8 @@ public class ArchitectureViewEngine(IGraphClient db)
             string cat;
             string label;
 
+            var isTopicEdge = topicNodes.ContainsKey(tgtDomain) || topicNodes.ContainsKey(srcDomain);
+
             if (dbNodes.ContainsKey(tgtDomain) || edge.Category == "database" || edge.Kind == "USES_DB")
             {
                 cat = "database";
@@ -2705,7 +2725,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 if (!dbUsage.ContainsKey(srcDomain)) dbUsage[srcDomain] = new(StringComparer.OrdinalIgnoreCase);
                 dbUsage[srcDomain].Add(tgtDomain);
             }
-            else if (topicNodes.ContainsKey(tgtDomain) || topicNodes.ContainsKey(srcDomain) || edge.Category == "messaging" || edge.Kind == "TRIGGERS" || edge.Kind == "PUBLISHES_TO" || edge.Kind == "SUBSCRIBES_TO" || edge.Kind == "PUBLISHED_BY" || edge.Kind == "SUBSCRIBED_BY")
+            else if (isTopicEdge)
             {
                 cat = "messaging";
                 if (edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" || (topicNodes.ContainsKey(srcDomain) && !topicNodes.ContainsKey(tgtDomain)))
@@ -2731,6 +2751,11 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 cat = "external";
                 label = "CALLS";
+            }
+            else if (edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "PUBLISHES_TO" or "PUBLISHED_BY")
+            {
+                // Direct pub/sub chord between services without a topic node is a phantom artifact; ignore it
+                continue;
             }
             else
             {

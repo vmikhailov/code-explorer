@@ -833,3 +833,107 @@
   color: #94a3b8;
 }
 
+.domain-orbit-legend-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.orbit-legend-reset-btn {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.orbit-legend-reset-btn:hover {
+  background: rgba(56, 189, 248, 0.25);
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.orbit-legend-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 12px;
+  font-size: 9.5px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.orbit-drag-handle {
+  cursor: grab;
+  color: #64748b;
+  font-size: 13px;
+  padding: 0 1px;
+  transition: color 0.15s ease;
+  user-select: none;
+}
+
+.domain-orbit-legend-item:hover .orbit-drag-handle {
+  color: #38bdf8;
+}
+
+.domain-orbit-legend-item.is-dragging {
+  opacity: 0.4;
+  background: rgba(56, 189, 248, 0.2);
+  border: 1px dashed #38bdf8;
+}
+
+.domain-orbit-legend-item.is-drag-over {
+  border-top: 2px solid #38bdf8;
+  background: rgba(56, 189, 248, 0.18);
+}
+
+.orbit-move-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+  margin-left: 2px;
+}
+
+.domain-orbit-legend-item:hover .orbit-move-actions {
+  opacity: 1;
+}
+
+.orbit-move-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  border-radius: 3px;
+  width: 17px;
+  height: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5px;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.orbit-move-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.3);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.orbit-move-btn:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+

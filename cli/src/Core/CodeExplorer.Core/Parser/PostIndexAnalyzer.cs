@@ -2063,11 +2063,16 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             category = "entrypoint";
         }
-        else if (kind is "TRIGGERS" or "PUBLISHES" or "PUBLISHES_TO" or "SUBSCRIBES_TO" or "SUBSCRIBED_BY" ||
-                 string.Equals(targetKind, "Topic", StringComparison.OrdinalIgnoreCase) ||
+        else if (string.Equals(targetKind, "Topic", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(sourceKind, "Topic", StringComparison.OrdinalIgnoreCase))
         {
             category = "messaging";
+        }
+        else if (kind is "PUBLISHES" or "PUBLISHES_TO" or "SUBSCRIBES_TO" or "SUBSCRIBED_BY")
+        {
+            category = (string.Equals(sourceKind, "Project", StringComparison.OrdinalIgnoreCase) && string.Equals(targetKind, "Project", StringComparison.OrdinalIgnoreCase))
+                ? "service_call"
+                : "messaging";
         }
         else if (kind is "SERVICE_CALL" or "CALLS_ENDPOINT" ||
                  string.Equals(targetKind, "ExternalService", StringComparison.OrdinalIgnoreCase) ||

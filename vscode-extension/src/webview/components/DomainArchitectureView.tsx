@@ -563,6 +563,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     nodeIds: string[];
   }>>([]);
   const [isOrbitLegendOpen, setIsOrbitLegendOpen] = useState(true);
+  const [customOrbitOrder, setCustomOrbitOrder] = useState<number[] | null>(null);
+  const customOrbitOrderRef = useRef<number[] | null>(null);
+  customOrbitOrderRef.current = customOrbitOrder;
+
+  const [draggedOrbitIndex, setDraggedOrbitIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [swimlaneGuides, setSwimlaneGuides] = useState<SwimlaneGuide[]>([]);
   const [islandGuides, setIslandGuides] = useState<IslandGuide[]>([]);
   const [hiveGuides, setHiveGuides] = useState<HiveAxisGuide[]>([]);
@@ -866,21 +872,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       let cat: 'service_call' | 'database' | 'messaging' | 'external' | null = null;
       let label = 'CALLS';
 
+      const isTopicEdge = topicNodes.has(tgtDomain) || topicNodes.has(srcDomain);
+
       if (dbNodes.has(tgtDomain) || edge.category === 'database' || edge.kind === 'USES_DB') {
         cat = 'database';
         label = 'USES_DB';
         if (!dbUsage.has(srcDomain)) dbUsage.set(srcDomain, new Set());
         dbUsage.get(srcDomain)!.add(tgtDomain);
-      } else if (
-        topicNodes.has(tgtDomain) ||
-        topicNodes.has(srcDomain) ||
-        edge.category === 'messaging' ||
-        edge.kind === 'TRIGGERS' ||
-        edge.kind === 'PUBLISHES_TO' ||
-        edge.kind === 'SUBSCRIBES_TO' ||
-        edge.kind === 'PUBLISHED_BY' ||
-        edge.kind === 'SUBSCRIBED_BY'
-      ) {
+      } else if (isTopicEdge) {
         cat = 'messaging';
         if (edge.kind === 'SUBSCRIBES_TO' || edge.kind === 'SUBSCRIBED_BY' || (topicNodes.has(srcDomain) && !topicNodes.has(tgtDomain))) {
           label = 'SUBSCRIBES';
@@ -897,9 +896,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       } else if (extNodes.has(tgtDomain)) {
         cat = 'external';
         label = 'CALLS';
-      } else if (edge.category === 'service_call' || edge.kind === 'SERVICE_CALL' || edge.kind === 'CALLS_ENDPOINT') {
+      } else if (
+        edge.category === 'service_call' ||
+        edge.kind === 'SERVICE_CALL' ||
+        edge.kind === 'CALLS_ENDPOINT' ||
+        edge.kind === 'TRIGGERS'
+      ) {
         cat = 'service_call';
         label = 'CALLS';
+      } else if (
+        edge.kind === 'SUBSCRIBES_TO' ||
+        edge.kind === 'SUBSCRIBED_BY' ||
+        edge.kind === 'PUBLISHES_TO' ||
+        edge.kind === 'PUBLISHED_BY'
+      ) {
+        // Direct pub/sub chord between services without a topic node is a phantom artifact
+        // of unrolled event subscriptions or shared contracts. Drop it so it does not clutter the architecture graph.
+        continue;
       } else {
         const isClientLib = edge.target.toLowerCase().includes('.client') || edge.target.toLowerCase().endsWith('client');
         if (isClientLib) {
@@ -1638,6 +1651,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       const layoutChanged = prevLayoutRef.current !== layoutName;
       prevLayoutRef.current = layoutName;
+      if (layoutChanged) {
+        setCustomOrbitOrder(null);
+        customOrbitOrderRef.current = null;
+      }
 
       // Capture existing positions of visible nodes
       const savedPositions = new Map<string, cytoscape.Position>();
@@ -1740,15 +1757,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         baseIslandGuidesRef.current = [];
         baseHiveGuidesRef.current = [];
 
+        const effectiveOrder = customOrbitOrderRef.current || undefined;
         let layoutResult: ConcentricLayoutResult;
         if (layoutName === 'concentric-equispaced') {
-          layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing);
+          layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
         } else if (layoutName === 'concentric-polar-force') {
-          layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing);
+          layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
         } else if (layoutName === 'concentric-sectors') {
-          layoutResult = computeConcentricSectorsLayout(visibleNodesInput, visibleEdgesInput, spacing);
+          layoutResult = computeConcentricSectorsLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
         } else {
-          layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing);
+          layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
         }
 
         layoutConfig = {
@@ -2074,6 +2092,142 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     },
     [recordBasePositions, layoutName, concentricGuides, swimlaneGuides, islandGuides, hiveGuides]
   );
+
+  // Concentric Orbit Reordering Handlers (drag-and-drop or ▲/▼)
+  const applyConcentricOrder = useCallback(
+    (newOrder: number[] | null) => {
+      const cy = cyRef.current;
+      if (!cy) return;
+      if (!layoutName.startsWith('concentric')) return;
+
+      setCustomOrbitOrder(newOrder);
+      customOrbitOrderRef.current = newOrder;
+
+      const spacing = spacingFactorRef.current || 1.0;
+      const visibleNodesInput = cy.nodes().map((n) => {
+        const id = n.id();
+        const ech = (n.data('echelonTier') as number) ?? rawGraph.echelonMap.get(id) ?? 2;
+        const detail = rawGraph.detailMap.get(id);
+        return {
+          id,
+          echelonTier: ech,
+          kind: n.data('kind') as string,
+          name: detail?.name || id,
+          displayName: detail?.displayName || id,
+        };
+      });
+
+      const visibleEdgesInput = cy.edges().map((e) => ({
+        source: e.data('source') as string,
+        target: e.data('target') as string,
+        category: e.data('category') as string,
+        count: (e.data('count') as number) || 1,
+      }));
+
+      const effectiveOrder = newOrder || undefined;
+      let layoutResult: ConcentricLayoutResult;
+      if (layoutName === 'concentric-equispaced') {
+        layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+      } else if (layoutName === 'concentric-polar-force') {
+        layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+      } else if (layoutName === 'concentric-sectors') {
+        layoutResult = computeConcentricSectorsLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+      } else {
+        layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+      }
+
+      const effSpacing = spacing || 1.0;
+      baseConcentricGuidesRef.current = layoutResult.guides.map((g) => ({
+        ...g,
+        radius: g.radius / effSpacing,
+      }));
+      setConcentricGuides(layoutResult.guides);
+      setOrbitLegendItems(
+        layoutResult.populatedOrbits.map((o) => ({
+          levelIndex: o.levelIndex,
+          shortLabel: o.shortLabel,
+          title: o.title,
+          count: o.nodeIds.length,
+          radius: o.radius,
+          nodeIds: o.nodeIds,
+        }))
+      );
+
+      // Smoothly animate nodes to new positions in Cytoscape
+      cy.batch(() => {
+        layoutResult.positions.forEach((pos, id) => {
+          const node = cy.getElementById(id);
+          if (node && !node.empty()) {
+            node.animate(
+              { position: pos },
+              { duration: 350, easing: 'ease-in-out-cubic' }
+            );
+          }
+        });
+      });
+
+      setTimeout(() => {
+        if (cyRef.current) {
+          recordBasePositions(cyRef.current);
+          applyEdgeCurveMode(cyRef.current, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
+        }
+      }, 370);
+    },
+    [layoutName, rawGraph, recordBasePositions]
+  );
+
+  const handleMoveOrbit = useCallback(
+    (fromIndex: number, direction: -1 | 1) => {
+      const toIndex = fromIndex + direction;
+      if (toIndex < 0 || toIndex >= orbitLegendItems.length) return;
+      const newItems = [...orbitLegendItems];
+      const [moved] = newItems.splice(fromIndex, 1);
+      newItems.splice(toIndex, 0, moved);
+      const newOrder = newItems.map((it) => it.levelIndex);
+      applyConcentricOrder(newOrder);
+    },
+    [orbitLegendItems, applyConcentricOrder]
+  );
+
+  const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
+    setDraggedOrbitIndex(idx);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(idx));
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex((prev) => (prev !== idx ? idx : prev));
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, targetIdx: number) => {
+      e.preventDefault();
+      if (draggedOrbitIndex === null || draggedOrbitIndex === targetIdx) {
+        setDraggedOrbitIndex(null);
+        setDragOverIndex(null);
+        return;
+      }
+      const newItems = [...orbitLegendItems];
+      const [moved] = newItems.splice(draggedOrbitIndex, 1);
+      newItems.splice(targetIdx, 0, moved);
+      const newOrder = newItems.map((it) => it.levelIndex);
+      setDraggedOrbitIndex(null);
+      setDragOverIndex(null);
+      applyConcentricOrder(newOrder);
+    },
+    [draggedOrbitIndex, orbitLegendItems, applyConcentricOrder]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedOrbitIndex(null);
+    setDragOverIndex(null);
+  }, []);
+
+  const handleResetOrbitOrder = useCallback(() => {
+    applyConcentricOrder(null);
+  }, [applyConcentricOrder]);
 
   // Wheel sensitivity change handler
   const handleWheelSensitivityChange = useCallback((val: number) => {
@@ -2830,25 +2984,82 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               <span className="legend-icon">🪐</span>
               <span>Orbit Legend</span>
             </div>
-            <span className="legend-toggle">{isOrbitLegendOpen ? '▾' : '▸'}</span>
+            <div className="domain-orbit-legend-header-actions">
+              {customOrbitOrder !== null && (
+                <button
+                  type="button"
+                  className="orbit-legend-reset-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleResetOrbitOrder();
+                  }}
+                  title="Reset to auto-calculated layout"
+                >
+                  ↺ Auto
+                </button>
+              )}
+              <span className="legend-toggle">{isOrbitLegendOpen ? '▾' : '▸'}</span>
+            </div>
           </div>
 
           {isOrbitLegendOpen && (
-            <div className="domain-orbit-legend-body">
-              {orbitLegendItems.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="domain-orbit-legend-item"
-                  onMouseEnter={() => highlightOrbitNodes(item.nodeIds)}
-                  onMouseLeave={clearOrbitHighlight}
-                  title={`${item.shortLabel}: ${item.title} (${item.count} nodes)`}
-                >
-                  <span className="orbit-legend-pill">{item.shortLabel}</span>
-                  <span className="orbit-legend-title">{item.title}</span>
-                  <span className="orbit-legend-count">{item.count}</span>
-                </div>
-              ))}
-            </div>
+            <>
+              <div
+                className="orbit-legend-hint"
+                title="Orbits are ordered from Center (top) to Outer Periphery (bottom). Drag or use ▲/▼ to change orbit radii."
+              >
+                <span>Inner (Center)</span>
+                <span>↕</span>
+                <span>Outer (Periphery)</span>
+              </div>
+              <div className="domain-orbit-legend-body">
+                {orbitLegendItems.map((item, idx) => (
+                  <div
+                    key={item.levelIndex}
+                    className={`domain-orbit-legend-item ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
+                    draggable={true}
+                    onDragStart={(e) => handleDragStart(e, idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDrop={(e) => handleDrop(e, idx)}
+                    onDragEnd={handleDragEnd}
+                    onMouseEnter={() => highlightOrbitNodes(item.nodeIds)}
+                    onMouseLeave={clearOrbitHighlight}
+                    title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`}
+                  >
+                    <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
+                    <span className="orbit-legend-pill">{item.shortLabel}</span>
+                    <span className="orbit-legend-title">{item.title}</span>
+                    <span className="orbit-legend-count">{item.count}</span>
+                    <div className="orbit-move-actions">
+                      <button
+                        type="button"
+                        className="orbit-move-btn"
+                        disabled={idx === 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveOrbit(idx, -1);
+                        }}
+                        title="Move toward center (Inner orbit)"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        className="orbit-move-btn"
+                        disabled={idx === orbitLegendItems.length - 1}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveOrbit(idx, 1);
+                        }}
+                        title="Move toward periphery (Outer orbit)"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

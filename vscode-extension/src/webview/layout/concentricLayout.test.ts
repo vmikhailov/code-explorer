@@ -301,3 +301,26 @@ test('optimizeOrbitPermutation: anchors Ingress at center and minimizes radial e
   assert.deepEqual(optimalOrder, [0, 1, 3, 2, 4], 'Orbits should be permuted [0, 1, 3, 2, 4] to minimize edge length');
 });
 
+test('computeConcentricLayout: respects customOrbitOrder when provided', () => {
+  const visibleNodes: ConcentricNodeInput[] = [
+    { id: 'app', echelonTier: 0 },
+    { id: 'svc-1', echelonTier: 1 },
+    { id: 'topic-1', echelonTier: 2 },
+    { id: 'db-1', echelonTier: 4 },
+  ];
+  const visibleEdges: ConcentricEdgeInput[] = [
+    { source: 'app', target: 'svc-1' },
+    { source: 'svc-1', target: 'topic-1' },
+    { source: 'svc-1', target: 'db-1' },
+  ];
+
+  // User specifies custom order: DB (4) inside, then Topics (2), Services (1), Apps (0)
+  const customOrder = [4, 2, 1, 0];
+  const result = computeConcentricLayout(visibleNodes, visibleEdges, 1.0, customOrder);
+
+  const resultingTiers = result.populatedOrbits.map((o) => o.levelIndex);
+  assert.deepEqual(resultingTiers, [4, 2, 1, 0], 'Populated orbits must follow custom order exactly');
+  assert.equal(result.populatedOrbits[0].shortLabel, 'Orbit 0');
+  assert.equal(result.populatedOrbits[0].levelIndex, 4);
+});
+

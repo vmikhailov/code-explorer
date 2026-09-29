@@ -23,7 +23,8 @@ import {
 export function computeConcentricPolarForceLayout(
   visibleNodes: ConcentricNodeInput[],
   visibleEdges: ConcentricEdgeInput[],
-  spacing = 1.0
+  spacing = 1.0,
+  customOrbitOrder?: number[]
 ): ConcentricLayoutResult {
   const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
 
@@ -32,28 +33,36 @@ export function computeConcentricPolarForceLayout(
     orbitBuckets[ech].push(node.id);
   }
 
+  const populatedTiers = [0, 1, 2, 3, 4, 5].filter((idx) => orbitBuckets[idx].length > 0);
+  let effectiveOrder = populatedTiers;
+  if (customOrbitOrder && customOrbitOrder.length > 0) {
+    const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
+    const missing = populatedTiers.filter((t) => !validCustom.includes(t));
+    effectiveOrder = [...validCustom, ...missing];
+  }
+
   const populatedOrbits: Array<{
     levelIndex: number;
     label: string;
+    shortLabel: string;
+    title: string;
     nodeIds: string[];
     radius: number;
   }> = [];
 
   let displayIdx = 0;
-  for (const idx of [0, 1, 2, 3, 4, 5]) {
-    if (orbitBuckets[idx].length > 0) {
-      const title = ORBIT_TITLES[idx] || `Tier ${idx}`;
-      const shortLabel = `Orbit ${displayIdx}`;
-      populatedOrbits.push({
-        levelIndex: idx,
-        label: `${shortLabel}: ${title}`,
-        shortLabel,
-        title,
-        nodeIds: orbitBuckets[idx],
-        radius: 0,
-      });
-      displayIdx++;
-    }
+  for (const idx of effectiveOrder) {
+    const title = ORBIT_TITLES[idx] || `Tier ${idx}`;
+    const shortLabel = `Orbit ${displayIdx}`;
+    populatedOrbits.push({
+      levelIndex: idx,
+      label: `${shortLabel}: ${title}`,
+      shortLabel,
+      title,
+      nodeIds: orbitBuckets[idx],
+      radius: 0,
+    });
+    displayIdx++;
   }
 
   const minArcSpacing = Math.round(110 * spacing);
