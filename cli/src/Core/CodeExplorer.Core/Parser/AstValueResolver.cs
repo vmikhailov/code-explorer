@@ -23,6 +23,16 @@ public static class AstValueResolver
         return TryResolveStringInternal(node, contextOrProject, 0, null, out result);
     }
 
+    public static bool TryResolveExpression(Node? node, string? contextOrProject, HashSet<string>? visitedVars, out string result)
+    {
+        return TryResolveStringInternal(node, contextOrProject, 0, visitedVars, out result);
+    }
+
+    public static bool TryResolveExpression(Node? node, string? contextOrProject, out string result)
+    {
+        return TryResolveStringInternal(node, contextOrProject, 0, null, out result);
+    }
+
     private static bool TryResolveStringInternal(
         Node? node,
         string? contextOrProject,
@@ -49,6 +59,21 @@ public static class AstValueResolver
         {
             result = node.Text.Trim();
             return true;
+        }
+
+        // 2b. Argument / Attribute Argument wrapper: unwrap inner expression
+        if (type is "argument" or "attribute_argument")
+        {
+            var exprChild = node.GetChildForField(TreeSitterSyntax.Fields.Expression) ??
+                            node.Children.FirstOrDefault(c => c.IsValid() && c.Type is not ":" and not "," and not "identifier");
+            if (!exprChild.IsValid())
+            {
+                exprChild = node.Children.LastOrDefault(c => c.IsValid());
+            }
+            if (exprChild.IsValid() && exprChild.Id != node.Id)
+            {
+                return TryResolveStringInternal(exprChild, contextOrProject, depth + 1, visitedVars, out result);
+            }
         }
 
         // 3. Parenthesized Expression: unwrap inner

@@ -133,10 +133,10 @@ CodeExplorer currently lacks a **unified constant propagation and data-flow eval
   - Remove ad-hoc selector matching (`r.config.impressionQueue`, `ImpressionTopic`, `TopicID`, `SubID`).
 
 ### Phase 4: Decouple Domain Classification from Core Engine
-* [ ] **4.1 Purge Ad-Tech Ontology in `ArchitectureViewEngine.cs`**:
+* [x] **4.1 Purge Ad-Tech Ontology in `ArchitectureViewEngine.cs`**:
   - Remove hardcoded terms: `rules_bundling`, `rates_analytics`, `domain_management`, `tracking_postbacks`, `campaign_advertising`, `traffic_routing`, `cpm`, `epm`, `dynadot`, `smartcpa`, `tbmap`, `lander`, `popunder`.
-* [ ] **4.2 Pluggable Domain Ontologies**:
-  - Read domain classifications from `.codeexplorer/domains.json` if present in workspace.
+* [x] **4.2 Pluggable Domain Ontologies**:
+  - Read domain classifications from `.codeexplorer/domains.json` and `.codeexplorer/conventions.json` if present in workspace.
   - Fall back to community graph clustering (Louvain/Leiden algorithm over materialized runtime macro-edges) or intent classification.
 
 ### Phase 5: Evidence-Based Entity Classification & Dynamic Role Engine (Zero-Hack Engine)

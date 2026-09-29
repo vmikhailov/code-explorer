@@ -81,25 +81,25 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
   - Relocate configuration parsing (`appsettings*.json`, `.env*`, `application*.yml/properties`) before AST file parsing.
   - Index keys in both hierarchical and screaming-snake notations; auto-register in `ConstantRegistry`.
   - Generic service-to-service URL discovery across any section (`UrlsSettings`, `Services`, `Endpoints`, `Clients`, `Gateways`).
-- [ ] **0.7 Universal AST Symbol & Constant Graph**:
+- [x] **0.7 Universal AST Symbol & Constant Graph**:
   - Remove filename filter heuristic (`const`, `route`, etc.) in `Layer3SyntacticParser`.
   - Extract constants, enums, and static fields via TreeSitter CST/AST across all files.
   - Store Expression Trees and perform topological partial evaluation for dependent constants (`A + B`, `$"{Prefix}.orders"`).
-- [ ] **0.8 Universal `AstValueResolver`**:
+- [x] **0.8 Universal `AstValueResolver`**:
   - Implement language-agnostic expression evaluator (literals, bin-ops, template strings, member access).
   - Add standard config readers: C# `config["Key"]`, TS `process.env.KEY`, Go `os.Getenv`, Python `os.getenv`.
   - Add local scope reaching definitions (trace argument identifiers back to local assignments).
-- [ ] **0.9 Clean Library Parsers & Remove Ad-Hoc Hacks**:
+- [x] **0.9 Clean Library Parsers & Remove Ad-Hoc Hacks**:
   - Clean `ConfigurationParser` (remove hardcoded `ParseCloudPayments` and generalize `ParseUrlsSettings`).
   - Clean `RabbitMqLibraryParser` (remove `paPartnerQueue` and synthetic `createQueue`).
   - Clean `GcpLibraryParser` (remove project-specific wrappers `getPubSubTopic`, `createNetworkTopic`, etc.).
   - Clean `HttpClientLibraryParser` (remove fake fallback URL generator `$"api/v1/{propName.ToLowerInvariant()}"`).
   - Clean `NestedSqlParser` (stop dropping tables with dynamic identifiers in `IsVariable`).
   - Clean `GoAstHelper` and BigQuery hardcoded schema rewrites.
-- [ ] **0.10 Decouple Domain Classification from Core Engine**:
+- [x] **0.10 Decouple Domain Classification from Core Engine**:
   - Purge ad-tech ontology terms (`rules_bundling`, `rates_analytics`, `dynadot`, `cpm`, `tbmap`) from `ArchitectureViewEngine.cs`.
   - Provide domain classification via `.codeexplorer/domains.json`, graph clustering, or SLM Intent Distillation.
-- [ ] **0.11 Evidence-Based Entity Classification & Dynamic Role Engine**:
+- [x] **0.11 Evidence-Based Entity Classification & Dynamic Role Engine**:
   - Two-tier taxonomy: decouple intrinsic Entity Kind (`Service`, `App`, `Worker`, `Library`, `CliTool`, `Function`, `Resource`) from runtime Architectural Role (`Ingress`, `CoreDomain`, `Gateway`, `Integration`, `AsyncProcessor`, `Foundation`).
   - Evidence accumulator across Layers 1-5 (Packaging, AST listeners, consumer loops, config bindings, graph-flow degrees).
   - Purge string/name/path heuristics (`Contains("/lib/")`, `HasProtocolTokens()`, `.Contains("worker")`).
@@ -108,20 +108,20 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ## 🚀 EPIC 1: Agent Semantic & Project Architecture (MCP & CLI Parity)
 
-- [ ] **1.1 `get_architecture_view` MCP Tool**:
+- [x] **1.1 `get_architecture_view` MCP Tool**:
   - Connect MCP directly to `ArchitectureViewEngine` for C1 (System Context), C2 (Service Flow), C3 (Component Drill-Down).
   - Support parameters: `viewType`, `scope`, `includeLibraries`, `format`.
-- [ ] **1.2 Dependency Filtering in `get_project_dependencies`**:
+- [x] **1.2 Dependency Filtering in `get_project_dependencies`**:
   - Add parameter `--type runtime|build|all`:
     - `runtime` / `semantic`: network calls only (`SERVICE_CALL`), message queues (`PUBLISHES_TO`, `SUBSCRIBES_TO`), databases (`USES_DB`).
     - `build` / `structural`: project references (`PROJECT_REFERENCE`) and packages (`DEPENDS_ON`).
-- [ ] **1.3 `get_service_contracts` MCP Tool**:
+- [x] **1.3 `get_service_contracts` MCP Tool**:
   - Extract service contracts: ingress (endpoints, consumers) and egress (HTTP clients, publishers, databases).
-- [ ] **1.4 `trace_cross_service_flow` MCP Tool**:
+- [x] **1.4 `trace_cross_service_flow` MCP Tool**:
   - End-to-end call tracing across service boundaries (Controller -> Queue -> Consumer -> Database).
-- [ ] **1.5 CLI Command Parity**:
+- [x] **1.5 CLI Command Parity**:
   - `ce view architecture`, `ce dependencies --type`, `ce contracts`, `ce trace flow`.
-- [ ] **1.6 Token-Efficient Serializers**:
+- [x] **1.6 Token-Efficient Serializers**:
   - Serializers for TOON (Token-Oriented Object Notation), Mermaid (`flowchart LR`), and compact Markdown for minimal LLM context usage.
 
 ---
@@ -184,18 +184,18 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 | **0.3** | Cypher | Polymorphism: `MATCH (p:Project)` -> `kind IN (...)`, `MATCH (s:Service)` -> `kind = 'Service'` | 🚨 Urgent | ✅ Completed |
 | **0.4** | ViewEngine | Clean up C1/C2/C3 Cypher queries for new node types | 🚨 Urgent | ✅ Completed |
 | **0.5** | OntologyGen | Regenerate `ontology.md` with dedicated sections for Service/App/Library | 🚨 Urgent | ✅ Completed |
-| **0.6** | ConfigStore | Relocate config parsing (`appsettings`, `.env`, `yaml`) to Layer 2/3 and register in `ConstantRegistry` | 🚨 Urgent | ⏳ Pending |
-| **0.7** | SymbolGraph | Universal AST Symbol & Constant Graph across all files with Expression Trees & Topological Eval | 🚨 Urgent | ⏳ Pending |
-| **0.8** | Semantics | Universal `AstValueResolver` for multi-language AST expressions, configs, and reaching defs | 🚨 Urgent | ⏳ Pending |
-| **0.9** | Parsers/Clean | Clean library parsers (RabbitMQ, GCP, HttpClient, NestedSql, BigQuery) & purge ad-hoc hacks | 🚨 Urgent | ⏳ Pending |
-| **0.10** | Domain/Clean | Decouple ad-tech ontology from `ArchitectureViewEngine` -> `.codeexplorer/domains.json` / graph clustering | High | ⏳ Pending |
-| **0.11** | EntityKind/Role | Evidence-based entity classification & dynamic role engine (purge name/path heuristics) | 🚨 Urgent | ⏳ Pending |
-| **1.1** | Agent/MCP | Implement `get_architecture_view` MCP tool via `ArchitectureViewEngine` | High | ⏳ Pending |
-| **1.2** | Agent/MCP | Add `--type runtime\|build\|all` filter to `get_project_dependencies` | High | ⏳ Pending |
-| **1.3** | Agent/MCP | Implement `get_service_contracts` MCP tool (ingress / egress) | High | ⏳ Pending |
-| **1.4** | Agent/MCP | Implement `trace_cross_service_flow` MCP tool | High | ⏳ Pending |
-| **1.5** | CLI | Add commands `ce view architecture`, `ce dependencies --type`, `ce contracts` | High | ⏳ Pending |
-| **1.6** | Formats | Add TOON, Mermaid, and Markdown serializers to `ArchitectureViewEngine` | High | ⏳ Pending |
+| **0.6** | ConfigStore | Relocate config parsing (`appsettings`, `.env`, `yaml`) to Layer 2/3 and register in `ConstantRegistry` | 🚨 Urgent | ✅ Completed |
+| **0.7** | SymbolGraph | Universal AST Symbol & Constant Graph across all files with Expression Trees & Topological Eval | 🚨 Urgent | ✅ Completed |
+| **0.8** | Semantics | Universal `AstValueResolver` for multi-language AST expressions, configs, and reaching defs | 🚨 Urgent | ✅ Completed |
+| **0.9** | Parsers/Clean | Clean library parsers (RabbitMQ, GCP, HttpClient, NestedSql, BigQuery) & purge ad-hoc hacks | 🚨 Urgent | ✅ Completed |
+| **0.10** | Domain/Clean | Decouple ad-tech ontology from `ArchitectureViewEngine` -> `.codeexplorer/domains.json` / graph clustering | High | ✅ Completed |
+| **0.11** | EntityKind/Role | Evidence-based entity classification & dynamic role engine (purge name/path heuristics) | 🚨 Urgent | ✅ Completed |
+| **1.1** | Agent/MCP | Implement `get_architecture_view` MCP tool via `ArchitectureViewEngine` | High | ✅ Completed |
+| **1.2** | Agent/MCP | Add `--type runtime\|build\|all` filter to `get_project_dependencies` | High | ✅ Completed |
+| **1.3** | Agent/MCP | Implement `get_service_contracts` MCP tool (ingress / egress) | High | ✅ Completed |
+| **1.4** | Agent/MCP | Implement `trace_cross_service_flow` MCP tool | High | ✅ Completed |
+| **1.5** | CLI | Add commands `ce view architecture`, `ce dependencies --type`, `ce contracts` | High | ✅ Completed |
+| **1.6** | Formats | Add TOON, Mermaid, and Markdown serializers to `ArchitectureViewEngine` | High | ✅ Completed |
 | **2.1** | Parsers | ASP.NET Core route composition and Minimal API `MapGroup` | Medium | ⏳ Pending |
 | **2.2** | Parsers | C# constructor DI mapping and resolution to implementations via `[:IMPLEMENTS]` | Medium | ⏳ Pending |
 | **2.3** | Parsers | Declarative HTTP clients (Refit/RestEase) and URI resolution | Medium | ⏳ Pending |

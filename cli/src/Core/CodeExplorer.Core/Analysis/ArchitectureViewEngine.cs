@@ -2598,6 +2598,37 @@ public class ArchitectureViewEngine(IGraphClient db)
         var path = (node.FilePath ?? "").Replace('\\', '/').ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 
+        // 0. Configured workspace domain (.codeexplorer/domains.json or .codeexplorer/conventions.json)
+        if (WorkspaceConventions.TryGetConfiguredDomain(name, node.FilePath, out var configuredDomain))
+        {
+            var clean = ToPascalCase(configuredDomain);
+            var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
+                                string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
+            return ($"domain:{clean.ToLowerInvariant()}", clean, isIngressHint);
+        }
+
+        // 0b. Explicit domain from node properties (e.g. SLM intent, DDD metadata)
+        if (node.Properties != null)
+        {
+            if (node.Properties.TryGetValue("domain", out var expDomain) && !string.IsNullOrWhiteSpace(expDomain))
+            {
+                var clean = ToPascalCase(expDomain);
+                var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
+                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
+                return ($"domain:{clean.ToLowerInvariant()}", clean, isIngressHint);
+            }
+            if (node.Properties.TryGetValue("bounded_context", out var expBc) && !string.IsNullOrWhiteSpace(expBc))
+            {
+                var clean = ToPascalCase(expBc);
+                var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
+                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
+                return ($"domain:{clean.ToLowerInvariant()}", clean, isIngressHint);
+            }
+        }
+
         // 1. Suffix match
         var suffixMatch = SubProjectSuffixRegex.Match(name);
         if (suffixMatch.Success)

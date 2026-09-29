@@ -11,35 +11,104 @@ namespace CodeExplorer.Core.Common;
 public static class WorkspaceConventions
 {
     private static readonly ConcurrentDictionary<string, string> TopicAliases = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> ProjectToDomain = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex RouteFunctionRegex = new(
         @"(?:get(?:ServiceDomainBy)?Route|resolveRoute|routeFor|serviceRoute)\s*\(\s*['""]([^'""]+)['""]",
         RegexOptions.Compiled);
 
     /// <summary>
-    /// Loads custom conventions from .codeexplorer/conventions.json if present.
+    /// Loads custom conventions from .codeexplorer/conventions.json and .codeexplorer/domains.json if present.
     /// </summary>
     public static void LoadFromWorkspace(string workspaceRoot)
     {
         if (string.IsNullOrWhiteSpace(workspaceRoot)) return;
-        var configPath = Path.Combine(workspaceRoot, ".codeexplorer", "conventions.json");
-        if (!File.Exists(configPath)) return;
 
-        try
+        var configPath = Path.Combine(workspaceRoot, ".codeexplorer", "conventions.json");
+        if (File.Exists(configPath))
         {
-            var json = File.ReadAllText(configPath);
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("topics", out var topicsEl) && topicsEl.ValueKind == JsonValueKind.Object)
+            try
             {
-                foreach (var prop in topicsEl.EnumerateObject())
+                var json = File.ReadAllText(configPath);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("topics", out var topicsEl) && topicsEl.ValueKind == JsonValueKind.Object)
                 {
-                    TopicAliases[prop.Name] = prop.Value.GetString() ?? prop.Name;
+                    foreach (var prop in topicsEl.EnumerateObject())
+                    {
+                        TopicAliases[prop.Name] = prop.Value.GetString() ?? prop.Name;
+                    }
+                }
+
+                if (doc.RootElement.TryGetProperty("domains", out var domainsEl) && domainsEl.ValueKind == JsonValueKind.Object)
+                {
+                    ParseDomainMappings(domainsEl);
                 }
             }
+            catch
+            {
+                // Ignore malformed custom convention files
+            }
         }
-        catch
+
+        var domainsPath = Path.Combine(workspaceRoot, ".codeexplorer", "domains.json");
+        if (File.Exists(domainsPath))
         {
-            // Ignore malformed custom convention files
+            try
+            {
+                var json = File.ReadAllText(domainsPath);
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("domains", out var nestedDomains) && nestedDomains.ValueKind == JsonValueKind.Object)
+                {
+                    ParseDomainMappings(nestedDomains);
+                }
+                else if (root.ValueKind == JsonValueKind.Object)
+                {
+                    ParseDomainMappings(root);
+                }
+            }
+            catch
+            {
+                // Ignore malformed custom domains files
+            }
+        }
+    }
+
+    private static void ParseDomainMappings(JsonElement root)
+    {
+        foreach (var prop in root.EnumerateObject())
+        {
+            var domainName = prop.Name;
+            if (prop.Value.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in prop.Value.EnumerateArray())
+                {
+                    var proj = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(proj))
+                    {
+                        ProjectToDomain[proj.Trim()] = domainName;
+                    }
+                }
+            }
+            else if (prop.Value.ValueKind == JsonValueKind.String)
+            {
+                var val = prop.Value.GetString();
+                if (!string.IsNullOrWhiteSpace(val))
+                {
+                    ProjectToDomain[domainName] = val.Trim();
+                }
+            }
+            else if (prop.Value.ValueKind == JsonValueKind.Object && prop.Name.Equals("projects", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var projProp in prop.Value.EnumerateObject())
+                {
+                    var assignedDomain = projProp.Value.GetString();
+                    if (!string.IsNullOrWhiteSpace(assignedDomain))
+                    {
+                        ProjectToDomain[projProp.Name.Trim()] = assignedDomain.Trim();
+                    }
+                }
+            }
         }
     }
 
@@ -49,6 +118,7 @@ public static class WorkspaceConventions
     public static void Clear()
     {
         TopicAliases.Clear();
+        ProjectToDomain.Clear();
     }
 
     /// <summary>
@@ -57,6 +127,47 @@ public static class WorkspaceConventions
     public static bool TryGetTopicAlias(string key, out string alias)
     {
         return TopicAliases.TryGetValue(key, out alias!);
+    }
+
+    /// <summary>
+    /// Attempts to resolve a user-configured domain for a project name or path from domains.json or conventions.json.
+    /// </summary>
+    public static bool TryGetConfiguredDomain(string? projectName, string? filePath, out string domain)
+    {
+        domain = string.Empty;
+        if (!string.IsNullOrWhiteSpace(projectName))
+        {
+            var p = projectName.Trim();
+            if (ProjectToDomain.TryGetValue(p, out var d))
+            {
+                domain = d;
+                return true;
+            }
+            var clean = NormalizeServiceName(p);
+            if (ProjectToDomain.TryGetValue(clean, out d))
+            {
+                domain = d;
+                return true;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            var normPath = filePath.Replace('\\', '/');
+            foreach (var (key, d) in ProjectToDomain)
+            {
+                if (normPath.Contains("/" + key + "/", StringComparison.OrdinalIgnoreCase) ||
+                    normPath.EndsWith("/" + key, StringComparison.OrdinalIgnoreCase) ||
+                    normPath.EndsWith("/" + key + ".csproj", StringComparison.OrdinalIgnoreCase) ||
+                    normPath.EndsWith("/" + key + ".fsproj", StringComparison.OrdinalIgnoreCase))
+                {
+                    domain = d;
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

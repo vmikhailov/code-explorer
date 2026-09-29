@@ -700,16 +700,16 @@ public class AspNetCoreLibraryParser : ILibraryParser
                 {
                     explicitRoute = strNode.Text.Trim('"');
                 }
+                else if (AstValueResolver.TryResolveExpression(arg, null, null, out var resolvedVal) && !string.IsNullOrWhiteSpace(resolvedVal))
+                {
+                    explicitRoute = resolvedVal;
+                }
                 else
                 {
                     var rawArg = arg.Text.Trim();
-                    if (rawArg.EndsWith("SyncRoutePrefix", StringComparison.OrdinalIgnoreCase))
+                    if (ConstantRegistry.TryResolve(null, rawArg, out var constVal) && !string.IsNullOrWhiteSpace(constVal))
                     {
-                        explicitRoute = "api/v1/[controller]";
-                    }
-                    else if (rawArg.Contains("RoutePrefix", StringComparison.OrdinalIgnoreCase) || rawArg.Contains("ApiPrefix", StringComparison.OrdinalIgnoreCase))
-                    {
-                        explicitRoute = "api/[controller]";
+                        explicitRoute = constVal;
                     }
                 }
             }
@@ -912,20 +912,16 @@ public class AspNetCoreLibraryParser : ILibraryParser
                             {
                                 prefix = strNode.Text.Trim('"');
                             }
+                            else if (AstValueResolver.TryResolveExpression(arg, null, null, out var resolvedVal) && !string.IsNullOrWhiteSpace(resolvedVal))
+                            {
+                                prefix = resolvedVal;
+                            }
                             else
                             {
                                 var rawArg = arg.Text.Trim();
-                                if (rawArg.EndsWith("SyncRoutePrefix", StringComparison.OrdinalIgnoreCase))
+                                if (ConstantRegistry.TryResolve(null, rawArg, out var constVal) && !string.IsNullOrWhiteSpace(constVal))
                                 {
-                                    prefix = "api/v1/[controller]";
-                                }
-                                else if (rawArg.Contains("RoutePrefix", StringComparison.OrdinalIgnoreCase) || rawArg.Contains("ApiPrefix", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    prefix = "api/[controller]";
-                                }
-                                else if (!string.IsNullOrEmpty(rawArg) && !rawArg.Contains('"'))
-                                {
-                                    prefix = "api/v1/[controller]";
+                                    prefix = constVal;
                                 }
                             }
 
