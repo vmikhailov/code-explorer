@@ -27,6 +27,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     public int CommandTimeoutSeconds { get; set; } = 15;
     public string DbPath => _conn.DataSource;
+    public SqliteConnection Connection => _conn;
 
     public const int CurrentSchemaVersion = 3;
     public int SchemaVersion { get; private set; }
@@ -200,6 +201,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path'));
             CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path'));
             CREATE INDEX IF NOT EXISTS idx_nodes_kind_name ON nodes(kind, json_extract(properties, '$.name'));
+            CREATE INDEX IF NOT EXISTS idx_nodes_kind_symbol ON nodes(kind, json_extract(properties, '$.symbol'));
             CREATE INDEX IF NOT EXISTS idx_nodes_kind_lower_path ON nodes(kind, lower(json_extract(properties, '$.path')));
 
             CREATE TABLE IF NOT EXISTS edges (

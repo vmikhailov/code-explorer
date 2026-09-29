@@ -382,7 +382,23 @@ public partial class SqliteCompiler
         var minDepth = rel.Range?.Min ?? 1;
         var maxDepth = rel.Range?.Max;
 
-        BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth);
+        NodePattern? startConstraint = null;
+        if (rel.Direction != Direction.Incoming)
+        {
+            if (prevNode.Labels.Count > 0 || prevNode.Properties != null)
+            {
+                startConstraint = prevNode;
+            }
+        }
+        else
+        {
+            if (targetNode.Labels.Count > 0 || targetNode.Properties != null)
+            {
+                startConstraint = targetNode;
+            }
+        }
+
+        BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth, startConstraint);
 
         var relOnConditions = BuildVarLenRelConditions(cteName, relVar, prevVar, targetVar, minDepth, maxDepth, isShortestPath);
         List<string> nodeOnConditions = [];
@@ -424,7 +440,12 @@ public partial class SqliteCompiler
         }
     }
 
-    private void BuildVarLenRecursiveCte(string cteName, RelationshipPattern rel, int minDepth, int? maxDepth)
+    private void BuildVarLenRecursiveCte(
+        string cteName,
+        RelationshipPattern rel,
+        int minDepth,
+        int? maxDepth,
+        NodePattern? startConstraint = null)
     {
         var edgeKindPred = "1=1";
         if (rel.Types.Count == 1)
@@ -437,18 +458,39 @@ public partial class SqliteCompiler
             edgeKindPred = $"e.kind IN ({kinds})";
         }
 
+        List<string> startFilterConditions = [];
+        if (startConstraint != null)
+        {
+            AddNodeFiltersToConditions(startConstraint, "_src_anc", startFilterConditions);
+        }
+
         var anchorSb = new StringBuilder();
         if (minDepth == 0)
         {
-            anchorSb.AppendLine("    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited, json_array(id) AS path_nodes FROM nodes");
+            if (startFilterConditions.Count > 0)
+            {
+                anchorSb.AppendLine($"    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited, json_array(id) AS path_nodes FROM nodes _src_anc WHERE {string.Join(" AND ", startFilterConditions)}");
+            }
+            else
+            {
+                anchorSb.AppendLine("    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited, json_array(id) AS path_nodes FROM nodes");
+            }
             anchorSb.AppendLine("    UNION ALL");
         }
-        anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited, json_array(e.from_id, e.to_id) AS path_nodes FROM edges e WHERE {edgeKindPred}");
+
+        if (startFilterConditions.Count > 0)
+        {
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited, json_array(e.from_id, e.to_id) AS path_nodes FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.id WHERE {string.Join(" AND ", startFilterConditions)} AND {edgeKindPred}");
+        }
+        else
+        {
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited, json_array(e.from_id, e.to_id) AS path_nodes FROM edges e WHERE {edgeKindPred}");
+        }
 
         var maxDepthCond = maxDepth.HasValue ? $" AND c.depth < {maxDepth.Value}" : "";
         var recursiveSql = $@"    SELECT c.start_id, e.to_id, c.depth + 1, c.path_visited || e.to_id || '/', json_insert(c.path_nodes, '$[#]', e.to_id)
     FROM {cteName} c
-    JOIN edges e ON e.from_id = c.end_id
+    CROSS JOIN edges e ON e.from_id = c.end_id
     WHERE {edgeKindPred}{maxDepthCond} AND instr(c.path_visited, '/' || e.to_id || '/') = 0";
 
         var cteSql = $"{cteName}(start_id, end_id, depth, path_visited, path_nodes) AS (\n{anchorSb}\n    UNION ALL\n{recursiveSql}\n)";

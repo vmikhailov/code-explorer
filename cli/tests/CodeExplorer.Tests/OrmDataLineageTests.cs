@@ -514,4 +514,27 @@ public class MyEntity { public int Id { get; set; } }
             try { Directory.Delete(tempWorkspace, true); } catch { }
         }
     }
+
+    [Test]
+    public void Test_AllSemanticExtensions_AcrossAllAssemblies_AreImplemented()
+    {
+        var parserAssemblies = new[]
+        {
+            typeof(CodeExplorer.Parser.CSharp.CSharpParser).Assembly,
+            typeof(CodeExplorer.Parser.Go.GoParser).Assembly,
+            typeof(CodeExplorer.Parser.Python.PythonParser).Assembly,
+            typeof(CodeExplorer.Parser.Java.JavaParser).Assembly,
+            typeof(CodeExplorer.Parser.TypeScript.TypeScriptParser).Assembly
+        };
+
+        var allExtensions = parserAssemblies
+            .SelectMany(a => a.GetTypes())
+            .Where(t => !t.IsAbstract && !t.IsInterface && typeof(ISemanticExtension).IsAssignableFrom(t))
+            .Select(t => (ISemanticExtension)Activator.CreateInstance(t)!)
+            .ToList();
+
+        Assert.That(allExtensions, Has.Count.GreaterThanOrEqualTo(80), "Expected at least 80 library extensions.");
+        var notImplemented = allExtensions.Where(e => !e.IsImplemented).Select(e => $"{e.GetType().Name} ({e.Id})").ToList();
+        Assert.That(notImplemented, Is.Empty, $"Found unimplemented extensions: {string.Join(", ", notImplemented)}");
+    }
 }

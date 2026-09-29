@@ -781,8 +781,12 @@ public class CodeExplorerRepository
                     var nodes = chainProp.EnumerateArray().ToList();
                     for (var i = 0; i < nodes.Count - 1; i++)
                     {
-                        var fromName = nodes[i].TryGetProperty("name", out var fn) ? fn.GetString() : $"Step{i}";
-                        var toName = nodes[i + 1].TryGetProperty("name", out var tn) ? tn.GetString() : $"Step{i + 1}";
+                        var fromName = nodes[i].ValueKind == JsonValueKind.Object && nodes[i].TryGetProperty("name", out var fn)
+                            ? fn.GetString()
+                            : (nodes[i].ValueKind == JsonValueKind.String ? nodes[i].GetString() : $"Step{i}");
+                        var toName = nodes[i + 1].ValueKind == JsonValueKind.Object && nodes[i + 1].TryGetProperty("name", out var tn)
+                            ? tn.GetString()
+                            : (nodes[i + 1].ValueKind == JsonValueKind.String ? nodes[i + 1].GetString() : $"Step{i + 1}");
                         var fromId = $"p{pathIndex}_n{i}";
                         var toId = $"p{pathIndex}_n{i + 1}";
                         sb.AppendLine($"    {fromId}[\"{fromName}()\"] --> {toId}[\"{toName}()\"]");
@@ -809,13 +813,21 @@ public class CodeExplorerRepository
                 var step = 1;
                 foreach (var node in chainProp.EnumerateArray())
                 {
-                    var name = node.TryGetProperty("name", out var n) ? n.GetString() : "Function";
-                    var symbol = node.TryGetProperty("symbol", out var s) ? s.GetString() : null;
-                    var file = node.TryGetProperty("file_path", out var f) ? f.GetString() : null;
-                    var line = node.TryGetProperty("start_line", out var l) ? l.ToString() : null;
+                    if (node.ValueKind == JsonValueKind.Object)
+                    {
+                        var name = node.TryGetProperty("name", out var n) ? n.GetString() : "Function";
+                        var symbol = node.TryGetProperty("symbol", out var s) ? s.GetString() : null;
+                        var file = node.TryGetProperty("file_path", out var f) ? f.GetString() : null;
+                        var line = node.TryGetProperty("start_line", out var l) ? l.ToString() : null;
 
-                    var loc = !string.IsNullOrEmpty(file) ? $" *({file}{(line != null ? ":" + line : "")})*" : "";
-                    md.AppendLine($"{step++}. `{symbol ?? name}`{loc}");
+                        var loc = !string.IsNullOrEmpty(file) ? $" *({file}{(line != null ? ":" + line : "")})*" : "";
+                        md.AppendLine($"{step++}. `{symbol ?? name}`{loc}");
+                    }
+                    else if (node.ValueKind == JsonValueKind.String)
+                    {
+                        var str = node.GetString() ?? "Function";
+                        md.AppendLine($"{step++}. `{str}`");
+                    }
                 }
             }
             md.AppendLine();

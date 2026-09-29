@@ -176,7 +176,7 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ## 🧪 EPIC 5: CI/CD Benchmark Fixtures
 
-- [ ] **5.1 Synthetic 100k-Node Benchmark Graph**:
+- [x] **5.1 Synthetic 100k-Node Benchmark Graph**:
   - Deterministic in-memory graph generator for CI (10k files, 25k classes, 70k methods, 300k relationships).
   - Automated SLA checks in tests (`find_symbol` < 25ms, `get_call_chain` < 100ms, `inspect_data_lineage` < 50ms).
 
@@ -212,4 +212,4 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 | **3.3** | Cypher | Path predicates (`EXISTS((a)->(b))`) and list quantifiers | Low | ✅ Completed |
 | **4.1** | Concurrency | Incremental file watcher & semantic AST differ (`ce index --watch`) | Medium | ✅ Completed |
 | **4.2** | Concurrency | Read-only connection pool for MCP tools | Medium | ⏳ Pending |
-| **5.1** | Testing | Synthetic 100k-node benchmark graph for CI | Low | ⏳ Pending |
+| **5.1** | Testing | Synthetic 100k-node benchmark graph for CI | Low | ✅ Completed |

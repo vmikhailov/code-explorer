@@ -48,6 +48,7 @@ public class SqliteIndicesTests
             "idx_nodes_kind_path",
             "idx_nodes_kind_file_path",
             "idx_nodes_kind_name",
+            "idx_nodes_kind_symbol",
             "idx_nodes_kind_lower_path",
             "idx_edges_from_kind_to",
             "idx_edges_to_kind_from",
@@ -65,6 +66,7 @@ public class SqliteIndicesTests
     [TestCase("SELECT * FROM nodes WHERE kind = 'Endpoint' AND json_extract(properties, '$.path') = 'foo'", "idx_nodes_kind_path")]
     [TestCase("SELECT * FROM nodes WHERE kind = 'ExternalService' AND json_extract(properties, '$.file_path') = 'bar'", "idx_nodes_kind_file_path")]
     [TestCase("SELECT * FROM nodes WHERE kind = 'Project' AND json_extract(properties, '$.name') = 'proj'", "idx_nodes_kind_name")]
+    [TestCase("SELECT * FROM nodes WHERE kind = 'Function' AND json_extract(properties, '$.symbol') = 'MySym'", "idx_nodes_kind_symbol")]
     [TestCase("SELECT * FROM nodes WHERE kind = 'Workspace' AND lower(json_extract(properties, '$.path')) = 'baz'", "idx_nodes_kind_lower_path")]
     public void Test_NodeExpressionIndices_AreUtilizedByQueryPlanner(string query, string expectedIndex)
     {

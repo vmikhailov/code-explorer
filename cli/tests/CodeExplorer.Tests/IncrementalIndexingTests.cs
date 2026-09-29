@@ -179,6 +179,7 @@ public class IncrementalIndexingTests
 
             // Modify file2, add file3, delete old_deleted.cs
             File.WriteAllText(file2, "content2_modified");
+            File.SetLastWriteTimeUtc(file2, lastMod2.AddSeconds(2));
             var file3 = Path.Combine(tempDir, "file3.cs");
             File.WriteAllText(file3, "content3");
 
