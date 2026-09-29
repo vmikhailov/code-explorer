@@ -471,7 +471,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const layer = ontology?.layers?.find((l) => l.layerId === layerId);
     if (layer && layer.categories && layer.categories.length > 0) {
       return layer.categories
-        .filter((cat) => !cat.isSystemNode)
+        .filter((cat) => !cat.isSystemNode && cat.kind !== 'DataSet')
         .map((cat) => {
         const isRel = cat.layerId === 5;
         const isServiceWorkload = cat.kind === 'Service' || cat.kind === 'App' || cat.kind === 'Worker' || cat.kind === 'CliTool';
@@ -491,7 +491,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
           }
         );
         item.description = `${cat.count.toLocaleString()}`;
-        item.iconPath = new vscode.ThemeIcon(cat.icon || (isRel ? 'arrow-right' : 'symbol-class'));
+        item.iconPath = new vscode.ThemeIcon(cat.icon || (isRel ? 'arrow-right' : 'symbol-misc'));
         item.tooltip = isRel
           ? `${cat.count.toLocaleString()} ${cat.kind} relationships`
           : `Click to browse all ${cat.count.toLocaleString()} ${cat.label} in central grid`;

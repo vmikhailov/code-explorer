@@ -1960,7 +1960,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
             else if (attr.Layer == OntologyConstants.Layers.Semantic)
             {
-                if (kind is "Procedure" or "Query" or "DataSet" or "EntryPoint" or "ApiInUse" && count == 0)
+                if (kind is "DataSet" || (kind is "Procedure" or "Query" or "EntryPoint" or "ApiInUse" && count == 0))
                 {
                     continue;
                 }

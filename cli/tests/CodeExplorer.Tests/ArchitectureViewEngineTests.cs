@@ -178,6 +178,7 @@ public class ArchitectureViewEngineTests
                 Assert.That(category.Kind, Is.Not.EqualTo("ProjectsStructure"), "ProjectsStructure should be filtered out from layers");
                 Assert.That(category.Kind, Is.Not.EqualTo("SyntaxStructure"), "SyntaxStructure should be filtered out from layers");
                 Assert.That(category.Kind, Is.Not.EqualTo("SemanticStructure"), "SemanticStructure should be filtered out from layers");
+                Assert.That(category.Kind, Is.Not.EqualTo("DataSet"), "DataSet should be filtered out from layers (Databases & Storage is used instead)");
                 Assert.That(category.Kind.EndsWith("Structure", StringComparison.OrdinalIgnoreCase), Is.False, $"No structure nodes should be in category list: {category.Kind}");
             }
         }
