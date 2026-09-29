@@ -1,4 +1,5 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -7,11 +8,58 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 public class NestLibraryParser : ISemanticExtension
 {
     public string Type => "db:search";
-    public string Name => "Elasticsearch";
-    public string Id => "elasticsearch";
-    public IReadOnlyList<string> SupportedPatterns => ["Nest"];
+    public string Name => "Elasticsearch (NEST)";
+    public string Id => "elasticsearch-nest";
+    public IReadOnlyList<string> SupportedPatterns => ["Nest", "Nest.*", "Elastic.Clients.Elasticsearch", "Elastic.Clients.Elasticsearch.*"];
+    public bool IsImplemented => true;
 
-    public string? MapNodeType(Node node, ParsingContext ctx) => throw new NotImplementedException();
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) => throw new NotImplementedException();
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) => throw new NotImplementedException();
+    private static readonly HashSet<string> EsMethods = new(StringComparer.Ordinal)
+    {
+        "Search", "SearchAsync", "Index", "IndexAsync", "IndexDocument", "IndexDocumentAsync",
+        "Update", "UpdateAsync", "Delete", "DeleteAsync", "Count", "CountAsync", "Get", "GetAsync"
+    };
+
+    public string? MapNodeType(Node node, ParsingContext ctx)
+    {
+        if (IsEsCall(node, out _))
+        {
+            return OntologyConstants.NodeLabels.Query;
+        }
+        return null;
+    }
+
+    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    {
+        if (IsEsCall(node, out var method))
+        {
+            return $"Elasticsearch: {method}";
+        }
+        return null;
+    }
+
+    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+        if (IsEsCall(node, out _))
+        {
+            references.Add(new Reference(scopeSymbolId, "elasticsearch", OntologyConstants.Relationships.UsesDb));
+        }
+    }
+
+    private static bool IsEsCall(Node node, out string? methodName)
+    {
+        methodName = null;
+        if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return false;
+
+        var func = node.GetFunctionNode();
+        if (func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
+        {
+            var name = func.GetChildFieldText(TreeSitterSyntax.Fields.Name);
+            if (!string.IsNullOrEmpty(name) && EsMethods.Contains(name))
+            {
+                methodName = name;
+                return true;
+            }
+        }
+        return false;
+    }
 }

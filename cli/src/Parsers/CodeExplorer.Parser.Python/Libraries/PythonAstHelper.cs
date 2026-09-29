@@ -148,4 +148,87 @@ public static class PythonAstHelper
         }
         return null;
     }
+
+    public static List<Node> GetCallArguments(Node callNode)
+    {
+        var result = new List<Node>();
+        var argList = callNode.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
+        if (argList.IsValid())
+        {
+            foreach (var child in argList.Children)
+            {
+                if (child.Type != "(" && child.Type != ")" && child.Type != ",")
+                {
+                    result.Add(child);
+                }
+            }
+        }
+        return result;
+    }
+
+    public static bool TryGetMemberAccess(Node callNode, out Node? objNode, out string? methodName)
+    {
+        objNode = null;
+        methodName = null;
+        if (!callNode.Is(TreeSitterSyntax.Python.Call)) return false;
+
+        var func = callNode.GetFunctionNode();
+        if (func.IsValid() && (func.Is(TreeSitterSyntax.Python.Attribute) || func.Type == "attribute"))
+        {
+            methodName = func.GetChildFieldText(TreeSitterSyntax.Fields.Property) ??
+                         func.Children.LastOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier) || c.Type == "identifier")?.Text;
+            objNode = func.GetField(TreeSitterSyntax.Fields.Object) ?? func.Children.FirstOrDefault();
+            return !string.IsNullOrEmpty(methodName);
+        }
+        return false;
+    }
+
+    public static Node? GetKeywordArgument(Node callNode, string argName)
+    {
+        var argList = callNode.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
+        if (!argList.IsValid()) return null;
+        foreach (var child in argList.Children)
+        {
+            if (child.Type == "keyword_argument")
+            {
+                var nameNode = child.GetField("name") ?? (child.Children.Count > 0 ? child.Children[0] : null);
+                if (nameNode.IsValid() && nameNode.Text == argName)
+                {
+                    return child.GetField("value") ?? (child.Children.Count > 2 ? child.Children[2] : null);
+                }
+            }
+        }
+        return null;
+    }
+
+    public static string? ResolveCallArgument(Node callNode, int positionalIndex, string? keywordName = null)
+    {
+        if (keywordName != null)
+        {
+            var kwNode = GetKeywordArgument(callNode, keywordName);
+            if (kwNode.IsValid())
+            {
+                var resolved = ResolveStringOrVariable(kwNode);
+                if (!string.IsNullOrEmpty(resolved)) return resolved;
+                return kwNode.Text.Trim('\'', '"');
+            }
+        }
+        var args = GetCallArguments(callNode);
+        if (positionalIndex >= 0 && positionalIndex < args.Count)
+        {
+            var arg = args[positionalIndex];
+            if (arg.Type == "keyword_argument")
+            {
+                var valNode = arg.GetField("value") ?? (arg.Children.Count > 2 ? arg.Children[2] : null);
+                var resolved = ResolveStringOrVariable(valNode);
+                if (!string.IsNullOrEmpty(resolved)) return resolved;
+                return valNode?.Text.Trim('\'', '"');
+            }
+            var resolvedVal = ResolveStringOrVariable(arg);
+            if (!string.IsNullOrEmpty(resolvedVal)) return resolvedVal;
+            return arg.Text.Trim('\'', '"');
+        }
+        return null;
+    }
 }
+
