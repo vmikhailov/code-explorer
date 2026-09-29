@@ -73,6 +73,33 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ---
 
+## 🎯 EPIC 0: Universal Semantic Value Resolution & Zero-Hack Cleanup
+
+> **Detailed Specification:** See [**`semantic-resolution-and-hacks-cleanup-plan.md`**](./semantic-resolution-and-hacks-cleanup-plan.md) and [audit artifact](file:///C:/Users/viach/.gemini/antigravity-ide/brain/c2895c5c-0d94-4e3f-9ccb-9c30cbaa962f/semantic_analysis_and_hacks_audit.md).
+
+- [ ] **0.6 Unified ConfigStore in Layer 2/3**:
+  - Relocate configuration parsing (`appsettings*.json`, `.env*`, `application*.yml/properties`) before AST file parsing.
+  - Index keys in both hierarchical and screaming-snake notations; auto-register in `ConstantRegistry`.
+- [ ] **0.7 Universal AST Symbol & Constant Graph**:
+  - Remove filename filter heuristic (`const`, `route`, etc.) in `Layer3SyntacticParser`.
+  - Extract constants, enums, and static fields via TreeSitter CST/AST across all files.
+  - Store Expression Trees and perform topological partial evaluation for dependent constants (`A + B`, `$"{Prefix}.orders"`).
+- [ ] **0.8 Universal `AstValueResolver`**:
+  - Implement language-agnostic expression evaluator (literals, bin-ops, template strings, member access).
+  - Add standard config readers: C# `config["Key"]`, TS `process.env.KEY`, Go `os.Getenv`, Python `os.getenv`.
+  - Add local scope reaching definitions (trace argument identifiers back to local assignments).
+- [ ] **0.9 Clean Library Parsers & Remove Ad-Hoc Hacks**:
+  - Clean `RabbitMqLibraryParser` (remove `paPartnerQueue` and synthetic `createQueue`).
+  - Clean `GcpLibraryParser` (remove project-specific wrappers `getPubSubTopic`, `createNetworkTopic`, etc.).
+  - Clean `HttpClientLibraryParser` (remove fake fallback URL generator `$"api/v1/{propName.ToLowerInvariant()}"`).
+  - Clean `NestedSqlParser` (stop dropping tables with dynamic identifiers in `IsVariable`).
+  - Clean `GoAstHelper` and BigQuery hardcoded schema rewrites.
+- [ ] **0.10 Decouple Domain Classification from Core Engine**:
+  - Purge ad-tech ontology terms (`rules_bundling`, `rates_analytics`, `dynadot`, `cpm`, `tbmap`) from `ArchitectureViewEngine.cs`.
+  - Provide domain classification via `.codeexplorer/domains.json`, graph clustering, or SLM Intent Distillation.
+
+---
+
 ## 🚀 EPIC 1: Agent Semantic & Project Architecture (MCP & CLI Parity)
 
 - [ ] **1.1 `get_architecture_view` MCP Tool**:
@@ -151,6 +178,11 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 | **0.3** | Cypher | Polymorphism: `MATCH (p:Project)` -> `kind IN (...)`, `MATCH (s:Service)` -> `kind = 'Service'` | 🚨 Urgent | ✅ Completed |
 | **0.4** | ViewEngine | Clean up C1/C2/C3 Cypher queries for new node types | 🚨 Urgent | ✅ Completed |
 | **0.5** | OntologyGen | Regenerate `ontology.md` with dedicated sections for Service/App/Library | 🚨 Urgent | ✅ Completed |
+| **0.6** | ConfigStore | Relocate config parsing (`appsettings`, `.env`, `yaml`) to Layer 2/3 and register in `ConstantRegistry` | 🚨 Urgent | ⏳ Pending |
+| **0.7** | SymbolGraph | Universal AST Symbol & Constant Graph across all files with Expression Trees & Topological Eval | 🚨 Urgent | ⏳ Pending |
+| **0.8** | Semantics | Universal `AstValueResolver` for multi-language AST expressions, configs, and reaching defs | 🚨 Urgent | ⏳ Pending |
+| **0.9** | Parsers/Clean | Clean library parsers (RabbitMQ, GCP, HttpClient, NestedSql, BigQuery) & purge ad-hoc hacks | 🚨 Urgent | ⏳ Pending |
+| **0.10** | Domain/Clean | Decouple ad-tech ontology from `ArchitectureViewEngine` -> `.codeexplorer/domains.json` / graph clustering | High | ⏳ Pending |
 | **1.1** | Agent/MCP | Implement `get_architecture_view` MCP tool via `ArchitectureViewEngine` | High | ⏳ Pending |
 | **1.2** | Agent/MCP | Add `--type runtime\|build\|all` filter to `get_project_dependencies` | High | ⏳ Pending |
 | **1.3** | Agent/MCP | Implement `get_service_contracts` MCP tool (ingress / egress) | High | ⏳ Pending |
