@@ -512,22 +512,25 @@ public class ArchitectureViewEngine(IGraphClient db)
             edgeProps["category"] = category;
             edgeProps["dependency_type"] = depType;
 
-            var isTopicEdge = string.Equals(srcNode.Kind, "Topic", StringComparison.OrdinalIgnoreCase) ||
-                              string.Equals(tgtNode.Kind, "Topic", StringComparison.OrdinalIgnoreCase);
+            var isBothProjects = (srcNode.Kind is "Project" or "Service" or "Worker" or "App") &&
+                                 (tgtNode.Kind is "Project" or "Service" or "Worker" or "App");
 
-            if (category == "messaging" && !isTopicEdge)
+            if (isBothProjects)
             {
                 // In event-driven architectures, services cannot directly subscribe to/publish to other services.
-                // If neither endpoint is a Topic, drop phantom direct pub/sub edges between services when no topic is involved.
+                // Drop phantom direct pub/sub edges between services when no topic is involved.
                 if (rKind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "PUBLISHES_TO" or "PUBLISHED_BY")
                 {
                     continue;
                 }
 
-                category = "service_call";
-                depType = "service_call";
-                edgeProps["category"] = category;
-                edgeProps["dependency_type"] = depType;
+                if (category == "messaging")
+                {
+                    category = "service_call";
+                    depType = "service_call";
+                    edgeProps["category"] = category;
+                    edgeProps["dependency_type"] = depType;
+                }
             }
 
             var outKind = category switch

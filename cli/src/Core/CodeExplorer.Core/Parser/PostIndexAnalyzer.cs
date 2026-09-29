@@ -2068,7 +2068,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             category = "messaging";
         }
-        else if (kind is "PUBLISHES" or "PUBLISHES_TO" or "SUBSCRIBES_TO" or "SUBSCRIBED_BY")
+        else if (kind is "TRIGGERS" or "PUBLISHES" or "PUBLISHES_TO" or "SUBSCRIBES_TO" or "SUBSCRIBED_BY")
         {
             category = (string.Equals(sourceKind, "Project", StringComparison.OrdinalIgnoreCase) && string.Equals(targetKind, "Project", StringComparison.OrdinalIgnoreCase))
                 ? "service_call"
