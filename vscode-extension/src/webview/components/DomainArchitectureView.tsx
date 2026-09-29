@@ -321,19 +321,110 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     selector: 'edge[isTransitive = "true"], edge.transitive-edge',
     style: {
       'line-style': 'dashed',
-      'line-dash-pattern': [6, 4],
+      'line-dash-pattern': [8, 5],
       'opacity': 0.88,
     },
   },
-  // Highlighted Edges
+  // Base Highlighted & Selected Edges
   {
-    selector: 'edge.highlighted',
+    selector: 'edge.highlighted, edge:selected',
     style: {
       'width': 3.5,
       'opacity': 1,
       'z-index': 999,
+      'target-arrow-shape': 'triangle',
+      'arrow-scale': 2.3,
+    },
+  },
+  // Preserve Category Colors on Highlight & Selection
+  {
+    selector: 'edge[category = "service_call"].highlighted, edge[category = "service_call"]:selected',
+    style: {
       'line-color': '#38bdf8',
       'target-arrow-color': '#38bdf8',
+    },
+  },
+  {
+    selector: 'edge[category = "database"].highlighted, edge[category = "database"]:selected',
+    style: {
+      'line-color': '#c084fc',
+      'target-arrow-color': '#c084fc',
+    },
+  },
+  {
+    selector: 'edge[category = "messaging"].highlighted, edge[category = "messaging"]:selected',
+    style: {
+      'line-color': '#fbbf24',
+      'target-arrow-color': '#fbbf24',
+    },
+  },
+  {
+    selector: 'edge[category = "external"].highlighted, edge[category = "external"]:selected',
+    style: {
+      'line-color': '#34d399',
+      'target-arrow-color': '#34d399',
+    },
+  },
+  // Transitive Edges MUST retain dashed style and dash pattern in Highlighted & Selected states
+  {
+    selector: 'edge[isTransitive = "true"].highlighted, edge.transitive-edge.highlighted, edge[isTransitive = "true"]:selected, edge.transitive-edge:selected',
+    style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [10, 6],
+      'width': 3.5,
+      'opacity': 1,
+      'z-index': 999,
+      'target-arrow-shape': 'triangle',
+      'arrow-scale': 2.3,
+    },
+  },
+  // Specificity rules for Transitive by category to guarantee 100% preservation of colors and dashed style
+  {
+    selector: 'edge[isTransitive = "true"][category = "messaging"].highlighted, edge.transitive-edge[category = "messaging"].highlighted, edge[isTransitive = "true"][category = "messaging"]:selected, edge.transitive-edge[category = "messaging"]:selected',
+    style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [10, 6],
+      'line-color': '#fbbf24',
+      'target-arrow-color': '#fbbf24',
+      'width': 3.5,
+      'opacity': 1,
+      'z-index': 999,
+    },
+  },
+  {
+    selector: 'edge[isTransitive = "true"][category = "service_call"].highlighted, edge.transitive-edge[category = "service_call"].highlighted, edge[isTransitive = "true"][category = "service_call"]:selected, edge.transitive-edge[category = "service_call"]:selected',
+    style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [10, 6],
+      'line-color': '#38bdf8',
+      'target-arrow-color': '#38bdf8',
+      'width': 3.5,
+      'opacity': 1,
+      'z-index': 999,
+    },
+  },
+  {
+    selector: 'edge[isTransitive = "true"][category = "database"].highlighted, edge.transitive-edge[category = "database"].highlighted, edge[isTransitive = "true"][category = "database"]:selected, edge.transitive-edge[category = "database"]:selected',
+    style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [10, 6],
+      'line-color': '#c084fc',
+      'target-arrow-color': '#c084fc',
+      'width': 3.5,
+      'opacity': 1,
+      'z-index': 999,
+    },
+  },
+  {
+    selector: 'edge[isTransitive = "true"][category = "external"].highlighted, edge.transitive-edge[category = "external"].highlighted, edge[isTransitive = "true"][category = "external"]:selected, edge.transitive-edge[category = "external"]:selected',
+    style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [10, 6],
+      'line-color': '#34d399',
+      'target-arrow-color': '#34d399',
+      'width': 3.5,
+      'opacity': 1,
+      'z-index': 999,
     },
   },
   // Dimmed Elements during search or hover
