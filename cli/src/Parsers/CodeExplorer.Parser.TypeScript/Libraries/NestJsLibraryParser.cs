@@ -12,6 +12,7 @@ public class NestJsLibraryParser : ILibraryParser
     public string Type => "framework";
     public IReadOnlyList<string> SupportedPatterns => ["@nestjs/common", "@nestjs/core", "@nestjs/microservices", "@nestjs/websockets", "@nestjs/graphql"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly NodeSelector _decoratorEntryPointSelector = NodeSelector.New()
         .HasType("decorator")

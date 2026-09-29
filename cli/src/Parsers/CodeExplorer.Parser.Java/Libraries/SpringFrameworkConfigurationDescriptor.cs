@@ -12,6 +12,8 @@ namespace CodeExplorer.Parser.Java.Libraries;
 /// </summary>
 public sealed class SpringFrameworkConfigurationDescriptor : ILibraryConfigurationDescriptor
 {
+    public int Order => 10;
+
     public bool TryHandle(
         string key,
         string value,

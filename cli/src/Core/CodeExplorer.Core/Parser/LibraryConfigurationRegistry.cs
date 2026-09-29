@@ -13,6 +13,13 @@ public static class LibraryConfigurationRegistry
 {
     private static readonly List<ILibraryConfigurationDescriptor> _descriptors = [];
 
+    static LibraryConfigurationRegistry()
+    {
+        Register(new DatabaseConfigurationDescriptor());
+        Register(new MessageBrokerConfigurationDescriptor());
+        Register(new CloudServicesConfigurationDescriptor());
+    }
+
     public static void Register(ILibraryConfigurationDescriptor descriptor)
     {
         lock (_descriptors)
@@ -20,6 +27,7 @@ public static class LibraryConfigurationRegistry
             if (!_descriptors.Any(d => d.GetType() == descriptor.GetType()))
             {
                 _descriptors.Add(descriptor);
+                _descriptors.Sort((a, b) => a.Order.CompareTo(b.Order));
             }
         }
     }

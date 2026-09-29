@@ -16,6 +16,12 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
 
+    public bool IsConfigurationFile(string fileName)
+    {
+        var lower = fileName.ToLowerInvariant();
+        return lower.StartsWith(".env");
+    }
+
     public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.AxiosLibraryParser(),
@@ -65,8 +71,14 @@ public class TypeScriptParser : IProjectParser, IFileParser
         // Generic API Clients
         new GenericLibraryParser("request", "request", "api", ["request"]),
         new GenericLibraryParser("undici", "undici", "api", ["undici"]),
-        new GenericLibraryParser("bent", "bent", "api", ["bent"]),
         new GenericLibraryParser("urllib", "urllib", "api", ["urllib"]),
+
+        // Test Frameworks
+        new GenericLibraryParser("jest", "Jest", "testing", ["jest", "@types/jest", "ts-jest", "babel-jest"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("vitest", "Vitest", "testing", ["vitest", "@vitest/*"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("mocha", "Mocha", "testing", ["mocha", "@types/mocha"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("cypress", "Cypress", "testing", ["cypress"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("playwright", "Playwright", "testing", ["@playwright/test", "playwright"], false, LibraryRole.TestFramework),
     ];
 
     public bool UsesTreeSitter => true;

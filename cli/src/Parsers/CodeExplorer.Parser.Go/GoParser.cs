@@ -14,6 +14,12 @@ public class GoParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["vendor"];
 
+    public bool IsConfigurationFile(string fileName)
+    {
+        var lower = fileName.ToLowerInvariant();
+        return lower.StartsWith(".env");
+    }
+
     public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.ElasticsearchGoLibraryParser(),
@@ -42,9 +48,12 @@ public class GoParser : IProjectParser, IFileParser
         new GenericLibraryParser("azure", "Azure", "cloud", ["/Azure/", "/azure-sdk-for-go"]),
 
         // Generic Frameworks
-        new GenericLibraryParser("gin", "Gin", "framework", ["github.com/gin-gonic/gin"]),
-        new GenericLibraryParser("echo", "Echo", "framework", ["github.com/labstack/echo"]),
-        new GenericLibraryParser("fiber", "Fiber", "framework", ["github.com/gofiber/fiber"]),
+        new GenericLibraryParser("gin", "Gin", "framework", ["github.com/gin-gonic/gin"], false, LibraryRole.WebService),
+        new GenericLibraryParser("echo", "Echo", "framework", ["github.com/labstack/echo"], false, LibraryRole.WebService),
+        new GenericLibraryParser("fiber", "Fiber", "framework", ["github.com/gofiber/fiber"], false, LibraryRole.WebService),
+
+        // Test Frameworks
+        new GenericLibraryParser("testify", "Testify", "testing", ["github.com/stretchr/testify*"], false, LibraryRole.TestFramework),
 
         // Generic API Clients
         new GenericLibraryParser("net/http", "http/https", "api", ["net/http"], isBuiltIn: true),

@@ -12,15 +12,7 @@ namespace CodeExplorer.Core.Parser;
 
 public static class ConfigurationParser
 {
-    private static readonly Regex KeyValEnvRegex = new(@"^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.*)$", RegexOptions.Compiled);
-
-    public static bool IsConfigurationFile(string fileName)
-    {
-        var lower = fileName.ToLowerInvariant();
-        return lower.StartsWith("appsettings") && lower.EndsWith(".json") ||
-               lower.StartsWith(".env") ||
-               lower.StartsWith("application") && (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml"));
-    }
+    public static bool IsConfigurationFile(string fileName) => ConfigStore.IsConfigurationFile(fileName);
 
     public static void ParseAndEnrich(
         string filePath,
@@ -32,178 +24,51 @@ public static class ConfigurationParser
     {
         if (!File.Exists(filePath)) return;
 
-        var fileName = Path.GetFileName(filePath);
-        var lower = fileName.ToLowerInvariant();
+        var fileName = Path.GetFileName(relativePath).ToLowerInvariant();
+        if (fileName.Contains("docker-compose") || fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
+            fileName.Equals("compose.yml") || fileName.Equals("compose.yaml"))
+        {
+            return; // docker-compose / compose describes local dev containers, not production architecture
+        }
+
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
 
         try
         {
-            if (lower.StartsWith("appsettings") && lower.EndsWith(".json"))
+            string? projName = null;
+            if (containerSemanticNode is ProjectNode pn)
             {
-                ParseAppSettingsJson(filePath, relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
+                projName = pn.Name;
             }
-            else if (lower.StartsWith(".env"))
+
+            // Retrieve preloaded configuration entries from ConfigStore (single-pass I/O in Layer 3)
+            var entries = ConfigStore.GetFileEntries(filePath);
+            if (entries.Count == 0)
             {
-                ParseDotEnv(filePath, relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
+                ConfigStore.LoadFile(filePath, projName, ctx);
+                entries = ConfigStore.GetFileEntries(filePath);
             }
-            else if (lower.StartsWith("application") && lower.EndsWith(".properties"))
+
+            // Process all configuration entries through the pluggable descriptor pipeline
+            foreach (var entry in entries)
             {
-                ParseApplicationProperties(filePath, relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
+                LibraryConfigurationRegistry.TryProcess(
+                    entry.Key,
+                    entry.Value,
+                    relativePath,
+                    fileNodeId,
+                    workspaceId,
+                    containerSemanticNode,
+                    relationships,
+                    ctx);
             }
-            else if (lower.StartsWith("application") && (lower.EndsWith(".yml") || lower.EndsWith(".yaml")))
-            {
-                ParseApplicationYaml(filePath, relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
-            }
+
+            // Generic discovered config endpoints (Service calls & external APIs)
+            ParseDiscoveredConfigEndpoints(relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
         }
         catch (Exception ex)
         {
             ctx.LogWarning($"[ConfigurationParser] Failed to parse config file '{relativePath}': {ex.Message}");
-        }
-    }
-
-    private static void ParseAppSettingsJson(
-        string filePath,
-        string relativePath,
-        string fileNodeId,
-        string workspaceId,
-        IOntologyNode containerNode,
-        List<Relationship> relationships,
-        ParsingContext ctx)
-    {
-        var jsonText = File.ReadAllText(filePath);
-        using var doc = JsonDocument.Parse(jsonText);
-        var root = doc.RootElement;
-
-        if (root.ValueKind != JsonValueKind.Object) return;
-
-        // 1. ConnectionStrings
-        if (root.TryGetProperty("ConnectionStrings", out var connStrings) && connStrings.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var prop in connStrings.EnumerateObject())
-            {
-                var connName = prop.Name;
-                var connVal = prop.Value.GetString() ?? "";
-                InferAndCreateServiceFromConnectionString(connName, connVal, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-            }
-        }
-
-        // 2. Generic Discovered Config Endpoints (Service calls & external APIs)
-        ParseDiscoveredConfigEndpoints(relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-
-        // 3. Look for top-level known services (Stripe, Redis, RabbitMQ, Kafka, AWS, OpenAI, Auth0, etc.)
-        foreach (var prop in root.EnumerateObject())
-        {
-            var key = prop.Name;
-            if (key.Equals("ConnectionStrings", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("UrlsSettings", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("CloudPayment", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("CloudPayments", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("Logging", StringComparison.OrdinalIgnoreCase) ||
-                key.Equals("AllowedHosts", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            InferServiceFromConfigSection(key, prop.Value, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-    }
-
-    private static void ParseDotEnv(
-        string filePath,
-        string relativePath,
-        string fileNodeId,
-        string workspaceId,
-        IOntologyNode containerNode,
-        List<Relationship> relationships,
-        ParsingContext ctx)
-    {
-        var lines = File.ReadAllLines(filePath);
-        foreach (var line in lines)
-        {
-            var match = KeyValEnvRegex.Match(line);
-            if (!match.Success) continue;
-
-            var key = match.Groups[1].Value.Trim();
-            var val = match.Groups[2].Value.Trim().Trim('"', '\'');
-
-            if (key.Contains("URL", StringComparison.OrdinalIgnoreCase) ||
-                key.Contains("CONNECTION", StringComparison.OrdinalIgnoreCase) ||
-                key.Contains("HOST", StringComparison.OrdinalIgnoreCase) ||
-                key.Contains("BROKER", StringComparison.OrdinalIgnoreCase) ||
-                key.Contains("DATABASE", StringComparison.OrdinalIgnoreCase) ||
-                key.Contains("REDIS", StringComparison.OrdinalIgnoreCase) ||
-                key.Contains("RABBITMQ", StringComparison.OrdinalIgnoreCase) ||
-                key.Contains("KAFKA", StringComparison.OrdinalIgnoreCase))
-            {
-                InferAndCreateServiceFromConnectionString(key, val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-            }
-            else if (key.StartsWith("STRIPE", StringComparison.OrdinalIgnoreCase) ||
-                     key.StartsWith("AWS", StringComparison.OrdinalIgnoreCase) ||
-                     key.StartsWith("AZURE", StringComparison.OrdinalIgnoreCase) ||
-                     key.StartsWith("AUTH0", StringComparison.OrdinalIgnoreCase) ||
-                     key.StartsWith("OPENAI", StringComparison.OrdinalIgnoreCase))
-            {
-                InferServiceFromConfigSection(key, val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-            }
-        }
-
-        ParseDiscoveredConfigEndpoints(relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-    }
-
-    private static void ParseApplicationProperties(
-        string filePath,
-        string relativePath,
-        string fileNodeId,
-        string workspaceId,
-        IOntologyNode containerNode,
-        List<Relationship> relationships,
-        ParsingContext ctx)
-    {
-        var lines = File.ReadAllLines(filePath);
-        foreach (var line in lines)
-        {
-            var match = KeyValEnvRegex.Match(line);
-            if (!match.Success) continue;
-
-            var key = match.Groups[1].Value.Trim();
-            var val = match.Groups[2].Value.Trim().Trim('"', '\'');
-
-            if (LibraryConfigurationRegistry.TryProcess(key, val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx))
-            {
-                continue;
-            }
-        }
-    }
-
-    private static void ParseApplicationYaml(
-        string filePath,
-        string relativePath,
-        string fileNodeId,
-        string workspaceId,
-        IOntologyNode containerNode,
-        List<Relationship> relationships,
-        ParsingContext ctx)
-    {
-        var lines = File.ReadAllLines(filePath);
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith("url:", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.StartsWith("uri:", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.StartsWith("bootstrap-servers:", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.StartsWith("addresses:", StringComparison.OrdinalIgnoreCase))
-            {
-                var parts = trimmed.Split(':', 2);
-                if (parts.Length == 2)
-                {
-                    var key = parts[0].Trim();
-                    var val = parts[1].Trim().Trim('"', '\'');
-                    if (!LibraryConfigurationRegistry.TryProcess(key, val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx))
-                    {
-                        InferAndCreateServiceFromConnectionString("spring-datasource", val, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-                    }
-                }
-            }
         }
     }
 
@@ -257,59 +122,6 @@ public static class ConfigurationParser
         }
     }
 
-    private static void InferServiceFromConfigSection(
-        string key,
-        object value,
-        string relativePath,
-        string fileNodeId,
-        string workspaceId,
-        IOntologyNode containerNode,
-        List<Relationship> relationships,
-        ParsingContext ctx)
-    {
-        var fileName = Path.GetFileName(relativePath).ToLowerInvariant();
-        if (fileName.Contains("docker-compose") || fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
-            fileName.Equals("compose.yml") || fileName.Equals("compose.yaml"))
-        {
-            return; // docker-compose / compose describes local dev containers, not production architecture
-        }
-
-        var lower = key.ToLowerInvariant();
-
-        if (lower.Contains("stripe"))
-        {
-            CreateCloudServiceNode("Stripe", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (lower.Contains("auth0"))
-        {
-            CreateCloudServiceNode("Auth0", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (lower.Contains("openai"))
-        {
-            CreateCloudServiceNode("OpenAI", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (lower.Contains("aws") || lower.Contains("amazon"))
-        {
-            CreateCloudServiceNode("AWS", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (lower.Contains("azure"))
-        {
-            CreateCloudServiceNode("Azure", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (lower.Contains("redis"))
-        {
-            CreateDatabaseNode("Redis", "cache", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (lower.Contains("rabbitmq"))
-        {
-            CreateTopicNode("rabbitmq", key, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-        else if (lower.Contains("kafka"))
-        {
-            CreateTopicNode("kafka", key, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-        }
-    }
-
     public static string? ExtractDatabaseCatalog(string connStr, string engine)
     {
         if (string.IsNullOrWhiteSpace(connStr)) return null;
@@ -353,7 +165,7 @@ public static class ConfigurationParser
         return true;
     }
 
-    private static string ExtractChannelName(string connStr, string defaultName)
+    public static string ExtractChannelName(string connStr, string defaultName)
     {
         if (string.IsNullOrWhiteSpace(connStr)) return defaultName;
         var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+:.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);

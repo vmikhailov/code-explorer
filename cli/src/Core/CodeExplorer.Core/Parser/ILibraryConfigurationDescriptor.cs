@@ -12,6 +12,11 @@ namespace CodeExplorer.Core.Parser;
 public interface ILibraryConfigurationDescriptor
 {
     /// <summary>
+    /// Evaluation order (lower values execute earlier). Framework/dialect-specific descriptors run before generic fallbacks.
+    /// </summary>
+    int Order => 100;
+
+    /// <summary>
     /// Processes a configuration key-value pair if recognized by this framework/library.
     /// Returns true if handled, false otherwise.
     /// </summary>

@@ -13,6 +13,30 @@ public class AspNetCoreLibraryParser : ILibraryParser
     public IReadOnlyList<string> SupportedPatterns => ["Microsoft.AspNetCore", "Microsoft.AspNetCore.Mvc"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
+
+    public bool MatchesProject(ProjectContext project)
+    {
+        if (project.ManifestProperties != null &&
+            project.ManifestProperties.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk.Web")
+        {
+            return true;
+        }
+
+        if (project.Dependencies != null)
+        {
+            foreach (var dep in project.Dependencies)
+            {
+                foreach (var pattern in SupportedPatterns)
+                {
+                    if (ILibraryParser.IsLibraryMatch(dep, pattern))
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     private static readonly HashSet<string> RouteAttributes =
     [

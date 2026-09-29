@@ -43,6 +43,38 @@ public static class ProjectEntityClassifierRegistry
         IReadOnlyList<string>? dependencies = null,
         IReadOnlyDictionary<string, string>? extensions = null)
     {
+        // 1. Inversion of Control: query the pluggable dialect parser for this language
+        var normType = (projectType ?? "").ToLowerInvariant();
+        if (normType.StartsWith("net") || normType.Contains("c#") || directoryPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            normType = "csharp";
+        else if (normType is "ts" or "js" or "javascript" || directoryPath.EndsWith("package.json", StringComparison.OrdinalIgnoreCase))
+            normType = "typescript";
+        else if (normType is "py" || directoryPath.EndsWith(".py", StringComparison.OrdinalIgnoreCase))
+            normType = "python";
+        else if (normType is "golang")
+            normType = "go";
+
+        var projectContext = new CodeExplorer.Core.Parser.ProjectContext(
+            directoryPath,
+            relativeProjectDir,
+            projectName,
+            normType,
+            filesInDirectory,
+            dependencies ?? [],
+            extensions ?? new Dictionary<string, string>());
+
+        var dialectParser = CodeExplorer.Core.Parser.WorkspaceIndexer.GetProjectParser(normType) ??
+                            (!string.IsNullOrEmpty(projectType) ? CodeExplorer.Core.Parser.WorkspaceIndexer.GetProjectParser(projectType) : null);
+        if (dialectParser != null)
+        {
+            var dialectKind = dialectParser.ClassifyProject(projectContext);
+            if (dialectKind.HasValue && dialectKind.Value != ProjectEntityKind.Unknown)
+            {
+                return dialectKind.Value;
+            }
+        }
+
+        // 2. Generic evidence-based fallback classifiers
         IProjectEntityClassifier[] snapshot;
         lock (_classifiers)
         {
@@ -56,7 +88,7 @@ public static class ProjectEntityClassifierRegistry
                 filesInDirectory,
                 relativeProjectDir,
                 projectName,
-                projectType,
+                normType,
                 dependencies,
                 extensions);
 
@@ -91,16 +123,15 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
         var manifestType = extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
         var frameworkType = extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
         var hasCliBin = extensions.GetValueOrDefault("has_cli_bin") == "true";
-        var sdk = extensions.GetValueOrDefault("sdk");
         var cloudRuntime = extensions.GetValueOrDefault("cloud_runtime");
         var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
 
         if (manifestType == "library") return ProjectEntityKind.Library;
         if (manifestType == "cli" || hasCliBin) return ProjectEntityKind.CliTool;
-        if (manifestType == "worker" || frameworkType == "worker" || sdk == "Microsoft.NET.Sdk.Worker") return ProjectEntityKind.Worker;
+        if (manifestType == "worker" || frameworkType == "worker") return ProjectEntityKind.Worker;
         if (manifestType == "migration") return ProjectEntityKind.MigrationTool;
         if (manifestType == "test") return ProjectEntityKind.Test;
-        if (manifestType == "function" || manifestType == "serverless" || sdk == "Microsoft.Azure.Functions.Worker") return ProjectEntityKind.Function;
+        if (manifestType == "function" || manifestType == "serverless") return ProjectEntityKind.Function;
 
         if (cloudRuntime == "cloudflare-worker") return ProjectEntityKind.Worker;
 
@@ -113,8 +144,7 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
             return ProjectEntityKind.FrontendApp;
         }
 
-        if (sdk == "Microsoft.NET.Sdk.BlazorWebAssembly") return ProjectEntityKind.FrontendApp;
-        if (sdk == "Microsoft.NET.Sdk.Web") return ProjectEntityKind.Service;
+        if (frameworkType == "web") return ProjectEntityKind.Service;
 
         return null;
     }
@@ -126,13 +156,6 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
 public sealed class TestEvidenceClassifier : IProjectEntityClassifier
 {
     public int Order => 20;
-
-    private static readonly HashSet<string> TestPackageTokens = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "nunit", "nunit3testadapter", "xunit", "mstest", "microsoft.net.test.sdk",
-        "jest", "@types/jest", "vitest", "mocha", "cypress", "playwright",
-        "pytest", "junit"
-    };
 
     public ProjectEntityKind? Classify(
         string directoryPath,
@@ -336,9 +359,12 @@ public sealed class CliEvidenceClassifier : IProjectEntityClassifier
             return ProjectEntityKind.CliTool;
         }
 
-        if (normRelPath.Contains("/cli/") || normRelPath.Contains("/tools/"))
+        if (normRelPath.EndsWith("/cli/") || normRelPath.Contains("/src/cli/") || normRelPath.Contains("/tools/") || normRelPath.Contains("/cmd/"))
         {
-            return ProjectEntityKind.CliTool;
+            if (!normRelPath.Contains("/src/core/") && !normRelPath.Contains("/src/parsers/") && !normRelPath.Contains("/src/cypher/") && !normRelPath.Contains("/src/libs/"))
+            {
+                return ProjectEntityKind.CliTool;
+            }
         }
 
         return null;

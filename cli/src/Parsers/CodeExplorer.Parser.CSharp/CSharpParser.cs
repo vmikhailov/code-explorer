@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -13,6 +14,12 @@ public class CSharpParser : IProjectParser, IFileParser
     public string ProjectType => "csharp";
 
     public IReadOnlyCollection<string> ExcludedFolders => ["bin", "obj", ".vs"];
+
+    public bool IsConfigurationFile(string fileName)
+    {
+        var lower = fileName.ToLowerInvariant();
+        return lower.StartsWith("appsettings") && lower.EndsWith(".json");
+    }
 
     public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
@@ -50,6 +57,13 @@ public class CSharpParser : IProjectParser, IFileParser
         new GenericLibraryParser("webapiclient", "WebApiClient", "api", ["WebApiClient"]),
         new GenericLibraryParser("apizr", "Apizr", "api", ["Apizr"]),
         new GenericLibraryParser("notoriousclient", "NotoriousClient", "api", ["NotoriousClient"]),
+
+        // Test Frameworks
+        new GenericLibraryParser("nunit", "NUnit", "testing", ["nunit", "nunit3testadapter"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("xunit", "xUnit", "testing", ["xunit", "xunit.runner.*", "xunit.v3.*"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("mstest", "MSTest", "testing", ["mstest", "mstest.testframework", "mstest.testadapter"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("benchmarkdotnet", "BenchmarkDotNet", "testing", ["benchmarkdotnet"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("nettestsdk", "Microsoft.NET.Test.Sdk", "testing", ["microsoft.net.test.sdk"], false, LibraryRole.TestFramework),
     ];
 
     public LanguageSyntaxProfile SyntaxProfile => CSharpSyntaxProfile.Instance;
@@ -96,6 +110,20 @@ public class CSharpParser : IProjectParser, IFileParser
         return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
     }
 
+    public ProjectEntityKind? ClassifyProject(ProjectContext context)
+    {
+        if (context.ManifestProperties != null)
+        {
+            var sdk = context.ManifestProperties.GetValueOrDefault("sdk");
+            if (sdk == "Microsoft.NET.Sdk.Worker") return ProjectEntityKind.Worker;
+            if (sdk == "Microsoft.NET.Sdk.BlazorWebAssembly") return ProjectEntityKind.FrontendApp;
+            if (sdk == "Microsoft.NET.Sdk.Web") return ProjectEntityKind.Service;
+            if (sdk == "Microsoft.Azure.Functions.Worker") return ProjectEntityKind.Function;
+        }
+
+        return IProjectParser.DefaultClassifyProject(this, context);
+    }
+
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
     {
         var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -139,6 +167,18 @@ public class CSharpParser : IProjectParser, IFileParser
                      content.Contains("Sdk='Microsoft.NET.Sdk'", StringComparison.OrdinalIgnoreCase))
             {
                 props["sdk"] = "Microsoft.NET.Sdk";
+            }
+
+            if (content.Contains("Microsoft.Azure.Functions.Worker", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Microsoft.NET.Sdk.Functions", StringComparison.OrdinalIgnoreCase))
+            {
+                props["manifest_type"] = "function";
+            }
+
+            if (content.Contains("<IsTestProject>true</IsTestProject>", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase))
+            {
+                props["manifest_type"] = "test";
             }
 
             // 2. Inspect <OutputType>

@@ -18,6 +18,11 @@ public class WorkspaceIndexer
         {
             if (_projectParsers.All(p => p.GetType() != projectParser.GetType()))
                 _projectParsers.Add(projectParser);
+
+            foreach (var desc in projectParser.ConfigurationDescriptors)
+            {
+                LibraryConfigurationRegistry.Register(desc);
+            }
         }
 
         if (parser is IFileParser fileParser)
@@ -32,10 +37,17 @@ public class WorkspaceIndexer
         }
     }
 
+    public static IReadOnlyList<IProjectParser> GetAllProjectParsers() => _projectParsers;
+
     public static IFileParser? GetParserForFile(string filePath)
     {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         return _fileParsers.FirstOrDefault(p => p.CanParse(ext));
+    }
+
+    public static IProjectParser? GetProjectParser(string projectType)
+    {
+        return _projectParsers.FirstOrDefault(p => string.Equals(p.ProjectType, projectType, StringComparison.OrdinalIgnoreCase));
     }
 
     private readonly IGraphClient _dbClient;

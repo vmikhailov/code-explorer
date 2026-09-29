@@ -60,6 +60,29 @@ public interface ILibraryParser
     string Id { get; }
 
     /// <summary>
+    /// The architectural role of this library when present in a project.
+    /// </summary>
+    LibraryRole LibraryRole => LibraryRole.General;
+
+    /// <summary>
+    /// Inversion of Control: checks whether this library or framework matches the given project context.
+    /// By default, checks if any item in project.Dependencies matches SupportedPatterns.
+    /// </summary>
+    bool MatchesProject(ProjectContext project)
+    {
+        if (project.Dependencies == null || project.Dependencies.Count == 0) return false;
+        foreach (var dep in project.Dependencies)
+        {
+            foreach (var pattern in SupportedPatterns)
+            {
+                if (IsLibraryMatch(dep, pattern))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Declarative selectors mapping ontological kinds to their corresponding matcher selectors.
     /// </summary>
     IReadOnlyDictionary<string, NodeSelector> Selectors => System.Collections.Immutable.ImmutableDictionary<string, NodeSelector>.Empty;

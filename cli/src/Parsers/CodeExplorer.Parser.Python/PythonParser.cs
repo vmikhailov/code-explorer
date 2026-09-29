@@ -16,6 +16,12 @@ public class PythonParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ExcludedFolders => ["venv", ".venv", "__pycache__"];
 
+    public bool IsConfigurationFile(string fileName)
+    {
+        var lower = fileName.ToLowerInvariant();
+        return lower.StartsWith(".env");
+    }
+
     public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.ChromaDbLibraryParser(),
@@ -40,9 +46,13 @@ public class PythonParser : IProjectParser, IFileParser
         new GenericLibraryParser("azure", "Azure", "cloud", ["azure-", "azure."]),
 
         // Generic Frameworks
-        new GenericLibraryParser("django", "Django", "framework", ["django"]),
-        new GenericLibraryParser("flask", "Flask", "framework", ["flask"]),
-        new GenericLibraryParser("fastapi", "FastAPI", "framework", ["fastapi"]),
+        new GenericLibraryParser("django", "Django", "framework", ["django"], false, LibraryRole.WebService),
+        new GenericLibraryParser("flask", "Flask", "framework", ["flask"], false, LibraryRole.WebService),
+        new GenericLibraryParser("fastapi", "FastAPI", "framework", ["fastapi"], false, LibraryRole.WebService),
+
+        // Test Frameworks
+        new GenericLibraryParser("pytest", "Pytest", "testing", ["pytest", "pytest-*"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("unittest", "Unittest", "testing", ["unittest"], false, LibraryRole.TestFramework),
 
         // Generic API Clients
         new GenericLibraryParser("requests", "requests", "api", ["requests"]),

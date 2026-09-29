@@ -21,6 +21,16 @@ public record DiscoveredServiceUrl(
 );
 
 /// <summary>
+/// Parsed configuration entry stored in memory.
+/// </summary>
+public record ConfigEntry(
+    string Key,
+    string Value,
+    string SourceFilePath,
+    string? ProjectName
+);
+
+/// <summary>
 /// Unified early-stage configuration store.
 /// Recursively parses and indexes appsettings*.json, .env*, application*.yml, and application*.properties
 /// into flat key-path hierarchies and automatically registers them into <see cref="ConstantRegistry"/>.
@@ -42,10 +52,15 @@ public static class ConfigStore
     // Discovered service endpoints from config values
     private static readonly ConcurrentBag<DiscoveredServiceUrl> _discoveredUrls = [];
 
+    // Parsed entries per file for single-pass reading
+    private static readonly ConcurrentDictionary<string, List<ConfigEntry>> _fileConfigs =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public static void Clear()
     {
         _projectConfigs.Clear();
         _globalConfigs.Clear();
+        _fileConfigs.Clear();
         while (_discoveredUrls.TryTake(out _)) { }
     }
 
@@ -104,13 +119,61 @@ public static class ConfigStore
         return false;
     }
 
+    public static IReadOnlyList<ConfigEntry> GetFileEntries(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return [];
+
+        var normPath = Path.GetFullPath(filePath).Replace('\\', '/');
+        if (_fileConfigs.TryGetValue(normPath, out var entries))
+        {
+            lock (entries)
+            {
+                return entries.ToList();
+            }
+        }
+
+        var altKey = filePath.Replace('\\', '/');
+        if (_fileConfigs.TryGetValue(altKey, out entries))
+        {
+            lock (entries)
+            {
+                return entries.ToList();
+            }
+        }
+
+        var match = _fileConfigs.FirstOrDefault(kvp => kvp.Key.EndsWith(altKey, StringComparison.OrdinalIgnoreCase));
+        if (match.Value != null)
+        {
+            lock (match.Value)
+            {
+                return match.Value.ToList();
+            }
+        }
+
+        return [];
+    }
+
     public static bool IsConfigurationFile(string fileName)
     {
+        if (string.IsNullOrWhiteSpace(fileName)) return false;
+
         var lower = fileName.ToLowerInvariant();
+        if (lower.StartsWith(".env") || lower is "docker-compose.yml" or "docker-compose.yaml")
+        {
+            return true;
+        }
+
+        var parsers = WorkspaceIndexer.GetAllProjectParsers();
+        for (int i = 0; i < parsers.Count; i++)
+        {
+            if (parsers[i].IsConfigurationFile(fileName))
+            {
+                return true;
+            }
+        }
+
         return (lower.StartsWith("appsettings") && lower.EndsWith(".json")) ||
-               lower.StartsWith(".env") ||
-               (lower.StartsWith("application") && (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml"))) ||
-               lower is "docker-compose.yml" or "docker-compose.yaml";
+               (lower.StartsWith("application") && (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml")));
     }
 
     public static void LoadFile(string filePath, string? projectName, ParsingContext? ctx = null)
@@ -122,7 +185,7 @@ public static class ConfigStore
 
         try
         {
-            if (lower.StartsWith("appsettings") && lower.EndsWith(".json"))
+            if (lower.EndsWith(".json"))
             {
                 ParseAppSettingsJson(filePath, projectName);
             }
@@ -130,11 +193,11 @@ public static class ConfigStore
             {
                 ParseDotEnv(filePath, projectName);
             }
-            else if (lower.StartsWith("application") && lower.EndsWith(".properties"))
+            else if (lower.EndsWith(".properties"))
             {
                 ParseApplicationProperties(filePath, projectName);
             }
-            else if (lower.StartsWith("application") && (lower.EndsWith(".yml") || lower.EndsWith(".yaml")))
+            else if (lower.EndsWith(".yml") || lower.EndsWith(".yaml"))
             {
                 ParseApplicationYaml(filePath, projectName);
             }
@@ -274,6 +337,15 @@ public static class ConfigStore
             pDict[cleanKey] = cleanVal;
         }
         _globalConfigs.TryAdd(cleanKey, cleanVal);
+
+        // Record parsed entry for file
+        var entry = new ConfigEntry(cleanKey, cleanVal, filePath, projectName);
+        var normFile = Path.GetFullPath(filePath).Replace('\\', '/');
+        var fileList = _fileConfigs.GetOrAdd(normFile, _ => []);
+        lock (fileList)
+        {
+            fileList.Add(entry);
+        }
 
         // Standard C# format: Section:SubSection:Key
         ConstantRegistry.Register(projectName, cleanKey, cleanVal);

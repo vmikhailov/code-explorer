@@ -20,6 +20,7 @@ public class SpringMvcLibraryParser : ILibraryParser
     ];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     public static readonly HashSet<string> HttpMappingAnnotations = new(StringComparer.OrdinalIgnoreCase)
     {

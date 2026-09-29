@@ -29,6 +29,17 @@ public class JavaParser : IProjectParser, IFileParser
         "target", "build", ".gradle", ".mvn", "bin", "out", ".idea", ".settings", ".metadata"
     ];
 
+    public bool IsConfigurationFile(string fileName)
+    {
+        var lower = fileName.ToLowerInvariant();
+        return lower.StartsWith("application") && (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml"));
+    }
+
+    public IReadOnlyList<ILibraryConfigurationDescriptor> ConfigurationDescriptors { get; } =
+    [
+        new Libraries.SpringFrameworkConfigurationDescriptor()
+    ];
+
     public IReadOnlyList<ILibraryParser> LibraryParsers { get; } =
     [
         new Libraries.SpringMvcLibraryParser(),
@@ -66,10 +77,14 @@ public class JavaParser : IProjectParser, IFileParser
         new GenericLibraryParser("stripe", "Stripe Java", "cloud", ["com.stripe"]),
 
         // Frameworks
-        new GenericLibraryParser("spring-boot", "Spring Boot", "framework", ["org.springframework.boot", "org.springframework"]),
-        new GenericLibraryParser("quarkus", "Quarkus", "framework", ["io.quarkus"]),
-        new GenericLibraryParser("micronaut", "Micronaut", "framework", ["io.micronaut"]),
-        new GenericLibraryParser("vertx", "Eclipse Vert.x", "framework", ["io.vertx"])
+        new GenericLibraryParser("spring-boot", "Spring Boot", "framework", ["org.springframework.boot", "org.springframework"], false, LibraryRole.WebService),
+        new GenericLibraryParser("quarkus", "Quarkus", "framework", ["io.quarkus"], false, LibraryRole.WebService),
+        new GenericLibraryParser("micronaut", "Micronaut", "framework", ["io.micronaut"], false, LibraryRole.WebService),
+        new GenericLibraryParser("vertx", "Eclipse Vert.x", "framework", ["io.vertx"], false, LibraryRole.WebService),
+
+        // Test Frameworks
+        new GenericLibraryParser("junit", "JUnit", "testing", ["junit", "org.junit.*", "org.junit.jupiter.*"], false, LibraryRole.TestFramework),
+        new GenericLibraryParser("testng", "TestNG", "testing", ["org.testng"], false, LibraryRole.TestFramework)
     ];
 
     public bool UsesTreeSitter => true;

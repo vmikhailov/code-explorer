@@ -12,6 +12,7 @@ public class ExpressLibraryParser : ILibraryParser
     public string Type => "framework";
     public IReadOnlyList<string> SupportedPatterns => ["express", "@types/express"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly NodeSelector _expressRouteSelector = NodeSelector.New()
         .HasType("call_expression")

@@ -74,13 +74,13 @@ public class ProjectClassifierItem
     public required string Name { get; init; }
     public string? FilePath { get; init; }
     public string? Framework { get; init; }
-    public string? Role { get; init; }
-    public bool IsLibrary { get; init; }
+    public string? Role { get; set; }
+    public bool IsLibrary { get; set; }
     public int EndpointsCount { get; init; }
     public IReadOnlyList<Common.Nodes.Layer4_Semantic.EntryPointNode> EntryPoints { get; init; } = [];
     public int ExternalServicesCount { get; init; }
     public int UsesDbCount { get; init; }
-    public IReadOnlyDictionary<string, string>? Extensions { get; init; }
+    public IReadOnlyDictionary<string, string>? Extensions { get; set; }
 }
 
 public class DependencyItem
@@ -107,6 +107,27 @@ public static class ProjectLayerClassifier
         {
             incomingCount[p.Id] = 0;
             outgoingCount[p.Id] = 0;
+
+            if (string.IsNullOrEmpty(p.Role) && (p.Extensions == null || !p.Extensions.ContainsKey("entity_kind")))
+            {
+                var extDict = p.Extensions != null
+                    ? new Dictionary<string, string>(p.Extensions)
+                    : new Dictionary<string, string>();
+
+                var (detectedRole, isLib, detectedKind) = ProjectRoleDetector.Detect(
+                    p.FilePath ?? "",
+                    [],
+                    p.FilePath ?? "",
+                    p.Name,
+                    p.Framework ?? "",
+                    null,
+                    extDict);
+
+                p.Role = detectedRole.ToString();
+                p.IsLibrary = isLib;
+                extDict["entity_kind"] = detectedKind.ToString();
+                p.Extensions = extDict;
+            }
         }
 
         foreach (var d in depList)
@@ -204,29 +225,8 @@ public static class ProjectLayerClassifier
 
     private static bool IsTestOrTool(string name, string path, ProjectClassifierItem p)
     {
-        if (string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase)) return true;
-        if (string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Test", StringComparison.OrdinalIgnoreCase)) return true;
-
-        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
-        var lowerName = name.ToLowerInvariant();
-
-        return lowerName.EndsWith(".tests") ||
-               lowerName.EndsWith(".test") ||
-               lowerName.EndsWith("-tests") ||
-               lowerName.EndsWith("-test") ||
-               lowerName.EndsWith("_tests") ||
-               lowerName.EndsWith("_test") ||
-               lowerName.StartsWith("test-") ||
-               lowerName.StartsWith("tests-") ||
-               lowerName.Contains(".test.") ||
-               lowerName.Contains(".tests.") ||
-               lowerName.Contains("-test-") ||
-               lowerName.Contains("-tests-") ||
-               lowerName.Contains("benchmark") ||
-               lowerName.Contains(".spec") ||
-               lowerName.Contains("-spec") ||
-               normalizedPath.Contains("/tests/") ||
-               normalizedPath.Contains("/test/");
+        return string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Test", StringComparison.OrdinalIgnoreCase);
     }
 
     private static readonly HashSet<string> ProtocolTokens = new(StringComparer.OrdinalIgnoreCase)
@@ -275,6 +275,10 @@ public static class ProjectLayerClassifier
                                      p.Extensions.GetValueOrDefault("has_grpc") == "true"))
             return false;
 
+        // Domain and core business logic projects belong to Components, not Foundation
+        if (IsComponents(name, path))
+            return false;
+
         if (p.IsLibrary) return true;
 
         if (string.Equals(p.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
@@ -288,10 +292,6 @@ public static class ProjectLayerClassifier
         {
             var manifestType = p.Extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
             if (manifestType == "library") return true;
-
-            var outputType = p.Extensions.GetValueOrDefault("output_type");
-            var sdk = p.Extensions.GetValueOrDefault("sdk");
-            if (outputType == "Library" && sdk == "Microsoft.NET.Sdk") return true;
         }
 
         var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
@@ -324,9 +324,6 @@ public static class ProjectLayerClassifier
 
             var frameworkType = p.Extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
             if (frameworkType == "worker") return true;
-
-            var sdk = p.Extensions.GetValueOrDefault("sdk");
-            if (sdk == "Microsoft.NET.Sdk.Worker") return true;
         }
 
         if (p.EntryPoints.Any(ep => ep.EntryType is "queue-listener" or "cron" or "worker"))
@@ -394,9 +391,7 @@ public static class ProjectLayerClassifier
 
             var frameworkType = p.Extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
             if (frameworkType is "frontend") return true;
-
-            var sdk = p.Extensions.GetValueOrDefault("sdk");
-            if (sdk == "Microsoft.NET.Sdk.Web" && (p.EndpointsCount > 0 || p.EntryPoints.Count > 0 || inDegree == 0))
+            if (frameworkType is "web" && (p.EndpointsCount > 0 || p.EntryPoints.Count > 0 || inDegree == 0))
             {
                 return true;
             }

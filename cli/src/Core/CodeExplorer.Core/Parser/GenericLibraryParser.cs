@@ -12,19 +12,22 @@ public class GenericLibraryParser : ILibraryParser
     public string Type { get; }
     public string Id { get; }
     public bool IsBuiltIn { get; }
+    public LibraryRole LibraryRole { get; }
 
     public GenericLibraryParser(
         string id,
         string name,
         string libraryType,
         IReadOnlyList<string> supportedPatterns,
-        bool isBuiltIn = false)
+        bool isBuiltIn = false,
+        LibraryRole libraryRole = LibraryRole.General)
     {
         Id = id;
         Name = name;
         Type = libraryType;
         SupportedPatterns = supportedPatterns ?? [];
         IsBuiltIn = isBuiltIn;
+        LibraryRole = libraryRole;
     }
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;

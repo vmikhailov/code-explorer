@@ -12,6 +12,7 @@ public class BullMqLibraryParser : ILibraryParser
     public string Id => "bullmq";
     public IReadOnlyList<string> SupportedPatterns => ["bullmq", "bull"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.WorkerService;
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
