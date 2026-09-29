@@ -747,6 +747,63 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(false);
   const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(false);
 
+  // Font Size State (7px to 24px, default 10px)
+  const [fontSize, setFontSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_font_size');
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 7 && val <= 24) return val;
+      }
+    } catch { }
+    return 10;
+  });
+  const fontSizeRef = useRef<number>(fontSize);
+  fontSizeRef.current = fontSize;
+
+  const handleFontSizeChange = useCallback((newSize: number) => {
+    const clamped = Math.max(7, Math.min(24, newSize));
+    setFontSize(clamped);
+    try {
+      localStorage.setItem('ce_domain_font_size', String(clamped));
+    } catch { }
+    if (cyRef.current) {
+      cyRef.current.style()
+        .selector('node')
+        .style('font-size', `${clamped}px`)
+        .selector('edge')
+        .style('font-size', `${Math.max(6, Math.round(clamped * 0.82))}px`)
+        .update();
+    }
+  }, []);
+
+  // Display Settings Popover state
+  const [isDisplayOpen, setIsDisplayOpen] = useState(false);
+  const displayMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close display popover on outside click
+  useEffect(() => {
+    if (!isDisplayOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (displayMenuRef.current && !displayMenuRef.current.contains(e.target as Node)) {
+        setIsDisplayOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDisplayOpen]);
+
+  // Floating Side Panels Collapse States
+  const [isHiddenPanelCollapsed, setIsHiddenPanelCollapsed] = useState(false);
+  const [hiddenSearchQuery, setHiddenSearchQuery] = useState('');
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+
+  // Restore only hidden concrete entities
+  const restoreAllHiddenNodes = useCallback(() => {
+    forceRelayoutRef.current = true;
+    setHiddenNodeIds(new Set());
+  }, []);
+
   // Auto-relayout on filter toggle (persisted)
   const [autoRelayoutOnFilter, setAutoRelayoutOnFilter] = useState<boolean>(() => {
     try {
@@ -1852,12 +1909,30 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     });
 
     cyRef.current = cy;
+    cy.style()
+      .selector('node')
+      .style('font-size', `${fontSizeRef.current}px`)
+      .selector('edge')
+      .style('font-size', `${Math.max(6, Math.round(fontSizeRef.current * 0.82))}px`)
+      .update();
 
     return () => {
       cy.destroy();
       cyRef.current = null;
     };
   }, [nodeDetailMap, onFocusInFlow, hideNode]);
+
+  // Keep Cytoscape node and edge font sizes synchronized with fontSize state
+  useEffect(() => {
+    if (cyRef.current) {
+      cyRef.current.style()
+        .selector('node')
+        .style('font-size', `${fontSize}px`)
+        .selector('edge')
+        .style('font-size', `${Math.max(6, Math.round(fontSize * 0.82))}px`)
+        .update();
+    }
+  }, [fontSize]);
 
   // Keyboard shortcut to hide selected node (Delete, Backspace, 'h') or dismiss inspector (Escape)
   useEffect(() => {
@@ -2543,6 +2618,28 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     } catch { }
   }, []);
 
+  const filteredHiddenItems = useMemo(() => {
+    const q = hiddenSearchQuery.toLowerCase().trim();
+    const items: Array<{
+      id: string;
+      label: string;
+      kind: EntityKind;
+      kindTag: string;
+      badgeColor: string;
+    }> = [];
+
+    for (const id of hiddenNodeIds) {
+      const detail = rawGraph.detailMap.get(id);
+      const label = detail?.displayName || id;
+      if (q && !label.toLowerCase().includes(q)) continue;
+      const kind = detail?.kind || 'Service';
+      const kindTag = detail?.displayTag || (kind === 'ExternalService' ? 'EXT' : kind.toUpperCase().slice(0, 3));
+      const badgeColor = detail?.bgColor || '#6366f1';
+      items.push({ id, label, kind, kindTag, badgeColor });
+    }
+    return items;
+  }, [hiddenNodeIds, hiddenSearchQuery, rawGraph.detailMap]);
+
   return (
     <div className="domain-map-canvas-container">
       {/* Non-blocking loading overlay during heavy synthesis and layout */}
@@ -2558,411 +2655,510 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </div>
       )}
 
-      {/* Top Floating HUD */}
-      <div className="domain-map-hud">
-        <div className="domain-hud-title-badge">
-          <span className="domain-hud-label">Macro Architecture</span>
-          <span className="domain-hud-title">Domain Microservice Map</span>
-          {onSwitchToContexts && (
-            <button
-              className="domain-hud-switch-contexts-btn"
-              onClick={onSwitchToContexts}
-              title="Switch to AI-distilled Bounded Context Map (Logical DDD contexts)"
-            >
-              🧩 AI Contexts
-            </button>
-          )}
-        </div>
+      {/* Docked Top Studio Bar */}
+      <header className="domain-map-hud">
+        {/* Left Section: Navigation & Type Filter Pills & Stats */}
+        <div className="domain-hud-left-section">
+          <div className="domain-hud-title-badge">
+            <span className="domain-hud-label">Macro Architecture</span>
+            <span className="domain-hud-title">Domain Microservice Map</span>
+            {onSwitchToContexts && (
+              <button
+                type="button"
+                className="domain-hud-switch-contexts-btn"
+                onClick={onSwitchToContexts}
+                title="Switch to AI-distilled Bounded Context Map (Logical DDD contexts)"
+              >
+                🧩 AI Contexts
+              </button>
+            )}
+          </div>
 
-        {/* Entity Type Toggle Filters */}
-        <div className="domain-hud-type-filters">
-          {rawGraph.counts.ingress > 0 && (
+          {/* Entity Type Toggle Filters */}
+          <div className="domain-hud-type-filters">
+            {rawGraph.counts.ingress > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('Ingress') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('Ingress')}
+                title={hiddenTypes.has('Ingress') ? 'Show Ingress & Apps' : 'Hide Ingress & Apps'}
+              >
+                {hiddenTypes.has('Ingress') && <span className="filter-cross">✕</span>}
+                🌐 Apps ({rawGraph.counts.ingress})
+              </button>
+            )}
+            {rawGraph.counts.services > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('Service') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('Service')}
+                title={hiddenTypes.has('Service') ? 'Show Domain Services' : 'Hide Domain Services'}
+              >
+                {hiddenTypes.has('Service') && <span className="filter-cross">✕</span>}
+                ⚙️ Services ({rawGraph.counts.services})
+              </button>
+            )}
+            {rawGraph.counts.workers > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('Worker') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('Worker')}
+                title={hiddenTypes.has('Worker') ? 'Show Background Workers' : 'Hide Background Workers'}
+              >
+                {hiddenTypes.has('Worker') && <span className="filter-cross">✕</span>}
+                ⚡ Workers ({rawGraph.counts.workers})
+              </button>
+            )}
+            {rawGraph.counts.databases > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('Database') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('Database')}
+                title={hiddenTypes.has('Database') ? 'Show Databases' : 'Hide Databases'}
+              >
+                {hiddenTypes.has('Database') && <span className="filter-cross">✕</span>}
+                🗄️ DBs ({rawGraph.counts.databases})
+              </button>
+            )}
+            {rawGraph.counts.databases > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hideSingleConnectionDbs ? 'is-active is-filter-on' : ''}`}
+                onClick={() => {
+                  forceRelayoutRef.current = true;
+                  setHideSingleConnectionDbs((prev) => !prev);
+                }}
+                title={
+                  hideSingleConnectionDbs
+                    ? `Showing only shared databases (${rawGraph.counts.sharedDbs} shared). Click to show all databases.`
+                    : `Hide databases with only 1 connection (${rawGraph.counts.singleConnDbs} dedicated 1:1 DBs). Keeps only shared databases.`
+                }
+                style={
+                  hideSingleConnectionDbs
+                    ? {
+                        background: 'rgba(147, 51, 234, 0.28)',
+                        borderColor: '#a855f7',
+                        color: '#f3e8ff',
+                        fontWeight: 600,
+                      }
+                    : undefined
+                }
+              >
+                {hideSingleConnectionDbs ? '🔗 Shared DBs Only' : '🗄️ Hide 1:1 DBs'}
+                <span style={{ opacity: 0.85, fontSize: '0.88em', marginLeft: 3 }}>
+                  ({hideSingleConnectionDbs ? rawGraph.counts.sharedDbs : rawGraph.counts.singleConnDbs})
+                </span>
+              </button>
+            )}
             <button
-              className={`hud-type-filter-btn ${hiddenTypes.has('Ingress') ? 'is-hidden' : 'is-active'}`}
-              onClick={() => toggleTypeVisibility('Ingress')}
-              title={hiddenTypes.has('Ingress') ? 'Show Ingress & Apps' : 'Hide Ingress & Apps'}
-            >
-              {hiddenTypes.has('Ingress') && <span className="filter-cross">✕</span>}
-              🌐 Apps ({rawGraph.counts.ingress})
-            </button>
-          )}
-          {rawGraph.counts.services > 0 && (
-            <button
-              className={`hud-type-filter-btn ${hiddenTypes.has('Service') ? 'is-hidden' : 'is-active'}`}
-              onClick={() => toggleTypeVisibility('Service')}
-              title={hiddenTypes.has('Service') ? 'Show Domain Services' : 'Hide Domain Services'}
-            >
-              {hiddenTypes.has('Service') && <span className="filter-cross">✕</span>}
-              ⚙️ Services ({rawGraph.counts.services})
-            </button>
-          )}
-          {rawGraph.counts.workers > 0 && (
-            <button
-              className={`hud-type-filter-btn ${hiddenTypes.has('Worker') ? 'is-hidden' : 'is-active'}`}
-              onClick={() => toggleTypeVisibility('Worker')}
-              title={hiddenTypes.has('Worker') ? 'Show Background Workers' : 'Hide Background Workers'}
-            >
-              {hiddenTypes.has('Worker') && <span className="filter-cross">✕</span>}
-              ⚡ Workers ({rawGraph.counts.workers})
-            </button>
-          )}
-          {rawGraph.counts.databases > 0 && (
-            <button
-              className={`hud-type-filter-btn ${hiddenTypes.has('Database') ? 'is-hidden' : 'is-active'}`}
-              onClick={() => toggleTypeVisibility('Database')}
-              title={hiddenTypes.has('Database') ? 'Show Databases' : 'Hide Databases'}
-            >
-              {hiddenTypes.has('Database') && <span className="filter-cross">✕</span>}
-              🗄️ DBs ({rawGraph.counts.databases})
-            </button>
-          )}
-          {rawGraph.counts.databases > 0 && (
-            <button
-              className={`hud-type-filter-btn ${hideSingleConnectionDbs ? 'is-active is-filter-on' : ''}`}
+              type="button"
+              className={`hud-type-filter-btn ${hideIsolatedNodes ? 'is-active is-filter-on' : ''}`}
               onClick={() => {
                 forceRelayoutRef.current = true;
-                setHideSingleConnectionDbs((prev) => !prev);
+                setHideIsolatedNodes((prev) => !prev);
               }}
               title={
-                hideSingleConnectionDbs
-                  ? `Showing only shared databases (${rawGraph.counts.sharedDbs} shared). Click to show all databases.`
-                  : `Hide databases with only 1 connection (${rawGraph.counts.singleConnDbs} dedicated 1:1 DBs). Keeps only shared databases.`
+                hideIsolatedNodes
+                  ? 'Showing only connected services/nodes. Click to show isolated services.'
+                  : 'Hide isolated/disconnected services (leaves only nodes participating in service calls or shared resources)'
               }
               style={
-                hideSingleConnectionDbs
+                hideIsolatedNodes
                   ? {
-                      background: 'rgba(147, 51, 234, 0.28)',
-                      borderColor: '#a855f7',
-                      color: '#f3e8ff',
+                      background: 'rgba(234, 179, 8, 0.25)',
+                      borderColor: '#eab308',
+                      color: '#fef08a',
                       fontWeight: 600,
                     }
                   : undefined
               }
             >
-              {hideSingleConnectionDbs ? '🔗 Shared DBs Only' : '🗄️ Hide 1:1 DBs'}
-              <span style={{ opacity: 0.85, fontSize: '0.88em', marginLeft: 3 }}>
-                ({hideSingleConnectionDbs ? rawGraph.counts.sharedDbs : rawGraph.counts.singleConnDbs})
-              </span>
+              {hideIsolatedNodes ? '🏝️ Connected Only' : '🏝️ Hide Isolated'}
             </button>
-          )}
-          <button
-            className={`hud-type-filter-btn ${hideIsolatedNodes ? 'is-active is-filter-on' : ''}`}
-            onClick={() => {
-              forceRelayoutRef.current = true;
-              setHideIsolatedNodes((prev) => !prev);
-            }}
-            title={
-              hideIsolatedNodes
-                ? 'Showing only connected services/nodes. Click to show isolated services.'
-                : 'Hide isolated/disconnected services (leaves only nodes participating in service calls or shared resources)'
-            }
-            style={
-              hideIsolatedNodes
-                ? {
-                    background: 'rgba(234, 179, 8, 0.25)',
-                    borderColor: '#eab308',
-                    color: '#fef08a',
-                    fontWeight: 600,
-                  }
-                : undefined
-            }
-          >
-            {hideIsolatedNodes ? '🏝️ Connected Only' : '🏝️ Hide Isolated'}
-          </button>
-          {rawGraph.counts.topics > 0 && (
-            <button
-              className={`hud-type-filter-btn ${hiddenTypes.has('Topic') ? 'is-hidden' : 'is-active'}`}
-              onClick={() => toggleTypeVisibility('Topic')}
-              title={hiddenTypes.has('Topic') ? 'Show Message Topics' : 'Hide Message Topics'}
-            >
-              {hiddenTypes.has('Topic') && <span className="filter-cross">✕</span>}
-              📬 Topics ({rawGraph.counts.topics})
-            </button>
-          )}
-          {rawGraph.counts.external > 0 && (
-            <button
-              className={`hud-type-filter-btn ${hiddenTypes.has('ExternalService') ? 'is-hidden' : 'is-active'}`}
-              onClick={() => toggleTypeVisibility('ExternalService')}
-              title={hiddenTypes.has('ExternalService') ? 'Show External Services' : 'Hide External Services'}
-            >
-              {hiddenTypes.has('ExternalService') && <span className="filter-cross">✕</span>}
-              🔌 External ({rawGraph.counts.external})
-            </button>
-          )}
-        </div>
-
-        {/* Reset Hidden Button (appears when anything is hidden) */}
-        {hiddenCount > 0 && (
-          <button
-            className="domain-hud-reset-hidden-btn"
-            onClick={unhideAll}
-            title="Reset all hidden nodes and type filters"
-          >
-            👁️ Reset Hidden ({hiddenCount})
-          </button>
-        )}
-
-        {/* Concrete Hidden Nodes Chips (allows unhiding individual concrete nodes) */}
-        {hiddenNodeIds.size > 0 && (
-          <div className="domain-hud-hidden-chips" title="Hidden items (click ✕ to restore)">
-            {Array.from(hiddenNodeIds).map((id) => {
-              const detail = rawGraph.detailMap.get(id);
-              const label = detail?.displayName || id;
-              return (
-                <span
-                  key={id}
-                  className="domain-hud-hidden-chip"
-                  onClick={() => unhideNode(id)}
-                  title={`Click to restore ${label}`}
-                >
-                  {label} <span className="chip-remove">✕</span>
-                </span>
-              );
-            })}
+            {rawGraph.counts.topics > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('Topic') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('Topic')}
+                title={hiddenTypes.has('Topic') ? 'Show Message Topics' : 'Hide Message Topics'}
+              >
+                {hiddenTypes.has('Topic') && <span className="filter-cross">✕</span>}
+                📬 Topics ({rawGraph.counts.topics})
+              </button>
+            )}
+            {rawGraph.counts.external > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('ExternalService') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('ExternalService')}
+                title={hiddenTypes.has('ExternalService') ? 'Show External Services' : 'Hide External Services'}
+              >
+                {hiddenTypes.has('ExternalService') && <span className="filter-cross">✕</span>}
+                🔌 External ({rawGraph.counts.external})
+              </button>
+            )}
           </div>
-        )}
 
-        <div className="domain-hud-stats">
-          <span
-            className="hud-stat-pill"
-            title="Service Calls (RPC / HTTP): Solid line = Direct call, Dashed line = Indirect call via hidden entities"
-          >
-            ⚡ {stats.serviceCalls} Calls
-          </span>
-          {stats.transitiveCalls > 0 && (
+          {/* Reset Filters / Hidden Button */}
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              className="domain-hud-reset-hidden-btn"
+              onClick={unhideAll}
+              title="Reset all hidden nodes and type filters"
+            >
+              👁️ Reset All ({hiddenCount})
+            </button>
+          )}
+
+          {/* Stats Badges */}
+          <div className="domain-hud-stats">
             <span
               className="hud-stat-pill"
-              title={`${stats.transitiveCalls} indirect connections routing through hidden entities (shown as dashed lines)`}
-              style={{ borderColor: 'rgba(192, 132, 252, 0.45)', color: '#c084fc' }}
+              title="Service Calls (RPC / HTTP): Solid line = Direct call, Dashed line = Indirect call via hidden entities"
             >
-              ╌ {stats.transitiveCalls} via hidden
+              ⚡ {stats.serviceCalls} Calls
             </span>
-          )}
-          <span className="hud-stat-pill" title="Message Flows (Pub / Sub)">
-            ✉️ {stats.messages} Msgs
-          </span>
-        </div>
-
-        {/* Layout Selector & Auto-Relayout Toggle */}
-        <div className="domain-hud-layout-select">
-          <select
-            value={layoutName}
-            onChange={(e) => handleLayoutChange(e.target.value as any)}
-            title="Graph Layout"
-            className="domain-layout-dropdown"
-          >
-            <option value="concentric">🎯 Concentric (Original)</option>
-            <option value="concentric-equispaced">🪐 Concentric: Equispaced (Подход 2)</option>
-            <option value="concentric-polar-force">🪐 Concentric: Polar Force (Подход 1)</option>
-            <option value="concentric-sectors">🪐 Concentric: Domain Sectors (Подход 3)</option>
-            <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
-            <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
-            <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
-            <option value="matrix">▦ Dependency Matrix</option>
-            <option value="cose">⚡ Force (COSE)</option>
-          </select>
-
-          <select
-            value={edgeCurveMode}
-            onChange={(e) => handleEdgeCurveModeChange(e.target.value as any)}
-            title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
-            className="domain-layout-dropdown"
-          >
-            <option value="bezier">〰️ Bezier Curves</option>
-            <option value="straight">📏 Straight Lines</option>
-            <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
-          </select>
-
-          {edgeCurveMode !== 'straight' && (
-            <div className="domain-hud-control-group" title="Curve: Adjust edge curvature (-200 to 200)">
-              <span className="domain-hud-group-label">Curve:</span>
-              <button
-                type="button"
-                className="domain-hud-step-btn"
-                onClick={() => handleCurveFactorChange(Math.max(-200, curveFactor - 10))}
-                title="Decrease curve (-)"
-              >
-                -
-              </button>
-              <input
-                type="range"
-                min="-200"
-                max="200"
-                step="5"
-                value={curveFactor}
-                onChange={(e) => handleCurveFactorChange(parseInt(e.target.value, 10))}
-                className="domain-hud-slider"
-                title={`Curve: ${curveFactor > 0 ? '+' : ''}${curveFactor}px`}
-              />
-              <button
-                type="button"
-                className="domain-hud-step-btn"
-                onClick={() => handleCurveFactorChange(Math.min(200, curveFactor + 10))}
-                title="Increase curve (+)"
-              >
-                +
-              </button>
+            {stats.transitiveCalls > 0 && (
               <span
-                className="domain-hud-value-badge"
-                onClick={() => handleCurveFactorChange(35)}
-                title="Reset curve to +35px"
+                className="hud-stat-pill"
+                title={`${stats.transitiveCalls} indirect connections routing through hidden entities (shown as dashed lines)`}
+                style={{ borderColor: 'rgba(192, 132, 252, 0.45)', color: '#c084fc' }}
               >
-                {curveFactor > 0 ? `+${curveFactor}` : curveFactor}px
+                ╌ {stats.transitiveCalls} via hidden
               </span>
-            </div>
-          )}
-
-          <label
-            className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
-            title={
-              autoRelayoutOnFilter
-                ? 'Auto-relayout enabled: layout automatically refits and repacks when entities are hidden or filtered. Uncheck to keep node positions unchanged.'
-                : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes. Check to enable automatic graph recalculation.'
-            }
-          >
-            <input
-              type="checkbox"
-              className="domain-hud-checkbox"
-              checked={autoRelayoutOnFilter}
-              onChange={(e) => handleAutoRelayoutChange(e.target.checked)}
-            />
-            <span>🔄 Auto-update graph</span>
-          </label>
-
-          <button
-            className="domain-hud-btn"
-            onClick={handleForceRelayout}
-            title="Recalculate graph layout now (Re-layout)"
-            style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
-          >
-            ⟳
-          </button>
+            )}
+            <span className="hud-stat-pill" title="Message Flows (Pub / Sub)">
+              ✉️ {stats.messages} Msgs
+            </span>
+          </div>
         </div>
 
-        {/* Node Spacing / Air Control ("Air") */}
-        <div className="domain-hud-control-group" title="Air: Adjust node spacing">
-          <span className="domain-hud-group-label">Air:</span>
-          <button
-            className="domain-hud-step-btn"
-            onClick={() => handleSpacingChange(Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)))}
-            title="Decrease spacing (-)"
-          >
-            -
-          </button>
-          <input
-            type="range"
-            min="0.5"
-            max="3.0"
-            step="0.1"
-            value={spacingFactor}
-            onChange={(e) => handleSpacingChange(parseFloat(e.target.value))}
-            className="domain-hud-slider"
-            title={`Air: ${spacingFactor.toFixed(1)}x`}
-          />
-          <button
-            className="domain-hud-step-btn"
-            onClick={() => handleSpacingChange(Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)))}
-            title="Increase spacing (+)"
-          >
-            +
-          </button>
-          <span
-            className="domain-hud-value-badge"
-            onClick={() => handleSpacingChange(1.0)}
-            title="Reset air to 1.0x"
-          >
-            {spacingFactor.toFixed(1)}x
-          </span>
-        </div>
-
-        {/* Wheel Zoom Sensitivity Control ("Wheel") */}
-        <div className="domain-hud-control-group" title="Wheel: Adjust mouse wheel zoom sensitivity">
-          <span className="domain-hud-group-label">Wheel:</span>
-          <button
-            className="domain-hud-step-btn"
-            onClick={() => handleWheelSensitivityChange(Math.max(0.5, +(wheelSensitivity - 0.5).toFixed(1)))}
-            title="Decrease wheel sensitivity (-)"
-          >
-            -
-          </button>
-          <input
-            type="range"
-            min="0.5"
-            max="5.0"
-            step="0.1"
-            value={wheelSensitivity}
-            onChange={(e) => handleWheelSensitivityChange(parseFloat(e.target.value))}
-            className="domain-hud-slider"
-            title={`Wheel Sensitivity: ${wheelSensitivity.toFixed(1)}x`}
-          />
-          <button
-            className="domain-hud-step-btn"
-            onClick={() => handleWheelSensitivityChange(Math.min(5.0, +(wheelSensitivity + 0.5).toFixed(1)))}
-            title="Increase wheel sensitivity (+)"
-          >
-            +
-          </button>
-          <span
-            className="domain-hud-value-badge"
-            onClick={() => handleWheelSensitivityChange(2.5)}
-            title="Reset wheel sensitivity to 2.5x"
-          >
-            {wheelSensitivity.toFixed(1)}x
-          </span>
-        </div>
-
-        {/* Zoom Controls */}
-        <div className="domain-hud-control-group" title="Zoom Controls">
-          <button
-            className="domain-hud-btn"
-            onClick={handleZoomOut}
-            title="Zoom Out"
-          >
-            −
-          </button>
-          <button
-            className="domain-hud-btn zoom-level-btn"
-            onClick={handleResetZoom}
-            title="Reset Zoom to 100%"
-          >
-            {Math.round(currentZoom * 100)}%
-          </button>
-          <button
-            className="domain-hud-btn"
-            onClick={handleZoomIn}
-            title="Zoom In"
-          >
-            +
-          </button>
-          <button
-            className="domain-hud-btn fit-btn"
-            onClick={handleFitView}
-            title="Fit to Screen"
-          >
-            ⛶ Fit
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="domain-hud-search">
-          <input
-            type="text"
-            className="domain-search-input"
-            placeholder="Search domain or service..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              className="domain-search-clear"
-              onClick={() => setSearchQuery('')}
-              title="Clear search"
+        {/* Right Section: Layout, Line Style, Display Popover, Zoom Controls, Search */}
+        <div className="domain-hud-right-section">
+          {/* Layout & Curve Selector */}
+          <div className="domain-hud-layout-select">
+            <select
+              value={layoutName}
+              onChange={(e) => handleLayoutChange(e.target.value as any)}
+              title="Graph Layout"
+              className="domain-layout-dropdown"
             >
-              ✕
+              <option value="concentric">🎯 Concentric (Original)</option>
+              <option value="concentric-equispaced">🪐 Concentric: Equispaced (Подход 2)</option>
+              <option value="concentric-polar-force">🪐 Concentric: Polar Force (Подход 1)</option>
+              <option value="concentric-sectors">🪐 Concentric: Domain Sectors (Подход 3)</option>
+              <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
+              <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
+              <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
+              <option value="matrix">▦ Dependency Matrix</option>
+              <option value="cose">⚡ Force (COSE)</option>
+            </select>
+
+            <select
+              value={edgeCurveMode}
+              onChange={(e) => handleEdgeCurveModeChange(e.target.value as any)}
+              title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
+              className="domain-layout-dropdown"
+            >
+              <option value="bezier">〰️ Bezier Curves</option>
+              <option value="straight">📏 Straight Lines</option>
+              <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
+            </select>
+          </div>
+
+          {/* Display & Sliders Tuning Popover */}
+          <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
+            <button
+              type="button"
+              className={`domain-hud-btn domain-hud-display-btn ${isDisplayOpen ? 'is-active' : ''}`}
+              onClick={() => setIsDisplayOpen((prev) => !prev)}
+              title="Fine-tune display settings (Font size, Edge curvature, Air spacing, Wheel sensitivity)"
+            >
+              🎛️ Display <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
             </button>
-          )}
+
+            {isDisplayOpen && (
+              <div className="domain-display-popover">
+                <div className="display-popover-header">
+                  <span>Display & Tuning</span>
+                  <button
+                    type="button"
+                    className="display-popover-close"
+                    onClick={() => setIsDisplayOpen(false)}
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="display-popover-body">
+                  {/* 1. Font Size Control */}
+                  <div className="display-setting-row" title="Adjust graph label font size (7px - 24px)">
+                    <div className="setting-label-row">
+                      <span className="setting-icon">🔤</span>
+                      <span className="setting-name">Font Size</span>
+                      <span
+                        className="domain-hud-value-badge"
+                        onClick={() => handleFontSizeChange(10)}
+                        title="Click to reset font size to 10px"
+                      >
+                        {fontSize}px
+                      </span>
+                    </div>
+                    <div className="setting-slider-row">
+                      <button
+                        type="button"
+                        className="domain-hud-step-btn"
+                        onClick={() => handleFontSizeChange(fontSize - 1)}
+                        title="Decrease font size (-1px)"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="range"
+                        min="7"
+                        max="24"
+                        step="1"
+                        value={fontSize}
+                        onChange={(e) => handleFontSizeChange(parseInt(e.target.value, 10))}
+                        className="domain-hud-slider"
+                      />
+                      <button
+                        type="button"
+                        className="domain-hud-step-btn"
+                        onClick={() => handleFontSizeChange(fontSize + 1)}
+                        title="Increase font size (+1px)"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Edge Curvature Control */}
+                  {edgeCurveMode !== 'straight' && (
+                    <div className="display-setting-row" title="Adjust edge curvature (-200px to +200px)">
+                      <div className="setting-label-row">
+                        <span className="setting-icon">〰️</span>
+                        <span className="setting-name">Edge Curvature</span>
+                        <span
+                          className="domain-hud-value-badge"
+                          onClick={() => handleCurveFactorChange(35)}
+                          title="Click to reset curve to +35px"
+                        >
+                          {curveFactor > 0 ? `+${curveFactor}` : curveFactor}px
+                        </span>
+                      </div>
+                      <div className="setting-slider-row">
+                        <button
+                          type="button"
+                          className="domain-hud-step-btn"
+                          onClick={() => handleCurveFactorChange(Math.max(-200, curveFactor - 10))}
+                          title="Decrease curve (-10px)"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="range"
+                          min="-200"
+                          max="200"
+                          step="5"
+                          value={curveFactor}
+                          onChange={(e) => handleCurveFactorChange(parseInt(e.target.value, 10))}
+                          className="domain-hud-slider"
+                        />
+                        <button
+                          type="button"
+                          className="domain-hud-step-btn"
+                          onClick={() => handleCurveFactorChange(Math.min(200, curveFactor + 10))}
+                          title="Increase curve (+10px)"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. Node Spacing / Air Control */}
+                  <div className="display-setting-row" title="Adjust node spacing / distance between orbits">
+                    <div className="setting-label-row">
+                      <span className="setting-icon">💨</span>
+                      <span className="setting-name">Node Air (Spacing)</span>
+                      <span
+                        className="domain-hud-value-badge"
+                        onClick={() => handleSpacingChange(1.0)}
+                        title="Click to reset air to 1.0x"
+                      >
+                        {spacingFactor.toFixed(1)}x
+                      </span>
+                    </div>
+                    <div className="setting-slider-row">
+                      <button
+                        type="button"
+                        className="domain-hud-step-btn"
+                        onClick={() => handleSpacingChange(Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)))}
+                        title="Decrease spacing"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="3.0"
+                        step="0.1"
+                        value={spacingFactor}
+                        onChange={(e) => handleSpacingChange(parseFloat(e.target.value))}
+                        className="domain-hud-slider"
+                      />
+                      <button
+                        type="button"
+                        className="domain-hud-step-btn"
+                        onClick={() => handleSpacingChange(Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)))}
+                        title="Increase spacing"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4. Mouse Wheel Zoom Sensitivity */}
+                  <div className="display-setting-row" title="Adjust mouse wheel zoom sensitivity">
+                    <div className="setting-label-row">
+                      <span className="setting-icon">🖱️</span>
+                      <span className="setting-name">Wheel Sensitivity</span>
+                      <span
+                        className="domain-hud-value-badge"
+                        onClick={() => handleWheelSensitivityChange(2.5)}
+                        title="Click to reset sensitivity to 2.5x"
+                      >
+                        {wheelSensitivity.toFixed(1)}x
+                      </span>
+                    </div>
+                    <div className="setting-slider-row">
+                      <button
+                        type="button"
+                        className="domain-hud-step-btn"
+                        onClick={() => handleWheelSensitivityChange(Math.max(0.5, +(wheelSensitivity - 0.5).toFixed(1)))}
+                        title="Decrease sensitivity"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="5.0"
+                        step="0.1"
+                        value={wheelSensitivity}
+                        onChange={(e) => handleWheelSensitivityChange(parseFloat(e.target.value))}
+                        className="domain-hud-slider"
+                      />
+                      <button
+                        type="button"
+                        className="domain-hud-step-btn"
+                        onClick={() => handleWheelSensitivityChange(Math.min(5.0, +(wheelSensitivity + 0.5).toFixed(1)))}
+                        title="Increase sensitivity"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="display-popover-divider" />
+
+                  {/* 5. Auto-update graph & Relayout */}
+                  <div className="display-popover-actions">
+                    <label
+                      className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
+                      title={
+                        autoRelayoutOnFilter
+                          ? 'Auto-relayout enabled: layout automatically refits when entities are hidden. Uncheck to keep node positions unchanged.'
+                          : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes.'
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        className="domain-hud-checkbox"
+                        checked={autoRelayoutOnFilter}
+                        onChange={(e) => handleAutoRelayoutChange(e.target.checked)}
+                      />
+                      <span>🔄 Auto-recalc</span>
+                    </label>
+                    <button
+                      type="button"
+                      className="domain-hud-btn"
+                      onClick={handleForceRelayout}
+                      title="Recalculate graph layout now (Re-layout)"
+                      style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
+                    >
+                      ⟳ Re-layout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Zoom Controls */}
+          <div className="domain-hud-control-group" title="Zoom Controls">
+            <button
+              type="button"
+              className="domain-hud-btn"
+              onClick={handleZoomOut}
+              title="Zoom Out"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              className="domain-hud-btn zoom-level-btn"
+              onClick={handleResetZoom}
+              title="Reset Zoom to 100%"
+            >
+              {Math.round(currentZoom * 100)}%
+            </button>
+            <button
+              type="button"
+              className="domain-hud-btn"
+              onClick={handleZoomIn}
+              title="Zoom In"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="domain-hud-btn fit-btn"
+              onClick={handleFitView}
+              title="Fit to Screen"
+            >
+              ⛶ Fit
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="domain-hud-search">
+            <input
+              type="text"
+              className="domain-search-input"
+              placeholder="Search domain or service..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="domain-search-clear"
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      </header>
+
+      {/* Main Graph Canvas Area */}
+      <div className="domain-cytoscape-wrapper">
 
       {/* Matrix View or Cytoscape Canvas with SVG Overlays */}
       {layoutName === 'matrix' ? (
@@ -3027,10 +3223,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   concentricGuides.map((g, idx) => {
                     const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
                     const dashPattern = `${8 / cyTransform.zoom} ${6 / cyTransform.zoom}`;
-                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
+                    const guideFontSize = Math.max(9, 11 / cyTransform.zoom);
                     const shortLabel = g.shortLabel || (g.label.includes(':') ? g.label.split(':')[0] : g.label);
                     const labelText = `${shortLabel} (${g.count})`;
-                    const textWidth = labelText.length * fontSize * 0.65;
+                    const textWidth = labelText.length * guideFontSize * 0.65;
                     const hPad = Math.max(14, 18 / cyTransform.zoom);
                     const badgeWidth = Math.max(textWidth + hPad, 75 / cyTransform.zoom);
                     const badgeHeight = Math.max(18, 22 / cyTransform.zoom);
@@ -3061,7 +3257,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           x={0}
                           y={badgeY + badgeHeight / 2}
                           fill="#38bdf8"
-                          fontSize={`${fontSize}px`}
+                          fontSize={`${guideFontSize}px`}
                           fontWeight="700"
                           textAnchor="middle"
                           dominantBaseline="central"
@@ -3173,7 +3369,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     const tipY = Math.round(g.length * Math.sin(g.angle));
                     const badgeW = Math.max(160, 210 / cyTransform.zoom);
                     const badgeH = Math.max(22, 26 / cyTransform.zoom);
-                    const fontSize = Math.max(9, 11 / cyTransform.zoom);
+                    const guideFontSize = Math.max(9, 11 / cyTransform.zoom);
 
                     return (
                       <g key={g.id}>
@@ -3202,7 +3398,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                             x={0}
                             y={0}
                             fill={g.color}
-                            fontSize={`${fontSize}px`}
+                            fontSize={`${guideFontSize}px`}
                             fontWeight="700"
                             textAnchor="middle"
                             dominantBaseline="central"
@@ -3220,9 +3416,104 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </>
       )}
 
-      {/* Floating Concentric Orbit Legend HUD */}
+      {/* Floating Collapsible Hidden Entities Panel (Clings to Left) */}
+      {hiddenNodeIds.size > 0 && (
+        <aside className={`domain-hidden-panel ${isHiddenPanelCollapsed ? 'is-collapsed' : ''}`}>
+          {isHiddenPanelCollapsed ? (
+            <div
+              className="domain-hidden-collapsed-badge"
+              onClick={() => setIsHiddenPanelCollapsed(false)}
+              title={`Click to expand ${hiddenNodeIds.size} hidden entities`}
+            >
+              <span className="badge-icon">👁️</span>
+              <span className="badge-count">{hiddenNodeIds.size}</span>
+              <span className="badge-arrow">▶</span>
+            </div>
+          ) : (
+            <div className="domain-hidden-panel-content">
+              <div className="domain-hidden-panel-header">
+                <div className="hidden-panel-title">
+                  <span className="hidden-panel-icon">👁️</span>
+                  <span>Hidden ({hiddenNodeIds.size})</span>
+                </div>
+                <div className="hidden-panel-header-actions">
+                  <button
+                    type="button"
+                    className="hidden-panel-restore-all-btn"
+                    onClick={restoreAllHiddenNodes}
+                    title="Restore all hidden entities to graph"
+                  >
+                    ⟲ Restore All
+                  </button>
+                  <button
+                    type="button"
+                    className="hidden-panel-collapse-btn"
+                    onClick={() => setIsHiddenPanelCollapsed(true)}
+                    title="Collapse hidden panel"
+                  >
+                    ◀
+                  </button>
+                </div>
+              </div>
+
+              {hiddenNodeIds.size > 4 && (
+                <div className="domain-hidden-search-wrap">
+                  <input
+                    type="text"
+                    className="domain-hidden-search-input"
+                    placeholder="Filter hidden..."
+                    value={hiddenSearchQuery}
+                    onChange={(e) => setHiddenSearchQuery(e.target.value)}
+                  />
+                  {hiddenSearchQuery && (
+                    <button
+                      type="button"
+                      className="domain-hidden-search-clear"
+                      onClick={() => setHiddenSearchQuery('')}
+                      title="Clear filter"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="domain-hidden-list">
+                {filteredHiddenItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="domain-hidden-list-item"
+                    title={`${item.label} (${item.kind}). Click ✕ to restore.`}
+                  >
+                    <span
+                      className="hidden-kind-tag"
+                      style={{ backgroundColor: item.badgeColor }}
+                    >
+                      {item.kindTag}
+                    </span>
+                    <span className="hidden-item-name">{item.label}</span>
+                    <button
+                      type="button"
+                      className="hidden-item-unhide-btn"
+                      onClick={() => unhideNode(item.id)}
+                      title={`Restore ${item.label}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {filteredHiddenItems.length === 0 && (
+                  <div className="domain-hidden-empty">No matching hidden items</div>
+                )}
+              </div>
+            </div>
+          )}
+        </aside>
+      )}
+
+      {/* Floating Concentric Orbit Legend HUD (Clings to Bottom-Left) */}
       {layoutName.startsWith('concentric') && orbitLegendItems.length > 0 && (
-        <div className="domain-orbit-legend">
+        <aside className={`domain-orbit-legend ${!isOrbitLegendOpen ? 'is-collapsed' : ''}`}>
           <div
             className="domain-orbit-legend-header"
             onClick={() => setIsOrbitLegendOpen((prev) => !prev)}
@@ -3230,10 +3521,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           >
             <div className="domain-orbit-legend-title">
               <span className="legend-icon">🪐</span>
-              <span>Orbit Legend</span>
+              <span>{isOrbitLegendOpen ? 'Orbit Legend' : `Orbits (${orbitLegendItems.length})`}</span>
             </div>
             <div className="domain-orbit-legend-header-actions">
-              {customOrbitOrder !== null && (
+              {isOrbitLegendOpen && customOrbitOrder !== null && (
                 <button
                   type="button"
                   className="orbit-legend-reset-btn"
@@ -3246,7 +3537,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   ↺ Auto
                 </button>
               )}
-              <span className="legend-toggle">{isOrbitLegendOpen ? '▾' : '▸'}</span>
+              <span className="legend-toggle">{isOrbitLegendOpen ? '—' : '▲'}</span>
             </div>
           </div>
 
@@ -3309,147 +3600,194 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               </div>
             </>
           )}
-        </div>
-      )}
-
-      {/* Floating Node Inspector Panel (when node selected) */}
-      {selectedNode && (
-        <aside className="domain-inspector-panel">
-          <div className="domain-inspector-header">
-            <div className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
-              {selectedNode.displayTag}
-            </div>
-            <div className="inspector-title-group">
-              <h4 className="inspector-title" title={selectedNode.displayName}>
-                {selectedNode.displayName}
-              </h4>
-              {selectedNode.tierLabel && (
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  color: selectedNode.tier === 0 ? '#38bdf8' : selectedNode.tier === 1 ? '#4ade80' : selectedNode.tier === 2 ? '#fbbf24' : '#c084fc',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  marginTop: '2px',
-                  marginBottom: '2px',
-                  border: '1px solid rgba(255, 255, 255, 0.12)'
-                }}>
-                  🎯 {selectedNode.tierLabel}
-                </div>
-              )}
-              {selectedNode.framework && (
-                <span className="inspector-subtitle">{selectedNode.framework}</span>
-              )}
-              {selectedNode.gitBranch && (
-                <span className="inspector-subtitle" style={{ opacity: 0.85, fontSize: '0.82em' }}>🌿 {selectedNode.gitBranch}</span>
-              )}
-            </div>
-            <button
-              className="inspector-header-hide-btn"
-              onClick={() => hideNode(selectedNode.id)}
-              title="Hide this node (Transitive connections will bypass it) [Shortcut: H, Del, or Right-Click]"
-            >
-              👁️ Hide
-            </button>
-            <button
-              className="inspector-close-btn"
-              onClick={() => {
-                setSelectedNode(null);
-                cyRef.current?.elements().removeClass('highlighted dimmed');
-              }}
-              title="Close inspector"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="inspector-body">
-            {/* Subprojects breakdown if clustered */}
-            {selectedNode.projects && selectedNode.projects.length > 1 && (
-              <div className="inspector-section">
-                <label className="inspector-section-label">
-                  Clustered Projects ({selectedNode.projects.length})
-                </label>
-                <div className="inspector-subprojects-list">
-                  {selectedNode.projects.map((p) => (
-                    <div
-                      key={p.id}
-                      className="inspector-subproject-item"
-                      onClick={() => p.filePath && onOpenFile?.(p.filePath, 1)}
-                      title={p.filePath || p.name}
-                    >
-                      <span className="subproject-dot">•</span>
-                      <span className="subproject-name">{p.name}</span>
-                      {p.isLibrary && <span className="subproject-lib-tag">lib</span>}
-                      {p.gitBranch && <span className="subproject-lib-tag" style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>🌿 {p.gitBranch}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Metrics Grid */}
-            <div className="inspector-metrics-grid">
-              {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && (
-                <>
-                  <div className="inspector-metric-card" title="Inbound calls from other services">
-                    <span className="metric-val">{selectedNode.inboundCallsCount}</span>
-                    <span className="metric-lbl">Inbound Calls</span>
-                  </div>
-                  <div className="inspector-metric-card" title="Outbound calls to downstream services">
-                    <span className="metric-val">{selectedNode.outboundCallsCount}</span>
-                    <span className="metric-lbl">Outbound Calls</span>
-                  </div>
-                  {selectedNode.dbCount > 0 && (
-                    <div className="inspector-metric-card" title="Databases used directly">
-                      <span className="metric-val">{selectedNode.dbCount}</span>
-                      <span className="metric-lbl">Databases</span>
-                    </div>
-                  )}
-                  {selectedNode.messagingCount > 0 && (
-                    <div className="inspector-metric-card" title="Topics published or subscribed">
-                      <span className="metric-val">{selectedNode.messagingCount}</span>
-                      <span className="metric-lbl">Topics</span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Action buttons */}
-            <div className="inspector-actions">
-              {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && onFocusInFlow && (
-                <button
-                  className="inspector-action-btn primary"
-                  onClick={() => onFocusInFlow(selectedNode.name)}
-                  title="Drill down to Project Flow (C2) view"
-                >
-                  Explore in Flow (C2) ➔
-                </button>
-              )}
-              {selectedNode.primaryFilePath && onOpenFile && (
-                <button
-                  className="inspector-action-btn secondary"
-                  onClick={() => onOpenFile(selectedNode.primaryFilePath!, 1)}
-                  title="Open source file in editor"
-                >
-                  Open Source
-                </button>
-              )}
-              <button
-                className="inspector-action-btn hide-node-btn"
-                onClick={() => hideNode(selectedNode.id)}
-                title="Hide this node from map (Shortcut: H, Del, or Right-Click)"
-              >
-                Hide Node
-              </button>
-            </div>
-          </div>
         </aside>
       )}
+
+      {/* Floating Node Inspector Panel (Clings to Top-Right) */}
+      {selectedNode && (
+        <aside className={`domain-inspector-panel ${isInspectorCollapsed ? 'is-collapsed' : ''}`}>
+          {isInspectorCollapsed ? (
+            <div
+              className="domain-inspector-collapsed-badge"
+              onClick={() => setIsInspectorCollapsed(false)}
+              title={`Click to expand details for ${selectedNode.displayName}`}
+            >
+              <div className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
+                {selectedNode.displayTag}
+              </div>
+              <span className="collapsed-title">{selectedNode.displayName}</span>
+              <button
+                type="button"
+                className="collapsed-expand-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsInspectorCollapsed(false);
+                }}
+                title="Expand inspector"
+              >
+                ▼
+              </button>
+              <button
+                type="button"
+                className="inspector-close-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedNode(null);
+                  cyRef.current?.elements().removeClass('highlighted dimmed');
+                }}
+                title="Deselect"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="domain-inspector-header">
+                <div className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
+                  {selectedNode.displayTag}
+                </div>
+                <div className="inspector-title-group">
+                  <h4 className="inspector-title" title={selectedNode.displayName}>
+                    {selectedNode.displayName}
+                  </h4>
+                  {selectedNode.tierLabel && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: selectedNode.tier === 0 ? '#38bdf8' : selectedNode.tier === 1 ? '#4ade80' : selectedNode.tier === 2 ? '#fbbf24' : '#c084fc',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      marginTop: '2px',
+                      marginBottom: '2px',
+                      border: '1px solid rgba(255, 255, 255, 0.12)'
+                    }}>
+                      🎯 {selectedNode.tierLabel}
+                    </div>
+                  )}
+                  {selectedNode.framework && (
+                    <span className="inspector-subtitle">{selectedNode.framework}</span>
+                  )}
+                  {selectedNode.gitBranch && (
+                    <span className="inspector-subtitle" style={{ opacity: 0.85, fontSize: '0.82em' }}>🌿 {selectedNode.gitBranch}</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="inspector-collapse-btn"
+                  onClick={() => setIsInspectorCollapsed(true)}
+                  title="Minimize inspector to badge"
+                >
+                  —
+                </button>
+                <button
+                  className="inspector-header-hide-btn"
+                  onClick={() => hideNode(selectedNode.id)}
+                  title="Hide this node (Transitive connections will bypass it) [Shortcut: H, Del, or Right-Click]"
+                >
+                  👁️ Hide
+                </button>
+                <button
+                  className="inspector-close-btn"
+                  onClick={() => {
+                    setSelectedNode(null);
+                    cyRef.current?.elements().removeClass('highlighted dimmed');
+                  }}
+                  title="Close inspector"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="inspector-body">
+                {/* Subprojects breakdown if clustered */}
+                {selectedNode.projects && selectedNode.projects.length > 1 && (
+                  <div className="inspector-section">
+                    <label className="inspector-section-label">
+                      Clustered Projects ({selectedNode.projects.length})
+                    </label>
+                    <div className="inspector-subprojects-list">
+                      {selectedNode.projects.map((p) => (
+                        <div
+                          key={p.id}
+                          className="inspector-subproject-item"
+                          onClick={() => p.filePath && onOpenFile?.(p.filePath, 1)}
+                          title={p.filePath || p.name}
+                        >
+                          <span className="subproject-dot">•</span>
+                          <span className="subproject-name">{p.name}</span>
+                          {p.isLibrary && <span className="subproject-lib-tag">lib</span>}
+                          {p.gitBranch && <span className="subproject-lib-tag" style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>🌿 {p.gitBranch}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Metrics Grid */}
+                <div className="inspector-metrics-grid">
+                  {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && (
+                    <>
+                      <div className="inspector-metric-card" title="Inbound calls from other services">
+                        <span className="metric-val">{selectedNode.inboundCallsCount}</span>
+                        <span className="metric-lbl">Inbound Calls</span>
+                      </div>
+                      <div className="inspector-metric-card" title="Outbound calls to downstream services">
+                        <span className="metric-val">{selectedNode.outboundCallsCount}</span>
+                        <span className="metric-lbl">Outbound Calls</span>
+                      </div>
+                      {selectedNode.dbCount > 0 && (
+                        <div className="inspector-metric-card" title="Databases used directly">
+                          <span className="metric-val">{selectedNode.dbCount}</span>
+                          <span className="metric-lbl">Databases</span>
+                        </div>
+                      )}
+                      {selectedNode.messagingCount > 0 && (
+                        <div className="inspector-metric-card" title="Topics published or subscribed">
+                          <span className="metric-val">{selectedNode.messagingCount}</span>
+                          <span className="metric-lbl">Topics</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="inspector-actions">
+                  {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && onFocusInFlow && (
+                    <button
+                      className="inspector-action-btn primary"
+                      onClick={() => onFocusInFlow(selectedNode.name)}
+                      title="Drill down to Project Flow (C2) view"
+                    >
+                      Explore in Flow (C2) ➔
+                    </button>
+                  )}
+                  {selectedNode.primaryFilePath && onOpenFile && (
+                    <button
+                      className="inspector-action-btn secondary"
+                      onClick={() => onOpenFile(selectedNode.primaryFilePath!, 1)}
+                      title="Open source file in editor"
+                    >
+                      Open Source
+                    </button>
+                  )}
+                  <button
+                    className="inspector-action-btn hide-node-btn"
+                    onClick={() => hideNode(selectedNode.id)}
+                    title="Hide this node from map (Shortcut: H, Del, or Right-Click)"
+                  >
+                    Hide Node
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </aside>
+      )}
+      </div>
     </div>
   );
 };

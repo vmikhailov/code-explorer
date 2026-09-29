@@ -29,6 +29,7 @@ export interface ToolbarProps {
   graphStats?: { totalNodes: number; totalEdges: number; serverVersion?: string } | null;
   onTriggerIntent?: () => void;
   onManageModel?: () => void;
+  onSwitchViewMode?: (mode: ViewMode) => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -58,6 +59,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   graphStats,
   onTriggerIntent,
   onManageModel,
+  onSwitchViewMode,
 }) => {
   const uniqueProjects = useMemo(() => {
     const seen = new Set<string>();
@@ -151,17 +153,34 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
       </div>
 
-      {/* View Title Badge */}
+      {/* View Title Badge or View Switcher */}
       <div className="view-mode-title-badge">
-        <span className="view-mode-badge-text">
-          {viewMode === 'semantic' && '🌐 Domain Microservices'}
-          {viewMode === 'contexts' && '🧩 Bounded Context Map'}
-          {viewMode === 'layers' && '🏛️ Architecture Tiers'}
-          {viewMode === 'c1' && '🌍 C1 System Context'}
-          {viewMode === 'flow' && '🔀 Project Flow (C2)'}
-          {viewMode === 'full' && '🕸️ Physical Dependency Graph'}
-          {viewMode === 'mermaid' && '📊 Mermaid Architecture'}
-        </span>
+        {onSwitchViewMode ? (
+          <select
+            className="view-mode-select-dropdown"
+            value={viewMode}
+            onChange={(e) => onSwitchViewMode(e.target.value as ViewMode)}
+            title="Switch Architecture View Mode"
+          >
+            <option value="semantic">🌐 Domain Microservices</option>
+            <option value="c1">🌍 C1 System Context</option>
+            <option value="contexts">🧩 Bounded Contexts</option>
+            <option value="layers">🏛️ Architecture Tiers</option>
+            <option value="flow">🔀 Project Flow (C2)</option>
+            <option value="full">🕸️ Physical Graph</option>
+            <option value="mermaid">📊 Mermaid Architecture</option>
+          </select>
+        ) : (
+          <span className="view-mode-badge-text">
+            {viewMode === 'semantic' && '🌐 Domain Microservices'}
+            {viewMode === 'contexts' && '🧩 Bounded Context Map'}
+            {viewMode === 'layers' && '🏛️ Architecture Tiers'}
+            {viewMode === 'c1' && '🌍 C1 System Context'}
+            {viewMode === 'flow' && '🔀 Project Flow (C2)'}
+            {viewMode === 'full' && '🕸️ Physical Dependency Graph'}
+            {viewMode === 'mermaid' && '📊 Mermaid Architecture'}
+          </span>
+        )}
       </div>
 
       {/* Dynamic Controls based on Mode */}

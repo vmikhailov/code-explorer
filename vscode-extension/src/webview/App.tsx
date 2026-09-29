@@ -1201,6 +1201,7 @@ export const App: React.FC = () => {
         {viewMode !== 'grid' && (
           <Toolbar
             viewMode={viewMode}
+            onSwitchViewMode={(m) => handleViewModeChange(m)}
             allProjects={allProjects}
             projectPaths={projectPaths}
             selectedProject={selectedProject}

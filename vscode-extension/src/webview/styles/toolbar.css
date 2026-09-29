@@ -466,3 +466,34 @@
     width: 100%;
   }
 }
+
+/* View Mode Select Dropdown */
+.view-mode-title-badge {
+  display: flex;
+  align-items: center;
+}
+
+.view-mode-select-dropdown {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.view-mode-select-dropdown:hover,
+.view-mode-select-dropdown:focus {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #ffffff;
+}
+
+.view-mode-select-dropdown option {
+  background: #0f172a;
+  color: #f1f5f9;
+}
