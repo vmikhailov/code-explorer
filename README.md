@@ -3,6 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
 [![NuGet](https://img.shields.io/nuget/v/CodeExplorer.Cli.svg)](https://www.nuget.org/packages/CodeExplorer.Cli)
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/vmikhailov.code-explorer-vscode?label=Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
+[![Open VSX](https://img.shields.io/open-vsx/v/vmikhailov/code-explorer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
 [![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension%20(VSIX)-blueviolet.svg)](https://github.com/vmikhailov/code-explorer/releases/latest)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Containers-success.svg)](https://github.com/vmikhailov/code-explorer)
 

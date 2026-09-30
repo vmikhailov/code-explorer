@@ -33,6 +33,9 @@ for (const file of vsixFiles) {
 
 const platformVsixFiles = vsixFiles.filter((f) => !f.includes('universal'));
 const filesToPublish = platformVsixFiles.length > 0 ? platformVsixFiles : vsixFiles;
+const vsixPathsToPublish = filesToPublish.map((f) => path.resolve(distVsixDir, f));
+
+let hasErrors = false;
 
 // 1. Publish to VS Code Marketplace
 if (toMarketplace) {
@@ -43,20 +46,17 @@ if (toMarketplace) {
   if (!vscePat) {
     console.log('::warning::VSCE_PAT secret is not set. Skipping Visual Studio Marketplace publishing.');
   } else {
-    for (const vsix of filesToPublish) {
-      const vsixPath = path.resolve(distVsixDir, vsix);
-      console.log(`Publishing ${vsix} to VS Code Marketplace...`);
-      const res = spawnSync('npx', ['vsce', 'publish', '--packagePath', vsixPath, '-p', vscePat, '--skip-duplicate'], {
-        cwd: extensionRoot,
-        stdio: 'inherit',
-        shell: true,
-      });
-      if (res.status !== 0) {
-        console.error(`Failed to publish ${vsix} to VS Code Marketplace.`);
-        process.exit(1);
-      } else {
-        console.log(`✓ Published ${vsix} to VS Code Marketplace.`);
-      }
+    console.log(`Publishing ${vsixPathsToPublish.length} package(s) to VS Code Marketplace in single batch...`);
+    const res = spawnSync('npx', ['vsce', 'publish', '-p', vscePat, '--skip-duplicate', '--packagePath', ...vsixPathsToPublish], {
+      cwd: extensionRoot,
+      stdio: 'inherit',
+      shell: true,
+    });
+    if (res.status !== 0) {
+      console.error(`Failed to publish packages to VS Code Marketplace (exit code ${res.status}).`);
+      hasErrors = true;
+    } else {
+      console.log(`✓ Published packages to VS Code Marketplace.`);
     }
   }
 }
@@ -70,6 +70,20 @@ if (toOvsx) {
   if (!ovsxPat) {
     console.log('::warning::OVSX_PAT secret is not set. Skipping Open VSX Registry publishing.');
   } else {
+    // Ensure publisher namespace exists on Open VSX
+    try {
+      const pkgJson = JSON.parse(fs.readFileSync(path.resolve(extensionRoot, 'package.json'), 'utf8'));
+      const publisher = pkgJson.publisher || 'vmikhailov';
+      console.log(`Ensuring namespace '${publisher}' exists on Open VSX...`);
+      spawnSync('npx', ['ovsx', 'create-namespace', publisher, '-p', ovsxPat], {
+        cwd: extensionRoot,
+        stdio: 'inherit',
+        shell: true,
+      });
+    } catch (e) {
+      console.warn('Note: create-namespace check:', e?.message || e);
+    }
+
     for (const vsix of filesToPublish) {
       const vsixPath = path.resolve(distVsixDir, vsix);
       console.log(`Publishing ${vsix} to Open VSX Registry...`);
@@ -80,12 +94,16 @@ if (toOvsx) {
       });
       if (res.status !== 0) {
         console.error(`Failed to publish ${vsix} to Open VSX Registry.`);
-        process.exit(1);
+        hasErrors = true;
       } else {
         console.log(`✓ Published ${vsix} to Open VSX Registry.`);
       }
     }
   }
+}
+
+if (hasErrors) {
+  process.exit(1);
 }
 
 console.log('\n[publish-extension] Done.');

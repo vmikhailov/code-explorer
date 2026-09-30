@@ -1010,6 +1010,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const basePositionsRef = useRef<Map<string, cytoscape.Position>>(new Map());
   const centroidRef = useRef<{ cx: number; cy: number }>({ cx: 0, cy: 0 });
+  const rawGraphRef = useRef<any>(null);
 
   // Clear hidden filters when switching graph
   useEffect(() => {
@@ -1034,7 +1035,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setForcedVisibleNodeIds((prev) => {
       const next = new Set(prev);
       for (const id of prev) {
-        if (rawGraph.detailMap.get(id)?.kind === kind) {
+        if (rawGraphRef.current?.detailMap.get(id)?.kind === kind) {
           next.delete(id);
         }
       }
@@ -1044,7 +1045,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     if (cyRef.current) {
       cyRef.current.elements().removeClass('highlighted dimmed');
     }
-  }, [rawGraph.detailMap]);
+  }, []);
 
   const toggleOrbitVisibility = useCallback((levelIndex: number) => {
     forceRelayoutRef.current = true;
@@ -1060,7 +1061,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setForcedVisibleNodeIds((prev) => {
       const next = new Set(prev);
       for (const id of prev) {
-        const ech = rawGraph.echelonMap.get(id);
+        const ech = rawGraphRef.current?.echelonMap.get(id);
         if (ech === levelIndex) {
           next.delete(id);
         }
@@ -1070,7 +1071,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     if (cyRef.current) {
       cyRef.current.elements().removeClass('highlighted dimmed');
     }
-  }, [rawGraph.echelonMap]);
+  }, []);
 
   const hideNode = useCallback((nodeId: string) => {
     forceRelayoutRef.current = true;
@@ -1735,6 +1736,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       },
     };
   }, [graph]);
+  rawGraphRef.current = rawGraph;
 
   // 2. Visible Graph Memo with Directional Transitive Contraction
   const { elements, visibleNodes, visibleEdges, hiddenNodeIdSet, stats, hiddenCount } = useMemo(() => {
