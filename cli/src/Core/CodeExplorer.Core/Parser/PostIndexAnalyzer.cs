@@ -343,6 +343,19 @@ public class PostIndexAnalyzer(IGraphClient db)
             p.Extensions["language"] = p.ProjectType;
             p.Extensions["project_type"] = p.ProjectType;
 
+            if (!p.Extensions.ContainsKey("primary_role") || p.Extensions["primary_role"] == "General")
+            {
+                p.Extensions["primary_role"] = p.Role;
+            }
+            if (!p.Extensions.ContainsKey("secondary_roles"))
+            {
+                p.Extensions["secondary_roles"] = "[]";
+            }
+            if (!p.Extensions.ContainsKey("all_roles") || p.Extensions["all_roles"] == "[]")
+            {
+                p.Extensions["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { p.Extensions["primary_role"] });
+            }
+
             updatedProjectNodes.Add(Node.FromNode(p));
         }
 

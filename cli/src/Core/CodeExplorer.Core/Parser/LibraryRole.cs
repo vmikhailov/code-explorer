@@ -15,7 +15,7 @@ public enum LibraryRole
     AuthAndSecurity,
     Utility,
     WebFramework,
-    WebService = WebFramework,
+    WebService,
     FrontendFramework,
     MobileFramework,
     DesktopFramework,
@@ -27,5 +27,5 @@ public enum LibraryRole
     Scheduler,
     ApiGateway,
     EgressClient,
-    SharedLibrary = General
+    SharedLibrary
 }

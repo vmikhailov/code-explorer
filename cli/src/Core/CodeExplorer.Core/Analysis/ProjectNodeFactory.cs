@@ -45,6 +45,19 @@ public static class ProjectNodeFactory
         extensions["language"] = projectType;
         extensions["project_type"] = projectType;
 
+        if (!extensions.ContainsKey("primary_role") || extensions["primary_role"] == "General")
+        {
+            extensions["primary_role"] = role.ToString();
+        }
+        if (!extensions.ContainsKey("secondary_roles"))
+        {
+            extensions["secondary_roles"] = "[]";
+        }
+        if (!extensions.ContainsKey("all_roles") || extensions["all_roles"] == "[]")
+        {
+            extensions["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { extensions["primary_role"] });
+        }
+
         return new ProjectNode(id, projectName, relativeProjectDir, projectType, role.ToString(), isLibrary, extensions)
         {
             EntityKind = classification.Kind,

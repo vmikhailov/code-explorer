@@ -9,6 +9,8 @@ public record ProjectComponentProfile
     public IReadOnlyList<ComponentAnalysisResult> Components { get; init; } = [];
     public ComponentCapabilities Capabilities { get; init; } = ComponentCapabilities.None;
     public LibraryRole PrimaryRole { get; init; } = LibraryRole.General;
+    public IReadOnlyList<LibraryRole> SecondaryRoles { get; init; } = [];
+    public IReadOnlyList<LibraryRole> AllRoles { get; init; } = [];
     public bool IsLibrary { get; init; }
     public IReadOnlyList<string> EntryPoints { get; init; } = [];
     public IReadOnlyList<string> Endpoints { get; init; } = [];
@@ -53,6 +55,37 @@ public record ProjectComponentProfile
         if (isLibraryManifest) combinedCapabilities |= ComponentCapabilities.SharedLibrary;
         if (isWorkerManifest) combinedCapabilities |= ComponentCapabilities.QueueWorker;
 
+        // Collect all detected candidate roles
+        var allRoles = new HashSet<LibraryRole>();
+        foreach (var c in components)
+        {
+            if (c.Role is not LibraryRole.General and not LibraryRole.Utility)
+            {
+                allRoles.Add(c.Role);
+            }
+        }
+
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.HttpEndpoints)) allRoles.Add(LibraryRole.WebService);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.Scheduler)) allRoles.Add(LibraryRole.Scheduler);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.QueueWorker)) allRoles.Add(LibraryRole.WorkerService);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.FrontendApp)) allRoles.Add(LibraryRole.FrontendFramework);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.UiLibrary)) allRoles.Add(LibraryRole.UiComponentLibrary);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.CliTool) || isCliManifest) allRoles.Add(LibraryRole.CliFramework);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.ApiGateway)) allRoles.Add(LibraryRole.ApiGateway);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.EgressClient)) allRoles.Add(LibraryRole.EgressClient);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.TestRunner) || isTestManifest) allRoles.Add(LibraryRole.TestFramework);
+        if (combinedCapabilities.HasFlag(ComponentCapabilities.SharedLibrary) || isLibraryManifest) allRoles.Add(LibraryRole.SharedLibrary);
+
+        // Check if project is explicitly declared as a dedicated worker or scheduler
+        var projName = (context.ProjectName ?? "").ToLowerInvariant();
+        var dirName = Path.GetFileName(context.DirectoryPath ?? "").ToLowerInvariant();
+        var isExplicitWorkerOrScheduler = isWorkerManifest ||
+                                          context.ManifestProperties.GetValueOrDefault("framework_type") == "worker" ||
+                                          projName.EndsWith("-worker") || projName.EndsWith(".worker") || projName.EndsWith("_worker") ||
+                                          projName.EndsWith("-scheduler") || projName.EndsWith(".scheduler") || projName.EndsWith("_scheduler") ||
+                                          projName.EndsWith("-consumer") || projName.EndsWith("_consumer") ||
+                                          dirName.EndsWith("-worker") || dirName.EndsWith("-scheduler") || dirName.EndsWith("-consumer");
+
         // Determine dominant role by priority
         var dominantRole = LibraryRole.General;
 
@@ -83,6 +116,21 @@ public record ProjectComponentProfile
         {
             dominantRole = LibraryRole.ApiGateway;
         }
+        else if (combinedCapabilities.HasFlag(ComponentCapabilities.HttpEndpoints) &&
+                 (combinedCapabilities.HasFlag(ComponentCapabilities.Scheduler) || combinedCapabilities.HasFlag(ComponentCapabilities.QueueWorker)))
+        {
+            if (isExplicitWorkerOrScheduler)
+            {
+                dominantRole = combinedCapabilities.HasFlag(ComponentCapabilities.Scheduler)
+                    ? LibraryRole.Scheduler
+                    : LibraryRole.WorkerService;
+            }
+            else
+            {
+                // Full API microservice with background cron or queue consumption
+                dominantRole = LibraryRole.WebService;
+            }
+        }
         else if (combinedCapabilities.HasFlag(ComponentCapabilities.Scheduler))
         {
             dominantRole = LibraryRole.Scheduler;
@@ -105,10 +153,16 @@ public record ProjectComponentProfile
         }
         else
         {
-            // Fallback to first non-general role from components if any
-            var firstRole = components.FirstOrDefault(c => c.Role is not LibraryRole.General and not LibraryRole.Utility)?.Role;
-            dominantRole = firstRole ?? LibraryRole.General;
+            var firstRole = allRoles.FirstOrDefault(r => r is not LibraryRole.General and not LibraryRole.Utility);
+            dominantRole = firstRole != LibraryRole.General ? firstRole : LibraryRole.General;
         }
+
+        if (dominantRole != LibraryRole.General)
+        {
+            allRoles.Add(dominantRole);
+        }
+
+        var secondaryRoles = allRoles.Where(r => r != dominantRole).Distinct().ToList();
 
         // Determine IsLibrary flag
         bool isLib;
@@ -135,6 +189,8 @@ public record ProjectComponentProfile
             Components = components,
             Capabilities = combinedCapabilities,
             PrimaryRole = dominantRole,
+            SecondaryRoles = secondaryRoles,
+            AllRoles = allRoles.ToList(),
             IsLibrary = isLib,
             EntryPoints = entryPoints.Distinct().ToList(),
             Endpoints = endpoints.Distinct().ToList(),

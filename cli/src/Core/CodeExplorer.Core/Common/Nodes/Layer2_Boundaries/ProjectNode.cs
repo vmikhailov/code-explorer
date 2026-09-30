@@ -60,6 +60,15 @@ public record ProjectNode(
     [JsonPropertyName("role"), OntologyProperty("Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test).")]
     public string Role { get; set; } = Role;
 
+    [JsonPropertyName("primary_role"), OntologyProperty("Primary architectural role of the project (e.g. WebService, Scheduler, WorkerService, SharedLibrary, FrontendFramework, CliFramework, TestFramework).")]
+    public string? PrimaryRole => Extensions?.GetValueOrDefault("primary_role") ?? Role;
+
+    [JsonPropertyName("secondary_roles"), OntologyProperty("Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']).")]
+    public string? SecondaryRoles => Extensions?.GetValueOrDefault("secondary_roles") ?? "[]";
+
+    [JsonPropertyName("all_roles"), OntologyProperty("All architectural roles detected in the project.")]
+    public string? AllRoles => Extensions?.GetValueOrDefault("all_roles");
+
     [JsonPropertyName("is_library"), OntologyProperty("Indicates whether the project is a shared library rather than an executable application.")]
     public bool IsLibrary { get; set; } = IsLibrary;
 

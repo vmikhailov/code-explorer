@@ -289,17 +289,44 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 }
 
                 // Framework and workload detection
-                if (allDeps.Any(d => d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib" or "kafkajs" or "@cloudflare/workers-types" or "wrangler" or "node-cron" or "cron" or "agenda"))
+                var hasWebFramework = allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono");
+                var hasWorkerDeps = allDeps.Any(d => d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib" or "kafkajs" or "@cloudflare/workers-types" or "wrangler" or "node-cron" or "cron" or "agenda");
+                var hasFrontendDeps = allDeps.Any(d => d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next" or "nuxt");
+
+                var pkgName = root.TryGetProperty("name", out var np) && np.ValueKind == System.Text.Json.JsonValueKind.String ? (np.GetString() ?? "").ToLowerInvariant() : "";
+                var projDirName = Path.GetFileName(directoryPath).ToLowerInvariant();
+                var isDedicatedWorkerName = projDirName.EndsWith("-worker") || projDirName.EndsWith(".worker") || projDirName.EndsWith("_worker") ||
+                                            projDirName.EndsWith("-scheduler") || projDirName.EndsWith(".scheduler") || projDirName.EndsWith("_scheduler") ||
+                                            projDirName.EndsWith("-consumer") || projDirName.EndsWith("_consumer") ||
+                                            pkgName.EndsWith("-worker") || pkgName.EndsWith(".worker") || pkgName.EndsWith("_worker") ||
+                                            pkgName.EndsWith("-scheduler") || pkgName.EndsWith(".scheduler") || pkgName.EndsWith("_scheduler") ||
+                                            pkgName.EndsWith("-consumer") || pkgName.EndsWith("_consumer");
+
+                if (hasWorkerDeps)
+                {
+                    if (allDeps.Any(d => d is "@nestjs/schedule" or "node-cron" or "cron" or "agenda")) props["has_schedule"] = "true";
+                    if (allDeps.Any(d => d is "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib" or "kafkajs")) props["has_queue_worker"] = "true";
+                }
+
+                if (hasWebFramework)
+                {
+                    if (isDedicatedWorkerName && hasWorkerDeps)
+                    {
+                        props["framework_type"] = "worker";
+                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
+                    }
+                    else
+                    {
+                        props["framework_type"] = "web";
+                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
+                    }
+                }
+                else if (hasWorkerDeps)
                 {
                     props["framework_type"] = "worker";
                     if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
                 }
-                else if (allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono"))
-                {
-                    props["framework_type"] = "web";
-                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
-                }
-                else if (allDeps.Any(d => d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next" or "nuxt"))
+                else if (hasFrontendDeps)
                 {
                     props["framework_type"] = "frontend";
                     if (!props.ContainsKey("manifest_type"))

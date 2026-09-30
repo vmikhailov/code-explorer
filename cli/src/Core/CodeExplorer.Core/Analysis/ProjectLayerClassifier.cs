@@ -315,6 +315,23 @@ public static class ProjectLayerClassifier
 
     public static bool IsWorkerOrScheduler(ProjectClassifierItem p)
     {
+        var primaryRole = p.Extensions?.GetValueOrDefault("primary_role");
+        if (!string.IsNullOrEmpty(primaryRole))
+        {
+            if (string.Equals(primaryRole, "Scheduler", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(primaryRole, "WorkerService", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(primaryRole, "Worker", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            if (string.Equals(primaryRole, "WebService", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(primaryRole, "FrontendFramework", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(primaryRole, "ApiGateway", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
         if (string.Equals(p.Role, "Worker", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Worker", StringComparison.OrdinalIgnoreCase))
         {
@@ -323,11 +340,16 @@ public static class ProjectLayerClassifier
 
         if (p.Extensions != null)
         {
-            if (p.Extensions.GetValueOrDefault("is_scheduler") == "true" ||
-                p.Extensions.GetValueOrDefault("is_queue_worker") == "true" ||
-                p.Extensions.GetValueOrDefault("has_schedule") == "true" ||
-                p.Extensions.GetValueOrDefault("manifest_type") == "worker" ||
+            if (p.Extensions.GetValueOrDefault("manifest_type") == "worker" ||
                 p.Extensions.GetValueOrDefault("framework_type") == "worker")
+            {
+                return true;
+            }
+
+            if (!string.Equals(p.Role, "Service", StringComparison.OrdinalIgnoreCase) &&
+                (p.Extensions.GetValueOrDefault("is_scheduler") == "true" ||
+                 p.Extensions.GetValueOrDefault("is_queue_worker") == "true" ||
+                 p.Extensions.GetValueOrDefault("has_schedule") == "true"))
             {
                 return true;
             }

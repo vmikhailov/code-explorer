@@ -164,4 +164,66 @@ public class ProjectEntityClassifierTests
         Assert.That(classification.Kind, Is.EqualTo(ProjectEntityKind.App));
         Assert.That(classification.SubKind, Is.EqualTo(ProjectEntitySubKind.Web));
     }
+
+    [Test]
+    public void Detect_ServiceWithBackgroundSchedule_SelectsPrimaryWebServiceAndSecondaryScheduler()
+    {
+        var extensions = new Dictionary<string, string>();
+        var (role, isLib, classification) = ProjectRoleDetector.Detect(
+            "/workspace/services/bundle-priority",
+            ["/workspace/services/bundle-priority/package.json"],
+            "services/bundle-priority",
+            "integration-service-bundle-priority",
+            "typescript",
+            dependencies: ["@nestjs/common", "@nestjs/core", "@nestjs/schedule"],
+            extensions: extensions
+        );
+
+        Assert.That(role, Is.EqualTo(ProjectRole.Service));
+        Assert.That(isLib, Is.False);
+        Assert.That(classification.Kind, Is.EqualTo(ProjectEntityKind.Service));
+        Assert.That(extensions["primary_role"], Is.EqualTo("WebService"));
+        Assert.That(extensions["secondary_roles"], Does.Contain("Scheduler"));
+        Assert.That(extensions["all_roles"], Does.Contain("WebService").And.Contain("Scheduler"));
+    }
+
+    [Test]
+    public void Detect_DedicatedScheduler_SelectsPrimaryScheduler()
+    {
+        var extensions = new Dictionary<string, string>();
+        var (role, isLib, classification) = ProjectRoleDetector.Detect(
+            "/workspace/services/action-scheduler",
+            ["/workspace/services/action-scheduler/package.json"],
+            "services/action-scheduler",
+            "internal-service-action-scheduler",
+            "typescript",
+            dependencies: ["@nestjs/common", "@nestjs/core", "@nestjs/schedule"],
+            extensions: extensions
+        );
+
+        Assert.That(role, Is.EqualTo(ProjectRole.Worker));
+        Assert.That(isLib, Is.False);
+        Assert.That(classification.Kind, Is.EqualTo(ProjectEntityKind.Worker));
+        Assert.That(extensions["primary_role"], Is.EqualTo("Scheduler"));
+    }
+
+    [Test]
+    public void ProjectNodeFactory_PopulatesPrimaryAndSecondaryRolesOnNode()
+    {
+        var node = ProjectNodeFactory.Create(
+            "ws:p:bundle-priority:",
+            "integration-service-bundle-priority",
+            "services/bundle-priority",
+            "typescript",
+            "/workspace/services/bundle-priority",
+            ["/workspace/services/bundle-priority/package.json"],
+            externalPackages: ["@nestjs/common", "@nestjs/core", "@nestjs/schedule"]
+        );
+
+        Assert.That(node.Role, Is.EqualTo("Service"));
+        Assert.That(node.IsLibrary, Is.False);
+        Assert.That(node.PrimaryRole, Is.EqualTo("WebService"));
+        Assert.That(node.SecondaryRoles, Does.Contain("Scheduler"));
+        Assert.That(node.AllRoles, Does.Contain("WebService").And.Contain("Scheduler"));
+    }
 }

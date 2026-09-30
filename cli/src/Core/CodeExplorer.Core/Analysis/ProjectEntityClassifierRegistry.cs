@@ -71,6 +71,13 @@ public static class ProjectEntityClassifierRegistry
             dict["component_role"] = componentProfile.PrimaryRole.ToString();
             dict["component_is_library"] = componentProfile.IsLibrary ? "true" : "false";
 
+            if (componentProfile.PrimaryRole != Parser.LibraryRole.General)
+            {
+                dict["primary_role"] = componentProfile.PrimaryRole.ToString();
+            }
+            dict["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(componentProfile.SecondaryRoles.Select(r => r.ToString()));
+            dict["all_roles"] = System.Text.Json.JsonSerializer.Serialize(componentProfile.AllRoles.Select(r => r.ToString()));
+
             if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.UiLibrary)) dict["is_ui_library"] = "true";
             if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.FrontendApp)) dict["is_frontend_app"] = "true";
             if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.Scheduler)) dict["is_scheduler"] = "true";
@@ -107,6 +114,12 @@ public static class ProjectEntityClassifierRegistry
             var dialectClassification = dialectParser.ClassifyProject(projectContext);
             if (dialectClassification != null && dialectClassification.Kind != ProjectEntityKind.Unknown)
             {
+                if (extensions is Dictionary<string, string> d)
+                {
+                    d.TryAdd("primary_role", dialectClassification.Kind.ToString());
+                    d.TryAdd("secondary_roles", "[]");
+                    d.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { d["primary_role"] }));
+                }
                 return dialectClassification;
             }
         }
@@ -131,8 +144,21 @@ public static class ProjectEntityClassifierRegistry
 
             if (classification != null && classification.Kind != ProjectEntityKind.Unknown)
             {
+                if (extensions is Dictionary<string, string> d)
+                {
+                    d.TryAdd("primary_role", classification.Kind.ToString());
+                    d.TryAdd("secondary_roles", "[]");
+                    d.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { d["primary_role"] }));
+                }
                 return classification;
             }
+        }
+
+        if (extensions is Dictionary<string, string> fallbackDict)
+        {
+            fallbackDict.TryAdd("primary_role", ProjectClassification.Service.Kind.ToString());
+            fallbackDict.TryAdd("secondary_roles", "[]");
+            fallbackDict.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { fallbackDict["primary_role"] }));
         }
 
         return ProjectClassification.Service;
