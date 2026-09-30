@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import cytoscape, { Core, EventObject } from 'cytoscape';
 import { GraphData, GraphNode, GraphEdge } from '../../../../proto/types';
+import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 
 export interface BoundedContextFile {
   filePath: string;
@@ -447,7 +448,12 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
 
     cyRef.current = cy;
 
+    const cleanupWheel = containerRef.current
+      ? attachNormalizedCytoscapeWheel(containerRef.current, () => cyRef.current)
+      : () => {};
+
     return () => {
+      cleanupWheel();
       cy.destroy();
       cyRef.current = null;
     };

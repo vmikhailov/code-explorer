@@ -19,6 +19,7 @@ import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout
 import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslandsLayout';
 import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
 import { DomainMatrixView } from './DomainMatrixView';
+import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 
 export type DomainLayoutName =
   | 'concentric'
@@ -994,18 +995,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const spacingFactorRef = useRef<number>(1.0);
   spacingFactorRef.current = spacingFactor;
 
-  // Mouse wheel zoom sensitivity (default 2.5, 10x of previous 0.25)
+  // Mouse wheel zoom sensitivity (default 1.0x with universal normalized wheel)
   const [wheelSensitivity, setWheelSensitivity] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem('ce_wheel_sensitivity');
+      const saved = localStorage.getItem('ce_wheel_sensitivity_v2');
       if (saved) {
         const val = parseFloat(saved);
-        if (!isNaN(val) && val >= 0.5 && val <= 5.0) return val;
+        if (!isNaN(val) && val >= 0.2 && val <= 3.0) return val;
       }
     } catch { }
-    return 2.5;
+    return 1.0;
   });
-  const wheelSensitivityRef = useRef<number>(2.5);
+  const wheelSensitivityRef = useRef<number>(1.0);
   wheelSensitivityRef.current = wheelSensitivity;
 
   const basePositionsRef = useRef<Map<string, cytoscape.Position>>(new Map());
@@ -2166,7 +2167,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       .update();
     applyEdgeLabelVisibility(cy, edgeLabelsOnHoverRef.current);
 
+    const cleanupWheel = containerRef.current
+      ? attachNormalizedCytoscapeWheel(containerRef.current, () => cyRef.current, () => wheelSensitivityRef.current)
+      : () => {};
+
     return () => {
+      cleanupWheel();
       cy.destroy();
       cyRef.current = null;
     };
@@ -2931,20 +2937,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Wheel sensitivity change handler
   const handleWheelSensitivityChange = useCallback((val: number) => {
-    const clamped = Math.max(0.5, Math.min(5.0, +val.toFixed(1)));
+    const clamped = Math.max(0.2, Math.min(3.0, +val.toFixed(1)));
     setWheelSensitivity(clamped);
     try {
-      localStorage.setItem('ce_wheel_sensitivity', clamped.toString());
+      localStorage.setItem('ce_wheel_sensitivity_v2', clamped.toString());
     } catch { }
-    if (cyRef.current) {
-      const cy = cyRef.current as any;
-      if (cy._private?.renderer) {
-        cy._private.renderer.wheelSensitivity = clamped;
-      }
-      if (cy._private?.options) {
-        cy._private.options.wheelSensitivity = clamped;
-      }
-    }
   }, []);
 
   // Zoom control handlers
@@ -3249,8 +3246,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         <span className="setting-name">Wheel Sensitivity</span>
                         <span
                           className="domain-hud-value-badge"
-                          onClick={() => handleWheelSensitivityChange(2.5)}
-                          title="Click to reset sensitivity to 2.5x"
+                          onClick={() => handleWheelSensitivityChange(1.0)}
+                          title="Click to reset sensitivity to 1.0x"
                         >
                           {wheelSensitivity.toFixed(1)}x
                         </span>
@@ -3259,15 +3256,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         <button
                           type="button"
                           className="domain-hud-step-btn"
-                          onClick={() => handleWheelSensitivityChange(Math.max(0.5, +(wheelSensitivity - 0.5).toFixed(1)))}
+                          onClick={() => handleWheelSensitivityChange(Math.max(0.2, +(wheelSensitivity - 0.2).toFixed(1)))}
                           title="Decrease sensitivity"
                         >
                           −
                         </button>
                         <input
                           type="range"
-                          min="0.5"
-                          max="5.0"
+                          min="0.2"
+                          max="3.0"
                           step="0.1"
                           value={wheelSensitivity}
                           onChange={(e) => handleWheelSensitivityChange(parseFloat(e.target.value))}
@@ -3276,7 +3273,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         <button
                           type="button"
                           className="domain-hud-step-btn"
-                          onClick={() => handleWheelSensitivityChange(Math.min(5.0, +(wheelSensitivity + 0.5).toFixed(1)))}
+                          onClick={() => handleWheelSensitivityChange(Math.min(3.0, +(wheelSensitivity + 0.2).toFixed(1)))}
                           title="Increase sensitivity"
                         >
                           +

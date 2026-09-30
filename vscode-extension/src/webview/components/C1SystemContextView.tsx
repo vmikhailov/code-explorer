@@ -17,6 +17,7 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import { GraphData, GraphNode, isProjectKind } from '../../../../proto/types';
+import { calculateNormalizedZoomFactor, calculateAnchorPan, attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import {
   C1LaconicCardNode,
   C1AppCardNode,
@@ -319,6 +320,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
 
   const isDraggingMermaidRef = useRef(false);
   const mermaidDragStartRef = useRef({ x: 0, y: 0 });
+  const mermaidContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Initialize mermaid on mount
   useEffect(() => {
@@ -1142,7 +1144,12 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
     cy.on('pan zoom resize render', handleViewportChange);
     const tm = setTimeout(handleViewportChange, 60);
 
+    const cleanupWheel = cyContainerRef.current
+      ? attachNormalizedCytoscapeWheel(cyContainerRef.current, () => cyInstanceRef.current)
+      : () => {};
+
     return () => {
+      cleanupWheel();
       clearTimeout(tm);
       cy.destroy();
       cyInstanceRef.current = null;
@@ -1238,8 +1245,24 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
   // Mermaid Pan & Zoom Handlers
   const handleMermaidWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.88;
-    setMermaidZoom((prev) => Math.min(3.0, Math.max(0.2, prev * zoomFactor)));
+    const container = mermaidContainerRef.current;
+    if (!container) return;
+
+    const factor = calculateNormalizedZoomFactor(e, 1.0);
+    const newZoom = Math.min(3.0, Math.max(0.2, mermaidZoom * factor));
+
+    const rect = container.getBoundingClientRect();
+    const newPan = calculateAnchorPan(
+      e.clientX,
+      e.clientY,
+      rect,
+      mermaidPan,
+      mermaidZoom,
+      newZoom
+    );
+
+    setMermaidZoom(newZoom);
+    setMermaidPan(newPan);
   };
 
   const handleMermaidMouseDown = (e: React.MouseEvent) => {
@@ -1662,6 +1685,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
       <main className="c1-main-viewport">
         {variant === 'mermaid' ? (
           <div
+            ref={mermaidContainerRef}
             className="c1-mermaid-container"
             onWheel={handleMermaidWheel}
             onMouseDown={handleMermaidMouseDown}

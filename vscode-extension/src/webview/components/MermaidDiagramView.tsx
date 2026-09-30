@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
 import { GraphData, isProjectKind } from '../../../../proto/types';
+import { calculateNormalizedZoomFactor, calculateAnchorPan } from '../utils/wheelZoom';
 
 interface MermaidDiagramViewProps {
   graph: GraphData | null;
@@ -273,8 +274,24 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
   // Pan & Zoom Handlers
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    setZoom((prev) => Math.min(3.0, Math.max(0.3, prev * zoomFactor)));
+    const container = containerRef.current;
+    if (!container) return;
+
+    const factor = calculateNormalizedZoomFactor(e, 1.0);
+    const newZoom = Math.min(3.0, Math.max(0.3, zoom * factor));
+
+    const rect = container.getBoundingClientRect();
+    const newPan = calculateAnchorPan(
+      e.clientX,
+      e.clientY,
+      rect,
+      pan,
+      zoom,
+      newZoom
+    );
+
+    setZoom(newZoom);
+    setPan(newPan);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {

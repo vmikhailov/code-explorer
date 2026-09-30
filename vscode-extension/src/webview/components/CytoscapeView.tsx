@@ -3,6 +3,7 @@ import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import { GraphData, GraphNode } from '../../../../proto/types';
 import { LayerDefinition, getLayersFromGraph } from '../layers';
+import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 
 cytoscape.use(dagre);
 
@@ -346,7 +347,12 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
 
     cyRef.current = cy;
 
+    const cleanupWheel = containerRef.current
+      ? attachNormalizedCytoscapeWheel(containerRef.current, () => cyRef.current)
+      : () => {};
+
     return () => {
+      cleanupWheel();
       cy.destroy();
       cyRef.current = null;
     };

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { ClassifiedC1Node, ClassifiedC1Edge } from './C1SystemContextView';
+import { calculateNormalizedZoomFactor, calculateAnchorPan } from '../utils/wheelZoom';
 
 export interface C1ChordWheelViewProps {
   nodes: ClassifiedC1Node[];
@@ -23,6 +24,7 @@ export const C1ChordWheelView: React.FC<C1ChordWheelViewProps> = ({
 
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Sort nodes in order: Apps first, then Services, then External
   const orderedNodes = useMemo(() => {
@@ -102,9 +104,25 @@ export const C1ChordWheelView: React.FC<C1ChordWheelViewProps> = ({
   // Zoom / Pan handlers
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    setZoom((z) => Math.min(3.0, Math.max(0.3, z * factor)));
-  }, []);
+    const container = containerRef.current;
+    if (!container) return;
+
+    const factor = calculateNormalizedZoomFactor(e, 1.0);
+    const newZoom = Math.min(3.0, Math.max(0.3, zoom * factor));
+
+    const rect = container.getBoundingClientRect();
+    const newPan = calculateAnchorPan(
+      e.clientX,
+      e.clientY,
+      rect,
+      pan,
+      zoom,
+      newZoom
+    );
+
+    setZoom(newZoom);
+    setPan(newPan);
+  }, [zoom, pan]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -131,6 +149,7 @@ export const C1ChordWheelView: React.FC<C1ChordWheelViewProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className="c1-chord-container"
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
