@@ -685,7 +685,10 @@
 }
 
 .domain-hidden-collapsed-badge .badge-icon {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fca5a5;
 }
 
 .domain-hidden-collapsed-badge .badge-count {
@@ -723,6 +726,13 @@
   gap: 5px;
   font-size: 11px;
   font-weight: 700;
+  color: #fca5a5;
+}
+
+.hidden-panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #fca5a5;
 }
 
@@ -1411,24 +1421,28 @@
 
 /* Orbit visibility button in legend */
 .orbit-visibility-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   cursor: pointer;
   padding: 1px 3px;
-  font-size: 11px;
-  line-height: 1;
+  color: #94a3b8;
   opacity: 0.75;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
   user-select: none;
 }
 
 .orbit-visibility-btn:hover {
   opacity: 1;
+  color: #f1f5f9;
   transform: scale(1.15);
 }
 
 .orbit-visibility-btn.is-hidden {
   opacity: 0.9;
+  color: #ef4444;
 }
 
 /* Dimmed / Hidden Orbit Legend Item */

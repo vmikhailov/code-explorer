@@ -50,6 +50,50 @@ const SUB_PROJECT_SUFFIX_REGEX =
 const INGRESS_KEYWORDS = ['admin', 'app', 'ui', 'fe', 'gateway', 'bff', 'portal', 'web', 'client-app', 'landing', 'graphql', 'grapql', 'grpc', 'mqtt', 'endpoint'];
 const INGRESS_FRAMEWORKS = ['angular', 'react', 'vue', 'svelte', 'next', 'vite', 'blazor'];
 
+export const EyeIcon: React.FC<{ size?: number; className?: string; style?: React.CSSProperties }> = ({
+  size = 14,
+  className = '',
+  style,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+  >
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+export const EyeOffIcon: React.FC<{ size?: number; className?: string; style?: React.CSSProperties }> = ({
+  size = 14,
+  className = '',
+  style,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+  >
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+  </svg>
+);
+
 /**
  * Normalizes project names and directory paths into a cohesive Domain / Bounded Context key.
  */
@@ -562,15 +606,14 @@ export function buildAllOrbitLegendItems(
 
   let orderedTiers: number[];
   if (customOrbitOrder && customOrbitOrder.length > 0) {
-    const validCustom = customOrbitOrder.filter((t) => innerTiers.includes(t));
-    const missing = innerTiers.filter((t) => !validCustom.includes(t));
-    orderedTiers = [...validCustom, ...missing, ...outerTiers];
+    const validCustom = customOrbitOrder.filter((t) => allTiers.includes(t));
+    const missingInner = innerTiers.filter((t) => !validCustom.includes(t));
+    const missingOuter = outerTiers.filter((t) => !validCustom.includes(t));
+    orderedTiers = [...validCustom, ...missingInner, ...missingOuter];
   } else {
-    const layoutInner = layoutPopulatedOrbits
-      .map((o) => o.levelIndex)
-      .filter((t) => t !== 4 && t !== 5);
-    const missing = innerTiers.filter((t) => !layoutInner.includes(t));
-    orderedTiers = [...layoutInner, ...missing, ...outerTiers];
+    const layoutTiers = layoutPopulatedOrbits.map((o) => o.levelIndex);
+    const missing = allTiers.filter((t) => !layoutTiers.includes(t));
+    orderedTiers = [...layoutTiers, ...missing];
   }
 
   const radiusMap = new Map<number, number>();
@@ -2865,9 +2908,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const handleMoveOrbit = useCallback(
     (fromIndex: number, direction: -1 | 1) => {
-      const maxMovableIndex = orbitLegendItems.some((it) => it.levelIndex === 4 || it.levelIndex === 5)
-        ? orbitLegendItems.length - 2
-        : orbitLegendItems.length - 1;
+      const maxMovableIndex = orbitLegendItems.length - 1;
       const toIndex = fromIndex + direction;
       if (fromIndex > maxMovableIndex || toIndex < 0 || toIndex > maxMovableIndex) return;
       const newItems = [...orbitLegendItems];
@@ -2880,33 +2921,21 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   );
 
   const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
-    const isOuterFixed = orbitLegendItems[idx]?.levelIndex === 4 || orbitLegendItems[idx]?.levelIndex === 5;
-    if (isOuterFixed) return;
     setDraggedOrbitIndex(idx);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(idx));
-  }, [orbitLegendItems]);
+  }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
     e.preventDefault();
-    const isOuterFixed = orbitLegendItems[idx]?.levelIndex === 4 || orbitLegendItems[idx]?.levelIndex === 5;
-    if (isOuterFixed) return;
     e.dataTransfer.dropEffect = 'move';
     setDragOverIndex((prev) => (prev !== idx ? idx : prev));
-  }, [orbitLegendItems]);
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent, targetIdx: number) => {
       e.preventDefault();
       if (draggedOrbitIndex === null || draggedOrbitIndex === targetIdx) {
-        setDraggedOrbitIndex(null);
-        setDragOverIndex(null);
-        return;
-      }
-      const maxMovableIndex = orbitLegendItems.some((it) => it.levelIndex === 4 || it.levelIndex === 5)
-        ? orbitLegendItems.length - 2
-        : orbitLegendItems.length - 1;
-      if (draggedOrbitIndex > maxMovableIndex || targetIdx > maxMovableIndex) {
         setDraggedOrbitIndex(null);
         setDragOverIndex(null);
         return;
@@ -3559,7 +3588,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 onClick={unhideAll}
                 title="Reset all hidden nodes and type filters"
               >
-                👁️ Reset All ({hiddenCount})
+                <EyeOffIcon size={12} className="btn-icon" /> Reset All ({hiddenCount})
               </button>
             )}
           </div>
@@ -3943,7 +3972,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               onClick={() => setIsHiddenPanelCollapsed(false)}
               title={`Click to expand ${hiddenNodeIdSet.size} hidden entities`}
             >
-              <span className="badge-icon">👁️</span>
+              <span className="badge-icon"><EyeOffIcon size={14} /></span>
               <span className="badge-count">{hiddenNodeIdSet.size}</span>
               <span className="badge-arrow">▶</span>
             </div>
@@ -3951,7 +3980,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             <div className="domain-hidden-panel-content">
               <div className="domain-hidden-panel-header">
                 <div className="hidden-panel-title">
-                  <span className="hidden-panel-icon">👁️</span>
+                  <span className="hidden-panel-icon"><EyeOffIcon size={14} /></span>
                   <span>Hidden ({hiddenNodeIdSet.size})</span>
                 </div>
                 <div className="hidden-panel-header-actions">
@@ -4075,27 +4104,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               <div className="domain-orbit-legend-body">
                 {orbitLegendItems.map((item, idx) => {
                   const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
-                  const isOuterFixed = item.levelIndex === 4 || item.levelIndex === 5;
-                  const maxMovableIndex = orbitLegendItems.some((it) => it.levelIndex === 4 || it.levelIndex === 5)
-                    ? orbitLegendItems.length - 2
-                    : orbitLegendItems.length - 1;
 
                   return (
                     <div
                       key={item.levelIndex}
                       className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
-                      draggable={!isOuterFixed}
-                      onDragStart={(e) => !isOuterFixed && handleDragStart(e, idx)}
-                      onDragOver={(e) => !isOuterFixed && handleDragOver(e, idx)}
-                      onDrop={(e) => !isOuterFixed && handleDrop(e, idx)}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDrop={(e) => handleDrop(e, idx)}
                       onDragEnd={handleDragEnd}
                       onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
                       onMouseLeave={clearOrbitHighlight}
-                      title={
-                        isOuterFixed
-                          ? `${item.shortLabel}: ${item.title} (${item.count} nodes). Fixed on outer periphery.`
-                          : `${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`
-                      }
+                      title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`}
                     >
                       <button
                         type="button"
@@ -4106,45 +4127,38 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         }}
                         title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
                       >
-                        {isOrbitHidden ? '🙈' : '👁️'}
+                        {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
                       </button>
-                      {!isOuterFixed ? (
-                        <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
-                      ) : null}
+                      <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
                       <span className="orbit-legend-pill">{item.shortLabel}</span>
                       <span className="orbit-legend-title">{item.title}</span>
-                      {isOuterFixed && (
-                        <span className="orbit-fixed-badge" title="Databases & External Services are permanently fixed on the outer periphery">🔒 Outer</span>
-                      )}
                       <span className="orbit-legend-count">{item.count}</span>
-                      {!isOuterFixed && (
-                        <div className="orbit-move-actions">
-                          <button
-                            type="button"
-                            className="orbit-move-btn"
-                            disabled={idx === 0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMoveOrbit(idx, -1);
-                            }}
-                            title="Move toward center (Inner orbit)"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            type="button"
-                            className="orbit-move-btn"
-                            disabled={idx >= maxMovableIndex}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMoveOrbit(idx, 1);
-                            }}
-                            title="Move toward periphery (Outer orbit)"
-                          >
-                            ▼
-                          </button>
-                        </div>
-                      )}
+                      <div className="orbit-move-actions">
+                        <button
+                          type="button"
+                          className="orbit-move-btn"
+                          disabled={idx === 0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveOrbit(idx, -1);
+                          }}
+                          title="Move toward center (Inner orbit)"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          className="orbit-move-btn"
+                          disabled={idx === orbitLegendItems.length - 1}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveOrbit(idx, 1);
+                          }}
+                          title="Move toward periphery (Outer orbit)"
+                        >
+                          ▼
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -4238,7 +4252,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   onClick={() => hideNode(selectedNode.id)}
                   title="Hide this node (Transitive connections will bypass it) [Shortcut: H, Del, or Right-Click]"
                 >
-                  👁️ Hide
+                  <EyeOffIcon size={12} className="btn-icon" /> Hide
                 </button>
                 <button
                   className="inspector-close-btn"

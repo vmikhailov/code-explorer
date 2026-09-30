@@ -37,9 +37,10 @@ export function computeConcentricEquispacedLayout(
   const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5);
   let effectiveOrder = [...innerPopulated, ...outerTiers];
   if (customOrbitOrder && customOrbitOrder.length > 0) {
-    const validCustom = customOrbitOrder.filter((t) => innerPopulated.includes(t));
-    const missing = innerPopulated.filter((t) => !validCustom.includes(t));
-    effectiveOrder = [...validCustom, ...missing, ...outerTiers];
+    const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
+    const missingInner = innerPopulated.filter((t) => !validCustom.includes(t));
+    const missingOuter = outerTiers.filter((t) => !validCustom.includes(t));
+    effectiveOrder = [...validCustom, ...missingInner, ...missingOuter];
   }
 
   const populatedOrbits: Array<{

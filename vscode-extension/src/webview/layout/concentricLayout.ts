@@ -421,9 +421,10 @@ export function computeConcentricLayout(
   const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5);
   let optimalOrder: number[];
   if (customOrbitOrder && customOrbitOrder.length > 0) {
-    const validCustom = customOrbitOrder.filter((t) => innerPopulated.includes(t));
-    const missing = innerPopulated.filter((t) => !validCustom.includes(t));
-    optimalOrder = [...validCustom, ...missing, ...outerTiers];
+    const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
+    const missingInner = innerPopulated.filter((t) => !validCustom.includes(t));
+    const missingOuter = outerTiers.filter((t) => !validCustom.includes(t));
+    optimalOrder = [...validCustom, ...missingInner, ...missingOuter];
   } else {
     optimalOrder = optimizeOrbitPermutation(
       populatedTiers,

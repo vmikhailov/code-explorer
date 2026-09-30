@@ -301,7 +301,7 @@ test('optimizeOrbitPermutation: anchors Ingress at center and minimizes radial e
   assert.deepEqual(optimalOrder, [0, 1, 3, 2, 4], 'Orbits should be permuted [0, 1, 3, 2, 4] to minimize edge length');
 });
 
-test('computeConcentricLayout: respects customOrbitOrder for inner tiers while pinning Databases (tier 4) to outer orbit', () => {
+test('computeConcentricLayout: respects customOrbitOrder for inner tiers while pinning Databases (tier 4) to outer orbit by default', () => {
   const visibleNodes: ConcentricNodeInput[] = [
     { id: 'app', echelonTier: 0 },
     { id: 'svc-1', echelonTier: 1 },
@@ -314,16 +314,21 @@ test('computeConcentricLayout: respects customOrbitOrder for inner tiers while p
     { source: 'svc-1', target: 'db-1' },
   ];
 
-  // User specifies custom order for inner orbits, and Databases (4) must remain outermost
+  // User specifies custom order for inner orbits without specifying 4; Databases (4) defaults to outermost
   const customOrder = [2, 0, 1];
   const result = computeConcentricLayout(visibleNodes, visibleEdges, 1.0, customOrder);
 
   const resultingTiers = result.populatedOrbits.map((o) => o.levelIndex);
-  assert.deepEqual(resultingTiers, [2, 0, 1, 4], 'Inner orbits follow custom order and tier 4 remains outermost');
-  assert.equal(resultingTiers[resultingTiers.length - 1], 4, 'Databases and External Services must always be fixed on outermost orbit');
+  assert.deepEqual(resultingTiers, [2, 0, 1, 4], 'Inner orbits follow custom order and tier 4 defaults to outermost');
+  assert.equal(resultingTiers[resultingTiers.length - 1], 4, 'Databases and External Services default to outermost orbit');
   assert.equal(result.populatedOrbits[0].shortLabel, 'Orbit 0');
   assert.equal(result.populatedOrbits[0].levelIndex, 2);
   assert.equal(result.populatedOrbits[3].shortLabel, 'Orbit 3');
   assert.equal(result.populatedOrbits[3].levelIndex, 4);
+
+  // When user explicitly reorders tier 4 (e.g. dragging Databases to orbit 0), it is placed accordingly
+  const customOrderWithDb = [4, 2, 0, 1];
+  const resultWithDb = computeConcentricLayout(visibleNodes, visibleEdges, 1.0, customOrderWithDb);
+  assert.deepEqual(resultWithDb.populatedOrbits.map((o) => o.levelIndex), [4, 2, 0, 1], 'Explicitly reordered tier 4 is respected');
 });
 
