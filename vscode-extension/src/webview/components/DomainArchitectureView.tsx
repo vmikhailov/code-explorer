@@ -305,7 +305,8 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge[category = "messaging"]',
     style: {
-      'line-style': 'solid',
+      'line-style': 'dashed',
+      'line-dash-pattern': [6, 4],
       'line-color': '#fbbf24',
       'target-arrow-color': '#fbbf24',
     },
@@ -320,9 +321,16 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   },
   // Explicit Direct Edges
   {
-    selector: 'edge[isTransitive = "false"]',
+    selector: 'edge[isTransitive = "false"][category != "messaging"]',
     style: {
       'line-style': 'solid',
+    },
+  },
+  {
+    selector: 'edge[isTransitive = "false"][category = "messaging"]',
+    style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [6, 4],
     },
   },
   // Transitive / Indirect Edges (connecting through hidden entities - Dashed lines)
@@ -388,6 +396,8 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge[category = "messaging"].highlighted, edge[category = "messaging"]:selected',
     style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [8, 5],
       'line-color': '#fbbf24',
       'target-arrow-color': '#fbbf24',
     },

@@ -33,7 +33,7 @@ const VISUALS_BY_CATEGORY: Record<EdgeCategory, EdgeVisuals> = {
   },
   messaging: {
     stroke: '#fbbf24',
-    strokeDasharray: undefined,
+    strokeDasharray: '6 4',
     strokeWidth: 1.2,
     animated: false,
     markerColor: '#fbbf24',

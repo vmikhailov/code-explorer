@@ -786,7 +786,7 @@
 
 .react-flow__edge.edge-messaging path.react-flow__edge-path {
   stroke: #fbbf24 !important;
-  stroke-dasharray: none !important;
+  stroke-dasharray: 6 4 !important;
   stroke-width: 1.2px !important;
   opacity: 0.85;
   transition: stroke-width 0.15s ease, opacity 0.15s ease;
@@ -1010,7 +1010,7 @@
 }
 
 .flow-edge-legend .edge-legend-messaging {
-  border-top: 2px solid #fbbf24;
+  border-top: 2px dashed #fbbf24;
 }
 
 .flow-edge-legend .edge-legend-database {

@@ -308,13 +308,15 @@ export function optimizeOrbitPermutation(
     return populatedTiers;
   }
 
-  // Anchor Ingress (Tier 0) at the center (Orbit 0)
+  // Anchor Ingress (Tier 0) at center (Orbit 0), and Databases & External Services (Tier 4 / 5) at outer periphery
   const hasIngress = populatedTiers.includes(0);
   const fixedPrefix: number[] = hasIngress ? [0] : [];
-  const permutableTiers = populatedTiers.filter((t) => t !== 0);
+  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5);
+  const fixedSuffix: number[] = outerTiers.length > 0 ? outerTiers : [];
+  const permutableTiers = populatedTiers.filter((t) => t !== 0 && t !== 4 && t !== 5);
 
   if (permutableTiers.length <= 1) {
-    return populatedTiers;
+    return [...fixedPrefix, ...permutableTiers, ...fixedSuffix];
   }
 
   function getPermutations<T>(arr: T[]): T[][] {
@@ -335,11 +337,11 @@ export function optimizeOrbitPermutation(
   const minArcSpacing = Math.round(110 * spacing);
   const radialStep = Math.round(260 * spacing);
 
-  let bestPerm = populatedTiers;
+  let bestPerm = [...fixedPrefix, ...permutableTiers, ...fixedSuffix];
   let bestCost = Infinity;
 
   for (const perm of allPerms) {
-    const candidateOrder = [...fixedPrefix, ...perm];
+    const candidateOrder = [...fixedPrefix, ...perm, ...fixedSuffix];
 
     const tierRadii = new Map<number, number>();
     let prevRadius = 0;
@@ -415,11 +417,13 @@ export function computeConcentricLayout(
   }
 
   const populatedTiers = [0, 1, 2, 3, 4, 5].filter((idx) => orbitBuckets[idx].length > 0);
+  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5);
+  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5);
   let optimalOrder: number[];
   if (customOrbitOrder && customOrbitOrder.length > 0) {
-    const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
-    const missing = populatedTiers.filter((t) => !validCustom.includes(t));
-    optimalOrder = [...validCustom, ...missing];
+    const validCustom = customOrbitOrder.filter((t) => innerPopulated.includes(t));
+    const missing = innerPopulated.filter((t) => !validCustom.includes(t));
+    optimalOrder = [...validCustom, ...missing, ...outerTiers];
   } else {
     optimalOrder = optimizeOrbitPermutation(
       populatedTiers,

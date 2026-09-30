@@ -290,7 +290,7 @@ export const CytoscapeView: React.FC<CytoscapeViewProps> = ({
           },
         },
         {
-          selector: "edge[depType = 'messaging'], edge[edgeKind = 'TRIGGERS']",
+          selector: "edge[depType = 'messaging'], edge[edgeKind = 'TRIGGERS'], edge[edgeKind = 'PUBLISHES'], edge[edgeKind = 'PUBLISHES_TO'], edge[edgeKind = 'SUBSCRIBES_TO'], edge[kind = 'TRIGGERS'], edge[kind = 'PUBLISHES'], edge[kind = 'PUBLISHES_TO'], edge[kind = 'SUBSCRIBES_TO']",
           style: {
             'line-color': '#fbbf24',
             'target-arrow-color': '#fbbf24',

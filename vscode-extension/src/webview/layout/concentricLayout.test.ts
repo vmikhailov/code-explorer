@@ -301,7 +301,7 @@ test('optimizeOrbitPermutation: anchors Ingress at center and minimizes radial e
   assert.deepEqual(optimalOrder, [0, 1, 3, 2, 4], 'Orbits should be permuted [0, 1, 3, 2, 4] to minimize edge length');
 });
 
-test('computeConcentricLayout: respects customOrbitOrder when provided', () => {
+test('computeConcentricLayout: respects customOrbitOrder for inner tiers while pinning Databases (tier 4) to outer orbit', () => {
   const visibleNodes: ConcentricNodeInput[] = [
     { id: 'app', echelonTier: 0 },
     { id: 'svc-1', echelonTier: 1 },
@@ -314,13 +314,16 @@ test('computeConcentricLayout: respects customOrbitOrder when provided', () => {
     { source: 'svc-1', target: 'db-1' },
   ];
 
-  // User specifies custom order: DB (4) inside, then Topics (2), Services (1), Apps (0)
-  const customOrder = [4, 2, 1, 0];
+  // User specifies custom order for inner orbits, and Databases (4) must remain outermost
+  const customOrder = [2, 0, 1];
   const result = computeConcentricLayout(visibleNodes, visibleEdges, 1.0, customOrder);
 
   const resultingTiers = result.populatedOrbits.map((o) => o.levelIndex);
-  assert.deepEqual(resultingTiers, [4, 2, 1, 0], 'Populated orbits must follow custom order exactly');
+  assert.deepEqual(resultingTiers, [2, 0, 1, 4], 'Inner orbits follow custom order and tier 4 remains outermost');
+  assert.equal(resultingTiers[resultingTiers.length - 1], 4, 'Databases and External Services must always be fixed on outermost orbit');
   assert.equal(result.populatedOrbits[0].shortLabel, 'Orbit 0');
-  assert.equal(result.populatedOrbits[0].levelIndex, 4);
+  assert.equal(result.populatedOrbits[0].levelIndex, 2);
+  assert.equal(result.populatedOrbits[3].shortLabel, 'Orbit 3');
+  assert.equal(result.populatedOrbits[3].levelIndex, 4);
 });
 

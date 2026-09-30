@@ -56,6 +56,16 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
 
       const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9_]/g, '_');
       const esc = (str: string) => (str || '').replace(/"/g, "'");
+      const isMessagingEdge = (edge: any) => {
+        const kind = (edge.kind || '').toUpperCase();
+        return (
+          edge.category === 'messaging' ||
+          kind === 'TRIGGERS' ||
+          kind === 'PUBLISHES' ||
+          kind === 'PUBLISHES_TO' ||
+          kind === 'SUBSCRIBES_TO'
+        );
+      };
       const lines: string[] = ['flowchart TD'];
 
       if (type === 'domain') {
@@ -120,7 +130,8 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
           const validIds = new Set(graph.nodes.map((n) => n.id));
           for (const edge of graph.edges) {
             if (validIds.has(edge.source) && validIds.has(edge.target)) {
-              lines.push(`  ${sanitize(edge.source)} -->|${edge.kind || 'CALLS'}| ${sanitize(edge.target)}`);
+              const arrow = isMessagingEdge(edge) ? '-.->' : '-->';
+              lines.push(`  ${sanitize(edge.source)} ${arrow}|${edge.kind || 'CALLS'}| ${sanitize(edge.target)}`);
             }
           }
         }
@@ -181,7 +192,8 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
               const src = sanitize(edge.source);
               const tgt = sanitize(edge.target);
               const kind = edge.kind || 'CALLS';
-              lines.push(`    ${src} -->|${kind}| ${tgt}`);
+              const arrow = isMessagingEdge(edge) ? '-.->' : '-->';
+              lines.push(`    ${src} ${arrow}|${kind}| ${tgt}`);
             }
           }
         }
