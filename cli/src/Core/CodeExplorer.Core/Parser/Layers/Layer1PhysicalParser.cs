@@ -44,7 +44,11 @@ public class Layer1PhysicalParser
         }
 
         var hostPath = PathTools.NormalizeToHostPath(ctx.HostWorkspacePath);
-        var workspaceNode = new WorkspaceNode(wsId, workspaceName, hostPath);
+        var wsExtensions = new Dictionary<string, string>
+        {
+            ["indexed_at"] = DateTime.UtcNow.ToString("o")
+        };
+        var workspaceNode = new WorkspaceNode(wsId, workspaceName, hostPath, wsExtensions);
 
         var filesNodeId = $"{wsId}:{OntologyConstants.IdPrefixes.FilesStructure}";
         var filesStructureNode = new FilesStructureNode(filesNodeId, "FilesStructure", hostPath);

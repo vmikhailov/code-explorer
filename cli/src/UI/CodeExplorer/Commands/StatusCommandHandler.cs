@@ -27,7 +27,8 @@ public static class StatusCommandHandler
 
             // Workspace node info
             string wsName = new DirectoryInfo(ws.RootDirectory).Name;
-            var wsResult = await client.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.name AS name, w.path AS path LIMIT 1");
+            DateTime? lastIndexedAt = null;
+            var wsResult = await client.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.name AS name, w.path AS path, w.indexed_at AS indexed_at LIMIT 1");
             using var wsDoc = JsonDocument.Parse(wsResult);
             if (wsDoc.RootElement.ValueKind == JsonValueKind.Array && wsDoc.RootElement.GetArrayLength() > 0)
             {
@@ -36,7 +37,15 @@ public static class StatusCommandHandler
                 {
                     wsName = np.GetString() ?? wsName;
                 }
+                if (row.TryGetProperty("indexed_at", out var ip) && ip.ValueKind == JsonValueKind.String &&
+                    DateTime.TryParse(ip.GetString(), out var dt))
+                {
+                    lastIndexedAt = dt.ToLocalTime();
+                }
             }
+
+            var lastUpdated = lastIndexedAt ?? fileInfo.LastWriteTime;
+            var lastUpdatedText = FormatRelativeTime(lastUpdated);
 
             // Projects info
             var projResult = await client.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name, p.project_type AS language, p.layer AS layer, p.role AS role ORDER BY p.name");
@@ -78,6 +87,8 @@ public static class StatusCommandHandler
                     database_path = ws.DbPath,
                     database_size_bytes = fileInfo.Length,
                     database_size_mb = Math.Round(sizeMb, 2),
+                    last_updated = lastUpdated.ToString("o"),
+                    last_updated_human = lastUpdatedText,
                     total_nodes = nodeCount,
                     projects = projects.Select(p => new { name = p.Name, language = p.Language, layer = p.Layer, role = p.Role }),
                     built_in_queries_count = builtInCount,
@@ -92,6 +103,7 @@ public static class StatusCommandHandler
             Console.ResetColor();
             Console.WriteLine($"  Root:      {ws.RootDirectory}");
             Console.WriteLine($"  Database:  {ws.DbPath} ({sizeMb:F1} MB)");
+            Console.WriteLine($"  Updated:   {lastUpdatedText}");
             Console.WriteLine($"  Nodes:     {nodeCount:N0}");
 
             Console.WriteLine($"\nProjects ({projects.Count}):");
@@ -133,5 +145,15 @@ public static class StatusCommandHandler
             Console.ResetColor();
             return 1;
         }
+    }
+
+    private static string FormatRelativeTime(DateTime timestamp)
+    {
+        var diff = DateTime.Now - timestamp;
+        if (diff.TotalSeconds < 0 || diff.TotalMinutes < 1) return $"{timestamp:yyyy-MM-dd HH:mm:ss} (just now)";
+        if (diff.TotalMinutes < 60) return $"{timestamp:yyyy-MM-dd HH:mm:ss} ({(int)diff.TotalMinutes}m ago)";
+        if (diff.TotalHours < 24) return $"{timestamp:yyyy-MM-dd HH:mm:ss} ({(int)diff.TotalHours}h {diff.Minutes}m ago)";
+        if (diff.TotalDays < 7) return $"{timestamp:yyyy-MM-dd HH:mm:ss} ({(int)diff.TotalDays}d ago)";
+        return $"{timestamp:yyyy-MM-dd HH:mm:ss}";
     }
 }
