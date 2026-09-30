@@ -47,39 +47,52 @@ require (
             await File.WriteAllTextAsync(Path.Combine(dirB, "main.go"), "package main\n\nfunc main() {}\n");
 
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
-            using var db = new SqliteGraphClient(dbPath);
 
-            var indexer = new WorkspaceIndexer(db);
-            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(tempWorkspace, clear: true);
+            using (var db = new SqliteGraphClient(dbPath))
+            {
+                var indexer = new WorkspaceIndexer(db);
+                var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(tempWorkspace, clear: true);
 
-            Assert.That(nodesCount, Is.GreaterThan(0));
+                Assert.That(nodesCount, Is.GreaterThan(0));
 
-            // 1. Verify Project -> Project DEPENDS_ON exists in database
-            var query = "MATCH (p1:Project {name: 'service-b'})-[r:DEPENDS_ON]->(p2:Project {name: 'service-a'}) RETURN count(r) AS cnt";
-            var json = await db.ExecuteQueryAsync(query);
-            using var doc = JsonDocument.Parse(json);
-            var cnt = doc.RootElement[0].GetProperty("cnt").GetInt64();
-            Assert.That(cnt, Is.EqualTo(1), "service-b should depend on service-a via workspace module resolution");
+                // 1. Verify Project -> Project DEPENDS_ON exists in database
+                var query =
+                    "MATCH (p1:Project {name: 'service-b'})-[r:DEPENDS_ON]->(p2:Project {name: 'service-a'}) RETURN count(r) AS cnt";
+                var json = await db.ExecuteQueryAsync(query);
 
-            // 2. Verify ArchitectureViewEngine includes project_type == 'go'
-            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
-            var nodeB = graph.Nodes.FirstOrDefault(n => n.Name is "service-b" or "b");
-            var nodeA = graph.Nodes.FirstOrDefault(n => n.Name is "service-a" or "a");
+                using (var doc = JsonDocument.Parse(json))
+                {
+                    var cnt = doc.RootElement[0].GetProperty("cnt").GetInt64();
 
-            Assert.That(nodeB, Is.Not.Null);
-            Assert.That(nodeA, Is.Not.Null);
-            Assert.That(nodeB!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
-            Assert.That(nodeA!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
+                    Assert.That(cnt, Is.EqualTo(1),
+                        "service-b should depend on service-a via workspace module resolution");
 
-            // 3. Verify graph edge exists in architecture view output
-            var edge = graph.Edges.FirstOrDefault(e => e.Source == nodeB.Id && e.Target == nodeA.Id);
-            Assert.That(edge, Is.Not.Null, "ArchitectureViewEngine should output edge from service-b to service-a");
+                    // 2. Verify ArchitectureViewEngine includes project_type == 'go'
+                    var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
+                    var nodeB = graph.Nodes.FirstOrDefault(n => n.Name is "service-b" or "b");
+                    var nodeA = graph.Nodes.FirstOrDefault(n => n.Name is "service-a" or "a");
 
-            // 4. Verify neighborhood query for service-b
-            var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("service-b", includeLibraries: true);
-            Assert.That(hood.Nodes.Any(n => n.Name is "service-a" or "a"), Is.True, "service-a should appear in neighborhood outbound of service-b");
-            var centerNode = hood.Nodes.FirstOrDefault(n => n.Name is "service-b" or "b");
-            Assert.That(centerNode?.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
+                    Assert.That(nodeB, Is.Not.Null);
+                    Assert.That(nodeA, Is.Not.Null);
+                    Assert.That(nodeB!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
+                    Assert.That(nodeA!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
+
+                    // 3. Verify graph edge exists in architecture view output
+                    var edge = graph.Edges.FirstOrDefault(e => e.Source == nodeB.Id && e.Target == nodeA.Id);
+
+                    Assert.That(edge, Is.Not.Null,
+                        "ArchitectureViewEngine should output edge from service-b to service-a");
+
+                    // 4. Verify neighborhood query for service-b
+                    var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("service-b",
+                        includeLibraries: true);
+
+                    Assert.That(hood.Nodes.Any(n => n.Name is "service-a" or "a"), Is.True,
+                        "service-a should appear in neighborhood outbound of service-b");
+                    var centerNode = hood.Nodes.FirstOrDefault(n => n.Name is "service-b" or "b");
+                    Assert.That(centerNode?.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("go"));
+                }
+            }
         }
         finally
         {
@@ -123,34 +136,44 @@ require (
             await File.WriteAllTextAsync(Path.Combine(dirApp, "main.ts"), "import { foo } from '@myorg/common-lib';\n");
 
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
-            using var db = new SqliteGraphClient(dbPath);
 
-            var indexer = new WorkspaceIndexer(db);
-            var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(tempWorkspace, clear: true);
+            using (var db = new SqliteGraphClient(dbPath))
+            {
+                var indexer = new WorkspaceIndexer(db);
+                var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(tempWorkspace, clear: true);
 
-            Assert.That(nodesCount, Is.GreaterThan(0));
+                Assert.That(nodesCount, Is.GreaterThan(0));
 
-            // Verify Project -> Project DEPENDS_ON exists in database
-            var query = "MATCH (p1:Project {name: 'web-app'})-[r:DEPENDS_ON]->(p2:Project {name: 'common-lib'}) RETURN count(r) AS cnt";
-            var json = await db.ExecuteQueryAsync(query);
-            using var doc = JsonDocument.Parse(json);
-            var cnt = doc.RootElement[0].GetProperty("cnt").GetInt64();
-            Assert.That(cnt, Is.EqualTo(1), "web-app should depend on common-lib via @myorg/common-lib package mapping");
+                // Verify Project -> Project DEPENDS_ON exists in database
+                var query =
+                    "MATCH (p1:Project {name: 'web-app'})-[r:DEPENDS_ON]->(p2:Project {name: 'common-lib'}) RETURN count(r) AS cnt";
+                var json = await db.ExecuteQueryAsync(query);
 
-            // Verify architecture view includes edge and proper project_type == 'typescript'
-            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
-            var nodeApp = graph.Nodes.FirstOrDefault(n => n.Name == "web-app");
-            var nodeLib = graph.Nodes.FirstOrDefault(n => n.Name == "common-lib");
+                using (var doc = JsonDocument.Parse(json))
+                {
+                    var cnt = doc.RootElement[0].GetProperty("cnt").GetInt64();
 
-            Assert.That(nodeApp, Is.Not.Null);
-            Assert.That(nodeLib, Is.Not.Null);
-            Assert.That(nodeApp!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("typescript"));
-            Assert.That(nodeLib!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("typescript"));
+                    Assert.That(cnt, Is.EqualTo(1),
+                        "web-app should depend on common-lib via @myorg/common-lib package mapping");
 
-            var edge = graph.Edges.FirstOrDefault(e => e.Source == nodeApp.Id && e.Target == nodeLib.Id);
-            Assert.That(edge, Is.Not.Null, "ArchitectureViewEngine should output edge from web-app to common-lib");
-            Assert.That(edge!.Kind, Is.EqualTo("LIBRARY"));
-            Assert.That(edge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+                    // Verify architecture view includes edge and proper project_type == 'typescript'
+                    var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
+                    var nodeApp = graph.Nodes.FirstOrDefault(n => n.Name == "web-app");
+                    var nodeLib = graph.Nodes.FirstOrDefault(n => n.Name == "common-lib");
+
+                    Assert.That(nodeApp, Is.Not.Null);
+                    Assert.That(nodeLib, Is.Not.Null);
+                    Assert.That(nodeApp!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("typescript"));
+                    Assert.That(nodeLib!.Properties?.GetValueOrDefault("project_type"), Is.EqualTo("typescript"));
+
+                    var edge = graph.Edges.FirstOrDefault(e => e.Source == nodeApp.Id && e.Target == nodeLib.Id);
+
+                    Assert.That(edge, Is.Not.Null,
+                        "ArchitectureViewEngine should output edge from web-app to common-lib");
+                    Assert.That(edge!.Kind, Is.EqualTo("LIBRARY"));
+                    Assert.That(edge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+                }
+            }
         }
         finally
         {
@@ -170,62 +193,89 @@ require (
         try
         {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
-            using var db = new SqliteGraphClient(dbPath);
 
             // Seed Projects & Database
-            var nodes = new List<Node>
+            using (var db = new SqliteGraphClient(dbPath))
             {
-                new Node("proj:client", "Project", new Dictionary<string, object> { ["name"] = "ClientSvc", ["path"] = "/src/client", ["project_type"] = "csharp" }),
-                new Node("proj:server", "Project", new Dictionary<string, object> { ["name"] = "ServerSvc", ["path"] = "/src/server", ["project_type"] = "csharp" }),
-                new Node("proj:common", "Project", new Dictionary<string, object> { ["name"] = "CommonLib", ["path"] = "/src/common", ["project_type"] = "library" }),
-                new Node("db:main", "Database", new Dictionary<string, object> { ["name"] = "AppDb", ["db_type"] = "PostgreSQL" }),
-            };
-            await db.UploadNodesAsync(nodes);
+                var nodes = new List<Node>
+                {
+                    new Node("proj:client", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "ClientSvc", ["path"] = "/src/client", ["project_type"] = "csharp"
+                        }),
+                    new Node("proj:server", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "ServerSvc", ["path"] = "/src/server", ["project_type"] = "csharp"
+                        }),
+                    new Node("proj:common", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "CommonLib", ["path"] = "/src/common", ["project_type"] = "library"
+                        }),
+                    new Node("db:main", "Database",
+                        new Dictionary<string, object> { ["name"] = "AppDb", ["db_type"] = "PostgreSQL" }),
+                };
+                await db.UploadNodesAsync(nodes);
 
-            // Seed relationships with dependency_type
-            var rels = new List<Relationship>
-            {
-                new Relationship("proj:client", "proj:server", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON" }),
-                new Relationship("proj:client", "proj:common", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "library", ["kind"] = "DEPENDS_ON" }),
-                new Relationship("proj:client", "db:main", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
-            };
-            await db.UploadRelationshipsAsync(rels);
+                // Seed relationships with dependency_type
+                var rels = new List<Relationship>
+                {
+                    new Relationship("proj:client", "proj:server", "DEPENDS_ON",
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON"
+                        }),
+                    new Relationship("proj:client", "proj:common", "DEPENDS_ON",
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "library", ["kind"] = "DEPENDS_ON"
+                        }),
+                    new Relationship("proj:client", "db:main", "USES_DB",
+                        new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                };
+                await db.UploadRelationshipsAsync(rels);
 
-            // Test Architecture Graph
-            var arch = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
+                // Test Architecture Graph
+                var arch = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
-            var svcEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:server");
-            Assert.That(svcEdge, Is.Not.Null);
-            Assert.That(svcEdge!.Kind, Is.EqualTo("SERVICE_CALL"));
-            Assert.That(svcEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("service_call"));
+                var svcEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:server");
+                Assert.That(svcEdge, Is.Not.Null);
+                Assert.That(svcEdge!.Kind, Is.EqualTo("SERVICE_CALL"));
+                Assert.That(svcEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("service_call"));
 
-            var libEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:common");
-            Assert.That(libEdge, Is.Not.Null);
-            Assert.That(libEdge!.Kind, Is.EqualTo("LIBRARY"));
-            Assert.That(libEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+                var libEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:common");
+                Assert.That(libEdge, Is.Not.Null);
+                Assert.That(libEdge!.Kind, Is.EqualTo("LIBRARY"));
+                Assert.That(libEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
 
-            var dbEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "db:main");
-            Assert.That(dbEdge, Is.Not.Null);
-            Assert.That(dbEdge!.Kind, Is.EqualTo("USES_DB"));
-            Assert.That(dbEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("database"));
+                var dbEdge = arch.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "db:main");
+                Assert.That(dbEdge, Is.Not.Null);
+                Assert.That(dbEdge!.Kind, Is.EqualTo("USES_DB"));
+                Assert.That(dbEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("database"));
 
-            // Test Neighborhood Graph for ClientSvc
-            var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:client", includeLibraries: true);
+                // Test Neighborhood Graph for ClientSvc
+                var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:client",
+                    includeLibraries: true);
 
-            var hoodSvcEdge = hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:server");
-            Assert.That(hoodSvcEdge, Is.Not.Null);
-            Assert.That(hoodSvcEdge!.Kind, Is.EqualTo("SERVICE_CALL"));
-            Assert.That(hoodSvcEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("service_call"));
+                var hoodSvcEdge =
+                    hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:server");
+                Assert.That(hoodSvcEdge, Is.Not.Null);
+                Assert.That(hoodSvcEdge!.Kind, Is.EqualTo("SERVICE_CALL"));
+                Assert.That(hoodSvcEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("service_call"));
 
-            var hoodLibEdge = hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:common");
-            Assert.That(hoodLibEdge, Is.Not.Null);
-            Assert.That(hoodLibEdge!.Kind, Is.EqualTo("LIBRARY"));
-            Assert.That(hoodLibEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+                var hoodLibEdge =
+                    hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "proj:common");
+                Assert.That(hoodLibEdge, Is.Not.Null);
+                Assert.That(hoodLibEdge!.Kind, Is.EqualTo("LIBRARY"));
+                Assert.That(hoodLibEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
 
-            var hoodDbEdge = hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "db:main");
-            Assert.That(hoodDbEdge, Is.Not.Null);
-            Assert.That(hoodDbEdge!.Kind, Is.EqualTo("USES_DB"));
-            Assert.That(hoodDbEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("database"));
+                var hoodDbEdge = hood.Edges.FirstOrDefault(e => e.Source == "proj:client" && e.Target == "db:main");
+                Assert.That(hoodDbEdge, Is.Not.Null);
+                Assert.That(hoodDbEdge!.Kind, Is.EqualTo("USES_DB"));
+                Assert.That(hoodDbEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("database"));
+            }
         }
         finally
         {
@@ -244,62 +294,70 @@ require (
         try
         {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
-            using var db = new SqliteGraphClient(dbPath);
 
             // Simulate Dedalos-like solution: API project references Core and Models
-            var nodes = new List<Node>
+            using (var db = new SqliteGraphClient(dbPath))
             {
-                new Node("workspace:project:Dobco.PACSONWEB3.API:", "Project", new Dictionary<string, object>
+                var nodes = new List<Node>
                 {
-                    ["name"] = "Dobco.PACSONWEB3.API",
-                    ["path"] = "Dobco.PACSONWEB3.API",
-                    ["project_type"] = "csharp",
-                    ["framework"] = "ASP.NET Core"
-                }),
-                new Node("workspace:project:Dobco.PACSONWEB3.Core:", "Project", new Dictionary<string, object>
+                    new Node("workspace:project:Dobco.PACSONWEB3.API:", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "Dobco.PACSONWEB3.API",
+                            ["path"] = "Dobco.PACSONWEB3.API",
+                            ["project_type"] = "csharp",
+                            ["framework"] = "ASP.NET Core"
+                        }),
+                    new Node("workspace:project:Dobco.PACSONWEB3.Core:", "Project", new Dictionary<string, object>
+                    {
+                        ["name"] = "Dobco.PACSONWEB3.Core",
+                        ["path"] = "Dobco.PACSONWEB3.Core",
+                        ["project_type"] = "csharp",
+                        ["framework"] = "ASP.NET Core" // even with legacy misassigned framework
+                    }),
+                    new Node("workspace:project:Dobco.PACSONWEB3.Models:", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "Dobco.PACSONWEB3.Models",
+                            ["path"] = "Dobco.PACSONWEB3.Models",
+                            ["project_type"] = "csharp"
+                        }),
+                };
+                await db.UploadNodesAsync(nodes);
+
+                // Seed direct project references (even without dependency_type specified, simulating older scans)
+                var rels = new List<Relationship>
                 {
-                    ["name"] = "Dobco.PACSONWEB3.Core",
-                    ["path"] = "Dobco.PACSONWEB3.Core",
-                    ["project_type"] = "csharp",
-                    ["framework"] = "ASP.NET Core" // even with legacy misassigned framework
-                }),
-                new Node("workspace:project:Dobco.PACSONWEB3.Models:", "Project", new Dictionary<string, object>
-                {
-                    ["name"] = "Dobco.PACSONWEB3.Models",
-                    ["path"] = "Dobco.PACSONWEB3.Models",
-                    ["project_type"] = "csharp"
-                }),
-            };
-            await db.UploadNodesAsync(nodes);
+                    new Relationship("workspace:project:Dobco.PACSONWEB3.API:",
+                        "workspace:project:Dobco.PACSONWEB3.Core:", "DEPENDS_ON",
+                        new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
+                    new Relationship("workspace:project:Dobco.PACSONWEB3.API:",
+                        "workspace:project:Dobco.PACSONWEB3.Models:", "DEPENDS_ON",
+                        new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
+                };
+                await db.UploadRelationshipsAsync(rels);
 
-            // Seed direct project references (even without dependency_type specified, simulating older scans)
-            var rels = new List<Relationship>
-            {
-                new Relationship(
-                    "workspace:project:Dobco.PACSONWEB3.API:",
-                    "workspace:project:Dobco.PACSONWEB3.Core:",
-                    "DEPENDS_ON",
-                    new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
-                new Relationship(
-                    "workspace:project:Dobco.PACSONWEB3.API:",
-                    "workspace:project:Dobco.PACSONWEB3.Models:",
-                    "DEPENDS_ON",
-                    new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
-            };
-            await db.UploadRelationshipsAsync(rels);
+                // Test Project Flow / Neighborhood Graph for API project
+                var flowGraph =
+                    await new ArchitectureViewEngine(db).GetServiceFlowViewAsync(
+                        "workspace:project:Dobco.PACSONWEB3.API:", includeLibraries: true);
 
-            // Test Project Flow / Neighborhood Graph for API project
-            var flowGraph = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("workspace:project:Dobco.PACSONWEB3.API:", includeLibraries: true);
+                var coreEdge =
+                    flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Core:");
+                Assert.That(coreEdge, Is.Not.Null, "Edge to Dobco.PACSONWEB3.Core should exist");
 
-            var coreEdge = flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Core:");
-            Assert.That(coreEdge, Is.Not.Null, "Edge to Dobco.PACSONWEB3.Core should exist");
-            Assert.That(coreEdge!.Kind, Is.EqualTo("LIBRARY"), "Edge to Core must be classified as LIBRARY, not SERVICE_CALL");
-            Assert.That(coreEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+                Assert.That(coreEdge!.Kind, Is.EqualTo("LIBRARY"),
+                    "Edge to Core must be classified as LIBRARY, not SERVICE_CALL");
+                Assert.That(coreEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
 
-            var modelsEdge = flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Models:");
-            Assert.That(modelsEdge, Is.Not.Null, "Edge to Dobco.PACSONWEB3.Models should exist");
-            Assert.That(modelsEdge!.Kind, Is.EqualTo("LIBRARY"), "Edge to Models must be classified as LIBRARY, not SERVICE_CALL");
-            Assert.That(modelsEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+                var modelsEdge =
+                    flowGraph.Edges.FirstOrDefault(e => e.Target == "workspace:project:Dobco.PACSONWEB3.Models:");
+                Assert.That(modelsEdge, Is.Not.Null, "Edge to Dobco.PACSONWEB3.Models should exist");
+
+                Assert.That(modelsEdge!.Kind, Is.EqualTo("LIBRARY"),
+                    "Edge to Models must be classified as LIBRARY, not SERVICE_CALL");
+                Assert.That(modelsEdge.Properties?.GetValueOrDefault("dependency_type"), Is.EqualTo("library"));
+            }
         }
         finally
         {
@@ -319,81 +377,72 @@ require (
         try
         {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
-            using var db = new SqliteGraphClient(dbPath);
 
-            var nodes = new List<Node>
+            using (var db = new SqliteGraphClient(dbPath))
             {
-                new Node(
-                    "workspace:project:Admin:",
-                    "Project",
-                    new Dictionary<string, object>
-                    {
-                        ["name"] = "lidoma-admin-application",
-                        ["path"] = "Admin",
-                        ["project_type"] = "typescript"
-                    }),
-                new Node(
-                    "workspace:package:@angular/core",
-                    "Package",
-                    new Dictionary<string, object>
-                    {
-                        ["name"] = "@angular/core",
-                        ["version"] = "^13.0.1",
-                        ["type"] = "npm"
-                    }),
-                new Node(
-                    "workspace:package:rxjs",
-                    "Package",
-                    new Dictionary<string, object>
-                    {
-                        ["name"] = "rxjs",
-                        ["version"] = "^7.5.5",
-                        ["type"] = "npm"
-                    })
-            };
-            await db.UploadNodesAsync(nodes);
+                var nodes = new List<Node>
+                {
+                    new Node("workspace:project:Admin:", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "lidoma-admin-application",
+                            ["path"] = "Admin",
+                            ["project_type"] = "typescript"
+                        }),
+                    new Node("workspace:package:@angular/core", "Package",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "@angular/core", ["version"] = "^13.0.1", ["type"] = "npm"
+                        }),
+                    new Node("workspace:package:rxjs", "Package",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "rxjs", ["version"] = "^7.5.5", ["type"] = "npm"
+                        })
+                };
+                await db.UploadNodesAsync(nodes);
 
-            var rels = new List<Relationship>
-            {
-                new Relationship(
-                    "workspace:project:Admin:",
-                    "workspace:package:@angular/core",
-                    "DEPENDS_ON",
-                    new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
-                new Relationship(
-                    "workspace:project:Admin:",
-                    "workspace:package:rxjs",
-                    "DEPENDS_ON",
-                    new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" })
-            };
-            await db.UploadRelationshipsAsync(rels);
+                var rels = new List<Relationship>
+                {
+                    new Relationship("workspace:project:Admin:", "workspace:package:@angular/core", "DEPENDS_ON",
+                        new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" }),
+                    new Relationship("workspace:project:Admin:", "workspace:package:rxjs", "DEPENDS_ON",
+                        new Dictionary<string, object> { ["kind"] = "DEPENDS_ON" })
+                };
+                await db.UploadRelationshipsAsync(rels);
 
-            // 1. Verify Neighborhood Graph contains external packages
-            var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("lidoma-admin-application", includeLibraries: true);
-            Assert.That(hood.Nodes.Count, Is.EqualTo(3), "Should have center project + 2 packages");
+                // 1. Verify Neighborhood Graph contains external packages
+                var hood = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("lidoma-admin-application",
+                    includeLibraries: true);
+                Assert.That(hood.Nodes.Count, Is.EqualTo(3), "Should have center project + 2 packages");
 
-            var angularNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:package:@angular/core");
-            Assert.That(angularNode, Is.Not.Null, "@angular/core should exist in neighborhood nodes");
-            Assert.That(angularNode!.Kind, Is.EqualTo("Package"));
-            Assert.That(angularNode.DisplayName, Is.EqualTo("@angular/core@^13.0.1"));
-            Assert.That(angularNode.Properties?.GetValueOrDefault("column"), Is.EqualTo("right"));
-            Assert.That(angularNode.Properties?.GetValueOrDefault("is_library"), Is.EqualTo("true"));
-            Assert.That(angularNode.Properties?.GetValueOrDefault("package_type"), Is.EqualTo("npm"));
+                var angularNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:package:@angular/core");
+                Assert.That(angularNode, Is.Not.Null, "@angular/core should exist in neighborhood nodes");
+                Assert.That(angularNode!.Kind, Is.EqualTo("Package"));
+                Assert.That(angularNode.DisplayName, Is.EqualTo("@angular/core@^13.0.1"));
+                Assert.That(angularNode.Properties?.GetValueOrDefault("column"), Is.EqualTo("right"));
+                Assert.That(angularNode.Properties?.GetValueOrDefault("is_library"), Is.EqualTo("true"));
+                Assert.That(angularNode.Properties?.GetValueOrDefault("package_type"), Is.EqualTo("npm"));
 
-            var angularEdge = hood.Edges.FirstOrDefault(e => e.Target == "workspace:package:@angular/core");
-            Assert.That(angularEdge, Is.Not.Null, "Edge to @angular/core should exist");
-            Assert.That(angularEdge!.Kind, Is.EqualTo("LIBRARY"));
-            Assert.That(angularEdge.Category, Is.EqualTo("library"));
+                var angularEdge = hood.Edges.FirstOrDefault(e => e.Target == "workspace:package:@angular/core");
+                Assert.That(angularEdge, Is.Not.Null, "Edge to @angular/core should exist");
+                Assert.That(angularEdge!.Kind, Is.EqualTo("LIBRARY"));
+                Assert.That(angularEdge.Category, Is.EqualTo("library"));
 
-            var centerNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
-            Assert.That(centerNode?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
+                var centerNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
+                Assert.That(centerNode?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
 
-            // 2. Verify Architecture Graph contains package_count on project and package nodes/edges
-            var arch = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
-            var archProj = arch.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
-            Assert.That(archProj?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
-            Assert.That(arch.Nodes.Any(n => n.Kind == "Package"), Is.True, "Architecture graph should contain package nodes");
-            Assert.That(arch.Edges.Any(e => e.Target == "workspace:package:@angular/core" && e.Kind == "LIBRARY"), Is.True, "Architecture graph should contain LIBRARY edge to package");
+                // 2. Verify Architecture Graph contains package_count on project and package nodes/edges
+                var arch = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
+                var archProj = arch.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
+                Assert.That(archProj?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
+
+                Assert.That(arch.Nodes.Any(n => n.Kind == "Package"), Is.True,
+                    "Architecture graph should contain package nodes");
+
+                Assert.That(arch.Edges.Any(e => e.Target == "workspace:package:@angular/core" && e.Kind == "LIBRARY"),
+                    Is.True, "Architecture graph should contain LIBRARY edge to package");
+            }
         }
         finally
         {

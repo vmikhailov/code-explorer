@@ -162,6 +162,7 @@ export const App: React.FC = () => {
   const [flowGraph, setFlowGraph] = useState<GraphData | null>(null);
   const [fullGraph, setFullGraph] = useState<GraphData | null>(null);
   const [contextsGraph, setContextsGraph] = useState<GraphData | null>(null);
+  const [focusTargetContext, setFocusTargetContext] = useState<{ contextName?: string; contextId?: string; domainId?: string } | null>(null);
   const [cypherQuery, setCypherQuery] = useState<string>('');
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
   const [drawerUsages, setDrawerUsages] = useState<Array<{
@@ -1136,6 +1137,15 @@ export const App: React.FC = () => {
             }
           }
           break;
+
+        case 'FOCUS_CONTEXT':
+          logToExtension('INFO', `Received FOCUS_CONTEXT from extension: contextName=${msg.contextName}, contextId=${msg.contextId}, domainId=${msg.domainId}`);
+          handleViewModeChangeRef.current('contexts');
+          if (!contextsGraphRef.current || contextsGraphRef.current.nodes?.length === 0) {
+            requestContexts();
+          }
+          setFocusTargetContext({ contextName: msg.contextName, contextId: msg.contextId, domainId: msg.domainId });
+          break;
       }
     };
 
@@ -1396,6 +1406,7 @@ export const App: React.FC = () => {
             {viewMode === 'contexts' && (
               <BoundedContextMapView
                 graph={contextsGraph}
+                focusTarget={focusTargetContext}
                 onOpenFile={handleOpenFile}
                 onTriggerScan={handleTriggerScan}
                 onRefresh={() => {

@@ -23,14 +23,18 @@ public static class Queries
                 throw new FileNotFoundException($"Embedded cypher query resource '{n}' not found.");
             }
 
-            using var stream = Assembly.GetManifestResourceStream(match);
-            if (stream == null)
+            using (var stream = Assembly.GetManifestResourceStream(match))
             {
-                throw new FileNotFoundException($"Failed to load manifest resource stream for '{match}'.");
-            }
+                if (stream == null)
+                {
+                    throw new FileNotFoundException($"Failed to load manifest resource stream for '{match}'.");
+                }
 
-            using var reader = new StreamReader(stream);
-            return reader.ReadToEnd().Trim();
+                using (var reader = new StreamReader(stream))
+                {
+                    return reader.ReadToEnd().Trim();
+                }
+            }
         });
     }
 

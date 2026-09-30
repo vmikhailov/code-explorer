@@ -27,14 +27,19 @@ public class Layer1PhysicalParser
         {
             var wsNameResult = await ctx.DbClient.ExecuteQueryAsync(
                 "MATCH (w:Workspace) RETURN w.name AS name LIMIT 1");
-            using var doc = System.Text.Json.JsonDocument.Parse(wsNameResult);
-            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+
+            using (var doc = System.Text.Json.JsonDocument.Parse(wsNameResult))
             {
-                var row = doc.RootElement[0];
-                if (row.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
+                    doc.RootElement.GetArrayLength() > 0)
                 {
-                    var customName = n.GetString();
-                    if (!string.IsNullOrWhiteSpace(customName)) workspaceName = customName;
+                    var row = doc.RootElement[0];
+
+                    if (row.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var customName = n.GetString();
+                        if (!string.IsNullOrWhiteSpace(customName)) workspaceName = customName;
+                    }
                 }
             }
         }
@@ -289,34 +294,41 @@ public class Layer1PhysicalParser
     {
         try
         {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var reader = new StreamReader(stream);
-            var buffer = new char[8192];
-            var read = reader.Read(buffer, 0, buffer.Length);
-            if (read <= 0) return false;
-
-            var lineLen = 0;
-            var newlines = 0;
-            for (int i = 0; i < read; i++)
+            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                if (buffer[i] == '\n')
+                using (var reader = new StreamReader(stream))
                 {
-                    newlines++;
-                    lineLen = 0;
-                }
-                else
-                {
-                    lineLen++;
-                    if (lineLen > 1000)
+                    var buffer = new char[8192];
+                    var read = reader.Read(buffer, 0, buffer.Length);
+                    if (read <= 0) return false;
+
+                    var lineLen = 0;
+                    var newlines = 0;
+
+                    for (int i = 0; i < read; i++)
                     {
-                        return true;
+                        if (buffer[i] == '\n')
+                        {
+                            newlines++;
+                            lineLen = 0;
+                        }
+                        else
+                        {
+                            lineLen++;
+
+                            if (lineLen > 1000)
+                            {
+                                return true;
+                            }
+                        }
                     }
+
+                    if (lineLen > 1000) return true;
+
+                    // Average line length heuristic: if read >= 4096 and fewer than 4 newlines (avg line > 1000 chars)
+                    if (read >= 4096 && newlines <= 3) return true;
                 }
             }
-            if (lineLen > 1000) return true;
-
-            // Average line length heuristic: if read >= 4096 and fewer than 4 newlines (avg line > 1000 chars)
-            if (read >= 4096 && newlines <= 3) return true;
         }
         catch
         {
@@ -335,20 +347,28 @@ public class Layer1PhysicalParser
         try
         {
             var content = File.ReadAllText(libmanPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-            if (doc.RootElement.TryGetProperty("libraries", out var libs) && libs.ValueKind == System.Text.Json.JsonValueKind.Array)
+
+            using (var doc = System.Text.Json.JsonDocument.Parse(content))
             {
-                foreach (var lib in libs.EnumerateArray())
+                if (doc.RootElement.TryGetProperty("libraries", out var libs) &&
+                    libs.ValueKind == System.Text.Json.JsonValueKind.Array)
                 {
-                    if (lib.TryGetProperty("destination", out var destProp) && destProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    foreach (var lib in libs.EnumerateArray())
                     {
-                        var dest = destProp.GetString();
-                        if (!string.IsNullOrWhiteSpace(dest))
+                        if (lib.TryGetProperty("destination", out var destProp) &&
+                            destProp.ValueKind == System.Text.Json.JsonValueKind.String)
                         {
-                            var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
-                            var relDest = Path.GetRelativePath(workspaceRoot, fullDest).Replace('\\', '/').Trim('/');
-                            gitignore.AddPattern(relDest + "/");
-                            ctx.Log($"[Layer1] LibMan: Excluded library destination '{relDest}'");
+                            var dest = destProp.GetString();
+
+                            if (!string.IsNullOrWhiteSpace(dest))
+                            {
+                                var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
+
+                                var relDest = Path.GetRelativePath(workspaceRoot, fullDest).Replace('\\', '/')
+                                    .Trim('/');
+                                gitignore.AddPattern(relDest + "/");
+                                ctx.Log($"[Layer1] LibMan: Excluded library destination '{relDest}'");
+                            }
                         }
                     }
                 }

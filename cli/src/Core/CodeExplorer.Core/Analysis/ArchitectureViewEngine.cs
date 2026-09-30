@@ -89,123 +89,264 @@ public class ArchitectureViewEngine(IGraphClient db)
             : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' AND n.role <> 'Test' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
 
         var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
-        using var nodesDoc = JsonDocument.Parse(nodesJson);
 
-        var internalProjectsLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var elem in nodesDoc.RootElement.EnumerateArray())
+        using (var nodesDoc = JsonDocument.Parse(nodesJson))
         {
-            var k = elem.GetStringProp("kind");
-            var nid = elem.GetStringProp("id");
-            var nname = elem.GetStringProp("name");
-            if (string.IsNullOrEmpty(nid) || string.IsNullOrEmpty(nname)) continue;
-            if (k is "Project" or "Service" or "App" or "Worker" or "Library" or "CliTool")
+            var internalProjectsLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var elem in nodesDoc.RootElement.EnumerateArray())
             {
-                internalProjectsLookup.TryAdd(nname, nid);
-                var domain = SyntaxEnricher.CleanProjectNameToDomain(nname);
-                if (!string.IsNullOrEmpty(domain))
+                var k = elem.GetStringProp("kind");
+                var nid = elem.GetStringProp("id");
+                var nname = elem.GetStringProp("name");
+                if (string.IsNullOrEmpty(nid) || string.IsNullOrEmpty(nname)) continue;
+
+                if (k is "Project" or "Service" or "App" or "Worker" or "Library" or "CliTool")
                 {
-                    internalProjectsLookup.TryAdd(domain, nid);
-                    internalProjectsLookup.TryAdd(domain.ToLowerInvariant(), nid);
+                    internalProjectsLookup.TryAdd(nname, nid);
+                    var domain = SyntaxEnricher.CleanProjectNameToDomain(nname);
+
+                    if (!string.IsNullOrEmpty(domain))
+                    {
+                        internalProjectsLookup.TryAdd(domain, nid);
+                        internalProjectsLookup.TryAdd(domain.ToLowerInvariant(), nid);
+                    }
                 }
             }
-        }
 
-        string? primaryRelationalEngine = null;
-        foreach (var elem in nodesDoc.RootElement.EnumerateArray())
-        {
-            if (elem.GetStringProp("kind") == "Database")
+            string? primaryRelationalEngine = null;
+
+            foreach (var elem in nodesDoc.RootElement.EnumerateArray())
             {
-                var dt = elem.GetStringProp("db_type", "relational");
-                if (!dt.Equals("relational", StringComparison.OrdinalIgnoreCase)) continue;
-
-                var eng = elem.GetStringProp("engine");
-                var nm = elem.GetStringProp("name");
-                var candidate = !string.IsNullOrWhiteSpace(eng) && !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase)
-                    ? eng
-                    : (nm.Contains('.') ? nm.Split('.', 2)[0] : nm);
-                if (!string.IsNullOrWhiteSpace(candidate) &&
-                    !candidate.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
-                    !candidate.Equals("default", StringComparison.OrdinalIgnoreCase) &&
-                    !ResourceReconciliationService.IsGenericConfigKey(candidate) &&
-                    PostIndexAnalyzer.IsRelationalEngine(candidate))
+                if (elem.GetStringProp("kind") == "Database")
                 {
-                    primaryRelationalEngine = candidate;
-                    break;
+                    var dt = elem.GetStringProp("db_type", "relational");
+                    if (!dt.Equals("relational", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var eng = elem.GetStringProp("engine");
+                    var nm = elem.GetStringProp("name");
+
+                    var candidate =
+                        !string.IsNullOrWhiteSpace(eng) &&
+                        !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                        !eng.Equals("default", StringComparison.OrdinalIgnoreCase)
+                            ? eng
+                            : (nm.Contains('.') ? nm.Split('.', 2)[0] : nm);
+
+                    if (!string.IsNullOrWhiteSpace(candidate) &&
+                        !candidate.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                        !candidate.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                        !ResourceReconciliationService.IsGenericConfigKey(candidate) &&
+                        PostIndexAnalyzer.IsRelationalEngine(candidate))
+                    {
+                        primaryRelationalEngine = candidate;
+                        break;
+                    }
                 }
             }
-        }
 
-        foreach (var elem in nodesDoc.RootElement.EnumerateArray())
-        {
-            var id = elem.GetStringProp("id");
-            var kind = elem.GetStringProp("kind");
-            var name = elem.GetStringProp("name", id);
-
-            if (string.IsNullOrEmpty(id)) continue;
-
-            if (!string.IsNullOrWhiteSpace(projectFilter) && IsProjectNodeKind(kind) && !name.Contains(projectFilter, StringComparison.OrdinalIgnoreCase))
+            foreach (var elem in nodesDoc.RootElement.EnumerateArray())
             {
-                continue;
-            }
+                var id = elem.GetStringProp("id");
+                var kind = elem.GetStringProp("kind");
+                var name = elem.GetStringProp("name", id);
 
-            var props = elem.ExtractProperties();
-            var role = elem.GetStringProp("role", props.GetValueOrDefault("role", ""));
-            if (!string.IsNullOrEmpty(role)) props["role"] = role;
-            var isLib = elem.GetStringProp("is_library", props.GetValueOrDefault("is_library", ""));
-            if (!string.IsNullOrEmpty(isLib)) props["is_library"] = isLib;
-            var dbType = elem.GetStringProp("db_type", props.GetValueOrDefault("db_type", ""));
-            if (!string.IsNullOrEmpty(dbType)) props["db_type"] = dbType;
-            var projType = elem.GetStringProp("project_type", props.GetValueOrDefault("project_type", ""));
-            if (!string.IsNullOrEmpty(projType)) props["project_type"] = projType;
-            var framework = elem.GetStringProp("framework", props.GetValueOrDefault("framework", ""));
-            if (!string.IsNullOrEmpty(framework)) props["framework"] = framework;
-            var path = elem.GetStringProp("path", props.GetValueOrDefault("path", ""));
-            if (!string.IsNullOrEmpty(path)) props["path"] = path;
-            var layer = elem.GetStringProp("layer", props.GetValueOrDefault("layer", ""));
-            if (!string.IsNullOrEmpty(layer))
-            {
-                props["layer"] = layer;
-                props["layerId"] = elem.GetStringProp("layerId", props.GetValueOrDefault("layerId", layer));
-                props["layerName"] = elem.GetStringProp("layerName", props.GetValueOrDefault("layerName", ""));
-                props["layerOrder"] = elem.GetStringProp("layerOrder", props.GetValueOrDefault("layerOrder", ""));
-                props["layerColor"] = elem.GetStringProp("layerColor", props.GetValueOrDefault("layerColor", ""));
-                props["layerIcon"] = elem.GetStringProp("layerIcon", props.GetValueOrDefault("layerIcon", ""));
-            }
-            var pkgCount = elem.GetStringProp("package_count", props.GetValueOrDefault("package_count", ""));
-            if (!string.IsNullOrEmpty(pkgCount)) props["package_count"] = pkgCount;
+                if (string.IsNullOrEmpty(id)) continue;
 
-            if (kind == "Database")
-            {
-                var engineProp = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
-                var schemaProp = elem.GetStringProp("schema", props.GetValueOrDefault("schema", ""));
-                var (cName, cType, cKey) = PostIndexAnalyzer.CanonicalizeDatabase(name, dbType, engineProp, schemaProp, primaryRelationalEngine);
-                var isExplicitResource = id.Contains(":res:db:", StringComparison.OrdinalIgnoreCase) ||
-                                         id.StartsWith("urn:", StringComparison.OrdinalIgnoreCase);
-                var isStandaloneDb = id.StartsWith("db:", StringComparison.OrdinalIgnoreCase);
-
-                string canonicalId;
-                if (isExplicitResource)
+                if (!string.IsNullOrWhiteSpace(projectFilter) && IsProjectNodeKind(kind) &&
+                    !name.Contains(projectFilter, StringComparison.OrdinalIgnoreCase))
                 {
-                    canonicalId = id;
+                    continue;
                 }
-                else if (isStandaloneDb)
-                {
-                    canonicalId = id;
-                }
-                else
-                {
-                    canonicalId = $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Database}:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
-                }
-                dbIdToCanonicalId[id] = canonicalId;
 
-                if (!nodeMap.TryGetValue(canonicalId, out var existingDbNode))
+                var props = elem.ExtractProperties();
+                var role = elem.GetStringProp("role", props.GetValueOrDefault("role", ""));
+                if (!string.IsNullOrEmpty(role)) props["role"] = role;
+                var isLib = elem.GetStringProp("is_library", props.GetValueOrDefault("is_library", ""));
+                if (!string.IsNullOrEmpty(isLib)) props["is_library"] = isLib;
+                var dbType = elem.GetStringProp("db_type", props.GetValueOrDefault("db_type", ""));
+                if (!string.IsNullOrEmpty(dbType)) props["db_type"] = dbType;
+                var projType = elem.GetStringProp("project_type", props.GetValueOrDefault("project_type", ""));
+                if (!string.IsNullOrEmpty(projType)) props["project_type"] = projType;
+                var framework = elem.GetStringProp("framework", props.GetValueOrDefault("framework", ""));
+                if (!string.IsNullOrEmpty(framework)) props["framework"] = framework;
+                var path = elem.GetStringProp("path", props.GetValueOrDefault("path", ""));
+                if (!string.IsNullOrEmpty(path)) props["path"] = path;
+                var layer = elem.GetStringProp("layer", props.GetValueOrDefault("layer", ""));
+
+                if (!string.IsNullOrEmpty(layer))
                 {
-                    props["entity_type"] = "database";
-                    props["db_type"] = cType;
-                    props["role"] = "database";
-                    props["is_canonical"] = "true";
+                    props["layer"] = layer;
+                    props["layerId"] = elem.GetStringProp("layerId", props.GetValueOrDefault("layerId", layer));
+                    props["layerName"] = elem.GetStringProp("layerName", props.GetValueOrDefault("layerName", ""));
+                    props["layerOrder"] = elem.GetStringProp("layerOrder", props.GetValueOrDefault("layerOrder", ""));
+                    props["layerColor"] = elem.GetStringProp("layerColor", props.GetValueOrDefault("layerColor", ""));
+                    props["layerIcon"] = elem.GetStringProp("layerIcon", props.GetValueOrDefault("layerIcon", ""));
+                }
+
+                var pkgCount = elem.GetStringProp("package_count", props.GetValueOrDefault("package_count", ""));
+                if (!string.IsNullOrEmpty(pkgCount)) props["package_count"] = pkgCount;
+
+                if (kind == "Database")
+                {
+                    var engineProp = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
+                    var schemaProp = elem.GetStringProp("schema", props.GetValueOrDefault("schema", ""));
+
+                    var (cName, cType, cKey) = PostIndexAnalyzer.CanonicalizeDatabase(name, dbType, engineProp,
+                        schemaProp, primaryRelationalEngine);
+
+                    var isExplicitResource = id.Contains(":res:db:", StringComparison.OrdinalIgnoreCase) ||
+                                             id.StartsWith("urn:", StringComparison.OrdinalIgnoreCase);
+                    var isStandaloneDb = id.StartsWith("db:", StringComparison.OrdinalIgnoreCase);
+
+                    string canonicalId;
+
+                    if (isExplicitResource)
+                    {
+                        canonicalId = id;
+                    }
+                    else if (isStandaloneDb)
+                    {
+                        canonicalId = id;
+                    }
+                    else
+                    {
+                        canonicalId =
+                            $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Database}:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
+                    }
+
+                    dbIdToCanonicalId[id] = canonicalId;
+
+                    if (!nodeMap.TryGetValue(canonicalId, out var existingDbNode))
+                    {
+                        props["entity_type"] = "database";
+                        props["db_type"] = cType;
+                        props["role"] = "database";
+                        props["is_canonical"] = "true";
+                        props["is_semantic_entity"] = "true";
+                        props["is_library"] = "false";
+
+                        if (!props.ContainsKey("layer"))
+                        {
+                            props["layer"] = StandardLayers.Foundation.LayerId;
+                            props["layerId"] = StandardLayers.Foundation.LayerId;
+                            props["layerName"] = StandardLayers.Foundation.LayerName;
+                            props["layerOrder"] = StandardLayers.Foundation.Order.ToString();
+                            props["layerColor"] = StandardLayers.Foundation.Color;
+                            props["layerIcon"] = StandardLayers.Foundation.Icon;
+                        }
+
+                        var engine = !string.IsNullOrEmpty(engineProp)
+                            ? engineProp
+                            : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
+                        props["engine"] = engine;
+                        props["technology"] = engine;
+                        props["schema"] = cName.Contains('.') ? cName.Split('.', 2)[1] : schemaProp;
+
+                        var dispName = elem.GetStringProp("display_name");
+
+                        if (string.IsNullOrEmpty(dispName))
+                        {
+                            dispName = cName.Contains('.')
+                                ? cName
+                                : (!string.IsNullOrEmpty(engine) &&
+                                   !engine.Equals(cName, StringComparison.OrdinalIgnoreCase)
+                                    ? $"{cName} ({engine}) [{cType}]"
+                                    : $"{cName} [{cType}]");
+                        }
+
+                        var node = new GraphNodeDto
+                        {
+                            Id = canonicalId,
+                            Kind = "Database",
+                            Name = cName,
+                            DisplayName = dispName,
+                            Properties = props
+                        };
+                        nodeMap[canonicalId] = node;
+                        graph.Nodes.Add(node);
+                    }
+                    else
+                    {
+                        var engine = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
+
+                        if (!string.IsNullOrEmpty(engine) && existingDbNode.Properties != null &&
+                            !existingDbNode.Properties.ContainsKey("engine"))
+                        {
+                            existingDbNode.Properties["engine"] = engine;
+
+                            if (existingDbNode.DisplayName != null &&
+                                !existingDbNode.DisplayName.Contains(engine, StringComparison.OrdinalIgnoreCase))
+                            {
+                                existingDbNode.DisplayName =
+                                    $"{existingDbNode.Name} ({engine}) [{existingDbNode.Properties.GetValueOrDefault("db_type")}]";
+                            }
+                        }
+                    }
+                }
+                else if (kind == "Package")
+                {
+                    if (nodeMap.ContainsKey(id)) continue;
+
+                    var ver = elem.GetStringProp("version", props.GetValueOrDefault("version", ""));
+
+                    var pType = elem.GetStringProp("package_type",
+                        elem.GetStringProp("pkg_type", props.GetValueOrDefault("package_type", "package")));
+                    props["is_library"] = "true";
+                    props["is_external"] = "true";
+                    props["entity_type"] = "library";
+                    props["is_semantic_entity"] = "false";
+                    props["package_type"] = pType;
+                    if (!string.IsNullOrEmpty(ver)) props["version"] = ver;
+
+                    if (!props.ContainsKey("layer"))
+                    {
+                        props["layer"] = StandardLayers.Foundation.LayerId;
+                        props["layerId"] = StandardLayers.Foundation.LayerId;
+                        props["layerName"] = StandardLayers.Foundation.LayerName;
+                        props["layerColor"] = StandardLayers.Foundation.Color;
+                    }
+
+                    var dispName = elem.GetStringProp("display_name");
+
+                    if (string.IsNullOrEmpty(dispName))
+                    {
+                        dispName = string.IsNullOrEmpty(ver) ? name : $"{name}@{ver}";
+                    }
+
+                    var pkgNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "Package",
+                        Name = name,
+                        DisplayName = dispName,
+                        Properties = props
+                    };
+                    nodeMap[id] = pkgNode;
+                    graph.Nodes.Add(pkgNode);
+                }
+                else if (kind == "Topic")
+                {
+                    if (nodeMap.ContainsKey(id)) continue;
+
+                    var broker = elem.GetStringProp("broker_type", props.GetValueOrDefault("broker_type", "Topic"));
+
+                    var isInternal = string.Equals(broker, "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(broker, "in-memory", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(props.GetValueOrDefault("is_internal"), "true",
+                                         StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(props.GetValueOrDefault("scope"), "internal",
+                                         StringComparison.OrdinalIgnoreCase) ||
+                                     id.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
+                                     id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase);
+                    if (isInternal) continue;
+
+                    props["broker_type"] = broker;
+                    props["role"] = "topic";
+                    props["entity_type"] = "topic";
                     props["is_semantic_entity"] = "true";
                     props["is_library"] = "false";
+
                     if (!props.ContainsKey("layer"))
                     {
                         props["layer"] = StandardLayers.Foundation.LayerId;
@@ -215,460 +356,425 @@ public class ArchitectureViewEngine(IGraphClient db)
                         props["layerColor"] = StandardLayers.Foundation.Color;
                         props["layerIcon"] = StandardLayers.Foundation.Icon;
                     }
-                    var engine = !string.IsNullOrEmpty(engineProp) ? engineProp : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
-                    props["engine"] = engine;
-                    props["technology"] = engine;
-                    props["schema"] = cName.Contains('.') ? cName.Split('.', 2)[1] : schemaProp;
 
                     var dispName = elem.GetStringProp("display_name");
+
                     if (string.IsNullOrEmpty(dispName))
                     {
-                        dispName = cName.Contains('.')
-                            ? cName
-                            : (!string.IsNullOrEmpty(engine) && !engine.Equals(cName, StringComparison.OrdinalIgnoreCase)
-                                ? $"{cName} ({engine}) [{cType}]"
-                                : $"{cName} [{cType}]");
+                        dispName = $"{name} [{broker}]";
                     }
 
-                    var node = new GraphNodeDto
+                    var topicNode = new GraphNodeDto
                     {
-                        Id = canonicalId,
-                        Kind = "Database",
-                        Name = cName,
+                        Id = id,
+                        Kind = "Topic",
+                        Name = name,
                         DisplayName = dispName,
                         Properties = props
                     };
-                    nodeMap[canonicalId] = node;
-                    graph.Nodes.Add(node);
+                    nodeMap[id] = topicNode;
+                    graph.Nodes.Add(topicNode);
+                }
+                else if (kind == "ExternalService")
+                {
+                    if (nodeMap.ContainsKey(id)) continue;
+
+                    if (name is "*" or "unknown-service" or "httprequest" ||
+                        PostIndexAnalyzer.IsGarbageExternalService(name)) continue;
+
+                    var isExplicitExternal = props.GetValueOrDefault("is_external") == "true";
+
+                    if (!isExplicitExternal)
+                    {
+                        var domain = SyntaxEnricher.CleanProjectNameToDomain(name);
+                        string? matchedProjId = null;
+
+                        if (internalProjectsLookup.TryGetValue(name, out var mpId) ||
+                            internalProjectsLookup.TryGetValue(domain, out mpId) ||
+                            internalProjectsLookup.TryGetValue(name.ToLowerInvariant(), out mpId) ||
+                            internalProjectsLookup.TryGetValue(PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id),
+                                out mpId))
+                        {
+                            matchedProjId = mpId;
+                        }
+
+                        if (matchedProjId != null)
+                        {
+                            projectToWorkloadMap[id] = matchedProjId;
+                            continue; // Do NOT add as external service cloud!
+                        }
+                    }
+
+                    var st = elem.GetStringProp("service_type", props.GetValueOrDefault("service_type", "Service"));
+
+                    var isMsg = st.Equals("MessageBroker", StringComparison.OrdinalIgnoreCase) ||
+                                st.Equals("Kafka", StringComparison.OrdinalIgnoreCase) ||
+                                st.Equals("RabbitMQ", StringComparison.OrdinalIgnoreCase);
+                    props["service_type"] = st;
+                    props["entity_type"] = isMsg ? "topic" : "external";
+                    props["is_semantic_entity"] = "true";
+                    props["is_library"] = "false";
+
+                    if (!props.ContainsKey("layer"))
+                    {
+                        var targetLayer = isMsg ? StandardLayers.Foundation : StandardLayers.Egress;
+                        props["layer"] = targetLayer.LayerId;
+                        props["layerId"] = targetLayer.LayerId;
+                        props["layerName"] = targetLayer.LayerName;
+                        props["layerOrder"] = targetLayer.Order.ToString();
+                        props["layerColor"] = targetLayer.Color;
+                        props["layerIcon"] = targetLayer.Icon;
+                    }
+
+                    var dispName = elem.GetStringProp("display_name");
+
+                    if (string.IsNullOrEmpty(dispName))
+                    {
+                        dispName = $"{name} [{st}]";
+                    }
+
+                    var esNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = "ExternalService",
+                        Name = name,
+                        DisplayName = dispName,
+                        Properties = props
+                    };
+                    nodeMap[id] = esNode;
+                    graph.Nodes.Add(esNode);
                 }
                 else
                 {
-                    var engine = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
-                    if (!string.IsNullOrEmpty(engine) && existingDbNode.Properties != null && !existingDbNode.Properties.ContainsKey("engine"))
+                    // Project or Workload (Service, App, Worker, Library, CliTool)
+                    var isWorkload = kind is "Service" or "App" or "Worker" or "Library" or "CliTool" or "FrontendApp"
+                        or "SharedLibrary";
+                    var associatedProjectId = props.GetValueOrDefault("project_id");
+
+                    if (string.IsNullOrEmpty(associatedProjectId))
                     {
-                        existingDbNode.Properties["engine"] = engine;
-                        if (existingDbNode.DisplayName != null && !existingDbNode.DisplayName.Contains(engine, StringComparison.OrdinalIgnoreCase))
+                        associatedProjectId =
+                            (id.Contains($":{OntologyConstants.IdPrefixes.Project}:",
+                                 StringComparison.OrdinalIgnoreCase) ||
+                             id.Contains(":project:", StringComparison.OrdinalIgnoreCase))
+                                ? id
+                                : $"{id.Split(':')[0]}:{OntologyConstants.IdPrefixes.Project}:{name}";
+                    }
+
+                    if (isWorkload)
+                    {
+                        projectToWorkloadMap[associatedProjectId] = id;
+
+                        // If raw project was already added, replace it with this higher-level semantic workload
+                        if (nodeMap.TryGetValue(associatedProjectId, out var rawProj))
                         {
-                            existingDbNode.DisplayName = $"{existingDbNode.Name} ({engine}) [{existingDbNode.Properties.GetValueOrDefault("db_type")}]";
-                        }
-                    }
-                }
-            }
-            else if (kind == "Package")
-            {
-                if (nodeMap.ContainsKey(id)) continue;
-                var ver = elem.GetStringProp("version", props.GetValueOrDefault("version", ""));
-                var pType = elem.GetStringProp("package_type", elem.GetStringProp("pkg_type", props.GetValueOrDefault("package_type", "package")));
-                props["is_library"] = "true";
-                props["is_external"] = "true";
-                props["entity_type"] = "library";
-                props["is_semantic_entity"] = "false";
-                props["package_type"] = pType;
-                if (!string.IsNullOrEmpty(ver)) props["version"] = ver;
-                if (!props.ContainsKey("layer"))
-                {
-                    props["layer"] = StandardLayers.Foundation.LayerId;
-                    props["layerId"] = StandardLayers.Foundation.LayerId;
-                    props["layerName"] = StandardLayers.Foundation.LayerName;
-                    props["layerColor"] = StandardLayers.Foundation.Color;
-                }
-                var dispName = elem.GetStringProp("display_name");
-                if (string.IsNullOrEmpty(dispName))
-                {
-                    dispName = string.IsNullOrEmpty(ver) ? name : $"{name}@{ver}";
-                }
-                var pkgNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = "Package",
-                    Name = name,
-                    DisplayName = dispName,
-                    Properties = props
-                };
-                nodeMap[id] = pkgNode;
-                graph.Nodes.Add(pkgNode);
-            }
-            else if (kind == "Topic")
-            {
-                if (nodeMap.ContainsKey(id)) continue;
-                var broker = elem.GetStringProp("broker_type", props.GetValueOrDefault("broker_type", "Topic"));
-                var isInternal = string.Equals(broker, "mediatr", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(broker, "in-memory", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(props.GetValueOrDefault("is_internal"), "true", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(props.GetValueOrDefault("scope"), "internal", StringComparison.OrdinalIgnoreCase) ||
-                                 id.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
-                                 id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase);
-                if (isInternal) continue;
-                props["broker_type"] = broker;
-                props["role"] = "topic";
-                props["entity_type"] = "topic";
-                props["is_semantic_entity"] = "true";
-                props["is_library"] = "false";
-                if (!props.ContainsKey("layer"))
-                {
-                    props["layer"] = StandardLayers.Foundation.LayerId;
-                    props["layerId"] = StandardLayers.Foundation.LayerId;
-                    props["layerName"] = StandardLayers.Foundation.LayerName;
-                    props["layerOrder"] = StandardLayers.Foundation.Order.ToString();
-                    props["layerColor"] = StandardLayers.Foundation.Color;
-                    props["layerIcon"] = StandardLayers.Foundation.Icon;
-                }
-                var dispName = elem.GetStringProp("display_name");
-                if (string.IsNullOrEmpty(dispName))
-                {
-                    dispName = $"{name} [{broker}]";
-                }
-                var topicNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = "Topic",
-                    Name = name,
-                    DisplayName = dispName,
-                    Properties = props
-                };
-                nodeMap[id] = topicNode;
-                graph.Nodes.Add(topicNode);
-            }
-            else if (kind == "ExternalService")
-            {
-                if (nodeMap.ContainsKey(id)) continue;
-                if (name is "*" or "unknown-service" or "httprequest" || PostIndexAnalyzer.IsGarbageExternalService(name)) continue;
-
-                var isExplicitExternal = props.GetValueOrDefault("is_external") == "true";
-                if (!isExplicitExternal)
-                {
-                    var domain = SyntaxEnricher.CleanProjectNameToDomain(name);
-                    string? matchedProjId = null;
-                    if (internalProjectsLookup.TryGetValue(name, out var mpId) ||
-                        internalProjectsLookup.TryGetValue(domain, out mpId) ||
-                        internalProjectsLookup.TryGetValue(name.ToLowerInvariant(), out mpId) ||
-                        internalProjectsLookup.TryGetValue(PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id), out mpId))
-                    {
-                        matchedProjId = mpId;
-                    }
-
-                    if (matchedProjId != null)
-                    {
-                        projectToWorkloadMap[id] = matchedProjId;
-                        continue; // Do NOT add as external service cloud!
-                    }
-                }
-
-                var st = elem.GetStringProp("service_type", props.GetValueOrDefault("service_type", "Service"));
-                var isMsg = st.Equals("MessageBroker", StringComparison.OrdinalIgnoreCase) ||
-                            st.Equals("Kafka", StringComparison.OrdinalIgnoreCase) ||
-                            st.Equals("RabbitMQ", StringComparison.OrdinalIgnoreCase);
-                props["service_type"] = st;
-                props["entity_type"] = isMsg ? "topic" : "external";
-                props["is_semantic_entity"] = "true";
-                props["is_library"] = "false";
-                if (!props.ContainsKey("layer"))
-                {
-                    var targetLayer = isMsg ? StandardLayers.Foundation : StandardLayers.Egress;
-                    props["layer"] = targetLayer.LayerId;
-                    props["layerId"] = targetLayer.LayerId;
-                    props["layerName"] = targetLayer.LayerName;
-                    props["layerOrder"] = targetLayer.Order.ToString();
-                    props["layerColor"] = targetLayer.Color;
-                    props["layerIcon"] = targetLayer.Icon;
-                }
-                var dispName = elem.GetStringProp("display_name");
-                if (string.IsNullOrEmpty(dispName))
-                {
-                    dispName = $"{name} [{st}]";
-                }
-                var esNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = "ExternalService",
-                    Name = name,
-                    DisplayName = dispName,
-                    Properties = props
-                };
-                nodeMap[id] = esNode;
-                graph.Nodes.Add(esNode);
-            }
-            else
-            {
-                // Project or Workload (Service, App, Worker, Library, CliTool)
-                var isWorkload = kind is "Service" or "App" or "Worker" or "Library" or "CliTool" or "FrontendApp" or "SharedLibrary";
-                var associatedProjectId = props.GetValueOrDefault("project_id");
-                if (string.IsNullOrEmpty(associatedProjectId))
-                {
-                    associatedProjectId = (id.Contains($":{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) || id.Contains(":project:", StringComparison.OrdinalIgnoreCase))
-                        ? id
-                        : $"{id.Split(':')[0]}:{OntologyConstants.IdPrefixes.Project}:{name}";
-                }
-
-                if (isWorkload)
-                {
-                    projectToWorkloadMap[associatedProjectId] = id;
-                    // If raw project was already added, replace it with this higher-level semantic workload
-                    if (nodeMap.TryGetValue(associatedProjectId, out var rawProj))
-                    {
-                        if (rawProj.Properties != null)
-                        {
-                            foreach (var key in new[] { "layer", "layerId", "layerName", "layerOrder", "layerColor", "layerIcon" })
+                            if (rawProj.Properties != null)
                             {
-                                if (!props.ContainsKey(key) && rawProj.Properties.TryGetValue(key, out var val))
+                                foreach (var key in new[]
+                                         {
+                                             "layer", "layerId", "layerName", "layerOrder", "layerColor",
+                                             "layerIcon"
+                                         })
                                 {
-                                    props[key] = val;
+                                    if (!props.ContainsKey(key) && rawProj.Properties.TryGetValue(key, out var val))
+                                    {
+                                        props[key] = val;
+                                    }
                                 }
                             }
+
+                            graph.Nodes.Remove(rawProj);
+                            nodeMap.Remove(associatedProjectId);
                         }
-                        graph.Nodes.Remove(rawProj);
-                        nodeMap.Remove(associatedProjectId);
                     }
-                }
-                else if (kind == "Project")
-                {
-                    // If semantic workload for this project already exists, copy layer properties and skip redundant raw Project node
-                    if (projectToWorkloadMap.TryGetValue(id, out var workloadId) && nodeMap.TryGetValue(workloadId, out var existingWorkload))
+                    else if (kind == "Project")
                     {
-                        if (existingWorkload.Properties != null && props != null)
+                        // If semantic workload for this project already exists, copy layer properties and skip redundant raw Project node
+                        if (projectToWorkloadMap.TryGetValue(id, out var workloadId) &&
+                            nodeMap.TryGetValue(workloadId, out var existingWorkload))
                         {
-                            foreach (var key in new[] { "layer", "layerId", "layerName", "layerOrder", "layerColor", "layerIcon" })
+                            if (existingWorkload.Properties != null && props != null)
                             {
-                                if (!existingWorkload.Properties.ContainsKey(key) && props.TryGetValue(key, out var val))
+                                foreach (var key in new[]
+                                         {
+                                             "layer", "layerId", "layerName", "layerOrder", "layerColor",
+                                             "layerIcon"
+                                         })
                                 {
-                                    existingWorkload.Properties[key] = val;
+                                    if (!existingWorkload.Properties.ContainsKey(key) &&
+                                        props.TryGetValue(key, out var val))
+                                    {
+                                        existingWorkload.Properties[key] = val;
+                                    }
                                 }
                             }
+
+                            continue;
                         }
+
+                        if (projectToWorkloadMap.ContainsKey(id))
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (nodeMap.ContainsKey(id)) continue;
+
+                    var dispName = elem.GetStringProp("display_name");
+
+                    if (string.IsNullOrEmpty(dispName))
+                    {
+                        dispName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})";
+                    }
+
+                    var projNode = new GraphNodeDto
+                    {
+                        Id = id,
+                        Kind = !string.IsNullOrEmpty(kind) ? kind : "Project",
+                        Name = name,
+                        DisplayName = dispName,
+                        FilePath = string.IsNullOrEmpty(path) ? null : path,
+                        Properties = props
+                    };
+                    var isLibProject = IsLibraryProject(projNode);
+
+                    if (!includeLibraries && isLibProject)
+                    {
                         continue;
                     }
 
-                    if (projectToWorkloadMap.ContainsKey(id))
+                    props["is_library"] = isLibProject ? "true" : "false";
+                    props["entity_type"] = isLibProject ? "library" : "service";
+                    props["is_semantic_entity"] = isLibProject ? "false" : "true";
+
+                    if (!props.ContainsKey("layer"))
+                    {
+                        var isAppOrFrontend = kind is "App" or "FrontendApp" ||
+                                              string.Equals(props.GetValueOrDefault("role"), "FrontendApp",
+                                                  StringComparison.OrdinalIgnoreCase) ||
+                                              string.Equals(props.GetValueOrDefault("role"), "App",
+                                                  StringComparison.OrdinalIgnoreCase) ||
+                                              (name?.ToLowerInvariant().Contains("gateway") == true);
+
+                        var defaultLayer = isLibProject ? StandardLayers.Foundation :
+                            isAppOrFrontend ? StandardLayers.Ingress : StandardLayers.Components;
+                        props["layer"] = defaultLayer.LayerId;
+                        props["layerId"] = defaultLayer.LayerId;
+                        props["layerName"] = defaultLayer.LayerName;
+                        props["layerOrder"] = defaultLayer.Order.ToString();
+                        props["layerColor"] = defaultLayer.Color;
+                        props["layerIcon"] = defaultLayer.Icon;
+                    }
+
+                    nodeMap[id] = projNode;
+                    graph.Nodes.Add(projNode);
+                }
+            }
+
+            // Fallback package count query if needed
+            var needsPkgCount = graph.Nodes.Any(n =>
+                IsProjectNodeKind(n.Kind) && (n.Properties == null || !n.Properties.ContainsKey("package_count")));
+
+            if (needsPkgCount)
+            {
+                try
+                {
+                    var pkgCountQuery =
+                        "MATCH (p)-[:DEPENDS_ON]->(pkg:Package) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS projId, count(pkg) AS pkgCount";
+                    var pkgCountJson = await db.ExecuteQueryAsync(pkgCountQuery, null, ct);
+
+                    using (var pkgCountDoc = JsonDocument.Parse(pkgCountJson))
+                    {
+                        foreach (var row in pkgCountDoc.RootElement.EnumerateArray())
+                        {
+                            var projId = row.GetStringProp("projId");
+
+                            var count = row.TryGetProperty("pkgCount", out var pc) &&
+                                        pc.ValueKind == JsonValueKind.Number
+                                ? pc.GetInt64()
+                                : 0;
+
+                            if (!string.IsNullOrEmpty(projId) && nodeMap.TryGetValue(projId, out var pNode) &&
+                                pNode.Properties != null)
+                            {
+                                pNode.Properties["package_count"] = count.ToString();
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            var projectNodes = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
+
+            // Query macro relationships: INTEGRATES_WITH, USES_DB, TRIGGERS, PUBLISHES_TO, DEPENDS_ON, SERVICE_CALL, CALLS_ENDPOINT, LIBRARY
+            var edgesQuery =
+                "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
+            var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, ct);
+
+            using (var edgesDoc = JsonDocument.Parse(edgesJson))
+            {
+                var edgeSet = new HashSet<(string From, string To, string Kind)>();
+
+                foreach (var elem in edgesDoc.RootElement.EnumerateArray())
+                {
+                    var rawFrom = elem.GetStringProp("from_id");
+                    var rawTo = elem.GetStringProp("to_id");
+                    var rKind = elem.GetStringProp("kind");
+
+                    var fromId = dbIdToCanonicalId.GetValueOrDefault(rawFrom, rawFrom);
+                    var toId = dbIdToCanonicalId.GetValueOrDefault(rawTo, rawTo);
+
+                    fromId = projectToWorkloadMap.GetValueOrDefault(fromId, fromId);
+                    toId = projectToWorkloadMap.GetValueOrDefault(toId, toId);
+
+                    if (!nodeMap.ContainsKey(fromId))
+                    {
+                        var owner = FindOwningProject(fromId, projectNodes);
+                        if (owner != null) fromId = owner.Id;
+                    }
+
+                    if (!nodeMap.ContainsKey(toId))
+                    {
+                        var owner = FindOwningProject(toId, projectNodes);
+                        if (owner != null) toId = owner.Id;
+                    }
+
+                    if (!nodeMap.TryGetValue(fromId, out var srcNode) || !nodeMap.TryGetValue(toId, out var tgtNode) ||
+                        fromId.Equals(toId, StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
-                }
 
-                if (nodeMap.ContainsKey(id)) continue;
-                var dispName = elem.GetStringProp("display_name");
-                if (string.IsNullOrEmpty(dispName))
-                {
-                    dispName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})";
-                }
-                var projNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = !string.IsNullOrEmpty(kind) ? kind : "Project",
-                    Name = name,
-                    DisplayName = dispName,
-                    FilePath = string.IsNullOrEmpty(path) ? null : path,
-                    Properties = props
-                };
-                var isLibProject = IsLibraryProject(projNode);
-                if (!includeLibraries && isLibProject)
-                {
-                    continue;
-                }
-                props["is_library"] = isLibProject ? "true" : "false";
-                props["entity_type"] = isLibProject ? "library" : "service";
-                props["is_semantic_entity"] = isLibProject ? "false" : "true";
-                if (!props.ContainsKey("layer"))
-                {
-                    var isAppOrFrontend = kind is "App" or "FrontendApp" ||
-                                          string.Equals(props.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
-                                          string.Equals(props.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase) ||
-                                          (name?.ToLowerInvariant().Contains("gateway") == true);
-                    var defaultLayer = isLibProject ? StandardLayers.Foundation : isAppOrFrontend ? StandardLayers.Ingress : StandardLayers.Components;
-                    props["layer"] = defaultLayer.LayerId;
-                    props["layerId"] = defaultLayer.LayerId;
-                    props["layerName"] = defaultLayer.LayerName;
-                    props["layerOrder"] = defaultLayer.Order.ToString();
-                    props["layerColor"] = defaultLayer.Color;
-                    props["layerIcon"] = defaultLayer.Icon;
-                }
+                    var edgeProps = elem.ExtractProperties();
+                    var isTargetLib = tgtNode.Kind == "Package" || IsLibraryProject(tgtNode);
 
-                nodeMap[id] = projNode;
-                graph.Nodes.Add(projNode);
-            }
-        }
+                    var (category, depType, normalizedKind) = PostIndexAnalyzer.NormalizeEdgeCategory(rKind,
+                        srcNode.Kind, tgtNode.Kind, edgeProps.GetValueOrDefault("category"),
+                        edgeProps.GetValueOrDefault("dependency_type"), isTargetLib);
 
-        // Fallback package count query if needed
-        var needsPkgCount = graph.Nodes.Any(n => IsProjectNodeKind(n.Kind) && (n.Properties == null || !n.Properties.ContainsKey("package_count")));
-        if (needsPkgCount)
-        {
-            try
-            {
-                var pkgCountQuery = "MATCH (p)-[:DEPENDS_ON]->(pkg:Package) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS projId, count(pkg) AS pkgCount";
-                var pkgCountJson = await db.ExecuteQueryAsync(pkgCountQuery, null, ct);
-                using var pkgCountDoc = JsonDocument.Parse(pkgCountJson);
-                foreach (var row in pkgCountDoc.RootElement.EnumerateArray())
-                {
-                    var projId = row.GetStringProp("projId");
-                    var count = row.TryGetProperty("pkgCount", out var pc) && pc.ValueKind == JsonValueKind.Number ? pc.GetInt64() : 0;
-                    if (!string.IsNullOrEmpty(projId) && nodeMap.TryGetValue(projId, out var pNode) && pNode.Properties != null)
-                    {
-                        pNode.Properties["package_count"] = count.ToString();
-                    }
-                }
-            }
-            catch { }
-        }
-
-        var projectNodes = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
-
-        // Query macro relationships: INTEGRATES_WITH, USES_DB, TRIGGERS, PUBLISHES_TO, DEPENDS_ON, SERVICE_CALL, CALLS_ENDPOINT, LIBRARY
-        var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
-        var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, ct);
-        using var edgesDoc = JsonDocument.Parse(edgesJson);
-        var edgeSet = new HashSet<(string From, string To, string Kind)>();
-
-        foreach (var elem in edgesDoc.RootElement.EnumerateArray())
-        {
-            var rawFrom = elem.GetStringProp("from_id");
-            var rawTo = elem.GetStringProp("to_id");
-            var rKind = elem.GetStringProp("kind");
-
-            var fromId = dbIdToCanonicalId.GetValueOrDefault(rawFrom, rawFrom);
-            var toId = dbIdToCanonicalId.GetValueOrDefault(rawTo, rawTo);
-
-            fromId = projectToWorkloadMap.GetValueOrDefault(fromId, fromId);
-            toId = projectToWorkloadMap.GetValueOrDefault(toId, toId);
-
-            if (!nodeMap.ContainsKey(fromId))
-            {
-                var owner = FindOwningProject(fromId, projectNodes);
-                if (owner != null) fromId = owner.Id;
-            }
-            if (!nodeMap.ContainsKey(toId))
-            {
-                var owner = FindOwningProject(toId, projectNodes);
-                if (owner != null) toId = owner.Id;
-            }
-
-            if (!nodeMap.TryGetValue(fromId, out var srcNode) || !nodeMap.TryGetValue(toId, out var tgtNode) || fromId.Equals(toId, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var edgeProps = elem.ExtractProperties();
-            var isTargetLib = tgtNode.Kind == "Package" || IsLibraryProject(tgtNode);
-
-            var (category, depType, normalizedKind) = PostIndexAnalyzer.NormalizeEdgeCategory(
-                rKind,
-                srcNode.Kind,
-                tgtNode.Kind,
-                edgeProps.GetValueOrDefault("category"),
-                edgeProps.GetValueOrDefault("dependency_type"),
-                isTargetLib
-            );
-
-            edgeProps["category"] = category;
-            edgeProps["dependency_type"] = depType;
-
-            var isBothProjects = (srcNode.Kind is "Project" or "Service" or "Worker" or "App") &&
-                                 (tgtNode.Kind is "Project" or "Service" or "Worker" or "App");
-
-            if (isBothProjects)
-            {
-                // In event-driven architectures, services cannot directly subscribe to/publish to other services.
-                // Drop phantom direct pub/sub edges between services when no topic is involved.
-                if (rKind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "PUBLISHES_TO" or "PUBLISHED_BY")
-                {
-                    continue;
-                }
-
-                if (category == "messaging")
-                {
-                    category = "service_call";
-                    depType = "service_call";
                     edgeProps["category"] = category;
                     edgeProps["dependency_type"] = depType;
-                }
-            }
 
-            var outKind = category switch
-            {
-                "library" => "LIBRARY",
-                "service_call" => (rKind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL"),
-                "database" => "USES_DB",
-                "messaging" => (rKind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY" ? "PUBLISHES_TO" : "SUBSCRIBES_TO"),
-                _ => normalizedKind
-            };
+                    var isBothProjects = (srcNode.Kind is "Project" or "Service" or "Worker" or "App") &&
+                                         (tgtNode.Kind is "Project" or "Service" or "Worker" or "App");
 
-            var srcIsSemantic = srcNode.Properties?.GetValueOrDefault("is_semantic_entity") == "true";
-            var tgtIsSemantic = tgtNode.Properties?.GetValueOrDefault("is_semantic_entity") == "true";
-            if (srcIsSemantic && tgtIsSemantic && outKind != "LIBRARY")
-            {
-                edgeProps["is_semantic"] = "true";
-            }
-            else if (!edgeProps.ContainsKey("is_semantic"))
-            {
-                edgeProps["is_semantic"] = "false";
-            }
-
-            if (edgeSet.Add((fromId, toId, outKind)))
-            {
-                graph.Edges.Add(new GraphEdgeDto
-                {
-                    Id = $"{fromId}->{toId}:{outKind}",
-                    Source = fromId,
-                    Target = toId,
-                    Kind = outKind,
-                    Category = category,
-                    Properties = edgeProps
-                });
-            }
-        }
-
-        // Synthesize project -> database edges from project prefix (for unmaterialized project-scoped databases)
-        foreach (var (rawDbId, canonicalId) in dbIdToCanonicalId)
-        {
-            var owningProj = FindOwningProject(rawDbId, projectNodes);
-            if (owningProj != null && graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == canonicalId)))
-            {
-                graph.Edges.Add(new GraphEdgeDto
-                {
-                    Id = $"{owningProj.Id}->{canonicalId}:USES_DB",
-                    Source = owningProj.Id,
-                    Target = canonicalId,
-                    Kind = "USES_DB",
-                    Category = "database",
-                    Properties = new Dictionary<string, string>
+                    if (isBothProjects)
                     {
-                        ["dependency_type"] = "database",
-                        ["is_semantic"] = "true"
+                        // In event-driven architectures, services cannot directly subscribe to/publish to other services.
+                        // Drop phantom direct pub/sub edges between services when no topic is involved.
+                        if (rKind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "PUBLISHES_TO" or "PUBLISHED_BY")
+                        {
+                            continue;
+                        }
+
+                        if (category == "messaging")
+                        {
+                            category = "service_call";
+                            depType = "service_call";
+                            edgeProps["category"] = category;
+                            edgeProps["dependency_type"] = depType;
+                        }
                     }
-                });
-            }
-        }
 
-        LiftTransitiveSemanticRelations(graph);
+                    var outKind = category switch
+                    {
+                        "library" => "LIBRARY",
+                        "service_call" => (rKind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL"),
+                        "database" => "USES_DB",
+                        "messaging" => (rKind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY"
+                            ? "PUBLISHES_TO"
+                            : "SUBSCRIBES_TO"),
+                        _ => normalizedKind
+                    };
 
-        if (sharedDatabasesOnly)
-        {
-            var dbInDegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var edge in graph.Edges)
-            {
-                if (edge.Category == "database" || edge.Kind == "USES_DB")
-                {
-                    dbInDegree[edge.Target] = dbInDegree.GetValueOrDefault(edge.Target) + 1;
+                    var srcIsSemantic = srcNode.Properties?.GetValueOrDefault("is_semantic_entity") == "true";
+                    var tgtIsSemantic = tgtNode.Properties?.GetValueOrDefault("is_semantic_entity") == "true";
+
+                    if (srcIsSemantic && tgtIsSemantic && outKind != "LIBRARY")
+                    {
+                        edgeProps["is_semantic"] = "true";
+                    }
+                    else if (!edgeProps.ContainsKey("is_semantic"))
+                    {
+                        edgeProps["is_semantic"] = "false";
+                    }
+
+                    if (edgeSet.Add((fromId, toId, outKind)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{fromId}->{toId}:{outKind}",
+                            Source = fromId,
+                            Target = toId,
+                            Kind = outKind,
+                            Category = category,
+                            Properties = edgeProps
+                        });
+                    }
                 }
-            }
 
-            var singleConnDbIds = graph.Nodes
-                .Where(n => n.Kind == "Database" && dbInDegree.GetValueOrDefault(n.Id) <= 1)
-                .Select(n => n.Id)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                // Synthesize project -> database edges from project prefix (for unmaterialized project-scoped databases)
+                foreach (var (rawDbId, canonicalId) in dbIdToCanonicalId)
+                {
+                    var owningProj = FindOwningProject(rawDbId, projectNodes);
 
-            if (singleConnDbIds.Count > 0)
-            {
-                graph.Nodes.RemoveAll(n => singleConnDbIds.Contains(n.Id));
-                graph.Edges.RemoveAll(e => singleConnDbIds.Contains(e.Target) || singleConnDbIds.Contains(e.Source));
+                    if (owningProj != null &&
+                        graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == canonicalId)))
+                    {
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{owningProj.Id}->{canonicalId}:USES_DB",
+                            Source = owningProj.Id,
+                            Target = canonicalId,
+                            Kind = "USES_DB",
+                            Category = "database",
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["dependency_type"] = "database", ["is_semantic"] = "true"
+                            }
+                        });
+                    }
+                }
+
+                LiftTransitiveSemanticRelations(graph);
+
+                if (sharedDatabasesOnly)
+                {
+                    var dbInDegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var edge in graph.Edges)
+                    {
+                        if (edge.Category == "database" || edge.Kind == "USES_DB")
+                        {
+                            dbInDegree[edge.Target] = dbInDegree.GetValueOrDefault(edge.Target) + 1;
+                        }
+                    }
+
+                    var singleConnDbIds = graph.Nodes
+                        .Where(n => n.Kind == "Database" && dbInDegree.GetValueOrDefault(n.Id) <= 1).Select(n => n.Id)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    if (singleConnDbIds.Count > 0)
+                    {
+                        graph.Nodes.RemoveAll(n => singleConnDbIds.Contains(n.Id));
+
+                        graph.Edges.RemoveAll(e =>
+                            singleConnDbIds.Contains(e.Target) || singleConnDbIds.Contains(e.Source));
+                    }
+                }
+
+                var allProjects = await GetAllProjectsAsync(ct);
+                graph.Metadata["allProjects"] = JsonSerializer.Serialize(allProjects);
+                var projectPaths = await GetProjectPathsMapAsync(ct);
+                graph.Metadata["projectPaths"] = JsonSerializer.Serialize(projectPaths);
+
+                SystemContextCache[cacheKey] = graph;
+                return graph;
             }
         }
-
-        var allProjects = await GetAllProjectsAsync(ct);
-        graph.Metadata["allProjects"] = JsonSerializer.Serialize(allProjects);
-        var projectPaths = await GetProjectPathsMapAsync(ct);
-        graph.Metadata["projectPaths"] = JsonSerializer.Serialize(projectPaths);
-
-        SystemContextCache[cacheKey] = graph;
-        return graph;
     }
 
     /// <summary>
@@ -903,79 +1009,86 @@ public class ArchitectureViewEngine(IGraphClient db)
         // Query all components declared in or persisted in this project
         var query = "MATCH (p)-[:CONTAINS*1..3]->(c) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) AND (p.id = $scope OR p.name = $scope) AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Type', 'Table', 'Query'] RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, c.path AS path";
         var resJson = await db.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["scope"] = projectScope }, ct);
-        using var doc = JsonDocument.Parse(resJson);
-        var compIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var elem in doc.RootElement.EnumerateArray())
+        using (var doc = JsonDocument.Parse(resJson))
         {
-            var id = elem.GetProperty("id").GetString()!;
-            var kind = elem.GetProperty("kind").GetString()!;
-            var name = elem.GetProperty("name").GetString() ?? id;
-            var path = elem.TryGetProperty("path", out var pp) ? pp.GetString() : null;
+            var compIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            if (compIds.Add(id))
+            foreach (var elem in doc.RootElement.EnumerateArray())
             {
-                graph.Nodes.Add(new GraphNodeDto
-                {
-                    Id = id,
-                    Name = name,
-                    Kind = kind,
-                    FilePath = path
-                });
-            }
-        }
-
-        // Query internal component relationships: CALLS, EXPOSES_ENDPOINT, PERSISTED_IN, QUERIES_DB
-        if (compIds.Count > 0)
-        {
-            var inListStr = string.Join(", ", compIds.Select(id => $"'{id.Replace("'", "''")}'"));
-            var relsQuery = $"MATCH (src)-[r]->(tgt) WHERE src.id IN [{inListStr}] AND tgt.id IN [{inListStr}] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind";
-            var relsJson = await db.ExecuteQueryAsync(relsQuery, null, ct);
-            using var relsDoc = JsonDocument.Parse(relsJson);
-
-            foreach (var elem in relsDoc.RootElement.EnumerateArray())
-            {
-                var fromId = elem.GetProperty("from_id").GetString()!;
-                var toId = elem.GetProperty("to_id").GetString()!;
+                var id = elem.GetProperty("id").GetString()!;
                 var kind = elem.GetProperty("kind").GetString()!;
+                var name = elem.GetProperty("name").GetString() ?? id;
+                var path = elem.TryGetProperty("path", out var pp) ? pp.GetString() : null;
 
-                var (category, depType, normalizedKind) = PostIndexAnalyzer.NormalizeEdgeCategory(kind, null, null);
-
-                graph.Edges.Add(new GraphEdgeDto
+                if (compIds.Add(id))
                 {
-                    Id = $"{fromId}->{toId}:{normalizedKind}",
-                    Source = fromId,
-                    Target = toId,
-                    Kind = normalizedKind,
-                    Category = category,
-                    Properties = new Dictionary<string, string>
-                    {
-                        ["category"] = category,
-                        ["dependency_type"] = depType
-                    }
-                });
+                    graph.Nodes.Add(new GraphNodeDto { Id = id, Name = name, Kind = kind, FilePath = path });
+                }
             }
-        }
 
-        return graph;
+            // Query internal component relationships: CALLS, EXPOSES_ENDPOINT, PERSISTED_IN, QUERIES_DB
+            if (compIds.Count > 0)
+            {
+                var inListStr = string.Join(", ", compIds.Select(id => $"'{id.Replace("'", "''")}'"));
+
+                var relsQuery =
+                    $"MATCH (src)-[r]->(tgt) WHERE src.id IN [{inListStr}] AND tgt.id IN [{inListStr}] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind";
+                var relsJson = await db.ExecuteQueryAsync(relsQuery, null, ct);
+
+                using (var relsDoc = JsonDocument.Parse(relsJson))
+                {
+                    foreach (var elem in relsDoc.RootElement.EnumerateArray())
+                    {
+                        var fromId = elem.GetProperty("from_id").GetString()!;
+                        var toId = elem.GetProperty("to_id").GetString()!;
+                        var kind = elem.GetProperty("kind").GetString()!;
+
+                        var (category, depType, normalizedKind) =
+                            PostIndexAnalyzer.NormalizeEdgeCategory(kind, null, null);
+
+                        graph.Edges.Add(new GraphEdgeDto
+                        {
+                            Id = $"{fromId}->{toId}:{normalizedKind}",
+                            Source = fromId,
+                            Target = toId,
+                            Kind = normalizedKind,
+                            Category = category,
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["category"] = category, ["dependency_type"] = depType
+                            }
+                        });
+                    }
+                }
+            }
+
+            return graph;
+        }
     }
 
     public async Task<List<string>> GetAllProjectsAsync(CancellationToken ct = default)
     {
         var query = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN DISTINCT p.name AS name ORDER BY p.name";
         var json = await db.ExecuteQueryAsync(query, null, ct);
-        using var doc = JsonDocument.Parse(json);
-        var result = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var row in doc.RootElement.EnumerateArray())
+
+        using (var doc = JsonDocument.Parse(json))
         {
-            var name = row.GetStringProp("name");
-            if (!string.IsNullOrEmpty(name) && seen.Add(name))
+            var result = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in doc.RootElement.EnumerateArray())
             {
-                result.Add(name);
+                var name = row.GetStringProp("name");
+
+                if (!string.IsNullOrEmpty(name) && seen.Add(name))
+                {
+                    result.Add(name);
+                }
             }
+
+            return result;
         }
-        return result;
     }
 
     public async Task<Dictionary<string, string>> GetProjectPathsMapAsync(CancellationToken ct = default)
@@ -985,34 +1098,44 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             var query = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.name AS name, p.path AS path, p.id AS id";
             var json = await db.ExecuteQueryAsync(query, null, ct);
-            using var doc = JsonDocument.Parse(json);
-            foreach (var row in doc.RootElement.EnumerateArray())
+
+            using (var doc = JsonDocument.Parse(json))
             {
-                var name = row.GetStringProp("name");
-                var path = row.GetStringProp("path");
-                if (string.IsNullOrEmpty(path))
+                foreach (var row in doc.RootElement.EnumerateArray())
                 {
-                    var id = row.GetStringProp("id");
-                    if (!string.IsNullOrEmpty(id))
+                    var name = row.GetStringProp("name");
+                    var path = row.GetStringProp("path");
+
+                    if (string.IsNullOrEmpty(path))
                     {
-                        if (id.StartsWith($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase))
+                        var id = row.GetStringProp("id");
+
+                        if (!string.IsNullOrEmpty(id))
                         {
-                            path = id[$"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:".Length..];
-                        }
-                        else if (id.StartsWith($"workspace:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            path = id[$"workspace:{OntologyConstants.IdPrefixes.Project}:".Length..];
-                        }
-                        else if (id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            path = id["workspace:project:".Length..];
+                            if (id.StartsWith(
+                                    $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:",
+                                    StringComparison.OrdinalIgnoreCase))
+                            {
+                                path = id[
+                                    $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:"
+                                        .Length..];
+                            }
+                            else if (id.StartsWith($"workspace:{OntologyConstants.IdPrefixes.Project}:",
+                                         StringComparison.OrdinalIgnoreCase))
+                            {
+                                path = id[$"workspace:{OntologyConstants.IdPrefixes.Project}:".Length..];
+                            }
+                            else if (id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                path = id["workspace:project:".Length..];
+                            }
                         }
                     }
-                }
 
-                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path) && !result.ContainsKey(name))
-                {
-                    result[name] = path;
+                    if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(path) && !result.ContainsKey(name))
+                    {
+                        result[name] = path;
+                    }
                 }
             }
         }
@@ -1029,89 +1152,112 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             var nodeQuery = "MATCH (n) RETURN labels(n)[0] AS lbl, count(n) AS cnt";
             var nodeJson = await db.ExecuteQueryAsync(nodeQuery, null, ct);
-            using var nodeDoc = JsonDocument.Parse(nodeJson);
-            long totalNodes = 0;
-            foreach (var row in nodeDoc.RootElement.EnumerateArray())
+
+            using (var nodeDoc = JsonDocument.Parse(nodeJson))
             {
-                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
+                long totalNodes = 0;
 
-                string? lbl = null;
-                if (row.TryGetProperty("lbl", out var lblProp))
+                foreach (var row in nodeDoc.RootElement.EnumerateArray())
                 {
-                    if (lblProp.ValueKind == JsonValueKind.String)
-                    {
-                        lbl = lblProp.GetString();
-                    }
-                    else if (lblProp.ValueKind == JsonValueKind.Array && lblProp.GetArrayLength() > 0)
-                    {
-                        lbl = lblProp[0].GetString();
-                    }
-                }
+                    var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number
+                        ? c.GetInt64()
+                        : 0;
 
-                if (!string.IsNullOrEmpty(lbl))
-                {
-                    if (Mcp.OntologyRegistry.IsSystemNode(lbl))
+                    string? lbl = null;
+
+                    if (row.TryGetProperty("lbl", out var lblProp))
                     {
-                        continue;
+                        if (lblProp.ValueKind == JsonValueKind.String)
+                        {
+                            lbl = lblProp.GetString();
+                        }
+                        else if (lblProp.ValueKind == JsonValueKind.Array && lblProp.GetArrayLength() > 0)
+                        {
+                            lbl = lblProp[0].GetString();
+                        }
                     }
 
-                    totalNodes += cnt;
+                    if (!string.IsNullOrEmpty(lbl))
+                    {
+                        if (Mcp.OntologyRegistry.IsSystemNode(lbl))
+                        {
+                            continue;
+                        }
 
-                    result.NodeCounts[lbl] = result.NodeCounts.GetValueOrDefault(lbl, 0) + cnt;
-                    if (lbl.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
-                    {
-                        result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
-                    }
-                    else if (lbl.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
-                    {
-                        result.NodeCounts["Library"] = result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
-                    }
-                }
-                else
-                {
-                    totalNodes += cnt;
-                }
-            }
-            result.TotalNodes = totalNodes;
+                        totalNodes += cnt;
 
-            // 1b. Fallback for legacy graphs where projects were not yet decomposed into separate workload nodes
-            if (result.NodeCounts.GetValueOrDefault("Service", 0) == 0 &&
-                result.NodeCounts.GetValueOrDefault("App", 0) == 0 &&
-                result.NodeCounts.GetValueOrDefault("Project", 0) > 0)
-            {
-                try
-                {
-                    var roleQuery = "MATCH (p:Project) RETURN json_extract(p.properties, '$.role') AS role, json_extract(p.properties, '$.is_library') AS is_lib, count(p) AS cnt";
-                    var roleJson = await db.ExecuteQueryAsync(roleQuery, null, ct);
-                    using var roleDoc = JsonDocument.Parse(roleJson);
-                    foreach (var row in roleDoc.RootElement.EnumerateArray())
-                    {
-                        var role = row.GetStringProp("role");
-                        var isLib = row.GetStringProp("is_lib");
-                        var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
-                        if (role is "FrontendApp" or "App")
+                        result.NodeCounts[lbl] = result.NodeCounts.GetValueOrDefault(lbl, 0) + cnt;
+
+                        if (lbl.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
                         {
                             result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
                         }
-                        else if (role is "Worker")
-                        {
-                            result.NodeCounts["Worker"] = result.NodeCounts.GetValueOrDefault("Worker", 0) + cnt;
-                        }
-                        else if (role is "SharedLibrary" or "Library" || isLib == "true")
+                        else if (lbl.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
                         {
                             result.NodeCounts["Library"] = result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
                         }
-                        else if (role is "CliTool")
-                        {
-                            result.NodeCounts["CliTool"] = result.NodeCounts.GetValueOrDefault("CliTool", 0) + cnt;
-                        }
-                        else
-                        {
-                            result.NodeCounts["Service"] = result.NodeCounts.GetValueOrDefault("Service", 0) + cnt;
-                        }
+                    }
+                    else
+                    {
+                        totalNodes += cnt;
                     }
                 }
-                catch { }
+
+                result.TotalNodes = totalNodes;
+
+                // 1b. Fallback for legacy graphs where projects were not yet decomposed into separate workload nodes
+                if (result.NodeCounts.GetValueOrDefault("Service", 0) == 0 &&
+                    result.NodeCounts.GetValueOrDefault("App", 0) == 0 &&
+                    result.NodeCounts.GetValueOrDefault("Project", 0) > 0)
+                {
+                    try
+                    {
+                        var roleQuery =
+                            "MATCH (p:Project) RETURN json_extract(p.properties, '$.role') AS role, json_extract(p.properties, '$.is_library') AS is_lib, count(p) AS cnt";
+                        var roleJson = await db.ExecuteQueryAsync(roleQuery, null, ct);
+
+                        using (var roleDoc = JsonDocument.Parse(roleJson))
+                        {
+                            foreach (var row in roleDoc.RootElement.EnumerateArray())
+                            {
+                                var role = row.GetStringProp("role");
+                                var isLib = row.GetStringProp("is_lib");
+
+                                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number
+                                    ? c.GetInt64()
+                                    : 0;
+
+                                if (role is "FrontendApp" or "App")
+                                {
+                                    result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
+                                }
+                                else if (role is "Worker")
+                                {
+                                    result.NodeCounts["Worker"] =
+                                        result.NodeCounts.GetValueOrDefault("Worker", 0) + cnt;
+                                }
+                                else if (role is "SharedLibrary" or "Library" || isLib == "true")
+                                {
+                                    result.NodeCounts["Library"] =
+                                        result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
+                                }
+                                else if (role is "CliTool")
+                                {
+                                    result.NodeCounts["CliTool"] =
+                                        result.NodeCounts.GetValueOrDefault("CliTool", 0) + cnt;
+                                }
+                                else
+                                {
+                                    result.NodeCounts["Service"] =
+                                        result.NodeCounts.GetValueOrDefault("Service", 0) + cnt;
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
             }
         }
         catch { }
@@ -1121,19 +1267,28 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             var relQuery = "MATCH ()-[r]->() RETURN type(r) AS rel, count(r) AS cnt";
             var relJson = await db.ExecuteQueryAsync(relQuery, null, ct);
-            using var relDoc = JsonDocument.Parse(relJson);
-            long totalEdges = 0;
-            foreach (var row in relDoc.RootElement.EnumerateArray())
+
+            using (var relDoc = JsonDocument.Parse(relJson))
             {
-                var rel = row.GetStringProp("rel");
-                var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt64() : 0;
-                if (!string.IsNullOrEmpty(rel))
+                long totalEdges = 0;
+
+                foreach (var row in relDoc.RootElement.EnumerateArray())
                 {
-                    result.RelationshipCounts[rel] = cnt;
-                    totalEdges += cnt;
+                    var rel = row.GetStringProp("rel");
+
+                    var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number
+                        ? c.GetInt64()
+                        : 0;
+
+                    if (!string.IsNullOrEmpty(rel))
+                    {
+                        result.RelationshipCounts[rel] = cnt;
+                        totalEdges += cnt;
+                    }
                 }
+
+                result.TotalEdges = totalEdges;
             }
-            result.TotalEdges = totalEdges;
         }
         catch { }
 
@@ -1203,12 +1358,16 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var normSrv = WorkspaceConventions.NormalizeServiceName(service);
                 var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.name = $normSrv OR s.raw_name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:s:' + $normSrv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
                 var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["srv"] = service, ["normSrv"] = normSrv }, ct);
-                using var sDoc = JsonDocument.Parse(sJson);
-                var first = sDoc.RootElement.EnumerateArray().FirstOrDefault();
-                if (first.ValueKind == JsonValueKind.Object)
+
+                using (var sDoc = JsonDocument.Parse(sJson))
                 {
-                    serviceId = first.GetStringProp("id");
-                    serviceNameResolved = first.GetStringProp("name");
+                    var first = sDoc.RootElement.EnumerateArray().FirstOrDefault();
+
+                    if (first.ValueKind == JsonValueKind.Object)
+                    {
+                        serviceId = first.GetStringProp("id");
+                        serviceNameResolved = first.GetStringProp("name");
+                    }
                 }
             }
             catch { }
@@ -1245,11 +1404,16 @@ public class ArchitectureViewEngine(IGraphClient db)
             try
             {
                 var countJson = await db.ExecuteQueryAsync(countQuery, null, ct);
-                using var countDoc = JsonDocument.Parse(countJson);
-                var firstRow = countDoc.RootElement.EnumerateArray().FirstOrDefault();
-                if (firstRow.ValueKind == JsonValueKind.Object && firstRow.TryGetProperty("total", out var totProp) && totProp.ValueKind == JsonValueKind.Number)
+
+                using (var countDoc = JsonDocument.Parse(countJson))
                 {
-                    result.Total = totProp.GetInt64();
+                    var firstRow = countDoc.RootElement.EnumerateArray().FirstOrDefault();
+
+                    if (firstRow.ValueKind == JsonValueKind.Object &&
+                        firstRow.TryGetProperty("total", out var totProp) && totProp.ValueKind == JsonValueKind.Number)
+                    {
+                        result.Total = totProp.GetInt64();
+                    }
                 }
             }
             catch { }
@@ -1259,37 +1423,43 @@ public class ArchitectureViewEngine(IGraphClient db)
             try
             {
                 var dataJson = await db.ExecuteQueryAsync(relDataQuery, null, ct);
-                using var dataDoc = JsonDocument.Parse(dataJson);
-                foreach (var row in dataDoc.RootElement.EnumerateArray())
-                {
-                    var id = row.GetStringProp("id");
-                    var name = row.GetStringProp("name");
-                    var relTypeVal = row.GetStringProp("relType");
-                    var srcName = row.GetStringProp("srcName");
-                    var tgtName = row.GetStringProp("tgtName");
-                    var filePath = row.GetStringProp("file_path");
-                    int? line = null;
-                    if (row.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
-                    {
-                        line = lp.GetInt32();
-                    }
 
-                    var dto = new GraphNodeDto
+                using (var dataDoc = JsonDocument.Parse(dataJson))
+                {
+                    foreach (var row in dataDoc.RootElement.EnumerateArray())
                     {
-                        Id = id,
-                        Name = string.IsNullOrEmpty(name) ? $"{srcName} ➔ {tgtName}" : name,
-                        DisplayName = $"{srcName} ➔ {tgtName}",
-                        Kind = string.IsNullOrEmpty(relTypeVal) ? (relType ?? "RELATIONSHIP") : relTypeVal,
-                        FilePath = filePath,
-                        LineStart = line,
-                        Properties = new Dictionary<string, string>
+                        var id = row.GetStringProp("id");
+                        var name = row.GetStringProp("name");
+                        var relTypeVal = row.GetStringProp("relType");
+                        var srcName = row.GetStringProp("srcName");
+                        var tgtName = row.GetStringProp("tgtName");
+                        var filePath = row.GetStringProp("file_path");
+                        int? line = null;
+
+                        if (row.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
                         {
-                            ["source"] = srcName,
-                            ["target"] = tgtName,
-                            ["type"] = string.IsNullOrEmpty(relTypeVal) ? (relType ?? "RELATIONSHIP") : relTypeVal
+                            line = lp.GetInt32();
                         }
-                    };
-                    result.Nodes.Add(dto);
+
+                        var dto = new GraphNodeDto
+                        {
+                            Id = id,
+                            Name = string.IsNullOrEmpty(name) ? $"{srcName} ➔ {tgtName}" : name,
+                            DisplayName = $"{srcName} ➔ {tgtName}",
+                            Kind = string.IsNullOrEmpty(relTypeVal) ? (relType ?? "RELATIONSHIP") : relTypeVal,
+                            FilePath = filePath,
+                            LineStart = line,
+                            Properties = new Dictionary<string, string>
+                            {
+                                ["source"] = srcName,
+                                ["target"] = tgtName,
+                                ["type"] = string.IsNullOrEmpty(relTypeVal)
+                                    ? (relType ?? "RELATIONSHIP")
+                                    : relTypeVal
+                            }
+                        };
+                        result.Nodes.Add(dto);
+                    }
                 }
             }
             catch { }
@@ -1424,11 +1594,16 @@ public class ArchitectureViewEngine(IGraphClient db)
         try
         {
             var countJson = await db.ExecuteQueryAsync(countQueryFinal, null, ct);
-            using var countDoc = JsonDocument.Parse(countJson);
-            var firstRow = countDoc.RootElement.EnumerateArray().FirstOrDefault();
-            if (firstRow.ValueKind == JsonValueKind.Object && firstRow.TryGetProperty("total", out var totProp) && totProp.ValueKind == JsonValueKind.Number)
+
+            using (var countDoc = JsonDocument.Parse(countJson))
             {
-                result.Total = totProp.GetInt64();
+                var firstRow = countDoc.RootElement.EnumerateArray().FirstOrDefault();
+
+                if (firstRow.ValueKind == JsonValueKind.Object && firstRow.TryGetProperty("total", out var totProp) &&
+                    totProp.ValueKind == JsonValueKind.Number)
+                {
+                    result.Total = totProp.GetInt64();
+                }
             }
         }
         catch { }
@@ -1439,68 +1614,79 @@ public class ArchitectureViewEngine(IGraphClient db)
         try
         {
             var dataJson = await db.ExecuteQueryAsync(dataQuery, null, ct);
-            using var dataDoc = JsonDocument.Parse(dataJson);
-            foreach (var row in dataDoc.RootElement.EnumerateArray())
+
+            using (var dataDoc = JsonDocument.Parse(dataJson))
             {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var filePath = row.GetStringProp("file_path");
-                if (string.IsNullOrEmpty(filePath))
+                foreach (var row in dataDoc.RootElement.EnumerateArray())
                 {
-                    filePath = row.GetStringProp("path");
-                }
+                    var id = row.GetStringProp("id");
+                    var name = row.GetStringProp("name", id);
+                    var filePath = row.GetStringProp("file_path");
 
-                int? line = null;
-                if (row.TryGetProperty("line", out var lp))
-                {
-                    if (lp.ValueKind == JsonValueKind.Number)
+                    if (string.IsNullOrEmpty(filePath))
                     {
-                        line = lp.GetInt32();
+                        filePath = row.GetStringProp("path");
                     }
-                    else if (lp.ValueKind == JsonValueKind.String && int.TryParse(lp.GetString(), out var parsedLine))
+
+                    int? line = null;
+
+                    if (row.TryGetProperty("line", out var lp))
                     {
-                        line = parsedLine;
+                        if (lp.ValueKind == JsonValueKind.Number)
+                        {
+                            line = lp.GetInt32();
+                        }
+                        else if (lp.ValueKind == JsonValueKind.String &&
+                                 int.TryParse(lp.GetString(), out var parsedLine))
+                        {
+                            line = parsedLine;
+                        }
                     }
+
+                    var role = row.GetStringProp("role");
+                    string nodeKind = safeKind ?? "";
+
+                    if (string.IsNullOrEmpty(nodeKind) && row.TryGetProperty("lbl", out var lblProp) &&
+                        lblProp.ValueKind == JsonValueKind.Array)
+                    {
+                        nodeKind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "";
+                    }
+
+                    if (Mcp.OntologyRegistry.IsSystemNode(nodeKind))
+                    {
+                        continue;
+                    }
+
+                    if (nodeKind == "Project" && !string.IsNullOrEmpty(role) &&
+                        !string.Equals(kind, "Project", StringComparison.OrdinalIgnoreCase))
+                    {
+                        nodeKind = role is "FrontendApp" ? "App" : role is "SharedLibrary" ? "Library" : role;
+                    }
+
+                    var nodeDto = new GraphNodeDto
+                    {
+                        Id = id,
+                        Name = name,
+                        Kind = nodeKind,
+                        FilePath = string.IsNullOrEmpty(filePath) ? null : filePath,
+                        LineStart = line,
+                        Properties = new Dictionary<string, string>()
+                    };
+
+                    var framework = row.GetStringProp("framework");
+                    if (!string.IsNullOrEmpty(framework)) nodeDto.Properties["framework"] = framework;
+
+                    var method = row.GetStringProp("method");
+                    if (!string.IsNullOrEmpty(method)) nodeDto.Properties["method"] = method;
+
+                    var route = row.GetStringProp("route");
+                    if (!string.IsNullOrEmpty(route)) nodeDto.Properties["route"] = route;
+
+                    var protocol = row.GetStringProp("protocol");
+                    if (!string.IsNullOrEmpty(protocol)) nodeDto.Properties["protocol"] = protocol;
+
+                    result.Nodes.Add(nodeDto);
                 }
-
-                var role = row.GetStringProp("role");
-                string nodeKind = safeKind ?? "";
-                if (string.IsNullOrEmpty(nodeKind) && row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
-                {
-                    nodeKind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "";
-                }
-                if (Mcp.OntologyRegistry.IsSystemNode(nodeKind))
-                {
-                    continue;
-                }
-                if (nodeKind == "Project" && !string.IsNullOrEmpty(role) && !string.Equals(kind, "Project", StringComparison.OrdinalIgnoreCase))
-                {
-                    nodeKind = role is "FrontendApp" ? "App" : role is "SharedLibrary" ? "Library" : role;
-                }
-
-                var nodeDto = new GraphNodeDto
-                {
-                    Id = id,
-                    Name = name,
-                    Kind = nodeKind,
-                    FilePath = string.IsNullOrEmpty(filePath) ? null : filePath,
-                    LineStart = line,
-                    Properties = new Dictionary<string, string>()
-                };
-
-                var framework = row.GetStringProp("framework");
-                if (!string.IsNullOrEmpty(framework)) nodeDto.Properties["framework"] = framework;
-
-                var method = row.GetStringProp("method");
-                if (!string.IsNullOrEmpty(method)) nodeDto.Properties["method"] = method;
-
-                var route = row.GetStringProp("route");
-                if (!string.IsNullOrEmpty(route)) nodeDto.Properties["route"] = route;
-
-                var protocol = row.GetStringProp("protocol");
-                if (!string.IsNullOrEmpty(protocol)) nodeDto.Properties["protocol"] = protocol;
-
-                result.Nodes.Add(nodeDto);
             }
         }
         catch { }
@@ -1523,19 +1709,24 @@ public class ArchitectureViewEngine(IGraphClient db)
         try
         {
             var tJson = await db.ExecuteQueryAsync(targetQuery, new Dictionary<string, object> { ["id"] = nodeId }, ct);
-            using var tDoc = JsonDocument.Parse(tJson);
-            var first = tDoc.RootElement.EnumerateArray().FirstOrDefault();
-            if (first.ValueKind == JsonValueKind.Object)
+
+            using (var tDoc = JsonDocument.Parse(tJson))
             {
-                response.TargetId = first.GetStringProp("id", nodeId);
-                response.TargetName = first.GetStringProp("name", nodeId);
-                response.TargetKind = first.GetStringProp("kind", "");
-                targetName = response.TargetName;
-                targetKind = response.TargetKind;
-                declFile = first.GetStringProp("file_path");
-                if (first.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
+                var first = tDoc.RootElement.EnumerateArray().FirstOrDefault();
+
+                if (first.ValueKind == JsonValueKind.Object)
                 {
-                    declLine = lp.GetInt32();
+                    response.TargetId = first.GetStringProp("id", nodeId);
+                    response.TargetName = first.GetStringProp("name", nodeId);
+                    response.TargetKind = first.GetStringProp("kind", "");
+                    targetName = response.TargetName;
+                    targetKind = response.TargetKind;
+                    declFile = first.GetStringProp("file_path");
+
+                    if (first.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
+                    {
+                        declLine = lp.GetInt32();
+                    }
                 }
             }
         }
@@ -1571,42 +1762,48 @@ public class ArchitectureViewEngine(IGraphClient db)
                 ["name"] = response.TargetName
             };
             var uJson = await db.ExecuteQueryAsync(usagesQuery, paramsDict, ct);
-            using var uDoc = JsonDocument.Parse(uJson);
-            foreach (var row in uDoc.RootElement.EnumerateArray())
+
+            using (var uDoc = JsonDocument.Parse(uJson))
             {
-                var srcId = row.GetStringProp("src_id");
-                if (string.IsNullOrEmpty(srcId) || srcId == response.TargetId) continue;
-
-                var srcName = row.GetStringProp("src_name", srcId);
-                var srcKind = row.GetStringProp("src_kind", "");
-                var relKind = row.GetStringProp("rel_kind", "USES");
-                var filePath = row.GetStringProp("file_path");
-                var service = row.GetStringProp("service");
-                if (string.IsNullOrEmpty(service))
+                foreach (var row in uDoc.RootElement.EnumerateArray())
                 {
-                    service = row.GetStringProp("project_id");
+                    var srcId = row.GetStringProp("src_id");
+                    if (string.IsNullOrEmpty(srcId) || srcId == response.TargetId) continue;
+
+                    var srcName = row.GetStringProp("src_name", srcId);
+                    var srcKind = row.GetStringProp("src_kind", "");
+                    var relKind = row.GetStringProp("rel_kind", "USES");
+                    var filePath = row.GetStringProp("file_path");
+                    var service = row.GetStringProp("service");
+
+                    if (string.IsNullOrEmpty(service))
+                    {
+                        service = row.GetStringProp("project_id");
+                    }
+
+                    int? line = null;
+
+                    if (row.TryGetProperty("line", out var lp))
+                    {
+                        if (lp.ValueKind == JsonValueKind.Number) line = lp.GetInt32();
+                        else if (lp.ValueKind == JsonValueKind.String && int.TryParse(lp.GetString(), out var pl))
+                            line = pl;
+                    }
+
+                    var key = $"{srcId}:{relKind}:{filePath}:{line}";
+                    if (!seenKeys.Add(key)) continue;
+
+                    response.Usages.Add(new NodeUsageDto
+                    {
+                        SourceId = srcId,
+                        SourceName = srcName,
+                        SourceKind = srcKind,
+                        Relationship = relKind,
+                        FilePath = string.IsNullOrEmpty(filePath) ? null : filePath,
+                        LineStart = line,
+                        ServiceName = string.IsNullOrEmpty(service) ? null : service
+                    });
                 }
-
-                int? line = null;
-                if (row.TryGetProperty("line", out var lp))
-                {
-                    if (lp.ValueKind == JsonValueKind.Number) line = lp.GetInt32();
-                    else if (lp.ValueKind == JsonValueKind.String && int.TryParse(lp.GetString(), out var pl)) line = pl;
-                }
-
-                var key = $"{srcId}:{relKind}:{filePath}:{line}";
-                if (!seenKeys.Add(key)) continue;
-
-                response.Usages.Add(new NodeUsageDto
-                {
-                    SourceId = srcId,
-                    SourceName = srcName,
-                    SourceKind = srcKind,
-                    Relationship = relKind,
-                    FilePath = string.IsNullOrEmpty(filePath) ? null : filePath,
-                    LineStart = line,
-                    ServiceName = string.IsNullOrEmpty(service) ? null : service
-                });
             }
         }
         catch { }
@@ -2106,195 +2303,240 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             var query = "MATCH (s) WHERE (s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
             var json = await db.ExecuteQueryAsync(query, null, ct);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            JsonDocument? fallbackDoc = null;
-            if (root.GetArrayLength() == 0)
+
+            using (var doc = JsonDocument.Parse(json))
             {
-                var fallbackQuery = "MATCH (s:Project) WHERE json_extract(s.properties, '$.role') IN ['Service', 'App', 'FrontendApp', 'Worker', 'CliTool'] RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
-                var fbJson = await db.ExecuteQueryAsync(fallbackQuery, null, ct);
-                fallbackDoc = JsonDocument.Parse(fbJson);
-                root = fallbackDoc.RootElement;
-            }
+                var root = doc.RootElement;
+                JsonDocument? fallbackDoc = null;
 
-            var serviceMap = new Dictionary<string, ServiceSummaryDto>(StringComparer.OrdinalIgnoreCase);
-            var idToName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var row in root.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                if (string.IsNullOrWhiteSpace(name)) continue;
-
-                var kind = "Service";
-                if (row.TryGetProperty("role", out var roleProp) && roleProp.ValueKind == JsonValueKind.String)
+                if (root.GetArrayLength() == 0)
                 {
-                    var r = roleProp.GetString();
-                    if (r is "FrontendApp" or "App") kind = "App";
-                    else if (r is "Worker") kind = "Worker";
-                    else if (r is "SharedLibrary" or "Library") kind = "Library";
-                    else if (r is "CliTool") kind = "CliTool";
+                    var fallbackQuery =
+                        "MATCH (s:Project) WHERE json_extract(s.properties, '$.role') IN ['Service', 'App', 'FrontendApp', 'Worker', 'CliTool'] RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
+                    var fbJson = await db.ExecuteQueryAsync(fallbackQuery, null, ct);
+                    fallbackDoc = JsonDocument.Parse(fbJson);
+                    root = fallbackDoc.RootElement;
                 }
-                else if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
+
+                var serviceMap = new Dictionary<string, ServiceSummaryDto>(StringComparer.OrdinalIgnoreCase);
+                var idToName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var row in root.EnumerateArray())
                 {
-                    foreach (var l in lblProp.EnumerateArray())
+                    var id = row.GetStringProp("id");
+                    var name = row.GetStringProp("name", id);
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+
+                    var kind = "Service";
+
+                    if (row.TryGetProperty("role", out var roleProp) && roleProp.ValueKind == JsonValueKind.String)
                     {
-                        var ls = l.GetString();
-                        if (ls is "Service" or "Worker" or "App" or "CliTool" or "FrontendApp")
-                        {
-                            kind = ls;
-                            break;
-                        }
+                        var r = roleProp.GetString();
+
+                        if (r is "FrontendApp" or "App") kind = "App";
+                        else if (r is "Worker") kind = "Worker";
+                        else if (r is "SharedLibrary" or "Library") kind = "Library";
+                        else if (r is "CliTool") kind = "CliTool";
                     }
-                }
-
-                if (!serviceMap.TryGetValue(name, out var existing))
-                {
-                    var dto = new ServiceSummaryDto
+                    else if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
                     {
-                        ServiceId = id,
-                        ServiceName = name,
-                        Kind = kind,
-                        Framework = row.GetStringProp("framework"),
-                        Language = row.GetStringProp("language")
-                    };
-                    serviceMap[name] = dto;
-                }
-                else if (existing.Kind == "Project" && kind != "Project")
-                {
-                    existing.ServiceId = id;
-                    existing.Kind = kind;
-                    if (!string.IsNullOrEmpty(row.GetStringProp("framework"))) existing.Framework = row.GetStringProp("framework");
-                    if (!string.IsNullOrEmpty(row.GetStringProp("language"))) existing.Language = row.GetStringProp("language");
-                }
-                idToName[id] = name;
-            }
-            fallbackDoc?.Dispose();
-
-            // Tally endpoints directly from graph
-            try
-            {
-                var epCountQuery = "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
-                var epJson = await db.ExecuteQueryAsync(epCountQuery, null, ct);
-                using var epDoc = JsonDocument.Parse(epJson);
-                foreach (var row in epDoc.RootElement.EnumerateArray())
-                {
-                    var sName = row.GetStringProp("sName");
-                    var sId = row.GetStringProp("sId");
-                    ServiceSummaryDto? summary = null;
-                    if (!string.IsNullOrEmpty(sName) && serviceMap.TryGetValue(sName, out summary)) { }
-                    else if (!string.IsNullOrEmpty(sId) && idToName.TryGetValue(sId, out var mappedName) && serviceMap.TryGetValue(mappedName, out summary)) { }
-
-                    if (summary != null && row.TryGetProperty("epCount", out var cp) && cp.ValueKind == JsonValueKind.Number)
-                    {
-                        summary.EndpointCount = cp.GetInt32();
-                    }
-                }
-            }
-            catch { }
-
-            // Tally databases, topics, downstream services, and external APIs from system context view
-            var archGraph = await GetSystemContextViewAsync(includeLibraries: true, projectFilter: null, ct: ct);
-            var nodeMap = archGraph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
-
-            var projectNodes = archGraph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
-            var internalProjectsByName = BuildInternalProjectsLookup(projectNodes);
-
-            var seenServiceDbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var seenServiceTopics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var seenServiceSvcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var seenServiceExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var edge in archGraph.Edges)
-            {
-                var srcNode = nodeMap.GetValueOrDefault(edge.Source);
-                var tgtNode = nodeMap.GetValueOrDefault(edge.Target);
-
-                if (srcNode != null && serviceMap.TryGetValue(srcNode.Name, out var srcSummary))
-                {
-                    var tgtName = tgtNode?.Name ?? edge.Target;
-                    if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == "Database")
-                    {
-                        if (seenServiceDbs.Add($"{srcSummary.ServiceName}->{tgtName}"))
+                        foreach (var l in lblProp.EnumerateArray())
                         {
-                            srcSummary.DatabaseCount++;
-                        }
-                    }
-                    else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == "Topic")
-                    {
-                        var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
-                                         tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
-                                         string.Equals(tgtNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
-                                         edge.Target.Contains(":mediatr:");
-                        if (!isInternal && seenServiceTopics.Add($"{srcSummary.ServiceName}->{tgtName}"))
-                        {
-                            srcSummary.TopicCount++;
-                        }
-                    }
-                    else
-                    {
-                        var isInternalDirect = tgtNode != null && IsProjectNodeKind(tgtNode.Kind) && tgtNode.Kind is not ("ExternalService" or "CloudService");
-                        var isServiceCall = edge.Category == "service_call" || edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT" || (edge.Kind == "DEPENDS_ON" && edge.Properties?.GetValueOrDefault("dependency_type") == "service_call");
+                            var ls = l.GetString();
 
-                        if (isInternalDirect && isServiceCall)
-                        {
-                            if (seenServiceSvcs.Add($"{srcSummary.ServiceName}->{tgtName}"))
+                            if (ls is "Service" or "Worker" or "App" or "CliTool" or "FrontendApp")
                             {
-                                srcSummary.ServiceCount++;
+                                kind = ls;
+                                break;
                             }
                         }
-                        else if (tgtNode?.Kind is "ExternalService" or "CloudService" || (!isInternalDirect && (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT")))
+                    }
+
+                    if (!serviceMap.TryGetValue(name, out var existing))
+                    {
+                        var dto = new ServiceSummaryDto
                         {
-                            var resolved = ResolveInternalServiceNode(tgtName, internalProjectsByName);
-                            if (resolved != null)
+                            ServiceId = id,
+                            ServiceName = name,
+                            Kind = kind,
+                            Framework = row.GetStringProp("framework"),
+                            Language = row.GetStringProp("language")
+                        };
+                        serviceMap[name] = dto;
+                    }
+                    else if (existing.Kind == "Project" && kind != "Project")
+                    {
+                        existing.ServiceId = id;
+                        existing.Kind = kind;
+
+                        if (!string.IsNullOrEmpty(row.GetStringProp("framework")))
+                            existing.Framework = row.GetStringProp("framework");
+
+                        if (!string.IsNullOrEmpty(row.GetStringProp("language")))
+                            existing.Language = row.GetStringProp("language");
+                    }
+
+                    idToName[id] = name;
+                }
+
+                fallbackDoc?.Dispose();
+
+                // Tally endpoints directly from graph
+                try
+                {
+                    var epCountQuery =
+                        "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
+                    var epJson = await db.ExecuteQueryAsync(epCountQuery, null, ct);
+
+                    using (var epDoc = JsonDocument.Parse(epJson))
+                    {
+                        foreach (var row in epDoc.RootElement.EnumerateArray())
+                        {
+                            var sName = row.GetStringProp("sName");
+                            var sId = row.GetStringProp("sId");
+                            ServiceSummaryDto? summary = null;
+
+                            if (!string.IsNullOrEmpty(sName) && serviceMap.TryGetValue(sName, out summary))
                             {
-                                if (seenServiceSvcs.Add($"{srcSummary.ServiceName}->{resolved.Name}"))
+                            }
+                            else if (!string.IsNullOrEmpty(sId) && idToName.TryGetValue(sId, out var mappedName) &&
+                                     serviceMap.TryGetValue(mappedName, out summary))
+                            {
+                            }
+
+                            if (summary != null && row.TryGetProperty("epCount", out var cp) &&
+                                cp.ValueKind == JsonValueKind.Number)
+                            {
+                                summary.EndpointCount = cp.GetInt32();
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                }
+
+                // Tally databases, topics, downstream services, and external APIs from system context view
+                var archGraph = await GetSystemContextViewAsync(includeLibraries: true, projectFilter: null, ct: ct);
+                var nodeMap = archGraph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+
+                var projectNodes = archGraph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
+                var internalProjectsByName = BuildInternalProjectsLookup(projectNodes);
+
+                var seenServiceDbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var seenServiceTopics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var seenServiceSvcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var seenServiceExt = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var edge in archGraph.Edges)
+                {
+                    var srcNode = nodeMap.GetValueOrDefault(edge.Source);
+                    var tgtNode = nodeMap.GetValueOrDefault(edge.Target);
+
+                    if (srcNode != null && serviceMap.TryGetValue(srcNode.Name, out var srcSummary))
+                    {
+                        var tgtName = tgtNode?.Name ?? edge.Target;
+
+                        if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == "Database")
+                        {
+                            if (seenServiceDbs.Add($"{srcSummary.ServiceName}->{tgtName}"))
+                            {
+                                srcSummary.DatabaseCount++;
+                            }
+                        }
+                        else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" ||
+                                 tgtNode?.Kind == "Topic")
+                        {
+                            var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                             tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                             string.Equals(tgtNode?.Properties?.GetValueOrDefault("broker_type"),
+                                                 "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                             edge.Target.Contains(":mediatr:");
+
+                            if (!isInternal && seenServiceTopics.Add($"{srcSummary.ServiceName}->{tgtName}"))
+                            {
+                                srcSummary.TopicCount++;
+                            }
+                        }
+                        else
+                        {
+                            var isInternalDirect = tgtNode != null && IsProjectNodeKind(tgtNode.Kind) &&
+                                                   tgtNode.Kind is not ("ExternalService" or "CloudService");
+
+                            var isServiceCall = edge.Category == "service_call" ||
+                                                edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT" ||
+                                                (edge.Kind == "DEPENDS_ON" &&
+                                                 edge.Properties?.GetValueOrDefault("dependency_type") ==
+                                                 "service_call");
+
+                            if (isInternalDirect && isServiceCall)
+                            {
+                                if (seenServiceSvcs.Add($"{srcSummary.ServiceName}->{tgtName}"))
                                 {
                                     srcSummary.ServiceCount++;
                                 }
                             }
-                            else if (IsGenericPlaceholder(tgtName))
+                            else if (tgtNode?.Kind is "ExternalService" or "CloudService" ||
+                                     (!isInternalDirect && (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT")))
                             {
-                                // Skip generic/wildcard tokens
-                            }
-                            else if (tgtName.StartsWith("environment.", StringComparison.OrdinalIgnoreCase) ||
-                                     tgtName.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
-                            {
-                                var cleanSvc = Regex.Replace(tgtName, @"^(environment\.|env\.)", "", RegexOptions.IgnoreCase);
-                                if (seenServiceSvcs.Add($"{srcSummary.ServiceName}->{cleanSvc}"))
+                                var resolved = ResolveInternalServiceNode(tgtName, internalProjectsByName);
+
+                                if (resolved != null)
                                 {
-                                    srcSummary.ServiceCount++;
+                                    if (seenServiceSvcs.Add($"{srcSummary.ServiceName}->{resolved.Name}"))
+                                    {
+                                        srcSummary.ServiceCount++;
+                                    }
                                 }
-                            }
-                            else
-                            {
-                                if (seenServiceExt.Add($"{srcSummary.ServiceName}->{tgtName}"))
+                                else if (IsGenericPlaceholder(tgtName))
                                 {
-                                    srcSummary.ExternalCount++;
+                                    // Skip generic/wildcard tokens
+                                }
+                                else if (tgtName.StartsWith("environment.", StringComparison.OrdinalIgnoreCase) ||
+                                         tgtName.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var cleanSvc = Regex.Replace(tgtName, @"^(environment\.|env\.)", "",
+                                        RegexOptions.IgnoreCase);
+
+                                    if (seenServiceSvcs.Add($"{srcSummary.ServiceName}->{cleanSvc}"))
+                                    {
+                                        srcSummary.ServiceCount++;
+                                    }
+                                }
+                                else
+                                {
+                                    if (seenServiceExt.Add($"{srcSummary.ServiceName}->{tgtName}"))
+                                    {
+                                        srcSummary.ExternalCount++;
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                if (tgtNode != null && serviceMap.TryGetValue(tgtNode.Name, out var tgtSummary))
-                {
-                    if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBED_BY" or "SUBSCRIBES_TO" || srcNode?.Kind == "Topic")
+                    if (tgtNode != null && serviceMap.TryGetValue(tgtNode.Name, out var tgtSummary))
                     {
-                        var topicName = srcNode?.Name ?? edge.Source;
-                        var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
-                                         srcNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
-                                         string.Equals(srcNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
-                                         edge.Source.Contains(":mediatr:");
-                        if (!isInternal && seenServiceTopics.Add($"{tgtSummary.ServiceName}<-{topicName}"))
+                        if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBED_BY" or "SUBSCRIBES_TO" ||
+                            srcNode?.Kind == "Topic")
                         {
-                            tgtSummary.TopicCount++;
+                            var topicName = srcNode?.Name ?? edge.Source;
+
+                            var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                             srcNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                             string.Equals(srcNode?.Properties?.GetValueOrDefault("broker_type"),
+                                                 "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                             edge.Source.Contains(":mediatr:");
+
+                            if (!isInternal && seenServiceTopics.Add($"{tgtSummary.ServiceName}<-{topicName}"))
+                            {
+                                tgtSummary.TopicCount++;
+                            }
                         }
                     }
                 }
-            }
 
-            list.AddRange(serviceMap.Values.OrderBy(s => s.ServiceName, StringComparer.OrdinalIgnoreCase));
+                list.AddRange(serviceMap.Values.OrderBy(s => s.ServiceName, StringComparer.OrdinalIgnoreCase));
+            }
         }
         catch
         {
@@ -2330,30 +2572,35 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             var epQuery = "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE s.id = $id OR s.name = $name RETURN ep.id AS id, ep.name AS name, ep.http_method AS method, ep.route_template AS route, ep.protocol AS protocol, coalesce(ep.file_path, ep.path) AS file_path, ep.line AS line ORDER BY ep.name ASC";
             var epJson = await db.ExecuteQueryAsync(epQuery, new Dictionary<string, object> { ["id"] = targetId, ["name"] = serviceName }, ct);
-            using var epDoc = JsonDocument.Parse(epJson);
-            foreach (var row in epDoc.RootElement.EnumerateArray())
-            {
-                var id = row.GetStringProp("id");
-                var name = row.GetStringProp("name", id);
-                var method = row.GetStringProp("method");
-                var route = row.GetStringProp("route");
-                var protocol = row.GetStringProp("protocol") ?? "REST";
-                var filePath = row.GetStringProp("file_path");
-                int? line = null;
-                if (row.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number) line = lp.GetInt32();
 
-                epGroup.Items.Add(new ServiceCapabilityItemDto
+            using (var epDoc = JsonDocument.Parse(epJson))
+            {
+                foreach (var row in epDoc.RootElement.EnumerateArray())
                 {
-                    Id = id,
-                    Name = name,
-                    Kind = "Endpoint",
-                    Method = method,
-                    Route = route,
-                    Protocol = protocol,
-                    FilePath = filePath,
-                    Line = line,
-                    Details = $"[{protocol}] {method} {route}"
-                });
+                    var id = row.GetStringProp("id");
+                    var name = row.GetStringProp("name", id);
+                    var method = row.GetStringProp("method");
+                    var route = row.GetStringProp("route");
+                    var protocol = row.GetStringProp("protocol") ?? "REST";
+                    var filePath = row.GetStringProp("file_path");
+                    int? line = null;
+
+                    if (row.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
+                        line = lp.GetInt32();
+
+                    epGroup.Items.Add(new ServiceCapabilityItemDto
+                    {
+                        Id = id,
+                        Name = name,
+                        Kind = "Endpoint",
+                        Method = method,
+                        Route = route,
+                        Protocol = protocol,
+                        FilePath = filePath,
+                        Line = line,
+                        Details = $"[{protocol}] {method} {route}"
+                    });
+                }
             }
         }
         catch { }
@@ -3169,36 +3416,200 @@ public class ArchitectureViewEngine(IGraphClient db)
         "#ef4444"  // Rose
     ];
 
-    public static (string CanonicalKey, string CanonicalName, string DisplayName, string Summary, string BgColor, string BorderColor) CategorizeBoundedContext(string? rawDomain, string? filePath = null)
+    public record BoundedContextCategory(
+        string CanonicalKey,
+        string CanonicalName,
+        string DisplayName,
+        string DomainId,
+        string DomainName,
+        string DomainType,
+        string Summary,
+        string BgColor,
+        string BorderColor
+    )
     {
-        var raw = (rawDomain ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(raw))
-            return ("shared_kernel", "SharedKernel", "Shared Kernel & Core", "Enterprise data contracts, domain primitives, and shared utilities.", "#a855f7", "#9333ea");
+        public void Deconstruct(out string canonicalKey, out string canonicalName, out string displayName, out string summary, out string bgColor, out string borderColor)
+        {
+            canonicalKey = CanonicalKey;
+            canonicalName = CanonicalName;
+            displayName = DisplayName;
+            summary = Summary;
+            bgColor = BgColor;
+            borderColor = BorderColor;
+        }
+    }
+
+    public static BoundedContextCategory CategorizeBoundedContext(string? rawDomain, string? filePath = null, string? projectName = null)
+    {
+        // 1. Check if user configured explicit domain via .codeexplorer/domains.json or conventions.json
+        if (WorkspaceConventions.TryGetConfiguredDomain(projectName ?? rawDomain, filePath, out var userConfigured))
+        {
+            var p = ToPascalCase(userConfigured);
+            var k = p.ToLowerInvariant();
+            var dName = Regex.Replace(p, "([a-z])([A-Z])", "$1 $2");
+            return new BoundedContextCategory(
+                k, p, dName,
+                $"domain:{k}", dName, "Core",
+                $"Configured bounded context for {dName}.",
+                "#2563eb", "#1d4ed8"
+            );
+        }
+
+        var candidate = (projectName ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            candidate = (rawDomain ?? "").Trim();
+        }
+
+        if (candidate.StartsWith("context:", StringComparison.OrdinalIgnoreCase))
+            candidate = candidate["context:".Length..];
+        if (candidate.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
+            candidate = candidate["dom:".Length..];
+
+        // Clean project name to domain if it contains dots or resembles a project name
+        if (candidate.Contains('.') || candidate.Contains('/') || candidate.Contains('\\'))
+        {
+            var cleanedProj = SyntaxEnricher.CleanProjectNameToDomain(candidate);
+            if (!string.IsNullOrWhiteSpace(cleanedProj))
+                candidate = cleanedProj;
+        }
+
+        // If candidate is still empty or generic, check filePath
+        if (string.IsNullOrWhiteSpace(candidate) && !string.IsNullOrWhiteSpace(filePath))
+        {
+            var normPath = filePath.Replace('\\', '/');
+            if (normPath.StartsWith("ui/", StringComparison.OrdinalIgnoreCase) || 
+                normPath.StartsWith("frontend/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.StartsWith("client/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.StartsWith("web/", StringComparison.OrdinalIgnoreCase))
+            {
+                candidate = "UserInterface";
+            }
+            else
+            {
+                var segments = normPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                for (var i = 0; i < segments.Length - 1; i++)
+                {
+                    var s = segments[i];
+                    if (!s.Equals("src", StringComparison.OrdinalIgnoreCase) &&
+                        !s.Equals("services", StringComparison.OrdinalIgnoreCase) &&
+                        !s.Equals("apps", StringComparison.OrdinalIgnoreCase) &&
+                        !s.Equals("packages", StringComparison.OrdinalIgnoreCase) &&
+                        !s.Equals("modules", StringComparison.OrdinalIgnoreCase))
+                    {
+                        candidate = s;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(candidate))
+            candidate = "SharedKernel";
 
         // Normalize service / worker / app prefixes
-        var cleaned = raw;
-        foreach (var prefix in new[] { "internalservice", "service", "worker", "ats", "integration" })
+        var cleaned = candidate;
+        foreach (var prefix in new[] { "internalservice", "internal-service-", "internal-service", "internal-", "service", "worker", "integration-service-", "integration-service", "integration-" })
         {
             if (cleaned.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && cleaned.Length > prefix.Length + 2)
             {
                 cleaned = cleaned[prefix.Length..].TrimStart('_', '-', '.');
             }
         }
-        if (cleaned.StartsWith("app", StringComparison.OrdinalIgnoreCase) && (cleaned.StartsWith("app_", StringComparison.OrdinalIgnoreCase) || cleaned.StartsWith("app-", StringComparison.OrdinalIgnoreCase) || (cleaned.Length > 3 && char.IsUpper(cleaned[3]))))
+        if (cleaned.StartsWith("app", StringComparison.OrdinalIgnoreCase) &&
+            (cleaned.StartsWith("app_", StringComparison.OrdinalIgnoreCase) ||
+             cleaned.StartsWith("app-", StringComparison.OrdinalIgnoreCase) ||
+             (cleaned.Length > 3 && char.IsUpper(cleaned[3]))))
         {
             cleaned = cleaned[3..].TrimStart('_', '-');
+        }
+
+        // Clean and normalize candidate into canonical Bounded Context
+        var lowerNorm = cleaned.ToLowerInvariant().Replace("-", "").Replace("_", "");
+        if (lowerNorm.Contains("front") || lowerNorm.Contains("ui") || lowerNorm.StartsWith("fe"))
+        {
+            cleaned = "Frontend";
         }
 
         var pascal = ToPascalCase(cleaned);
         var key = pascal.ToLowerInvariant();
         var displayName = Regex.Replace(pascal, "([a-z])([A-Z])", "$1 $2");
 
-        // Deterministic color assignment from curated palette based on key hash
-        var colorIndex = Math.Abs(key.GetHashCode()) % ContextPalette.Length;
-        var bgColor = ContextPalette[colorIndex];
-        var borderColor = ContextPalette[(colorIndex + 1) % ContextPalette.Length];
+        // 2. Classify into Domain (Problem Space)
+        var (domId, domName, domType) = ResolveDomainClassification(key, displayName, rawDomain);
 
-        return (key, pascal, displayName, $"Bounded context for {displayName}.", bgColor, borderColor);
+        // Deterministic color assignment based on domain id
+        var (bgCol, borderCol) = ResolveContextColors(domType, domId);
+
+        return new BoundedContextCategory(
+            key,
+            pascal,
+            displayName,
+            domId,
+            domName,
+            domType,
+            $"Bounded context for {displayName} (Domain: {domName}).",
+            bgCol,
+            borderCol
+        );
+    }
+
+    private static readonly string[] GenericDomainIcons =
+    [
+        "🏛️", "📦", "⚙️", "🌐", "📊", "🔒", "💬", "💼", "🔄", "🧩", "🎯", "📡", "🚀"
+    ];
+
+    public static string ResolveDomainIcon(string domainName)
+    {
+        if (string.IsNullOrWhiteSpace(domainName)) return "🎯";
+
+        if (WorkspaceConventions.TryGetDomainIcon(domainName, out var configuredIcon))
+        {
+            return configuredIcon;
+        }
+
+        var lower = domainName.ToLowerInvariant();
+        if (lower.Contains("ui") || lower.Contains("interface") || lower.Contains("presentation") || lower.Contains("frontend"))
+            return "🖥️";
+        if (lower.Contains("shared") || lower.Contains("kernel") || lower.Contains("common") || lower.Contains("library"))
+            return "📚";
+        if (lower.Contains("tool") || lower.Contains("cli") || lower.Contains("dev"))
+            return "🛠️";
+        if (lower.Contains("test") || lower.Contains("fixture"))
+            return "🧪";
+
+        var hash = (uint)Math.Abs(domainName.GetHashCode());
+        return GenericDomainIcons[hash % GenericDomainIcons.Length];
+    }
+
+    private static (string DomainId, string DomainName, string DomainType) ResolveDomainClassification(string key, string displayName, string? explicitDomain = null)
+    {
+        var domainName = !string.IsNullOrWhiteSpace(explicitDomain)
+            ? ToPascalCase(explicitDomain)
+            : DetermineDomainFromContext(key, displayName);
+
+        var domainKey = domainName.ToLowerInvariant();
+        return ($"domain:{domainKey}", domainName, "");
+    }
+
+    private static string DetermineDomainFromContext(string key, string displayName)
+    {
+        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? ToPascalCase(parts[0]) : "General";
+    }
+
+    private static (string BgColor, string BorderColor) ResolveContextColors(string domainType, string key)
+    {
+        var hash = Math.Abs(key.GetHashCode());
+        return (hash % 6) switch
+        {
+            0 => ("#2563eb", "#1d4ed8"),
+            1 => ("#059669", "#047857"),
+            2 => ("#4f46e5", "#4338ca"),
+            3 => ("#0891b2", "#0e7490"),
+            4 => ("#d97706", "#b45309"),
+            _ => ("#7c3aed", "#6d28d9")
+        };
     }
 
     private static string ToPascalCase(string text)
@@ -3234,28 +3645,46 @@ public class ArchitectureViewEngine(IGraphClient db)
             TotalIntents = intents.Count
         };
 
+        var signatures = await db.LoadProjectSignaturesAsync(workspaceId ?? "", ct);
+
         if (intents.Count == 0)
         {
+            // AST-Driven Fallback: Determine Bounded Contexts directly from project topology!
+            if (signatures.Count > 0)
+            {
+                return await BuildAstBoundedContextMapAsync(signatures, workspaceId, ct);
+            }
             return result;
         }
 
+        // Map files to enclosing project boundaries using signatures
+        var sigByPrefix = signatures
+            .Where(s => !string.IsNullOrEmpty(s.RelativePath))
+            .OrderByDescending(s => s.RelativePath.Length)
+            .ToList();
+
         // Group intents by canonical Bounded Context
-        var domainGroups = new Dictionary<string, (string CanonicalKey, string CanonicalName, string DisplayName, string Summary, string BgColor, string BorderColor, List<IntentRecord> Records)>(StringComparer.OrdinalIgnoreCase);
+        var domainGroups = new Dictionary<string, (BoundedContextCategory Category, List<IntentRecord> Records)>(StringComparer.OrdinalIgnoreCase);
         foreach (var rec in intents)
         {
-            if (string.IsNullOrWhiteSpace(rec.Domain)) continue;
-            var (canonicalKey, canonicalName, displayName, summary, bgCol, borderCol) = CategorizeBoundedContext(rec.Domain, rec.FilePath);
-            if (!domainGroups.TryGetValue(canonicalKey, out var group))
+            if (string.IsNullOrWhiteSpace(rec.Domain) && string.IsNullOrWhiteSpace(rec.FilePath)) continue;
+            var matchedProj = sigByPrefix.FirstOrDefault(s =>
+                !string.IsNullOrEmpty(rec.FilePath) &&
+                (rec.FilePath.StartsWith(s.RelativePath, StringComparison.OrdinalIgnoreCase) ||
+                 rec.FilePath.Replace('\\', '/').StartsWith(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)));
+
+            var cat = CategorizeBoundedContext(rec.Domain, rec.FilePath, matchedProj?.Name);
+            if (!domainGroups.TryGetValue(cat.CanonicalKey, out var group))
             {
-                group = (canonicalKey, canonicalName, displayName, summary, bgCol, borderCol, []);
-                domainGroups[canonicalKey] = group;
+                group = (cat, []);
+                domainGroups[cat.CanonicalKey] = group;
             }
             group.Records.Add(rec);
         }
 
         var contexts = new List<BoundedContextItemDto>();
 
-        foreach (var (canonicalKey, (_, canonicalName, displayName, summary, bgCol, borderCol, records)) in domainGroups)
+        foreach (var (canonicalKey, (cat, records)) in domainGroups)
         {
             var layers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var patterns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -3331,9 +3760,12 @@ public class ArchitectureViewEngine(IGraphClient db)
             contexts.Add(new BoundedContextItemDto
             {
                 Id = $"context:{canonicalKey.ToLowerInvariant()}",
-                Name = canonicalName,
-                DisplayName = displayName,
-                Summary = summary ?? representativeSummary,
+                Name = cat.CanonicalName,
+                DisplayName = cat.DisplayName,
+                DomainId = cat.DomainId,
+                DomainName = cat.DomainName,
+                DomainType = cat.DomainType,
+                Summary = cat.Summary ?? representativeSummary,
                 FileCount = records.Count,
                 PureDomainCount = pureCount,
                 PurityPercentage = Math.Round(purityPct, 1),
@@ -3346,14 +3778,46 @@ public class ArchitectureViewEngine(IGraphClient db)
                 HandledEvents = handledEvents.OrderBy(e => e).ToList(),
                 Projects = projects.OrderBy(p => p).ToList(),
                 Files = files.OrderBy(f => f.FilePath).ToList(),
-                BgColor = bgCol,
-                BorderColor = borderCol,
+                BgColor = cat.BgColor,
+                BorderColor = cat.BorderColor,
                 Size = Math.Min(140, Math.Max(70, 60 + (int)Math.Sqrt(records.Count) * 7))
             });
         }
 
         result.Contexts = contexts.OrderByDescending(c => c.FileCount).ToList();
         result.TotalPureDomains = contexts.Count(c => c.PurityPercentage > 50.0);
+
+        // Aggregate domains
+        var domainMap = new Dictionary<string, DomainDto>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in contexts)
+        {
+            if (!domainMap.TryGetValue(c.DomainId, out var dom))
+            {
+                var icon = ResolveDomainIcon(c.DomainName);
+
+                dom = new DomainDto
+                {
+                    Id = c.DomainId,
+                    Name = c.DomainName.Replace(" ", ""),
+                    DisplayName = c.DomainName,
+                    DomainType = "",
+                    Icon = icon,
+                    Description = $"Domain encompassing {c.DomainName} capabilities and bounded contexts.",
+                    BoundedContextIds = [],
+                    TotalFiles = 0,
+                    TotalEntities = 0
+                };
+                domainMap[c.DomainId] = dom;
+            }
+
+            dom.BoundedContextIds.Add(c.Id);
+            dom.TotalFiles += c.FileCount;
+            dom.TotalEntities += c.TargetEntities.Count;
+        }
+
+        result.Domains = domainMap.Values
+            .OrderByDescending(d => d.TotalFiles)
+            .ToList();
 
         // Load strategic cross-domain interactions grouped by canonical Bounded Contexts
         var interactions = new List<BoundedContextInteractionDto>();
@@ -3404,6 +3868,164 @@ public class ArchitectureViewEngine(IGraphClient db)
         return result;
     }
 
+    private async Task<BoundedContextMapDto> BuildAstBoundedContextMapAsync(List<ProjectSignature> signatures, string? workspaceId, CancellationToken ct)
+    {
+        var result = new BoundedContextMapDto
+        {
+            HasIntents = false,
+            TotalIntents = 0
+        };
+
+        // If projects lack domain assignments, synthesize cohesive macro-domains topologically from AST
+        var needsSynthesis = signatures.Any(s => string.IsNullOrWhiteSpace(s.ExistingDomain));
+        var topoAssignments = needsSynthesis
+            ? CodeIntentAnalyzer.SynthesizeDomainsTopologically(signatures)
+            : null;
+        var serviceToDomain = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (topoAssignments?.Domains != null)
+        {
+            foreach (var d in topoAssignments.Domains)
+            {
+                foreach (var svc in d.Services)
+                {
+                    serviceToDomain[svc] = d.Name;
+                }
+            }
+        }
+
+        var contextGroups = new Dictionary<string, (BoundedContextCategory Category, List<ProjectSignature> Projects)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sig in signatures)
+        {
+            var effectiveDomain = !string.IsNullOrWhiteSpace(sig.ExistingDomain)
+                ? sig.ExistingDomain
+                : (serviceToDomain.TryGetValue(sig.Name, out var td) ? td : null);
+
+            var cat = CategorizeBoundedContext(effectiveDomain, sig.RelativePath, sig.Name);
+            if (!contextGroups.TryGetValue(cat.CanonicalKey, out var grp))
+            {
+                grp = (cat, []);
+                contextGroups[cat.CanonicalKey] = grp;
+            }
+            grp.Projects.Add(sig);
+        }
+
+        var contexts = new List<BoundedContextItemDto>();
+        foreach (var (canonicalKey, (cat, projs)) in contextGroups)
+        {
+            var entities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var emittedEvents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var projectNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var p in projs)
+            {
+                projectNames.Add(p.Name);
+                foreach (var dt in p.DomainTypes) entities.Add(dt);
+                foreach (var ep in p.Endpoints) capabilities.Add(ep);
+                foreach (var top in p.Topics) emittedEvents.Add(top);
+            }
+
+            contexts.Add(new BoundedContextItemDto
+            {
+                Id = $"context:{canonicalKey.ToLowerInvariant()}",
+                Name = cat.CanonicalName,
+                DisplayName = cat.DisplayName,
+                DomainId = cat.DomainId,
+                DomainName = cat.DomainName,
+                DomainType = cat.DomainType,
+                Summary = cat.Summary,
+                FileCount = projs.Count * 5,
+                PureDomainCount = 0,
+                PurityPercentage = 0.0,
+                TargetEntities = entities.OrderBy(e => e).ToList(),
+                Capabilities = capabilities.OrderBy(c => c).ToList(),
+                EmittedEvents = emittedEvents.OrderBy(e => e).ToList(),
+                HandledEvents = [],
+                Projects = projectNames.OrderBy(p => p).ToList(),
+                Files = [],
+                BgColor = cat.BgColor,
+                BorderColor = cat.BorderColor,
+                Size = Math.Min(140, Math.Max(70, 60 + (int)Math.Sqrt(projs.Count * 10) * 7))
+            });
+        }
+
+        result.Contexts = contexts.OrderByDescending(c => c.Projects.Count).ToList();
+
+        var domainMap = new Dictionary<string, DomainDto>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in contexts)
+        {
+            if (!domainMap.TryGetValue(c.DomainId, out var dom))
+            {
+                var icon = ResolveDomainIcon(c.DomainName);
+
+                dom = new DomainDto
+                {
+                    Id = c.DomainId,
+                    Name = c.DomainName.Replace(" ", ""),
+                    DisplayName = c.DomainName,
+                    DomainType = "",
+                    Icon = icon,
+                    Description = $"Domain encompassing {c.DomainName} capabilities and bounded contexts.",
+                    BoundedContextIds = [],
+                    TotalFiles = 0,
+                    TotalEntities = 0
+                };
+                domainMap[c.DomainId] = dom;
+            }
+
+            dom.BoundedContextIds.Add(c.Id);
+            dom.TotalFiles += c.FileCount;
+            dom.TotalEntities += c.TargetEntities.Count;
+        }
+
+        result.Domains = domainMap.Values
+            .OrderByDescending(d => d.TotalFiles)
+            .ToList();
+
+        var crossCalls = await db.LoadCrossDomainInteractionsAsync(workspaceId ?? "", ct);
+        var macroCalls = new List<(string SourceKey, string TargetKey, string EdgeKind, int Count)>();
+        foreach (var c in crossCalls)
+        {
+            var src = CategorizeBoundedContext(c.SourceDomain).CanonicalKey;
+            var tgt = CategorizeBoundedContext(c.TargetDomain).CanonicalKey;
+            if (!src.Equals(tgt, StringComparison.OrdinalIgnoreCase))
+            {
+                macroCalls.Add((src, tgt, c.EdgeKind, c.InteractionCount));
+            }
+        }
+
+        var groupedCalls = macroCalls.GroupBy(c => (Source: c.SourceKey, Target: c.TargetKey));
+        var interactions = new List<BoundedContextInteractionDto>();
+        foreach (var group in groupedCalls)
+        {
+            var srcId = $"context:{group.Key.Source.ToLowerInvariant()}";
+            var tgtId = $"context:{group.Key.Target.ToLowerInvariant()}";
+            var totalCount = group.Sum(x => x.Count);
+            var details = group.Select(x => $"{x.EdgeKind} ({x.Count})").Distinct().ToList();
+            var primaryItem = group.OrderByDescending(x => x.Count).First();
+            var cat = (primaryItem.EdgeKind.ToUpperInvariant()) switch
+            {
+                "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => "messaging",
+                "USES_DB" or "ACCESSES_TABLE" => "database",
+                _ => "service_call"
+            };
+
+            interactions.Add(new BoundedContextInteractionDto
+            {
+                Id = $"edge:{srcId}->{tgtId}",
+                Source = srcId,
+                Target = tgtId,
+                InteractionType = cat,
+                Label = totalCount > 1 ? $"{totalCount} calls" : primaryItem.EdgeKind,
+                Count = totalCount,
+                Details = details
+            });
+        }
+
+        result.Interactions = interactions;
+        return result;
+    }
+
     public async Task<GraphDataDto> GetBoundedContextGraphAsync(string? workspaceId = null, CancellationToken ct = default)
     {
         var map = await GetBoundedContextMapAsync(workspaceId, ct);
@@ -3416,6 +4038,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                 ["graphType"] = "contexts",
                 ["hasIntents"] = map.HasIntents ? "true" : "false",
                 ["totalContexts"] = map.Contexts.Count.ToString(),
+                ["totalDomains"] = map.Domains.Count.ToString(),
+                ["domains"] = JsonSerializer.Serialize(map.Domains),
                 ["totalIntents"] = map.TotalIntents.ToString(),
                 ["totalPureDomains"] = map.TotalPureDomains.ToString()
             }
@@ -3434,6 +4058,9 @@ public class ArchitectureViewEngine(IGraphClient db)
                     ["displayTag"] = ":BoundedContext",
                     ["domain"] = c.Name,
                     ["displayName"] = c.DisplayName,
+                    ["domainId"] = c.DomainId,
+                    ["domainName"] = c.DomainName,
+                    ["domainType"] = c.DomainType,
                     ["summary"] = c.Summary ?? "",
                     ["fileCount"] = c.FileCount.ToString(),
                     ["pureCount"] = c.PureDomainCount.ToString(),
@@ -3508,13 +4135,17 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 var epQuery = "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE s.id = $id OR s.name = $name RETURN ep.name AS epName";
                 var epJson = await db.ExecuteQueryAsync(epQuery, new Dictionary<string, object> { ["id"] = targetId, ["name"] = serviceName }, ct);
-                using var epDoc = JsonDocument.Parse(epJson);
-                foreach (var row in epDoc.RootElement.EnumerateArray())
+
+                using (var epDoc = JsonDocument.Parse(epJson))
                 {
-                    var epName = row.GetStringProp("epName");
-                    if (!string.IsNullOrEmpty(epName) && !contract.IngressEndpoints.Contains(epName))
+                    foreach (var row in epDoc.RootElement.EnumerateArray())
                     {
-                        contract.IngressEndpoints.Add(epName);
+                        var epName = row.GetStringProp("epName");
+
+                        if (!string.IsNullOrEmpty(epName) && !contract.IngressEndpoints.Contains(epName))
+                        {
+                            contract.IngressEndpoints.Add(epName);
+                        }
                     }
                 }
             }

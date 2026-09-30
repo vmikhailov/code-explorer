@@ -90,156 +90,184 @@ public static class QueryCommandHandler
                 return 1;
             }
 
-            await using var client = new SqliteGraphClient(dbPath);
+            await using (var client = new SqliteGraphClient(dbPath))
+            {
+                var parameters = new Dictionary<string, object?>();
 
-            var parameters = new Dictionary<string, object?>();
-            if (cypherQuery.Contains("{prefixFilter}"))
-            {
-                cypherQuery = cypherQuery.Replace("{prefixFilter}", "");
-            }
-            if (cypherQuery.Contains("{prefixClause}"))
-            {
-                cypherQuery = cypherQuery.Replace("{prefixClause}", "");
-            }
-            if (cypherQuery.Contains("{depth}"))
-            {
-                cypherQuery = cypherQuery.Replace("{depth}", "5");
-            }
-            if (cypherQuery.Contains("$workspaceId", StringComparison.OrdinalIgnoreCase))
-            {
-                parameters["workspaceId"] = "ws";
-            }
-            if (cypherQuery.Contains("$workspaceIdPrefix", StringComparison.OrdinalIgnoreCase) ||
-                cypherQuery.Contains("$wsIdPrefix", StringComparison.OrdinalIgnoreCase))
-            {
-                parameters["workspaceIdPrefix"] = "ws:";
-                parameters["wsIdPrefix"] = "ws:";
-            }
-
-            if (opts.Params != null)
-            {
-                foreach (var paramStr in opts.Params)
+                if (cypherQuery.Contains("{prefixFilter}"))
                 {
-                    if (string.IsNullOrWhiteSpace(paramStr)) continue;
-                    var eqIdx = paramStr.IndexOf('=');
-                    if (eqIdx > 0)
+                    cypherQuery = cypherQuery.Replace("{prefixFilter}", "");
+                }
+
+                if (cypherQuery.Contains("{prefixClause}"))
+                {
+                    cypherQuery = cypherQuery.Replace("{prefixClause}", "");
+                }
+
+                if (cypherQuery.Contains("{depth}"))
+                {
+                    cypherQuery = cypherQuery.Replace("{depth}", "5");
+                }
+
+                if (cypherQuery.Contains("$workspaceId", StringComparison.OrdinalIgnoreCase))
+                {
+                    parameters["workspaceId"] = "ws";
+                }
+
+                if (cypherQuery.Contains("$workspaceIdPrefix", StringComparison.OrdinalIgnoreCase) ||
+                    cypherQuery.Contains("$wsIdPrefix", StringComparison.OrdinalIgnoreCase))
+                {
+                    parameters["workspaceIdPrefix"] = "ws:";
+                    parameters["wsIdPrefix"] = "ws:";
+                }
+
+                if (opts.Params != null)
+                {
+                    foreach (var paramStr in opts.Params)
                     {
-                        var key = paramStr[..eqIdx].Trim().TrimStart('$');
-                        var valStr = paramStr[(eqIdx + 1)..].Trim();
-                        if (long.TryParse(valStr, out var longVal))
+                        if (string.IsNullOrWhiteSpace(paramStr)) continue;
+
+                        var eqIdx = paramStr.IndexOf('=');
+
+                        if (eqIdx > 0)
                         {
-                            parameters[key] = longVal;
-                        }
-                        else if (double.TryParse(valStr, System.Globalization.CultureInfo.InvariantCulture, out var dblVal))
-                        {
-                            parameters[key] = dblVal;
-                        }
-                        else if (bool.TryParse(valStr, out var boolVal))
-                        {
-                            parameters[key] = boolVal;
-                        }
-                        else
-                        {
-                            parameters[key] = valStr;
+                            var key = paramStr[..eqIdx].Trim().TrimStart('$');
+                            var valStr = paramStr[(eqIdx + 1)..].Trim();
+
+                            if (long.TryParse(valStr, out var longVal))
+                            {
+                                parameters[key] = longVal;
+                            }
+                            else if (double.TryParse(valStr, System.Globalization.CultureInfo.InvariantCulture,
+                                         out var dblVal))
+                            {
+                                parameters[key] = dblVal;
+                            }
+                            else if (bool.TryParse(valStr, out var boolVal))
+                            {
+                                parameters[key] = boolVal;
+                            }
+                            else
+                            {
+                                parameters[key] = valStr;
+                            }
                         }
                     }
                 }
-            }
 
-            var resultJson = await client.ExecuteQueryAsync(cypherQuery, parameters);
+                var resultJson = await client.ExecuteQueryAsync(cypherQuery, parameters);
 
-            bool isJsonFormat = opts.Json || string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase);
-            if (isJsonFormat)
-            {
-                Console.WriteLine(resultJson);
-                return 0;
-            }
+                bool isJsonFormat = opts.Json || string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase);
 
-            // Print formatted table
-            using var queryDoc = JsonDocument.Parse(resultJson);
-            if (queryDoc.RootElement.ValueKind == JsonValueKind.Array)
-            {
-                var rows = queryDoc.RootElement.EnumerateArray().ToList();
-                if (rows.Count == 0)
+                if (isJsonFormat)
                 {
-                    Console.WriteLine("(0 rows returned)");
+                    Console.WriteLine(resultJson);
                     return 0;
                 }
 
-                var columns = rows[0].EnumerateObject().Select(p => p.Name).ToList();
-                var maxLimit = opts.NoTruncate ? int.MaxValue : 80;
-                var colWidths = columns.ToDictionary(c => c, c => c.Length);
-                bool wasTruncated = false;
+                // Print formatted table
 
-                static string FormatCell(JsonElement elem)
+                using (var queryDoc = JsonDocument.Parse(resultJson))
                 {
-                    if (elem.ValueKind == JsonValueKind.Null || elem.ValueKind == JsonValueKind.Undefined)
-                        return "";
-                    if (elem.ValueKind == JsonValueKind.String)
-                        return elem.GetString() ?? "";
-                    if (elem.ValueKind == JsonValueKind.Array || elem.ValueKind == JsonValueKind.Object)
-                        return JsonSerializer.Serialize(elem);
-                    return elem.ToString();
-                }
-
-                var tableData = new List<Dictionary<string, string>>(rows.Count);
-                foreach (var row in rows)
-                {
-                    var rowData = new Dictionary<string, string>();
-                    foreach (var col in columns)
+                    if (queryDoc.RootElement.ValueKind == JsonValueKind.Array)
                     {
-                        var rawStr = row.TryGetProperty(col, out var p) ? FormatCell(p) : "";
-                        var singleLine = Regex.Replace(rawStr, @"[\r\n\t]+", " ").Trim();
-                        rowData[col] = singleLine;
+                        var rows = queryDoc.RootElement.EnumerateArray().ToList();
 
-                        var displayLen = opts.NoTruncate ? singleLine.Length : Math.Min(singleLine.Length, maxLimit);
-                        if (displayLen > colWidths[col])
+                        if (rows.Count == 0)
                         {
-                            colWidths[col] = displayLen;
+                            Console.WriteLine("(0 rows returned)");
+                            return 0;
+                        }
+
+                        var columns = rows[0].EnumerateObject().Select(p => p.Name).ToList();
+                        var maxLimit = opts.NoTruncate ? int.MaxValue : 80;
+                        var colWidths = columns.ToDictionary(c => c, c => c.Length);
+                        bool wasTruncated = false;
+
+                        static string FormatCell(JsonElement elem)
+                        {
+                            if (elem.ValueKind == JsonValueKind.Null || elem.ValueKind == JsonValueKind.Undefined)
+                                return "";
+
+                            if (elem.ValueKind == JsonValueKind.String)
+                                return elem.GetString() ?? "";
+
+                            if (elem.ValueKind == JsonValueKind.Array || elem.ValueKind == JsonValueKind.Object)
+                                return JsonSerializer.Serialize(elem);
+
+                            return elem.ToString();
+                        }
+
+                        var tableData = new List<Dictionary<string, string>>(rows.Count);
+
+                        foreach (var row in rows)
+                        {
+                            var rowData = new Dictionary<string, string>();
+
+                            foreach (var col in columns)
+                            {
+                                var rawStr = row.TryGetProperty(col, out var p) ? FormatCell(p) : "";
+                                var singleLine = Regex.Replace(rawStr, @"[\r\n\t]+", " ").Trim();
+                                rowData[col] = singleLine;
+
+                                var displayLen = opts.NoTruncate
+                                    ? singleLine.Length
+                                    : Math.Min(singleLine.Length, maxLimit);
+
+                                if (displayLen > colWidths[col])
+                                {
+                                    colWidths[col] = displayLen;
+                                }
+                            }
+
+                            tableData.Add(rowData);
+                        }
+
+                        // Print header
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        Console.WriteLine(string.Join(" | ", columns.Select(c => c.PadRight(colWidths[c]))));
+                        Console.WriteLine(string.Join("-+-", columns.Select(c => new string('-', colWidths[c]))));
+                        Console.ResetColor();
+
+                        // Print rows
+                        foreach (var row in tableData)
+                        {
+                            var line = string.Join(" | ", columns.Select(c =>
+                            {
+                                var valStr = row[c];
+
+                                if (!opts.NoTruncate && valStr.Length > maxLimit)
+                                {
+                                    wasTruncated = true;
+                                    valStr = valStr[..(maxLimit - 3)] + "...";
+                                }
+
+                                return valStr.PadRight(colWidths[c]);
+                            }));
+                            Console.WriteLine(line);
+                        }
+
+                        Console.WriteLine($"\n({rows.Count} rows)");
+
+                        if (wasTruncated)
+                        {
+                            Console.ForegroundColor = ConsoleColor.DarkYellow;
+                            Console.WriteLine("\n[!] Output was truncated in table view.");
+                            Console.ResetColor();
+                            Console.WriteLine("    Run with -j or --json to view full structured JSON data.");
+
+                            Console.WriteLine(
+                                "    Run with --no-truncate to display full table columns without cutoff.");
                         }
                     }
-                    tableData.Add(rowData);
-                }
-
-                // Print header
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine(string.Join(" | ", columns.Select(c => c.PadRight(colWidths[c]))));
-                Console.WriteLine(string.Join("-+-", columns.Select(c => new string('-', colWidths[c]))));
-                Console.ResetColor();
-
-                // Print rows
-                foreach (var row in tableData)
-                {
-                    var line = string.Join(" | ", columns.Select(c =>
+                    else
                     {
-                        var valStr = row[c];
-                        if (!opts.NoTruncate && valStr.Length > maxLimit)
-                        {
-                            wasTruncated = true;
-                            valStr = valStr[..(maxLimit - 3)] + "...";
-                        }
-                        return valStr.PadRight(colWidths[c]);
-                    }));
-                    Console.WriteLine(line);
-                }
+                        Console.WriteLine(resultJson);
+                    }
 
-                Console.WriteLine($"\n({rows.Count} rows)");
-
-                if (wasTruncated)
-                {
-                    Console.ForegroundColor = ConsoleColor.DarkYellow;
-                    Console.WriteLine("\n[!] Output was truncated in table view.");
-                    Console.ResetColor();
-                    Console.WriteLine("    Run with -j or --json to view full structured JSON data.");
-                    Console.WriteLine("    Run with --no-truncate to display full table columns without cutoff.");
+                    return 0;
                 }
             }
-            else
-            {
-                Console.WriteLine(resultJson);
-            }
-
-            return 0;
         }
         catch (Exception ex)
         {

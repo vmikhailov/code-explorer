@@ -24,6 +24,44 @@ export interface NormalizedWheelOptions {
 }
 
 /**
+ * Creates an encoder bounce suppressor.
+ * Filters out single-event direction reversals occurring within a short window (<75ms)
+ * after sustained scrolling in one direction (classic mechanical mouse wheel bounce or trackpad lift-off jitter).
+ */
+export function createEncoderBounceFilter() {
+  let lastDir = 0;
+  let lastTime = 0;
+  let consecutiveSameDir = 0;
+
+  return (dy: number): number => {
+    if (dy === 0) return 0;
+    const now = performance.now();
+    const dt = now - lastTime;
+    const currentDir = dy > 0 ? 1 : -1;
+
+    lastTime = now;
+
+    // If an opposite tick arrives within 75ms after at least 2 consecutive ticks in the other direction:
+    if (consecutiveSameDir >= 2 && currentDir === -lastDir && dt < 75) {
+      // Hardware encoder bounce / trackpad lift-off detected.
+      // Suppress this single event and reset counter so if user actually changed direction, next tick passes.
+      consecutiveSameDir = 0;
+      lastDir = currentDir;
+      return 0;
+    }
+
+    if (currentDir === lastDir) {
+      consecutiveSameDir++;
+    } else {
+      consecutiveSameDir = 1;
+      lastDir = currentDir;
+    }
+
+    return dy;
+  };
+}
+
+/**
  * Calculates a smooth, invariant zoom factor for any WheelEvent.
  * 
  * @param e Native or React WheelEvent
@@ -35,6 +73,7 @@ export function calculateNormalizedZoomFactor(
   sensitivity: number = 1.0
 ): number {
   let dy = e.deltaY;
+  if (dy === 0) return 1.0;
 
   // 1. Normalize deltaMode to virtual pixels
   if (e.deltaMode === 1) {
@@ -45,9 +84,11 @@ export function calculateNormalizedZoomFactor(
     dy *= 600;
   }
 
-  // 2. Pinch-to-zoom on trackpad (Safari, Chrome, Edge send wheel with e.ctrlKey = true)
-  const isPinch = e.ctrlKey;
-  const baseK = isPinch ? 0.005 : 0.0015;
+  // 2. Continuous trackpad pinch vs Ctrl + Mouse Wheel
+  // On trackpads, pinch events have e.ctrlKey = true with small, continuous micro-deltas (abs < 45).
+  // On physical mice, rolling the wheel with Ctrl held produces large discrete deltas (abs >= 50 or deltaMode != 0).
+  const isContinuousPinch = e.ctrlKey && Math.abs(e.deltaY) < 45 && e.deltaMode === 0;
+  const baseK = isContinuousPinch ? 0.005 : 0.0015;
   const k = baseK * Math.max(0.1, sensitivity);
 
   // 3. Clamp per-event delta to prevent extreme jumps from glitchy drivers or trackpad flings
@@ -100,15 +141,32 @@ export function attachNormalizedCytoscapeWheel(
   cyGetter: () => cytoscape.Core | null | undefined,
   getSensitivity?: () => number
 ): () => void {
+  const bounceFilter = createEncoderBounceFilter();
+
+  // Ensure Cytoscape's internal heuristic GCD wheel zoom is completely disabled
+  const initialCy = cyGetter();
+  if (initialCy && initialCy.userZoomingEnabled()) {
+    initialCy.userZoomingEnabled(false);
+  }
+
   const onWheel = (e: WheelEvent) => {
     const cy = cyGetter();
     if (!cy) return;
 
-    // Prevent native page scroll and block Cytoscape's internal wheel handler
+    if (cy.userZoomingEnabled()) {
+      cy.userZoomingEnabled(false);
+    }
+
+    // Prevent native page scroll
     e.preventDefault();
     e.stopImmediatePropagation();
 
+    const filteredDy = bounceFilter(e.deltaY);
+    if (filteredDy === 0) return;
+
     const rect = container.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
     const renderedPosition = {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
@@ -116,16 +174,25 @@ export function attachNormalizedCytoscapeWheel(
 
     const currentZoom = cy.zoom();
     const sensitivity = getSensitivity ? getSensitivity() : 1.0;
-    const factor = calculateNormalizedZoomFactor(e, sensitivity);
+
+    const effectiveEvent = filteredDy === e.deltaY ? e : ({
+      deltaY: filteredDy,
+      deltaMode: e.deltaMode,
+      ctrlKey: e.ctrlKey,
+    } as WheelEvent);
+
+    const factor = calculateNormalizedZoomFactor(effectiveEvent, sensitivity);
 
     const minZoom = cy.minZoom();
     const maxZoom = cy.maxZoom();
     const newZoom = Math.min(maxZoom, Math.max(minZoom, currentZoom * factor));
 
-    cy.zoom({
-      level: newZoom,
-      renderedPosition,
-    });
+    if (Math.abs(newZoom - currentZoom) > 1e-6) {
+      cy.zoom({
+        level: newZoom,
+        renderedPosition,
+      });
+    }
   };
 
   container.addEventListener('wheel', onWheel, { capture: true, passive: false });

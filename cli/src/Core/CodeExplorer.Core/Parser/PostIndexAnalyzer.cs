@@ -2000,123 +2000,149 @@ public class PostIndexAnalyzer(IGraphClient db)
         // 3. Query projects
         var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
         var projsJson = await db.ExecuteQueryAsync(projQuery, null, cancellationToken);
-        using var projsDoc = JsonDocument.Parse(projsJson);
-        var projectList = new List<(string Id, string Name, string? Path)>();
-        foreach (var row in projsDoc.RootElement.EnumerateArray())
+
+        using (var projsDoc = JsonDocument.Parse(projsJson))
         {
-            var pId = GetStringProp(row, "id");
-            var pName = GetStringProp(row, "name");
-            var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
-            if (!string.IsNullOrEmpty(pId))
+            var projectList = new List<(string Id, string Name, string? Path)>();
+
+            foreach (var row in projsDoc.RootElement.EnumerateArray())
             {
-                projectList.Add((pId, pName, pPath));
+                var pId = GetStringProp(row, "id");
+                var pName = GetStringProp(row, "name");
+
+                var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String
+                    ? pt.GetString()
+                    : null;
+
+                if (!string.IsNullOrEmpty(pId))
+                {
+                    projectList.Add((pId, pName, pPath));
+                }
             }
-        }
 
-        // 4. Query relationships targeting any database
-        var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
-        var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, cancellationToken);
-        using var edgesDoc = JsonDocument.Parse(edgesJson);
+            // 4. Query relationships targeting any database
+            var edgesQuery =
+                "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
+            var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, cancellationToken);
 
-        var relationshipsToUpload = new List<Relationship>();
-        var seen = new HashSet<(string From, string To)>();
-
-        foreach (var row in edgesDoc.RootElement.EnumerateArray())
-        {
-            var src = GetStringProp(row, "source");
-            var tgt = GetStringProp(row, "target");
-            if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
-
-            if (rawToCanonical.TryGetValue(tgt, out var canonicalId))
+            using (var edgesDoc = JsonDocument.Parse(edgesJson))
             {
-                // Resolve owning project
-                string? projId = null;
-                var exactProj = projectList.FirstOrDefault(p => p.Id == src);
-                if (!string.IsNullOrEmpty(exactProj.Id))
-                {
-                    projId = exactProj.Id;
-                }
-                else
-                {
-                    var matched = projectList.FirstOrDefault(p => src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) ||
-                                                                  (!string.IsNullOrEmpty(p.Path) && src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
-                    projId = matched.Id;
-                }
+                var relationshipsToUpload = new List<Relationship>();
+                var seen = new HashSet<(string From, string To)>();
 
-                if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
+                foreach (var row in edgesDoc.RootElement.EnumerateArray())
                 {
-                    if (seen.Add((projId, canonicalId)))
+                    var src = GetStringProp(row, "source");
+                    var tgt = GetStringProp(row, "target");
+                    if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+
+                    if (rawToCanonical.TryGetValue(tgt, out var canonicalId))
                     {
-                        var props = new Dictionary<string, object>
+                        // Resolve owning project
+                        string? projId = null;
+                        var exactProj = projectList.FirstOrDefault(p => p.Id == src);
+
+                        if (!string.IsNullOrEmpty(exactProj.Id))
                         {
-                            ["dependency_type"] = "database",
-                            ["is_semantic"] = "true",
-                            ["is_canonical"] = "true"
-                        };
-                        if (row.TryGetProperty("properties", out var pElem) && pElem.ValueKind == JsonValueKind.Object)
+                            projId = exactProj.Id;
+                        }
+                        else
                         {
-                            foreach (var jp in pElem.EnumerateObject())
+                            var matched = projectList.FirstOrDefault(p =>
+                                src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) ||
+                                (!string.IsNullOrEmpty(p.Path) &&
+                                 src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+                            projId = matched.Id;
+                        }
+
+                        if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
+                        {
+                            if (seen.Add((projId, canonicalId)))
                             {
-                                if (!props.ContainsKey(jp.Name))
+                                var props = new Dictionary<string, object>
                                 {
-                                    props[jp.Name] = jp.Value.ToString();
+                                    ["dependency_type"] = "database",
+                                    ["is_semantic"] = "true",
+                                    ["is_canonical"] = "true"
+                                };
+
+                                if (row.TryGetProperty("properties", out var pElem) &&
+                                    pElem.ValueKind == JsonValueKind.Object)
+                                {
+                                    foreach (var jp in pElem.EnumerateObject())
+                                    {
+                                        if (!props.ContainsKey(jp.Name))
+                                        {
+                                            props[jp.Name] = jp.Value.ToString();
+                                        }
+                                    }
                                 }
+
+                                relationshipsToUpload.Add(new Relationship(projId, canonicalId,
+                                    OntologyConstants.Relationships.UsesDb, props));
                             }
                         }
-                        relationshipsToUpload.Add(new Relationship(
-                            projId,
-                            canonicalId,
-                            OntologyConstants.Relationships.UsesDb,
-                            props
-                        ));
                     }
                 }
-            }
-        }
 
-        if (relationshipsToUpload.Count > 0)
-        {
-            await db.UploadRelationshipsAsync(relationshipsToUpload);
-        }
-
-        // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId in SQLite
-        if (db is SqliteGraphClient)
-        {
-            foreach (var (rawId, canonicalId) in rawToCanonical)
-            {
-                if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
+                if (relationshipsToUpload.Count > 0)
                 {
-                    await db.ExecuteWriteAsync("UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;", new { canonicalId, rawId }, cancellationToken);
-                    await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId }, cancellationToken);
-                    await db.ExecuteWriteAsync("UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;", new { canonicalId, rawId }, cancellationToken);
-                    await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId }, cancellationToken);
-                    await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId }, cancellationToken);
+                    await db.UploadRelationshipsAsync(relationshipsToUpload);
                 }
-            }
 
-            // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
-            await db.ExecuteWriteAsync(
-                "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';",
-                null, cancellationToken);
+                // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId in SQLite
+                if (db is SqliteGraphClient)
+                {
+                    foreach (var (rawId, canonicalId) in rawToCanonical)
+                    {
+                        if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
+                        {
+                            await db.ExecuteWriteAsync(
+                                "UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;",
+                                new { canonicalId, rawId }, cancellationToken);
 
-            // Purge any remaining phantom Database nodes that were not canonicalized
-            var validIds = canonicalNodes.Keys.ToList();
-            if (validIds.Count > 0)
-            {
-                var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
-                var paramDict = new Dictionary<string, object>();
-                for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+                            await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId },
+                                cancellationToken);
 
-                await db.ExecuteWriteAsync(
-                    $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
-                    paramDict, cancellationToken);
-                await db.ExecuteWriteAsync(
-                    $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
-                    paramDict, cancellationToken);
+                            await db.ExecuteWriteAsync(
+                                "UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;",
+                                new { canonicalId, rawId }, cancellationToken);
+
+                            await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId },
+                                cancellationToken);
+
+                            await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId },
+                                cancellationToken);
+                        }
+                    }
+
+                    // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
+                    await db.ExecuteWriteAsync(
+                        "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';",
+                        null, cancellationToken);
+
+                    // Purge any remaining phantom Database nodes that were not canonicalized
+                    var validIds = canonicalNodes.Keys.ToList();
+
+                    if (validIds.Count > 0)
+                    {
+                        var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
+                        var paramDict = new Dictionary<string, object>();
+                        for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+
+                        await db.ExecuteWriteAsync(
+                            $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
+                            paramDict, cancellationToken);
+
+                        await db.ExecuteWriteAsync(
+                            $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});", paramDict,
+                            cancellationToken);
+                    }
+                }
+
+                return new CanonicalizeDatabasesResult(nodesToUpload.Count, relationshipsToUpload.Count);
             }
         }
-
-        return new CanonicalizeDatabasesResult(nodesToUpload.Count, relationshipsToUpload.Count);
     }
 
     public static (string Category, string DependencyType, string NormalizedKind) NormalizeEdgeCategory(
@@ -2246,88 +2272,97 @@ public class PostIndexAnalyzer(IGraphClient db)
         // 2. Query architectural/macro edges
         var edgeQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'SERVICE_CALL', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'LIBRARY'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
         var edgesJson = await db.ExecuteQueryAsync(edgeQuery, null, cancellationToken);
-        using var edgesDoc = JsonDocument.Parse(edgesJson);
 
-        var updatedCount = 0;
-        foreach (var row in edgesDoc.RootElement.EnumerateArray())
+        using (var edgesDoc = JsonDocument.Parse(edgesJson))
         {
-            var src = GetStringProp(row, "source");
-            var tgt = GetStringProp(row, "target");
-            var rawKind = GetStringProp(row, "kind");
-            if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+            var updatedCount = 0;
 
-            nodeMap.TryGetValue(src, out var srcInfo);
-            nodeMap.TryGetValue(tgt, out var tgtInfo);
-
-            var existingCategory = "";
-            var existingDepType = "";
-            var props = new Dictionary<string, object>();
-
-            if (row.TryGetProperty("properties", out var pElem))
+            foreach (var row in edgesDoc.RootElement.EnumerateArray())
             {
-                if (pElem.ValueKind == JsonValueKind.Object)
+                var src = GetStringProp(row, "source");
+                var tgt = GetStringProp(row, "target");
+                var rawKind = GetStringProp(row, "kind");
+                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+
+                nodeMap.TryGetValue(src, out var srcInfo);
+                nodeMap.TryGetValue(tgt, out var tgtInfo);
+
+                var existingCategory = "";
+                var existingDepType = "";
+                var props = new Dictionary<string, object>();
+
+                if (row.TryGetProperty("properties", out var pElem))
                 {
-                    foreach (var prop in pElem.EnumerateObject())
+                    if (pElem.ValueKind == JsonValueKind.Object)
                     {
-                        var valStr = prop.Value.ToString();
-                        props[prop.Name] = valStr;
-                        if (prop.NameEquals("category")) existingCategory = valStr;
-                        if (prop.NameEquals("dependency_type")) existingDepType = valStr;
-                    }
-                }
-                else if (pElem.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pElem.GetString()))
-                {
-                    try
-                    {
-                        using var innerDoc = JsonDocument.Parse(pElem.GetString()!);
-                        if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
+                        foreach (var prop in pElem.EnumerateObject())
                         {
-                            foreach (var prop in innerDoc.RootElement.EnumerateObject())
-                            {
-                                var valStr = prop.Value.ToString();
-                                props[prop.Name] = valStr;
-                                if (prop.NameEquals("category")) existingCategory = valStr;
-                                if (prop.NameEquals("dependency_type")) existingDepType = valStr;
-                            }
+                            var valStr = prop.Value.ToString();
+                            props[prop.Name] = valStr;
+                            if (prop.NameEquals("category")) existingCategory = valStr;
+                            if (prop.NameEquals("dependency_type")) existingDepType = valStr;
                         }
                     }
-                    catch { }
+                    else if (pElem.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pElem.GetString()))
+                    {
+                        try
+                        {
+                            using (var innerDoc = JsonDocument.Parse(pElem.GetString()!))
+                            {
+                                if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
+                                {
+                                    foreach (var prop in innerDoc.RootElement.EnumerateObject())
+                                    {
+                                        var valStr = prop.Value.ToString();
+                                        props[prop.Name] = valStr;
+                                        if (prop.NameEquals("category")) existingCategory = valStr;
+                                        if (prop.NameEquals("dependency_type")) existingDepType = valStr;
+                                    }
+                                }
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    }
                 }
-            }
 
-            var (category, depType, normalizedKind) = NormalizeEdgeCategory(
-                rawKind,
-                srcInfo.Kind,
-                tgtInfo.Kind,
-                existingCategory,
-                existingDepType,
-                tgtInfo.IsLibrary
-            );
+                var (category, depType, normalizedKind) = NormalizeEdgeCategory(rawKind, srcInfo.Kind, tgtInfo.Kind,
+                    existingCategory, existingDepType, tgtInfo.IsLibrary);
 
-            var needsUpdate = !props.ContainsKey("dependency_type") ||
-                              !string.Equals(props.GetValueOrDefault("dependency_type")?.ToString(), depType, StringComparison.Ordinal) ||
-                              !string.Equals(props.GetValueOrDefault("category")?.ToString(), category, StringComparison.Ordinal) ||
-                              !string.Equals(rawKind, normalizedKind, StringComparison.Ordinal);
+                var needsUpdate = !props.ContainsKey("dependency_type") ||
+                                  !string.Equals(props.GetValueOrDefault("dependency_type")?.ToString(), depType,
+                                      StringComparison.Ordinal) ||
+                                  !string.Equals(props.GetValueOrDefault("category")?.ToString(), category,
+                                      StringComparison.Ordinal) || !string.Equals(rawKind, normalizedKind,
+                                      StringComparison.Ordinal);
 
-            if (needsUpdate)
-            {
-                props["dependency_type"] = depType;
-                props["category"] = category;
-
-                if (db is SqliteGraphClient)
+                if (needsUpdate)
                 {
-                    var propsJson = JsonSerializer.Serialize(props);
-                    await db.ExecuteWriteAsync(
-                        "UPDATE OR IGNORE edges SET kind = @normalizedKind, properties = @propsJson WHERE from_id = @src AND to_id = @tgt AND kind = @rawKind;",
-                        new { normalizedKind, propsJson, src, tgt, rawKind },
-                        cancellationToken
-                    );
-                    updatedCount++;
+                    props["dependency_type"] = depType;
+                    props["category"] = category;
+
+                    if (db is SqliteGraphClient)
+                    {
+                        var propsJson = JsonSerializer.Serialize(props);
+
+                        await db.ExecuteWriteAsync(
+                            "UPDATE OR IGNORE edges SET kind = @normalizedKind, properties = @propsJson WHERE from_id = @src AND to_id = @tgt AND kind = @rawKind;",
+                            new
+                            {
+                                normalizedKind,
+                                propsJson,
+                                src,
+                                tgt,
+                                rawKind
+                            }, cancellationToken);
+                        updatedCount++;
+                    }
                 }
             }
-        }
 
-        return updatedCount;
+            return updatedCount;
+        }
     }
 
     private static string GetStringProp(JsonElement elem, string prop, string fallback = "")
@@ -2410,46 +2445,59 @@ public class PostIndexAnalyzer(IGraphClient db)
     {
         var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
         var projsJson = await db.ExecuteQueryAsync(projQuery, null, cancellationToken);
-        using var projsDoc = JsonDocument.Parse(projsJson);
-        var projectList = new List<ProjectNode>();
-        foreach (var row in projsDoc.RootElement.EnumerateArray())
+
+        using (var projsDoc = JsonDocument.Parse(projsJson))
         {
-            var pId = GetStringProp(row, "id");
-            var pName = GetStringProp(row, "name");
-            var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
-            if (!string.IsNullOrEmpty(pId))
+            var projectList = new List<ProjectNode>();
+
+            foreach (var row in projsDoc.RootElement.EnumerateArray())
             {
-                projectList.Add(new ProjectNode(pId, pName, pPath ?? "", ""));
+                var pId = GetStringProp(row, "id");
+                var pName = GetStringProp(row, "name");
+
+                var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String
+                    ? pt.GetString()
+                    : null;
+
+                if (!string.IsNullOrEmpty(pId))
+                {
+                    projectList.Add(new ProjectNode(pId, pName, pPath ?? "", ""));
+                }
             }
-        }
 
-        var extQuery = "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.is_external') AS is_ext";
-        var extJson = await db.ExecuteQueryAsync(extQuery, null, cancellationToken);
-        using var extDoc = JsonDocument.Parse(extJson);
+            var extQuery =
+                "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.is_external') AS is_ext";
+            var extJson = await db.ExecuteQueryAsync(extQuery, null, cancellationToken);
 
-        var idsToDelete = new List<string>();
-        foreach (var row in extDoc.RootElement.EnumerateArray())
-        {
-            var id = GetStringProp(row, "id");
-            var name = GetStringProp(row, "name");
-            var domain = GetStringProp(row, "domain");
-            var isExt = GetStringProp(row, "is_ext");
-
-            if (isExt == "true") continue;
-
-            var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
-            if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
-
-            if (IsGarbageExternalService(cand))
+            using (var extDoc = JsonDocument.Parse(extJson))
             {
-                idsToDelete.Add(id);
-            }
-        }
+                var idsToDelete = new List<string>();
 
-        foreach (var id in idsToDelete)
-        {
-            await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @id OR to_id = @id;", new { id }, cancellationToken);
-            await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @id;", new { id }, cancellationToken);
+                foreach (var row in extDoc.RootElement.EnumerateArray())
+                {
+                    var id = GetStringProp(row, "id");
+                    var name = GetStringProp(row, "name");
+                    var domain = GetStringProp(row, "domain");
+                    var isExt = GetStringProp(row, "is_ext");
+
+                    if (isExt == "true") continue;
+
+                    var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
+                    if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
+
+                    if (IsGarbageExternalService(cand))
+                    {
+                        idsToDelete.Add(id);
+                    }
+                }
+
+                foreach (var id in idsToDelete)
+                {
+                    await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @id OR to_id = @id;", new { id },
+                        cancellationToken);
+                    await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @id;", new { id }, cancellationToken);
+                }
+            }
         }
     }
 

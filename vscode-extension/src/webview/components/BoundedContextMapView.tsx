@@ -13,10 +13,25 @@ export interface BoundedContextFile {
   isPureDomain?: boolean;
 }
 
+export interface DomainDetail {
+  id: string;
+  name: string;
+  displayName: string;
+  domainType: string;
+  description?: string;
+  icon?: string;
+  boundedContextIds: string[];
+  totalFiles: number;
+  totalEntities: number;
+}
+
 export interface BoundedContextDetail {
   id: string;
   name: string;
   displayName: string;
+  domainId: string;
+  domainName: string;
+  domainType: string;
   summary?: string;
   fileCount: number;
   pureDomainCount: number;
@@ -36,6 +51,7 @@ export interface BoundedContextDetail {
 
 export interface BoundedContextMapViewProps {
   graph: GraphData | null;
+  focusTarget?: { contextName?: string; contextId?: string; domainId?: string } | null;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
   onTriggerScan?: () => void;
   onTriggerIntent?: () => void;
@@ -168,6 +184,7 @@ export interface BundledEdgeDetail {
 
 export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
   graph,
+  focusTarget,
   onOpenFile,
   onTriggerScan,
   onTriggerIntent,
@@ -182,18 +199,29 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
   const [bezierCurvature, setBezierCurvature] = useState<number>(40);
   const [searchQuery, setSearchQuery] = useState('');
   const [layerFilter, setLayerFilter] = useState('all');
+  const [selectedDomainFilter, setSelectedDomainFilter] = useState<string>('all');
+  const [isolatedContextId, setIsolatedContextId] = useState<string | null>(null);
   const [minCallsFilter, setMinCallsFilter] = useState<number>(2);
   const [selectedContext, setSelectedContext] = useState<BoundedContextDetail | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<BundledEdgeDetail | null>(null);
 
-  // Parse Bounded Context records from GraphData
-  const { contexts, hasIntents, totalIntents, totalPureDomains } = useMemo(() => {
+  // Parse Bounded Context records and Domains from GraphData
+  const { contexts, domains, hasIntents, totalIntents, totalPureDomains } = useMemo(() => {
     if (!graph || !graph.nodes || graph.nodes.length === 0) {
-      return { contexts: [], hasIntents: false, totalIntents: 0, totalPureDomains: 0 };
+      return { contexts: [], domains: [], hasIntents: false, totalIntents: 0, totalPureDomains: 0 };
     }
 
     const hasIntentsMeta = graph.metadata?.hasIntents !== 'false';
     const parsedContexts: BoundedContextDetail[] = [];
+
+    const safeParseJson = <T,>(jsonStr?: string, fallback: T = [] as any): T => {
+      if (!jsonStr) return fallback;
+      try {
+        return JSON.parse(jsonStr) as T;
+      } catch {
+        return fallback;
+      }
+    };
 
     for (const node of graph.nodes) {
       if (node.kind !== 'BoundedContext' && !node.properties?.domain) continue;
@@ -201,18 +229,12 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       const p = node.properties || {};
       const name = p.domain || node.name || 'Domain';
       const displayName = p.displayName || name.replace(/([a-z])([A-Z])/g, '$1 $2');
+      const domainId = p.domainId || 'domain:general';
+      const domainName = p.domainName || displayName;
+      const domainType = p.domainType || '';
       const fileCount = parseInt(p.fileCount || '1', 10);
       const pureCount = parseInt(p.pureCount || '0', 10);
       const purityPct = parseFloat(p.purity || (fileCount > 0 ? ((pureCount / fileCount) * 100).toFixed(1) : '0'));
-
-      const safeParseJson = <T,>(jsonStr?: string, fallback: T = [] as any): T => {
-        if (!jsonStr) return fallback;
-        try {
-          return JSON.parse(jsonStr) as T;
-        } catch {
-          return fallback;
-        }
-      };
 
       const targetEntities = safeParseJson<string[]>(p.entities, []);
       const capabilities = safeParseJson<string[]>(p.capabilities, []);
@@ -228,6 +250,9 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
         id: node.id,
         name,
         displayName,
+        domainId,
+        domainName,
+        domainType,
         summary: p.summary,
         fileCount,
         pureDomainCount: pureCount,
@@ -246,23 +271,89 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       });
     }
 
+    let parsedDomains: DomainDetail[] = safeParseJson<DomainDetail[]>(graph.metadata?.domains, []);
+    if (parsedDomains.length === 0 && parsedContexts.length > 0) {
+      const domMap = new Map<string, DomainDetail>();
+      for (const c of parsedContexts) {
+        let d = domMap.get(c.domainId);
+        if (!d) {
+          const icon = '🎯';
+          d = {
+            id: c.domainId,
+            name: c.domainName.replace(/\s+/g, ''),
+            displayName: c.domainName,
+            domainType: '',
+            icon,
+            boundedContextIds: [],
+            totalFiles: 0,
+            totalEntities: 0,
+          };
+          domMap.set(c.domainId, d);
+        }
+        d.boundedContextIds.push(c.id);
+        d.totalFiles += c.fileCount;
+        d.totalEntities += c.targetEntities.length;
+      }
+      parsedDomains = Array.from(domMap.values());
+    }
+
     const tIntents = parseInt(graph.metadata?.totalIntents || `${parsedContexts.reduce((acc, c) => acc + c.fileCount, 0)}`, 10);
     const tPure = parseInt(graph.metadata?.totalPureDomains || `${parsedContexts.filter((c) => c.purityPercentage > 50).length}`, 10);
 
     return {
       contexts: parsedContexts,
+      domains: parsedDomains,
       hasIntents: hasIntentsMeta && parsedContexts.length > 0,
       totalIntents: tIntents,
       totalPureDomains: tPure,
     };
   }, [graph]);
 
-  // Filtered contexts based on search & layer filter
+  // Synchronize focusTarget from VS Code extension
+  useEffect(() => {
+    if (!focusTarget) return;
+    if (focusTarget.domainId) {
+      setSelectedDomainFilter(focusTarget.domainId);
+      setIsolatedContextId(null);
+    }
+    if (focusTarget.contextId || focusTarget.contextName) {
+      const match = contexts.find(
+        (c) =>
+          c.id === focusTarget.contextId ||
+          c.name.toLowerCase() === focusTarget.contextName?.toLowerCase() ||
+          c.displayName.toLowerCase() === focusTarget.contextName?.toLowerCase()
+      );
+      if (match) {
+        setSelectedContext(match);
+        setIsolatedContextId(match.id);
+      }
+    }
+  }, [focusTarget, contexts]);
+
+  // Filtered contexts based on Domain, Isolation, search & layer filter
   const filteredContexts = useMemo(() => {
+    // 1. If context is isolated, show only this context and its direct interaction neighbors
+    if (isolatedContextId) {
+      const neighborIds = new Set<string>([isolatedContextId]);
+      for (const edge of graph?.edges || []) {
+        if (edge.source === isolatedContextId) neighborIds.add(edge.target);
+        if (edge.target === isolatedContextId) neighborIds.add(edge.source);
+      }
+      return contexts.filter((c) => neighborIds.has(c.id));
+    }
+
     return contexts.filter((c) => {
+      // 2. Domain Filter
+      if (selectedDomainFilter !== 'all' && c.domainId !== selectedDomainFilter) {
+        return false;
+      }
+
+      // 3. Layer Filter
       if (layerFilter !== 'all') {
         if (!c.layers[layerFilter] || c.layers[layerFilter] === 0) return false;
       }
+
+      // 4. Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = c.name.toLowerCase().includes(q) || c.displayName.toLowerCase().includes(q);
@@ -273,7 +364,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       }
       return true;
     });
-  }, [contexts, layerFilter, searchQuery]);
+  }, [contexts, graph?.edges, isolatedContextId, selectedDomainFilter, layerFilter, searchQuery]);
 
   // Cytoscape initialization and graph updates
   useEffect(() => {
@@ -398,7 +489,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       } as any,
       minZoom: 0.25,
       maxZoom: 3,
-      wheelSensitivity: 0.25,
+      userZoomingEnabled: false,
     });
 
     cy.on('tap', 'node', (evt: EventObject) => {
@@ -597,6 +688,60 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
         </div>
       </div>
 
+      {/* Domain Navigation & Filtering Bar */}
+      {domains.length > 0 && (
+        <div className="bounded-context-domain-bar">
+          <button
+            type="button"
+            className={`domain-chip ${selectedDomainFilter === 'all' && !isolatedContextId ? 'active' : ''}`}
+            onClick={() => {
+              setSelectedDomainFilter('all');
+              setIsolatedContextId(null);
+            }}
+          >
+            🌐 All Domains ({contexts.length})
+          </button>
+          {domains.map((dom) => {
+            const count = contexts.filter((c) => c.domainId === dom.id).length;
+            return (
+              <button
+                key={dom.id}
+                type="button"
+                className={`domain-chip ${selectedDomainFilter === dom.id && !isolatedContextId ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedDomainFilter(dom.id);
+                  setIsolatedContextId(null);
+                }}
+                title={dom.description}
+              >
+                <span>{dom.icon || '🎯'} {dom.displayName}</span>
+                <span style={{ fontSize: '10px', opacity: 0.7 }}>({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Context Isolation Banner */}
+      {isolatedContextId && (
+        <div className="context-isolation-banner">
+          <div className="isolation-banner-left">
+            <span>🎯 Context Isolation Mode:</span>
+            <strong>{contexts.find((c) => c.id === isolatedContextId)?.displayName}</strong>
+            <span style={{ opacity: 0.8, fontSize: '11px' }}>
+              (Showing upstream & downstream interactions only)
+            </span>
+          </div>
+          <button
+            type="button"
+            className="isolation-exit-btn"
+            onClick={() => setIsolatedContextId(null)}
+          >
+            ✕ Exit Isolation
+          </button>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="bounded-context-main">
         {!hasIntents || contexts.length === 0 ? (
@@ -638,17 +783,38 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
               <div className="drawer-title-group">
                 <span className="drawer-domain-icon">🏛️</span>
                 <div>
-                  <h3 className="drawer-domain-name">{selectedContext.displayName}</h3>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>{selectedContext.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <h3 className="drawer-domain-name">{selectedContext.displayName}</h3>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Domain: {selectedContext.domainName}
+                  </div>
                 </div>
               </div>
-              <button
-                className="drawer-close-btn"
-                onClick={() => setSelectedContext(null)}
-                title="Close"
-              >
-                ✕
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="isolation-exit-btn"
+                  style={{
+                    background: isolatedContextId === selectedContext.id ? 'rgba(234, 88, 12, 0.4)' : 'rgba(37, 99, 235, 0.2)',
+                    borderColor: isolatedContextId === selectedContext.id ? '#ea580c' : '#3b82f6',
+                    color: '#fff',
+                  }}
+                  onClick={() => {
+                    setIsolatedContextId((prev) => (prev === selectedContext.id ? null : selectedContext.id));
+                  }}
+                  title={isolatedContextId === selectedContext.id ? 'Show all contexts' : 'Isolate this context and direct connections'}
+                >
+                  {isolatedContextId === selectedContext.id ? '↩️ Show All' : '🎯 Isolate'}
+                </button>
+                <button
+                  className="drawer-close-btn"
+                  onClick={() => setSelectedContext(null)}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="drawer-content">

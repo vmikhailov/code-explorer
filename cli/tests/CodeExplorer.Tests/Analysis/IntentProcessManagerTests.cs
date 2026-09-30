@@ -66,14 +66,18 @@ public class IntentProcessManagerTests
     [Test]
     public void AcquireLock_WhenAlreadyAcquiredByCurrentProcess_ShouldFailWithErrorMessage()
     {
-        using var firstHandle = IntentProcessManager.TryAcquireLock(_tempWorkspace, out var firstError);
-        Assert.That(firstHandle, Is.Not.Null);
-        Assert.That(firstError, Is.Null);
+        using (var firstHandle = IntentProcessManager.TryAcquireLock(_tempWorkspace, out var firstError))
+        {
+            Assert.That(firstHandle, Is.Not.Null);
+            Assert.That(firstError, Is.Null);
 
-        using var secondHandle = IntentProcessManager.TryAcquireLock(_tempWorkspace, out var secondError);
-        Assert.That(secondHandle, Is.Null);
-        Assert.That(secondError, Is.Not.Null);
-        Assert.That(secondError, Does.Contain(Environment.ProcessId.ToString()));
+            using (var secondHandle = IntentProcessManager.TryAcquireLock(_tempWorkspace, out var secondError))
+            {
+                Assert.That(secondHandle, Is.Null);
+                Assert.That(secondError, Is.Not.Null);
+                Assert.That(secondError, Does.Contain(Environment.ProcessId.ToString()));
+            }
+        }
     }
 
     [Test]

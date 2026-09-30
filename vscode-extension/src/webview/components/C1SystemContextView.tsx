@@ -932,6 +932,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
       container: cyContainerRef.current,
       elements,
       boxSelectionEnabled: false,
+      userZoomingEnabled: false,
       style: [
         {
           selector: 'node',
@@ -1138,10 +1139,16 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
     layout.run();
     cyInstanceRef.current = cy;
 
+    let cyRafId: number | null = null;
     const handleViewportChange = () => {
-      setCyTransform({ pan: { ...cy.pan() }, zoom: cy.zoom() });
+      if (cyRafId !== null) return;
+      cyRafId = requestAnimationFrame(() => {
+        cyRafId = null;
+        if (!cyInstanceRef.current) return;
+        setCyTransform({ pan: { ...cyInstanceRef.current.pan() }, zoom: cyInstanceRef.current.zoom() });
+      });
     };
-    cy.on('pan zoom resize render', handleViewportChange);
+    cy.on('pan zoom resize', handleViewportChange);
     const tm = setTimeout(handleViewportChange, 60);
 
     const cleanupWheel = cyContainerRef.current
@@ -1149,6 +1156,10 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
       : () => {};
 
     return () => {
+      if (cyRafId !== null) {
+        cancelAnimationFrame(cyRafId);
+        cyRafId = null;
+      }
       cleanupWheel();
       clearTimeout(tm);
       cy.destroy();
@@ -1242,25 +1253,35 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
     };
   }, [variant, mermaidSource]);
 
-  // Mermaid Pan & Zoom Handlers
+  // Mermaid Pan & Zoom Handlers with refs to avoid stale closures
+  const mermaidZoomRef = useRef(mermaidZoom);
+  mermaidZoomRef.current = mermaidZoom;
+  const mermaidPanRef = useRef(mermaidPan);
+  mermaidPanRef.current = mermaidPan;
+
   const handleMermaidWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const container = mermaidContainerRef.current;
     if (!container) return;
 
+    const currentZoom = mermaidZoomRef.current;
+    const currentPan = mermaidPanRef.current;
+
     const factor = calculateNormalizedZoomFactor(e, 1.0);
-    const newZoom = Math.min(3.0, Math.max(0.2, mermaidZoom * factor));
+    const newZoom = Math.min(3.0, Math.max(0.2, currentZoom * factor));
 
     const rect = container.getBoundingClientRect();
     const newPan = calculateAnchorPan(
       e.clientX,
       e.clientY,
       rect,
-      mermaidPan,
-      mermaidZoom,
+      currentPan,
+      currentZoom,
       newZoom
     );
 
+    mermaidZoomRef.current = newZoom;
+    mermaidPanRef.current = newPan;
     setMermaidZoom(newZoom);
     setMermaidPan(newPan);
   };
@@ -1269,17 +1290,19 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
     if (e.button !== 0) return;
     isDraggingMermaidRef.current = true;
     mermaidDragStartRef.current = {
-      x: e.clientX - mermaidPan.x,
-      y: e.clientY - mermaidPan.y,
+      x: e.clientX - mermaidPanRef.current.x,
+      y: e.clientY - mermaidPanRef.current.y,
     };
   };
 
   const handleMermaidMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingMermaidRef.current) return;
-    setMermaidPan({
+    const newPan = {
       x: e.clientX - mermaidDragStartRef.current.x,
       y: e.clientY - mermaidDragStartRef.current.y,
-    });
+    };
+    mermaidPanRef.current = newPan;
+    setMermaidPan(newPan);
   };
 
   const handleMermaidMouseUp = () => {
@@ -1287,6 +1310,8 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
   };
 
   const handleResetMermaid = () => {
+    mermaidZoomRef.current = 1;
+    mermaidPanRef.current = { x: 0, y: 0 };
     setMermaidZoom(1);
     setMermaidPan({ x: 0, y: 0 });
   };

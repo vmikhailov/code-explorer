@@ -162,18 +162,25 @@ public class InventoryRepository
     private async Task<List<Dictionary<string, string>>> QueryAsync(string cypher)
     {
         var json = await _client.ExecuteQueryAsync(cypher);
-        using var doc = JsonDocument.Parse(json);
-        var result = new List<Dictionary<string, string>>();
-        foreach (var item in doc.RootElement.EnumerateArray())
+
+        using (var doc = JsonDocument.Parse(json))
         {
-            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var prop in item.EnumerateObject())
+            var result = new List<Dictionary<string, string>>();
+
+            foreach (var item in doc.RootElement.EnumerateArray())
             {
-                dict[prop.Name] = prop.Value.ToString();
+                var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var prop in item.EnumerateObject())
+                {
+                    dict[prop.Name] = prop.Value.ToString();
+                }
+
+                result.Add(dict);
             }
-            result.Add(dict);
+
+            return result;
         }
-        return result;
     }
 
     [Test]

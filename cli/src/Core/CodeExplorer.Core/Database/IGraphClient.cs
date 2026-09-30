@@ -40,6 +40,12 @@ public interface IGraphClient : IAsyncDisposable
     Task<List<ProjectSignature>> LoadProjectSignaturesAsync(
         string workspaceId,
         CancellationToken cancellationToken = default) =>
+        LoadProjectSignaturesAsync(workspaceId, workloadsOnly: false, cancellationToken);
+
+    Task<List<ProjectSignature>> LoadProjectSignaturesAsync(
+        string workspaceId,
+        bool workloadsOnly,
+        CancellationToken cancellationToken = default) =>
         Task.FromResult(new List<ProjectSignature>());
 
     Task SaveProjectIntentsAsync(
@@ -147,7 +153,11 @@ public record ProjectSignature(
     List<string> Topics,
     List<string> DomainTypes,
     string? ExistingDomain = null,
-    string? ExistingRole = null
+    string? ExistingRole = null,
+    string? Role = null,
+    List<string>? ReferencedLibraries = null,
+    List<string>? InboundCallers = null,
+    List<string>? OutboundCalls = null
 );
 
 public record IntentCandidate(string Id, string Kind, string Name, string RelativePath, string? FullPath);

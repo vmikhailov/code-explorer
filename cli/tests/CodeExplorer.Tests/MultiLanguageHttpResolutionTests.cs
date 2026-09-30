@@ -38,12 +38,15 @@ public class MultiLanguageHttpResolutionTests
             var client = new InMemoryGraphClient();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
-            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using (var syntaxTree =
+                   await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath))
+            {
+                Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
-            var extServices = new List<ExternalServiceNode>();
-            FindNodes(syntaxTree.FileNode.Children, extServices);
-            return extServices;
+                var extServices = new List<ExternalServiceNode>();
+                FindNodes(syntaxTree.FileNode.Children, extServices);
+                return extServices;
+            }
         }
         finally
         {

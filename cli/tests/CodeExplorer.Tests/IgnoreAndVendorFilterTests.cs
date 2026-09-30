@@ -69,18 +69,21 @@ Scripts/vendor/
             await File.WriteAllTextAsync(Path.Combine(customDir, "MyController.js"), "class MyController {}");
 
             var dbPath = Path.Combine(tempDir, "test_graph.db");
-            await using var client = new SqliteGraphClient(dbPath);
-            WorkspaceIndexer.Register(new JavaScriptParser());
 
-            var indexer = new WorkspaceIndexer(client);
-            var results = await indexer.IndexAsync(tempDir, tempDir, clear: true);
+            await using (var client = new SqliteGraphClient(dbPath))
+            {
+                WorkspaceIndexer.Register(new JavaScriptParser());
 
-            var filesQuery = "MATCH (f:File) RETURN f.path AS path";
-            var queryResult = await client.ExecuteQueryAsync(filesQuery);
+                var indexer = new WorkspaceIndexer(client);
+                var results = await indexer.IndexAsync(tempDir, tempDir, clear: true);
 
-            Assert.That(queryResult, Contains.Substring("MyController.js"));
-            Assert.That(queryResult, Does.Not.Contain("editor.js"));
-            Assert.That(queryResult, Does.Not.Contain("app.d.ts"));
+                var filesQuery = "MATCH (f:File) RETURN f.path AS path";
+                var queryResult = await client.ExecuteQueryAsync(filesQuery);
+
+                Assert.That(queryResult, Contains.Substring("MyController.js"));
+                Assert.That(queryResult, Does.Not.Contain("editor.js"));
+                Assert.That(queryResult, Does.Not.Contain("app.d.ts"));
+            }
         }
         finally
         {

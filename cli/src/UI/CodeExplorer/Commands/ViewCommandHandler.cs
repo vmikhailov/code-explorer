@@ -21,63 +21,61 @@ public static class ViewCommandHandler
             return 1;
         }
 
-        await using var client = new SqliteGraphClient(ws.DbPath);
-
-        if (opts.Target.Equals("layers", StringComparison.OrdinalIgnoreCase) ||
-            opts.Target.Equals("ontology", StringComparison.OrdinalIgnoreCase))
+        await using (var client = new SqliteGraphClient(ws.DbPath))
         {
-            var engine = new ArchitectureViewEngine(client);
-            var layersDto = await engine.GetOntologyLayersAsync();
-
-            if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
+            if (opts.Target.Equals("layers", StringComparison.OrdinalIgnoreCase) ||
+                opts.Target.Equals("ontology", StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine(JsonSerializer.Serialize(layersDto, new JsonSerializerOptions { WriteIndented = true }));
+                var engine = new ArchitectureViewEngine(client);
+                var layersDto = await engine.GetOntologyLayersAsync();
+
+                if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(layersDto,
+                        new JsonSerializerOptions { WriteIndented = true }));
+                    return 0;
+                }
+
+                Console.WriteLine("## Semantic Graph Ontology Layers\n");
+
+                foreach (var layer in layersDto.Layers)
+                {
+                    Console.WriteLine($"### Layer {layer.LayerId}: {layer.Name} ({layer.TotalCount:N0} elements)");
+
+                    foreach (var cat in layer.Categories)
+                    {
+                        Console.WriteLine($"- **{cat.Label}**: {cat.Count:N0} ({cat.Icon})");
+                    }
+
+                    Console.WriteLine();
+                }
+
                 return 0;
             }
 
-            Console.WriteLine("## Semantic Graph Ontology Layers\n");
-            foreach (var layer in layersDto.Layers)
+            var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
+            string output;
+
+            if (opts.Target.Equals("contexts", StringComparison.OrdinalIgnoreCase) ||
+                opts.Target.Equals("bounded-contexts", StringComparison.OrdinalIgnoreCase) ||
+                opts.Target.Equals("context-map", StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"### Layer {layer.LayerId}: {layer.Name} ({layer.TotalCount:N0} elements)");
-                foreach (var cat in layer.Categories)
-                {
-                    Console.WriteLine($"- **{cat.Label}**: {cat.Count:N0} ({cat.Icon})");
-                }
-                Console.WriteLine();
+                output = await repository.GetBoundedContextsAsync(format: opts.Format, workspacePath: ws.RootDirectory);
             }
+            else if (opts.Target.Equals("domain", StringComparison.OrdinalIgnoreCase) ||
+                     opts.Target.Equals("domains", StringComparison.OrdinalIgnoreCase))
+            {
+                output = await repository.GetDomainArchitectureAsync(includeLibraries: opts.IncludeLibraries,
+                    format: opts.Format, workspacePath: ws.RootDirectory);
+            }
+            else
+            {
+                output = await repository.GetArchitectureViewAsync(level: opts.Level, scope: opts.Scope,
+                    includeLibraries: opts.IncludeLibraries, format: opts.Format, workspacePath: ws.RootDirectory);
+            }
+
+            Console.WriteLine(output);
             return 0;
         }
-
-        var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
-        string output;
-
-        if (opts.Target.Equals("contexts", StringComparison.OrdinalIgnoreCase) ||
-            opts.Target.Equals("bounded-contexts", StringComparison.OrdinalIgnoreCase) ||
-            opts.Target.Equals("context-map", StringComparison.OrdinalIgnoreCase))
-        {
-            output = await repository.GetBoundedContextsAsync(
-                format: opts.Format,
-                workspacePath: ws.RootDirectory);
-        }
-        else if (opts.Target.Equals("domain", StringComparison.OrdinalIgnoreCase) ||
-                 opts.Target.Equals("domains", StringComparison.OrdinalIgnoreCase))
-        {
-            output = await repository.GetDomainArchitectureAsync(
-                includeLibraries: opts.IncludeLibraries,
-                format: opts.Format,
-                workspacePath: ws.RootDirectory);
-        }
-        else
-        {
-            output = await repository.GetArchitectureViewAsync(
-                level: opts.Level,
-                scope: opts.Scope,
-                includeLibraries: opts.IncludeLibraries,
-                format: opts.Format,
-                workspacePath: ws.RootDirectory);
-        }
-
-        Console.WriteLine(output);
-        return 0;
     }
 }

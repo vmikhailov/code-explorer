@@ -105,35 +105,47 @@ public class RealQueriesTests
         var dbPath = Path.Combine(dir!.FullName, ".codeexplorer", "graph.db");
         if (!File.Exists(dbPath)) return;
 
-        using var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
-        conn.Open();
-        Shared.SqliteCypherFunctions.Register(conn);
-
-        // Find workspaces
-        using (var cmd = conn.CreateCommand())
+        using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={dbPath};Mode=ReadOnly"))
         {
-            cmd.CommandText = "SELECT id, json_extract(properties, '$.name'), json_extract(properties, '$.path') FROM nodes WHERE kind = 'Workspace';";
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            conn.Open();
+            Shared.SqliteCypherFunctions.Register(conn);
+
+            // Find workspaces
+            using (var cmd = conn.CreateCommand())
             {
+                cmd.CommandText =
+                    "SELECT id, json_extract(properties, '$.name'), json_extract(properties, '$.path') FROM nodes WHERE kind = 'Workspace';";
+
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                    }
+                }
             }
-        }
 
-        var filePath = Path.Combine(_queriesDir, "get_architecture_map_workspace.cypher");
-        var rawText = File.ReadAllText(filePath);
-        var ast = CypherQueryParser.Parse(rawText);
-        var compiled = SqliteCompiler.Compile(ast);
+            var filePath = Path.Combine(_queriesDir, "get_architecture_map_workspace.cypher");
+            var rawText = File.ReadAllText(filePath);
+            var ast = CypherQueryParser.Parse(rawText);
+            var compiled = SqliteCompiler.Compile(ast);
 
-        // Measure execution time of compiled query
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        using (var cmd = conn.CreateCommand())
-        {
-            cmd.CommandText = compiled.Sql;
-            using var reader = cmd.ExecuteReader();
-            int rows = 0;
-            while (reader.Read()) rows++;
-            sw.Stop();
-            Assert.That(sw.ElapsedMilliseconds, Is.LessThan(1000), $"Query took {sw.ElapsedMilliseconds}ms, expected under 1000ms");
+            // Measure execution time of compiled query
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = compiled.Sql;
+
+                using (var reader = cmd.ExecuteReader())
+                {
+                    int rows = 0;
+                    while (reader.Read()) rows++;
+                    sw.Stop();
+
+                    Assert.That(sw.ElapsedMilliseconds, Is.LessThan(1000),
+                        $"Query took {sw.ElapsedMilliseconds}ms, expected under 1000ms");
+                }
+            }
         }
     }
 

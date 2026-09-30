@@ -16,29 +16,25 @@ public class NodeSelectorTests
     public async Task Test_NodeSelector_HasType_And_FirstChild_And_GetChildForField(string filePath)
     {
         var workspacePath = Path.GetDirectoryName(filePath)!;
-        using var syntaxTree = await SyntaxTree.ParseAsync(filePath, "decorator_test.ts", "parent-id", _parser, "ws-id", workspacePath);
-        var root = syntaxTree.Tree?.RootNode;
 
-        var decoratorNode = FindNode(root, "decorator");
-        Assert.That(decoratorNode, Is.Not.Null);
+        using (var syntaxTree = await SyntaxTree.ParseAsync(filePath, "decorator_test.ts", "parent-id", _parser,
+                   "ws-id", workspacePath))
+        {
+            var root = syntaxTree.Tree?.RootNode;
 
-        var selector = NodeSelector.New()
-            .HasType("decorator")
-            .FirstChild
-            .HasType("call_expression")
-            .GetChildForField("function")
-            .Text("Controller|Get|Post|Put|Delete|Patch|SubscribeMessage");
+            var decoratorNode = FindNode(root, "decorator");
+            Assert.That(decoratorNode, Is.Not.Null);
 
-        Assert.That(selector.Matches(decoratorNode), Is.True);
+            var selector = NodeSelector.New().HasType("decorator").FirstChild.HasType("call_expression")
+                .GetChildForField("function").Text("Controller|Get|Post|Put|Delete|Patch|SubscribeMessage");
 
-        var selectorFalse = NodeSelector.New()
-            .HasType("decorator")
-            .FirstChild
-            .HasType("call_expression")
-            .GetChildForField("function")
-            .Text("Get|Post");
+            Assert.That(selector.Matches(decoratorNode), Is.True);
 
-        Assert.That(selectorFalse.Matches(decoratorNode), Is.False);
+            var selectorFalse = NodeSelector.New().HasType("decorator").FirstChild.HasType("call_expression")
+                .GetChildForField("function").Text("Get|Post");
+
+            Assert.That(selectorFalse.Matches(decoratorNode), Is.False);
+        }
     }
 
     [Test]
@@ -46,43 +42,38 @@ public class NodeSelectorTests
     public async Task Test_NodeSelector_Or_And_HasChild_And_FunctionNode(string filePath)
     {
         var workspacePath = Path.GetDirectoryName(filePath)!;
-        using var syntaxTree = await SyntaxTree.ParseAsync(filePath, "express_and_axios_test.ts", "parent-id", _parser, "ws-id", workspacePath);
-        var root = syntaxTree.Tree?.RootNode;
 
-        // Express route selector test
-        var expressCallNode = FindNode(root, "call_expression");
-        Assert.That(expressCallNode, Is.Not.Null);
+        using (var syntaxTree = await SyntaxTree.ParseAsync(filePath, "express_and_axios_test.ts", "parent-id", _parser,
+                   "ws-id", workspacePath))
+        {
+            var root = syntaxTree.Tree?.RootNode;
 
-        var expressSelector = NodeSelector.New()
-            .HasType("call_expression")
-            .FunctionNode
-            .HasType("member_expression")
-            .HasChild("object", NodeSelector.New().TextContains("app|router|express"))
-            .HasChild("property", NodeSelector.New().Text("get|post|put|delete"));
+            // Express route selector test
+            var expressCallNode = FindNode(root, "call_expression");
+            Assert.That(expressCallNode, Is.Not.Null);
 
-        Assert.That(expressSelector.Matches(expressCallNode), Is.True);
+            var expressSelector = NodeSelector.New().HasType("call_expression").FunctionNode
+                .HasType("member_expression").HasChild("object", NodeSelector.New().TextContains("app|router|express"))
+                .HasChild("property", NodeSelector.New().Text("get|post|put|delete"));
 
-        // HttpClientCallSelector test
-        var fetchCallNode = FindNode(root, "call_expression", "fetch");
-        Assert.That(fetchCallNode, Is.Not.Null);
+            Assert.That(expressSelector.Matches(expressCallNode), Is.True);
 
-        var axiosCallNode = FindNode(root, "call_expression", "axios.post");
-        Assert.That(axiosCallNode, Is.Not.Null);
+            // HttpClientCallSelector test
+            var fetchCallNode = FindNode(root, "call_expression", "fetch");
+            Assert.That(fetchCallNode, Is.Not.Null);
 
-        var httpClientCallSelector = NodeSelector.New()
-            .HasType("call_expression")
-            .FunctionNode
-            .Where(NodeSelector.Or(
-                NodeSelector.New().HasType("identifier").Text("fetch"),
-                NodeSelector.New()
-                    .HasType("member_expression")
-                    .HasChild("object", NodeSelector.New().Text("axios"))
-                    .HasChild("property", NodeSelector.New().Text("get|post|put|delete|request"))
-            ));
+            var axiosCallNode = FindNode(root, "call_expression", "axios.post");
+            Assert.That(axiosCallNode, Is.Not.Null);
 
-        Assert.That(httpClientCallSelector.Matches(fetchCallNode), Is.True);
-        Assert.That(httpClientCallSelector.Matches(axiosCallNode), Is.True);
-        Assert.That(httpClientCallSelector.Matches(expressCallNode), Is.False);
+            var httpClientCallSelector = NodeSelector.New().HasType("call_expression").FunctionNode.Where(
+                NodeSelector.Or(NodeSelector.New().HasType("identifier").Text("fetch"),
+                    NodeSelector.New().HasType("member_expression").HasChild("object", NodeSelector.New().Text("axios"))
+                        .HasChild("property", NodeSelector.New().Text("get|post|put|delete|request"))));
+
+            Assert.That(httpClientCallSelector.Matches(fetchCallNode), Is.True);
+            Assert.That(httpClientCallSelector.Matches(axiosCallNode), Is.True);
+            Assert.That(httpClientCallSelector.Matches(expressCallNode), Is.False);
+        }
     }
 
     [Test]
@@ -90,19 +81,21 @@ public class NodeSelectorTests
     public async Task Test_NodeSelector_Select(string filePath)
     {
         var workspacePath = Path.GetDirectoryName(filePath)!;
-        using var syntaxTree = await SyntaxTree.ParseAsync(filePath, "select_test.ts", "parent-id", _parser, "ws-id", workspacePath);
-        var root = syntaxTree.Tree?.RootNode;
 
-        var callNode = FindNode(root, "call_expression");
-        Assert.That(callNode, Is.Not.Null);
+        using (var syntaxTree =
+               await SyntaxTree.ParseAsync(filePath, "select_test.ts", "parent-id", _parser, "ws-id", workspacePath))
+        {
+            var root = syntaxTree.Tree?.RootNode;
 
-        var propertySelector = NodeSelector.New()
-            .FunctionNode
-            .GetChildForField("property");
+            var callNode = FindNode(root, "call_expression");
+            Assert.That(callNode, Is.Not.Null);
 
-        var propNode = propertySelector.Select(callNode);
-        Assert.That(propNode, Is.Not.Null);
-        Assert.That(propNode!.Text, Is.EqualTo("get"));
+            var propertySelector = NodeSelector.New().FunctionNode.GetChildForField("property");
+
+            var propNode = propertySelector.Select(callNode);
+            Assert.That(propNode, Is.Not.Null);
+            Assert.That(propNode!.Text, Is.EqualTo("get"));
+        }
     }
 
     private Node? FindNode(Node? node, string type, string? functionTextName = null)

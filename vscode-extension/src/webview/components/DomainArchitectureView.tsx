@@ -2095,10 +2095,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       elements: [],
       style: CYTOSCAPE_STYLES,
       boxSelectionEnabled: false,
+      userZoomingEnabled: false,
       autoungrabify: false,
       minZoom: 0.15,
       maxZoom: 3.5,
-      wheelSensitivity: wheelSensitivityRef.current,
     });
 
     // Node Selection & Highlight
@@ -2181,11 +2181,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     });
 
     // Viewport transform listener to keep HUD percentage and SVG guides synchronized
+    let syncRafId: number | null = null;
     const handleViewportSync = () => {
-      setCurrentZoom(cy.zoom());
-      setCyTransform({ pan: { ...cy.pan() }, zoom: cy.zoom() });
+      if (syncRafId !== null) return;
+      syncRafId = requestAnimationFrame(() => {
+        syncRafId = null;
+        if (!cyRef.current) return;
+        const z = cyRef.current.zoom();
+        const p = cyRef.current.pan();
+        setCurrentZoom(z);
+        setCyTransform({ pan: { x: p.x, y: p.y }, zoom: z });
+      });
     };
-    cy.on('zoom pan resize render', handleViewportSync);
+    cy.on('pan zoom resize', handleViewportSync);
     cy.on('layoutstop', () => {
       applyEdgeCurveMode(cy, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
     });
@@ -2215,6 +2223,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       : () => {};
 
     return () => {
+      if (syncRafId !== null) {
+        cancelAnimationFrame(syncRafId);
+        syncRafId = null;
+      }
       cleanupWheel();
       cy.destroy();
       cyRef.current = null;

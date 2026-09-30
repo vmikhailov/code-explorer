@@ -56,21 +56,27 @@ public class JavaScriptParser : IProjectParser, IFileParser
         try
         {
             var content = await File.ReadAllTextAsync(packageJsonPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-            var root = doc.RootElement;
 
-            if (root.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+            using (var doc = System.Text.Json.JsonDocument.Parse(content))
             {
-                var name = nameProp.GetString();
-                if (string.IsNullOrEmpty(name)) return null;
+                var root = doc.RootElement;
 
-                var version = "1.0.0";
-                if (root.TryGetProperty("version", out var versionProp) && versionProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                if (root.TryGetProperty("name", out var nameProp) &&
+                    nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
                 {
-                    version = versionProp.GetString() ?? "1.0.0";
-                }
+                    var name = nameProp.GetString();
+                    if (string.IsNullOrEmpty(name)) return null;
 
-                return new ProducedPackageInfo(name, version, "npm");
+                    var version = "1.0.0";
+
+                    if (root.TryGetProperty("version", out var versionProp) &&
+                        versionProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        version = versionProp.GetString() ?? "1.0.0";
+                    }
+
+                    return new ProducedPackageInfo(name, version, "npm");
+                }
             }
         }
         catch
@@ -95,44 +101,56 @@ public class JavaScriptParser : IProjectParser, IFileParser
         try
         {
             var content = await File.ReadAllTextAsync(packageJsonPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-            var root = doc.RootElement;
 
-            var depProperties = new[] { "dependencies", "devDependencies" };
-            foreach (var propName in depProperties)
+            using (var doc = System.Text.Json.JsonDocument.Parse(content))
             {
-                if (root.TryGetProperty(propName, out var depsObj) && depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
-                {
-                    foreach (var prop in depsObj.EnumerateObject())
-                    {
-                        var packageName = prop.Name;
-                        var packageVersion = prop.Value.GetString() ?? "unknown";
+                var root = doc.RootElement;
 
-                        // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
-                        if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
-                            (packageVersion.StartsWith("workspace:", StringComparison.Ordinal) && (packageVersion.Contains('/') || packageVersion.Contains('\\'))))
+                var depProperties = new[] { "dependencies", "devDependencies" };
+
+                foreach (var propName in depProperties)
+                {
+                    if (root.TryGetProperty(propName, out var depsObj) &&
+                        depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        foreach (var prop in depsObj.EnumerateObject())
                         {
-                            var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
-                            if (!string.IsNullOrEmpty(relativePath) && (relativePath.StartsWith('.') || relativePath.StartsWith('/') || relativePath.StartsWith('\\')))
+                            var packageName = prop.Name;
+                            var packageVersion = prop.Value.GetString() ?? "unknown";
+
+                            // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
+                            if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
+                                (packageVersion.StartsWith("workspace:", StringComparison.Ordinal) &&
+                                 (packageVersion.Contains('/') || packageVersion.Contains('\\'))))
                             {
-                                try
+                                var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
+
+                                if (!string.IsNullOrEmpty(relativePath) && (relativePath.StartsWith('.') ||
+                                                                            relativePath.StartsWith('/') ||
+                                                                            relativePath.StartsWith('\\')))
                                 {
-                                    var referencedDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!, relativePath)).Replace('\\', '/');
-                                    if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
+                                    try
                                     {
-                                        localProjectPaths.Add(referencedDir);
-                                        continue;
+                                        var referencedDir =
+                                            Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!,
+                                                relativePath)).Replace('\\', '/');
+
+                                        if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
+                                        {
+                                            localProjectPaths.Add(referencedDir);
+                                            continue;
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        // Fallback to external package
                                     }
                                 }
-                                catch
-                                {
-                                    // Fallback to external package
-                                }
                             }
-                        }
 
-                        // Treat as npm package reference
-                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm"));
+                            // Treat as npm package reference
+                            externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm"));
+                        }
                     }
                 }
             }

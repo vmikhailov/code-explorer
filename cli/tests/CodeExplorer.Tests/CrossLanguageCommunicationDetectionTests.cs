@@ -397,82 +397,134 @@ public class CrossLanguageCommunicationDetectionTests
         try
         {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
-            using var db = new SqliteGraphClient(dbPath);
 
             // Seed Projects, Libraries, Databases, ExternalServices
-            var nodes = new List<Node>
+            using (var db = new SqliteGraphClient(dbPath))
             {
-                new("proj:gateway", "Project", new Dictionary<string, object> { ["name"] = "GatewayService", ["path"] = "/src/gateway", ["project_type"] = "typescript" }),
-                new("proj:auth", "Project", new Dictionary<string, object> { ["name"] = "AuthService", ["path"] = "/src/auth", ["project_type"] = "csharp" }),
-                new("proj:order", "Project", new Dictionary<string, object> { ["name"] = "OrderService", ["path"] = "/src/order", ["project_type"] = "go" }),
-                new("proj:common_lib", "Project", new Dictionary<string, object> { ["name"] = "CommonLib", ["path"] = "/src/libs/common", ["project_type"] = "library" }),
-                // Two projects using the same project-scoped Database
-                new("proj:gatewaydb:typeorm", "Database", new Dictionary<string, object> { ["name"] = "Database", ["db_type"] = "relational" }),
-                new("proj:authdb:typeorm", "Database", new Dictionary<string, object> { ["name"] = "Database", ["db_type"] = "relational" }),
-                // Standalone Redis DB
-                new("db:redis_cache", "Database", new Dictionary<string, object> { ["name"] = "Redis", ["db_type"] = "keyvalue" }),
-                // External Service (Messaging)
-                new("svc:kafka", "ExternalService", new Dictionary<string, object> { ["name"] = "KafkaCluster", ["service_type"] = "MessageBroker" }),
-            };
-            await db.UploadNodesAsync(nodes);
+                var nodes = new List<Node>
+                {
+                    new("proj:gateway", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "GatewayService", ["path"] = "/src/gateway", ["project_type"] = "typescript"
+                        }),
+                    new("proj:auth", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "AuthService", ["path"] = "/src/auth", ["project_type"] = "csharp"
+                        }),
+                    new("proj:order", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "OrderService", ["path"] = "/src/order", ["project_type"] = "go"
+                        }),
+                    new("proj:common_lib", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "CommonLib", ["path"] = "/src/libs/common", ["project_type"] = "library"
+                        }),
 
-            // Seed Relationships
-            var rels = new List<Relationship>
-            {
-                // Service call: Gateway -> Auth
-                new("proj:gateway", "proj:auth", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON" }),
-                // Service call: Gateway -> Order
-                new("proj:gateway", "proj:order", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON" }),
-                // Library usage: Auth -> CommonLib
-                new("proj:auth", "proj:common_lib", "DEPENDS_ON", new Dictionary<string, object> { ["dependency_type"] = "library", ["kind"] = "DEPENDS_ON" }),
-                // Database usage: Gateway -> TypeORM
-                new("proj:gateway", "proj:gatewaydb:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
-                // Database usage: Auth -> TypeORM
-                new("proj:auth", "proj:authdb:typeorm", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
-                // Database usage: Gateway -> Redis
-                new("proj:gateway", "db:redis_cache", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
-                // Messaging: Order -> Kafka
-                new("proj:order", "svc:kafka", "TRIGGERS", new Dictionary<string, object> { ["kind"] = "TRIGGERS" }),
-            };
-            await db.UploadRelationshipsAsync(rels);
+                    // Two projects using the same project-scoped Database
+                    new("proj:gatewaydb:typeorm", "Database",
+                        new Dictionary<string, object> { ["name"] = "Database", ["db_type"] = "relational" }),
+                    new("proj:authdb:typeorm", "Database",
+                        new Dictionary<string, object> { ["name"] = "Database", ["db_type"] = "relational" }),
 
-            // Execute ArchitectureViewEngine
-            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
+                    // Standalone Redis DB
+                    new("db:redis_cache", "Database",
+                        new Dictionary<string, object> { ["name"] = "Redis", ["db_type"] = "keyvalue" }),
 
-            // 1. Verify Database Consolidation (Only 1 canonical Database node instead of 2!)
-            var dbNodes = graph.Nodes.Where(n => n.Name.Equals("Database", StringComparison.OrdinalIgnoreCase)).ToList();
-            Assert.That(dbNodes, Has.Count.EqualTo(1), "Duplicate database nodes MUST be collapsed into 1 canonical node");
-            var canonicalDb = dbNodes.First();
-            Assert.That(canonicalDb.Id, Is.EqualTo("ws:db:relational:database"));
+                    // External Service (Messaging)
+                    new("svc:kafka", "ExternalService",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "KafkaCluster", ["service_type"] = "MessageBroker"
+                        }),
+                };
+                await db.UploadNodesAsync(nodes);
 
-            // 2. Verify Standalone Redis DB node preserved
-            var redisNode = graph.Nodes.FirstOrDefault(n => n.Id == "db:redis_cache");
-            Assert.That(redisNode, Is.Not.Null, "Standalone database node must be preserved");
+                // Seed Relationships
+                var rels = new List<Relationship>
+                {
+                    // Service call: Gateway -> Auth
+                    new("proj:gateway", "proj:auth", "DEPENDS_ON",
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON"
+                        }),
 
-            // 3. Verify Edge Categories
-            // Service Call
-            var svcCallEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:gateway" && e.Target == "proj:auth");
-            Assert.That(svcCallEdge, Is.Not.Null);
-            Assert.That(svcCallEdge!.Properties?["dependency_type"], Is.EqualTo("service_call"));
+                    // Service call: Gateway -> Order
+                    new("proj:gateway", "proj:order", "DEPENDS_ON",
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "service_call", ["kind"] = "DEPENDS_ON"
+                        }),
 
-            // Library
-            var libEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:auth" && e.Target == "proj:common_lib");
-            Assert.That(libEdge, Is.Not.Null);
-            Assert.That(libEdge!.Properties?["dependency_type"], Is.EqualTo("library"));
+                    // Library usage: Auth -> CommonLib
+                    new("proj:auth", "proj:common_lib", "DEPENDS_ON",
+                        new Dictionary<string, object> { ["dependency_type"] = "library", ["kind"] = "DEPENDS_ON" }),
 
-            // Consolidated Database edges
-            var gwDbEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:gateway" && e.Target == canonicalDb.Id);
-            Assert.That(gwDbEdge, Is.Not.Null, "Gateway should connect to canonical Database node");
-            Assert.That(gwDbEdge!.Properties?["dependency_type"], Is.EqualTo("database"));
+                    // Database usage: Gateway -> TypeORM
+                    new("proj:gateway", "proj:gatewaydb:typeorm", "USES_DB",
+                        new Dictionary<string, object> { ["kind"] = "USES_DB" }),
 
-            var authDbEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:auth" && e.Target == canonicalDb.Id);
-            Assert.That(authDbEdge, Is.Not.Null, "Auth should connect to canonical Database node");
-            Assert.That(authDbEdge!.Properties?["dependency_type"], Is.EqualTo("database"));
+                    // Database usage: Auth -> TypeORM
+                    new("proj:auth", "proj:authdb:typeorm", "USES_DB",
+                        new Dictionary<string, object> { ["kind"] = "USES_DB" }),
 
-            // Messaging edge
-            var msgEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:order" && e.Target == "svc:kafka");
-            Assert.That(msgEdge, Is.Not.Null, "Order should connect to Kafka ExternalService");
-            Assert.That(msgEdge!.Properties?["dependency_type"], Is.EqualTo("messaging"));
+                    // Database usage: Gateway -> Redis
+                    new("proj:gateway", "db:redis_cache", "USES_DB",
+                        new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+
+                    // Messaging: Order -> Kafka
+                    new("proj:order", "svc:kafka", "TRIGGERS",
+                        new Dictionary<string, object> { ["kind"] = "TRIGGERS" }),
+                };
+                await db.UploadRelationshipsAsync(rels);
+
+                // Execute ArchitectureViewEngine
+                var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
+
+                // 1. Verify Database Consolidation (Only 1 canonical Database node instead of 2!)
+                var dbNodes = graph.Nodes.Where(n => n.Name.Equals("Database", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                Assert.That(dbNodes, Has.Count.EqualTo(1),
+                    "Duplicate database nodes MUST be collapsed into 1 canonical node");
+                var canonicalDb = dbNodes.First();
+                Assert.That(canonicalDb.Id, Is.EqualTo("ws:db:relational:database"));
+
+                // 2. Verify Standalone Redis DB node preserved
+                var redisNode = graph.Nodes.FirstOrDefault(n => n.Id == "db:redis_cache");
+                Assert.That(redisNode, Is.Not.Null, "Standalone database node must be preserved");
+
+                // 3. Verify Edge Categories
+                // Service Call
+                var svcCallEdge =
+                    graph.Edges.FirstOrDefault(e => e.Source == "proj:gateway" && e.Target == "proj:auth");
+                Assert.That(svcCallEdge, Is.Not.Null);
+                Assert.That(svcCallEdge!.Properties?["dependency_type"], Is.EqualTo("service_call"));
+
+                // Library
+                var libEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:auth" && e.Target == "proj:common_lib");
+                Assert.That(libEdge, Is.Not.Null);
+                Assert.That(libEdge!.Properties?["dependency_type"], Is.EqualTo("library"));
+
+                // Consolidated Database edges
+                var gwDbEdge =
+                    graph.Edges.FirstOrDefault(e => e.Source == "proj:gateway" && e.Target == canonicalDb.Id);
+                Assert.That(gwDbEdge, Is.Not.Null, "Gateway should connect to canonical Database node");
+                Assert.That(gwDbEdge!.Properties?["dependency_type"], Is.EqualTo("database"));
+
+                var authDbEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:auth" && e.Target == canonicalDb.Id);
+                Assert.That(authDbEdge, Is.Not.Null, "Auth should connect to canonical Database node");
+                Assert.That(authDbEdge!.Properties?["dependency_type"], Is.EqualTo("database"));
+
+                // Messaging edge
+                var msgEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:order" && e.Target == "svc:kafka");
+                Assert.That(msgEdge, Is.Not.Null, "Order should connect to Kafka ExternalService");
+                Assert.That(msgEdge!.Properties?["dependency_type"], Is.EqualTo("messaging"));
+            }
         }
         finally
         {
@@ -488,83 +540,149 @@ public class CrossLanguageCommunicationDetectionTests
         try
         {
             var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
-            using var db = new SqliteGraphClient(dbPath);
 
             // 1. Seed Nodes: Services, Libraries, Files, Databases
-            var nodes = new List<Node>
+            using (var db = new SqliteGraphClient(dbPath))
             {
-                new("proj:svc_order", "Project", new Dictionary<string, object> { ["name"] = "order-service", ["path"] = "services/order-service", ["project_type"] = "typescript" }),
-                new("proj:svc_billing", "Project", new Dictionary<string, object> { ["name"] = "billing-service", ["path"] = "services/billing-service", ["project_type"] = "csharp" }),
-                new("proj:lib_data", "Project", new Dictionary<string, object> { ["name"] = "data-access-lib", ["path"] = "libs/data-access", ["project_type"] = "library" }),
-                new("proj:lib_billing_client", "Project", new Dictionary<string, object> { ["name"] = "billing-client", ["path"] = "libs/billing-client", ["project_type"] = "library" }),
-                new("workspace:file:services/order-service/src/entities/order.entity.ts", "File", new Dictionary<string, object> { ["name"] = "order.entity.ts", ["path"] = "services/order-service/src/entities/order.entity.ts" }),
-                new("db:postgres", "Database", new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" }),
-                new("workspace:project:data-access-lib:db:mysql", "Database", new Dictionary<string, object> { ["name"] = "MySQL", ["db_type"] = "relational" }),
-            };
-            await db.UploadNodesAsync(nodes);
+                var nodes = new List<Node>
+                {
+                    new("proj:svc_order", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "order-service",
+                            ["path"] = "services/order-service",
+                            ["project_type"] = "typescript"
+                        }),
+                    new("proj:svc_billing", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "billing-service",
+                            ["path"] = "services/billing-service",
+                            ["project_type"] = "csharp"
+                        }),
+                    new("proj:lib_data", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "data-access-lib",
+                            ["path"] = "libs/data-access",
+                            ["project_type"] = "library"
+                        }),
+                    new("proj:lib_billing_client", "Project",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "billing-client",
+                            ["path"] = "libs/billing-client",
+                            ["project_type"] = "library"
+                        }),
+                    new("workspace:file:services/order-service/src/entities/order.entity.ts", "File",
+                        new Dictionary<string, object>
+                        {
+                            ["name"] = "order.entity.ts",
+                            ["path"] = "services/order-service/src/entities/order.entity.ts"
+                        }),
+                    new("db:postgres", "Database",
+                        new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" }),
+                    new("workspace:project:data-access-lib:db:mysql", "Database",
+                        new Dictionary<string, object> { ["name"] = "MySQL", ["db_type"] = "relational" }),
+                };
+                await db.UploadNodesAsync(nodes);
 
-            // 2. Seed Relationships:
-            // - File-level DB: order.entity.ts -[USES_DB]-> db:postgres
-            // - Library DB: data-access-lib -[USES_DB]-> TypeORM
-            // - Svc uses Library: order-service -[DEPENDS_ON]-> data-access-lib
-            // - Svc uses Client Lib: order-service -[DEPENDS_ON]-> billing-client
-            // - Client Lib calls billing: billing-client -[DEPENDS_ON]-> billing-service
-            var rels = new List<Relationship>
-            {
-                new("workspace:file:services/order-service/src/entities/order.entity.ts", "db:postgres", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
-                new("proj:lib_data", "workspace:project:data-access-lib:db:mysql", "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
-                new("proj:svc_order", "proj:lib_data", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "library" }),
-                new("proj:svc_order", "proj:lib_billing_client", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "library" }),
-                new("proj:lib_billing_client", "proj:svc_billing", "DEPENDS_ON", new Dictionary<string, object> { ["kind"] = "DEPENDS_ON", ["dependency_type"] = "service_call" }),
-            };
-            await db.UploadRelationshipsAsync(rels);
+                // 2. Seed Relationships:
+                // - File-level DB: order.entity.ts -[USES_DB]-> db:postgres
+                // - Library DB: data-access-lib -[USES_DB]-> TypeORM
+                // - Svc uses Library: order-service -[DEPENDS_ON]-> data-access-lib
+                // - Svc uses Client Lib: order-service -[DEPENDS_ON]-> billing-client
+                // - Client Lib calls billing: billing-client -[DEPENDS_ON]-> billing-service
+                var rels = new List<Relationship>
+                {
+                    new("workspace:file:services/order-service/src/entities/order.entity.ts", "db:postgres",
+                        "USES_DB", new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                    new("proj:lib_data", "workspace:project:data-access-lib:db:mysql", "USES_DB",
+                        new Dictionary<string, object> { ["kind"] = "USES_DB" }),
+                    new("proj:svc_order", "proj:lib_data", "DEPENDS_ON",
+                        new Dictionary<string, object>
+                        {
+                            ["kind"] = "DEPENDS_ON", ["dependency_type"] = "library"
+                        }),
+                    new("proj:svc_order", "proj:lib_billing_client", "DEPENDS_ON",
+                        new Dictionary<string, object>
+                        {
+                            ["kind"] = "DEPENDS_ON", ["dependency_type"] = "library"
+                        }),
+                    new("proj:lib_billing_client", "proj:svc_billing", "DEPENDS_ON",
+                        new Dictionary<string, object>
+                        {
+                            ["kind"] = "DEPENDS_ON", ["dependency_type"] = "service_call"
+                        }),
+                };
+                await db.UploadRelationshipsAsync(rels);
 
-            // 3. Convert to Architecture Graph
-            var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
+                // 3. Convert to Architecture Graph
+                var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
-            // Assert Entity Classifications
-            var orderNode = graph.Nodes.First(n => n.Id == "proj:svc_order");
-            Assert.That(orderNode.Properties?["entity_type"], Is.EqualTo("service"), "Order service must be classified as service");
-            Assert.That(orderNode.Properties?["is_semantic_entity"], Is.EqualTo("true"));
-            Assert.That(orderNode.Properties?["is_library"], Is.EqualTo("false"));
+                // Assert Entity Classifications
+                var orderNode = graph.Nodes.First(n => n.Id == "proj:svc_order");
 
-            var dataLibNode = graph.Nodes.First(n => n.Id == "proj:lib_data");
-            Assert.That(dataLibNode.Properties?["entity_type"], Is.EqualTo("library"), "Data access must be classified as library");
-            Assert.That(dataLibNode.Properties?["is_semantic_entity"], Is.EqualTo("false"));
-            Assert.That(dataLibNode.Properties?["is_library"], Is.EqualTo("true"));
+                Assert.That(orderNode.Properties?["entity_type"], Is.EqualTo("service"),
+                    "Order service must be classified as service");
+                Assert.That(orderNode.Properties?["is_semantic_entity"], Is.EqualTo("true"));
+                Assert.That(orderNode.Properties?["is_library"], Is.EqualTo("false"));
 
-            var pgNode = graph.Nodes.First(n => n.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase));
-            Assert.That(pgNode.Properties?["entity_type"], Is.EqualTo("database"));
-            Assert.That(pgNode.Properties?["is_semantic_entity"], Is.EqualTo("true"));
+                var dataLibNode = graph.Nodes.First(n => n.Id == "proj:lib_data");
 
-            // 4. Assert Direct File-to-Project DB Resolution:
-            // order.entity.ts used db:postgres -> order-service must have USES_DB -> PostgreSQL
-            var orderToPg = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_order" && e.Target == pgNode.Id && e.Kind == "USES_DB");
-            Assert.That(orderToPg, Is.Not.Null, "File-level database usage must resolve directly to owning order-service");
-            Assert.That(orderToPg!.Properties?["is_semantic"], Is.EqualTo("true"));
+                Assert.That(dataLibNode.Properties?["entity_type"], Is.EqualTo("library"),
+                    "Data access must be classified as library");
+                Assert.That(dataLibNode.Properties?["is_semantic_entity"], Is.EqualTo("false"));
+                Assert.That(dataLibNode.Properties?["is_library"], Is.EqualTo("true"));
 
-            // 5. Assert Transitive Database Lifting:
-            // order-service -> data-access-lib -> MySQL => order-service -[:USES_DB]-> MySQL
-            var mysqlNode = graph.Nodes.First(n => n.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase));
-            var orderToMysql = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_order" && e.Target == mysqlNode.Id && e.Kind == "USES_DB");
-            Assert.That(orderToMysql, Is.Not.Null, "Transitive database access via data-access-lib must be lifted to order-service");
-            Assert.That(orderToMysql!.Properties?["semantic_lifted"], Is.EqualTo("true"));
-            Assert.That(orderToMysql.Properties?["via_library"], Is.EqualTo("data-access-lib"));
-            Assert.That(orderToMysql.Properties?["is_semantic"], Is.EqualTo("true"));
+                var pgNode = graph.Nodes.First(n => n.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase));
+                Assert.That(pgNode.Properties?["entity_type"], Is.EqualTo("database"));
+                Assert.That(pgNode.Properties?["is_semantic_entity"], Is.EqualTo("true"));
 
-            // 6. Assert Transitive Service-to-Service Lifting:
-            // order-service -> billing-client -> billing-service => order-service -[:SERVICE_CALL]-> billing-service
-            var orderToBilling = graph.Edges.FirstOrDefault(e => e.Source == "proj:svc_order" && e.Target == "proj:svc_billing" && e.Kind == "SERVICE_CALL");
-            Assert.That(orderToBilling, Is.Not.Null, "Transitive service call via billing-client must be lifted to order-service -> billing-service");
-            Assert.That(orderToBilling!.Properties?["semantic_lifted"], Is.EqualTo("true"));
-            Assert.That(orderToBilling.Properties?["via_library"], Is.EqualTo("billing-client"));
-            Assert.That(orderToBilling.Properties?["is_semantic"], Is.EqualTo("true"));
+                // 4. Assert Direct File-to-Project DB Resolution:
+                // order.entity.ts used db:postgres -> order-service must have USES_DB -> PostgreSQL
+                var orderToPg = graph.Edges.FirstOrDefault(e =>
+                    e.Source == "proj:svc_order" && e.Target == pgNode.Id && e.Kind == "USES_DB");
 
-            // 7. Verify Project Neighborhood (Flow View)
-            var flow = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:svc_order", includeLibraries: true);
-            var flowDatabases = flow.Nodes.Where(n => n.Kind == "Database").ToList();
-            Assert.That(flowDatabases.Any(d => d.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include resolved PostgreSQL");
-            Assert.That(flowDatabases.Any(d => d.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase)), Is.True, "Flow must include lifted MySQL");
+                Assert.That(orderToPg, Is.Not.Null,
+                    "File-level database usage must resolve directly to owning order-service");
+                Assert.That(orderToPg!.Properties?["is_semantic"], Is.EqualTo("true"));
+
+                // 5. Assert Transitive Database Lifting:
+                // order-service -> data-access-lib -> MySQL => order-service -[:USES_DB]-> MySQL
+                var mysqlNode = graph.Nodes.First(n => n.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase));
+
+                var orderToMysql = graph.Edges.FirstOrDefault(e =>
+                    e.Source == "proj:svc_order" && e.Target == mysqlNode.Id && e.Kind == "USES_DB");
+
+                Assert.That(orderToMysql, Is.Not.Null,
+                    "Transitive database access via data-access-lib must be lifted to order-service");
+                Assert.That(orderToMysql!.Properties?["semantic_lifted"], Is.EqualTo("true"));
+                Assert.That(orderToMysql.Properties?["via_library"], Is.EqualTo("data-access-lib"));
+                Assert.That(orderToMysql.Properties?["is_semantic"], Is.EqualTo("true"));
+
+                // 6. Assert Transitive Service-to-Service Lifting:
+                // order-service -> billing-client -> billing-service => order-service -[:SERVICE_CALL]-> billing-service
+                var orderToBilling = graph.Edges.FirstOrDefault(e =>
+                    e.Source == "proj:svc_order" && e.Target == "proj:svc_billing" && e.Kind == "SERVICE_CALL");
+
+                Assert.That(orderToBilling, Is.Not.Null,
+                    "Transitive service call via billing-client must be lifted to order-service -> billing-service");
+                Assert.That(orderToBilling!.Properties?["semantic_lifted"], Is.EqualTo("true"));
+                Assert.That(orderToBilling.Properties?["via_library"], Is.EqualTo("billing-client"));
+                Assert.That(orderToBilling.Properties?["is_semantic"], Is.EqualTo("true"));
+
+                // 7. Verify Project Neighborhood (Flow View)
+                var flow = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:svc_order",
+                    includeLibraries: true);
+                var flowDatabases = flow.Nodes.Where(n => n.Kind == "Database").ToList();
+
+                Assert.That(flowDatabases.Any(d => d.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)),
+                    Is.True, "Flow must include resolved PostgreSQL");
+
+                Assert.That(flowDatabases.Any(d => d.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase)), Is.True,
+                    "Flow must include lifted MySQL");
+            }
         }
         finally
         {

@@ -28,17 +28,15 @@ public static class TraceCommandHandler
             return 1;
         }
 
-        await using var client = new SqliteGraphClient(ws.DbPath);
-        var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
+        await using (var client = new SqliteGraphClient(ws.DbPath))
+        {
+            var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
 
-        var output = await repository.TraceCrossServiceFlowAsync(
-            startService: startService,
-            entryPoint: opts.Entry,
-            maxDepth: opts.MaxDepth,
-            format: opts.Format,
-            workspacePath: ws.RootDirectory);
+            var output = await repository.TraceCrossServiceFlowAsync(startService: startService, entryPoint: opts.Entry,
+                maxDepth: opts.MaxDepth, format: opts.Format, workspacePath: ws.RootDirectory);
 
-        Console.WriteLine(output);
-        return 0;
+            Console.WriteLine(output);
+            return 0;
+        }
     }
 }

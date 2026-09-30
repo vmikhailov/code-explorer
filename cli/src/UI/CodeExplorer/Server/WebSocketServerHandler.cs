@@ -110,66 +110,79 @@ public class WebSocketServerHandler
     public async Task HandleConnectionAsync(WebSocket socket, CancellationToken cancellationToken)
     {
         var connectionId = Guid.NewGuid().ToString("N");
-        using var session = new ClientSession(connectionId, socket);
-        _sessions[connectionId] = session;
-        _logger.LogInformation("[WS] Client connected: {ConnectionId} (total active: {Count})", connectionId, _sessions.Count);
 
-        CancelIdleTimer();
-
-        var buffer = new byte[1024 * 64];
-        var ms = new MemoryStream();
-
-        try
+        using (var session = new ClientSession(connectionId, socket))
         {
-            while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+            _sessions[connectionId] = session;
+
+            _logger.LogInformation("[WS] Client connected: {ConnectionId} (total active: {Count})", connectionId,
+                _sessions.Count);
+
+            CancelIdleTimer();
+
+            var buffer = new byte[1024 * 64];
+            var ms = new MemoryStream();
+
+            try
             {
-                ms.SetLength(0);
-                WebSocketReceiveResult result;
-                do
+                while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                 {
-                    result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                    ms.SetLength(0);
+                    WebSocketReceiveResult result;
+
+                    do
+                    {
+                        result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            break;
+                        }
+
+                        ms.Write(buffer, 0, result.Count);
+                    } while (!result.EndOfMessage);
+
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
+                        if (socket.State == WebSocketState.CloseReceived)
+                        {
+                            await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Closing",
+                                cancellationToken);
+                        }
+
                         break;
                     }
-                    ms.Write(buffer, 0, result.Count);
-                } while (!result.EndOfMessage);
 
-                if (result.MessageType == WebSocketMessageType.Close)
-                {
-                    if (socket.State == WebSocketState.CloseReceived)
-                    {
-                        await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Closing", cancellationToken);
-                    }
-                    break;
+                    if (ms.Length == 0) continue;
+
+                    var messageJson = Encoding.UTF8.GetString(ms.ToArray());
+                    await ProcessMessageAsync(session, messageJson, cancellationToken);
                 }
-
-                if (ms.Length == 0) continue;
-
-                var messageJson = Encoding.UTF8.GetString(ms.ToArray());
-                await ProcessMessageAsync(session, messageJson, cancellationToken);
             }
-        }
-        catch (WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely || ex.WebSocketErrorCode == WebSocketError.InvalidState)
-        {
-            _logger.LogDebug("[WS] Client disconnected prematurely: {ConnectionId}", connectionId);
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal shutdown
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[WS] Error handling socket connection {ConnectionId}", connectionId);
-        }
-        finally
-        {
-            _sessions.TryRemove(connectionId, out _);
-            _logger.LogInformation("[WS] Client disconnected: {ConnectionId} (remaining active: {Count})", connectionId, _sessions.Count);
-
-            if (_sessions.IsEmpty && _idleTimeoutSeconds > 0)
+            catch (WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely ||
+                                                ex.WebSocketErrorCode == WebSocketError.InvalidState)
             {
-                ResetIdleTimer();
+                _logger.LogDebug("[WS] Client disconnected prematurely: {ConnectionId}", connectionId);
+            }
+            catch (OperationCanceledException)
+            {
+                // Normal shutdown
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[WS] Error handling socket connection {ConnectionId}", connectionId);
+            }
+            finally
+            {
+                _sessions.TryRemove(connectionId, out _);
+
+                _logger.LogInformation("[WS] Client disconnected: {ConnectionId} (remaining active: {Count})",
+                    connectionId, _sessions.Count);
+
+                if (_sessions.IsEmpty && _idleTimeoutSeconds > 0)
+                {
+                    ResetIdleTimer();
+                }
             }
         }
     }
@@ -438,17 +451,24 @@ public class WebSocketServerHandler
         try
         {
             var nodeCountJson = await _graphClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt", null, cancellationToken);
-            using var nodeDoc = JsonDocument.Parse(nodeCountJson);
-            if (nodeDoc.RootElement.GetArrayLength() > 0)
-            {
-                nodesCount = nodeDoc.RootElement[0].GetProperty("cnt").GetInt64();
-            }
 
-            var edgeCountJson = await _graphClient.ExecuteQueryAsync("MATCH ()-[r]->() RETURN count(r) AS cnt", null, cancellationToken);
-            using var edgeDoc = JsonDocument.Parse(edgeCountJson);
-            if (edgeDoc.RootElement.GetArrayLength() > 0)
+            using (var nodeDoc = JsonDocument.Parse(nodeCountJson))
             {
-                edgesCount = edgeDoc.RootElement[0].GetProperty("cnt").GetInt64();
+                if (nodeDoc.RootElement.GetArrayLength() > 0)
+                {
+                    nodesCount = nodeDoc.RootElement[0].GetProperty("cnt").GetInt64();
+                }
+
+                var edgeCountJson = await _graphClient.ExecuteQueryAsync("MATCH ()-[r]->() RETURN count(r) AS cnt",
+                    null, cancellationToken);
+
+                using (var edgeDoc = JsonDocument.Parse(edgeCountJson))
+                {
+                    if (edgeDoc.RootElement.GetArrayLength() > 0)
+                    {
+                        edgesCount = edgeDoc.RootElement[0].GetProperty("cnt").GetInt64();
+                    }
+                }
             }
         }
         catch

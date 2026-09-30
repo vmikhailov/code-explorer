@@ -271,25 +271,35 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
     }
   };
 
-  // Pan & Zoom Handlers
+  // Pan & Zoom Handlers with refs to prevent stale closure rubber-banding
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const panRef = useRef(pan);
+  panRef.current = pan;
+
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const container = containerRef.current;
     if (!container) return;
 
+    const currentZoom = zoomRef.current;
+    const currentPan = panRef.current;
+
     const factor = calculateNormalizedZoomFactor(e, 1.0);
-    const newZoom = Math.min(3.0, Math.max(0.3, zoom * factor));
+    const newZoom = Math.min(3.0, Math.max(0.3, currentZoom * factor));
 
     const rect = container.getBoundingClientRect();
     const newPan = calculateAnchorPan(
       e.clientX,
       e.clientY,
       rect,
-      pan,
-      zoom,
+      currentPan,
+      currentZoom,
       newZoom
     );
 
+    zoomRef.current = newZoom;
+    panRef.current = newPan;
     setZoom(newZoom);
     setPan(newPan);
   };
@@ -297,15 +307,17 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return; // Only left click
     isDraggingRef.current = true;
-    dragStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    dragStartRef.current = { x: e.clientX - panRef.current.x, y: e.clientY - panRef.current.y };
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDraggingRef.current) return;
-    setPan({
+    const newPan = {
       x: e.clientX - dragStartRef.current.x,
       y: e.clientY - dragStartRef.current.y,
-    });
+    };
+    panRef.current = newPan;
+    setPan(newPan);
   };
 
   const handleMouseUp = () => {
@@ -313,6 +325,8 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
   };
 
   const handleResetView = () => {
+    zoomRef.current = 1;
+    panRef.current = { x: 0, y: 0 };
     setZoom(1);
     setPan({ x: 0, y: 0 });
   };

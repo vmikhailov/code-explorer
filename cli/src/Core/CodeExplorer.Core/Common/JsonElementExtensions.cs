@@ -28,6 +28,7 @@ public static class JsonElementExtensions
             try
             {
                 using var innerDoc = JsonDocument.Parse(pElem.GetString()!);
+
                 if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var prop in innerDoc.RootElement.EnumerateObject())

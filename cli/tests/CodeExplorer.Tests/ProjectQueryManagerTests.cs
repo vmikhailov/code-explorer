@@ -157,48 +157,44 @@ public class ProjectQueryManagerTests
     public async Task Repository_SaveListAndExecuteProjectQuery_WorksEndToEnd()
     {
         var dbPath = Path.Combine(_tempDir, "test.db");
-        await using var client = new SqliteGraphClient(dbPath);
-        var repo = new CodeExplorerRepository(client, _manager);
 
-        // Seed simple graph data
-        await client.ExecuteWriteAsync(
-            "INSERT INTO nodes (id, kind, properties) VALUES ('ws1', 'Workspace', json_object('name', 'main_ws', 'path', @path))",
-            new Dictionary<string, object?> { ["path"] = _tempDir });
-
-        // 1. Save query via repository
-        const string cypher = "MATCH (w:Workspace) WHERE w.name = $wsName RETURN w.id AS id, w.name AS name";
-        var paramSchema = JsonSerializer.Serialize(new[]
+        await using (var client = new SqliteGraphClient(dbPath))
         {
-            new ProjectQueryParameter("wsName", "string", true, "Name of the workspace")
-        });
+            var repo = new CodeExplorerRepository(client, _manager);
 
-        var saveResultJson = await repo.SaveProjectQueryAsync(
-            "find_workspace_by_name",
-            "Finds a workspace by its exact name",
-            cypher,
-            paramSchema,
-            "id, name",
-            "workspace,lookup",
-            _tempDir);
+            // Seed simple graph data
+            await client.ExecuteWriteAsync(
+                "INSERT INTO nodes (id, kind, properties) VALUES ('ws1', 'Workspace', json_object('name', 'main_ws', 'path', @path))",
+                new Dictionary<string, object?> { ["path"] = _tempDir });
 
-        Assert.That(saveResultJson, Does.Contain("successfully validated and saved"));
+            // 1. Save query via repository
+            const string cypher = "MATCH (w:Workspace) WHERE w.name = $wsName RETURN w.id AS id, w.name AS name";
 
-        // 2. List queries
-        var listJson = await repo.ListProjectQueriesAsync(_tempDir);
-        Assert.That(listJson, Does.Contain("find_workspace_by_name"));
-        Assert.That(listJson, Does.Contain("wsName"));
+            var paramSchema = JsonSerializer.Serialize(new[]
+            {
+                new ProjectQueryParameter("wsName", "string", true, "Name of the workspace")
+            });
 
-        // 3. Execute query with matching parameter
-        var execJson = await repo.ExecuteProjectQueryAsync(
-            "find_workspace_by_name",
-            JsonSerializer.Serialize(new { wsName = "main_ws" }),
-            _tempDir);
+            var saveResultJson = await repo.SaveProjectQueryAsync("find_workspace_by_name",
+                "Finds a workspace by its exact name", cypher, paramSchema, "id, name", "workspace,lookup", _tempDir);
 
-        Assert.That(execJson, Does.Contain("main_ws"));
-        Assert.That(execJson, Does.Contain("ws1"));
+            Assert.That(saveResultJson, Does.Contain("successfully validated and saved"));
 
-        // 4. Missing required parameter throws ArgumentException
-        Assert.ThrowsAsync<ArgumentException>(async () =>
-            await repo.ExecuteProjectQueryAsync("find_workspace_by_name", "{}", _tempDir));
+            // 2. List queries
+            var listJson = await repo.ListProjectQueriesAsync(_tempDir);
+            Assert.That(listJson, Does.Contain("find_workspace_by_name"));
+            Assert.That(listJson, Does.Contain("wsName"));
+
+            // 3. Execute query with matching parameter
+            var execJson = await repo.ExecuteProjectQueryAsync("find_workspace_by_name",
+                JsonSerializer.Serialize(new { wsName = "main_ws" }), _tempDir);
+
+            Assert.That(execJson, Does.Contain("main_ws"));
+            Assert.That(execJson, Does.Contain("ws1"));
+
+            // 4. Missing required parameter throws ArgumentException
+            Assert.ThrowsAsync<ArgumentException>(async () =>
+                await repo.ExecuteProjectQueryAsync("find_workspace_by_name", "{}", _tempDir));
+        }
     }
 }

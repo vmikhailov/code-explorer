@@ -17,8 +17,9 @@ public class SqliteCompilerTests
         _conn = new SqliteConnection("Data Source=:memory:");
         _conn.Open();
 
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"
             CREATE TABLE nodes (
                 id TEXT PRIMARY KEY,
                 kind TEXT NOT NULL,
@@ -37,9 +38,10 @@ public class SqliteCompilerTests
             CREATE INDEX idx_edges_kind ON edges(kind);
             CREATE INDEX idx_nodes_kind ON nodes(kind);
         ";
-        cmd.ExecuteNonQuery();
+            cmd.ExecuteNonQuery();
 
-        SeedData();
+            SeedData();
+        }
     }
 
     [TearDown]
@@ -79,22 +81,26 @@ public class SqliteCompilerTests
 
     private void InsertNode(string id, string kind, Dictionary<string, object> props)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
-        cmd.Parameters.AddWithValue("@id", id);
-        cmd.Parameters.AddWithValue("@kind", kind);
-        cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));
-        cmd.ExecuteNonQuery();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.AddWithValue("@kind", kind);
+            cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));
+            cmd.ExecuteNonQuery();
+        }
     }
 
     private void InsertEdge(string fromId, string toId, string kind)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, '{}')";
-        cmd.Parameters.AddWithValue("@from", fromId);
-        cmd.Parameters.AddWithValue("@to", toId);
-        cmd.Parameters.AddWithValue("@kind", kind);
-        cmd.ExecuteNonQuery();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, '{}')";
+            cmd.Parameters.AddWithValue("@from", fromId);
+            cmd.Parameters.AddWithValue("@to", toId);
+            cmd.Parameters.AddWithValue("@kind", kind);
+            cmd.ExecuteNonQuery();
+        }
     }
 
     private List<Dictionary<string, object?>> ExecuteCypher(string cypher, Dictionary<string, object?>? parameters = null)
@@ -102,25 +108,34 @@ public class SqliteCompilerTests
         var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast, parameters);
 
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = compiled.Sql;
-        foreach (var (k, v) in compiled.Parameters)
+        using (var cmd = _conn.CreateCommand())
         {
-            cmd.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
-        }
+            cmd.CommandText = compiled.Sql;
 
-        var results = new List<Dictionary<string, object?>>();
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            var row = new Dictionary<string, object?>();
-            for (int i = 0; i < reader.FieldCount; i++)
+            foreach (var (k, v) in compiled.Parameters)
             {
-                row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                cmd.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
             }
-            results.Add(row);
+
+            var results = new List<Dictionary<string, object?>>();
+
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var row = new Dictionary<string, object?>();
+
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    }
+
+                    results.Add(row);
+                }
+
+                return results;
+            }
         }
-        return results;
     }
 
     [Test]
@@ -323,10 +338,13 @@ public class SqliteCompilerTests
         var rows = ExecuteCypher(cypher);
         Assert.That(rows, Has.Count.EqualTo(1));
         var relJson = (string)rows[0]["r"]!;
-        using var doc = JsonDocument.Parse(relJson);
-        Assert.That(doc.RootElement.GetProperty("type").GetString(), Is.EqualTo("CALLS"));
-        Assert.That(doc.RootElement.GetProperty("from").GetString(), Is.EqualTo("fn:process"));
-        Assert.That(doc.RootElement.GetProperty("to").GetString(), Is.EqualTo("fn:save"));
+
+        using (var doc = JsonDocument.Parse(relJson))
+        {
+            Assert.That(doc.RootElement.GetProperty("type").GetString(), Is.EqualTo("CALLS"));
+            Assert.That(doc.RootElement.GetProperty("from").GetString(), Is.EqualTo("fn:process"));
+            Assert.That(doc.RootElement.GetProperty("to").GetString(), Is.EqualTo("fn:save"));
+        }
     }
 
     [Test]
@@ -497,34 +515,40 @@ public class SqliteCompilerTests
     public void Test_Epic3_Relationship_Functions_In_With_And_Aggregations()
     {
         // Insert edge with properties
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ('fn:process', 'fn:notify', 'ASYNC_CALL', '{\"via\":\"rabbitmq\",\"call_chain\":\"process->notify\"}')";
-        cmd.ExecuteNonQuery();
 
-        // 1. Direct access to relationship properties: r.via, r.call_chain
-        var rowsDirect = ExecuteCypher("MATCH (a:Function)-[r:ASYNC_CALL]->(b:Function) RETURN r.via AS via, r.call_chain AS chain");
-        Assert.That(rowsDirect, Has.Count.EqualTo(1));
-        Assert.That(rowsDirect[0]["via"], Is.EqualTo("rabbitmq"));
-        Assert.That(rowsDirect[0]["chain"], Is.EqualTo("process->notify"));
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText =
+                "INSERT INTO edges (from_id, to_id, kind, properties) VALUES ('fn:process', 'fn:notify', 'ASYNC_CALL', '{\"via\":\"rabbitmq\",\"call_chain\":\"process->notify\"}')";
+            cmd.ExecuteNonQuery();
 
-        // 2. type(r), startNode(r), endNode(r), properties(r) in WITH
-        var rowsWith = ExecuteCypher(@"
+            // 1. Direct access to relationship properties: r.via, r.call_chain
+            var rowsDirect =
+                ExecuteCypher(
+                    "MATCH (a:Function)-[r:ASYNC_CALL]->(b:Function) RETURN r.via AS via, r.call_chain AS chain");
+            Assert.That(rowsDirect, Has.Count.EqualTo(1));
+            Assert.That(rowsDirect[0]["via"], Is.EqualTo("rabbitmq"));
+            Assert.That(rowsDirect[0]["chain"], Is.EqualTo("process->notify"));
+
+            // 2. type(r), startNode(r), endNode(r), properties(r) in WITH
+            var rowsWith = ExecuteCypher(@"
             MATCH (a:Function)-[r]->(b:Function)
             WITH type(r) AS relType, startNode(r) AS src, endNode(r) AS dst, properties(r) AS props, count(r) AS cnt
             RETURN relType, src, dst, cnt
             ORDER BY relType
         ");
-        Assert.That(rowsWith, Has.Count.GreaterThan(0));
+            Assert.That(rowsWith, Has.Count.GreaterThan(0));
 
-        // 3. WITH r (passing relationship object itself) and then type(r)
-        var rowsWithRel = ExecuteCypher(@"
+            // 3. WITH r (passing relationship object itself) and then type(r)
+            var rowsWithRel = ExecuteCypher(@"
             MATCH (a:Function)-[r:ASYNC_CALL]->(b:Function)
             WITH r, count(b) AS cnt
             RETURN type(r) AS t, r.via AS via, cnt
         ");
-        Assert.That(rowsWithRel, Has.Count.EqualTo(1));
-        Assert.That(rowsWithRel[0]["t"], Is.EqualTo("ASYNC_CALL"));
-        Assert.That(rowsWithRel[0]["via"], Is.EqualTo("rabbitmq"));
+            Assert.That(rowsWithRel, Has.Count.EqualTo(1));
+            Assert.That(rowsWithRel[0]["t"], Is.EqualTo("ASYNC_CALL"));
+            Assert.That(rowsWithRel[0]["via"], Is.EqualTo("rabbitmq"));
+        }
     }
 
     [Test]

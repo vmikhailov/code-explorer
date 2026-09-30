@@ -12,107 +12,112 @@ public class CodeIntentAnalyzerTests
     [Test]
     public async Task SqliteGraphClient_LoadIntentCandidates_ReturnsArchitecturalNodes()
     {
-        using var client = new SqliteGraphClient(":memory:");
-        await client.CreateIndicesAsync();
-
-        var nodes = new List<Node>
+        using (var client = new SqliteGraphClient(":memory:"))
         {
-            new("ws:type:1", OntologyConstants.NodeLabels.Type, new Dictionary<string, object>
-            {
-                ["id"] = "ws:type:1",
-                ["name"] = "ScheduledActionService",
-                ["path"] = "src/services/scheduled-action.service.ts",
-                ["kind"] = "class"
-            }),
-            new("ws:type:2", OntologyConstants.NodeLabels.Type, new Dictionary<string, object>
-            {
-                ["id"] = "ws:type:2",
-                ["name"] = "OrderController",
-                ["path"] = "src/controllers/order.controller.cs",
-                ["kind"] = "class"
-            }),
-            new("ws:type:3", OntologyConstants.NodeLabels.Type, new Dictionary<string, object>
-            {
-                ["id"] = "ws:type:3",
-                ["name"] = "SomeHelperUtilsSpec",
-                ["path"] = "src/utils.spec.ts",
-                ["kind"] = "class"
-            })
-        };
+            await client.CreateIndicesAsync();
 
-        await client.UploadNodesAsync(nodes);
+            var nodes = new List<Node>
+            {
+                new("ws:type:1", OntologyConstants.NodeLabels.Type,
+                    new Dictionary<string, object>
+                    {
+                        ["id"] = "ws:type:1",
+                        ["name"] = "ScheduledActionService",
+                        ["path"] = "src/services/scheduled-action.service.ts",
+                        ["kind"] = "class"
+                    }),
+                new("ws:type:2", OntologyConstants.NodeLabels.Type,
+                    new Dictionary<string, object>
+                    {
+                        ["id"] = "ws:type:2",
+                        ["name"] = "OrderController",
+                        ["path"] = "src/controllers/order.controller.cs",
+                        ["kind"] = "class"
+                    }),
+                new("ws:type:3", OntologyConstants.NodeLabels.Type,
+                    new Dictionary<string, object>
+                    {
+                        ["id"] = "ws:type:3",
+                        ["name"] = "SomeHelperUtilsSpec",
+                        ["path"] = "src/utils.spec.ts",
+                        ["kind"] = "class"
+                    })
+            };
 
-        var candidates = await client.LoadIntentCandidatesAsync("ws");
+            await client.UploadNodesAsync(nodes);
 
-        Assert.That(candidates.Any(c => c.Name == "ScheduledActionService"), Is.True);
-        Assert.That(candidates.Any(c => c.Name == "OrderController"), Is.True);
-        Assert.That(candidates.Any(c => c.Name == "SomeHelperUtilsSpec"), Is.False);
+            var candidates = await client.LoadIntentCandidatesAsync("ws");
+
+            Assert.That(candidates.Any(c => c.Name == "ScheduledActionService"), Is.True);
+            Assert.That(candidates.Any(c => c.Name == "OrderController"), Is.True);
+            Assert.That(candidates.Any(c => c.Name == "SomeHelperUtilsSpec"), Is.False);
+        }
     }
 
     [Test]
     public async Task SqliteGraphClient_SaveIntentPredictions_UpdatesNodeAndCreatesDomainEdge()
     {
-        using var client = new SqliteGraphClient(":memory:");
-        await client.CreateIndicesAsync();
-
-        var node = new Node("ws:type:svc", OntologyConstants.NodeLabels.Type, new Dictionary<string, object>
+        using (var client = new SqliteGraphClient(":memory:"))
         {
-            ["id"] = "ws:type:svc",
-            ["name"] = "BillingService",
-            ["path"] = "src/services/billing.service.ts",
-            ["kind"] = "class"
-        });
-        await client.UploadNodesAsync([node]);
+            await client.CreateIndicesAsync();
 
-        var predictions = new List<CodeIntentPredictionResult>
-        {
-            new(
-                Id: "ws:type:svc",
-                FilePath: "src/services/billing.service.ts",
-                Domain: "Billing",
-                Layer: "Application",
-                Pattern: "Service",
-                OperationType: "Command",
-                CapabilityTag: "ProcessPayment",
-                IntentSummary: "Handles invoices and payment execution.",
-                IsPureDomain: false,
-                TargetEntities: ["Invoice", "Payment"],
-                EmittedEvents: ["InvoicePaidEvent"]
-            )
-        };
+            var node = new Node("ws:type:svc", OntologyConstants.NodeLabels.Type,
+                new Dictionary<string, object>
+                {
+                    ["id"] = "ws:type:svc",
+                    ["name"] = "BillingService",
+                    ["path"] = "src/services/billing.service.ts",
+                    ["kind"] = "class"
+                });
+            await client.UploadNodesAsync([node]);
 
-        await client.SaveIntentPredictionsAsync("ws", predictions);
+            var predictions = new List<CodeIntentPredictionResult>
+            {
+                new(Id: "ws:type:svc", FilePath: "src/services/billing.service.ts", Domain: "Billing",
+                    Layer: "Application", Pattern: "Service", OperationType: "Command",
+                    CapabilityTag: "ProcessPayment", IntentSummary: "Handles invoices and payment execution.",
+                    IsPureDomain: false, TargetEntities: ["Invoice", "Payment"],
+                    EmittedEvents: ["InvoicePaidEvent"])
+            };
 
-        // Verify updated properties via Cypher query
-        var queryResult = await client.ExecuteQueryAsync("MATCH (n:Type {id: 'ws:type:svc'}) RETURN n.intent_domain AS domain, n.intent_layer AS layer, n.intent_summary AS summary");
-        Assert.That(queryResult.Contains("Billing"), Is.True);
-        Assert.That(queryResult.Contains("Application"), Is.True);
-        Assert.That(queryResult.Contains("Handles invoices and payment execution."), Is.True);
+            await client.SaveIntentPredictionsAsync("ws", predictions);
 
-        // Verify Domain node creation and relationship
-        var domainResult = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name");
-        Assert.That(domainResult.Contains("Billing"), Is.True);
+            // Verify updated properties via Cypher query
+            var queryResult = await client.ExecuteQueryAsync(
+                "MATCH (n:Type {id: 'ws:type:svc'}) RETURN n.intent_domain AS domain, n.intent_layer AS layer, n.intent_summary AS summary");
+            Assert.That(queryResult.Contains("Billing"), Is.True);
+            Assert.That(queryResult.Contains("Application"), Is.True);
+            Assert.That(queryResult.Contains("Handles invoices and payment execution."), Is.True);
 
-        var relResult = await client.ExecuteQueryAsync("MATCH (n:Type)-[r:BELONGS_TO_DOMAIN]->(d:Domain) RETURN n.id AS from_id, d.id AS to_id");
-        Assert.That(relResult.Contains("ws:type:svc"), Is.True);
-        Assert.That(domainResult.ToLowerInvariant().Contains("ws:dom:billing"), Is.True);
+            // Verify Domain node creation and relationship
+            var domainResult = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name");
+            Assert.That(domainResult.Contains("Billing"), Is.True);
+
+            var relResult =
+                await client.ExecuteQueryAsync(
+                    "MATCH (n:Type)-[r:BELONGS_TO_DOMAIN]->(d:Domain) RETURN n.id AS from_id, d.id AS to_id");
+            Assert.That(relResult.Contains("ws:type:svc"), Is.True);
+            Assert.That(domainResult.ToLowerInvariant().Contains("ws:dom:billing"), Is.True);
+        }
     }
 
     [Test]
     public async Task CodeIntentAnalyzer_EnrichAsync_FallbackWhenNoModel_RunsCleanlyWithoutError()
     {
-        using var client = new SqliteGraphClient(":memory:");
-        await client.CreateIndicesAsync();
+        using (var client = new SqliteGraphClient(":memory:"))
+        {
+            await client.CreateIndicesAsync();
 
-        var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-        var tempDir = Path.GetTempPath();
-        var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-        ctx.WorkspaceId = "test_ws";
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+            var tempDir = Path.GetTempPath();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            ctx.WorkspaceId = "test_ws";
 
-        // Call EnrichAsync - should not throw, should log fallback message
-        await CodeIntentAnalyzer.EnrichAsync(ctx);
+            // Call EnrichAsync - should not throw, should log fallback message
+            await CodeIntentAnalyzer.EnrichAsync(ctx);
 
-        Assert.Pass();
+            Assert.Pass();
+        }
     }
 
     [Test]
@@ -140,9 +145,9 @@ public class CodeIntentAnalyzerTests
             return;
         }
 
-        using var predictor = new NativeIntentPredictor(modelPath, contextSize: 2048, gpuLayers: 0);
-
-        var sampleCode = @"
+        using (var predictor = new NativeIntentPredictor(modelPath, contextSize: 2048, gpuLayers: 0))
+        {
+            var sampleCode = @"
 namespace OrderSystem.Services;
 
 public class OrderPlacementService : IOrderService
@@ -158,13 +163,16 @@ public class OrderPlacementService : IOrderService
 }
 ";
 
-        var (result, raw) = await predictor.PredictWithRawAsync("OrderPlacementService.cs", sampleCode);
-        TestContext.Out.WriteLine($"RAW MODEL OUTPUT:\n{raw}");
+            var (result, raw) = await predictor.PredictWithRawAsync("OrderPlacementService.cs", sampleCode);
+            TestContext.Out.WriteLine($"RAW MODEL OUTPUT:\n{raw}");
 
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.Domain, Is.Not.Null.Or.Empty);
-        Assert.That(result.IntentSummary, Is.Not.Null.Or.Empty);
-        TestContext.Out.WriteLine($"Inferred Domain: {result.Domain}, Layer: {result.Layer}, Pattern: {result.Pattern}, Summary: {result.IntentSummary}");
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Domain, Is.Not.Null.Or.Empty);
+            Assert.That(result.IntentSummary, Is.Not.Null.Or.Empty);
+
+            TestContext.Out.WriteLine(
+                $"Inferred Domain: {result.Domain}, Layer: {result.Layer}, Pattern: {result.Pattern}, Summary: {result.IntentSummary}");
+        }
     }
 
     [Test]
@@ -177,13 +185,11 @@ public class OrderPlacementService : IOrderService
             return;
         }
 
-        using var predictor = new NativeIntentPredictor(modelPath, contextSize: 2048, gpuLayers: 99);
-
-        var testProjects = new[]
+        using (var predictor = new NativeIntentPredictor(modelPath, contextSize: 2048, gpuLayers: 99))
         {
-            (
-                Name: "bq-routes-calculation",
-                Signature: @"
+            var testProjects = new[]
+            {
+                (Name: "bq-routes-calculation", Signature: @"
 Endpoints:
 - GET /api/bundle-loss
 - GET /approve-cost-loss
@@ -193,11 +199,8 @@ Databases & Tables:
 - BigQuery: bundle_cost_loss, calculated_rates_temp, calculation_queue_new_campaigns_results
 Domain Entities:
 - ICalcRatesTbClickType, IDesiredMaxCpmResult, ICampaignResultTable
-"
-            ),
-            (
-                Name: "cpm-streaming-aggregator",
-                Signature: @"
+"),
+                (Name: "cpm-streaming-aggregator", Signature: @"
 Endpoints:
 - GET /api/v1/bundles/maxcpm
 - GET /api/v1/results
@@ -206,11 +209,8 @@ Tables:
 - bundle_placements, bundle_snapshots, engine_lifecycle
 Domain Entities:
 - BundleCalculator, ConversionEvent, CostJournal, Campaign, BundleLifecycleStatus
-"
-            ),
-            (
-                Name: "domain-checker",
-                Signature: @"
+"),
+                (Name: "domain-checker", Signature: @"
 Endpoints:
 - GET /proxy
 - POST /proxy
@@ -220,11 +220,8 @@ Tables:
 - domain_check, proxy
 Domain Entities:
 - DomainCheckEntity, CreateProxyDto, GetProxyDto, IGetDomainCheckResponse
-"
-            ),
-            (
-                Name: "rule-tree-updater",
-                Signature: @"
+"),
+                (Name: "rule-tree-updater", Signature: @"
 Endpoints:
 - DELETE /system/bundle-rules
 - DELETE /system/popunders
@@ -234,107 +231,95 @@ Tables:
 - country_traffic_skins, custom_rates, tb_click_type_rates
 Domain Entities:
 - BundleRuleConfig, BbhConfig, IBundleRuleResponse
-"
-            )
-        };
+")
+            };
 
-        foreach (var proj in testProjects)
-        {
-            var (result, raw) = await predictor.PredictWithRawAsync(
-                $"{proj.Name}/project-signature.spec",
-                proj.Signature,
-                projectName: proj.Name
-            );
-
-            TestContext.Out.WriteLine($"==================================================");
-            TestContext.Out.WriteLine($"PROJECT: {proj.Name}");
-            TestContext.Out.WriteLine($"RAW:\n{raw}");
-            if (result != null)
+            foreach (var proj in testProjects)
             {
-                TestContext.Out.WriteLine($"--> INFERRED DOMAIN:  {result.Domain}");
-                TestContext.Out.WriteLine($"--> INFERRED LAYER:   {result.Layer}");
-                TestContext.Out.WriteLine($"--> INFERRED PATTERN: {result.Pattern}");
-                TestContext.Out.WriteLine($"--> SUMMARY:          {result.IntentSummary}");
+                var (result, raw) = await predictor.PredictWithRawAsync($"{proj.Name}/project-signature.spec",
+                    proj.Signature, projectName: proj.Name);
+
+                TestContext.Out.WriteLine($"==================================================");
+                TestContext.Out.WriteLine($"PROJECT: {proj.Name}");
+                TestContext.Out.WriteLine($"RAW:\n{raw}");
+
+                if (result != null)
+                {
+                    TestContext.Out.WriteLine($"--> INFERRED DOMAIN:  {result.Domain}");
+                    TestContext.Out.WriteLine($"--> INFERRED LAYER:   {result.Layer}");
+                    TestContext.Out.WriteLine($"--> INFERRED PATTERN: {result.Pattern}");
+                    TestContext.Out.WriteLine($"--> SUMMARY:          {result.IntentSummary}");
+                }
+
+                TestContext.Out.WriteLine();
             }
-            TestContext.Out.WriteLine();
         }
     }
 
     [Test]
     public async Task SqliteGraphClient_IntentCacheLifecycle_PreservedAcrossClearDatabase()
     {
-        using var client = new SqliteGraphClient(":memory:");
-        await client.CreateIndicesAsync();
-
-        var node = new Node("ws:f:src/service.ts", OntologyConstants.NodeLabels.File, new Dictionary<string, object>
+        using (var client = new SqliteGraphClient(":memory:"))
         {
-            ["id"] = "ws:f:src/service.ts",
-            ["name"] = "service.ts",
-            ["path"] = "src/service.ts"
-        });
-        await client.UploadNodesAsync([node]);
+            await client.CreateIndicesAsync();
 
-        var record = new IntentRecord(
-            FilePath: "src/service.ts",
-            WorkspaceId: "ws",
-            FileId: "ws:f:src/service.ts",
-            ContentHash: "hash123",
-            LastModifiedUtc: DateTime.UtcNow,
-            Domain: "Payments",
-            Layer: "Application",
-            Pattern: "Service",
-            OperationType: "Command",
-            CapabilityTag: "CapturePayment",
-            IntentSummary: "Processes payments securely.",
-            TargetEntities: ["Payment"],
-            EmittedEvents: ["PaymentProcessed"],
-            IsPureDomain: false,
-            ErrorCount: 0,
-            LastError: null,
-            AnalyzedAtUtc: DateTime.UtcNow
-        );
+            var node = new Node("ws:f:src/service.ts", OntologyConstants.NodeLabels.File,
+                new Dictionary<string, object>
+                {
+                    ["id"] = "ws:f:src/service.ts", ["name"] = "service.ts", ["path"] = "src/service.ts"
+                });
+            await client.UploadNodesAsync([node]);
 
-        await client.SaveIntentRecordAsync(record);
+            var record = new IntentRecord(FilePath: "src/service.ts", WorkspaceId: "ws", FileId: "ws:f:src/service.ts",
+                ContentHash: "hash123", LastModifiedUtc: DateTime.UtcNow, Domain: "Payments", Layer: "Application",
+                Pattern: "Service", OperationType: "Command", CapabilityTag: "CapturePayment",
+                IntentSummary: "Processes payments securely.", TargetEntities: ["Payment"],
+                EmittedEvents: ["PaymentProcessed"], IsPureDomain: false, ErrorCount: 0, LastError: null,
+                AnalyzedAtUtc: DateTime.UtcNow);
 
-        // Verify loaded
-        var existing = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(existing.Count, Is.EqualTo(1));
-        Assert.That(existing[0].Domain, Is.EqualTo("Payments"));
+            await client.SaveIntentRecordAsync(record);
 
-        // Apply to graph
-        var applied = await client.ApplyCachedIntentsToGraphAsync("ws");
-        Assert.That(applied, Is.GreaterThanOrEqualTo(1));
+            // Verify loaded
+            var existing = await client.LoadExistingIntentsAsync("ws");
+            Assert.That(existing.Count, Is.EqualTo(1));
+            Assert.That(existing[0].Domain, Is.EqualTo("Payments"));
 
-        var domainQuery = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name");
-        Assert.That(domainQuery.Contains("Payments"), Is.True);
+            // Apply to graph
+            var applied = await client.ApplyCachedIntentsToGraphAsync("ws");
+            Assert.That(applied, Is.GreaterThanOrEqualTo(1));
 
-        // Clear database (e.g. ce scan --clear)
-        await client.ClearDatabaseAsync();
+            var domainQuery = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name");
+            Assert.That(domainQuery.Contains("Payments"), Is.True);
 
-        // Node should be deleted
-        var candidatesAfterClear = await client.LoadIntentCandidatesAsync("ws");
-        Assert.That(candidatesAfterClear.Count, Is.EqualTo(0));
+            // Clear database (e.g. ce scan --clear)
+            await client.ClearDatabaseAsync();
 
-        // BUT Intent record should STILL BE PRESERVED
-        var intentsAfterClear = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(intentsAfterClear.Count, Is.EqualTo(1));
-        Assert.That(intentsAfterClear[0].ContentHash, Is.EqualTo("hash123"));
+            // Node should be deleted
+            var candidatesAfterClear = await client.LoadIntentCandidatesAsync("ws");
+            Assert.That(candidatesAfterClear.Count, Is.EqualTo(0));
 
-        // Test error increment & reset
-        await client.IncrementIntentErrorAsync("src/service.ts", "ws", "ws:f:src/service.ts", "hash123", DateTime.UtcNow, "LLM timeout");
-        var withError = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(withError[0].ErrorCount, Is.EqualTo(1));
-        Assert.That(withError[0].LastError, Is.EqualTo("LLM timeout"));
+            // BUT Intent record should STILL BE PRESERVED
+            var intentsAfterClear = await client.LoadExistingIntentsAsync("ws");
+            Assert.That(intentsAfterClear.Count, Is.EqualTo(1));
+            Assert.That(intentsAfterClear[0].ContentHash, Is.EqualTo("hash123"));
 
-        await client.ResetIntentErrorsAsync("ws");
-        var resetErrors = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(resetErrors[0].ErrorCount, Is.EqualTo(0));
-        Assert.That(resetErrors[0].LastError, Is.Null);
+            // Test error increment & reset
+            await client.IncrementIntentErrorAsync("src/service.ts", "ws", "ws:f:src/service.ts", "hash123",
+                DateTime.UtcNow, "LLM timeout");
+            var withError = await client.LoadExistingIntentsAsync("ws");
+            Assert.That(withError[0].ErrorCount, Is.EqualTo(1));
+            Assert.That(withError[0].LastError, Is.EqualTo("LLM timeout"));
 
-        // Test explicit ClearIntents
-        await client.ClearIntentsAsync("ws");
-        var emptyIntents = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(emptyIntents.Count, Is.EqualTo(0));
+            await client.ResetIntentErrorsAsync("ws");
+            var resetErrors = await client.LoadExistingIntentsAsync("ws");
+            Assert.That(resetErrors[0].ErrorCount, Is.EqualTo(0));
+            Assert.That(resetErrors[0].LastError, Is.Null);
+
+            // Test explicit ClearIntents
+            await client.ClearIntentsAsync("ws");
+            var emptyIntents = await client.LoadExistingIntentsAsync("ws");
+            Assert.That(emptyIntents.Count, Is.EqualTo(0));
+        }
     }
 
     [Test]
@@ -435,6 +420,168 @@ Domain Entities:
         Assert.That(crlfHash, Is.EqualTo(lfHash));
         Assert.That(crlfHash, Is.Not.EqualTo(diffHash));
         Assert.That(crlfHash.Length, Is.EqualTo(64));
+    }
+
+    [Test]
+    public void SynthesizeDomainsTopologically_WithConfiguredDomains_CorrectlyAggregatesConfiguredProfiles()
+    {
+        var config = new WorkspaceDomainsConfig(
+        [
+            new("Integrations", "External partner integrations", ["integration", "nrt", "network"]),
+            new("Ops", "Internal operations and workflows", ["approval", "journal", "ops"]),
+            new("Edge", "Edge proxy and KV", ["kv", "edge", "worker"]),
+            new("Bundles", "Auction and bundles", ["tbmap", "bundle", "auction"]),
+            new("UserInterface", "UI widgets and presentations", ["ui", "component", "widget"])
+        ]);
+
+        var signatures = new List<ProjectSignature>
+        {
+            new("p1", "IntegrationServiceNrt", "services/integration-service-nrt", [], [], [], []),
+            new("p2", "InternalServiceApproval", "services/internal-service-approval", [], [], [], []),
+            new("p3", "InternalServiceJournal", "services/internal-service-journal", [], [], [], []),
+            new("p4", "InternalServiceKvV2", "services/internal-service-kv-v2", [], [], [], []),
+            new("p5", "Atstbmap", "services/ats-tbmap", [], [], [], []),
+            new("p6", "Button", "packages/ui/button", [], [], [], []),
+            new("p7", "Modal", "packages/ui/modal", [], [], [], []),
+            new("p8", "SelectButton", "packages/ui/select-button", [], [], [], []),
+            new("p9", "ContextMenu", "packages/ui/context-menu", [], [], [], []),
+            new("p10", "ProgressBar", "packages/ui/progress-bar", [], [], [], []),
+            new("p11", "Toast", "packages/ui/toast", [], [], [], []),
+            new("p12", "Table", "packages/ui/table", [], [], [], []),
+            new("p13", "SharedKernel", "packages/shared-kernel", [], [], [], [])
+        };
+
+        var result = CodeIntentAnalyzer.SynthesizeDomainsTopologically(signatures, config);
+
+        var domainNames = result.Domains.Select(d => d.Name).ToList();
+
+        // 1. Configured business profiles matched
+        var integrations = result.Domains.FirstOrDefault(d => d.Name == "Integrations");
+        Assert.That(integrations, Is.Not.Null);
+        Assert.That(integrations!.Services, Does.Contain("IntegrationServiceNrt"));
+
+        var ops = result.Domains.FirstOrDefault(d => d.Name == "Ops");
+        Assert.That(ops, Is.Not.Null);
+        Assert.That(ops!.Services, Does.Contain("InternalServiceApproval"));
+        Assert.That(ops.Services, Does.Contain("InternalServiceJournal"));
+
+        var edge = result.Domains.FirstOrDefault(d => d.Name == "Edge");
+        Assert.That(edge, Is.Not.Null);
+        Assert.That(edge!.Services, Does.Contain("InternalServiceKvV2"));
+
+        var bundles = result.Domains.FirstOrDefault(d => d.Name == "Bundles");
+        Assert.That(bundles, Is.Not.Null);
+        Assert.That(bundles!.Services, Does.Contain("Atstbmap"));
+
+        // 2. UI widgets collapsed into UserInterface
+        var ui = result.Domains.FirstOrDefault(d => d.Name == "UserInterface");
+        Assert.That(ui, Is.Not.Null);
+        Assert.That(ui!.Services, Does.Contain("Button"));
+        Assert.That(ui.Services, Does.Contain("Modal"));
+        Assert.That(ui.Services, Does.Contain("SelectButton"));
+        Assert.That(ui.Services, Does.Contain("ContextMenu"));
+        Assert.That(ui.Services, Does.Contain("ProgressBar"));
+        Assert.That(ui.Services, Does.Contain("Toast"));
+        Assert.That(ui.Services, Does.Contain("Table"));
+
+        // 3. Ensure NO micro-domains created for individual UI widgets
+        Assert.That(domainNames, Does.Not.Contain("Button"));
+        Assert.That(domainNames, Does.Not.Contain("Modal"));
+        Assert.That(domainNames, Does.Not.Contain("SelectButton"));
+        Assert.That(domainNames, Does.Not.Contain("ProgressBar"));
+    }
+
+    [Test]
+    public void SynthesizeDomainsTopologically_WithoutConfig_ClustersByGraphAffinityAndTechnicalSubdomains()
+    {
+        var signatures = new List<ProjectSignature>
+        {
+            // Services sharing database tables: order_items, orders
+            new("p1", "OrderProcessingService", "src/orders/processor", ["orders", "order_items"], [], [], []),
+            new("p2", "OrderDispatchWorker", "src/orders/dispatch", ["orders"], [], [], []),
+
+            // Services in billing namespace sharing invoices table
+            new("p3", "BillingService", "src/billing/service", ["invoices"], [], [], []),
+            new("p4", "InvoiceGenerator", "src/billing/invoices", ["invoices"], [], [], []),
+
+            // UI presentation components
+            new("p5", "Button", "packages/ui/button", [], [], [], []),
+            new("p6", "ModalDialog", "packages/ui/modal", [], [], [], []),
+
+            // Shared contracts/primitives
+            new("p7", "SharedKernel", "src/common/shared-kernel", [], [], [], []),
+
+            // Tooling
+            new("p8", "DbMigrationTool", "tools/migrator", [], [], [], [])
+        };
+
+        var result = CodeIntentAnalyzer.SynthesizeDomainsTopologically(signatures, null);
+
+        var domainNames = result.Domains.Select(d => d.Name).ToList();
+
+        // 1. UI components collapsed into UserInterface
+        var ui = result.Domains.FirstOrDefault(d => d.Name == "UserInterface");
+        Assert.That(ui, Is.Not.Null);
+        Assert.That(ui!.Services, Does.Contain("Button"));
+        Assert.That(ui.Services, Does.Contain("ModalDialog"));
+
+        // 2. SharedKernel collapsed into SharedKernel
+        var shared = result.Domains.FirstOrDefault(d => d.Name == "SharedKernel");
+        Assert.That(shared, Is.Not.Null);
+        Assert.That(shared!.Services, Does.Contain("SharedKernel"));
+
+        // 3. DeveloperTooling collapsed into DeveloperTooling
+        var tooling = result.Domains.FirstOrDefault(d => d.Name == "DeveloperTooling");
+        Assert.That(tooling, Is.Not.Null);
+        Assert.That(tooling!.Services, Does.Contain("DbMigrationTool"));
+
+        // 4. Orders services clustered together via shared table & directory namespace
+        var ordersDomain = result.Domains.FirstOrDefault(d => d.Services.Contains("OrderProcessingService"));
+        Assert.That(ordersDomain, Is.Not.Null);
+        Assert.That(ordersDomain!.Services, Does.Contain("OrderDispatchWorker"));
+
+        // 5. Billing services clustered together via shared table & directory namespace
+        var billingDomain = result.Domains.FirstOrDefault(d => d.Services.Contains("BillingService"));
+        Assert.That(billingDomain, Is.Not.Null);
+        Assert.That(billingDomain!.Services, Does.Contain("InvoiceGenerator"));
+    }
+
+    [Test]
+    public void LoadWorkspaceDomainsConfig_LoadsFromDotCodeExplorerDirectory()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_" + Guid.NewGuid().ToString("N"));
+        var ceDir = Path.Combine(tempDir, ".codeexplorer");
+        Directory.CreateDirectory(ceDir);
+
+        try
+        {
+            var json = """
+            {
+              "domains": [
+                {
+                  "name": "Finance",
+                  "description": "Accounting and ledger",
+                  "keywords": ["ledger", "invoice", "payment"]
+                }
+              ]
+            }
+            """;
+            File.WriteAllText(Path.Combine(ceDir, "domains.json"), json);
+
+            var config = CodeIntentAnalyzer.LoadWorkspaceDomainsConfig(tempDir);
+            Assert.That(config, Is.Not.Null);
+            Assert.That(config!.Domains, Has.Count.EqualTo(1));
+            Assert.That(config.Domains[0].Name, Is.EqualTo("Finance"));
+            Assert.That(config.Domains[0].Description, Is.EqualTo("Accounting and ledger"));
+            Assert.That(config.Domains[0].Keywords, Does.Contain("ledger"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
+        }
     }
 }
 

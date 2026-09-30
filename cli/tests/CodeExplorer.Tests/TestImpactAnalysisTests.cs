@@ -101,32 +101,43 @@ public class OrderProcessorTests
     {
         // Check that TestSuite node exists in the graph
         var res = await _client.ExecuteQueryAsync("MATCH (ts:TestSuite) RETURN ts.name AS name, ts.kind AS kind");
-        using var doc = JsonDocument.Parse(res);
-        var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "No TestSuite node materialized!");
-        var suiteName = array[0].GetProperty("name").GetString();
-        Assert.That(suiteName, Does.Contain("OrderService.Tests").IgnoreCase);
+        using (var doc = JsonDocument.Parse(res))
+        {
+            var array = doc.RootElement.EnumerateArray().ToList();
 
-        // Check TESTS relationship from TestSuite to target
-        var testsRelRes = await _client.ExecuteQueryAsync("MATCH (ts:TestSuite)-[r:TESTS]->(target) RETURN ts.name AS suite, target.name AS target");
-        using var relDoc = JsonDocument.Parse(testsRelRes);
-        var relArray = relDoc.RootElement.EnumerateArray().ToList();
-        Assert.That(relArray.Count, Is.GreaterThan(0), "TestSuite does not have a TESTS relationship!");
+            Assert.That(array.Count, Is.GreaterThan(0), "No TestSuite node materialized!");
+            var suiteName = array[0].GetProperty("name").GetString();
+            Assert.That(suiteName, Does.Contain("OrderService.Tests").IgnoreCase);
+
+            // Check TESTS relationship from TestSuite to target
+            var testsRelRes =
+                await _client.ExecuteQueryAsync(
+                    "MATCH (ts:TestSuite)-[r:TESTS]->(target) RETURN ts.name AS suite, target.name AS target");
+
+            using (var relDoc = JsonDocument.Parse(testsRelRes))
+            {
+                var relArray = relDoc.RootElement.EnumerateArray().ToList();
+                Assert.That(relArray.Count, Is.GreaterThan(0), "TestSuite does not have a TESTS relationship!");
+            }
+        }
     }
 
     [Test]
     public async Task Test_FunctionNode_IsTaggedAsTest()
     {
         var res = await _client.ExecuteQueryAsync("MATCH (f:Function) WHERE f.name = 'Test_ProcessPayment_Success' RETURN f.name AS name, f.is_test AS isTest, f.test_framework AS framework");
-        using var doc = JsonDocument.Parse(res);
-        var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.EqualTo(1), "Expected 1 Test_ProcessPayment_Success function node");
-        var isTest = array[0].GetProperty("isTest").GetString();
-        Assert.That(isTest, Is.EqualTo("true"));
-        var framework = array[0].GetProperty("framework").GetString();
-        Assert.That(framework, Is.EqualTo("xunit"));
+        using (var doc = JsonDocument.Parse(res))
+        {
+            var array = doc.RootElement.EnumerateArray().ToList();
+
+            Assert.That(array.Count, Is.EqualTo(1), "Expected 1 Test_ProcessPayment_Success function node");
+            var isTest = array[0].GetProperty("isTest").GetString();
+            Assert.That(isTest, Is.EqualTo("true"));
+            var framework = array[0].GetProperty("framework").GetString();
+            Assert.That(framework, Is.EqualTo("xunit"));
+        }
     }
 
     [Test]
@@ -139,12 +150,14 @@ public class OrderProcessorTests
             ["symbolName"] = null
         });
 
-        using var doc = JsonDocument.Parse(res);
-        var array = doc.RootElement.EnumerateArray().ToList();
+        using (var doc = JsonDocument.Parse(res))
+        {
+            var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "Expected at least 1 affected test for OrderProcessor.cs");
-        var testNames = array.Select(x => x.GetProperty("testName").GetString()).ToList();
-        Assert.That(testNames, Does.Contain("Test_ProcessPayment_Success"));
+            Assert.That(array.Count, Is.GreaterThan(0), "Expected at least 1 affected test for OrderProcessor.cs");
+            var testNames = array.Select(x => x.GetProperty("testName").GetString()).ToList();
+            Assert.That(testNames, Does.Contain("Test_ProcessPayment_Success"));
+        }
     }
 
     [Test]
@@ -157,11 +170,13 @@ public class OrderProcessorTests
             ["symbolName"] = null
         });
 
-        using var doc = JsonDocument.Parse(res);
-        var array = doc.RootElement.EnumerateArray().ToList();
+        using (var doc = JsonDocument.Parse(res))
+        {
+            var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "Expected at least 1 affected test for OrderProcessorTests.cs");
-        var testNames = array.Select(x => x.GetProperty("testName").GetString()).ToList();
-        Assert.That(testNames, Does.Contain("Test_ProcessPayment_Success"));
+            Assert.That(array.Count, Is.GreaterThan(0), "Expected at least 1 affected test for OrderProcessorTests.cs");
+            var testNames = array.Select(x => x.GetProperty("testName").GetString()).ToList();
+            Assert.That(testNames, Does.Contain("Test_ProcessPayment_Success"));
+        }
     }
 }

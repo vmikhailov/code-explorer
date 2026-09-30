@@ -211,10 +211,13 @@ public static class ConfigStore
     private static void ParseAppSettingsJson(string filePath, string? projectName)
     {
         var content = File.ReadAllText(filePath);
-        using var doc = JsonDocument.Parse(content);
-        if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
 
-        TraverseJsonElement(doc.RootElement, "", filePath, projectName);
+        using (var doc = JsonDocument.Parse(content))
+        {
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
+
+            TraverseJsonElement(doc.RootElement, "", filePath, projectName);
+        }
     }
 
     private static void TraverseJsonElement(JsonElement element, string currentPrefix, string filePath, string? projectName)

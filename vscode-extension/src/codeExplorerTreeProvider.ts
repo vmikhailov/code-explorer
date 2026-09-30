@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
+import * as path from 'path';
+import * as fs from 'fs';
 import { ProcessManager, ServerInfo } from './processManager';
 import { getModelStatus } from './modelManager';
 
@@ -9,6 +11,8 @@ export interface MetadataDto {
   layerCounts?: Record<number, number>;
   totalNodes: number;
   totalEdges: number;
+  version?: string;
+  lastUpdatedUtc?: string;
 }
 
 export interface NodeDto {
@@ -97,11 +101,56 @@ export interface ServiceOntologyDetailsDto {
   groups: ServiceOntologyGroupDto[];
 }
 
+export interface DomainDto {
+  id: string;
+  name: string;
+  displayName: string;
+  domainType: string;
+  description?: string;
+  icon?: string;
+  boundedContextIds: string[];
+  totalFiles: number;
+  totalEntities: number;
+}
+
+export interface BoundedContextItemDto {
+  id: string;
+  name: string;
+  displayName: string;
+  domainId: string;
+  domainName: string;
+  domainType: string;
+  summary?: string;
+  fileCount: number;
+  pureDomainCount: number;
+  purityPercentage: number;
+  targetEntities: string[];
+  capabilities: string[];
+  emittedEvents: string[];
+  handledEvents: string[];
+  projects: string[];
+  bgColor: string;
+  borderColor: string;
+  size: number;
+}
+
+export interface BoundedContextMapDto {
+  hasIntents: boolean;
+  domains: DomainDto[];
+  contexts: BoundedContextItemDto[];
+  totalIntents: number;
+  totalPureDomains: number;
+}
+
 export type TreeItemType =
+  | 'root-domains'
   | 'root-diagrams'
   | 'root-layers'
-  | 'root-metadata'
   | 'root-management'
+  | 'domain-item'
+  | 'bounded-context-item'
+  | 'context-section'
+  | 'context-leaf-item'
   | 'diagram-item'
   | 'layer-group'
   | 'node-category'
@@ -111,8 +160,15 @@ export type TreeItemType =
   | 'ontology-service'
   | 'service-group'
   | 'service-item'
-  | 'metadata-stat'
   | 'management-item'
+  | 'management-status'
+  | 'management-server'
+  | 'management-graph'
+  | 'management-rescan'
+  | 'management-rebuild'
+  | 'management-intent'
+  | 'management-model'
+  | 'management-model-download'
   | 'empty-notice'
   | 'init-action';
 
@@ -124,6 +180,7 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
     public readonly data?: any
   ) {
     super(label, collapsibleState);
+    this.contextValue = itemType;
   }
 }
 
@@ -177,12 +234,54 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   private _ontologyCache: OntologyLayersResponseDto | null = null;
   private _servicesCache: ServiceSummaryDto[] | null = null;
   private _serviceDetailsCache = new Map<string, ServiceOntologyDetailsDto>();
+  private _boundedContextsCache: BoundedContextMapDto | null = null;
+  private _metadataCache: MetadataDto | null = null;
 
   refresh(): void {
     this._ontologyCache = null;
     this._servicesCache = null;
     this._serviceDetailsCache.clear();
+    this._boundedContextsCache = null;
+    this._metadataCache = null;
     this._onDidChangeTreeData.fire();
+  }
+
+  private async getMetadata(): Promise<MetadataDto | null> {
+    if (this._metadataCache) {
+      return this._metadataCache;
+    }
+    const serverInfo = await this.getServerInfo();
+    if (serverInfo) {
+      try {
+        const meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
+        if (meta) {
+          this._metadataCache = meta;
+          return meta;
+        }
+      } catch (e: any) {
+        this.outputChannel.appendLine(`[TreeProvider] getMetadata error: ${e.message}`);
+      }
+    }
+    return null;
+  }
+
+  private async getBoundedContextMap(): Promise<BoundedContextMapDto | null> {
+    if (this._boundedContextsCache) {
+      return this._boundedContextsCache;
+    }
+    const serverInfo = await this.getServerInfo();
+    if (serverInfo) {
+      try {
+        const res = await fetchJson<BoundedContextMapDto>(`${serverInfo.httpUrl}/api/ontology/bounded-contexts`);
+        if (res && res.contexts) {
+          this._boundedContextsCache = res;
+          return res;
+        }
+      } catch (e: any) {
+        this.outputChannel.appendLine(`[TreeProvider] getBoundedContextMap error: ${e.message}`);
+      }
+    }
+    return null;
   }
 
   private async getOntologyLayers(): Promise<OntologyLayersResponseDto | null> {
@@ -286,7 +385,16 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       }
 
       // Root level sections:
-      // 1. Architecture Diagrams
+      // 1. Domains & Bounded Contexts (Canonical DDD Architecture)
+      const domainsRoot = new CodeExplorerTreeItem(
+        'root-domains',
+        'Domains & Bounded Contexts',
+        vscode.TreeItemCollapsibleState.Expanded
+      );
+      domainsRoot.iconPath = new vscode.ThemeIcon('symbol-namespace');
+      domainsRoot.tooltip = 'Domain-Driven Design Architecture: Problem Space (Domains) › Solution Space (Bounded Contexts) › Services › Capabilities';
+
+      // 2. Architecture Diagrams
       const diagramsRoot = new CodeExplorerTreeItem(
         'root-diagrams',
         'Architecture Diagrams',
@@ -295,7 +403,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       diagramsRoot.iconPath = new vscode.ThemeIcon('layout');
       diagramsRoot.tooltip = 'Architecture diagrams, domain microservice maps, tiers, and project flow visualizers';
 
-      // 2. Graph Layers (Ontology Layers 1 - 5)
+      // 3. Graph Layers (Ontology Layers 1 - 5)
       const layersRoot = new CodeExplorerTreeItem(
         'root-layers',
         'Graph Layers (Ontology 1 - 5)',
@@ -304,29 +412,39 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       layersRoot.iconPath = new vscode.ThemeIcon('layers');
       layersRoot.tooltip = 'Decoupled 5-layer ontology graph model';
 
-      // 3. Metadata & Health
+      // 4. Management & System (Server, Database, Rescan, Intents, Lifecycle)
       const serverInfo = this.processManager.getServerInfo();
       const isStarting = this.processManager.isStarting();
+      const metaCache = this._metadataCache;
 
-      const metadataRoot = new CodeExplorerTreeItem(
-        'root-metadata',
-        'Metadata & Statistics',
-        vscode.TreeItemCollapsibleState.Collapsed
-      );
-      metadataRoot.iconPath = new vscode.ThemeIcon('graph');
-      metadataRoot.description = serverInfo ? 'Connected' : isStarting ? 'Connecting...' : 'Offline';
-      metadataRoot.tooltip = 'Graph statistics, connection status, and database summary';
-
-      // 4. Management (Rescan, Rebuild, Server control)
       const managementRoot = new CodeExplorerTreeItem(
         'root-management',
         'Management',
         vscode.TreeItemCollapsibleState.Expanded
       );
       managementRoot.iconPath = new vscode.ThemeIcon('tools');
-      managementRoot.tooltip = 'Workspace scanning and graph lifecycle management';
+      managementRoot.description = serverInfo
+        ? (metaCache ? `Online :${serverInfo.port} · ${metaCache.totalNodes.toLocaleString()} nodes` : `Online :${serverInfo.port}`)
+        : isStarting ? 'Starting...' : 'Offline';
+      managementRoot.tooltip = 'Graph server, SQLite WAL storage, AI models, and workspace lifecycle';
 
-      return [diagramsRoot, layersRoot, metadataRoot, managementRoot];
+      return [diagramsRoot, layersRoot, domainsRoot, managementRoot];
+    }
+
+    if (element.itemType === 'root-domains') {
+      return this.getDomainRootItems();
+    }
+
+    if (element.itemType === 'domain-item') {
+      return this.getBoundedContextItemsForDomain(element.data?.domain, element.data?.map);
+    }
+
+    if (element.itemType === 'bounded-context-item') {
+      return this.getBoundedContextDetailItems(element.data?.context);
+    }
+
+    if (element.itemType === 'context-section') {
+      return this.getContextSectionLeafItems(element.data?.items);
     }
 
     if (element.itemType === 'root-diagrams') {
@@ -353,15 +471,169 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       return this.getServiceGroupItems(element.data?.serviceName, element.data?.categoryKey, element.data?.items);
     }
 
-    if (element.itemType === 'root-metadata') {
-      return this.getMetadataItems();
-    }
 
     if (element.itemType === 'root-management') {
       return this.getManagementItems();
     }
 
     return [];
+  }
+
+  private async getDomainRootItems(): Promise<CodeExplorerTreeItem[]> {
+    const bcMap = await this.getBoundedContextMap();
+    if (!bcMap || !bcMap.contexts || bcMap.contexts.length === 0) {
+      const emptyItem = new CodeExplorerTreeItem(
+        'empty-notice',
+        'No Bounded Contexts Discovered',
+        vscode.TreeItemCollapsibleState.None
+      );
+      emptyItem.description = 'Run ce scan or ce intent';
+      emptyItem.iconPath = new vscode.ThemeIcon('info');
+      return [emptyItem];
+    }
+
+    const items: CodeExplorerTreeItem[] = [];
+
+    if (bcMap.domains && bcMap.domains.length > 0) {
+      for (const dom of bcMap.domains) {
+        const item = new CodeExplorerTreeItem(
+          'domain-item',
+          `${dom.icon || '🎯'} ${dom.displayName}`,
+          vscode.TreeItemCollapsibleState.Expanded,
+          { domain: dom, map: bcMap }
+        );
+        item.description = `${dom.boundedContextIds.length} ctx · ${dom.totalFiles} files`;
+        item.tooltip = `${dom.displayName} Domain\n${dom.description || ''}\nBounded Contexts: ${dom.boundedContextIds.length}\nFiles: ${dom.totalFiles}\nEntities: ${dom.totalEntities}`;
+        item.command = {
+          command: 'codeExplorer.focusBoundedContext',
+          title: `Filter ${dom.displayName}`,
+          arguments: [dom.displayName, undefined, dom.id],
+        };
+        items.push(item);
+      }
+    } else {
+      for (const ctx of bcMap.contexts) {
+        items.push(this.createBoundedContextTreeItem(ctx));
+      }
+    }
+
+    return items;
+  }
+
+  private getBoundedContextItemsForDomain(domain?: DomainDto, bcMap?: BoundedContextMapDto): CodeExplorerTreeItem[] {
+    if (!domain || !bcMap || !bcMap.contexts) return [];
+    const idSet = new Set(domain.boundedContextIds);
+    const matching = bcMap.contexts.filter(c => idSet.has(c.id) || (c.domainId && c.domainId === domain.id));
+    return matching.map(c => this.createBoundedContextTreeItem(c));
+  }
+
+  private createBoundedContextTreeItem(c: BoundedContextItemDto): CodeExplorerTreeItem {
+    const item = new CodeExplorerTreeItem(
+      'bounded-context-item',
+      `📦 ${c.displayName}`,
+      vscode.TreeItemCollapsibleState.Collapsed,
+      { context: c }
+    );
+    const details: string[] = [];
+    if (c.projects.length > 0) details.push(`${c.projects.length} proj`);
+    details.push(`${c.fileCount} files`);
+    if (c.purityPercentage > 0) details.push(`${c.purityPercentage}% pure`);
+    item.description = details.join(' · ');
+    item.tooltip = `Bounded Context: ${c.name}\nDomain: ${c.domainName}\n${c.summary || ''}\nEntities (${c.targetEntities.length}): ${c.targetEntities.join(', ')}`;
+    item.command = {
+      command: 'codeExplorer.focusBoundedContext',
+      title: `Open Context ${c.displayName}`,
+      arguments: [c.name, c.id, c.domainId],
+    };
+    return item;
+  }
+
+  private async getBoundedContextDetailItems(context?: BoundedContextItemDto): Promise<CodeExplorerTreeItem[]> {
+    if (!context) return [];
+    const items: CodeExplorerTreeItem[] = [];
+
+    // Pre-cache services info if not already loaded
+    const services = await this.getOntologyServices();
+    const serviceMap = new Map<string, ServiceSummaryDto>();
+    for (const s of services) {
+      serviceMap.set(s.serviceName.toLowerCase(), s);
+      serviceMap.set(s.serviceId.toLowerCase(), s);
+    }
+
+    if (context.projects && context.projects.length > 0) {
+      for (const projName of context.projects) {
+        const s = serviceMap.get(projName.toLowerCase());
+        const item = new CodeExplorerTreeItem(
+          'ontology-service',
+          projName,
+          vscode.TreeItemCollapsibleState.Collapsed,
+          { serviceName: projName, serviceId: s?.serviceId || projName }
+        );
+        const icon = s?.kind === 'Worker' ? 'gear' : s?.kind === 'App' || s?.kind === 'FrontendApp' ? 'browser' : 'server-process';
+        item.iconPath = new vscode.ThemeIcon(icon);
+
+        if (s) {
+          const parts: string[] = [];
+          if (s.endpointCount > 0) parts.push(`${s.endpointCount} eps`);
+          if (s.databaseCount > 0) parts.push(`${s.databaseCount} dbs`);
+          if (s.topicCount > 0) parts.push(`${s.topicCount} topics`);
+          if (s.serviceCount && s.serviceCount > 0) parts.push(`${s.serviceCount} svcs`);
+          item.description = parts.length > 0 ? parts.join(' • ') : `Service (${s.kind})`;
+        } else {
+          item.description = 'Project';
+        }
+
+        item.tooltip = `Service/Project: ${projName}\nBounded Context: ${context.name}\nDomain: ${context.domainName}`;
+        items.push(item);
+      }
+    }
+
+    if (context.targetEntities && context.targetEntities.length > 0) {
+      const entRoot = new CodeExplorerTreeItem(
+        'context-section',
+        `Entities (${context.targetEntities.length})`,
+        vscode.TreeItemCollapsibleState.Collapsed,
+        { items: context.targetEntities.map(e => ({ label: e, kind: 'entity' })) }
+      );
+      entRoot.iconPath = new vscode.ThemeIcon('symbol-class');
+      entRoot.tooltip = `Ubiquitous Domain Entities: ${context.targetEntities.join(', ')}`;
+      items.push(entRoot);
+    }
+
+    if ((!context.projects || context.projects.length === 0) && context.capabilities && context.capabilities.length > 0) {
+      const capRoot = new CodeExplorerTreeItem(
+        'context-section',
+        `Capabilities (${context.capabilities.length})`,
+        vscode.TreeItemCollapsibleState.Collapsed,
+        { items: context.capabilities.map(cap => ({ label: cap, kind: 'capability' })) }
+      );
+      capRoot.iconPath = new vscode.ThemeIcon('zap');
+      items.push(capRoot);
+    }
+
+    return items;
+  }
+
+  private getContextSectionLeafItems(items?: Array<{ label: string; kind: string }>): CodeExplorerTreeItem[] {
+    if (!items || items.length === 0) return [];
+    return items.map((it) => {
+      const leaf = new CodeExplorerTreeItem(
+        'context-leaf-item',
+        it.label,
+        vscode.TreeItemCollapsibleState.None
+      );
+      if (it.kind === 'entity') {
+        leaf.iconPath = new vscode.ThemeIcon('symbol-class');
+        leaf.tooltip = `Domain Entity / Aggregate Root: ${it.label}`;
+      } else if (it.kind === 'project') {
+        leaf.iconPath = new vscode.ThemeIcon('project');
+        leaf.tooltip = `Project / Module: ${it.label}`;
+      } else {
+        leaf.iconPath = new vscode.ThemeIcon('symbol-method');
+        leaf.tooltip = `Capability / Endpoint: ${it.label}`;
+      }
+      return leaf;
+    });
   }
 
   private getDiagramItems(): CodeExplorerTreeItem[] {
@@ -598,204 +870,182 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
       item.iconPath = new vscode.ThemeIcon(icon);
       item.description = it.details || (it.protocol ? `[${it.protocol}]` : '');
-      item.tooltip = `${it.name}\nType: ${it.kind}\n${it.filePath ? `Location: ${it.filePath}${it.line ? `:${it.line}` : ''}` : ''}`;
-      item.command = {
-        command: 'codeExplorer.openNodeGrid',
-        title: `Browse ${it.name} in Grid`,
-        arguments: [it.kind, `${serviceName} › ${it.name}`, serviceName],
-      };
+      if (it.filePath) {
+        item.command = {
+          command: 'codeExplorer.openSource',
+          title: `Go to ${it.name}`,
+          arguments: [it.filePath, it.line || 1],
+        };
+      } else {
+        item.command = {
+          command: 'codeExplorer.openNodeGrid',
+          title: `Browse ${it.name} in Grid`,
+          arguments: [it.kind, `${serviceName} › ${it.name}`, serviceName],
+        };
+      }
       return item;
     });
   }
 
-  private async getMetadataItems(): Promise<CodeExplorerTreeItem[]> {
-    const serverInfo = await this.getServerInfo();
-    if (!serverInfo) {
-      const isStarting = this.processManager.isStarting();
-      const statusItem = new CodeExplorerTreeItem(
-        'metadata-stat',
-        'Connection Status',
-        vscode.TreeItemCollapsibleState.None
-      );
-      statusItem.description = isStarting ? 'Connecting...' : 'Offline (Click to Start)';
-      statusItem.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'circle-slash');
-      statusItem.command = {
-        command: 'codeExplorer.showGraph',
-        title: 'Start Server',
-      };
-      return [statusItem];
-    }
-
-    try {
-      const meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
-
-      const items: CodeExplorerTreeItem[] = [];
-
-      // 1. Connection Status
-      const statusItem = new CodeExplorerTreeItem(
-        'metadata-stat',
-        'Connection Status',
-        vscode.TreeItemCollapsibleState.None
-      );
-      statusItem.description = `Online (Port ${serverInfo.port})`;
-      statusItem.iconPath = new vscode.ThemeIcon('pass');
-      statusItem.tooltip = `Connected to CodeExplorer Server at ${serverInfo.httpUrl}`;
-      items.push(statusItem);
-
-      // 2. Total Nodes
-      const totalNodesItem = new CodeExplorerTreeItem(
-        'metadata-stat',
-        'Total Nodes',
-        vscode.TreeItemCollapsibleState.None
-      );
-      totalNodesItem.description = `${(meta.totalNodes || 0).toLocaleString()}`;
-      totalNodesItem.iconPath = new vscode.ThemeIcon('symbol-structure');
-      items.push(totalNodesItem);
-
-      // 3. Total Relationships
-      const totalEdgesItem = new CodeExplorerTreeItem(
-        'metadata-stat',
-        'Total Relationships',
-        vscode.TreeItemCollapsibleState.None
-      );
-      totalEdgesItem.description = `${(meta.totalEdges || 0).toLocaleString()}`;
-      totalEdgesItem.iconPath = new vscode.ThemeIcon('references');
-      items.push(totalEdgesItem);
-
-      // 4. Storage Engine
-      const storageItem = new CodeExplorerTreeItem(
-        'metadata-stat',
-        'Storage Engine',
-        vscode.TreeItemCollapsibleState.None
-      );
-      storageItem.description = 'SQLite WAL (.codeexplorer/graph.db)';
-      storageItem.iconPath = new vscode.ThemeIcon('database');
-      storageItem.tooltip = 'High-performance ACID graph store with Write-Ahead Logging';
-      items.push(storageItem);
-
-      return items;
-    } catch (err: any) {
-      const errItem = new CodeExplorerTreeItem('metadata-stat', `Error: ${err.message}`, vscode.TreeItemCollapsibleState.None);
-      errItem.iconPath = new vscode.ThemeIcon('error');
-      return [errItem];
-    }
-  }
-
-  private getManagementItems(): CodeExplorerTreeItem[] {
+  private async getManagementItems(): Promise<CodeExplorerTreeItem[]> {
     const serverInfo = this.processManager.getServerInfo();
     const isStarting = this.processManager.isStarting();
+    const meta = await this.getMetadata();
+    const wsRoot = this.getWorkspaceRoot();
 
     const items: CodeExplorerTreeItem[] = [];
 
-    // 1. Rescan Workspace (Incremental)
+    // 1. Engine Version & Graph Update Time (with inline Refresh button)
+    let dbMtime: Date | null = null;
+    if (wsRoot) {
+      try {
+        const dbPath = path.join(wsRoot, '.codeexplorer', 'graph.db');
+        const walPath = path.join(wsRoot, '.codeexplorer', 'graph.db-wal');
+        if (fs.existsSync(dbPath)) {
+          dbMtime = fs.statSync(dbPath).mtime;
+        }
+        if (fs.existsSync(walPath)) {
+          const walMtime = fs.statSync(walPath).mtime;
+          if (!dbMtime || walMtime > dbMtime) {
+            dbMtime = walMtime;
+          }
+        }
+      } catch {}
+    }
+    if (!dbMtime && meta?.lastUpdatedUtc) {
+      try {
+        dbMtime = new Date(meta.lastUpdatedUtc);
+      } catch {}
+    }
+
+    const engineVersion = meta?.version || '1.16.2';
+    const cleanVersion = engineVersion.startsWith('v') ? engineVersion : `v${engineVersion}`;
+    const updateStr = dbMtime ? this.formatGraphUpdateTime(dbMtime) : 'Not indexed yet';
+
+    const statusItem = new CodeExplorerTreeItem(
+      'management-status',
+      'Engine & Graph State',
+      vscode.TreeItemCollapsibleState.None
+    );
+    statusItem.description = `${cleanVersion} · ${updateStr}`;
+    statusItem.iconPath = new vscode.ThemeIcon('history');
+    statusItem.tooltip = `CodeExplorer Engine: ${cleanVersion}\nGraph Last Updated: ${dbMtime ? dbMtime.toLocaleString() : 'Not indexed yet'}\nDatabase Path: .codeexplorer/graph.db\nClick the Refresh button on this row to update status.`;
+    // Row click does not invoke command - actions are button-only!
+    items.push(statusItem);
+
+    // 2. Graph Server & Daemon
+    const serverItem = new CodeExplorerTreeItem(
+      'management-server',
+      'Graph Server',
+      vscode.TreeItemCollapsibleState.None
+    );
+    if (serverInfo) {
+      serverItem.description = `Online :${serverInfo.port}`;
+      serverItem.iconPath = new vscode.ThemeIcon('pass');
+      serverItem.tooltip = `CodeExplorer daemon running at ${serverInfo.httpUrl}\nUse the Restart button to restart the daemon.`;
+    } else {
+      serverItem.description = isStarting ? 'Starting...' : 'Offline';
+      serverItem.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'circle-slash');
+      serverItem.tooltip = isStarting ? 'Daemon is launching...' : 'Daemon is offline.';
+    }
+    // Row click does not invoke command - actions are button-only!
+    items.push(serverItem);
+
+    // 3. Graph Database & Storage
+    const dbItem = new CodeExplorerTreeItem(
+      'management-graph',
+      'Graph Database',
+      vscode.TreeItemCollapsibleState.None
+    );
+    if (meta) {
+      dbItem.description = `${meta.totalNodes.toLocaleString()} nodes · ${meta.totalEdges.toLocaleString()} edges`;
+      dbItem.tooltip = `Storage Engine: SQLite WAL (.codeexplorer/graph.db)\nTotal Nodes: ${meta.totalNodes.toLocaleString()}\nTotal Relationships: ${meta.totalEdges.toLocaleString()}`;
+    } else {
+      dbItem.description = 'SQLite WAL (.codeexplorer/graph.db)';
+      dbItem.tooltip = 'Local SQLite WAL graph database';
+    }
+    dbItem.iconPath = new vscode.ThemeIcon('database');
+    // Row click does not invoke command - actions are button-only!
+    items.push(dbItem);
+
+    // 4. Rescan Workspace (Incremental)
     const rescanItem = new CodeExplorerTreeItem(
-      'management-item',
+      'management-rescan',
       'Rescan Workspace',
       vscode.TreeItemCollapsibleState.None
     );
     rescanItem.description = 'Incremental';
     rescanItem.iconPath = new vscode.ThemeIcon('sync');
     rescanItem.tooltip = 'Scan workspace for modified files and update graph incrementally';
-    rescanItem.command = {
-      command: 'codeExplorer.reindex',
-      title: 'Rescan Workspace',
-    };
+    // Row click does not invoke command - actions are button-only!
     items.push(rescanItem);
 
-    // 2. Rebuild Graph (Full Re-index)
+    // 5. Rebuild Graph (Full Re-index)
     const rebuildItem = new CodeExplorerTreeItem(
-      'management-item',
+      'management-rebuild',
       'Rebuild Graph',
       vscode.TreeItemCollapsibleState.None
     );
     rebuildItem.description = 'Clear & re-index';
     rebuildItem.iconPath = new vscode.ThemeIcon('clear-all');
     rebuildItem.tooltip = 'Clear graph database and re-scan the entire workspace from scratch';
-    rebuildItem.command = {
-      command: 'codeExplorer.reindexFull',
-      title: 'Rebuild Graph',
-    };
+    // Row click does not invoke command - actions are button-only!
     items.push(rebuildItem);
 
-    // 3. AI Intent Distillation
+    // 6. Distill AI Intents
     const intentItem = new CodeExplorerTreeItem(
-      'management-item',
+      'management-intent',
       'Distill AI Intents',
       vscode.TreeItemCollapsibleState.None
     );
-    intentItem.description = 'Classify DDD domains';
+    intentItem.description = 'DDD domains & contexts';
     intentItem.iconPath = new vscode.ThemeIcon('sparkle');
     intentItem.tooltip = 'Enrich knowledge graph with architectural intents and Bounded Contexts using local SLM';
-    intentItem.command = {
-      command: 'codeExplorer.distillIntents',
-      title: 'Distill AI Intents',
-    };
+    // Row click does not invoke command - actions are button-only!
     items.push(intentItem);
 
-    // 4. Model Management
-    const workspaceRoot = this.getWorkspaceRoot();
-    const modelStatus = getModelStatus(workspaceRoot);
-    if (modelStatus.exists) {
-      const modelItem = new CodeExplorerTreeItem(
-        'management-item',
-        'AI Intent Model',
-        vscode.TreeItemCollapsibleState.None
-      );
+    // 7. AI Intent Model
+    const modelStatus = getModelStatus(wsRoot);
+    const isModelReady = modelStatus.exists;
+    const modelItem = new CodeExplorerTreeItem(
+      isModelReady ? 'management-model' : 'management-model-download',
+      'AI Intent Model',
+      vscode.TreeItemCollapsibleState.None
+    );
+    if (isModelReady) {
       modelItem.description = `Ready (${modelStatus.sizeMb} MB)`;
       modelItem.iconPath = new vscode.ThemeIcon('check');
-      modelItem.tooltip = `Model is ready at ${modelStatus.modelPath}. Click to manage model or re-download.`;
-      modelItem.command = {
-        command: 'codeExplorer.modelStatus',
-        title: 'AI Model Management',
-      };
-      items.push(modelItem);
+      modelItem.tooltip = `Model is ready at ${modelStatus.modelPath}.`;
     } else {
-      const modelItem = new CodeExplorerTreeItem(
-        'management-item',
-        'Download AI Model',
-        vscode.TreeItemCollapsibleState.None
-      );
-      modelItem.description = '~940 MB';
+      modelItem.description = '~940 MB (not downloaded)';
       modelItem.iconPath = new vscode.ThemeIcon('cloud-download');
       modelItem.tooltip = 'Download local SLM model (ce-intent-v2-q4_k_m.gguf) for architectural intent distillation';
-      modelItem.command = {
-        command: 'codeExplorer.downloadModel',
-        title: 'Download AI Model',
-      };
-      items.push(modelItem);
     }
-
-    // 5. Restart Server or Start Server
-    if (serverInfo) {
-      const restartItem = new CodeExplorerTreeItem(
-        'management-item',
-        'Restart Server',
-        vscode.TreeItemCollapsibleState.None
-      );
-      restartItem.description = `Port ${serverInfo.port}`;
-      restartItem.iconPath = new vscode.ThemeIcon('debug-restart');
-      restartItem.tooltip = `Restart the CodeExplorer daemon (${serverInfo.httpUrl})`;
-      restartItem.command = {
-        command: 'codeExplorer.restartServer',
-        title: 'Restart Server',
-      };
-      items.push(restartItem);
-    } else {
-      const startItem = new CodeExplorerTreeItem(
-        'management-item',
-        isStarting ? 'Starting Server...' : 'Start Server',
-        vscode.TreeItemCollapsibleState.None
-      );
-      startItem.description = isStarting ? 'Launching daemon' : 'Offline';
-      startItem.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'play');
-      startItem.tooltip = 'Start the CodeExplorer background server process';
-      startItem.command = {
-        command: 'codeExplorer.showGraph',
-        title: 'Start Server',
-      };
-      items.push(startItem);
-    }
+    // Row click does not invoke command - actions are button-only!
+    items.push(modelItem);
 
     return items;
+  }
+
+  private formatGraphUpdateTime(date: Date): string {
+    const now = new Date();
+    const diffMs = Math.max(0, now.getTime() - date.getTime());
+    const diffMin = Math.floor(diffMs / 60000);
+
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
+
+    if (diffMin < 1) {
+      return `Updated just now (${timeStr})`;
+    } else if (diffMin < 60) {
+      return `Updated ${diffMin}m ago (${timeStr})`;
+    } else if (now.toDateString() === date.toDateString()) {
+      return `Updated today at ${timeStr}`;
+    } else {
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      return `Updated ${day}.${month} ${timeStr}`;
+    }
   }
 }

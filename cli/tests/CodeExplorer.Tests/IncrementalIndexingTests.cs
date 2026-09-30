@@ -207,35 +207,35 @@ public class IncrementalIndexingTests
             var batchesReceived = 0;
             var tcs = new TaskCompletionSource<bool>();
 
-            using var watcher = new CodeExplorer.Core.Parser.FileWatcher(
-                tempDir,
-                batch =>
-                {
-                    Interlocked.Increment(ref batchesReceived);
-                    tcs.TrySetResult(true);
-                    return Task.CompletedTask;
-                },
-                debounceMs: 150);
-
-            watcher.Start();
-
-            // Simulate rapid edits (5 files created within 20ms)
-            for (int i = 0; i < 5; i++)
+            using (var watcher = new CodeExplorer.Core.Parser.FileWatcher(tempDir, batch =>
+                   {
+                       Interlocked.Increment(ref batchesReceived);
+                       tcs.TrySetResult(true);
+                       return Task.CompletedTask;
+                   }, debounceMs: 150))
             {
-                File.WriteAllText(Path.Combine(tempDir, $"file_{i}.cs"), $"content {i}");
-                await Task.Delay(10);
+                watcher.Start();
+
+                // Simulate rapid edits (5 files created within 20ms)
+                for (int i = 0; i < 5; i++)
+                {
+                    File.WriteAllText(Path.Combine(tempDir, $"file_{i}.cs"), $"content {i}");
+                    await Task.Delay(10);
+                }
+
+                // Wait for debounce timer to fire once
+                var completed = await Task.WhenAny(tcs.Task, Task.Delay(1000));
+                Assert.That(completed, Is.EqualTo(tcs.Task), "Watcher debounce timer should fire.");
+
+                // Allow any extra trailing timer delay
+                await Task.Delay(200);
+
+                // Should be debounced into 1 batch (or max 2 depending on OS filesystem delay)
+                Assert.That(batchesReceived, Is.GreaterThanOrEqualTo(1));
+
+                Assert.That(batchesReceived, Is.LessThanOrEqualTo(2),
+                    "Events should be debounced into a single or very few batches.");
             }
-
-            // Wait for debounce timer to fire once
-            var completed = await Task.WhenAny(tcs.Task, Task.Delay(1000));
-            Assert.That(completed, Is.EqualTo(tcs.Task), "Watcher debounce timer should fire.");
-
-            // Allow any extra trailing timer delay
-            await Task.Delay(200);
-
-            // Should be debounced into 1 batch (or max 2 depending on OS filesystem delay)
-            Assert.That(batchesReceived, Is.GreaterThanOrEqualTo(1));
-            Assert.That(batchesReceived, Is.LessThanOrEqualTo(2), "Events should be debounced into a single or very few batches.");
         }
         finally
         {

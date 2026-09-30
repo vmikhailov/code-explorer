@@ -252,6 +252,35 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: Focus Bounded Context or Domain
+  const focusBoundedContextCommand = vscode.commands.registerCommand(
+    'codeExplorer.focusBoundedContext',
+    async (contextName?: string, contextId?: string, domainId?: string) => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) return;
+
+      try {
+        const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
+        const panel = GraphPanel.createOrShow(
+          context.extensionUri,
+          serverInfo.wsUrl,
+          workspaceRoot,
+          outputChannel,
+          'contexts'
+        );
+        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'contexts' });
+        panel.postMessage({
+          type: 'FOCUS_CONTEXT',
+          contextName,
+          contextId,
+          domainId,
+        });
+      } catch (err: any) {
+        outputChannel.appendLine(`[focusBoundedContext Error] ${err.message}`);
+      }
+    }
+  );
+
   // Command: Focus Node in Graph
   const focusNodeCommand = vscode.commands.registerCommand(
     'codeExplorer.focusNode',
@@ -259,8 +288,12 @@ export function activate(context: vscode.ExtensionContext) {
       const workspaceRoot = getWorkspaceRoot();
       if (!workspaceRoot) return;
 
-      const targetId = typeof nodeIdOrItem === 'string' ? nodeIdOrItem : nodeIdOrItem?.data?.id;
-      const targetKind = typeof nodeIdOrItem === 'string' ? kind : nodeIdOrItem?.data?.kind;
+      const targetId = typeof nodeIdOrItem === 'string'
+        ? nodeIdOrItem
+        : nodeIdOrItem?.data?.serviceId || nodeIdOrItem?.data?.serviceName || nodeIdOrItem?.data?.id || nodeIdOrItem?.data?.item?.name;
+      const targetKind = typeof nodeIdOrItem === 'string'
+        ? kind
+        : nodeIdOrItem?.data?.kind || nodeIdOrItem?.data?.item?.kind || (nodeIdOrItem?.itemType === 'ontology-service' ? 'Service' : undefined);
       if (!targetId) return;
 
       try {
@@ -295,7 +328,10 @@ export function activate(context: vscode.ExtensionContext) {
         targetPath = filePathOrItem;
       } else if (filePathOrItem?.data?.filePath) {
         targetPath = filePathOrItem.data.filePath;
-        targetLine = filePathOrItem.data.lineStart;
+        targetLine = filePathOrItem.data.lineStart || filePathOrItem.data.line;
+      } else if (filePathOrItem?.data?.item?.filePath) {
+        targetPath = filePathOrItem.data.item.filePath;
+        targetLine = filePathOrItem.data.item.line || filePathOrItem.data.item.lineStart;
       }
 
       if (!targetPath) return;
@@ -762,6 +798,7 @@ export function activate(context: vscode.ExtensionContext) {
     refreshTreeCommand,
     openNodeGridCommand,
     openViewCommand,
+    focusBoundedContextCommand,
     focusNodeCommand,
     openSourceCommand,
     reindexCommand,

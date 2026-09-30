@@ -99,19 +99,26 @@ async function insertAudit() {
     return await pool.query('INSERT INTO audit_logs (action) VALUES ($1)', ['login']);
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var selectQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("users"));
-        Assert.That(selectQuery, Is.Not.Null);
-        var selectDeps = selectQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
-        Assert.That(selectDeps, Contains.Item("users"));
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var insertQuery = queries.FirstOrDefault(q => q.Name.Contains("INSERT") && q.Name.Contains("audit_logs"));
-        Assert.That(insertQuery, Is.Not.Null);
-        var insertDeps = insertQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName).ToList();
-        Assert.That(insertDeps, Contains.Item("audit_logs"));
+            var selectQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("users"));
+            Assert.That(selectQuery, Is.Not.Null);
+
+            var selectDeps = selectQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
+                .ToList();
+            Assert.That(selectDeps, Contains.Item("users"));
+
+            var insertQuery = queries.FirstOrDefault(q => q.Name.Contains("INSERT") && q.Name.Contains("audit_logs"));
+            Assert.That(insertQuery, Is.Not.Null);
+
+            var insertDeps = insertQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
+                .ToList();
+            Assert.That(insertDeps, Contains.Item("audit_logs"));
+        }
     }
 
     [Test]
@@ -125,17 +132,26 @@ async function test() {
     await conn.execute('UPDATE orders SET status = 1 WHERE id = 5');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var selectQuery = queries.FirstOrDefault(q => (q.Name.Contains("accounts") || q.QueryText.Contains("accounts")) && (q.Name.Contains("SELECT") || q.QueryText.Contains("SELECT")));
-        Assert.That(selectQuery, Is.Not.Null);
-        Assert.That(selectQuery!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var updateQuery = queries.FirstOrDefault(q => (q.Name.Contains("orders") || q.QueryText.Contains("orders")) && (q.Name.Contains("UPDATE") || q.QueryText.Contains("UPDATE")));
-        Assert.That(updateQuery, Is.Not.Null);
-        Assert.That(updateQuery!.References.Any(r => r.TargetName == "orders" && r.Kind == "DEPENDS_ON"), Is.True);
+            var selectQuery = queries.FirstOrDefault(q =>
+                (q.Name.Contains("accounts") || q.QueryText.Contains("accounts")) &&
+                (q.Name.Contains("SELECT") || q.QueryText.Contains("SELECT")));
+            Assert.That(selectQuery, Is.Not.Null);
+
+            Assert.That(selectQuery!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON"),
+                Is.True);
+
+            var updateQuery = queries.FirstOrDefault(q =>
+                (q.Name.Contains("orders") || q.QueryText.Contains("orders")) &&
+                (q.Name.Contains("UPDATE") || q.QueryText.Contains("UPDATE")));
+            Assert.That(updateQuery, Is.Not.Null);
+            Assert.That(updateQuery!.References.Any(r => r.TargetName == "orders" && r.Kind == "DEPENDS_ON"), Is.True);
+        }
     }
 
     [Test]
@@ -149,17 +165,21 @@ function runOps() {
     db.run('DELETE FROM expired_tokens WHERE exp < datetime()');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var selectQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("tasks"));
-        Assert.That(selectQuery, Is.Not.Null);
-        Assert.That(selectQuery!.References.Any(r => r.TargetName == "tasks"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var deleteQuery = queries.FirstOrDefault(q => q.Name.Contains("DELETE") && q.Name.Contains("expired_tokens"));
-        Assert.That(deleteQuery, Is.Not.Null);
-        Assert.That(deleteQuery!.References.Any(r => r.TargetName == "expired_tokens"), Is.True);
+            var selectQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("tasks"));
+            Assert.That(selectQuery, Is.Not.Null);
+            Assert.That(selectQuery!.References.Any(r => r.TargetName == "tasks"), Is.True);
+
+            var deleteQuery =
+                queries.FirstOrDefault(q => q.Name.Contains("DELETE") && q.Name.Contains("expired_tokens"));
+            Assert.That(deleteQuery, Is.Not.Null);
+            Assert.That(deleteQuery!.References.Any(r => r.TargetName == "expired_tokens"), Is.True);
+        }
     }
 
     [Test]
@@ -173,17 +193,24 @@ async function getProducts() {
     await k.raw('SELECT count(*) FROM system_events');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var knexTableQuery = queries.FirstOrDefault(q => q.Name.Contains("products"));
-        Assert.That(knexTableQuery, Is.Not.Null);
-        Assert.That(knexTableQuery!.References.Any(r => r.TargetName == "products" && r.Kind == "USES_DB"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var rawQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("system_events"));
-        Assert.That(rawQuery, Is.Not.Null);
-        Assert.That(rawQuery!.References.Any(r => r.TargetName == "system_events" && r.Kind == "DEPENDS_ON"), Is.True);
+            var knexTableQuery = queries.FirstOrDefault(q => q.Name.Contains("products"));
+            Assert.That(knexTableQuery, Is.Not.Null);
+
+            Assert.That(knexTableQuery!.References.Any(r => r.TargetName == "products" && r.Kind == "USES_DB"),
+                Is.True);
+
+            var rawQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("system_events"));
+            Assert.That(rawQuery, Is.Not.Null);
+
+            Assert.That(rawQuery!.References.Any(r => r.TargetName == "system_events" && r.Kind == "DEPENDS_ON"),
+                Is.True);
+        }
     }
 
     [Test]
@@ -198,17 +225,22 @@ async function run() {
     await ds.query('SELECT * FROM transactions WHERE amount > 1000');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var findQuery = queries.FirstOrDefault(q => q.Name.Contains("find"));
-        Assert.That(findQuery, Is.Not.Null);
-        Assert.That(findQuery!.Name, Does.Contain("TypeORM"));
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var rawQuery = queries.FirstOrDefault(q => (q.Name.Contains("SELECT") || q.QueryText.Contains("SELECT")) && (q.Name.Contains("transactions") || q.QueryText.Contains("transactions")));
-        Assert.That(rawQuery, Is.Not.Null);
-        Assert.That(rawQuery!.References.Any(r => r.TargetName == "transactions"), Is.True);
+            var findQuery = queries.FirstOrDefault(q => q.Name.Contains("find"));
+            Assert.That(findQuery, Is.Not.Null);
+            Assert.That(findQuery!.Name, Does.Contain("TypeORM"));
+
+            var rawQuery = queries.FirstOrDefault(q =>
+                (q.Name.Contains("SELECT") || q.QueryText.Contains("SELECT")) &&
+                (q.Name.Contains("transactions") || q.QueryText.Contains("transactions")));
+            Assert.That(rawQuery, Is.Not.Null);
+            Assert.That(rawQuery!.References.Any(r => r.TargetName == "transactions"), Is.True);
+        }
     }
 
     [Test]
@@ -222,17 +254,20 @@ async function test() {
     await sequelize.query('SELECT id, hash FROM passwords');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var findAllQuery = queries.FirstOrDefault(q => q.Name.Contains("User.findAll"));
-        Assert.That(findAllQuery, Is.Not.Null);
-        Assert.That(findAllQuery!.References.Any(r => r.TargetName == "User" && r.Kind == "USES_DB"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var rawQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("passwords"));
-        Assert.That(rawQuery, Is.Not.Null);
-        Assert.That(rawQuery!.References.Any(r => r.TargetName == "passwords"), Is.True);
+            var findAllQuery = queries.FirstOrDefault(q => q.Name.Contains("User.findAll"));
+            Assert.That(findAllQuery, Is.Not.Null);
+            Assert.That(findAllQuery!.References.Any(r => r.TargetName == "User" && r.Kind == "USES_DB"), Is.True);
+
+            var rawQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("passwords"));
+            Assert.That(rawQuery, Is.Not.Null);
+            Assert.That(rawQuery!.References.Any(r => r.TargetName == "passwords"), Is.True);
+        }
     }
 
     [Test]
@@ -246,17 +281,20 @@ async function main() {
     const order = await prisma.order.create({ data: { total: 100 } });
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var userFind = queries.FirstOrDefault(q => q.Name.Contains("user.findMany"));
-        Assert.That(userFind, Is.Not.Null);
-        Assert.That(userFind!.References.Any(r => r.TargetName == "user" && r.Kind == "USES_DB"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var orderCreate = queries.FirstOrDefault(q => q.Name.Contains("order.create"));
-        Assert.That(orderCreate, Is.Not.Null);
-        Assert.That(orderCreate!.References.Any(r => r.TargetName == "order" && r.Kind == "USES_DB"), Is.True);
+            var userFind = queries.FirstOrDefault(q => q.Name.Contains("user.findMany"));
+            Assert.That(userFind, Is.Not.Null);
+            Assert.That(userFind!.References.Any(r => r.TargetName == "user" && r.Kind == "USES_DB"), Is.True);
+
+            var orderCreate = queries.FirstOrDefault(q => q.Name.Contains("order.create"));
+            Assert.That(orderCreate, Is.Not.Null);
+            Assert.That(orderCreate!.References.Any(r => r.TargetName == "order" && r.Kind == "USES_DB"), Is.True);
+        }
     }
 
     [Test]
@@ -269,13 +307,20 @@ async function queryDb() {
     const res = await prisma.$queryRaw`SELECT * FROM metrics_log WHERE timestamp > NOW()`;
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var rawQuery = queries.FirstOrDefault(q => (q.Name.Contains("metrics_log") || q.QueryText.Contains("metrics_log")) && q.References.Any(r => r.TargetName == "metrics_log"));
-        Assert.That(rawQuery, Is.Not.Null);
-        Assert.That(rawQuery!.References.Any(r => r.TargetName == "metrics_log" && r.Kind == "DEPENDS_ON"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
+
+            var rawQuery = queries.FirstOrDefault(q =>
+                (q.Name.Contains("metrics_log") || q.QueryText.Contains("metrics_log")) &&
+                q.References.Any(r => r.TargetName == "metrics_log"));
+            Assert.That(rawQuery, Is.Not.Null);
+
+            Assert.That(rawQuery!.References.Any(r => r.TargetName == "metrics_log" && r.Kind == "DEPENDS_ON"),
+                Is.True);
+        }
     }
 
     [Test]
@@ -289,17 +334,20 @@ async function run() {
     await db.insert(ordersTable).values({ amount: 50 });
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var selectOp = queries.FirstOrDefault(q => q.Name.Contains("usersTable"));
-        Assert.That(selectOp, Is.Not.Null);
-        Assert.That(selectOp!.References.Any(r => r.TargetName == "usersTable" && r.Kind == "USES_DB"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var insertOp = queries.FirstOrDefault(q => q.Name.Contains("ordersTable"));
-        Assert.That(insertOp, Is.Not.Null);
-        Assert.That(insertOp!.References.Any(r => r.TargetName == "ordersTable" && r.Kind == "USES_DB"), Is.True);
+            var selectOp = queries.FirstOrDefault(q => q.Name.Contains("usersTable"));
+            Assert.That(selectOp, Is.Not.Null);
+            Assert.That(selectOp!.References.Any(r => r.TargetName == "usersTable" && r.Kind == "USES_DB"), Is.True);
+
+            var insertOp = queries.FirstOrDefault(q => q.Name.Contains("ordersTable"));
+            Assert.That(insertOp, Is.Not.Null);
+            Assert.That(insertOp!.References.Any(r => r.TargetName == "ordersTable" && r.Kind == "USES_DB"), Is.True);
+        }
     }
 
     [Test]
@@ -309,13 +357,16 @@ async function run() {
 import { sql } from 'drizzle-orm';
 const query = sql`SELECT id, created_at FROM audit_trail WHERE severity = 'high'`;
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var q = queries.FirstOrDefault(q => q.Name.Contains("audit_trail") || q.QueryText.Contains("audit_trail"));
-        Assert.That(q, Is.Not.Null);
-        Assert.That(q!.References.Any(r => r.TargetName == "audit_trail" && r.Kind == "DEPENDS_ON"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
+
+            var q = queries.FirstOrDefault(q => q.Name.Contains("audit_trail") || q.QueryText.Contains("audit_trail"));
+            Assert.That(q, Is.Not.Null);
+            Assert.That(q!.References.Any(r => r.TargetName == "audit_trail" && r.Kind == "DEPENDS_ON"), Is.True);
+        }
     }
 
     [Test]
@@ -330,15 +381,18 @@ async function test() {
     await db.collection('orders').updateOne({ id: 1 }, { $set: { status: 'done' } });
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var findQuery = queries.FirstOrDefault(q => q.Name.Contains("customers.find"));
-        Assert.That(findQuery, Is.Not.Null);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var updateQuery = queries.FirstOrDefault(q => q.Name.Contains("orders.updateOne"));
-        Assert.That(updateQuery, Is.Not.Null);
+            var findQuery = queries.FirstOrDefault(q => q.Name.Contains("customers.find"));
+            Assert.That(findQuery, Is.Not.Null);
+
+            var updateQuery = queries.FirstOrDefault(q => q.Name.Contains("orders.updateOne"));
+            Assert.That(updateQuery, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -352,17 +406,20 @@ async function search() {
     await client.index({ index: 'server_logs', document: { message: 'started' } });
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var searchOp = queries.FirstOrDefault(q => q.Name.Contains("articles"));
-        Assert.That(searchOp, Is.Not.Null);
-        Assert.That(searchOp!.Name, Is.EqualTo("Elasticsearch: search (articles)"));
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var indexOp = queries.FirstOrDefault(q => q.Name.Contains("server_logs"));
-        Assert.That(indexOp, Is.Not.Null);
-        Assert.That(indexOp!.Name, Is.EqualTo("Elasticsearch: index (server_logs)"));
+            var searchOp = queries.FirstOrDefault(q => q.Name.Contains("articles"));
+            Assert.That(searchOp, Is.Not.Null);
+            Assert.That(searchOp!.Name, Is.EqualTo("Elasticsearch: search (articles)"));
+
+            var indexOp = queries.FirstOrDefault(q => q.Name.Contains("server_logs"));
+            Assert.That(indexOp, Is.Not.Null);
+            Assert.That(indexOp!.Name, Is.EqualTo("Elasticsearch: index (server_logs)"));
+        }
     }
 
     [Test]
@@ -376,13 +433,16 @@ async function queryGraph() {
     await session.run('MATCH (p:Person)-[:FRIENDS_WITH]->(f:Person) RETURN p, f');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var neoQuery = queries.FirstOrDefault(q => q.Name.Contains("Neo4j"));
-        Assert.That(neoQuery, Is.Not.Null);
-        Assert.That(neoQuery!.Name, Does.Contain("MATCH"));
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
+
+            var neoQuery = queries.FirstOrDefault(q => q.Name.Contains("Neo4j"));
+            Assert.That(neoQuery, Is.Not.Null);
+            Assert.That(neoQuery!.Name, Does.Contain("MATCH"));
+        }
     }
 
     [Test]
@@ -398,15 +458,18 @@ async function test() {
     writeApi.writePoint(new Point('mem'));
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var queryCall = queries.FirstOrDefault(q => q.Name.Contains("queryRows"));
-        Assert.That(queryCall, Is.Not.Null);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
 
-        var writeCall = queries.FirstOrDefault(q => q.Name.Contains("writePoint"));
-        Assert.That(writeCall, Is.Not.Null);
+            var queryCall = queries.FirstOrDefault(q => q.Name.Contains("queryRows"));
+            Assert.That(queryCall, Is.Not.Null);
+
+            var writeCall = queries.FirstOrDefault(q => q.Name.Contains("writePoint"));
+            Assert.That(writeCall, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -418,17 +481,20 @@ const app = fastify();
 app.get('/api/v1/health', async (req, reply) => ({ ok: true }));
 app.post('/api/v1/users', async (req, reply) => ({ created: true }));
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
 
-        var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
-        Assert.That(getEp, Is.Not.Null);
-        Assert.That(getEp!.RouteTemplate, Is.EqualTo("/api/v1/health"));
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+            Assert.That(endpoints, Has.Count.EqualTo(2));
 
-        var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(postEp, Is.Not.Null);
-        Assert.That(postEp!.RouteTemplate, Is.EqualTo("/api/v1/users"));
+            var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
+            Assert.That(getEp, Is.Not.Null);
+            Assert.That(getEp!.RouteTemplate, Is.EqualTo("/api/v1/health"));
+
+            var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
+            Assert.That(postEp, Is.Not.Null);
+            Assert.That(postEp!.RouteTemplate, Is.EqualTo("/api/v1/users"));
+        }
     }
 
     [Test]
@@ -443,13 +509,16 @@ server.route({
     handler: async () => ({ deleted: true })
 });
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(1));
 
-        var ep = endpoints[0];
-        Assert.That(ep.HttpMethod, Is.EqualTo("DELETE"));
-        Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/items/:id"));
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+            Assert.That(endpoints, Has.Count.EqualTo(1));
+
+            var ep = endpoints[0];
+            Assert.That(ep.HttpMethod, Is.EqualTo("DELETE"));
+            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/items/:id"));
+        }
     }
 
     [Test]
@@ -461,17 +530,20 @@ const router = new Router();
 router.get('/users/:id', async ctx => { ctx.body = {}; });
 router.post('/checkout', async ctx => { ctx.body = {}; });
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
 
-        var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
-        Assert.That(getEp, Is.Not.Null);
-        Assert.That(getEp!.RouteTemplate, Is.EqualTo("/users/:id"));
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+            Assert.That(endpoints, Has.Count.EqualTo(2));
 
-        var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(postEp, Is.Not.Null);
-        Assert.That(postEp!.RouteTemplate, Is.EqualTo("/checkout"));
+            var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
+            Assert.That(getEp, Is.Not.Null);
+            Assert.That(getEp!.RouteTemplate, Is.EqualTo("/users/:id"));
+
+            var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
+            Assert.That(postEp, Is.Not.Null);
+            Assert.That(postEp!.RouteTemplate, Is.EqualTo("/checkout"));
+        }
     }
 
     [Test]
@@ -486,15 +558,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ created: true });
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
 
-        var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
-        Assert.That(getEp, Is.Not.Null);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+            Assert.That(endpoints, Has.Count.EqualTo(2));
 
-        var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(postEp, Is.Not.Null);
+            var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
+            Assert.That(getEp, Is.Not.Null);
+
+            var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
+            Assert.That(postEp, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -506,13 +581,16 @@ async function fetchRemote() {
     const res = await got('https://api.paymentservice.com/v1/charge');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
-        Assert.That(extServices[0].Name, Is.EqualTo("api.paymentservice.com"));
 
-        var refs = FindAllReferences(ws.FileNode);
-        Assert.That(refs.Any(r => r.TargetName == "api.paymentservice.com" && r.Kind == "CALLS"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(1));
+            Assert.That(extServices[0].Name, Is.EqualTo("api.paymentservice.com"));
+
+            var refs = FindAllReferences(ws.FileNode);
+            Assert.That(refs.Any(r => r.TargetName == "api.paymentservice.com" && r.Kind == "CALLS"), Is.True);
+        }
     }
 
     [Test]
@@ -524,13 +602,16 @@ async function fetchRemote() {
     const data = await ky.get('https://inventory.internal.net/items');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
-        Assert.That(extServices[0].Name, Is.EqualTo("inventory.internal.net"));
 
-        var refs = FindAllReferences(ws.FileNode);
-        Assert.That(refs.Any(r => r.TargetName == "inventory.internal.net" && r.Kind == "CALLS"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(1));
+            Assert.That(extServices[0].Name, Is.EqualTo("inventory.internal.net"));
+
+            var refs = FindAllReferences(ws.FileNode);
+            Assert.That(refs.Any(r => r.TargetName == "inventory.internal.net" && r.Kind == "CALLS"), Is.True);
+        }
     }
 
     [Test]
@@ -547,14 +628,17 @@ async function messaging() {
     await consumer.subscribe({ topic: 'payment-events', fromBeginning: true });
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var refs = FindAllReferences(ws.FileNode);
 
-        var pubRef = refs.FirstOrDefault(r => r.TargetName == "kafka:orders-topic" && r.Kind == "PUBLISHES_TO");
-        Assert.That(pubRef, Is.Not.Null, "Should capture Kafka publisher reference");
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var refs = FindAllReferences(ws.FileNode);
 
-        var subRef = refs.FirstOrDefault(r => r.TargetName == "kafka:payment-events" && r.Kind == "SUBSCRIBES_TO");
-        Assert.That(subRef, Is.Not.Null, "Should capture Kafka consumer reference");
+            var pubRef = refs.FirstOrDefault(r => r.TargetName == "kafka:orders-topic" && r.Kind == "PUBLISHES_TO");
+            Assert.That(pubRef, Is.Not.Null, "Should capture Kafka publisher reference");
+
+            var subRef = refs.FirstOrDefault(r => r.TargetName == "kafka:payment-events" && r.Kind == "SUBSCRIBES_TO");
+            Assert.That(subRef, Is.Not.Null, "Should capture Kafka consumer reference");
+        }
     }
 
     [Test]
@@ -572,14 +656,17 @@ const worker = new Worker('mail-queue', async job => {
     console.log(job.data);
 });
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var refs = FindAllReferences(ws.FileNode);
 
-        var subRef = refs.FirstOrDefault(r => r.TargetName == "bullmq:mail-queue" && r.Kind == "SUBSCRIBES_TO");
-        Assert.That(subRef, Is.Not.Null, "Should capture BullMQ worker subscription");
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var refs = FindAllReferences(ws.FileNode);
 
-        var pubRef = refs.FirstOrDefault(r => r.TargetName.Contains("send-invoice") && r.Kind == "PUBLISHES_TO");
-        Assert.That(pubRef, Is.Not.Null, "Should capture BullMQ queue.add job publishing");
+            var subRef = refs.FirstOrDefault(r => r.TargetName == "bullmq:mail-queue" && r.Kind == "SUBSCRIBES_TO");
+            Assert.That(subRef, Is.Not.Null, "Should capture BullMQ worker subscription");
+
+            var pubRef = refs.FirstOrDefault(r => r.TargetName.Contains("send-invoice") && r.Kind == "PUBLISHES_TO");
+            Assert.That(pubRef, Is.Not.Null, "Should capture BullMQ queue.add job publishing");
+        }
     }
 
     [Test]
@@ -591,17 +678,20 @@ const app = express();
 app.patch('/api/v1/users/:id', (req, res) => res.json({}));
 app.delete('/api/v1/sessions', (req, res) => res.json({}));
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
 
-        var patchEp = endpoints.FirstOrDefault(e => e.HttpMethod == "PATCH");
-        Assert.That(patchEp, Is.Not.Null);
-        Assert.That(patchEp!.RouteTemplate, Is.EqualTo("/api/v1/users/:id"));
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+            Assert.That(endpoints, Has.Count.EqualTo(2));
 
-        var deleteEp = endpoints.FirstOrDefault(e => e.HttpMethod == "DELETE");
-        Assert.That(deleteEp, Is.Not.Null);
-        Assert.That(deleteEp!.RouteTemplate, Is.EqualTo("/api/v1/sessions"));
+            var patchEp = endpoints.FirstOrDefault(e => e.HttpMethod == "PATCH");
+            Assert.That(patchEp, Is.Not.Null);
+            Assert.That(patchEp!.RouteTemplate, Is.EqualTo("/api/v1/users/:id"));
+
+            var deleteEp = endpoints.FirstOrDefault(e => e.HttpMethod == "DELETE");
+            Assert.That(deleteEp, Is.Not.Null);
+            Assert.That(deleteEp!.RouteTemplate, Is.EqualTo("/api/v1/sessions"));
+        }
     }
 
     [Test]
@@ -619,18 +709,21 @@ export class UsersController {
     createUser() {}
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(3));
 
-        var controllerEp = endpoints.FirstOrDefault(e => e.RouteTemplate == "/users");
-        Assert.That(controllerEp, Is.Not.Null);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+            Assert.That(endpoints, Has.Count.EqualTo(3));
 
-        var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/users/all");
-        Assert.That(getEp, Is.Not.Null);
+            var controllerEp = endpoints.FirstOrDefault(e => e.RouteTemplate == "/users");
+            Assert.That(controllerEp, Is.Not.Null);
 
-        var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST" && e.RouteTemplate == "/users/create");
-        Assert.That(postEp, Is.Not.Null);
+            var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/users/all");
+            Assert.That(getEp, Is.Not.Null);
+
+            var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST" && e.RouteTemplate == "/users/create");
+            Assert.That(postEp, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -643,13 +736,16 @@ async function test() {
     await pool.query('SELECT * FROM accounts WHERE status = 1');
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code);
-        var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
 
-        var q = queries.FirstOrDefault(q => q.Name.Contains("accounts") || q.QueryText.Contains("accounts"));
-        Assert.That(q, Is.Not.Null);
-        Assert.That(q!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON"), Is.True);
+        using (var ws = await TestWorkspace.CreateAsync(code))
+        {
+            var queries = FindNodes<QueryNode>(ws.FileNode.Children);
+            Assert.That(queries, Is.Not.Empty);
+
+            var q = queries.FirstOrDefault(q => q.Name.Contains("accounts") || q.QueryText.Contains("accounts"));
+            Assert.That(q, Is.Not.Null);
+            Assert.That(q!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON"), Is.True);
+        }
     }
 
     [Test]
@@ -673,16 +769,19 @@ export class GamesComponent {
   }
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code, "games.component.ts");
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(2));
 
-        var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
-        Assert.That(gamesSvc, Is.Not.Null);
-        Assert.That(gamesSvc!.DomainOrService, Is.EqualTo("localhost"));
+        using (var ws = await TestWorkspace.CreateAsync(code, "games.component.ts"))
+        {
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(2));
 
-        var profileSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
-        Assert.That(profileSvc, Is.Not.Null);
+            var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
+            Assert.That(gamesSvc, Is.Not.Null);
+            Assert.That(gamesSvc!.DomainOrService, Is.EqualTo("localhost"));
+
+            var profileSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
+            Assert.That(profileSvc, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -734,18 +833,21 @@ export class AdminComponent implements OnInit {
   }
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(componentCode, "admin.component.ts");
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(3));
 
-        var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
-        Assert.That(gamesSvc, Is.Not.Null);
+        using (var ws = await TestWorkspace.CreateAsync(componentCode, "admin.component.ts"))
+        {
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(3));
 
-        var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
-        Assert.That(playerSvc, Is.Not.Null);
+            var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
+            Assert.That(gamesSvc, Is.Not.Null);
 
-        var userSvc = extServices.FirstOrDefault(s => s.Path.EndsWith("/api/v1/users"));
-        Assert.That(userSvc, Is.Not.Null);
+            var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
+            Assert.That(playerSvc, Is.Not.Null);
+
+            var userSvc = extServices.FirstOrDefault(s => s.Path.EndsWith("/api/v1/users"));
+            Assert.That(userSvc, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -776,15 +878,18 @@ export class TestComponent {
   }
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(componentCode, "test.component.ts");
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(2));
 
-        var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
-        Assert.That(gamesSvc, Is.Not.Null);
+        using (var ws = await TestWorkspace.CreateAsync(componentCode, "test.component.ts"))
+        {
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(2));
 
-        var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
-        Assert.That(playerSvc, Is.Not.Null);
+            var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
+            Assert.That(gamesSvc, Is.Not.Null);
+
+            var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
+            Assert.That(playerSvc, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -804,15 +909,18 @@ export const authCodeFlowConfig: AuthConfig = {
   showDebugInformation: true
 };
 ";
-        using var wsConfig = await TestWorkspace.CreateAsync(authConfigCode, "auth.config.ts");
-        var extServicesConfig = FindNodes<ExternalServiceNode>(wsConfig.FileNode.Children);
-        Assert.That(extServicesConfig, Has.Count.GreaterThan(0));
 
-        var oidcConfigEs = extServicesConfig.FirstOrDefault(s => s.Path.Contains(".well-known/openid-configuration"));
-        Assert.That(oidcConfigEs, Is.Not.Null);
-        Assert.That(oidcConfigEs!.DomainOrService, Is.EqualTo("localhost"));
+        using (var wsConfig = await TestWorkspace.CreateAsync(authConfigCode, "auth.config.ts"))
+        {
+            var extServicesConfig = FindNodes<ExternalServiceNode>(wsConfig.FileNode.Children);
+            Assert.That(extServicesConfig, Has.Count.GreaterThan(0));
 
-        var authServiceCode = @"
+            var oidcConfigEs =
+                extServicesConfig.FirstOrDefault(s => s.Path.Contains(".well-known/openid-configuration"));
+            Assert.That(oidcConfigEs, Is.Not.Null);
+            Assert.That(oidcConfigEs!.DomainOrService, Is.EqualTo("localhost"));
+
+            var authServiceCode = @"
 import { Injectable } from '@angular/core';
 import { OAuthService } from 'angular-oauth2-oidc';
 
@@ -825,11 +933,17 @@ export class AuthService {
   }
 }
 ";
-        using var wsService = await TestWorkspace.CreateAsync(authServiceCode, "auth.service.ts");
-        var extServicesService = FindNodes<ExternalServiceNode>(wsService.FileNode.Children);
-        Assert.That(extServicesService, Has.Count.GreaterThan(0));
-        var oidcCallEs = extServicesService.FirstOrDefault(s => s.Path.Contains(".well-known/openid-configuration"));
-        Assert.That(oidcCallEs, Is.Not.Null);
+
+            using (var wsService = await TestWorkspace.CreateAsync(authServiceCode, "auth.service.ts"))
+            {
+                var extServicesService = FindNodes<ExternalServiceNode>(wsService.FileNode.Children);
+                Assert.That(extServicesService, Has.Count.GreaterThan(0));
+
+                var oidcCallEs =
+                    extServicesService.FirstOrDefault(s => s.Path.Contains(".well-known/openid-configuration"));
+                Assert.That(oidcCallEs, Is.Not.Null);
+            }
+        }
     }
 
     [Test]
@@ -849,13 +963,16 @@ export class RealtimeService {
   }
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code, "realtime.service.ts");
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
 
-        var hubSvc = extServices.First();
-        Assert.That(hubSvc.Protocol, Is.EqualTo("ws"));
-        Assert.That(hubSvc.Path, Is.EqualTo("/hub/games"));
+        using (var ws = await TestWorkspace.CreateAsync(code, "realtime.service.ts"))
+        {
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(1));
+
+            var hubSvc = extServices.First();
+            Assert.That(hubSvc.Protocol, Is.EqualTo("ws"));
+            Assert.That(hubSvc.Path, Is.EqualTo("/hub/games"));
+        }
     }
 
     [Test]
@@ -870,12 +987,15 @@ const client = new ApolloClient({
   cache: new InMemoryCache()
 });
 ";
-        using var ws = await TestWorkspace.CreateAsync(code, "apollo.ts");
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
 
-        var gqlSvc = extServices.First();
-        Assert.That(gqlSvc.Path, Is.EqualTo("/graphql"));
+        using (var ws = await TestWorkspace.CreateAsync(code, "apollo.ts"))
+        {
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(1));
+
+            var gqlSvc = extServices.First();
+            Assert.That(gqlSvc.Path, Is.EqualTo("/graphql"));
+        }
     }
 
     [Test]
@@ -922,29 +1042,33 @@ export async function fetchTrafficBacks(baseUrl: string) {
   await fetch(url);
 }
 ";
-        using var ws = await TestWorkspace.CreateAsync(code, "cfApi.ts");
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
 
-        // Verify that ExternalService IDs are canonical (no :line:col row suffix)
-        foreach (var es in extServices)
+        using (var ws = await TestWorkspace.CreateAsync(code, "cfApi.ts"))
         {
-            Assert.That(es.Id, Does.Not.Match(@":\d+$"), "ExternalService ID should be canonical and not end with row number");
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+
+            // Verify that ExternalService IDs are canonical (no :line:col row suffix)
+            foreach (var es in extServices)
+            {
+                Assert.That(es.Id, Does.Not.Match(@":\d+$"),
+                    "ExternalService ID should be canonical and not end with row number");
+            }
+
+            // Verify CF API resolution: both executeQuery and putKv should resolve to api.cloudflare.com
+            var cfSvc = extServices.FirstOrDefault(s => s.DomainOrService == "api.cloudflare.com");
+            Assert.That(cfSvc, Is.Not.Null, "Should resolve this.baseUrl to api.cloudflare.com");
+            Assert.That(cfSvc!.Protocol, Is.EqualTo("https"));
+
+            // Verify Hub Ingest resolution: should resolve to hub.at-systems.biz
+            var hubSvc = extServices.FirstOrDefault(s => s.DomainOrService == "hub.at-systems.biz");
+            Assert.That(hubSvc, Is.Not.Null, "Should resolve getHubUrl() to hub.at-systems.biz");
+            Assert.That(hubSvc!.Protocol, Is.EqualTo("https"));
+
+            // Verify Bundles resolution: should resolve options.apiUrl || https://bundles.${domain} to bundles
+            var bundlesSvc = extServices.FirstOrDefault(s => s.DomainOrService == "bundles");
+            Assert.That(bundlesSvc, Is.Not.Null, "Should resolve baseUrl to bundles");
+            Assert.That(bundlesSvc!.Protocol, Is.EqualTo("https"));
         }
-
-        // Verify CF API resolution: both executeQuery and putKv should resolve to api.cloudflare.com
-        var cfSvc = extServices.FirstOrDefault(s => s.DomainOrService == "api.cloudflare.com");
-        Assert.That(cfSvc, Is.Not.Null, "Should resolve this.baseUrl to api.cloudflare.com");
-        Assert.That(cfSvc!.Protocol, Is.EqualTo("https"));
-
-        // Verify Hub Ingest resolution: should resolve to hub.at-systems.biz
-        var hubSvc = extServices.FirstOrDefault(s => s.DomainOrService == "hub.at-systems.biz");
-        Assert.That(hubSvc, Is.Not.Null, "Should resolve getHubUrl() to hub.at-systems.biz");
-        Assert.That(hubSvc!.Protocol, Is.EqualTo("https"));
-
-        // Verify Bundles resolution: should resolve options.apiUrl || https://bundles.${domain} to bundles
-        var bundlesSvc = extServices.FirstOrDefault(s => s.DomainOrService == "bundles");
-        Assert.That(bundlesSvc, Is.Not.Null, "Should resolve baseUrl to bundles");
-        Assert.That(bundlesSvc!.Protocol, Is.EqualTo("https"));
     }
 
     [Test]
@@ -961,18 +1085,21 @@ export async function fetchTrafficBacks(baseUrl: string) {
             await File.WriteAllTextAsync(Path.Combine(tempDir, "main.ts"), "export const real = 5;");
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
-            var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
-            var files = l1Result.Files;
+            await using (var client = new InMemoryGraphClient())
+            {
+                var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
-            var fileNames = files.Select(f => f.Name).ToList();
-            Assert.That(fileNames, Does.Contain("main.ts"));
-            Assert.That(fileNames, Does.Not.Contain("scratch_debug.ts"));
-            Assert.That(fileNames, Does.Not.Contain("temp_worker.ts"));
-            Assert.That(fileNames, Does.Not.Contain("feature_debug.ts"));
-            Assert.That(fileNames, Does.Not.Contain("worker.scratch.ts"));
+                var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
+                var files = l1Result.Files;
+
+                var fileNames = files.Select(f => f.Name).ToList();
+                Assert.That(fileNames, Does.Contain("main.ts"));
+                Assert.That(fileNames, Does.Not.Contain("scratch_debug.ts"));
+                Assert.That(fileNames, Does.Not.Contain("temp_worker.ts"));
+                Assert.That(fileNames, Does.Not.Contain("feature_debug.ts"));
+                Assert.That(fileNames, Does.Not.Contain("worker.scratch.ts"));
+            }
         }
         finally
         {

@@ -164,34 +164,40 @@ public class ConfigStoreTests
         await File.WriteAllTextAsync(Path.Combine(projDir, "appsettings.json"), appsettings);
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
-        var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        WorkspaceIndexer.Register(new CSharpParser());
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+        await using (var client = new InMemoryGraphClient())
+        {
+            var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        // Verification: Even before Layer 4 runs, ConstantRegistry MUST contain values from appsettings.json!
-        Assert.That(ConstantRegistry.TryResolve("PaymentGateway", "PaymentDb", out var dbVal), Is.True,
-            "ConstantRegistry should have PaymentDb preloaded during Layer 3");
-        Assert.That(dbVal, Contains.Substring("payments"));
+            WorkspaceIndexer.Register(new CSharpParser());
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
 
-        Assert.That(ConstantRegistry.TryResolve("PaymentGateway", "Kafka:PaymentProcessedTopic", out var topicVal), Is.True,
-            "ConstantRegistry should have Kafka:PaymentProcessedTopic preloaded during Layer 3");
-        Assert.That(topicVal, Is.EqualTo("payments.processed.v1"));
+            // Verification: Even before Layer 4 runs, ConstantRegistry MUST contain values from appsettings.json!
+            Assert.That(ConstantRegistry.TryResolve("PaymentGateway", "PaymentDb", out var dbVal), Is.True,
+                "ConstantRegistry should have PaymentDb preloaded during Layer 3");
+            Assert.That(dbVal, Contains.Substring("payments"));
 
-        // Now run Layer 4 to verify semantic nodes and relationships
-        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+            Assert.That(ConstantRegistry.TryResolve("PaymentGateway", "Kafka:PaymentProcessedTopic", out var topicVal),
+                Is.True, "ConstantRegistry should have Kafka:PaymentProcessedTopic preloaded during Layer 3");
+            Assert.That(topicVal, Is.EqualTo("payments.processed.v1"));
 
-        // ExternalServiceNode for CloudPayments should be created generically
-        var extServices = l4.SemanticNodes.OfType<ExternalServiceNode>().ToList();
-        Assert.That(extServices.Any(e => e.DomainOrService == "api.cloudpayments.ru" || e.Name == "CloudPayments"), Is.True,
-            "ExternalServiceNode for api.cloudpayments.ru should be created generically without hardcoded parser");
+            // Now run Layer 4 to verify semantic nodes and relationships
+            var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
 
-        // ServiceCall relationship for OrderService should be created generically
-        var serviceCalls = l4.SemanticRelationships.Where(r => r.Kind == "SERVICE_CALL").ToList();
-        Assert.That(serviceCalls.Any(r => r.To.Contains("service_target:orderservice")), Is.True,
-            "ServiceCall for order-service target should be created generically");
+            // ExternalServiceNode for CloudPayments should be created generically
+            var extServices = l4.SemanticNodes.OfType<ExternalServiceNode>().ToList();
+
+            Assert.That(extServices.Any(e => e.DomainOrService == "api.cloudpayments.ru" || e.Name == "CloudPayments"),
+                Is.True,
+                "ExternalServiceNode for api.cloudpayments.ru should be created generically without hardcoded parser");
+
+            // ServiceCall relationship for OrderService should be created generically
+            var serviceCalls = l4.SemanticRelationships.Where(r => r.Kind == "SERVICE_CALL").ToList();
+
+            Assert.That(serviceCalls.Any(r => r.To.Contains("service_target:orderservice")), Is.True,
+                "ServiceCall for order-service target should be created generically");
+        }
     }
 }

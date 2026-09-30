@@ -12,6 +12,7 @@ public static class WorkspaceConventions
 {
     private static readonly ConcurrentDictionary<string, string> TopicAliases = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, string> ProjectToDomain = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> DomainIcons = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex RouteFunctionRegex = new(
         @"(?:get(?:ServiceDomainBy)?Route|resolveRoute|routeFor|serviceRoute)\s*\(\s*['""]([^'""]+)['""]",
@@ -30,18 +31,23 @@ public static class WorkspaceConventions
             try
             {
                 var json = File.ReadAllText(configPath);
-                using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("topics", out var topicsEl) && topicsEl.ValueKind == JsonValueKind.Object)
-                {
-                    foreach (var prop in topicsEl.EnumerateObject())
-                    {
-                        TopicAliases[prop.Name] = prop.Value.GetString() ?? prop.Name;
-                    }
-                }
 
-                if (doc.RootElement.TryGetProperty("domains", out var domainsEl) && domainsEl.ValueKind == JsonValueKind.Object)
+                using (var doc = JsonDocument.Parse(json))
                 {
-                    ParseDomainMappings(domainsEl);
+                    if (doc.RootElement.TryGetProperty("topics", out var topicsEl) &&
+                        topicsEl.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in topicsEl.EnumerateObject())
+                        {
+                            TopicAliases[prop.Name] = prop.Value.GetString() ?? prop.Name;
+                        }
+                    }
+
+                    if (doc.RootElement.TryGetProperty("domains", out var domainsEl) &&
+                        domainsEl.ValueKind == JsonValueKind.Object)
+                    {
+                        ParseDomainMappings(domainsEl);
+                    }
                 }
             }
             catch
@@ -56,20 +62,82 @@ public static class WorkspaceConventions
             try
             {
                 var json = File.ReadAllText(domainsPath);
-                using var doc = JsonDocument.Parse(json);
-                var root = doc.RootElement;
-                if (root.TryGetProperty("domains", out var nestedDomains) && nestedDomains.ValueKind == JsonValueKind.Object)
+
+                using (var doc = JsonDocument.Parse(json))
                 {
-                    ParseDomainMappings(nestedDomains);
-                }
-                else if (root.ValueKind == JsonValueKind.Object)
-                {
-                    ParseDomainMappings(root);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("domains", out var domainsEl))
+                    {
+                        if (domainsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            ParseDomainDefinitionsArray(domainsEl);
+                        }
+                        else if (domainsEl.ValueKind == JsonValueKind.Object)
+                        {
+                            ParseDomainMappings(domainsEl);
+                        }
+                    }
+                    else if (root.ValueKind == JsonValueKind.Array)
+                    {
+                        ParseDomainDefinitionsArray(root);
+                    }
+                    else if (root.ValueKind == JsonValueKind.Object)
+                    {
+                        ParseDomainMappings(root);
+                    }
                 }
             }
             catch
             {
                 // Ignore malformed custom domains files
+            }
+        }
+    }
+
+    private static void ParseDomainDefinitionsArray(JsonElement root)
+    {
+        foreach (var item in root.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+
+            if (item.TryGetProperty("name", out var nameProp))
+            {
+                var domainName = nameProp.GetString();
+                if (string.IsNullOrWhiteSpace(domainName)) continue;
+
+                if (item.TryGetProperty("icon", out var iconProp))
+                {
+                    var icon = iconProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(icon))
+                    {
+                        DomainIcons[domainName.Trim()] = icon.Trim();
+                    }
+                }
+
+                if (item.TryGetProperty("projects", out var projsProp) && projsProp.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var p in projsProp.EnumerateArray())
+                    {
+                        var proj = p.GetString();
+                        if (!string.IsNullOrWhiteSpace(proj))
+                        {
+                            ProjectToDomain[proj.Trim()] = domainName.Trim();
+                        }
+                    }
+                }
+
+                if (item.TryGetProperty("services", out var srvsProp) && srvsProp.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var s in srvsProp.EnumerateArray())
+                    {
+                        var srv = s.GetString();
+                        if (!string.IsNullOrWhiteSpace(srv))
+                        {
+                            ProjectToDomain[srv.Trim()] = domainName.Trim();
+                        }
+                    }
+                }
             }
         }
     }
@@ -119,6 +187,7 @@ public static class WorkspaceConventions
     {
         TopicAliases.Clear();
         ProjectToDomain.Clear();
+        DomainIcons.Clear();
     }
 
     /// <summary>
@@ -127,6 +196,14 @@ public static class WorkspaceConventions
     public static bool TryGetTopicAlias(string key, out string alias)
     {
         return TopicAliases.TryGetValue(key, out alias!);
+    }
+
+    /// <summary>
+    /// Attempts to resolve a user-configured domain icon from domains.json.
+    /// </summary>
+    public static bool TryGetDomainIcon(string domainName, out string icon)
+    {
+        return DomainIcons.TryGetValue(domainName, out icon!);
     }
 
     /// <summary>
@@ -367,6 +444,33 @@ public static class WorkspaceConventions
             else if (clean.StartsWith("srv-"))
             {
                 clean = clean["srv-".Length..];
+                changed = true;
+            }
+            else if (clean.StartsWith("internalservice-") || clean.StartsWith("internalservice_") || (clean.StartsWith("internalservice") && clean.Length > "internalservice".Length))
+            {
+                var len = clean.StartsWith("internalservice-") ? "internalservice-".Length :
+                          clean.StartsWith("internalservice_") ? "internalservice_".Length : "internalservice".Length;
+                clean = clean[len..];
+                changed = true;
+            }
+            else if (clean.StartsWith("integrationservice-") || clean.StartsWith("integrationservice_") || (clean.StartsWith("integrationservice") && clean.Length > "integrationservice".Length))
+            {
+                var len = clean.StartsWith("integrationservice-") ? "integrationservice-".Length :
+                          clean.StartsWith("integrationservice_") ? "integrationservice_".Length : "integrationservice".Length;
+                clean = clean[len..];
+                changed = true;
+            }
+            else if (clean.StartsWith("externalservice-") || clean.StartsWith("externalservice_") || (clean.StartsWith("externalservice") && clean.Length > "externalservice".Length))
+            {
+                var len = clean.StartsWith("externalservice-") ? "externalservice-".Length :
+                          clean.StartsWith("externalservice_") ? "externalservice_".Length : "externalservice".Length;
+                clean = clean[len..];
+                changed = true;
+            }
+            else if (clean.StartsWith("ats-") || clean.StartsWith("ats_"))
+            {
+                var len = clean.StartsWith("ats-") ? "ats-".Length : "ats_".Length;
+                clean = clean[len..];
                 changed = true;
             }
         } while (changed);

@@ -55,28 +55,41 @@ public class ConfigurationMappingTests
         await File.WriteAllTextAsync(Path.Combine(projDir, "appsettings.json"), appsettings);
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
-        var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        WorkspaceIndexer.Register(new CSharpParser());
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
-        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+        await using (var client = new InMemoryGraphClient())
+        {
+            var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
-        Assert.That(databases.Any(d => d.DbType == "relational" && (d.Name.Contains("DefaultConnection") || d.Name.Contains("orders_db"))), Is.True, "Postgres DefaultConnection / orders_db should be extracted");
-        Assert.That(databases.Any(d => d.DbType == "cache" && d.Name.Contains("Redis")), Is.True, "Redis database should be extracted");
+            WorkspaceIndexer.Register(new CSharpParser());
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+            var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
 
-        var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();
-        Assert.That(topics.Any(t => t.BrokerType == "rabbitmq"), Is.True, "RabbitMQ topic/broker should be extracted");
+            var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
 
-        var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
-        Assert.That(cloud.Any(c => c.Name == "Stripe"), Is.True, "Stripe cloud service should be extracted");
-        Assert.That(cloud.Any(c => c.Name == "Auth0"), Is.True, "Auth0 cloud service should be extracted");
+            Assert.That(
+                databases.Any(d =>
+                    d.DbType == "relational" && (d.Name.Contains("DefaultConnection") || d.Name.Contains("orders_db"))),
+                Is.True, "Postgres DefaultConnection / orders_db should be extracted");
 
-        var configRels = l4.SemanticRelationships.Where(r => r.Kind == "CONFIGURES").ToList();
-        Assert.That(configRels.Count, Is.GreaterThanOrEqualTo(4), "CONFIGURES edges should link appsettings.json to configured services");
+            Assert.That(databases.Any(d => d.DbType == "cache" && d.Name.Contains("Redis")), Is.True,
+                "Redis database should be extracted");
+
+            var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();
+
+            Assert.That(topics.Any(t => t.BrokerType == "rabbitmq"), Is.True,
+                "RabbitMQ topic/broker should be extracted");
+
+            var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
+            Assert.That(cloud.Any(c => c.Name == "Stripe"), Is.True, "Stripe cloud service should be extracted");
+            Assert.That(cloud.Any(c => c.Name == "Auth0"), Is.True, "Auth0 cloud service should be extracted");
+
+            var configRels = l4.SemanticRelationships.Where(r => r.Kind == "CONFIGURES").ToList();
+
+            Assert.That(configRels.Count, Is.GreaterThanOrEqualTo(4),
+                "CONFIGURES edges should link appsettings.json to configured services");
+        }
     }
 
     [Test]
@@ -99,20 +112,23 @@ public class ConfigurationMappingTests
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "docker-compose.yml"), composeContent);
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
-        var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        WorkspaceIndexer.Register(new CSharpParser());
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
-        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+        await using (var client = new InMemoryGraphClient())
+        {
+            var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
-        Assert.That(databases, Is.Empty, "Docker compose should not generate false DatabaseNode dependencies");
+            WorkspaceIndexer.Register(new CSharpParser());
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+            var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
 
-        var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();
-        Assert.That(topics, Is.Empty, "Docker compose should not generate false TopicNode dependencies");
+            var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
+            Assert.That(databases, Is.Empty, "Docker compose should not generate false DatabaseNode dependencies");
+
+            var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();
+            Assert.That(topics, Is.Empty, "Docker compose should not generate false TopicNode dependencies");
+        }
     }
 
     [Test]
@@ -126,20 +142,25 @@ public class ConfigurationMappingTests
         await File.WriteAllTextAsync(Path.Combine(_tempDir, ".env"), envContent);
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
-        var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        WorkspaceIndexer.Register(new CSharpParser());
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
-        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+        await using (var client = new InMemoryGraphClient())
+        {
+            var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
-        Assert.That(databases.Any(d => d.DbType == "relational"), Is.True, "Postgres DATABASE_URL in .env should be extracted");
-        Assert.That(databases.Any(d => d.DbType == "cache"), Is.True, "REDIS_URL in .env should be extracted");
+            WorkspaceIndexer.Register(new CSharpParser());
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+            var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
 
-        var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
-        Assert.That(cloud.Any(c => c.Name == "Stripe"), Is.True, "Stripe in .env should be extracted");
+            var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
+
+            Assert.That(databases.Any(d => d.DbType == "relational"), Is.True,
+                "Postgres DATABASE_URL in .env should be extracted");
+            Assert.That(databases.Any(d => d.DbType == "cache"), Is.True, "REDIS_URL in .env should be extracted");
+
+            var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
+            Assert.That(cloud.Any(c => c.Name == "Stripe"), Is.True, "Stripe in .env should be extracted");
+        }
     }
 }

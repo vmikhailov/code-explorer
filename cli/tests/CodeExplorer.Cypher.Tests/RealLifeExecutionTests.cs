@@ -19,8 +19,9 @@ public class RealLifeExecutionTests
         _conn.Open();
         SqliteCypherFunctions.Register(_conn);
 
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"
             CREATE TABLE nodes (
                 id TEXT PRIMARY KEY,
                 kind TEXT NOT NULL,
@@ -39,9 +40,10 @@ public class RealLifeExecutionTests
             CREATE INDEX idx_edges_kind ON edges(kind);
             CREATE INDEX idx_nodes_kind ON nodes(kind);
         ";
-        cmd.ExecuteNonQuery();
+            cmd.ExecuteNonQuery();
 
-        SeedRealisticGraph();
+            SeedRealisticGraph();
+        }
     }
 
     [TearDown]
@@ -52,23 +54,27 @@ public class RealLifeExecutionTests
 
     private void InsertNode(string id, string kind, Dictionary<string, object?> props)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
-        cmd.Parameters.AddWithValue("@id", id);
-        cmd.Parameters.AddWithValue("@kind", kind);
-        cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));
-        cmd.ExecuteNonQuery();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.Parameters.AddWithValue("@kind", kind);
+            cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));
+            cmd.ExecuteNonQuery();
+        }
     }
 
     private void InsertEdge(string fromId, string toId, string kind, Dictionary<string, object?>? props = null)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, @props)";
-        cmd.Parameters.AddWithValue("@from", fromId);
-        cmd.Parameters.AddWithValue("@to", toId);
-        cmd.Parameters.AddWithValue("@kind", kind);
-        cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props ?? new()));
-        cmd.ExecuteNonQuery();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, @props)";
+            cmd.Parameters.AddWithValue("@from", fromId);
+            cmd.Parameters.AddWithValue("@to", toId);
+            cmd.Parameters.AddWithValue("@kind", kind);
+            cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props ?? new()));
+            cmd.ExecuteNonQuery();
+        }
     }
 
     private void SeedRealisticGraph()
@@ -335,41 +341,52 @@ public class RealLifeExecutionTests
         var ast = CypherQueryParser.Parse(rawText);
         var compiled = SqliteCompiler.Compile(ast, parameters);
 
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = compiled.Sql;
-        foreach (var (k, v) in compiled.Parameters)
+        using (var cmd = _conn.CreateCommand())
         {
-            var paramName = "@" + k.TrimStart('@');
-            cmd.Parameters.AddWithValue(paramName, v ?? DBNull.Value);
-        }
+            cmd.CommandText = compiled.Sql;
 
-        // Add dummy values for any query-level parameters not yet bound
-        var matches = System.Text.RegularExpressions.Regex.Matches(compiled.Sql, @"@[a-zA-Z0-9_]+");
-        foreach (System.Text.RegularExpressions.Match match in matches)
-        {
-            var pName = match.Value;
-            if (!cmd.Parameters.Contains(pName))
+            foreach (var (k, v) in compiled.Parameters)
             {
-                object val = pName.Contains("skip", StringComparison.OrdinalIgnoreCase) ||
-                             pName.Contains("limit", StringComparison.OrdinalIgnoreCase)
-                    ? 10
-                    : "dummy_val";
-                cmd.Parameters.AddWithValue(pName, val);
+                var paramName = "@" + k.TrimStart('@');
+                cmd.Parameters.AddWithValue(paramName, v ?? DBNull.Value);
+            }
+
+            // Add dummy values for any query-level parameters not yet bound
+            var matches = System.Text.RegularExpressions.Regex.Matches(compiled.Sql, @"@[a-zA-Z0-9_]+");
+
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                var pName = match.Value;
+
+                if (!cmd.Parameters.Contains(pName))
+                {
+                    object val = pName.Contains("skip", StringComparison.OrdinalIgnoreCase) ||
+                                 pName.Contains("limit", StringComparison.OrdinalIgnoreCase)
+                        ? 10
+                        : "dummy_val";
+                    cmd.Parameters.AddWithValue(pName, val);
+                }
+            }
+
+            var results = new List<Dictionary<string, object?>>();
+
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    }
+
+                    results.Add(row);
+                }
+
+                return results;
             }
         }
-
-        var results = new List<Dictionary<string, object?>>();
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-            }
-            results.Add(row);
-        }
-        return results;
     }
 
     private List<Dictionary<string, object?>> ExecuteCypher(string rawText, Dictionary<string, object?>? parameters = null)
@@ -377,26 +394,35 @@ public class RealLifeExecutionTests
         var ast = CypherQueryParser.Parse(rawText);
         var compiled = SqliteCompiler.Compile(ast, parameters);
 
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = compiled.Sql;
-        foreach (var (k, v) in compiled.Parameters)
+        using (var cmd = _conn.CreateCommand())
         {
-            var paramName = "@" + k.TrimStart('@');
-            cmd.Parameters.AddWithValue(paramName, v ?? DBNull.Value);
-        }
+            cmd.CommandText = compiled.Sql;
 
-        var results = new List<Dictionary<string, object?>>();
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0; i < reader.FieldCount; i++)
+            foreach (var (k, v) in compiled.Parameters)
             {
-                row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                var paramName = "@" + k.TrimStart('@');
+                cmd.Parameters.AddWithValue(paramName, v ?? DBNull.Value);
             }
-            results.Add(row);
+
+            var results = new List<Dictionary<string, object?>>();
+
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    }
+
+                    results.Add(row);
+                }
+
+                return results;
+            }
         }
-        return results;
     }
 
     [Test]
@@ -601,15 +627,24 @@ public class RealLifeExecutionTests
             """;
         var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast);
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = compiled.Sql;
-        using var reader = cmd.ExecuteReader();
-        Assert.That(reader.Read(), Is.True);
-        var rawJson = reader.GetString(0);
-        using var doc = JsonDocument.Parse(rawJson);
-        var typesProp = doc.RootElement.GetProperty("types");
-        Assert.That(typesProp.ValueKind, Is.EqualTo(JsonValueKind.Array));
-        Assert.That(typesProp.GetArrayLength(), Is.GreaterThan(0));
+
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = compiled.Sql;
+
+            using (var reader = cmd.ExecuteReader())
+            {
+                Assert.That(reader.Read(), Is.True);
+                var rawJson = reader.GetString(0);
+
+                using (var doc = JsonDocument.Parse(rawJson))
+                {
+                    var typesProp = doc.RootElement.GetProperty("types");
+                    Assert.That(typesProp.ValueKind, Is.EqualTo(JsonValueKind.Array));
+                    Assert.That(typesProp.GetArrayLength(), Is.GreaterThan(0));
+                }
+            }
+        }
     }
 
     [Test]
@@ -627,11 +662,14 @@ public class RealLifeExecutionTests
 
         Assert.That(rows, Has.Count.EqualTo(1));
         var projectsRaw = rows[0]["projects"]?.ToString() ?? "";
-        using var doc = JsonDocument.Parse(projectsRaw);
-        var proj = doc.RootElement[0];
-        var dbs = proj.GetProperty("databases");
-        Assert.That(dbs.ValueKind, Is.EqualTo(JsonValueKind.Array));
-        Assert.That(dbs.GetArrayLength(), Is.GreaterThanOrEqualTo(1));
+
+        using (var doc = JsonDocument.Parse(projectsRaw))
+        {
+            var proj = doc.RootElement[0];
+            var dbs = proj.GetProperty("databases");
+            Assert.That(dbs.ValueKind, Is.EqualTo(JsonValueKind.Array));
+            Assert.That(dbs.GetArrayLength(), Is.GreaterThanOrEqualTo(1));
+        }
     }
 
     [Test]
@@ -650,18 +688,25 @@ public class RealLifeExecutionTests
         var cypher = "MATCH (p:Project) WHERE p.name = 'ShippingLib' RETURN p.kind AS kind, p.language AS language, p.entity_kind AS entityKind, p.sub_kind AS subKind";
         var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast);
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = compiled.Sql;
-        foreach (var (k, v) in compiled.Parameters)
+
+        using (var cmd = _conn.CreateCommand())
         {
-            cmd.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
+            cmd.CommandText = compiled.Sql;
+
+            foreach (var (k, v) in compiled.Parameters)
+            {
+                cmd.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
+            }
+
+            using (var reader = cmd.ExecuteReader())
+            {
+                Assert.That(reader.Read(), Is.True);
+                Assert.That(reader["kind"], Is.EqualTo("Library"));
+                Assert.That(reader["language"], Is.EqualTo("csharp"));
+                Assert.That(reader["entityKind"], Is.EqualTo("Library"));
+                Assert.That(reader["subKind"], Is.EqualTo("SharedLibrary"));
+            }
         }
-        using var reader = cmd.ExecuteReader();
-        Assert.That(reader.Read(), Is.True);
-        Assert.That(reader["kind"], Is.EqualTo("Library"));
-        Assert.That(reader["language"], Is.EqualTo("csharp"));
-        Assert.That(reader["entityKind"], Is.EqualTo("Library"));
-        Assert.That(reader["subKind"], Is.EqualTo("SharedLibrary"));
     }
 
     [Test]
@@ -678,20 +723,30 @@ public class RealLifeExecutionTests
         var cypher1 = "MATCH (s:Service) WHERE s.name = 'BillingService' RETURN s.name AS name, labels(s) AS lbls";
         var ast1 = CypherQueryParser.Parse(cypher1);
         var compiled1 = SqliteCompiler.Compile(ast1);
-        using var cmd1 = _conn.CreateCommand();
-        cmd1.CommandText = compiled1.Sql;
-        foreach (var (k, v) in compiled1.Parameters)
+
+        using (var cmd1 = _conn.CreateCommand())
         {
-            cmd1.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
+            cmd1.CommandText = compiled1.Sql;
+
+            foreach (var (k, v) in compiled1.Parameters)
+            {
+                cmd1.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
+            }
+
+            using (var reader1 = cmd1.ExecuteReader())
+            {
+                Assert.That(reader1.Read(), Is.True);
+                Assert.That(reader1["name"], Is.EqualTo("BillingService"));
+                var lblsJson = reader1.GetString(1);
+
+                using (var doc = JsonDocument.Parse(lblsJson))
+                {
+                    var labels = doc.RootElement.EnumerateArray().Select(e => e.GetString()).ToList();
+                    Assert.That(labels, Does.Contain("Project"));
+                    Assert.That(labels, Does.Contain("Service"));
+                }
+            }
         }
-        using var reader1 = cmd1.ExecuteReader();
-        Assert.That(reader1.Read(), Is.True);
-        Assert.That(reader1["name"], Is.EqualTo("BillingService"));
-        var lblsJson = reader1.GetString(1);
-        using var doc = JsonDocument.Parse(lblsJson);
-        var labels = doc.RootElement.EnumerateArray().Select(e => e.GetString()).ToList();
-        Assert.That(labels, Does.Contain("Project"));
-        Assert.That(labels, Does.Contain("Service"));
     }
 }
 

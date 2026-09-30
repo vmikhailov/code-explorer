@@ -16,6 +16,24 @@ public record ProjectIntentResult(
     [property: JsonPropertyName("capabilities")] List<string>? Capabilities
 );
 
+public record ProjectBoundedContextResult(
+    [property: JsonPropertyName("service")] string Service,
+    [property: JsonPropertyName("bounded_context")] string BoundedContext,
+    [property: JsonPropertyName("primary_aggregates")] List<string> PrimaryAggregates,
+    [property: JsonPropertyName("capability")] string Capability,
+    [property: JsonPropertyName("suggested_domain")] string SuggestedDomain
+);
+
+public record SystemDomainAssignment(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("description")] string Description,
+    [property: JsonPropertyName("services")] List<string> Services
+);
+
+public record SystemDomainsResult(
+    [property: JsonPropertyName("domains")] List<SystemDomainAssignment> Domains
+);
+
 public sealed class NativeIntentPredictor : IDisposable
 {
     private static readonly object ConfigLock = new();
@@ -147,11 +165,14 @@ public sealed class NativeIntentPredictor : IDisposable
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                using var p = System.Diagnostics.Process.Start(psi);
-                if (p != null)
+
+                using (var p = System.Diagnostics.Process.Start(psi))
                 {
-                    var str = p.StandardOutput.ReadToEnd().Trim();
-                    if (ulong.TryParse(str, out var bytes) && bytes > 0) return bytes;
+                    if (p != null)
+                    {
+                        var str = p.StandardOutput.ReadToEnd().Trim();
+                        if (ulong.TryParse(str, out var bytes) && bytes > 0) return bytes;
+                    }
                 }
             }
             catch { }
@@ -301,6 +322,572 @@ public sealed class NativeIntentPredictor : IDisposable
     {
         var (result, _) = await PredictWithRawAsync(filePath, content, projectName, knownDomains, projectDomain, projectRole, cancellationToken);
         return result;
+    }
+
+    public const string SystemDomainsPrompt =
+        "You are a Principal Enterprise Software Architect specializing in Domain-Driven Design (DDD).\n" +
+        "Analyze the system architecture catalog of services, directory paths, shared database tables, API endpoints, messaging topics, and domain entities.\n" +
+        "Your goal is to synthesize a disjoint partition of exactly 6 to 10 cohesive high-level Business Domains (Problem Spaces).\n\n" +
+        "FUNDAMENTAL DDD RULES:\n" +
+        "1. Problem Space vs Solution Space: A Business Domain represents an overarching business problem space (e.g., Billing, Identity, Inventory, Catalog). An individual service or microservice is only a Bounded Context inside a Domain, NEVER a domain on its own.\n" +
+        "2. Data & Entity Cohesion: Services that access the same database tables, manipulate the same entity aggregates, or communicate via domain events belong to the SAME Business Domain.\n" +
+        "3. Path & Capability Alignment: Services located in related directory namespaces, or cooperating as API backend, worker, scheduler, or streaming engine for a capability belong to the SAME Business Domain.\n" +
+        "4. Disjoint Exhaustive Partition: Group ALL services into exactly 6 to 10 Business Domains. Every service must appear in exactly one domain. No service left behind.\n" +
+        "5. Canonical Domain Naming: Name each domain with a single, clear, high-level business concept noun in PascalCase (e.g., derived from the core entity aggregates or business capability).\n\n" +
+        "Respond ONLY with valid JSON in this format:\n" +
+        "{\n" +
+        "  \"domains\": [\n" +
+        "    {\n" +
+        "      \"name\": \"PascalCaseDomainName\",\n" +
+        "      \"description\": \"1-2 sentence description of the business problem space and responsibilities.\",\n" +
+        "      \"services\": [\"service-1\", \"service-2\"]\n" +
+        "    }\n" +
+        "  ]\n" +
+        "}\n";
+
+    public const string SystemDomainsJsonGrammar = """
+root ::= "{" ws "\"domains\":" ws domain-list "}" ws
+domain-list ::= "[" ws (domain-obj ("," ws domain-obj)*)? ws "]"
+domain-obj ::= "{" ws "\"name\":" ws string "," ws "\"description\":" ws string "," ws "\"services\":" ws string-list "}" ws
+string-list ::= "[" ws (string ("," ws string)*)? ws "]"
+string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt])* "\""
+ws ::= [ \t\n\r]*
+""";
+
+    public async Task<SystemDomainsResult?> PredictSystemDomainsAsync(
+        IReadOnlyList<ProjectSignature> signatures,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (signatures.Count == 0) return null;
+
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Total Services in System: {signatures.Count}");
+        sbUser.AppendLine();
+        foreach (var sig in signatures)
+        {
+            var details = new List<string>();
+            if (!string.IsNullOrWhiteSpace(sig.RelativePath))
+            {
+                details.Add($"Path: {sig.RelativePath.Replace('\\', '/')}");
+            }
+            if (sig.Tables.Count > 0)
+            {
+                details.Add($"Tables: [{string.Join(", ", sig.Tables.Take(8))}]");
+            }
+            if (sig.Endpoints.Count > 0)
+            {
+                details.Add($"Endpoints: [{string.Join(", ", sig.Endpoints.Take(6))}]");
+            }
+            if (sig.Topics.Count > 0)
+            {
+                details.Add($"Topics: [{string.Join(", ", sig.Topics.Take(5))}]");
+            }
+            if (sig.DomainTypes.Count > 0)
+            {
+                details.Add($"Entities: [{string.Join(", ", sig.DomainTypes.Take(6))}]");
+            }
+
+            var detailStr = details.Count > 0 ? " | " + string.Join(" | ", details) : "";
+            sbUser.AppendLine($"- Service: {sig.Name}{detailStr}");
+        }
+
+        var prompt = $"<|im_start|>system\n{SystemDomainsPrompt}<|im_end|>\n"
+                   + $"<|im_start|>user\n{sbUser}<|im_end|>\n"
+                   + "<|im_start|>assistant\n";
+
+        var inferenceParams = new InferenceParams
+        {
+            MaxTokens = 1536,
+            TokensKeep = 64,
+            OverflowStrategy = ContextOverflowStrategy.TruncateAndReprefill,
+            AntiPrompts = ["<|im_end|>", "<|endoftext|>"],
+            SamplingPipeline = new DefaultSamplingPipeline
+            {
+                Temperature = 0.1f,
+                TopP = 0.95f,
+                RepeatPenalty = 1.15f,
+                Grammar = new Grammar(SystemDomainsJsonGrammar, "root")
+            }
+        };
+
+        await _semaphore.WaitAsync(cancellationToken);
+        StatelessExecutor? executor = null;
+        try
+        {
+            if (!_executorPool.TryTake(out executor))
+            {
+                executor = new StatelessExecutor(_weights, _parameters);
+            }
+
+            var sb = new StringBuilder();
+            await foreach (var token in executor.InferAsync(prompt, inferenceParams, cancellationToken))
+            {
+                sb.Append(token);
+            }
+
+            var raw = sb.ToString();
+            return ParseSystemDomainsJsonResult(raw);
+        }
+        finally
+        {
+            if (executor != null)
+            {
+                _executorPool.Add(executor);
+            }
+            _semaphore.Release();
+        }
+    }
+
+    private SystemDomainsResult? ParseSystemDomainsJsonResult(string rawOutput)
+    {
+        if (string.IsNullOrWhiteSpace(rawOutput)) return null;
+
+        try
+        {
+            var firstBrace = rawOutput.IndexOf('{');
+            var lastBrace = rawOutput.LastIndexOf('}');
+            if (firstBrace >= 0 && lastBrace > firstBrace)
+            {
+                var jsonStr = rawOutput.Substring(firstBrace, lastBrace - firstBrace + 1);
+                var parsed = JsonSerializer.Deserialize<SystemDomainsResult>(jsonStr, _jsonOptions);
+                if (parsed?.Domains != null && parsed.Domains.Count > 0)
+                {
+                    return parsed;
+                }
+            }
+        }
+        catch
+        {
+            // fallback
+        }
+
+        return null;
+    }
+
+    public const string ProjectBoundedContextPrompt =
+        "You are a Principal Software Architect specializing in Domain-Driven Design (DDD).\n" +
+        "Analyze the provided Service Signature (service name, relative directory path, database tables, domain entities, and API endpoints).\n" +
+        "Extract its architectural Bounded Context, primary Aggregate Roots, core capability, and suggested Problem Space Domain:\n\n" +
+        "1. \"service\": The exact service name provided.\n" +
+        "2. \"bounded_context\": Canonical Bounded Context name in PascalCase (e.g. \"ApprovalManagement\", \"EpmCalculation\", \"CampaignBundling\", \"DomainVerification\").\n" +
+        "3. \"primary_aggregates\": 1 to 3 primary Aggregate Root entity names in PascalCase (e.g. [\"ApprovalRequest\"]).\n" +
+        "4. \"capability\": One clear, concise sentence describing the core business capability delivered by this service.\n" +
+        "5. \"suggested_domain\": An overarching high-level Business Domain (Problem Space) noun in PascalCase (e.g. \"Operations\", \"Calculations\", \"Bundles\", \"Domains\", \"Traffic\", \"Identity\", \"Billing\", \"Integrations\", \"Analytics\", \"Metadata\"). Keep it 1 to 2 words maximum (e.g. \"Calculations\", NOT \"CalculationsAndReportingDataManagement\").\n\n" +
+        "Respond ONLY with valid JSON.";
+
+    public const string ProjectBoundedContextJsonGrammar = """
+root ::= "{" ws "\"service\":" ws string "," ws "\"bounded_context\":" ws string "," ws "\"primary_aggregates\":" ws string-list "," ws "\"capability\":" ws string "," ws "\"suggested_domain\":" ws string "}" ws
+
+string-list ::= "[" ws (string ("," ws string)*)? ws "]"
+string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt])* "\""
+ws ::= [ \t\n\r]*
+""";
+
+    public const string ProjectBoundedContextAgenticPrompt =
+        "You are a Principal Software Architect specializing in Domain-Driven Design (DDD).\n" +
+        "Your task is to determine the architectural Bounded Context, primary Aggregate Roots, core capability, and suggested Problem Space Domain for a target service.\n" +
+        "You have access to tools to query the Code Knowledge Graph:\n" +
+        "- get_service_surface: retrieves API endpoints and message queues\n" +
+        "- get_data_lineage: retrieves database tables and storage accessed\n" +
+        "- get_service_dependencies: retrieves referenced shared libraries and service calls\n" +
+        "- get_library_entities: retrieves domain entities declared in a referenced library\n\n" +
+        "To explore the service, output JSON with your thought and a tool call:\n" +
+        "{\"thought\": \"<reasoning>\", \"action\": \"call_tool\", \"tool\": \"<tool_name>\", \"args\": {\"service\": \"<service_name>\"}}\n\n" +
+        "When you have sufficient graph evidence, conclude with:\n" +
+        "{\"thought\": \"<reasoning>\", \"action\": \"finish\", \"bounded_context\": \"<PascalCaseContext>\", \"primary_aggregates\": [\"<Aggregate1>\"], \"capability\": \"<One concise capability sentence>\", \"suggested_domain\": \"<1-2 word Domain noun>\"}\n\n" +
+        "Respond ONLY with valid JSON.";
+
+    public const string ProjectBoundedContextToolOnlyGrammar = """
+root ::= "{" ws call-tool ws "}" ws
+
+call-tool ::= (thought)? "\"action\":" ws "\"call_tool\"," ws "\"tool\":" ws tool-name "," ws "\"args\":" ws tool-args
+thought ::= "\"thought\":" ws string "," ws
+tool-name ::= "\"get_service_surface\"" | "\"get_data_lineage\"" | "\"get_service_dependencies\"" | "\"get_library_entities\""
+tool-args ::= "{" ws (arg-pair | arg-service | arg-library)? ws "}"
+arg-pair ::= arg-service "," ws arg-library | arg-library "," ws arg-service
+arg-service ::= "\"service\":" ws string
+arg-library ::= "\"library\":" ws string
+
+string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt])* "\""
+ws ::= [ \t\n\r]*
+""";
+
+    public const string ProjectBoundedContextAgenticGrammar = """
+root ::= "{" ws (call-tool | finish) ws "}" ws
+
+call-tool ::= (thought)? "\"action\":" ws "\"call_tool\"," ws "\"tool\":" ws tool-name "," ws "\"args\":" ws tool-args
+thought ::= "\"thought\":" ws string "," ws
+tool-name ::= "\"get_service_surface\"" | "\"get_data_lineage\"" | "\"get_service_dependencies\"" | "\"get_library_entities\""
+tool-args ::= "{" ws (arg-pair | arg-service | arg-library)? ws "}"
+arg-pair ::= arg-service "," ws arg-library | arg-library "," ws arg-service
+arg-service ::= "\"service\":" ws string
+arg-library ::= "\"library\":" ws string
+
+finish ::= (thought)? "\"action\":" ws "\"finish\"," ws "\"bounded_context\":" ws string "," ws "\"primary_aggregates\":" ws string-list "," ws "\"capability\":" ws string "," ws "\"suggested_domain\":" ws string
+
+string-list ::= "[" ws (string ("," ws string)*)? ws "]"
+string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt])* "\""
+ws ::= [ \t\n\r]*
+""";
+
+    public const string ProjectBoundedContextFinishGrammar = """
+root ::= "{" ws finish ws "}" ws
+
+finish ::= (thought)? "\"action\":" ws "\"finish\"," ws "\"bounded_context\":" ws string "," ws "\"primary_aggregates\":" ws string-list "," ws "\"capability\":" ws string "," ws "\"suggested_domain\":" ws string
+thought ::= "\"thought\":" ws string "," ws
+
+string-list ::= "[" ws (string ("," ws string)*)? ws "]"
+string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt])* "\""
+ws ::= [ \t\n\r]*
+""";
+
+    public async Task<ProjectBoundedContextResult?> PredictProjectBoundedContextAsync(
+        ProjectSignature signature,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Service Name: {signature.Name}");
+        if (!string.IsNullOrWhiteSpace(signature.Role))
+        {
+            sbUser.AppendLine($"Workload Role: {signature.Role}");
+        }
+        if (!string.IsNullOrWhiteSpace(signature.RelativePath))
+        {
+            sbUser.AppendLine($"Path: {signature.RelativePath.Replace('\\', '/')}");
+        }
+        if (signature.InboundCallers != null && signature.InboundCallers.Count > 0)
+        {
+            sbUser.AppendLine($"Called By (Inbound Clients): [{string.Join(", ", signature.InboundCallers.Take(6))}]");
+        }
+        if (signature.OutboundCalls != null && signature.OutboundCalls.Count > 0)
+        {
+            sbUser.AppendLine($"Calls (Outbound Services): [{string.Join(", ", signature.OutboundCalls.Take(6))}]");
+        }
+        if (signature.ReferencedLibraries != null && signature.ReferencedLibraries.Count > 0)
+        {
+            sbUser.AppendLine($"Referenced Libraries: [{string.Join(", ", signature.ReferencedLibraries.Take(6))}]");
+        }
+        if (signature.Tables.Count > 0)
+        {
+            sbUser.AppendLine($"Database Tables: [{string.Join(", ", signature.Tables.Take(12))}]");
+        }
+        if (signature.DomainTypes.Count > 0)
+        {
+            var prioritizedTypes = signature.DomainTypes
+                .OrderByDescending(t =>
+                {
+                    var lower = t.ToLowerInvariant();
+                    if (lower.EndsWith("module") || lower.EndsWith("config") || lower.EndsWith("options") || lower.EndsWith("constant") || lower.EndsWith("constants")) return 0;
+                    if (lower.EndsWith("dto") || lower.EndsWith("request") || lower.EndsWith("response")) return 2;
+                    if (lower.EndsWith("service") || lower.EndsWith("handler") || lower.EndsWith("repository") || lower.EndsWith("gateway")) return 3;
+                    if (lower.EndsWith("entity") || lower.EndsWith("model") || lower.EndsWith("aggregate") || lower.EndsWith("item")) return 5;
+                    return 1;
+                })
+                .Take(15)
+                .ToList();
+
+            sbUser.AppendLine($"Domain Entities / Models: [{string.Join(", ", prioritizedTypes)}]");
+        }
+        if (signature.Endpoints.Count > 0)
+        {
+            sbUser.AppendLine($"API Endpoints: [{string.Join(", ", signature.Endpoints.Take(10))}]");
+        }
+        if (signature.Topics.Count > 0)
+        {
+            sbUser.AppendLine($"Message Topics / Events: [{string.Join(", ", signature.Topics.Take(8))}]");
+        }
+
+        var prompt = $"<|im_start|>system\n{ProjectBoundedContextPrompt}<|im_end|>\n"
+                   + $"<|im_start|>user\n{sbUser}<|im_end|>\n"
+                   + "<|im_start|>assistant\n";
+
+        var inferenceParams = new InferenceParams
+        {
+            MaxTokens = 384,
+            TokensKeep = 64,
+            OverflowStrategy = ContextOverflowStrategy.TruncateAndReprefill,
+            AntiPrompts = ["<|im_end|>", "<|endoftext|>"],
+            SamplingPipeline = new DefaultSamplingPipeline
+            {
+                Temperature = 0.1f,
+                TopP = 0.95f,
+                RepeatPenalty = 1.15f,
+                Grammar = new Grammar(ProjectBoundedContextJsonGrammar, "root")
+            }
+        };
+
+        await _semaphore.WaitAsync(cancellationToken);
+        StatelessExecutor? executor = null;
+        try
+        {
+            if (!_executorPool.TryTake(out executor))
+            {
+                executor = new StatelessExecutor(_weights, _parameters);
+            }
+
+            var sb = new StringBuilder();
+            await foreach (var token in executor.InferAsync(prompt, inferenceParams, cancellationToken))
+            {
+                sb.Append(token);
+            }
+
+            var raw = sb.ToString();
+            return ParseProjectBoundedContextJsonResult(raw);
+        }
+        finally
+        {
+            if (executor != null)
+            {
+                _executorPool.Add(executor);
+            }
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<ProjectBoundedContextResult?> PredictProjectBoundedContextAgenticAsync(
+        ProjectSignature signature,
+        IServiceGraphExplorer explorer,
+        int maxTurns = 3,
+        Action<string>? logger = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var promptBuilder = new StringBuilder();
+        promptBuilder.Append($"<|im_start|>system\n{ProjectBoundedContextAgenticPrompt}<|im_end|>\n");
+        promptBuilder.Append($"<|im_start|>user\nService Name: {signature.Name}\nWorkload Role: {signature.Role ?? "Service"}\nPath: {signature.RelativePath.Replace('\\', '/')}\n<|im_end|>\n");
+
+        await _semaphore.WaitAsync(cancellationToken);
+        StatelessExecutor? executor = null;
+        try
+        {
+            if (!_executorPool.TryTake(out executor))
+            {
+                executor = new StatelessExecutor(_weights, _parameters);
+            }
+
+            for (var turn = 1; turn <= maxTurns; turn++)
+            {
+                var isFinalTurn = turn == maxTurns;
+                string grammar;
+                if (turn == 1)
+                {
+                    grammar = ProjectBoundedContextToolOnlyGrammar;
+                }
+                else if (isFinalTurn)
+                {
+                    grammar = ProjectBoundedContextFinishGrammar;
+                }
+                else
+                {
+                    grammar = ProjectBoundedContextAgenticGrammar;
+                }
+
+                var currentPrompt = promptBuilder.ToString() + "<|im_start|>assistant\n";
+
+                var inferenceParams = new InferenceParams
+                {
+                    MaxTokens = 384,
+                    TokensKeep = 64,
+                    OverflowStrategy = ContextOverflowStrategy.TruncateAndReprefill,
+                    AntiPrompts = ["<|im_end|>", "<|endoftext|>"],
+                    SamplingPipeline = new DefaultSamplingPipeline
+                    {
+                        Temperature = 0.1f,
+                        TopP = 0.95f,
+                        RepeatPenalty = 1.15f,
+                        Grammar = new Grammar(grammar, "root")
+                    }
+                };
+
+                var sb = new StringBuilder();
+                await foreach (var token in executor.InferAsync(currentPrompt, inferenceParams, cancellationToken))
+                {
+                    sb.Append(token);
+                }
+
+                var rawResponse = sb.ToString().Trim();
+
+                // Parse action
+                using var doc = JsonDocument.Parse(rawResponse);
+
+                if (doc.RootElement.TryGetProperty("thought", out var thoughtProp))
+                {
+                    var thought = thoughtProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(thought))
+                    {
+                        logger?.Invoke($"    [{signature.Name}] {thought}");
+                    }
+                }
+
+                var action = doc.RootElement.TryGetProperty("action", out var actProp) ? actProp.GetString() : "finish";
+
+                if (action == "finish" || isFinalTurn)
+                {
+                    var bc = doc.RootElement.TryGetProperty("bounded_context", out var bcp) ? bcp.GetString() ?? signature.Name : signature.Name;
+                    var cap = doc.RootElement.TryGetProperty("capability", out var capp) ? capp.GetString() ?? $"Handles {signature.Name} business capabilities." : $"Handles {signature.Name} business capabilities.";
+                    var dom = doc.RootElement.TryGetProperty("suggested_domain", out var domp) ? domp.GetString() ?? "Core" : "Core";
+
+                    var aggs = new List<string>();
+                    if (doc.RootElement.TryGetProperty("primary_aggregates", out var aggsProp) && aggsProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in aggsProp.EnumerateArray())
+                        {
+                            var s = el.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) aggs.Add(s);
+                        }
+                    }
+
+                    logger?.Invoke($"    [{signature.Name}] (Turn {turn}/{maxTurns}) Distilled: BoundedContext={bc} | Domain={dom} | Aggregates=[{string.Join(", ", aggs)}]");
+                    return new ProjectBoundedContextResult(signature.Name, bc, aggs, cap, dom);
+                }
+
+                // If calling a tool
+                if (action == "call_tool")
+                {
+                    var toolName = doc.RootElement.TryGetProperty("tool", out var tp) ? tp.GetString() : "";
+                    var args = doc.RootElement.TryGetProperty("args", out var argsp) ? argsp : default;
+
+                    var targetService = (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("service", out var sp)) ? sp.GetString() : signature.Name;
+                    var targetLibrary = (args.ValueKind == JsonValueKind.Object && args.TryGetProperty("library", out var lp)) ? lp.GetString() : "";
+
+                    logger?.Invoke($"    -> [{signature.Name}] (Turn {turn}) Tool Call: {toolName}({(string.IsNullOrEmpty(targetLibrary) ? targetService : targetService + ", lib=" + targetLibrary)})");
+
+                    string observationJson;
+                    switch (toolName)
+                    {
+                        case "get_service_surface":
+                            var surface = await explorer.GetServiceSurfaceAsync(targetService ?? signature.Name, cancellationToken);
+                            observationJson = JsonSerializer.Serialize(surface);
+                            break;
+                        case "get_data_lineage":
+                            var lineage = await explorer.GetDataLineageAsync(targetService ?? signature.Name, cancellationToken);
+                            observationJson = JsonSerializer.Serialize(lineage);
+                            break;
+                        case "get_service_dependencies":
+                            var deps = await explorer.GetServiceDependenciesAsync(targetService ?? signature.Name, cancellationToken);
+                            observationJson = JsonSerializer.Serialize(deps);
+                            break;
+                        case "get_library_entities":
+                            var lib = await explorer.GetLibraryEntitiesAsync(targetLibrary ?? "", cancellationToken);
+                            observationJson = JsonSerializer.Serialize(lib);
+                            break;
+                        default:
+                            observationJson = "{\"status\": \"unknown_tool\"}";
+                            break;
+                    }
+
+                    logger?.Invoke($"       Observation: {observationJson}");
+
+                    promptBuilder.Append($"<|im_start|>assistant\n{rawResponse}<|im_end|>\n");
+                    promptBuilder.Append($"<|im_start|>user\nObservation: {observationJson}\n<|im_end|>\n");
+                }
+            }
+        }
+        finally
+        {
+            if (executor != null)
+            {
+                _executorPool.Add(executor);
+            }
+            _semaphore.Release();
+        }
+
+        return null;
+    }
+
+    private ProjectBoundedContextResult? ParseProjectBoundedContextJsonResult(string rawOutput)
+    {
+        if (string.IsNullOrWhiteSpace(rawOutput)) return null;
+
+        try
+        {
+            var firstBrace = rawOutput.IndexOf('{');
+            var lastBrace = rawOutput.LastIndexOf('}');
+            if (firstBrace >= 0 && lastBrace > firstBrace)
+            {
+                var jsonStr = rawOutput.Substring(firstBrace, lastBrace - firstBrace + 1);
+                var parsed = JsonSerializer.Deserialize<ProjectBoundedContextResult>(jsonStr, _jsonOptions);
+                if (parsed != null && !string.IsNullOrWhiteSpace(parsed.BoundedContext))
+                {
+                    return parsed;
+                }
+            }
+        }
+        catch
+        {
+            // fallback
+        }
+
+        return null;
+    }
+
+    public async Task<SystemDomainsResult?> PredictMacroDomainsFromContextsAsync(
+        IReadOnlyList<ProjectBoundedContextResult> contexts,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (contexts.Count == 0) return null;
+
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Total Services in System: {contexts.Count}");
+        sbUser.AppendLine("Service Bounded Contexts, Aggregates, and Capabilities:");
+        sbUser.AppendLine();
+
+        foreach (var ctx in contexts)
+        {
+            var aggs = ctx.PrimaryAggregates.Count > 0 ? string.Join(", ", ctx.PrimaryAggregates) : "None";
+            sbUser.AppendLine($"- Service: {ctx.Service} | Context: {ctx.BoundedContext} | Aggregates: [{aggs}] | Capability: {ctx.Capability} | Candidate Domain: {ctx.SuggestedDomain}");
+        }
+
+        var prompt = $"<|im_start|>system\n{SystemDomainsPrompt}<|im_end|>\n"
+                   + $"<|im_start|>user\n{sbUser}<|im_end|>\n"
+                   + "<|im_start|>assistant\n";
+
+        var inferenceParams = new InferenceParams
+        {
+            MaxTokens = 1536,
+            TokensKeep = 64,
+            OverflowStrategy = ContextOverflowStrategy.TruncateAndReprefill,
+            AntiPrompts = ["<|im_end|>", "<|endoftext|>"],
+            SamplingPipeline = new DefaultSamplingPipeline
+            {
+                Temperature = 0.1f,
+                TopP = 0.95f,
+                RepeatPenalty = 1.15f,
+                Grammar = new Grammar(SystemDomainsJsonGrammar, "root")
+            }
+        };
+
+        await _semaphore.WaitAsync(cancellationToken);
+        StatelessExecutor? executor = null;
+        try
+        {
+            if (!_executorPool.TryTake(out executor))
+            {
+                executor = new StatelessExecutor(_weights, _parameters);
+            }
+
+            var sb = new StringBuilder();
+            await foreach (var token in executor.InferAsync(prompt, inferenceParams, cancellationToken))
+            {
+                sb.Append(token);
+            }
+
+            var raw = sb.ToString();
+            return ParseSystemDomainsJsonResult(raw);
+        }
+        finally
+        {
+            if (executor != null)
+            {
+                _executorPool.Add(executor);
+            }
+            _semaphore.Release();
+        }
     }
 
     public const string ProjectSystemPrompt =

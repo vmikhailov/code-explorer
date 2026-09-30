@@ -47,12 +47,16 @@ public static class AstConstantExtractor
         try
         {
             var language = SyntaxTree.GetLanguage(fileParser.LanguageName);
-            using var parser = new TreeSitter.Parser(language);
-            using var tree = parser.Parse(content);
 
-            if (tree?.RootNode != null && tree.RootNode.Children.Count > 0)
+            using (var parser = new TreeSitter.Parser(language))
             {
-                ExtractAndRegister(tree.RootNode, fileParser, projectName);
+                using (var tree = parser.Parse(content))
+                {
+                    if (tree?.RootNode != null && tree.RootNode.Children.Count > 0)
+                    {
+                        ExtractAndRegister(tree.RootNode, fileParser, projectName);
+                    }
+                }
             }
         }
         catch (Exception ex)

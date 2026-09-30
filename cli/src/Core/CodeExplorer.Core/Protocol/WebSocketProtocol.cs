@@ -679,6 +679,36 @@ public class BoundedContextFileDto
     public bool? IsPureDomain { get; set; }
 }
 
+public class DomainDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    [JsonPropertyName("domainType")]
+    public string DomainType { get; set; } = "Core"; // "Core" | "Supporting" | "Generic"
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("icon")]
+    public string? Icon { get; set; }
+
+    [JsonPropertyName("boundedContextIds")]
+    public List<string> BoundedContextIds { get; set; } = [];
+
+    [JsonPropertyName("totalFiles")]
+    public int TotalFiles { get; set; }
+
+    [JsonPropertyName("totalEntities")]
+    public int TotalEntities { get; set; }
+}
+
 public class BoundedContextItemDto
 {
     [JsonPropertyName("id")]
@@ -689,6 +719,15 @@ public class BoundedContextItemDto
 
     [JsonPropertyName("displayName")]
     public string DisplayName { get; set; } = string.Empty;
+
+    [JsonPropertyName("domainId")]
+    public string DomainId { get; set; } = string.Empty;
+
+    [JsonPropertyName("domainName")]
+    public string DomainName { get; set; } = string.Empty;
+
+    [JsonPropertyName("domainType")]
+    public string DomainType { get; set; } = "Core";
 
     [JsonPropertyName("summary")]
     public string? Summary { get; set; }
@@ -767,6 +806,9 @@ public class BoundedContextMapDto
 {
     [JsonPropertyName("hasIntents")]
     public bool HasIntents { get; set; }
+
+    [JsonPropertyName("domains")]
+    public List<DomainDto> Domains { get; set; } = [];
 
     [JsonPropertyName("contexts")]
     public List<BoundedContextItemDto> Contexts { get; set; } = [];

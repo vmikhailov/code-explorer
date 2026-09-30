@@ -39,19 +39,21 @@ public static class McpCommandHandler
             dbPath = "Data Source=:memory:;Mode=Memory;Cache=Shared";
         }
 
-        await using var client = new SqliteGraphClient(dbPath!);
-        var wsRoot = ws?.RootDirectory;
-
-        if (opts.Port > 0)
+        await using (var client = new SqliteGraphClient(dbPath!))
         {
-            await RunMcpWebServerAsync(client, opts.Port, wsRoot, isStandby, opts.Quiet);
-        }
-        else
-        {
-            await RunMcpStdioHostAsync(client, wsRoot, isStandby, opts.Quiet);
-        }
+            var wsRoot = ws?.RootDirectory;
 
-        return 0;
+            if (opts.Port > 0)
+            {
+                await RunMcpWebServerAsync(client, opts.Port, wsRoot, isStandby, opts.Quiet);
+            }
+            else
+            {
+                await RunMcpStdioHostAsync(client, wsRoot, isStandby, opts.Quiet);
+            }
+
+            return 0;
+        }
     }
 
     private static async Task RunMcpWebServerAsync(SqliteGraphClient client, int port, string? workspaceRoot = null, bool isStandby = false, bool quiet = false)

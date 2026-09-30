@@ -21,8 +21,10 @@ public static class ServerRouteBuilderExtensions
         {
             if (context.WebSockets.IsWebSocketRequest)
             {
-                using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-                await wsHandler.HandleConnectionAsync(webSocket, context.RequestAborted);
+                using (var webSocket = await context.WebSockets.AcceptWebSocketAsync())
+                {
+                    await wsHandler.HandleConnectionAsync(webSocket, context.RequestAborted);
+                }
             }
             else
             {
@@ -90,6 +92,21 @@ public static class ServerRouteBuilderExtensions
             catch (Exception ex)
             {
                 logger.LogError(ex, "[REST] Failed /api/view");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/ontology/bounded-contexts", async (IArchitectureQueryService archQueryService, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/ontology/bounded-contexts");
+                var bcMap = await archQueryService.GetBoundedContextMapAsync(ct: ct);
+                return Results.Ok(bcMap);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/ontology/bounded-contexts");
                 return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
             }
         });

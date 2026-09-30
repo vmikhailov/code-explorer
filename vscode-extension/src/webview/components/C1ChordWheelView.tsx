@@ -101,41 +101,53 @@ export const C1ChordWheelView: React.FC<C1ChordWheelViewProps> = ({
     return set;
   }, [hoveredNodeId, edges]);
 
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const panRef = useRef(pan);
+  panRef.current = pan;
+
   // Zoom / Pan handlers
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const container = containerRef.current;
     if (!container) return;
 
+    const currentZoom = zoomRef.current;
+    const currentPan = panRef.current;
+
     const factor = calculateNormalizedZoomFactor(e, 1.0);
-    const newZoom = Math.min(3.0, Math.max(0.3, zoom * factor));
+    const newZoom = Math.min(3.0, Math.max(0.3, currentZoom * factor));
 
     const rect = container.getBoundingClientRect();
     const newPan = calculateAnchorPan(
       e.clientX,
       e.clientY,
       rect,
-      pan,
-      zoom,
+      currentPan,
+      currentZoom,
       newZoom
     );
 
+    zoomRef.current = newZoom;
+    panRef.current = newPan;
     setZoom(newZoom);
     setPan(newPan);
-  }, [zoom, pan]);
+  }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
     isDraggingRef.current = true;
-    dragStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-  }, [pan]);
+    dragStartRef.current = { x: e.clientX - panRef.current.x, y: e.clientY - panRef.current.y };
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDraggingRef.current) return;
-    setPan({
+    const newPan = {
       x: e.clientX - dragStartRef.current.x,
       y: e.clientY - dragStartRef.current.y,
-    });
+    };
+    panRef.current = newPan;
+    setPan(newPan);
   }, []);
 
   const handleMouseUp = useCallback(() => {
@@ -143,6 +155,8 @@ export const C1ChordWheelView: React.FC<C1ChordWheelViewProps> = ({
   }, []);
 
   const handleReset = useCallback(() => {
+    zoomRef.current = 0.95;
+    panRef.current = { x: 0, y: 0 };
     setZoom(0.95);
     setPan({ x: 0, y: 0 });
   }, []);
