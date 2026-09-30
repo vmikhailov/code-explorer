@@ -22,7 +22,7 @@ if (!fs.existsSync(distVsixDir)) {
 
 const vsixFiles = fs.readdirSync(distVsixDir).filter((f) => f.endsWith('.vsix'));
 if (vsixFiles.length === 0) {
-  console.error(`No .vsix files found in ${distVsixDir}. Run 'npm run package:all' first.`);
+  console.error(`No .vsix files found in ${distVsixDir}. Run 'npm run package' first.`);
   process.exit(1);
 }
 
@@ -31,15 +31,24 @@ for (const file of vsixFiles) {
   console.log(`  - ${file}`);
 }
 
-const platformVsixFiles = vsixFiles.filter((f) => !f.includes('universal'));
-const filesToPublish = platformVsixFiles.length > 0 ? platformVsixFiles : vsixFiles;
+// Prefer lightweight universal vsix `code-explorer-${version}.vsix`
+const pkgJson = JSON.parse(fs.readFileSync(path.resolve(extensionRoot, 'package.json'), 'utf8'));
+const version = pkgJson.version || '';
+const singleUniversal = vsixFiles.find((f) => f === `code-explorer-${version}.vsix`);
 
-const preferredOrder = ['win32-x64', 'linux-x64', 'darwin-x64', 'darwin-arm64', 'linux-arm64', 'win32-arm64'];
-filesToPublish.sort((a, b) => {
-  const aIdx = preferredOrder.findIndex((p) => a.includes(p));
-  const bIdx = preferredOrder.findIndex((p) => b.includes(p));
-  return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
-});
+let filesToPublish;
+if (singleUniversal) {
+  filesToPublish = [singleUniversal];
+} else {
+  const platformVsixFiles = vsixFiles.filter((f) => !f.includes('universal'));
+  filesToPublish = platformVsixFiles.length > 0 ? platformVsixFiles : vsixFiles;
+  const preferredOrder = ['win32-x64', 'linux-x64', 'darwin-x64', 'darwin-arm64', 'linux-arm64', 'win32-arm64'];
+  filesToPublish.sort((a, b) => {
+    const aIdx = preferredOrder.findIndex((p) => a.includes(p));
+    const bIdx = preferredOrder.findIndex((p) => b.includes(p));
+    return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+  });
+}
 
 let hasErrors = false;
 

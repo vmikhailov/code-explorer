@@ -73,11 +73,10 @@ jobs:
 
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-      - name: Build and Package Extension for all Platforms
+      - name: Build and Package Lightweight Extension
         working-directory: ./vscode-extension
         run: |
-          npm run package:all
-          npm run package:universal
+          npm run package
 
       - name: Upload Extension VSIX Artifacts
         uses: actions/upload-artifact@v4

@@ -12,7 +12,7 @@ export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel('CodeExplorer');
   context.subscriptions.push(outputChannel);
 
-  processManager = new ProcessManager(outputChannel);
+  processManager = new ProcessManager(outputChannel, context);
   context.subscriptions.push(processManager);
 
   const getWorkspaceRoot = (): string | undefined => {
@@ -405,6 +405,23 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: Check / Update CodeExplorer Engine
+  const updateEngineCommand = vscode.commands.registerCommand(
+    'codeExplorer.updateEngine',
+    async () => {
+      const bm = processManager?.getBinaryManager();
+      if (!bm) {
+        vscode.window.showErrorMessage('CodeExplorer binary manager is not initialized.');
+        return;
+      }
+      try {
+        await bm.ensureBinary(true);
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Failed to update CodeExplorer engine: ${err?.message || err}`);
+      }
+    }
+  );
+
   // Command: Initialize & Scan Workspace
   const initAndScanCommand = vscode.commands.registerCommand(
     'codeExplorer.initAndScan',
@@ -737,6 +754,7 @@ export function activate(context: vscode.ExtensionContext) {
     reindexCommand,
     reindexFullCommand,
     showLogsCommand,
+    updateEngineCommand,
     distillIntentsCommand,
     stopIntentCommand,
     downloadModelCommand,

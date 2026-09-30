@@ -148,34 +148,18 @@ function packagePlatform(target) {
 }
 
 /**
- * Packages a universal VSIX containing binaries for all platforms.
+ * Packages a lightweight universal VSIX (no bundled binaries; downloads on demand via GitHub releases).
  */
-function packageUniversal() {
+function packageLightweight() {
   console.log(`\n======================================================`);
-  console.log(`Packaging Universal VSIX (All Platforms)`);
+  console.log(`Packaging Lightweight Universal VSIX (On-demand engine download)`);
   console.log(`======================================================`);
 
   if (fs.existsSync(binDir)) {
     fs.rmSync(binDir, { recursive: true, force: true });
   }
-  fs.mkdirSync(binDir, { recursive: true });
 
-  for (const target of TARGET_PLATFORMS) {
-    const binSource = ensureBinary(target);
-    const targetFolder = path.resolve(binDir, target.rid);
-    fs.mkdirSync(targetFolder, { recursive: true });
-    const stagedBin = path.resolve(targetFolder, target.binName);
-    fs.copyFileSync(binSource, stagedBin);
-    if (target.binName === 'ce') {
-      try {
-        fs.chmodSync(stagedBin, 0o755);
-      } catch {
-        // Best effort
-      }
-    }
-  }
-
-  const vsixFileName = `code-explorer-universal-${version}.vsix`;
+  const vsixFileName = `code-explorer-${version}.vsix`;
   const vsixOut = path.resolve(distVsixDir, vsixFileName);
 
   const vsceRes = spawnSync(
@@ -194,23 +178,25 @@ function packageUniversal() {
   );
 
   if (vsceRes.status !== 0) {
-    console.error(`[package-extension] Failed to package Universal VSIX`);
+    console.error(`[package-extension] Failed to package lightweight VSIX`);
     process.exit(1);
   }
+
+  const universalOut = path.resolve(distVsixDir, `code-explorer-universal-${version}.vsix`);
+  fs.copyFileSync(vsixOut, universalOut);
 
   const stat = fs.statSync(vsixOut);
   const sizeMb = (stat.size / (1024 * 1024)).toFixed(2);
   console.log(`✓ Created: ${vsixFileName} (${sizeMb} MB)`);
+  console.log(`✓ Created: code-explorer-universal-${version}.vsix (${sizeMb} MB)`);
 }
 
 // Execution dispatch
-if (isUniversal) {
-  packageUniversal();
-} else if (isAll) {
+if (args.includes('--bundled-all')) {
   for (const target of TARGET_PLATFORMS) {
     packagePlatform(target);
   }
-} else if (targetArg) {
+} else if (args.includes('--bundled') && targetArg) {
   const tName = targetArg.split('=')[1];
   const target = TARGET_PLATFORMS.find((t) => t.vsceTarget === tName || t.rid === tName);
   if (!target) {
@@ -218,20 +204,11 @@ if (isUniversal) {
     process.exit(1);
   }
   packagePlatform(target);
+} else if (args.includes('--bundled')) {
+  packageUniversal();
 } else {
-  // Default: current host platform
-  const platform = process.platform;
-  const arch = process.arch;
-  let target = TARGET_PLATFORMS.find((t) => t.vsceTarget === 'win32-x64');
-  if (platform === 'win32') {
-    target = TARGET_PLATFORMS.find((t) => t.vsceTarget === (arch === 'arm64' ? 'win32-arm64' : 'win32-x64'));
-  } else if (platform === 'darwin') {
-    target = TARGET_PLATFORMS.find((t) => t.vsceTarget === (arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64'));
-  } else if (platform === 'linux') {
-    target = TARGET_PLATFORMS.find((t) => t.vsceTarget === (arch === 'arm64' ? 'linux-arm64' : 'linux-x64'));
-  }
-
-  packagePlatform(target);
+  // Default (and --universal): package lightweight universal VSIX without bundled binaries
+  packageLightweight();
 }
 
 console.log(`\n[package-extension] Packaging complete! Artifacts are in ${distVsixDir}`);

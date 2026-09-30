@@ -3,6 +3,7 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as readline from 'readline';
+import { BinaryManager } from './binaryManager';
 
 export interface ServerInfo {
   status: string;
@@ -17,6 +18,7 @@ export class ProcessManager implements vscode.Disposable {
   private serverInfo: ServerInfo | null = null;
   private startPromise: Promise<ServerInfo> | null = null;
   private outputChannel: vscode.OutputChannel;
+  private binaryManager?: BinaryManager;
 
   private _onDidServerStart = new vscode.EventEmitter<ServerInfo>();
   public readonly onDidServerStart = this._onDidServerStart.event;
@@ -24,8 +26,23 @@ export class ProcessManager implements vscode.Disposable {
   private _onDidServerStop = new vscode.EventEmitter<void>();
   public readonly onDidServerStop = this._onDidServerStop.event;
 
-  constructor(outputChannel: vscode.OutputChannel) {
+  constructor(outputChannel: vscode.OutputChannel, context?: vscode.ExtensionContext) {
     this.outputChannel = outputChannel;
+    if (context) {
+      this.binaryManager = new BinaryManager(outputChannel, context);
+    }
+  }
+
+  setContext(context: vscode.ExtensionContext) {
+    if (!this.binaryManager) {
+      this.binaryManager = new BinaryManager(this.outputChannel, context);
+    } else {
+      this.binaryManager.setContext(context);
+    }
+  }
+
+  getBinaryManager(): BinaryManager | undefined {
+    return this.binaryManager;
   }
 
   public getServerInfo(): ServerInfo | null {
@@ -65,7 +82,7 @@ export class ProcessManager implements vscode.Disposable {
     }
     const config = vscode.workspace.getConfiguration('codeExplorer');
     const customPath = config.get<string>('executablePath', '');
-    const executable = this.findExecutable(workspaceRoot, customPath);
+    const executable = await this.findExecutable(workspaceRoot, customPath);
     if (!executable) {
       throw new Error(
         'CodeExplorer (ce) executable not found. Please build the CLI or install "ce" to PATH.'
@@ -147,7 +164,7 @@ export class ProcessManager implements vscode.Disposable {
     const idleTimeout = config.get<number>('idleTimeout') ?? 60;
 
     this.outputChannel.appendLine(`[ProcessManager] Preparing CodeExplorer server for workspace: ${workspaceRoot}`);
-    const executable = this.findExecutable(workspaceRoot, customPath);
+    const executable = await this.findExecutable(workspaceRoot, customPath);
     if (!executable) {
       this.outputChannel.appendLine('[ProcessManager] Error: No valid CodeExplorer executable could be found.');
       throw new Error(
@@ -251,10 +268,13 @@ export class ProcessManager implements vscode.Disposable {
   /**
    * Resolves the executable command and arguments to launch CodeExplorer.
    */
-  private findExecutable(
+  /**
+   * Resolves the executable command and arguments to launch CodeExplorer.
+   */
+  private async findExecutable(
     workspaceRoot?: string,
     customPath?: string
-  ): { command: string; args: string[] } | null {
+  ): Promise<{ command: string; args: string[] } | null> {
     // 1. Explicit path from settings or ENV variable (e.g. CE_DEV_EXECUTABLE from launch.json)
     const envPath = process.env.CE_DEV_EXECUTABLE || process.env.CE_EXECUTABLE;
     const targetPath = customPath && customPath.trim().length > 0 ? customPath.trim() : envPath;
@@ -307,7 +327,22 @@ export class ProcessManager implements vscode.Disposable {
       // Fallback
     }
 
-    // 3. Bundled platform-specific binary in extension (used in installed extensions)
+    // 3. Managed on-demand binary via BinaryManager (cached or downloaded from GitHub releases)
+    if (this.binaryManager) {
+      try {
+        const managed = await this.binaryManager.ensureBinary();
+        if (managed && fs.existsSync(managed.command)) {
+          this.outputChannel.appendLine(`[ProcessManager] Using managed CodeExplorer engine: ${managed.command}`);
+          return managed;
+        }
+      } catch (err: any) {
+        this.outputChannel.appendLine(
+          `[ProcessManager] BinaryManager engine download/resolution failed: ${err?.message || err}`
+        );
+      }
+    }
+
+    // 4. Bundled platform-specific binary in extension (legacy/offline fallback)
     const binName = isWindows ? 'ce.exe' : 'ce';
     const extensionRoot = path.resolve(__dirname, '..');
     const bundledCandidate = path.resolve(extensionRoot, 'bin', binName);
@@ -324,7 +359,7 @@ export class ProcessManager implements vscode.Disposable {
       return { command: bundledCandidate, args: [] };
     }
 
-    // 4. Fallback to system PATH command
+    // 5. Fallback to system PATH command
     this.outputChannel.appendLine('[ProcessManager] Using system PATH "ce".');
     return { command: 'ce', args: [] };
   }

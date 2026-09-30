@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Visual knowledge graph and codebase intelligence tool for developers and AI agents.",
-  "version": "1.11.3",
+  "version": "1.16.0",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -134,6 +134,11 @@
         "command": "codeExplorer.stopIntent",
         "title": "CodeExplorer: Stop Intent Distillation",
         "icon": "$(debug-stop)"
+      },
+      {
+        "command": "codeExplorer.updateEngine",
+        "title": "CodeExplorer: Check & Update Engine",
+        "icon": "$(cloud-download)"
       }
     ],
     "menus": {
@@ -197,6 +202,11 @@
           "default": "",
           "description": "Custom path to the 'ce' or 'ce.exe' binary. If empty, searches the workspace and system PATH."
         },
+        "codeExplorer.engineVersion": {
+          "type": "string",
+          "default": "",
+          "description": "Target engine version or probing pattern (e.g. '1.16.*', '^1.16.0', 'latest', or exact version). If empty, automatically matches the extension's major.minor series with fallback to extension version."
+        },
         "codeExplorer.serverPort": {
           "type": "number",
           "default": 0,
@@ -215,7 +225,7 @@
     "build:dev": "node build.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/domainLayouts.test.ts --bundle --platform=node --outdir=dist/test && node dist/test/commands/CommandManager.test.js && node dist/test/layout/concentricLayout.test.js && node dist/test/layout/domainLayouts.test.js",
+    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/domainLayouts.test.ts src/binaryManager.test.ts --bundle --platform=node --external:vscode --outdir=dist/test && node dist/test/commands/CommandManager.test.js && node dist/test/layout/concentricLayout.test.js && node dist/test/layout/domainLayouts.test.js && node dist/test/binaryManager.test.js",
     "build:binaries": "node scripts/build-extension-binaries.mjs",
     "package": "node scripts/package-extension.mjs",
     "package:all": "node scripts/package-extension.mjs --all",
