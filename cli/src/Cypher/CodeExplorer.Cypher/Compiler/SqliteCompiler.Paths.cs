@@ -717,7 +717,8 @@ public partial class SqliteCompiler
         label.Equals("Library", StringComparison.OrdinalIgnoreCase) ||
         label.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
         label.Equals("Worker", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("CliTool", StringComparison.OrdinalIgnoreCase);
+        label.Equals("CliTool", StringComparison.OrdinalIgnoreCase) ||
+        label.Equals("TestSuite", StringComparison.OrdinalIgnoreCase);
 
     internal static string CompileNodeLabelPredicate(string nVar, string label)
     {
@@ -735,14 +736,14 @@ public partial class SqliteCompiler
             return $"({nVar}.kind = 'Worker' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'Worker' OR json_extract({nVar}.properties, '$.role') = 'Worker') AND NOT EXISTS (SELECT 1 FROM nodes _w WHERE _w.kind = 'Worker' AND (json_extract(_w.properties, '$.project_id') = {nVar}.id OR json_extract(_w.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
         if (label.Equals("CliTool", StringComparison.OrdinalIgnoreCase))
             return $"({nVar}.kind = 'CliTool' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'CliTool' OR json_extract({nVar}.properties, '$.role') = 'CliTool') AND NOT EXISTS (SELECT 1 FROM nodes _c WHERE _c.kind = 'CliTool' AND (json_extract(_c.properties, '$.project_id') = {nVar}.id OR json_extract(_c.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
-        if (label.Equals("Test", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Test' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'Test' OR json_extract({nVar}.properties, '$.role') = 'Test')))";
+        if (label.Equals("TestSuite", StringComparison.OrdinalIgnoreCase) || label.Equals("Test", StringComparison.OrdinalIgnoreCase))
+            return $"({nVar}.kind IN ('TestSuite', 'Test') OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') IN ('TestSuite', 'Test') OR json_extract({nVar}.properties, '$.role') = 'Test') AND NOT EXISTS (SELECT 1 FROM nodes _ts WHERE _ts.kind IN ('TestSuite', 'Test') AND (json_extract(_ts.properties, '$.project_id') = {nVar}.id OR json_extract(_ts.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
         if (label.Equals("DatabaseMigration", StringComparison.OrdinalIgnoreCase))
             return $"({nVar}.kind = 'DatabaseMigration' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'DatabaseMigration' OR json_extract({nVar}.properties, '$.role') = 'DatabaseMigration')))";
         if (label.Equals("FunctionApp", StringComparison.OrdinalIgnoreCase))
             return $"({nVar}.kind = 'FunctionApp' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'FunctionApp' OR json_extract({nVar}.properties, '$.role') = 'FunctionApp')))";
         if (label.Equals("Project", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Project' OR ({nVar}.kind IN ('Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool') AND NOT EXISTS (SELECT 1 FROM nodes _p WHERE _p.kind = 'Project' AND (json_extract({nVar}.properties, '$.project_id') = _p.id OR json_extract(_p.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind = 'Project' OR ({nVar}.kind IN ('Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool', 'TestSuite') AND NOT EXISTS (SELECT 1 FROM nodes _p WHERE _p.kind = 'Project' AND (json_extract({nVar}.properties, '$.project_id') = _p.id OR json_extract(_p.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
         return $"{nVar}.kind = '{label}'";
     }
 

@@ -51,6 +51,7 @@ graph TD
         Query["Query"]
         Service["Service"]
         Table["Table"]
+        TestSuite["TestSuite"]
         Topic["Topic"]
         Worker["Worker"]
     end
@@ -138,6 +139,14 @@ graph TD
     Table -->|QUERIED_BY| Function
     Table -->|QUERIED_BY| Query
     Table -->|PERSISTED_IN| Type
+    TestSuite -->|LOCATED_IN| Folder
+    TestSuite -->|LOCATED_IN| Workspace
+    TestSuite -->|DEPLOYED_BY| Project
+    TestSuite -->|TESTS| Service
+    TestSuite -->|TESTS| Library
+    TestSuite -->|TESTS| App
+    TestSuite -->|TESTS| Worker
+    TestSuite -->|TESTS| CliTool
     Topic -->|PUBLISHED_BY| Function
     Topic -->|SUBSCRIBED_BY| Function
     Topic -->|PUBLISHED_BY| Service
@@ -229,6 +238,7 @@ graph TD
 | `Library` | `LOCATED_IN` |
 | `Project` | `LOCATED_IN` |
 | `Service` | `LOCATED_IN` |
+| `TestSuite` | `LOCATED_IN` |
 | `Worker` | `LOCATED_IN` |
 
 **Properties:**
@@ -328,6 +338,7 @@ graph TD
 | `Library` | `LOCATED_IN` |
 | `Project` | `LOCATED_IN` |
 | `Service` | `LOCATED_IN` |
+| `TestSuite` | `LOCATED_IN` |
 | `Worker` | `LOCATED_IN` |
 
 **Properties:**
@@ -427,6 +438,7 @@ graph TD
 | `ProjectsStructure` | `CONTAINS` |
 | `ProjectSyntax` | `BELONGS_TO` |
 | `Service` | `DEPLOYED_BY` |
+| `TestSuite` | `DEPLOYED_BY` |
 | `Topic` | `TRIGGERS` |
 | `Topic` | `SUBSCRIBED_BY` |
 | `Worker` | `DEPLOYED_BY` |
@@ -700,6 +712,7 @@ graph TD
 | :--- | :--- |
 | `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
+| `TestSuite` | `TESTS` |
 
 **Properties:**
 
@@ -733,6 +746,7 @@ graph TD
 | :--- | :--- |
 | `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
+| `TestSuite` | `TESTS` |
 
 **Properties:**
 
@@ -918,6 +932,7 @@ graph TD
 | :--- | :--- |
 | `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
+| `TestSuite` | `TESTS` |
 
 **Properties:**
 
@@ -991,6 +1006,7 @@ graph TD
 | `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `SERVICE_CALL` |
+| `TestSuite` | `TESTS` |
 | `Topic` | `PUBLISHED_BY` |
 | `Topic` | `SUBSCRIBED_BY` |
 | `Worker` | `SERVICE_CALL` |
@@ -1024,6 +1040,33 @@ graph TD
 | `DataSet` | `CONTAINS` |
 | `Query` | `DEPENDS_ON` |
 | `Type` | `PERSISTED_IN` |
+
+---
+
+#### `TestSuite`
+
+> Represents an automated test project, runner suite, or test module (e.g. NUnit/xUnit test project, Jest test suite, pytest suite).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `LOCATED_IN` | `Folder` |
+| `LOCATED_IN` | `Workspace` |
+| `DEPLOYED_BY` | `Project` |
+| `TESTS` | `Service` |
+| `TESTS` | `Library` |
+| `TESTS` | `App` |
+| `TESTS` | `Worker` |
+| `TESTS` | `CliTool` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The test suite name. |
+| `Path` | `string` | The path of the test suite directory relative to the workspace. |
+| `ProjectType` | `string` | The project type or language. |
 
 ---
 
@@ -1087,6 +1130,7 @@ graph TD
 | :--- | :--- |
 | `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
+| `TestSuite` | `TESTS` |
 | `Topic` | `SUBSCRIBED_BY` |
 
 **Properties:**
@@ -1179,6 +1223,7 @@ graph TD
 | Layer 4: Semantic Structure | `Query` | `{workspaceId}:q:{queryHash}` |
 | Layer 4: Semantic Structure | `Service` | `{workspaceId}:s:{serviceName}` |
 | Layer 4: Semantic Structure | `Table` | `{workspaceId}:tbl:{tableName}` |
+| Layer 4: Semantic Structure | `TestSuite` | `{workspaceId}:suite:{suiteName}` |
 | Layer 4: Semantic Structure | `Topic` | `{workspaceId}:top:{brokerType}:{topicName}` |
 | Layer 4: Semantic Structure | `Worker` | `{workspaceId}:w:{workerName}` |
 

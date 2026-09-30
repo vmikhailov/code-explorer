@@ -446,15 +446,23 @@ public class IncrementalIndexingTests
         Assert.That(WorkspaceIndexer.IsCandidateSourceFile("stage-worker/src/models/test_calculation.ts"), Is.True,
             "test_calculation.ts should be recognized as a valid TypeScript file, not pruned as a test!");
 
-        // Files that MUST be skipped
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("tests/test_calculator.py"), Is.False,
-            "test_*.py must be skipped as Python test file");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/services/order.test.ts"), Is.False,
-            "*.test.ts must be skipped as test file");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/services/order.spec.js"), Is.False,
-            "*.spec.js must be skipped as test file");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("pkg/calc/calc_test.go"), Is.False,
-            "*_test.go must be skipped as Go test file");
+        // Test files are now first-class candidate source files
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("tests/test_calculator.py"), Is.True,
+            "test_*.py should be included for test indexing");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/services/order.test.ts"), Is.True,
+            "*.test.ts should be included for test indexing");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/services/order.spec.js"), Is.True,
+            "*.spec.js should be included for test indexing");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("pkg/calc/calc_test.go"), Is.True,
+            "*_test.go should be included for test indexing");
+
+        // Non-source files and mocks that MUST be skipped
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/mocks/mock_service.ts"), Is.False,
+            "mock files must be skipped");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/bundle.min.js"), Is.False,
+            "minified files must be skipped");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/types.d.ts"), Is.False,
+            "d.ts files must be skipped");
     }
 
     [Test]

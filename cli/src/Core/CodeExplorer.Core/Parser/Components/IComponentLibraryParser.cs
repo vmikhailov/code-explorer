@@ -31,5 +31,5 @@ public interface IComponentLibraryParser
     /// Enriches the component analysis result with concrete AST artifacts (routes, schedules, tests)
     /// during syntactic and semantic parsing (Layers 3/4).
     /// </summary>
-    void EnrichWithSyntax(ComponentAnalysisResult result, SyntaxTree syntaxTree, ParsingContext ctx) { }
+    void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, ParsingContext ctx) { }
 }

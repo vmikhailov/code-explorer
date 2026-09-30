@@ -159,9 +159,16 @@ public class Layer3SyntacticParser
                         for (int v = 0; v < syntaxTree.RawVariables.Count; v++)
                         {
                             var rv = syntaxTree.RawVariables[v];
-                            if (!string.IsNullOrWhiteSpace(rv.Name) && !string.IsNullOrWhiteSpace(rv.InitializerText))
+                            if (rv.Scope != "local" && rv.IsConstant &&
+                                !string.IsNullOrWhiteSpace(rv.Name) && !string.IsNullOrWhiteSpace(rv.InitializerText))
                             {
-                                ConstantRegistry.Register(project.Name, rv.Name, rv.InitializerText);
+                                var rawInit = rv.InitializerText.Trim();
+                                if ((rawInit.StartsWith('"') && rawInit.EndsWith('"')) ||
+                                    (rawInit.StartsWith('\'') && rawInit.EndsWith('\'')) ||
+                                    (rawInit.StartsWith('`') && rawInit.EndsWith('`')))
+                                {
+                                    ConstantRegistry.Register(project.Name, rv.Name, rawInit.Trim('\'', '"', '`'));
+                                }
                             }
                         }
                     }
@@ -174,7 +181,19 @@ public class Layer3SyntacticParser
                 }
             });
 
-            // Pass 2: Traverse ASTs with language visitors and library parsers (now that all constants and symbols are registered)
+            // Pass 2: Traverse ASTs with language visitors and component parsers (now that all constants and symbols are registered)
+            var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
+            var filesInProjectDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
+            var projectContext = new ProjectContext(
+                projectAbsDir,
+                project.Path,
+                project.Name,
+                project.ProjectType,
+                filesInProjectDir,
+                [],
+                project.Extensions ?? new Dictionary<string, string>());
+            var componentParsers = Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
+
             await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, (i, ct) =>
             {
                 var item = parsedResults[i];
@@ -186,6 +205,14 @@ public class Layer3SyntacticParser
                     try
                     {
                         ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);
+
+                        if (componentParsers.Count > 0)
+                        {
+                            for (int cp = 0; cp < componentParsers.Count; cp++)
+                            {
+                                componentParsers[cp].EnrichWithSyntax(null, syntaxTree, ctx);
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {

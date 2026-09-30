@@ -11,9 +11,9 @@ public record ComponentAnalysisResult
     public string ComponentName { get; init; } = "";
     public LibraryRole Role { get; init; } = LibraryRole.General;
     public ComponentCapabilities Capabilities { get; init; } = ComponentCapabilities.None;
-    public IReadOnlyList<string> EntryPoints { get; init; } = [];
-    public IReadOnlyList<string> Endpoints { get; init; } = [];
-    public IReadOnlyList<string> Schedules { get; init; } = [];
-    public IReadOnlyList<string> Tests { get; init; } = [];
+    public List<string> EntryPoints { get; set; } = [];
+    public List<string> Endpoints { get; set; } = [];
+    public List<string> Schedules { get; set; } = [];
+    public List<string> Tests { get; set; } = [];
     public Dictionary<string, string> Metadata { get; init; } = [];
 }

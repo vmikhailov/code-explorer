@@ -37,6 +37,7 @@ public static class OntologyConstants
         public const string ApiInUse = "ApiInUse";
         public const string Counter = "Counter";
         public const string Domain = "Domain";
+        public const string TestSuite = "TestSuite";
     }
 
     public static class IdPrefixes
@@ -69,6 +70,7 @@ public static class OntologyConstants
         public const string CloudService = "cloud";
         public const string ApiInUse = "api";
         public const string Domain = "dom";
+        public const string TestSuite = "suite";
     }
 
     public static class Layers
@@ -84,6 +86,7 @@ public static class OntologyConstants
     {
         public const string Contains = "CONTAINS";
         public const string DependsOn = "DEPENDS_ON";
+        public const string Tests = "TESTS";
         public const string Calls = "CALLS";
         public const string UsesType = "USES_TYPE";
         public const string Implements = "IMPLEMENTS";

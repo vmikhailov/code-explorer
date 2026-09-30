@@ -875,6 +875,17 @@ public class CodeExplorerRepository
         return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
+    public async Task<string> GetAffectedTestsAsync(string? filePath = null, string? symbolName = null, string? workspacePath = null, CancellationToken cancellationToken = default)
+    {
+        var query = Queries.Get("get_affected_tests");
+        var parameters = new Dictionary<string, object?>
+        {
+            ["filePath"] = filePath,
+            ["symbolName"] = symbolName
+        };
+        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
+    }
+
     public async Task<string> InspectDataLineageAsync(string tableName, string? workspacePath = null, CancellationToken cancellationToken = default)
     {
         var query = Queries.Get("inspect_data_lineage");

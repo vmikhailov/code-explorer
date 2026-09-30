@@ -52,6 +52,7 @@ public static class Queries
         ["find_refactor_dead_code"] = ("Detect unreferenced/dead functions, classes, and types", "Refactoring"),
         ["find_refactor_god_objects"] = ("Detect classes with excessive coupling and complexity", "Refactoring"),
         ["analyze_code_impact"] = ("Analyze downstream blast radius / impact of changing a symbol or file", "Refactoring"),
+        ["get_affected_tests"] = ("Find test cases affected by a changed file or symbol via static call graph traversal", "Testing"),
         ["inspect_data_lineage"] = ("Trace database entities, SQL queries, and data lineage", "Refactoring"),
 
         ["find_symbol_all"] = ("Search for symbols across all kinds (Class, Interface, Function, Struct)", "Symbols"),

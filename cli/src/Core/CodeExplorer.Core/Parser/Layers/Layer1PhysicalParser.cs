@@ -231,13 +231,8 @@ public class Layer1PhysicalParser
     {
         var fn = fileName.ToLowerInvariant();
 
-        // 1. Tests and mocks (note: test_*.py is python test, but test_*.ts/.js may be valid source files)
+        // 1. Mocks and synthetic stubs
         if (fn.Contains("mock")) return true;
-        if (fn.EndsWith("tests.cs") || fn.EndsWith("test.cs")) return true;
-        if (fn.EndsWith("_test.go")) return true;
-        if (fn.StartsWith("test_") && fn.EndsWith(".py")) return true;
-        if (fn.EndsWith("_test.py")) return true;
-        if (fn.EndsWith(".test.ts") || fn.EndsWith(".spec.ts") || fn.EndsWith(".test.js") || fn.EndsWith(".spec.js")) return true;
 
         // 2. Scratch, temporary, playground, and debug scratch files
         if (fn.StartsWith("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||

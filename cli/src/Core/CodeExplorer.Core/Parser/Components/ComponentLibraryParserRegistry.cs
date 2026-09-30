@@ -28,6 +28,29 @@ public static class ComponentLibraryParserRegistry
         Register(new DotNetWorkerComponentParser());
         Register(new DotNetTestComponentParser());
         Register(new DotNetLibraryComponentParser());
+
+        // Python Ecosystem
+        Register(new PythonTestComponentParser());
+
+        // Go Ecosystem
+        Register(new GoTestComponentParser());
+
+        // Java Ecosystem
+        Register(new JavaTestComponentParser());
+    }
+
+    public static List<IComponentLibraryParser> GetParsers(ProjectContext context)
+    {
+        var matched = new List<IComponentLibraryParser>();
+        var parsers = Parsers;
+        for (int i = 0; i < parsers.Count; i++)
+        {
+            if (parsers[i].CanHandle(context))
+            {
+                matched.Add(parsers[i]);
+            }
+        }
+        return matched;
     }
 
     public static void Register(IComponentLibraryParser parser)

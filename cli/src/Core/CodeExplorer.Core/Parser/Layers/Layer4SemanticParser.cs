@@ -91,6 +91,7 @@ public class Layer4SemanticParser
         }
 
         // 4. Materialize first-class semantic workload nodes under SemanticStructure
+        var workloadByProjectId = new Dictionary<string, string>();
         foreach (var project in l3Result.Prev.Projects)
         {
             var extensions = new Dictionary<string, string>(project.Extensions ?? new())
@@ -104,6 +105,11 @@ public class Layer4SemanticParser
             if (string.IsNullOrEmpty(cleanName)) cleanName = project.Name;
             extensions["raw_name"] = project.Name;
             extensions["clean_name"] = cleanName;
+
+            var isTestProject = project.Role == OntologyConstants.ProjectRoles.Test ||
+                                string.Equals(project.Extensions?.GetValueOrDefault("primary_role"), "TestFramework", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(project.Extensions?.GetValueOrDefault("has_test_runner"), "true", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(project.Extensions?.GetValueOrDefault("is_test_project"), "true", StringComparison.OrdinalIgnoreCase);
 
             IOntologyNode workloadNode = project.Role switch
             {
@@ -128,12 +134,19 @@ public class Layer4SemanticParser
                     project.ProjectType,
                     extensions),
 
-                OntologyConstants.ProjectRoles.SharedLibrary => new LibraryNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}",
-                    cleanName,
-                    project.Path,
-                    project.ProjectType,
-                    extensions),
+                OntologyConstants.ProjectRoles.SharedLibrary => isTestProject
+                    ? new TestSuiteNode(
+                        $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
+                        cleanName,
+                        project.Path,
+                        project.ProjectType,
+                        extensions)
+                    : new LibraryNode(
+                        $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}",
+                        cleanName,
+                        project.Path,
+                        project.ProjectType,
+                        extensions),
 
                 OntologyConstants.ProjectRoles.CliTool => new CliToolNode(
                     $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CliTool}:{cleanName}",
@@ -142,9 +155,18 @@ public class Layer4SemanticParser
                     project.ProjectType,
                     extensions),
 
-                _ => project.IsLibrary
-                    ? new LibraryNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
-                    : new ServiceNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
+                OntologyConstants.ProjectRoles.Test => new TestSuiteNode(
+                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
+                    cleanName,
+                    project.Path,
+                    project.ProjectType,
+                    extensions),
+
+                _ => isTestProject
+                    ? new TestSuiteNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
+                    : project.IsLibrary
+                        ? new LibraryNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
+                        : new ServiceNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
             };
 
             if (!semanticStructureNode.Children.Any(c => c.Id == workloadNode.Id))
@@ -155,12 +177,37 @@ public class Layer4SemanticParser
 
             semanticRelationships.Add(new Relationship(project.Id, workloadNode.Id, OntologyConstants.Relationships.Deploys, new Dictionary<string, object>()));
 
+            workloadByProjectId[project.Id] = workloadNode.Id;
+
             // Attach project endpoints and entry points to the workload node
             foreach (var child in project.Children.Where(c => c is EndpointNode or EntryPointNode).ToList())
             {
                 if (!workloadNode.Children.Any(c => c.Id == child.Id))
                 {
                     workloadNode.Children.Add(child);
+                }
+            }
+        }
+
+        // Materialize TESTS relationships from TestSuites to target workloads
+        foreach (var dep in l3Result.Prev.ProjectDependencies)
+        {
+            if (dep.Kind == OntologyConstants.Relationships.DependsOn &&
+                workloadByProjectId.TryGetValue(dep.From, out var sourceWorkloadId) &&
+                workloadByProjectId.TryGetValue(dep.To, out var targetWorkloadId) &&
+                sourceWorkloadId != targetWorkloadId)
+            {
+                var sourceWorkload = semanticStructureNode.Children.FirstOrDefault(c => c.Id == sourceWorkloadId);
+                if (sourceWorkload is TestSuiteNode && !semanticRelationships.Any(r => r.From == sourceWorkloadId && r.To == targetWorkloadId && r.Kind == OntologyConstants.Relationships.Tests))
+                {
+                    semanticRelationships.Add(new Relationship(
+                        sourceWorkloadId,
+                        targetWorkloadId,
+                        OntologyConstants.Relationships.Tests,
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "tests"
+                        }));
                 }
             }
         }

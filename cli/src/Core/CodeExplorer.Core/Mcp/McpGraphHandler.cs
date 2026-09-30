@@ -295,6 +295,22 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
+    [Description("Finds all unit and integration test cases affected by a changed source file or symbol via static call graph traversal. Enables Test Impact Analysis (TIA) and static test coverage tracing.")]
+    public async Task<CallToolResult> GetAffectedTestsAsync(
+        [Description("The relative or absolute path of the changed file (e.g. 'src/Services/OrderService.cs').")] string? filePath = null,
+        [Description("The full name of the modified function, class, or symbol.")] string? symbolName = null,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(filePath) && string.IsNullOrEmpty(symbolName))
+        {
+            return WrapError("At least one of 'filePath' or 'symbolName' must be specified.");
+        }
+        return await ExecuteAsync(() => repository.GetAffectedTestsAsync(filePath, symbolName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
     [Description("Bridges the gap between code and data. Tracks the blast radius of database changes by finding every raw SQL text or ORM Query (Query), the source File it resides in, and the Functions that invoke it based on a target physical Database Table name.")]
     public async Task<CallToolResult> InspectDataLineageAsync(
         [Description("The exact name of the database table to inspect (e.g., 'orders' or 'users').")] string tableName,
