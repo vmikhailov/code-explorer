@@ -21,18 +21,38 @@ public class FileRegistry
         new(StringComparer.OrdinalIgnoreCase);
 
     public int Count => _entries.Count;
+    public int SnapshotCount => _snapshots.Count;
+
+    public IEnumerable<KeyValuePair<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>> Entries => _entries;
+
 
     public async Task LoadAsync(IGraphClient dbClient, CancellationToken cancellationToken = default)
     {
         var dbEntries = await dbClient.LoadFileRegistryAsync(cancellationToken);
         _entries.Clear();
+        _snapshots.Clear();
         foreach (var (path, entry) in dbEntries)
         {
-            _entries[path] = entry;
+            _entries[path] = (entry.ContentHash, entry.LastModifiedUtc, entry.ProjectPath);
+            if (!string.IsNullOrEmpty(entry.SnapshotJson))
+            {
+                try
+                {
+                    var snapshot = System.Text.Json.JsonSerializer.Deserialize<FileGraphSnapshot>(entry.SnapshotJson);
+                    if (snapshot != null)
+                    {
+                        _snapshots[path] = snapshot;
+                    }
+                }
+                catch
+                {
+                    // Ignore corrupted snapshots
+                }
+            }
         }
     }
 
-    public FileChangeset ComputeChangeset(string workspaceRoot, IEnumerable<string> currentRelativeFiles)
+    public FileChangeset ComputeChangeset(string workspaceRoot, IEnumerable<string> currentRelativeFiles, string? targetSubPath = null)
     {
         var added = new List<string>();
         var modified = new List<string>();
@@ -73,8 +93,18 @@ public class FileRegistry
             }
         }
 
+        var normalizedSubPath = targetSubPath?.Replace('\\', '/').Trim('/');
+        var targetPrefix = string.IsNullOrEmpty(normalizedSubPath) ? null : normalizedSubPath + "/";
+
         var deleted = _entries.Keys
-            .Where(path => !seenOnDisk.Contains(path))
+            .Where(path =>
+            {
+                if (targetPrefix != null && !path.StartsWith(targetPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                return !seenOnDisk.Contains(path);
+            })
             .ToList();
 
         return new FileChangeset(added, modified, deleted);
@@ -108,12 +138,28 @@ public class FileRegistry
 
     public async Task FlushAsync(IGraphClient dbClient, CancellationToken cancellationToken = default)
     {
-        var toSave = _entries.Select(kv => (
-            RelativePath: kv.Key,
-            ContentHash: kv.Value.ContentHash,
-            LastModifiedUtc: kv.Value.LastModifiedUtc,
-            ProjectPath: kv.Value.ProjectPath
-        ));
+        var toSave = _entries.Select(kv =>
+        {
+            string? snapshotJson = null;
+            if (_snapshots.TryGetValue(kv.Key, out var snapshot))
+            {
+                try
+                {
+                    snapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot);
+                }
+                catch
+                {
+                }
+            }
+
+            return (
+                RelativePath: kv.Key,
+                ContentHash: kv.Value.ContentHash,
+                LastModifiedUtc: kv.Value.LastModifiedUtc,
+                ProjectPath: kv.Value.ProjectPath,
+                SnapshotJson: snapshotJson
+            );
+        }).ToList();
 
         await dbClient.SaveFileRegistryEntriesAsync(toSave, cancellationToken);
     }

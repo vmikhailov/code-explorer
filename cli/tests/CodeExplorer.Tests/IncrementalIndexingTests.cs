@@ -366,4 +366,179 @@ public class IncrementalIndexingTests
         Assert.That(resultIndex.Errors, Is.Empty);
         Assert.That(((IndexOptions)resultIndex.Value).Watch, Is.True);
     }
+
+    [Test]
+    public async Task Test_TypeScript_NewlineInsertion_ZeroStructuralChanges()
+    {
+        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_ts_newline_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var tsFile = Path.Combine(tempDir, "response.ts");
+            var codeV1 = """
+                export class GetZoneMarginResponse {
+                    id: string;
+                    name: string;
+                    calculate() {
+                        const a = 1;
+                        const b = 2;
+                        return a + b;
+                    }
+                }
+                """;
+
+            var codeV2 = """
+                export class GetZoneMarginResponse {
+                    id: string;
+                    name: string;
+                    calculate() {
+                        const a = 1;
+
+                        const b = 2;
+                        return a + b;
+                    }
+                }
+                """;
+
+            await File.WriteAllTextAsync(tsFile, codeV1);
+            var bytes1 = await File.ReadAllBytesAsync(tsFile);
+            var hash1 = HashUtility.ComputeSha256(bytes1);
+            var mod1 = File.GetLastWriteTimeUtc(tsFile);
+            var snapshot1 = await WorkspaceIndexer.TryBuildSnapshotAsync(tsFile, "response.ts", "ws_test", tempDir, hash1, mod1);
+
+            await File.WriteAllTextAsync(tsFile, codeV2);
+            var bytes2 = await File.ReadAllBytesAsync(tsFile);
+            var hash2 = HashUtility.ComputeSha256(bytes2);
+            var mod2 = File.GetLastWriteTimeUtc(tsFile);
+            var snapshot2 = await WorkspaceIndexer.TryBuildSnapshotAsync(tsFile, "response.ts", "ws_test", tempDir, hash2, mod2);
+
+            Assert.That(snapshot1, Is.Not.Null);
+            Assert.That(snapshot2, Is.Not.Null);
+
+            var patch = SemanticGraphDiffer.ComputeDiff(snapshot1!, snapshot2!);
+
+            Assert.That(patch.HasGraphStructuralChanges, Is.False,
+                "Inserting a newline must produce ZERO graph structural changes!");
+            Assert.That(patch.AddedSymbols, Is.Empty);
+            Assert.That(patch.RemovedSymbols, Is.Empty);
+            Assert.That(patch.OutgoingCallDiffs, Is.Empty);
+            Assert.That(patch.OutgoingTypeDiffs, Is.Empty);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void Test_IsCandidateSourceFile_Preserves_test_env_js_And_test_calculation_ts()
+    {
+        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.JavaScriptParser());
+        WorkspaceIndexer.Register(new CodeExplorer.Parser.Python.PythonParser());
+        WorkspaceIndexer.Register(new CodeExplorer.Parser.Go.GoParser());
+
+        // Files that MUST be recognized as candidate source files
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("bq-routes-calculation/test_env.js"), Is.True,
+            "test_env.js should be recognized as a valid JavaScript file, not pruned as a test!");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("stage-worker/src/models/test_calculation.ts"), Is.True,
+            "test_calculation.ts should be recognized as a valid TypeScript file, not pruned as a test!");
+
+        // Files that MUST be skipped
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("tests/test_calculator.py"), Is.False,
+            "test_*.py must be skipped as Python test file");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/services/order.test.ts"), Is.False,
+            "*.test.ts must be skipped as test file");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/services/order.spec.js"), Is.False,
+            "*.spec.js must be skipped as test file");
+        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("pkg/calc/calc_test.go"), Is.False,
+            "*_test.go must be skipped as Go test file");
+    }
+
+    [Test]
+    public async Task Test_Sqlite_Persists_AstSnapshot_And_SeparateProcessIncrementalScan_PreservesGraph_OnNewline()
+    {
+        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_sqlite_incremental_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var dbFile = Path.Combine(tempDir, "graph.db");
+
+        try
+        {
+            // Create a small TypeScript project
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), "{\"name\": \"test-app\"}");
+            var srcDir = Path.Combine(tempDir, "src");
+            Directory.CreateDirectory(srcDir);
+            var tsFile = Path.Combine(srcDir, "calculator.ts");
+            var initialCode = """
+                export class Calculator {
+                    compute(x: number): number {
+                        const a = 1;
+                        return x + a;
+                    }
+                }
+                """;
+            await File.WriteAllTextAsync(tsFile, initialCode);
+
+            // Phase 1: Full index with Client 1 (Process 1)
+            var client1 = new CodeExplorer.Core.Database.SqliteGraphClient(dbFile);
+            var indexer1 = new WorkspaceIndexer(client1);
+            await indexer1.IndexAsync(tempDir, clear: false);
+
+            // Verify SQLite file_registry table has entry and snapshot_json
+            var registry1 = await client1.LoadFileRegistryAsync();
+            Assert.That(registry1, Contains.Key("src/calculator.ts"));
+            var entry1 = registry1["src/calculator.ts"];
+            Assert.That(entry1.SnapshotJson, Is.Not.Null.And.Not.Empty, "SnapshotJson must be persisted in SQLite!");
+
+            await client1.DisposeAsync();
+
+            // Phase 2: User adds a newline in the file
+            var modifiedCode = """
+                export class Calculator {
+                    compute(x: number): number {
+                        const a = 1;
+
+                        return x + a;
+                    }
+                }
+                """;
+            // Ensure timestamp shifts
+            await Task.Delay(50);
+            await File.WriteAllTextAsync(tsFile, modifiedCode);
+
+            // Phase 3: Separate CLI process (Client 2, Indexer 2) runs incremental scan
+            var client2 = new CodeExplorer.Core.Database.SqliteGraphClient(dbFile);
+            var indexer2 = new WorkspaceIndexer(client2);
+
+            var countsBefore = await client2.GetGraphCountsAsync();
+            var changed = await indexer2.IndexIncrementalAsync(tempDir);
+            Assert.That(changed, Is.True, "Incremental scan should detect and process the modified file.");
+            var countsAfter = await client2.GetGraphCountsAsync();
+            Assert.That(countsAfter.NodesCount, Is.EqualTo(countsBefore.NodesCount), "Graph nodes count must be preserved for logic-only edit!");
+
+            // Second incremental scan without file edits: must detect 0 changes
+            var changedAgain = await indexer2.IndexIncrementalAsync(tempDir);
+            Assert.That(changedAgain, Is.False, "Workspace should be up to date on subsequent check.");
+
+            // Verify registry in SQLite was updated with new hash and preserved/updated snapshot
+            var registry2 = await client2.LoadFileRegistryAsync();
+            var entry2 = registry2["src/calculator.ts"];
+            Assert.That(entry2.ContentHash, Is.Not.EqualTo(entry1.ContentHash), "Content hash should be updated");
+            Assert.That(entry2.SnapshotJson, Is.Not.Null.And.Not.Empty, "SnapshotJson must remain populated");
+
+            await client2.DisposeAsync();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
 }
+

@@ -63,14 +63,19 @@ public interface IGraphClient : IAsyncDisposable
     Task RunIncrementalVacuumAsync(int pages = 500, CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    Task<Dictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>> LoadFileRegistryAsync(
+    Task<Dictionary<string, FileRegistryEntry>> LoadFileRegistryAsync(
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(new Dictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>(StringComparer.OrdinalIgnoreCase));
+        Task.FromResult(new Dictionary<string, FileRegistryEntry>(StringComparer.OrdinalIgnoreCase));
+
+    Task SaveFileRegistryEntriesAsync(
+        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)> entries,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 
     Task SaveFileRegistryEntriesAsync(
         IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath)> entries,
         CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+        SaveFileRegistryEntriesAsync(entries.Select(e => (e.RelativePath, e.ContentHash, e.LastModifiedUtc, e.ProjectPath, (string?)null)), cancellationToken);
 
     Task DeleteFileRegistryEntriesAsync(
         IEnumerable<string> relativePaths,
@@ -125,6 +130,12 @@ public interface IGraphClient : IAsyncDisposable
     int SchemaVersion => 0;
     bool IsSchemaOutdated => false;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
+
+    Task<Dictionary<string, int>> GetNodesBreakdownAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new Dictionary<string, int>());
+
+    Task<(int NodesCount, int RelationshipsCount)> GetGraphCountsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult((0, 0));
 }
 
 public record ProjectSignature(
@@ -189,3 +200,11 @@ public record DomainInfrastructureLinkRecord(
     string InfraKind,
     string EdgeKind
 );
+
+public record FileRegistryEntry(
+    string ContentHash,
+    DateTime LastModifiedUtc,
+    string ProjectPath,
+    string? SnapshotJson = null
+);
+

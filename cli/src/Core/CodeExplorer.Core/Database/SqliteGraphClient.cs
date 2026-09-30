@@ -228,7 +228,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 relative_path TEXT PRIMARY KEY,
                 content_hash TEXT NOT NULL,
                 last_modified_utc TEXT NOT NULL,
-                project_path TEXT NOT NULL
+                project_path TEXT NOT NULL,
+                snapshot_json TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_file_registry_hash ON file_registry(content_hash);
 
@@ -292,6 +293,17 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             WHERE to_id LIKE '%:p:%:project_semantic' OR to_id LIKE '%:project:%:project_semantic';
             """;
         cmd.ExecuteNonQuery();
+
+        try
+        {
+            using var alterCmd = _conn.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE file_registry ADD COLUMN snapshot_json TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+        catch
+        {
+            // Column already exists or freshly created
+        }
     }
 
     public Task CreateIndicesAsync()
@@ -2324,15 +2336,15 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
-    public async Task<Dictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>> LoadFileRegistryAsync(
+    public async Task<Dictionary<string, FileRegistryEntry>> LoadFileRegistryAsync(
         CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            var result = new Dictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<string, FileRegistryEntry>(StringComparer.OrdinalIgnoreCase);
             using var cmd = _conn.CreateCommand();
-            cmd.CommandText = "SELECT relative_path, content_hash, last_modified_utc, project_path FROM file_registry;";
+            cmd.CommandText = "SELECT relative_path, content_hash, last_modified_utc, project_path, snapshot_json FROM file_registry;";
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
@@ -2340,10 +2352,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 var hash = reader.GetString(1);
                 var lastModStr = reader.GetString(2);
                 var projPath = reader.GetString(3);
+                var snapshotJson = !reader.IsDBNull(4) ? reader.GetString(4) : null;
                 var lastMod = DateTime.TryParse(lastModStr, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
                     ? dt
                     : DateTime.MinValue;
-                result[relPath] = (hash, lastMod, projPath);
+                result[relPath] = new FileRegistryEntry(hash, lastMod, projPath, snapshotJson);
             }
             return result;
         }
@@ -2353,8 +2366,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
-    public async Task SaveFileRegistryEntriesAsync(
+    public Task SaveFileRegistryEntriesAsync(
         IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath)> entries,
+        CancellationToken cancellationToken = default) =>
+        SaveFileRegistryEntriesAsync(entries.Select(e => (e.RelativePath, e.ContentHash, e.LastModifiedUtc, e.ProjectPath, (string?)null)), cancellationToken);
+
+    public async Task SaveFileRegistryEntriesAsync(
+        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)> entries,
         CancellationToken cancellationToken = default)
     {
         var entryList = entries.ToList();
@@ -2367,25 +2385,28 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             using var cmd = _conn.CreateCommand();
             cmd.Transaction = (SqliteTransaction)tx;
             cmd.CommandText = """
-                INSERT INTO file_registry (relative_path, content_hash, last_modified_utc, project_path)
-                VALUES (@relPath, @hash, @lastMod, @projPath)
+                INSERT INTO file_registry (relative_path, content_hash, last_modified_utc, project_path, snapshot_json)
+                VALUES (@relPath, @hash, @lastMod, @projPath, @snapshotJson)
                 ON CONFLICT(relative_path) DO UPDATE SET
                     content_hash = excluded.content_hash,
                     last_modified_utc = excluded.last_modified_utc,
-                    project_path = excluded.project_path;
+                    project_path = excluded.project_path,
+                    snapshot_json = coalesce(excluded.snapshot_json, file_registry.snapshot_json);
                 """;
 
             var pRel = cmd.Parameters.Add("@relPath", SqliteType.Text);
             var pHash = cmd.Parameters.Add("@hash", SqliteType.Text);
             var pLastMod = cmd.Parameters.Add("@lastMod", SqliteType.Text);
             var pProj = cmd.Parameters.Add("@projPath", SqliteType.Text);
+            var pSnap = cmd.Parameters.Add("@snapshotJson", SqliteType.Text);
 
-            foreach (var (relPath, hash, lastMod, projPath) in entryList)
+            foreach (var (relPath, hash, lastMod, projPath, snapshotJson) in entryList)
             {
                 pRel.Value = relPath;
                 pHash.Value = hash;
                 pLastMod.Value = lastMod.ToString("o");
                 pProj.Value = projPath;
+                pSnap.Value = (object?)snapshotJson ?? DBNull.Value;
                 await cmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
@@ -2420,6 +2441,49 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             }
 
             await tx.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<Dictionary<string, int>> GetNodesBreakdownAsync(CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT kind, count(*) FROM nodes GROUP BY kind ORDER BY count(*) DESC;";
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var kind = reader.GetString(0);
+                var count = reader.GetInt32(1);
+                result[kind] = count;
+            }
+            return result;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<(int NodesCount, int RelationshipsCount)> GetGraphCountsAsync(CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT (SELECT count(*) FROM nodes), (SELECT count(*) FROM edges);";
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                return (reader.GetInt32(0), reader.GetInt32(1));
+            }
+            return (0, 0);
         }
         finally
         {

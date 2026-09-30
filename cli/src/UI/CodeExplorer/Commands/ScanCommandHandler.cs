@@ -67,6 +67,10 @@ public static class ScanCommandHandler
                         Console.WriteLine("\n✓ Incremental indexing completed successfully!");
                         Console.ResetColor();
                     }
+
+                    var (nodesCount, relsCount) = await client.GetGraphCountsAsync();
+                    var nodesByKind = await client.GetNodesBreakdownAsync();
+                    PrintNodesBreakdown(nodesCount, relsCount, nodesByKind);
                 }
                 else
                 {
@@ -81,16 +85,7 @@ public static class ScanCommandHandler
             if (performedFullIndex)
             {
                 var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath, ws.RootDirectory, clear: shouldClear, enableIntentAnalysis: opts.Intent);
-
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine($"\n✓ Successfully indexed {nodesCount} nodes and {relsCount} relationships!");
-                Console.ResetColor();
-
-                Console.WriteLine("Nodes breakdown:");
-                foreach (var (kind, count) in nodesByKind.OrderByDescending(x => x.Value))
-                {
-                    Console.WriteLine($"  - {kind,-20}: {count,6}");
-                }
+                PrintNodesBreakdown(nodesCount, relsCount, nodesByKind);
             }
 
             if (opts.Watch)
@@ -110,13 +105,16 @@ public static class ScanCommandHandler
                     targetPath,
                     async batch =>
                     {
-                        logger.LogInformation("[Watch] File changes detected ({Count} file(s)). Reindexing...", batch.Count);
+                        logger.LogInformation("[Watch] File changes detected ({Count} file(s)): {Files}. Evaluating incremental update...", batch.Count, string.Join(", ", batch));
                         try
                         {
                             var changed = await indexer.IndexIncrementalAsync(targetPath, ws.RootDirectory, cancellationToken: cts.Token, enableIntentAnalysis: opts.Intent);
                             if (changed)
                             {
                                 logger.LogInformation("[Watch] Incremental indexing complete.");
+                                var (nodesCount, relsCount) = await client.GetGraphCountsAsync(cts.Token);
+                                var nodesByKind = await client.GetNodesBreakdownAsync(cts.Token);
+                                PrintNodesBreakdown(nodesCount, relsCount, nodesByKind);
                             }
                             else
                             {
@@ -153,6 +151,19 @@ public static class ScanCommandHandler
             Console.Error.WriteLine($"Scan Error: {ex.Message}");
             Console.ResetColor();
             return 1;
+        }
+    }
+
+    private static void PrintNodesBreakdown(int nodesCount, int relsCount, Dictionary<string, int> nodesByKind)
+    {
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"\n✓ Successfully indexed {nodesCount} nodes and {relsCount} relationships!");
+        Console.ResetColor();
+
+        Console.WriteLine("Nodes breakdown:");
+        foreach (var (kind, count) in nodesByKind.OrderByDescending(x => x.Value))
+        {
+            Console.WriteLine($"  - {kind,-20}: {count,6}");
         }
     }
 }

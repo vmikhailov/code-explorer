@@ -136,17 +136,8 @@ public class Layer1PhysicalParser
 
         var dirName = Path.GetFileName(currentDir);
         if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
-        var dirNameLower = dirName.ToLowerInvariant();
 
-        var genericExclusions = new HashSet<string>
-        {
-            ".git", ".github", ".vscode", ".idea", ".vs", ".go", "node_modules",
-            "bin", "obj", "packages", "dist", "build", ".build", ".next", ".nuxt",
-            ".turbo", ".cache", ".output", "out", "coverage", "scratch", "demo",
-            "vendor", "bower_components", "third_party", "thirdparty", "3rdparty"
-        };
-
-        if (genericExclusions.Contains(dirNameLower))
+        if (IsExcludedDirectory(dirName))
         {
             return;
         }
@@ -197,6 +188,7 @@ public class Layer1PhysicalParser
 
             var hasParser = WorkspaceIndexer._fileParsers.Any(p => p.CanParse(ext));
             var isConfigFile = ConfigurationParser.IsConfigurationFile(fileInfo.Name);
+
             if (!hasParser && !isConfigFile)
             {
                 continue;
@@ -218,37 +210,54 @@ public class Layer1PhysicalParser
         }
     }
 
+    public static readonly HashSet<string> ExcludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".git", ".github", ".vscode", ".idea", ".vs", ".go", "node_modules",
+        "bin", "obj", "packages", "dist", "build", ".build", ".next", ".nuxt",
+        ".turbo", ".cache", ".output", "out", "coverage", "scratch", "demo",
+        "vendor", "bower_components", "third_party", "thirdparty", "3rdparty",
+        ".codeexplorer", ".packages"
+    };
+
+    public static bool IsExcludedDirectory(string dirName) => ExcludedDirectoryNames.Contains(dirName);
+
     private const long MaxSourceFileSize = 1_048_576; // 1 MB limit for AST parsing
 
-    private static bool ShouldSkipFile(FileInfo fileInfo)
+    public static bool ShouldSkipFileName(string fileName)
     {
-        var fileName = fileInfo.Name.ToLowerInvariant();
+        var fn = fileName.ToLowerInvariant();
 
-        // 1. Tests and mocks
-        if (fileName.Contains("mock")) return true;
-        if (fileName.EndsWith("tests.cs") || fileName.EndsWith("test.cs")) return true;
-        if (fileName.EndsWith("_test.go")) return true;
-        if (fileName.StartsWith("test_") && fileName.EndsWith(".py")) return true;
-        if (fileName.EndsWith("_test.py")) return true;
-        if (fileName.EndsWith(".test.ts") || fileName.EndsWith(".spec.ts") || fileName.EndsWith(".test.js") ||
-            fileName.EndsWith(".spec.js")) return true;
+        // 1. Tests and mocks (note: test_*.py is python test, but test_*.ts/.js may be valid source files)
+        if (fn.Contains("mock")) return true;
+        if (fn.EndsWith("tests.cs") || fn.EndsWith("test.cs")) return true;
+        if (fn.EndsWith("_test.go")) return true;
+        if (fn.StartsWith("test_") && fn.EndsWith(".py")) return true;
+        if (fn.EndsWith("_test.py")) return true;
+        if (fn.EndsWith(".test.ts") || fn.EndsWith(".spec.ts") || fn.EndsWith(".test.js") || fn.EndsWith(".spec.js")) return true;
 
         // 2. Scratch, temporary, playground, and debug scratch files
-        if (fileName.StartsWith("scratch") || fileName.Contains(".scratch.") || fileName.Contains("_scratch.") ||
-            fileName.StartsWith("temp_") || fileName.StartsWith("tmp_") ||
-            fileName.EndsWith("_debug.ts") || fileName.EndsWith("_debug.js") ||
-            fileName.StartsWith("debug_") || fileName.Contains("playground") || fileName.Contains("scratchpad"))
+        if (fn.StartsWith("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||
+            fn.StartsWith("temp_") || fn.StartsWith("tmp_") ||
+            fn.EndsWith("_debug.ts") || fn.EndsWith("_debug.js") ||
+            fn.StartsWith("debug_") || fn.Contains("playground") || fn.Contains("scratchpad"))
         {
             return true;
         }
 
         // 3. TypeScript Ambient Declaration files (no executable code/endpoints/calls)
-        if (fileName.EndsWith(".d.ts")) return true;
+        if (fn.EndsWith(".d.ts")) return true;
 
         // 4. Minified, bundle, and vendor file conventions
-        if (fileName.EndsWith(".min.js") || fileName.EndsWith(".min.mjs") || fileName.EndsWith(".min.cjs") ||
-            fileName.EndsWith(".min.css") || fileName.EndsWith(".bundle.js") || fileName.EndsWith(".bundle.min.js")) return true;
-        if (fileName.Contains(".min.")) return true;
+        if (fn.EndsWith(".min.js") || fn.EndsWith(".min.mjs") || fn.EndsWith(".min.cjs") ||
+            fn.EndsWith(".min.css") || fn.EndsWith(".bundle.js") || fn.EndsWith(".bundle.min.js")) return true;
+        if (fn.Contains(".min.")) return true;
+
+        return false;
+    }
+
+    private static bool ShouldSkipFile(FileInfo fileInfo)
+    {
+        if (ShouldSkipFileName(fileInfo.Name)) return true;
 
         // 4. Oversized source files (> 1 MB are bundled distributions or generated data tables)
         // FileInfo.Length is populated from DirectoryInfo enumeration, avoiding per-file system calls
@@ -265,6 +274,7 @@ public class Layer1PhysicalParser
         }
 
         // 5. Minification heuristic: check first 4KB for extremely long lines (> 2000 chars)
+        var fileName = fileInfo.Name.ToLowerInvariant();
         if (fileName.EndsWith(".js") || fileName.EndsWith(".ts") || fileName.EndsWith(".css"))
         {
             if (IsMinifiedContent(fileInfo.FullName))
