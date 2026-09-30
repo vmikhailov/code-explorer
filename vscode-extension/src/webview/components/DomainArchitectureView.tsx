@@ -10,6 +10,7 @@ import {
   ConcentricOrbitGuide,
   ConcentricLayoutResult,
   DomainSectorGuide,
+  ORBIT_TITLES,
 } from '../layout/concentricLayout';
 import { computeConcentricEquispacedLayout } from '../layout/concentricEquispacedLayout';
 import { computeConcentricPolarForceLayout } from '../layout/concentricPolarForceLayout';
@@ -526,6 +527,73 @@ export function applyEdgeLabelVisibility(cy: cytoscape.Core | null, onHoverOnly:
   });
 }
 
+export interface OrbitLegendItem {
+  levelIndex: number;
+  shortLabel: string;
+  title: string;
+  count: number;
+  radius: number;
+  nodeIds: string[];
+}
+
+/**
+ * Builds legend items for all populated architectural orbits, guaranteeing that
+ * outer infrastructure (Databases and External Services, tier 4/5) is permanently
+ * pinned to the outermost orbit, and all populated orbits remain listed even when hidden.
+ */
+export function buildAllOrbitLegendItems(
+  allNodes: cytoscape.NodeDefinition[],
+  echelonMap: Map<string, number>,
+  layoutPopulatedOrbits: Array<{ levelIndex: number; radius: number; shortLabel?: string; title?: string; nodeIds: string[] }>,
+  customOrbitOrder: number[] | null
+): OrbitLegendItem[] {
+  const allBuckets = new Map<number, string[]>();
+  for (const n of allNodes) {
+    const nid = n.data.id as string;
+    const ech = (n.data as any).echelonTier ?? echelonMap.get(nid) ?? 2;
+    if (!allBuckets.has(ech)) allBuckets.set(ech, []);
+    allBuckets.get(ech)!.push(nid);
+  }
+
+  const allTiers = Array.from(allBuckets.keys()).sort((a, b) => a - b);
+  const outerTiers = allTiers.filter((t) => t === 4 || t === 5);
+  const innerTiers = allTiers.filter((t) => t !== 4 && t !== 5);
+
+  let orderedTiers: number[];
+  if (customOrbitOrder && customOrbitOrder.length > 0) {
+    const validCustom = customOrbitOrder.filter((t) => innerTiers.includes(t));
+    const missing = innerTiers.filter((t) => !validCustom.includes(t));
+    orderedTiers = [...validCustom, ...missing, ...outerTiers];
+  } else {
+    const layoutInner = layoutPopulatedOrbits
+      .map((o) => o.levelIndex)
+      .filter((t) => t !== 4 && t !== 5);
+    const missing = innerTiers.filter((t) => !layoutInner.includes(t));
+    orderedTiers = [...layoutInner, ...missing, ...outerTiers];
+  }
+
+  const radiusMap = new Map<number, number>();
+  for (const o of layoutPopulatedOrbits) {
+    radiusMap.set(o.levelIndex, o.radius);
+  }
+
+  let displayIdx = 0;
+  return orderedTiers.map((tier) => {
+    const nodeIds = allBuckets.get(tier) || [];
+    const title = ORBIT_TITLES[tier] || `Tier ${tier}`;
+    const shortLabel = `Orbit ${displayIdx++}`;
+    const radius = radiusMap.get(tier) || 0;
+    return {
+      levelIndex: tier,
+      shortLabel,
+      title,
+      count: nodeIds.length,
+      radius,
+      nodeIds,
+    };
+  });
+}
+
 /**
  * Dynamically toggles line rendering: Straight, Standard Bezier, or Orbit Shield (bypasses inner orbits).
  */
@@ -825,6 +893,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(new Set());
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(new Set());
+  const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(new Set());
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(false);
   const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(false);
 
@@ -879,10 +949,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [hiddenSearchQuery, setHiddenSearchQuery] = useState('');
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
 
-  // Restore only hidden concrete entities
+  // Restore all hidden entities across individual hides, category filters, and orbits
   const restoreAllHiddenNodes = useCallback(() => {
     forceRelayoutRef.current = true;
     setHiddenNodeIds(new Set());
+    setHiddenTypes(new Set());
+    setHiddenOrbitTiers(new Set());
+    setHideSingleConnectionDbs(false);
+    setHideIsolatedNodes(false);
+    setForcedVisibleNodeIds(new Set());
   }, []);
 
   // Auto-relayout on filter toggle (persisted)
@@ -940,6 +1015,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   useEffect(() => {
     setHiddenTypes(new Set());
     setHiddenNodeIds(new Set());
+    setHiddenOrbitTiers(new Set());
+    setForcedVisibleNodeIds(new Set());
     setSelectedNode(null);
   }, [graph]);
 
@@ -954,17 +1031,57 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
       return next;
     });
+    setForcedVisibleNodeIds((prev) => {
+      const next = new Set(prev);
+      for (const id of prev) {
+        if (rawGraph.detailMap.get(id)?.kind === kind) {
+          next.delete(id);
+        }
+      }
+      return next;
+    });
     setSelectedNode((curr) => (curr?.kind === kind ? null : curr));
     if (cyRef.current) {
       cyRef.current.elements().removeClass('highlighted dimmed');
     }
-  }, []);
+  }, [rawGraph.detailMap]);
+
+  const toggleOrbitVisibility = useCallback((levelIndex: number) => {
+    forceRelayoutRef.current = true;
+    setHiddenOrbitTiers((prev) => {
+      const next = new Set(prev);
+      if (next.has(levelIndex)) {
+        next.delete(levelIndex);
+      } else {
+        next.add(levelIndex);
+      }
+      return next;
+    });
+    setForcedVisibleNodeIds((prev) => {
+      const next = new Set(prev);
+      for (const id of prev) {
+        const ech = rawGraph.echelonMap.get(id);
+        if (ech === levelIndex) {
+          next.delete(id);
+        }
+      }
+      return next;
+    });
+    if (cyRef.current) {
+      cyRef.current.elements().removeClass('highlighted dimmed');
+    }
+  }, [rawGraph.echelonMap]);
 
   const hideNode = useCallback((nodeId: string) => {
     forceRelayoutRef.current = true;
     setHiddenNodeIds((prev) => {
       const next = new Set(prev);
       next.add(nodeId);
+      return next;
+    });
+    setForcedVisibleNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
       return next;
     });
     setSelectedNode((curr) => (curr?.id === nodeId ? null : curr));
@@ -980,15 +1097,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       next.delete(nodeId);
       return next;
     });
+    setForcedVisibleNodeIds((prev) => {
+      const next = new Set(prev);
+      next.add(nodeId);
+      return next;
+    });
   }, []);
 
-  const unhideAll = useCallback(() => {
-    forceRelayoutRef.current = true;
-    setHiddenTypes(new Set());
-    setHiddenNodeIds(new Set());
-    setHideSingleConnectionDbs(false);
-    setHideIsolatedNodes(false);
-  }, []);
+  const unhideAll = restoreAllHiddenNodes;
 
   // 1. Synthesize Domain Entities & Infrastructure Nodes from GraphData
   const rawGraph = useMemo(() => {
@@ -1622,17 +1738,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // 2. Visible Graph Memo with Directional Transitive Contraction
   const { elements, visibleNodes, visibleEdges, hiddenNodeIdSet, stats, hiddenCount } = useMemo(() => {
-    const hiddenNodeIdSet = new Set<string>(hiddenNodeIds);
+    const hiddenNodeIdSet = new Set<string>();
     for (const node of rawGraph.allNodes) {
-      const kind = (node.data as any).kind as EntityKind;
-      if (hiddenTypes.has(kind)) {
-        hiddenNodeIdSet.add(node.data.id as string);
+      const id = node.data.id as string;
+      if (forcedVisibleNodeIds.has(id)) {
+        continue;
       }
-      if (hideSingleConnectionDbs && kind === 'Database') {
-        const inboundCount = rawGraph.dbSourceServicesMap.get(node.data.id as string)?.size || 0;
+      const kind = (node.data as any).kind as EntityKind;
+      const ech = (node.data as any).echelonTier ?? rawGraph.echelonMap.get(id) ?? 2;
+      let isHidden = hiddenNodeIds.has(id) || hiddenTypes.has(kind) || hiddenOrbitTiers.has(ech);
+      if (!isHidden && hideSingleConnectionDbs && kind === 'Database') {
+        const inboundCount = rawGraph.dbSourceServicesMap.get(id)?.size || 0;
         if (inboundCount <= 1) {
-          hiddenNodeIdSet.add(node.data.id as string);
+          isHidden = true;
         }
+      }
+      if (isHidden) {
+        hiddenNodeIdSet.add(id);
       }
     }
 
@@ -1863,7 +1985,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           connectedNodeIds.add(t);
         }
       }
-      finalVisibleNodes = visibleNodes.filter((n) => connectedNodeIds.has(n.data.id as string));
+      for (const n of visibleNodes) {
+        const nid = n.data.id as string;
+        if (!connectedNodeIds.has(nid) && !forcedVisibleNodeIds.has(nid)) {
+          hiddenNodeIdSet.add(nid);
+        }
+      }
+      finalVisibleNodes = visibleNodes.filter((n) => !hiddenNodeIdSet.has(n.data.id as string));
     }
 
     const visibleNodeIdSet = new Set(finalVisibleNodes.map((n) => n.data.id as string));
@@ -1908,7 +2036,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         transitiveCalls,
       },
     };
-  }, [rawGraph, hiddenTypes, hiddenNodeIds, hideSingleConnectionDbs, hideIsolatedNodes]);
+  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes]);
 
   const nodeDetailMap = rawGraph.detailMap;
 
@@ -2278,14 +2406,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         }));
         setConcentricGuides(layoutResult.guides);
         setOrbitLegendItems(
-          layoutResult.populatedOrbits.map((o) => ({
-            levelIndex: o.levelIndex,
-            shortLabel: o.shortLabel,
-            title: o.title,
-            count: o.nodeIds.length,
-            radius: o.radius,
-            nodeIds: o.nodeIds,
-          }))
+          buildAllOrbitLegendItems(
+            rawGraph.allNodes,
+            rawGraph.echelonMap,
+            layoutResult.populatedOrbits,
+            customOrbitOrderRef.current
+          )
         );
       } else if (layoutName === 'swimlanes') {
         setConcentricGuides([]);
@@ -2698,14 +2824,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }));
       setConcentricGuides(layoutResult.guides);
       setOrbitLegendItems(
-        layoutResult.populatedOrbits.map((o) => ({
-          levelIndex: o.levelIndex,
-          shortLabel: o.shortLabel,
-          title: o.title,
-          count: o.nodeIds.length,
-          radius: o.radius,
-          nodeIds: o.nodeIds,
-        }))
+        buildAllOrbitLegendItems(
+          rawGraph.allNodes,
+          rawGraph.echelonMap,
+          layoutResult.populatedOrbits,
+          newOrder
+        )
       );
 
       // Smoothly animate nodes to new positions in Cytoscape
@@ -2733,8 +2857,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const handleMoveOrbit = useCallback(
     (fromIndex: number, direction: -1 | 1) => {
+      const maxMovableIndex = orbitLegendItems.some((it) => it.levelIndex === 4 || it.levelIndex === 5)
+        ? orbitLegendItems.length - 2
+        : orbitLegendItems.length - 1;
       const toIndex = fromIndex + direction;
-      if (toIndex < 0 || toIndex >= orbitLegendItems.length) return;
+      if (fromIndex > maxMovableIndex || toIndex < 0 || toIndex > maxMovableIndex) return;
       const newItems = [...orbitLegendItems];
       const [moved] = newItems.splice(fromIndex, 1);
       newItems.splice(toIndex, 0, moved);
@@ -2745,21 +2872,33 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   );
 
   const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
+    const isOuterFixed = orbitLegendItems[idx]?.levelIndex === 4 || orbitLegendItems[idx]?.levelIndex === 5;
+    if (isOuterFixed) return;
     setDraggedOrbitIndex(idx);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(idx));
-  }, []);
+  }, [orbitLegendItems]);
 
   const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
     e.preventDefault();
+    const isOuterFixed = orbitLegendItems[idx]?.levelIndex === 4 || orbitLegendItems[idx]?.levelIndex === 5;
+    if (isOuterFixed) return;
     e.dataTransfer.dropEffect = 'move';
     setDragOverIndex((prev) => (prev !== idx ? idx : prev));
-  }, []);
+  }, [orbitLegendItems]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent, targetIdx: number) => {
       e.preventDefault();
       if (draggedOrbitIndex === null || draggedOrbitIndex === targetIdx) {
+        setDraggedOrbitIndex(null);
+        setDragOverIndex(null);
+        return;
+      }
+      const maxMovableIndex = orbitLegendItems.some((it) => it.levelIndex === 4 || it.levelIndex === 5)
+        ? orbitLegendItems.length - 2
+        : orbitLegendItems.length - 1;
+      if (draggedOrbitIndex > maxMovableIndex || targetIdx > maxMovableIndex) {
         setDraggedOrbitIndex(null);
         setDragOverIndex(null);
         return;
@@ -2781,6 +2920,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
 
   const handleResetOrbitOrder = useCallback(() => {
+    setCustomOrbitOrder(null);
+    customOrbitOrderRef.current = null;
+    setHiddenOrbitTiers(new Set());
+    setForcedVisibleNodeIds(new Set());
     applyConcentricOrder(null);
   }, [applyConcentricOrder]);
 
@@ -2858,19 +3001,31 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       kind: EntityKind;
       kindTag: string;
       badgeColor: string;
+      reasonTag?: string;
     }> = [];
 
-    for (const id of hiddenNodeIds) {
+    for (const id of hiddenNodeIdSet) {
       const detail = rawGraph.detailMap.get(id);
       const label = detail?.displayName || id;
       if (q && !label.toLowerCase().includes(q)) continue;
       const kind = detail?.kind || 'Service';
       const kindTag = detail?.displayTag || (kind === 'ExternalService' ? 'EXT' : kind.toUpperCase().slice(0, 3));
       const badgeColor = detail?.bgColor || '#6366f1';
-      items.push({ id, label, kind, kindTag, badgeColor });
+      const ech = detail ? rawGraph.echelonMap.get(id) : undefined;
+      let reasonTag = 'Manual';
+      if (hiddenTypes.has(kind)) {
+        reasonTag = `Category: ${kind}`;
+      } else if (ech !== undefined && hiddenOrbitTiers.has(ech)) {
+        reasonTag = `Orbit ${ech}`;
+      } else if (hideSingleConnectionDbs && kind === 'Database') {
+        reasonTag = '1:1 DB';
+      } else if (hideIsolatedNodes) {
+        reasonTag = 'Isolated';
+      }
+      items.push({ id, label, kind, kindTag, badgeColor, reasonTag });
     }
     return items;
-  }, [hiddenNodeIds, hiddenSearchQuery, rawGraph.detailMap]);
+  }, [hiddenNodeIdSet, hiddenSearchQuery, rawGraph.detailMap, rawGraph.echelonMap, hiddenTypes, hiddenOrbitTiers, hideSingleConnectionDbs, hideIsolatedNodes]);
 
   return (
     <div className="domain-map-canvas-container">
@@ -3500,6 +3655,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 {layoutName.startsWith('concentric') &&
                   layoutName !== 'concentric-sectors' &&
                   concentricGuides.map((g, idx) => {
+                    if (hiddenOrbitTiers.has(g.levelIndex)) return null;
                     const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
                     const dashPattern = `${8 / cyTransform.zoom} ${6 / cyTransform.zoom}`;
                     const guideFontSize = Math.max(9, 11 / cyTransform.zoom);
@@ -3551,18 +3707,21 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 {layoutName === 'concentric-sectors' && (
                   <g className="concentric-sectors-overlay">
                     {/* Subtle concentric orbit rings */}
-                    {concentricGuides.map((cg, cIdx) => (
-                      <circle
-                        key={`orbit-${cIdx}`}
-                        cx={0}
-                        cy={0}
-                        r={cg.radius}
-                        fill="none"
-                        stroke="rgba(148, 163, 184, 0.12)"
-                        strokeWidth={Math.max(1, 1 / cyTransform.zoom)}
-                        strokeDasharray={`${6 / cyTransform.zoom} ${6 / cyTransform.zoom}`}
-                      />
-                    ))}
+                    {concentricGuides.map((cg, cIdx) => {
+                      if (hiddenOrbitTiers.has(cg.levelIndex)) return null;
+                      return (
+                        <circle
+                          key={`orbit-${cIdx}`}
+                          cx={0}
+                          cy={0}
+                          r={cg.radius}
+                          fill="none"
+                          stroke="rgba(148, 163, 184, 0.12)"
+                          strokeWidth={Math.max(1, 1 / cyTransform.zoom)}
+                          strokeDasharray={`${6 / cyTransform.zoom} ${6 / cyTransform.zoom}`}
+                        />
+                      );
+                    })}
 
                     {/* Sector wedges and headers */}
                     {sectorGuides.map((g) => {
@@ -3777,16 +3936,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       )}
 
       {/* Floating Collapsible Hidden Entities Panel (Clings to Left) */}
-      {hiddenNodeIds.size > 0 && (
+      {hiddenNodeIdSet.size > 0 && (
         <aside className={`domain-hidden-panel ${isHiddenPanelCollapsed ? 'is-collapsed' : ''}`}>
           {isHiddenPanelCollapsed ? (
             <div
               className="domain-hidden-collapsed-badge"
               onClick={() => setIsHiddenPanelCollapsed(false)}
-              title={`Click to expand ${hiddenNodeIds.size} hidden entities`}
+              title={`Click to expand ${hiddenNodeIdSet.size} hidden entities`}
             >
               <span className="badge-icon">👁️</span>
-              <span className="badge-count">{hiddenNodeIds.size}</span>
+              <span className="badge-count">{hiddenNodeIdSet.size}</span>
               <span className="badge-arrow">▶</span>
             </div>
           ) : (
@@ -3794,7 +3953,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               <div className="domain-hidden-panel-header">
                 <div className="hidden-panel-title">
                   <span className="hidden-panel-icon">👁️</span>
-                  <span>Hidden ({hiddenNodeIds.size})</span>
+                  <span>Hidden ({hiddenNodeIdSet.size})</span>
                 </div>
                 <div className="hidden-panel-header-actions">
                   <button
@@ -3816,7 +3975,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 </div>
               </div>
 
-              {hiddenNodeIds.size > 4 && (
+              {hiddenNodeIdSet.size > 4 && (
                 <div className="domain-hidden-search-wrap">
                   <input
                     type="text"
@@ -3843,7 +4002,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   <div
                     key={item.id}
                     className="domain-hidden-list-item"
-                    title={`${item.label} (${item.kind}). Click ✕ to restore.`}
+                    title={`${item.label} (${item.kind}, ${item.reasonTag}). Click ✕ to restore.`}
                   >
                     <span
                       className="hidden-kind-tag"
@@ -3852,6 +4011,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       {item.kindTag}
                     </span>
                     <span className="hidden-item-name">{item.label}</span>
+                    {item.reasonTag && item.reasonTag !== 'Manual' && (
+                      <span className="hidden-reason-tag">{item.reasonTag}</span>
+                    )}
                     <button
                       type="button"
                       className="hidden-item-unhide-btn"
@@ -3884,7 +4046,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               <span>{isOrbitLegendOpen ? 'Orbit Legend' : `Orbits (${orbitLegendItems.length})`}</span>
             </div>
             <div className="domain-orbit-legend-header-actions">
-              {isOrbitLegendOpen && customOrbitOrder !== null && (
+              {isOrbitLegendOpen && (customOrbitOrder !== null || hiddenOrbitTiers.size > 0) && (
                 <button
                   type="button"
                   className="orbit-legend-reset-btn"
@@ -3892,9 +4054,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     e.stopPropagation();
                     handleResetOrbitOrder();
                   }}
-                  title="Reset to auto-calculated layout"
+                  title="Reset to auto-calculated layout and show all orbits"
                 >
-                  ↺ Auto
+                  ↺ Reset
                 </button>
               )}
               <span className="legend-toggle">{isOrbitLegendOpen ? '—' : '▲'}</span>
@@ -3912,51 +4074,81 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 <span>Outer (Periphery)</span>
               </div>
               <div className="domain-orbit-legend-body">
-                {orbitLegendItems.map((item, idx) => (
-                  <div
-                    key={item.levelIndex}
-                    className={`domain-orbit-legend-item ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
-                    draggable={true}
-                    onDragStart={(e) => handleDragStart(e, idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDrop={(e) => handleDrop(e, idx)}
-                    onDragEnd={handleDragEnd}
-                    onMouseEnter={() => highlightOrbitNodes(item.nodeIds)}
-                    onMouseLeave={clearOrbitHighlight}
-                    title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`}
-                  >
-                    <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
-                    <span className="orbit-legend-pill">{item.shortLabel}</span>
-                    <span className="orbit-legend-title">{item.title}</span>
-                    <span className="orbit-legend-count">{item.count}</span>
-                    <div className="orbit-move-actions">
+                {orbitLegendItems.map((item, idx) => {
+                  const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
+                  const isOuterFixed = item.levelIndex === 4 || item.levelIndex === 5;
+                  const maxMovableIndex = orbitLegendItems.some((it) => it.levelIndex === 4 || it.levelIndex === 5)
+                    ? orbitLegendItems.length - 2
+                    : orbitLegendItems.length - 1;
+
+                  return (
+                    <div
+                      key={item.levelIndex}
+                      className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
+                      draggable={!isOuterFixed}
+                      onDragStart={(e) => !isOuterFixed && handleDragStart(e, idx)}
+                      onDragOver={(e) => !isOuterFixed && handleDragOver(e, idx)}
+                      onDrop={(e) => !isOuterFixed && handleDrop(e, idx)}
+                      onDragEnd={handleDragEnd}
+                      onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
+                      onMouseLeave={clearOrbitHighlight}
+                      title={
+                        isOuterFixed
+                          ? `${item.shortLabel}: ${item.title} (${item.count} nodes). Fixed on outer periphery.`
+                          : `${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`
+                      }
+                    >
                       <button
                         type="button"
-                        className="orbit-move-btn"
-                        disabled={idx === 0}
+                        className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleMoveOrbit(idx, -1);
+                          toggleOrbitVisibility(item.levelIndex);
                         }}
-                        title="Move toward center (Inner orbit)"
+                        title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
                       >
-                        ▲
+                        {isOrbitHidden ? '🙈' : '👁️'}
                       </button>
-                      <button
-                        type="button"
-                        className="orbit-move-btn"
-                        disabled={idx === orbitLegendItems.length - 1}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveOrbit(idx, 1);
-                        }}
-                        title="Move toward periphery (Outer orbit)"
-                      >
-                        ▼
-                      </button>
+                      {!isOuterFixed ? (
+                        <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
+                      ) : null}
+                      <span className="orbit-legend-pill">{item.shortLabel}</span>
+                      <span className="orbit-legend-title">{item.title}</span>
+                      {isOuterFixed && (
+                        <span className="orbit-fixed-badge" title="Databases & External Services are permanently fixed on the outer periphery">🔒 Outer</span>
+                      )}
+                      <span className="orbit-legend-count">{item.count}</span>
+                      {!isOuterFixed && (
+                        <div className="orbit-move-actions">
+                          <button
+                            type="button"
+                            className="orbit-move-btn"
+                            disabled={idx === 0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveOrbit(idx, -1);
+                            }}
+                            title="Move toward center (Inner orbit)"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            className="orbit-move-btn"
+                            disabled={idx >= maxMovableIndex}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveOrbit(idx, 1);
+                            }}
+                            title="Move toward periphery (Outer orbit)"
+                          >
+                            ▼
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}
