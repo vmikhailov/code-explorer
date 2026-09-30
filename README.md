@@ -1,4 +1,4 @@
-# CodeExplorer (`ce`) 🔭
+# CodeExplorer (`ce`)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
@@ -8,11 +8,11 @@
 [![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension%20(VSIX)-blueviolet.svg)](https://github.com/vmikhailov/code-explorer/releases/latest)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Containers-success.svg)](https://github.com/vmikhailov/code-explorer)
 
-**Next-Generation Codebase Intelligence, Interactive Architectural Studio & Graph Engine for Developers and AI Agents.**
+**A visual knowledge graph and codebase intelligence tool for developers and AI agents.**
 
-CodeExplorer transforms complex polyglot repositories, distributed microservices, and enterprise monorepos into an **interactive visual knowledge graph** powered by an **embedded SQLite graph database with native Cypher query compilation** — with **zero external dependencies, zero Docker containers, and zero configuration**.
+CodeExplorer maps complex polyglot repositories, microservices, and monorepos into an **interactive visual knowledge graph**. It is powered by an **embedded SQLite graph database with native Cypher query compilation** and requires no external dependencies, Docker containers, or complex configuration.
 
-Whether you are a software architect mapping distributed event-driven systems, an engineer refactoring legacy services, or an AI coding assistant (Cursor, Claude, Copilot, ChatGPT, Antigravity, Windsurf) reasoning across multi-hop dependencies, CodeExplorer delivers instantaneous, deterministic codebase comprehension.
+It helps architects map event-driven systems, engineers refactor legacy services, and AI coding assistants (such as Cursor, Claude, and Copilot) reason across multi-hop dependencies to improve codebase comprehension.
 
 ---
 
@@ -24,33 +24,33 @@ Whether you are a software architect mapping distributed event-driven systems, a
 </p>
 
 <p align="center">
-  <a href="#-what-makes-codeexplorer-unique"><b>Why CodeExplorer</b></a> •
-  <a href="#-interactive-visual-architecture-studio-vs-code"><b>Visual Studio</b></a> •
-  <a href="#-codeexplorer-vs-classic-lsp-language-server-protocol"><b>vs. LSP</b></a> •
-  <a href="#-key-features"><b>Key Features</b></a> •
-  <a href="#-quick-installation"><b>Installation</b></a> •
-  <a href="#-quick-start-workflow"><b>Quick Start</b></a> •
-  <a href="#-cli-command-reference"><b>CLI Reference</b></a> •
-  <a href="#-model-context-protocol-mcp-setup"><b>MCP Setup</b></a>
+  <a href="#what-makes-codeexplorer-unique"><b>Why CodeExplorer</b></a> •
+  <a href="#interactive-visual-architecture-vs-code"><b>Visual Studio</b></a> •
+  <a href="#key-features"><b>Key Features</b></a> •
+  <a href="#automated-diagram-generation"><b>Diagrams</b></a> •
+  <a href="#quick-installation"><b>Installation</b></a> •
+  <a href="#quick-start-workflow"><b>Quick Start</b></a> •
+  <a href="#cli-command-reference"><b>CLI Reference</b></a> •
+  <a href="#model-context-protocol-mcp-setup"><b>MCP Setup</b></a>
 </p>
 
 ---
 
-## ⚡ What Makes CodeExplorer Unique?
+## What Makes CodeExplorer Unique?
 
-*   🪐 **Interactive Visual Architecture Studio**: Built directly into VS Code. Explore microservice topologies across **5 concentric architectural orbits**, architectural swimlanes, bounded context islands, hive plots, and C1/C2 project flow diagrams.
-*   🔄 **Interactive Orbit Customization**: Live drag-and-drop reordering of orbit rings directly inside the legend. Adjust bezier curve routing factors (-200 to +200) in real time to suit any presentation.
-*   🔀 **Directional Transitive Contraction**: Automatically synthesizes clean, dashed transitive links when intermediate brokers (Kafka, RabbitMQ, SQS, proxies) are hidden or filtered, preserving 100% architectural fidelity without visual noise.
-*   🤖 **AI-Native MCP Superpowers**: Standard Model Context Protocol (MCP) server giving LLMs instant access to architectural maps, call chains, downstream blast-radius analysis, and arbitrary Cypher queries without burning context tokens on raw file searches.
-*   💾 **Embedded SQLite Graph with Cypher**: High-performance embedded graph engine with a native Cypher-to-SQL compiler. Zero Neo4j, zero Redis, zero JVM, zero cloud subscriptions.
-*   🧠 **Local LLM Architectural Intent Distillation**: Automatically enriches graph nodes with business domains, architectural patterns, and capability tags using an embedded GGUF model (`llama.cpp` with Vulkan GPU acceleration and SHA-256 caching).
-*   🌐 **True Polyglot Understanding**: Seamlessly bridges C#, Java, TypeScript, JavaScript, Go, Python, ColdFusion, and SQL into a single unified semantic knowledge graph.
+*   **Interactive Visual Architecture**: Built directly into VS Code. Explore microservice topologies across 5 concentric architectural orbits, swimlanes, bounded context islands, hive plots, and C1/C2 project flow diagrams.
+*   **Interactive Orbit Customization**: Drag-and-drop reordering of orbit rings directly inside the legend. Adjust bezier curve routing factors (-200 to +200) to suit your layout.
+*   **Directional Transitive Contraction**: Automatically synthesizes clean, dashed transitive links when intermediate brokers (Kafka, RabbitMQ, SQS) are hidden or filtered, preserving architectural fidelity without visual noise.
+*   **Model Context Protocol (MCP)**: Standard MCP server giving AI agents access to architectural maps, call chains, downstream blast-radius analysis, and arbitrary Cypher queries without using excessive context tokens on raw file searches.
+*   **Embedded SQLite Graph with Cypher**: High-performance embedded graph engine with a native Cypher-to-SQL compiler. No external graph databases are required.
+*   **Local Architectural Intent Inference**: Automatically enriches graph nodes with business domains, architectural patterns, and capability tags using an embedded GGUF model (`llama.cpp` with Vulkan GPU acceleration and SHA-256 caching).
+*   **Polyglot Support**: Bridges C#, Java, TypeScript, JavaScript, Go, Python, ColdFusion, and SQL into a single unified semantic graph.
 
 ---
 
-## 🎨 Interactive Visual Architecture Studio (VS Code)
+## Interactive Visual Architecture (VS Code)
 
-CodeExplorer features an interactive visual architecture cockpit right inside your editor (`⚡ Code Graph`). Designed for high-density architectures, it provides unparalleled clarity into distributed systems and monoliths alike:
+CodeExplorer provides an interactive visual architecture view inside VS Code (`Code Graph`). Designed for high-density architectures, it clarifies distributed systems and monoliths:
 
 ### 1. Focused Neighborhood & Transitive Contraction
 
@@ -58,13 +58,13 @@ CodeExplorer features an interactive visual architecture cockpit right inside yo
   <img src="docs/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
 </p>
 <p align="center">
-  <em>Figure 2: Focused sub-graph inspection with live HUD metrics, real-time orbit reordering, edge curvature sliders, and dashed transitive links resolving broker-mediated message flows.</em>
+  <em>Figure 2: Focused sub-graph inspection with live HUD metrics, orbit reordering, edge curvature sliders, and dashed transitive links resolving broker-mediated message flows.</em>
 </p>
 
 *   **Smart Transitive Contraction**: When intermediate message topics or broker nodes are toggled off in the HUD, CodeExplorer detects that Service A publishes to Topic X and Service B subscribes to Topic X, automatically synthesizing a direct **`[SUBSCRIBES (via Topic X)]`** transitive dashed connection.
-*   **Custom Orbit Legend Controls**: Reorder orbital tiers on the fly by dragging legend badges, allowing architects to highlight edge gateways, flip database tiers, or group domain boundaries dynamically.
-*   **Edge Curvature Tuning**: Interactive bezier curvature factor slider (-200 to +200) with automatic collision avoidance for high-density cross-orbit calls.
-*   **Live HUD Filter**: Instant multi-criteria filtering by node category (Gateways, Services, Topics, Databases, External APIs), search query, and neighborhood depth.
+*   **Custom Orbit Legend Controls**: Reorder orbital tiers by dragging legend badges, allowing you to highlight edge gateways, flip database tiers, or group domain boundaries.
+*   **Edge Curvature Tuning**: Interactive bezier curvature factor slider (-200 to +200) with automatic collision avoidance for cross-orbit calls.
+*   **Live HUD Filter**: Multi-criteria filtering by node category (Gateways, Services, Topics, Databases, External APIs), search query, and neighborhood depth.
 
 ---
 
@@ -74,7 +74,7 @@ CodeExplorer features an interactive visual architecture cockpit right inside yo
   <img src="docs/project_flow.png" alt="CodeExplorer Project Flow & Service Cards" width="100%" />
 </p>
 <p align="center">
-  <em>Figure 3: Project Flow view showing structured service cards, inbound/outbound connection counts, database dependencies, framework tags, and instant Click-to-Code navigation.</em>
+  <em>Figure 3: Project Flow view showing structured service cards, inbound/outbound connection counts, database dependencies, framework tags, and Click-to-Code navigation.</em>
 </p>
 
 *   **Interactive Service Cards**: Each project node displays incoming callers, outgoing dependencies, registered databases, and framework metadata.
@@ -83,77 +83,65 @@ CodeExplorer features an interactive visual architecture cockpit right inside yo
     *   **Concentric Orbits**: Equispaced, Polar Force, and Domain Sectors.
     *   **Architectural Swimlanes**: Horizontal echelons (Ingress → Core → Data).
     *   **Bounded Context Islands**: Organic clusters based on inferred Domain-Driven Design (DDD) boundaries.
-    *   **Hive Plots & Dependency Matrices**: Mathematical symmetry and structural coupling metrics.
-    *   **COSE Force**: High-performance physics-based graph layout.
+    *   **Hive Plots & Dependency Matrices**: Structural coupling metrics.
+    *   **COSE Force**: Physics-based graph layout.
 
 ---
 
-## 🔍 CodeExplorer vs. Classic LSP (Language Server Protocol)
+## Automated Diagram Generation
 
-They serve fundamentally different purposes:
-* **Classic LSP** is designed for **active human interaction in text editors** (real-time autocompletions, diagnostics, and active inline linting as you type).
-* **CodeExplorer** is a **global codebase knowledge graph** designed for structural reasoning, architectural mapping, and multi-hop relationship queries by AI agents and LLMs.
+CodeExplorer can export visual representations of the graph database directly into Mermaid or C4 syntax via the CLI or MCP.
 
-While classic LSPs are optimized for local, real-time editing experiences, CodeExplorer is architected for AI-native code reasoning and cross-project indexing:
+*   **System Architecture**: High-level C1/C2 project flow and microservice topology diagrams.
+*   **Data Lineage**: Maps ORM entities directly to their underlying database tables.
+*   **Event Pipelines**: Visualizes CQRS patterns and event-driven flows (Producers → Topics → Consumers).
 
-| Dimension | Classic LSP (e.g., `gopls`, `Pyright`) | CodeExplorer (Embedded SQLite + MCP) |
-| :--- | :--- | :--- |
-| **Primary Consumer** | Humans (real-time IDE autocompletion/linting). | **AI Agents / LLMs** (autonomous workspace exploration). |
-| **Storage Strategy** | Stateful, in-memory AST caches per editor session. | **Embedded Graph Database** (SQLite, zero external dependencies). |
-| **Polyglot Scope** | Single-language boundary per server instance. | **Unified Cross-Language Graph** (bridges C#, Java, Go, Python, TS, and SQL). |
-| **Querying** | Fixed RPC methods (`goto definition`, `find references`). | **Arbitrary Cypher Queries** (unlimited multi-hop semantic traversal). |
-| **Update Loop** | Instantaneous, keystroke-by-keystroke. | Fast index scan via `ce scan` (CLI, CI, or agent task). |
+Example exports:
+```bash
+# Export system architecture
+ce export --format mermaid -o architecture.mmd
 
-### 🧠 Core Architectural Differences
+# Export C4 container diagram
+ce export --format c4 -o c4_containers.mmd
 
-1. **Language-Agnostic Knowledge Graph vs. Compiler Isolated ASTs**
-   * **Classic LSP**: Operates strictly within compile-time boundaries. A C# compiler knows C#, and a database server knows SQL, but they cannot talk to one another.
-   * **CodeExplorer**: Normalizes ASTs from multiple languages (via Tree-sitter and SQL ScriptDom) into a single, unified taxonomy inside a graph database. This lets you trace connections from a React frontend HTTP post to an Express route, to a database connection write.
-
-2. **Querying Capabilities**
-   * **Classic LSP**: Provides predefined features (Find References, Rename, Signature Help).
-   * **CodeExplorer**: Enables graph traversal algorithms. You can write Cypher queries to detect cyclic dependencies, find unreachable code paths, count coupling metrics between folders, and extract semantic context.
-
-3. **LLM-Native Optimization**
-   * **Classic LSP**: Emits details focused on IDE presentation (ranges, lines, hovers).
-   * **CodeExplorer**: Emits structured JSON representing architectural layout (e.g., Taxonomy, entry points, dependencies) designed to fit directly into the context window of LLM reasoning engines.
+# Export ORM data lineage
+ce export --type lineage -o data_lineage.mmd
+```
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-*   **Zero-Dependency Single-File Executable**: Distributed as a self-contained binary (`ce.exe` / `ce`) for Windows, Linux, and macOS. No .NET runtime or SDK installation required.
-*   **Local `.codeexplorer` Workspace Auto-Discovery**: Initialized once per repository or mono-repo with `ce init`. Automatically discovered by walking up the directory tree — run commands from any subfolder without specifying paths.
+*   **Zero-Dependency Single-File Executable**: Distributed as a self-contained binary (`ce.exe` / `ce`) for Windows, Linux, and macOS. No runtime or SDK installation required.
+*   **Local `.codeexplorer` Workspace Auto-Discovery**: Initialized once per repository with `ce init`. Automatically discovered by walking up the directory tree.
 *   **Embedded SQLite Graph with Cypher**: Uses a high-performance embedded SQLite database compiled with custom graph indices and an optimized AST-to-SQL Cypher compiler.
 *   **Multi-Language AST Parsing**: Full AST-level parsing powered by **Tree-sitter** and Microsoft SQL **ScriptDom**:
     *   **C#** (`.cs`)
     *   **Java** (`.java`, Maven `pom.xml`, Gradle `build.gradle` / `build.gradle.kts`)
-    *   **TypeScript** (`.ts`, `.tsx`)
-    *   **JavaScript** (`.js`, `.jsx`)
+    *   **TypeScript / JavaScript** (`.ts`, `.tsx`, `.js`, `.jsx`)
     *   **Go** (`.go`)
     *   **Python** (`.py`)
     *   **ColdFusion** (`.cfc`, `.cfm`)
     *   **SQL & Embedded SQL** (`.sql` scripts, and inline SQL queries in C#, Java, JS, TS, Python, Go)
 *   **Rich Structural Ontology**: Maps codebases across a 5-layer decoupled graph architecture (see [Ontology Model](docs/architecture/ontology-model.md) and [Live Schema Reference](docs/ontology.md)):
-    *   *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `pom.xml`, `build.gradle`, `go.mod`, `package.json`), folders, files, configuration files (`appsettings.json`, `application.properties`/`.yml`, `docker-compose.yml`, `.env`), and git topology.
+    *   *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `pom.xml`, `build.gradle`, `go.mod`, `package.json`), folders, files, configuration files (`appsettings.json`, `.env`), and git topology.
     *   *Project Layer (Layer 2)*: Logical compilation units, project boundaries, and package dependencies.
     *   *Syntactic Layer (Layer 3)*: Classes, interfaces, methods, functions, structs, fields, and calls.
-    *   *Semantic Layer (Layer 4)*: Ingress endpoints (REST, gRPC, GraphQL, WebSocket) with security boundaries (`roles`, `policies`, `is_anonymous`), Egress callers, Code-First ORM entities (EF Core, JPA, TypeORM) mapped to `:Table` nodes, and message queues.
+    *   *Semantic Layer (Layer 4)*: Ingress endpoints (REST, gRPC, GraphQL, WebSocket) with security boundaries, Egress callers, Code-First ORM entities mapped to `:Table` nodes, and message queues.
     *   *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, service-to-service links, and CQRS / Event pipelines (MediatR, Spring Events, NestJS CQRS).
-*   **Native Architectural Intent Distillation (Local LLM)**:
-    *   *AI-Powered Semantic Enrichment*: Automatically infers high-level architectural semantics (business domain, layer, architectural pattern, capability tag, operation type, intent summary, target entities, emitted events) using an embedded distilled GGUF model via native `llama.cpp` (with Vulkan GPU acceleration & CPU fallback).
-    *   *Persistent Incremental Caching*: File contents are SHA-256 fingerprinted and cached in an embedded `intents` table inside SQLite. Subsequent scans fast-apply cached intents to graph nodes in <50ms without re-running inference, and the cache is preserved even across `ce scan --clear`.
+*   **Local Architectural Inference**:
+    *   Automatically infers high-level architectural semantics (business domain, layer, pattern, capability tag, intent summary, target entities, emitted events) using an embedded GGUF model via native `llama.cpp` (with Vulkan GPU acceleration & CPU fallback).
+    *   File contents are SHA-256 fingerprinted and cached in SQLite. Subsequent scans fast-apply cached intents in <50ms.
 *   **Built-in & Custom Query Catalog**:
-    *   **22 Built-in Queries**: Architecture maps, entry points, dependencies, CQRS pipelines, refactoring (dead code, god objects), symbol lookup, and graph taxonomy.
-    *   **Extensible Domain Queries**: Save custom queries in `.codeexplorer/queries/*.cypher` with companion `.json` metadata sidecars, automatically available to CLI and AI agents.
-*   **Automated Diagram Generation (Mermaid & C4)**: Export high-level architecture maps, container diagrams, ORM data lineage, and event pipelines with `ce export` or through MCP.
+    *   **22 Built-in Queries**: Architecture maps, entry points, dependencies, CQRS pipelines, refactoring, and symbol lookup.
+    *   **Extensible Domain Queries**: Save custom queries in `.codeexplorer/queries/*.cypher` with `.json` metadata sidecars, automatically available to CLI and AI agents.
 *   **Model Context Protocol (MCP) Server**:
-    *   **stdio mode** (default): Seamless integration with Cursor, Claude Desktop, VS Code, Windsurf, and Antigravity.
+    *   **stdio mode**: Seamless integration with Cursor, Claude Desktop, VS Code, Windsurf, and Antigravity.
     *   **HTTP mode** (`--port <p>`): Exposes standard MCP endpoint at `/mcp` with SSE streaming.
 
 ---
 
-## 🏛️ Architecture: Two-Pass Semantic Pipeline
+## Architecture: Two-Pass Semantic Pipeline
 
 CodeExplorer uses a decoupled two-pass pipeline to ingest and analyze codebases safely, isolating AST parsing from database mapping and resolution.
 
@@ -167,9 +155,9 @@ graph TD
 ```
 
 ### 1. Pass 1: Pure Syntactic AST Visitors
-AST parsing is performed in isolation. Language-specific visitor classes (e.g., `CSharpFileVisitor`, `TypeScriptFileVisitor`) inherit from `BaseParserVisitor`.
+AST parsing is performed in isolation. Language-specific visitor classes (e.g., `CSharpFileVisitor`) inherit from `BaseParserVisitor`.
 *   **In-Memory Isolation**: Visitors have no access to database classes, file system IO, or ontology nodes. They process the syntax tree entirely in memory.
-*   **Node Extensions**: Employs safety-first helper extension methods (via `NodeExtensions`) to query Tree-sitter nodes safely, handle nullable nodes, extract named field text, and resolve function targets cleanly.
+*   **Node Extensions**: Employs safety-first helper extension methods to query Tree-sitter nodes safely, handle nullable nodes, extract named field text, and resolve function targets cleanly.
 *   **Syntactic Symbol Output**: Visitors output a pure in-memory `SyntacticSymbol` tree describing the hierarchical structure of declarations and references found in the AST.
 
 ### 2. Pass 2: Ontology Mapping & Resolution
@@ -179,7 +167,7 @@ Once the syntactic structure is captured:
 
 ---
 
-## 🛠️ Tech Stack & Requirements
+## Tech Stack & Requirements
 
 *   **Runtime**: [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
 *   **Database**: **Embedded SQLite** (zero external services or containers required)
@@ -188,11 +176,11 @@ Once the syntactic structure is captured:
 
 ---
 
-## 📦 Quick Installation
+## Quick Installation
 
 CodeExplorer is available as both an **Interactive VS Code Extension** and a **zero-dependency, single-file self-contained CLI/MCP binary** with embedded Tree-sitter parsers and SQLite engine. No external database or runtime installation is required.
 
-### 🎨 1. VS Code Extension (Recommended for Visual Exploration)
+### 1. VS Code Extension (Recommended for Visual Exploration)
 
 Download the pre-packaged `.vsix` from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest) (or install via CLI):
 
@@ -208,12 +196,12 @@ code --install-extension code-explorer-vscode-*.vsix
 
 > **Note:** Publishing to the Visual Studio Marketplace and Open VSX Registry is currently in progress. The extension is distributed directly as VSIX packages via GitHub Releases.
 
-4. Open any project workspace and click the **`⚡ Code Graph`** button in the status bar or run `CodeExplorer: Show Architecture Graph` from the Command Palette (`Ctrl+Shift+P`).
-5. *Batteries included:* The extension automatically bundles pre-compiled native `ce` binaries for Windows (x64/ARM64), macOS (Apple Silicon/Intel), and Linux (x64/ARM64).
+4. Open any project workspace and click the **`Code Graph`** button in the status bar or run `CodeExplorer: Show Architecture Graph` from the Command Palette (`Ctrl+Shift+P`).
+5. The extension automatically bundles pre-compiled native `ce` binaries for Windows (x64/ARM64), macOS (Apple Silicon/Intel), and Linux (x64/ARM64).
 
 ---
 
-### ⚡ 2. One-Line CLI Install (Recommended for Terminal & MCP)
+### 2. One-Line CLI Install (Recommended for Terminal & MCP)
 
 **macOS & Linux (Bash / Zsh):**
 ```bash
@@ -227,7 +215,7 @@ irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/
 
 ---
 
-### 📦 3. .NET Global Tool
+### 3. .NET Global Tool
 
 If you have [.NET SDK](https://dotnet.microsoft.com/download) installed:
 
@@ -241,7 +229,7 @@ dotnet tool update -g CodeExplorer.Cli
 
 ---
 
-### 🍺 4. Homebrew (macOS & Linux)
+### 4. Homebrew (macOS & Linux)
 
 ```bash
 brew tap vmikhailov/tap
@@ -250,7 +238,7 @@ brew install ce
 
 ---
 
-### 📥 5. Manual Download
+### 5. Manual Download
 
 Download the pre-compiled binary for your platform from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest):
 
@@ -264,7 +252,7 @@ Download the pre-compiled binary for your platform from [GitHub Releases](https:
 
 ---
 
-### 🛠️ 6. Build from Source
+### 6. Build from Source
 
 If you have [.NET 10.0 SDK](https://dotnet.microsoft.com/download) installed:
 
@@ -288,7 +276,7 @@ Add `ce` (or `ce.exe`) to your system `PATH` to use it from anywhere.
 
 ---
 
-## 🏁 Quick Start Workflow
+## Quick Start Workflow
 
 Run `ce` in your terminal to see the interactive status and workspace overview:
 
@@ -319,7 +307,7 @@ ce mcp
 
 ---
 
-## 💻 CLI Command Reference
+## CLI Command Reference
 
 ### `ce init [name]`
 Initializes a `.codeexplorer/` workspace directory in the target folder with an empty SQLite graph database and queries catalog.
@@ -421,7 +409,7 @@ ce model download --force   # Force re-download even if already present
 
 ---
 
-## 🤖 Model Context Protocol (MCP) Setup
+## Model Context Protocol (MCP) Setup
 
 Connect `ce` to your favorite AI development environment:
 
@@ -459,11 +447,11 @@ Add to your `.gemini/antigravity-ide/mcp/code-explorer` or workspace MCP configu
 
 ---
 
-## 🧠 AI Agent Instructions & System Prompts
+## AI Agent Instructions & System Prompts
 
 To enable AI coding agents (Claude, Cursor, Copilot, ChatGPT, Antigravity, Roo Code) to effectively leverage `ce`, add the following instructions to your project's agent rules file (e.g. `.cursorrules`, `CLAUDE.md`, `.windsurfrules`, or `.agents/rules/code-explorer.md`):
 
-### 📋 Copy-Pasteable Agent Prompt / Rules
+### Copy-Pasteable Agent Prompt / Rules
 
 ````markdown
 # Codebase Exploration with CodeExplorer (`ce`)
@@ -498,7 +486,7 @@ This repository uses **CodeExplorer (`ce`)** as an embedded SQLite codebase know
 
 ---
 
-## 🛠️ MCP Tools Reference
+## MCP Tools Reference
 
 When running as an MCP server, `ce` registers the following tools for AI assistants:
 
@@ -530,7 +518,7 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 ├── cli/                                  # .NET Core Engine, Graph Engine, CLI & MCP Server
@@ -555,6 +543,6 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
