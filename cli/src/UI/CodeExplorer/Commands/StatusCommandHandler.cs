@@ -39,16 +39,18 @@ public static class StatusCommandHandler
             }
 
             // Projects info
-            var projResult = await client.ExecuteQueryAsync("MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.name AS name, p.project_type AS language ORDER BY p.name");
+            var projResult = await client.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name, p.project_type AS language, p.layer AS layer, p.role AS role ORDER BY p.name");
             using var projDoc = JsonDocument.Parse(projResult);
-            var projects = new List<(string Name, string Language)>();
+            var projects = new List<(string Name, string Language, string Layer, string Role)>();
             if (projDoc.RootElement.ValueKind == JsonValueKind.Array)
             {
                 foreach (var row in projDoc.RootElement.EnumerateArray())
                 {
                     var pName = row.TryGetProperty("name", out var n) ? n.GetString() ?? "unknown" : "unknown";
                     var pLang = row.TryGetProperty("language", out var l) ? l.GetString() ?? "unknown" : "unknown";
-                    projects.Add((pName, pLang));
+                    var pLayer = row.TryGetProperty("layer", out var lyr) ? lyr.GetString() ?? "" : "";
+                    var pRole = row.TryGetProperty("role", out var r) ? r.GetString() ?? "" : "";
+                    projects.Add((pName, pLang, pLayer, pRole));
                 }
             }
 
@@ -77,7 +79,7 @@ public static class StatusCommandHandler
                     database_size_bytes = fileInfo.Length,
                     database_size_mb = Math.Round(sizeMb, 2),
                     total_nodes = nodeCount,
-                    projects = projects.Select(p => new { name = p.Name, language = p.Language }),
+                    projects = projects.Select(p => new { name = p.Name, language = p.Language, layer = p.Layer, role = p.Role }),
                     built_in_queries_count = builtInCount,
                     custom_queries = savedQueries.Select(q => new { name = q.Name, description = q.Description })
                 };
@@ -99,9 +101,18 @@ public static class StatusCommandHandler
             }
             else
             {
-                foreach (var (pName, pLang) in projects)
+                foreach (var (pName, pLang, pLayer, pRole) in projects)
                 {
-                    Console.WriteLine($"  ✓ {pName,-30} [{pLang}]");
+                    var layerTag = pLayer switch
+                    {
+                        "layer_ingress" => "[Ingress]",
+                        "layer_components" => "[Components]",
+                        "layer_egress" => "[Egress]",
+                        "layer_foundation" => "[Foundation]",
+                        "layer_tests" => "[Tests]",
+                        _ => string.IsNullOrEmpty(pLayer) ? "" : $"[{pLayer}]"
+                    };
+                    Console.WriteLine($"  ✓ {pName,-35} [{pLang}] {pRole,-14} {layerTag}");
                 }
             }
 

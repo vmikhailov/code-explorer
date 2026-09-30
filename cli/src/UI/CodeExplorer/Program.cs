@@ -22,6 +22,12 @@ public class Program
 
     public static async Task<int> Main(string[] args)
     {
+        try
+        {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+        }
+        catch { }
+
         if (args == null || args.Length == 0)
         {
             HelpDisplay.ShowWelcomeAndHelp();
