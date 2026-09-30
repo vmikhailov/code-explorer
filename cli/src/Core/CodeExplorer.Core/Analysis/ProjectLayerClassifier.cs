@@ -257,8 +257,8 @@ public static class ProjectLayerClassifier
         // Libraries can never be Ingress
         if (IsFoundation(p)) return false;
 
-        // Workers and Schedulers can never be Ingress
-        if (IsWorkerOrScheduler(p)) return false;
+        // Workers and Schedulers can never be Ingress (unless it's an explicit CLI tool)
+        if (IsWorkerOrScheduler(p) && !IsCli(p)) return false;
 
         // 1. Frontend Apps (End-user UI Web Applications)
         if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
@@ -271,11 +271,7 @@ public static class ProjectLayerClassifier
         }
 
         // 2. CLI Tools (Command-line applications)
-        if (string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
-            p.Extensions?.GetValueOrDefault("manifest_type") == "cli" ||
-            p.Extensions?.GetValueOrDefault("has_cli_bin") == "true" ||
-            p.EntryPoints.Any(ep => ep.EntryType == "cli"))
+        if (IsCli(p))
         {
             return true;
         }
@@ -305,6 +301,16 @@ public static class ProjectLayerClassifier
         }
 
         return false;
+    }
+
+    public static bool IsCli(ProjectClassifierItem p)
+    {
+        return string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(p.Role, "CliApp", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
+               p.Extensions?.GetValueOrDefault("manifest_type") == "cli" ||
+               p.Extensions?.GetValueOrDefault("has_cli_bin") == "true" ||
+               p.EntryPoints.Any(ep => ep.EntryType == "cli");
     }
 
     public static bool IsWorkerOrScheduler(ProjectClassifierItem p)
@@ -346,27 +352,34 @@ public static class ProjectLayerClassifier
     public static bool IsEgress(ProjectClassifierItem p)
     {
         if (IsFoundation(p)) return false;
+        if (IsWorkerOrScheduler(p)) return false;
+        if (IsCli(p)) return false;
 
         if (p.Extensions?.GetValueOrDefault("is_egress") == "true")
         {
             return true;
         }
 
-        // External services calls without hosting inbound endpoints
-        if (p.ExternalServicesCount > 0 && p.EndpointsCount == 0 && p.EntryPoints.Count == 0)
+        var lowerName = (p.Name ?? "").ToLowerInvariant();
+        if (lowerName.StartsWith("integration-") ||
+            lowerName.StartsWith("integration_") ||
+            lowerName.EndsWith("adapter") ||
+            lowerName.EndsWith("notifier") ||
+            lowerName.EndsWith("client") ||
+            lowerName.Contains("integration-service") ||
+            lowerName.Contains("integration_service"))
         {
             return true;
         }
 
-        var lowerName = (p.Name ?? "").ToLowerInvariant();
-        return lowerName.StartsWith("integration-") ||
-               lowerName.StartsWith("integration_") ||
-               lowerName.EndsWith(".adapter") ||
-               lowerName.EndsWith("-adapter") ||
-               lowerName.EndsWith(".notifier") ||
-               lowerName.EndsWith("-notifier") ||
-               lowerName.Contains("integration-service") ||
-               lowerName.Contains("integration_service");
+        // External services calls without hosting inbound endpoints (excluding workers/schedulers/cli/services)
+        if (p.ExternalServicesCount > 0 && p.EndpointsCount == 0 && p.EntryPoints.Count == 0 &&
+            !string.Equals(p.Role, "Service", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public static bool HasProtocolTokens(string name, string path)
