@@ -158,6 +158,10 @@ function packageLightweight() {
   if (fs.existsSync(binDir)) {
     fs.rmSync(binDir, { recursive: true, force: true });
   }
+  if (fs.existsSync(distVsixDir)) {
+    fs.rmSync(distVsixDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(distVsixDir, { recursive: true });
 
   const vsixFileName = `code-explorer-${version}.vsix`;
   const vsixOut = path.resolve(distVsixDir, vsixFileName);
@@ -182,13 +186,9 @@ function packageLightweight() {
     process.exit(1);
   }
 
-  const universalOut = path.resolve(distVsixDir, `code-explorer-universal-${version}.vsix`);
-  fs.copyFileSync(vsixOut, universalOut);
-
   const stat = fs.statSync(vsixOut);
   const sizeMb = (stat.size / (1024 * 1024)).toFixed(2);
   console.log(`✓ Created: ${vsixFileName} (${sizeMb} MB)`);
-  console.log(`✓ Created: code-explorer-universal-${version}.vsix (${sizeMb} MB)`);
 }
 
 // Execution dispatch
