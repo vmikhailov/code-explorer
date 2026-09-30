@@ -422,6 +422,19 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: What's New
+  const showWhatsNew = async () => {
+    const changelogPath = path.join(context.extensionPath, 'CHANGELOG.md');
+    const changelogUri = vscode.Uri.file(changelogPath);
+    try {
+      await vscode.commands.executeCommand('markdown.showPreview', changelogUri);
+    } catch {
+      await vscode.commands.executeCommand('vscode.open', changelogUri);
+    }
+  };
+
+  const whatsNewCommand = vscode.commands.registerCommand('codeExplorer.whatsNew', showWhatsNew);
+
   // Command: Initialize & Scan Workspace
   const initAndScanCommand = vscode.commands.registerCommand(
     'codeExplorer.initAndScan',
@@ -755,12 +768,34 @@ export function activate(context: vscode.ExtensionContext) {
     reindexFullCommand,
     showLogsCommand,
     updateEngineCommand,
+    whatsNewCommand,
     distillIntentsCommand,
     stopIntentCommand,
     downloadModelCommand,
     modelStatusCommand,
     clearIntentsCommand
   );
+
+  // Check for extension update and show What's New prompt
+  const previousVersion = context.globalState.get<string>('codeExplorer.lastVersion');
+  const currentVersion = context.extension?.packageJSON?.version;
+  if (currentVersion) {
+    if (previousVersion && previousVersion !== currentVersion) {
+      vscode.window
+        .showInformationMessage(
+          `CodeExplorer updated to v${currentVersion}!`,
+          "What's New",
+          'Dismiss'
+        )
+        .then((selection) => {
+          if (selection === "What's New") {
+            showWhatsNew();
+          }
+        });
+    }
+    context.globalState.update('codeExplorer.lastVersion', currentVersion);
+  }
+
   outputChannel.appendLine('CodeExplorer extension activated.');
 }
 

@@ -139,6 +139,11 @@
         "command": "codeExplorer.updateEngine",
         "title": "CodeExplorer: Check & Update Engine",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "codeExplorer.whatsNew",
+        "title": "CodeExplorer: What's New",
+        "icon": "$(megaphone)"
       }
     ],
     "menus": {
@@ -225,7 +230,7 @@
     "build:dev": "node build.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/domainLayouts.test.ts src/binaryManager.test.ts --bundle --platform=node --external:vscode --outdir=dist/test && node dist/test/commands/CommandManager.test.js && node dist/test/layout/concentricLayout.test.js && node dist/test/layout/domainLayouts.test.js && node dist/test/binaryManager.test.js",
+    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/domainLayouts.test.ts src/binaryManager.test.ts --bundle --platform=node --external:vscode --outdir=dist/test --outbase=src && node dist/test/webview/commands/CommandManager.test.js && node dist/test/webview/layout/concentricLayout.test.js && node dist/test/webview/layout/domainLayouts.test.js && node dist/test/binaryManager.test.js",
     "build:binaries": "node scripts/build-extension-binaries.mjs",
     "package": "node scripts/package-extension.mjs",
     "package:all": "node scripts/package-extension.mjs --all",
