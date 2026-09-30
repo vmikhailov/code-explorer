@@ -211,20 +211,7 @@ public static class AstHelper
 
     public static bool IsValidTopicOrQueueLiteral(string? s)
     {
-        if (string.IsNullOrWhiteSpace(s)) return false;
-        var t = s.Trim();
-        if (t.Length < 2) return false;
-        if (t.StartsWith(':')) return false;
-        if (t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return false;
-        if (t.Equals("string", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("null", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("any", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("unknown", StringComparison.OrdinalIgnoreCase)) return false;
-        return true;
+        return WorkspaceConventions.IsValidTopicOrQueueName(s);
     }
 
     public static string? ResolveTopicOrQueue(Node? argNode, string? contextOrProject = null)

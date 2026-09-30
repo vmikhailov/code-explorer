@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -27,7 +27,7 @@ public class BullMqLibraryParser : ISemanticExtension
             if (ctorNode.IsValid() && string.Equals(ctorNode.Text, "Worker", StringComparison.OrdinalIgnoreCase))
             {
                 var queueName = AstHelper.ExtractFirstStringArgument(node);
-                if (!string.IsNullOrEmpty(queueName))
+                if (!string.IsNullOrEmpty(queueName) && WorkspaceConventions.IsValidTopicOrQueueName(queueName))
                 {
                     references.Add(new Reference(scopeSymbolId, "bullmq:" + queueName, OntologyConstants.Relationships.SubscribesTo));
                 }
@@ -44,7 +44,10 @@ public class BullMqLibraryParser : ISemanticExtension
                     var jobName = AstHelper.ExtractFirstStringArgument(node);
                     var identifier = !string.IsNullOrEmpty(jobName) ? $"{target}:{jobName}" : target;
 
-                    references.Add(new Reference(scopeSymbolId, "bullmq:" + identifier, OntologyConstants.Relationships.PublishesTo));
+                    if (WorkspaceConventions.IsValidTopicOrQueueName(identifier))
+                    {
+                        references.Add(new Reference(scopeSymbolId, "bullmq:" + identifier, OntologyConstants.Relationships.PublishesTo));
+                    }
                 }
             }
         }

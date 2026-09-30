@@ -170,6 +170,10 @@ public static class WorkspaceConventions
         return false;
     }
 
+    private static readonly Regex ValidTopicNameRegex = new(
+        @"^[A-Za-z0-9][A-Za-z0-9_\-\.:/]*[A-Za-z0-9_]$|^[A-Za-z0-9]$",
+        RegexOptions.Compiled);
+
     /// <summary>
     /// Checks whether an identifier, token, or string is a placeholder dummy name (e.g. QUEUE_NAME, TOPIC_NAME, etc.).
     /// </summary>
@@ -177,10 +181,61 @@ public static class WorkspaceConventions
     {
         if (string.IsNullOrWhiteSpace(name)) return true;
         var lower = name.Trim().Trim('\'', '"', '`').ToLowerInvariant().Replace('_', '-').Replace('.', '-');
-        return lower is "topic" or "topic-name" or "queue" or "queue-name" or "subscription" or "subscription-name"
-            or "subscriber" or "subscriber-name" or "event-subscriber-name"
+        return lower is "topic" or "topic-name" or "topicname" or "topicid" or "topic-id" or "topic-name-or-id" or "topicnameorid"
+            or "queue" or "queue-name" or "queuename" or "queueid" or "queue-id"
+            or "sub" or "subid" or "sub-id" or "subname" or "sub-name" or "subscription" or "subscription-name" or "subscriptionname"
+            or "subscriber" or "subscriber-name" or "subscribername" or "event-subscriber-name"
             or "default-topic" or "default-queue" or "default-sub-id" or "default-subscription-name"
-            or "placeholder" or "dummy";
+            or "target" or "target-name" or "destination"
+            or "message" or "msg" or "send-data" or "senddata" or "payload" or "data" or "body"
+            or "exchange" or "exchangename" or "exchange-name" or "exchangekey" or "exchange-key" or "routingkey" or "routing-key"
+            or "worker-name" or "workername"
+            or "placeholder" or "dummy" or "test"
+            or "undefined" or "null" or "string" or "void" or "any" or "unknown" or "never" or "object" or "boolean" or "number"
+            or "appmodule" or "app-module" or "other" or "broken";
+    }
+
+    /// <summary>
+    /// Strictly validates whether a string represents a valid messaging topic or queue identifier.
+    /// Rejects code expressions, ternary statements, function calls, URLs, emojis, and placeholders.
+    /// </summary>
+    public static bool IsValidTopicOrQueueName(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        var t = s.Trim().Trim('\'', '"', '`');
+
+        if (t.Length is < 2 or > 120) return false;
+
+        // Disallow leading / trailing separators
+        if (t.StartsWith(':') || t.StartsWith('/') || t.StartsWith('.') || t.StartsWith('-') || t.StartsWith('_'))
+            return false;
+
+        // Disallow URLs
+        if (t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Disallow code syntax / operators / delimiters / whitespace
+        if (t.IndexOfAny(['(', ')', '[', ']', '{', '}', ';', ',', '?', '=', '<', '>', '!', '|', '&', '+', '*', '%', '^', '~', '\\', '\'', '"', '`', ' ', '\t', '\r', '\n']) >= 0)
+            return false;
+
+        // Disallow placeholder and type names
+        if (IsPlaceholderName(t)) return false;
+
+        // Disallow code keywords and member prefix calls
+        if (t.StartsWith("options.", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("config.", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("function", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("return", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("const", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("let", StringComparison.OrdinalIgnoreCase) ||
+            t.Equals("var", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Must match valid topic/queue regex (alphanumeric, dot, underscore, hyphen, colon, slash)
+        if (!ValidTopicNameRegex.IsMatch(t)) return false;
+
+        return true;
     }
 
     /// <summary>
@@ -191,15 +246,7 @@ public static class WorkspaceConventions
         if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
         var t = raw.Trim().Trim('\'', '"', '`');
 
-        if (t.StartsWith(':') || t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("string", StringComparison.OrdinalIgnoreCase) || t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("null", StringComparison.OrdinalIgnoreCase) || t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || t.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            return string.Empty;
-        }
-
-        if (IsPlaceholderName(t))
+        if (!IsValidTopicOrQueueName(t))
         {
             return string.Empty;
         }
@@ -210,7 +257,8 @@ public static class WorkspaceConventions
         }
 
         // Algorithmic fallback: convert SCREAMING_SNAKE_CASE or camelCase to kebab-case
-        return AlgorithmicTopicKebabCase(t);
+        var normalized = AlgorithmicTopicKebabCase(t);
+        return IsValidTopicOrQueueName(normalized) ? normalized : string.Empty;
     }
 
     /// <summary>

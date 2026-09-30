@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -44,11 +45,11 @@ public static class GoAstHelper
                 return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
             }
 
-            if (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$") ||
-                varName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("Sub", StringComparison.OrdinalIgnoreCase) ||
-                varName.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase))
+            if (!WorkspaceConventions.IsPlaceholderName(varName) &&
+                (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$") ||
+                 varName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                 varName.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                 varName.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase)))
             {
                 return varName;
             }
@@ -67,13 +68,13 @@ public static class GoAstHelper
                     return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
                 }
 
-                if (Regex.IsMatch(fieldText, @"^[A-Z0-9_]{3,}$") ||
-                    fieldText.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
-                    fieldText.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
-                    fieldText.EndsWith("Sub", StringComparison.OrdinalIgnoreCase) ||
-                    fieldText.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
-                    fieldText.EndsWith("TopicID", StringComparison.OrdinalIgnoreCase) ||
-                    fieldText.EndsWith("SubID", StringComparison.OrdinalIgnoreCase))
+                if (!WorkspaceConventions.IsPlaceholderName(fieldText) &&
+                    (Regex.IsMatch(fieldText, @"^[A-Z0-9_]{3,}$") ||
+                     fieldText.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                     fieldText.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                     fieldText.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
+                     fieldText.EndsWith("TopicID", StringComparison.OrdinalIgnoreCase) ||
+                     fieldText.EndsWith("SubID", StringComparison.OrdinalIgnoreCase)))
                 {
                     return fieldText;
                 }

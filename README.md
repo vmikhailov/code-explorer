@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
 [![NuGet](https://img.shields.io/nuget/v/CodeExplorer.Cli.svg)](https://www.nuget.org/packages/CodeExplorer.Cli)
-[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension-blueviolet.svg)](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
+[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension%20(VSIX)-blueviolet.svg)](https://github.com/vmikhailov/code-explorer/releases/latest)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Containers-success.svg)](https://github.com/vmikhailov/code-explorer)
 
 **Next-Generation Codebase Intelligence, Interactive Architectural Studio & Graph Engine for Developers and AI Agents.**
@@ -192,10 +192,22 @@ CodeExplorer is available as both an **Interactive VS Code Extension** and a **z
 
 ### 🎨 1. VS Code Extension (Recommended for Visual Exploration)
 
-Install directly from the VS Code Marketplace or Extension view (`Ctrl+Shift+X` / `Cmd+Shift+X`):
-1. Search for **`CodeExplorer`** and click **Install**.
-2. Open any project workspace and click the **`⚡ Code Graph`** button in the status bar or run `CodeExplorer: Show Architecture Graph` from the Command Palette (`Ctrl+Shift+P`).
-3. *Batteries included:* The extension automatically bundles pre-compiled native `ce` binaries for Windows (x64/ARM64), macOS (Apple Silicon/Intel), and Linux (x64/ARM64).
+Download the pre-packaged `.vsix` from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest) (or install via CLI):
+
+```bash
+# Install via VS Code CLI:
+code --install-extension code-explorer-vscode-*.vsix
+```
+
+*Or inside VS Code:*
+1. Open the Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`).
+2. Click the **`...`** (Views and More Actions) menu in the top-right corner of the Extensions pane.
+3. Select **Install from VSIX...** and choose the downloaded file.
+
+> **Note:** Publishing to the Visual Studio Marketplace and Open VSX Registry is currently in progress. The extension is distributed directly as VSIX packages via GitHub Releases.
+
+4. Open any project workspace and click the **`⚡ Code Graph`** button in the status bar or run `CodeExplorer: Show Architecture Graph` from the Command Palette (`Ctrl+Shift+P`).
+5. *Batteries included:* The extension automatically bundles pre-compiled native `ce` binaries for Windows (x64/ARM64), macOS (Apple Silicon/Intel), and Linux (x64/ARM64).
 
 ---
 

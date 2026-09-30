@@ -31,6 +31,9 @@ for (const file of vsixFiles) {
   console.log(`  - ${file}`);
 }
 
+const platformVsixFiles = vsixFiles.filter((f) => !f.includes('universal'));
+const filesToPublish = platformVsixFiles.length > 0 ? platformVsixFiles : vsixFiles;
+
 // 1. Publish to VS Code Marketplace
 if (toMarketplace) {
   console.log('\n========================================');
@@ -40,10 +43,10 @@ if (toMarketplace) {
   if (!vscePat) {
     console.log('::warning::VSCE_PAT secret is not set. Skipping Visual Studio Marketplace publishing.');
   } else {
-    for (const vsix of vsixFiles) {
+    for (const vsix of filesToPublish) {
       const vsixPath = path.resolve(distVsixDir, vsix);
       console.log(`Publishing ${vsix} to VS Code Marketplace...`);
-      const res = spawnSync('npx', ['vsce', 'publish', '--packagePath', vsixPath, '-p', vscePat], {
+      const res = spawnSync('npx', ['vsce', 'publish', '--packagePath', vsixPath, '-p', vscePat, '--skip-duplicate'], {
         cwd: extensionRoot,
         stdio: 'inherit',
         shell: true,
@@ -67,10 +70,10 @@ if (toOvsx) {
   if (!ovsxPat) {
     console.log('::warning::OVSX_PAT secret is not set. Skipping Open VSX Registry publishing.');
   } else {
-    for (const vsix of vsixFiles) {
+    for (const vsix of filesToPublish) {
       const vsixPath = path.resolve(distVsixDir, vsix);
       console.log(`Publishing ${vsix} to Open VSX Registry...`);
-      const res = spawnSync('npx', ['ovsx', 'publish', vsixPath, '-p', ovsxPat], {
+      const res = spawnSync('npx', ['ovsx', 'publish', vsixPath, '-p', ovsxPat, '--skip-duplicate'], {
         cwd: extensionRoot,
         stdio: 'inherit',
         shell: true,

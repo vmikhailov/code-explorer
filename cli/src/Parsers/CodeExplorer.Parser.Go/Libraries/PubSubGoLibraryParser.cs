@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -32,7 +32,6 @@ public class PubSubGoLibraryParser : ISemanticExtension
                 if (topicMatch.Success)
                 {
                     var raw = topicMatch.Groups[1].Value.Trim('"', '`');
-                    var topic = GoAstHelper.ResolveStringOrVariable(node) ?? raw;
                     if (!string.IsNullOrEmpty(raw))
                     {
                         var target = raw.Trim('"', '`');
@@ -40,7 +39,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
                         {
                             target = target[(target.LastIndexOf('.') + 1)..];
                         }
-                        references.Add(new Reference(scopeSymbolId, "gcp:" + target, OntologyConstants.Relationships.SubscribesTo));
+                        AddSubscribe(references, scopeSymbolId, target);
                     }
                 }
 
@@ -55,7 +54,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
                         {
                             target = target[(target.LastIndexOf('.') + 1)..];
                         }
-                        references.Add(new Reference(scopeSymbolId, "gcp:" + target, OntologyConstants.Relationships.SubscribesTo));
+                        AddSubscribe(references, scopeSymbolId, target);
                     }
                 }
             }
@@ -76,10 +75,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
             if (args.Count > 0)
             {
                 var topic = GoAstHelper.ResolveStringOrVariable(args[0]);
-                if (!string.IsNullOrEmpty(topic))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.PublishesTo));
-                }
+                AddPublish(references, scopeSymbolId, topic);
             }
         }
         // Client Subscription: client.Subscription(subName)
@@ -88,10 +84,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
             if (args.Count > 0)
             {
                 var sub = GoAstHelper.ResolveStringOrVariable(args[0]);
-                if (!string.IsNullOrEmpty(sub))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + sub, OntologyConstants.Relationships.SubscribesTo));
-                }
+                AddSubscribe(references, scopeSymbolId, sub);
             }
         }
         // Client CreateSubscription: client.CreateSubscription(ctx, subID, cfg)
@@ -105,10 +98,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
                 {
                     target = GoAstHelper.ResolveStringOrVariable(args[2]);
                 }
-                if (!string.IsNullOrEmpty(target))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + target, OntologyConstants.Relationships.SubscribesTo));
-                }
+                AddSubscribe(references, scopeSymbolId, target);
             }
         }
         // Topic Publish: topic.Publish(ctx, msg) or manager.Publish(ctx, topic, msg, ...)
@@ -116,12 +106,8 @@ public class PubSubGoLibraryParser : ISemanticExtension
         {
             if (args.Count >= 2)
             {
-                // In messaging-go: manager.Publish(ctx, topic, message, ...) -> args[1] is topic
                 var topic = GoAstHelper.ResolveStringOrVariable(args[1]);
-                if (!string.IsNullOrEmpty(topic))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + topic, OntologyConstants.Relationships.PublishesTo));
-                }
+                AddPublish(references, scopeSymbolId, topic);
             }
         }
         // Subscription Receive / Subscribe: sub.Receive(ctx, handler) or manager.Subscribe(ctx, to, handler, ...)
@@ -131,28 +117,36 @@ public class PubSubGoLibraryParser : ISemanticExtension
             if (funcText.EndsWith(".Subscribe", StringComparison.Ordinal) && args.Count >= 2)
             {
                 var to = GoAstHelper.ResolveStringOrVariable(args[1]);
-                if (!string.IsNullOrEmpty(to))
-                {
-                    references.Add(new Reference(scopeSymbolId, "gcp:" + to, OntologyConstants.Relationships.SubscribesTo));
-                }
+                AddSubscribe(references, scopeSymbolId, to);
             }
             else if (funcText.EndsWith(".Receive", StringComparison.Ordinal))
             {
-                // If sub.Receive is called on client.Subscription(subID)
                 if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
                 {
                     var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
                     if (operand.IsValid())
                     {
-                        var operandText = operand.Text;
                         var sub = GoAstHelper.ResolveStringOrVariable(operand);
-                        if (!string.IsNullOrEmpty(sub))
-                        {
-                            references.Add(new Reference(scopeSymbolId, "gcp:" + sub, OntologyConstants.Relationships.SubscribesTo));
-                        }
+                        AddSubscribe(references, scopeSymbolId, sub);
                     }
                 }
             }
+        }
+    }
+
+    private static void AddPublish(List<Reference> references, string scopeSymbolId, string? target)
+    {
+        if (!string.IsNullOrEmpty(target) && WorkspaceConventions.IsValidTopicOrQueueName(target))
+        {
+            references.Add(new Reference(scopeSymbolId, "gcp:" + target.Trim(), OntologyConstants.Relationships.PublishesTo));
+        }
+    }
+
+    private static void AddSubscribe(List<Reference> references, string scopeSymbolId, string? target)
+    {
+        if (!string.IsNullOrEmpty(target) && WorkspaceConventions.IsValidTopicOrQueueName(target))
+        {
+            references.Add(new Reference(scopeSymbolId, "gcp:" + target.Trim(), OntologyConstants.Relationships.SubscribesTo));
         }
     }
 }

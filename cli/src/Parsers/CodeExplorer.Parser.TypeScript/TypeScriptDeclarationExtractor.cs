@@ -90,6 +90,16 @@ public static class TypeScriptDeclarationExtractor
             return;
         }
 
+        // Do not recurse into local scopes (functions, methods, arrow functions, blocks)
+        if (type is TreeSitterSyntax.TypeScript.FunctionDeclaration or
+                    TreeSitterSyntax.TypeScript.MethodDefinition or
+                    TreeSitterSyntax.TypeScript.ArrowFunction or
+                    TreeSitterSyntax.TypeScript.StatementBlock or
+                    "function" or "generator_function" or "constructor")
+        {
+            return;
+        }
+
         foreach (var child in node.Children)
         {
             ExtractInternal(child, currentScope, register);

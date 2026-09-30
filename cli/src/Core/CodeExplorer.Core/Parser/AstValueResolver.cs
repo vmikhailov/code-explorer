@@ -254,12 +254,17 @@ public static class AstValueResolver
                 }
             }
 
-            // 7d. Check rightmost property
+            // 7d. Check rightmost property (only if constant-like naming or explicit topic/queue naming)
             var propNode = node.GetChildForField(TreeSitterSyntax.Fields.Property) ??
                            node.GetChildForField(TreeSitterSyntax.Fields.Field) ??
                            node.GetChildForField(TreeSitterSyntax.Fields.Name);
 
-            if (propNode.IsValid() && ConstantRegistry.TryResolve(contextOrProject, propNode.Text, out var pVal))
+            if (propNode.IsValid() &&
+                (Regex.IsMatch(propNode.Text, @"^[A-Z0-9_]{3,}$") ||
+                 propNode.Text.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                 propNode.Text.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                 propNode.Text.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase)) &&
+                ConstantRegistry.TryResolve(contextOrProject, propNode.Text, out var pVal))
             {
                 result = pVal;
                 return true;
@@ -434,21 +439,7 @@ public static class AstValueResolver
 
     public static bool IsValidTopicOrQueueLiteral(string? s)
     {
-        if (string.IsNullOrWhiteSpace(s)) return false;
-        var t = s.Trim();
-        if (t.Length < 2) return false;
-        if (t.StartsWith(':')) return false;
-        if (t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return false;
-        if (t.Equals("string", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("null", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("any", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("unknown", StringComparison.OrdinalIgnoreCase)) return false;
-        if (WorkspaceConventions.IsPlaceholderName(t)) return false;
-        return true;
+        return WorkspaceConventions.IsValidTopicOrQueueName(s);
     }
 
     public static Node? FindVariableDeclarationInScope(Node node, string varName)
@@ -640,7 +631,7 @@ public static class AstValueResolver
                 TreeSitterSyntax.Java.StringLiteral or
                 TreeSitterSyntax.Java.TextBlock;
 
-    private static bool IsQuoted(string text)
+    public static bool IsQuoted(string text)
     {
         var t = text.Trim();
         return (t.StartsWith('"') && t.EndsWith('"')) ||

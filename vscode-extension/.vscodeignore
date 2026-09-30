@@ -9,5 +9,7 @@ tsconfig.json
 build.mjs
 package-lock.json
 **/*.map
+dist/test/**
+dist/test*
 .git/**
 .gitignore

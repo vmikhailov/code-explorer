@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -94,14 +94,7 @@ public class GcpLibraryParser : ISemanticExtension
                         }
                     }
                 }
-                else if (args.Count > 1)
-                {
-                    if (!AstValueResolver.TryResolveTopicOrQueue(args[1], scopeSymbolId, out topic) || string.IsNullOrEmpty(topic))
-                    {
-                        topic = AstHelper.ResolveTopicOrQueue(args[1], scopeSymbolId);
-                    }
-                }
-                else if (args.Count == 1)
+                else
                 {
                     if (!AstValueResolver.TryResolveTopicOrQueue(args[0], scopeSymbolId, out topic) || string.IsNullOrEmpty(topic))
                     {
@@ -151,22 +144,7 @@ public class GcpLibraryParser : ISemanticExtension
 
     private static bool IsValidTopicName(string? topic)
     {
-        if (string.IsNullOrWhiteSpace(topic)) return false;
-        if (WorkspaceConventions.IsPlaceholderName(topic)) return false;
-        var t = topic.Trim();
-        if (t.StartsWith(':') ||
-            t.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("string", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("null", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-            t.Length <= 3)
-        {
-            return false;
-        }
-        return true;
+        return WorkspaceConventions.IsValidTopicOrQueueName(topic);
     }
 
     private static string? ResolveTopicVariableInScope(Node node, string varName)

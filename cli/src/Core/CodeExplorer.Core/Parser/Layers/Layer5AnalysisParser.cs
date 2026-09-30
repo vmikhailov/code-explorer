@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -671,25 +672,32 @@ public class Layer5AnalysisParser
                     }
                 }
 
-                if (constantLookup.TryGetValue(topicName, out var resolvedConst) && !string.IsNullOrEmpty(resolvedConst))
+                var scopeFilePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+                var scopeProject = ConstantRegistry.ExtractProjectName(scopeFilePath);
+                string? globalConst = null;
+
+                if (constantLookup.TryGetValue(topicName, out var resolvedConst) &&
+                    WorkspaceConventions.IsValidTopicOrQueueName(resolvedConst))
                 {
                     topicName = resolvedConst;
                 }
-                else if (ConstantRegistry.TryResolve(null, topicName, out var regConst) && !string.IsNullOrEmpty(regConst))
+                else if (ConstantRegistry.TryResolve(scopeProject ?? scopeFilePath, topicName, out var regConst) &&
+                         WorkspaceConventions.IsValidTopicOrQueueName(regConst))
                 {
                     topicName = regConst;
                 }
-
-                if (ConstantRegistry.TryResolve(null, topicName, out var secondConst) && !string.IsNullOrEmpty(secondConst))
+                else if (System.Text.RegularExpressions.Regex.IsMatch(topicName, @"^[A-Z0-9_]{3,}$") &&
+                         ConstantRegistry.TryResolve(null, topicName, out globalConst) &&
+                         WorkspaceConventions.IsValidTopicOrQueueName(globalConst))
                 {
-                    topicName = secondConst;
+                    topicName = globalConst;
                 }
 
                 if (topicName.Equals("topicName", StringComparison.OrdinalIgnoreCase) ||
                     topicName.Equals("topicNameOrId", StringComparison.OrdinalIgnoreCase))
                 {
-                    var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
-                    if (ConstantRegistry.TryResolve(filePath, "DEFAULT_TOPIC", out var defaultTopic))
+                    if (ConstantRegistry.TryResolve(scopeFilePath, "DEFAULT_TOPIC", out var defaultTopic) &&
+                        WorkspaceConventions.IsValidTopicOrQueueName(defaultTopic))
                     {
                         topicName = defaultTopic;
                     }
@@ -704,14 +712,7 @@ public class Layer5AnalysisParser
                     topicName = WorkspaceConventions.NormalizeTopicName(topicName);
                 }
 
-                if (string.IsNullOrWhiteSpace(topicName) ||
-                    topicName.StartsWith(':') ||
-                    topicName.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
-                    topicName.Equals("string", StringComparison.OrdinalIgnoreCase) ||
-                    topicName.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
-                    topicName.Equals("null", StringComparison.OrdinalIgnoreCase) ||
-                    topicName.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                    topicName.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (!WorkspaceConventions.IsValidTopicOrQueueName(topicName))
                 {
                     continue;
                 }

@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -25,7 +25,7 @@ public class KafkaJsLibraryParser : ISemanticExtension
             if (string.Equals(propName, "send", StringComparison.OrdinalIgnoreCase))
             {
                 var topic = ExtractTopicFromConfig(node, scopeSymbolId);
-                if (!string.IsNullOrEmpty(topic))
+                if (!string.IsNullOrEmpty(topic) && WorkspaceConventions.IsValidTopicOrQueueName(topic))
                 {
                     references.Add(new Reference(scopeSymbolId, "kafka:" + topic, OntologyConstants.Relationships.PublishesTo));
                 }
@@ -35,7 +35,7 @@ public class KafkaJsLibraryParser : ISemanticExtension
                 var topics = ExtractTopicsFromSubscribeConfig(node, scopeSymbolId);
                 foreach (var topic in topics)
                 {
-                    if (!string.IsNullOrEmpty(topic))
+                    if (!string.IsNullOrEmpty(topic) && WorkspaceConventions.IsValidTopicOrQueueName(topic))
                     {
                         references.Add(new Reference(scopeSymbolId, "kafka:" + topic, OntologyConstants.Relationships.SubscribesTo));
                     }

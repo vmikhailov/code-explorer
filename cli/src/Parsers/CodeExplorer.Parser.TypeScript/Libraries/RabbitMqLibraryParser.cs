@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -170,26 +170,13 @@ public class RabbitMqLibraryParser : ISemanticExtension
 
     private static bool IsValidQueueName(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return false;
-        if (WorkspaceConventions.IsPlaceholderName(name)) return false;
-        var t = name.Trim();
-        if (t.StartsWith(':') ||
-            t.Equals("string", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("null", StringComparison.OrdinalIgnoreCase) ||
-            t.Equals("void", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-            t.Length <= 2)
-        {
-            return false;
-        }
-        return true;
+        return WorkspaceConventions.IsValidTopicOrQueueName(name);
     }
 
     private static string? ResolveQueueVariableInScope(Node node, string varName)
     {
-        if (ConstantRegistry.TryResolve(null, varName, out var cr) && IsValidQueueName(cr))
+        if (Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$") &&
+            ConstantRegistry.TryResolve(null, varName, out var cr) && IsValidQueueName(cr))
         {
             return cr;
         }

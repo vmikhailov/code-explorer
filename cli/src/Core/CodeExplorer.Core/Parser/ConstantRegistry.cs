@@ -66,7 +66,12 @@ public static class ConstantRegistry
                 _projectConstants[$"{domain}:{cleanKey}"] = cleanVal;
             }
 
-            _globalConstants.TryAdd(cleanKey, cleanVal);
+            // Only promote to global lookup if it is qualified or PascalCase / SCREAMING_SNAKE_CASE (constants)
+            if (cleanKey.Contains(':') || cleanKey.Contains('.') || cleanKey.Contains("__") ||
+                (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])))
+            {
+                _globalConstants.TryAdd(cleanKey, cleanVal);
+            }
         }
         else
         {
@@ -190,7 +195,7 @@ public static class ConstantRegistry
         return false;
     }
 
-    private static string? ExtractProjectName(string? projectNameOrPath)
+    public static string? ExtractProjectName(string? projectNameOrPath)
     {
         if (string.IsNullOrWhiteSpace(projectNameOrPath)) return null;
 

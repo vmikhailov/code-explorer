@@ -97,7 +97,7 @@ public static class AstConstantExtractor
             if (!progress) break;
         }
 
-        // Fallback pass: any remaining unresolved constants with clean text
+        // Fallback pass: any remaining unresolved constants that are literal strings
         foreach (var item in pending)
         {
             if (resolved.Contains(item.Key)) continue;
@@ -105,7 +105,7 @@ public static class AstConstantExtractor
             if (item.ValueNode.IsValid())
             {
                 var text = item.ValueNode.Text.Trim();
-                if (!text.Contains('\n') && text.Length is > 0 and < 300)
+                if (AstValueResolver.IsQuoted(text) && !text.Contains('\n') && text.Length is > 0 and < 300)
                 {
                     var unquoted = AstValueResolver.Unquote(text);
                     if (!string.IsNullOrWhiteSpace(unquoted))
