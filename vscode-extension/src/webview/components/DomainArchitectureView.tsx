@@ -203,8 +203,8 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'node[kind = "Worker"]',
     style: {
-      'background-color': '#d97706',
-      'border-color': '#92400e',
+      'background-color': '#c026d3',
+      'border-color': '#86198f',
     },
   },
   // Library
@@ -1325,8 +1325,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         workerCount++;
         tag = ':Worker';
         nodeKind = 'Worker';
-        bgColor = '#d97706';
-        borderColor = '#92400e';
+        bgColor = '#c026d3';
+        borderColor = '#86198f';
         size = 48;
       } else {
         serviceCount++;

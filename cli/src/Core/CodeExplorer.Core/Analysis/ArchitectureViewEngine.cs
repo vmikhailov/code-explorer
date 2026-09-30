@@ -2947,8 +2947,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                 stats.Workers++;
                 tag = ":Worker";
                 nodeKind = "Worker";
-                bgColor = "#d97706";
-                borderColor = "#92400e";
+                bgColor = "#c026d3";
+                borderColor = "#86198f";
                 size = 48;
             }
             else

@@ -171,6 +171,7 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
     if (k.includes('type') || k.includes('class')) return 'badge-type';
     if (k.includes('function') || k.includes('method')) return 'badge-fn';
     if (k.includes('topic')) return 'badge-topic';
+    if (k.includes('worker')) return 'badge-worker';
     return 'badge-default';
   };
 

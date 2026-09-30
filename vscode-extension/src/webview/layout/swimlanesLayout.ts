@@ -58,7 +58,7 @@ const LANE_DEFINITIONS: LaneDefinition[] = [
   { tier: 0, title: 'Clients & Ingress', icon: '🚀', color: '#38bdf8', accentBg: 'rgba(56, 189, 248, 0.08)' },
   { tier: 1, title: 'Primary Services', icon: '⚙️', color: '#4ade80', accentBg: 'rgba(74, 222, 128, 0.08)' },
   { tier: 2, title: 'Domain Services', icon: '🏛️', color: '#818cf8', accentBg: 'rgba(129, 140, 248, 0.08)' },
-  { tier: 3, title: 'Workers & Async', icon: '⚡', color: '#fb923c', accentBg: 'rgba(251, 146, 60, 0.08)' },
+  { tier: 3, title: 'Workers & Async', icon: '⚡', color: '#c026d3', accentBg: 'rgba(192, 38, 211, 0.08)' },
   { tier: 4, title: 'Event Bus & Topics', icon: '✉️', color: '#fbbf24', accentBg: 'rgba(251, 191, 36, 0.08)' },
   { tier: 5, title: 'Databases & Storage', icon: '🗄️', color: '#c084fc', accentBg: 'rgba(192, 132, 252, 0.08)' },
 ];

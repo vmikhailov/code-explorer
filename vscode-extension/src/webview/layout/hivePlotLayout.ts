@@ -53,7 +53,7 @@ interface AxisDefinition {
 const AXIS_DEFINITIONS: AxisDefinition[] = [
   { tier: 0, title: 'Clients & Ingress', icon: '🚀', angleDeg: -90, color: '#38bdf8' },
   { tier: 1, title: 'Domain Services', icon: '⚙️', angleDeg: -18, color: '#4ade80' },
-  { tier: 3, title: 'Background Workers', icon: '⚡', angleDeg: 54, color: '#fb923c' },
+  { tier: 3, title: 'Background Workers', icon: '⚡', angleDeg: 54, color: '#c026d3' },
   { tier: 4, title: 'Event Topics', icon: '✉️', angleDeg: 126, color: '#fbbf24' },
   { tier: 5, title: 'Databases & Storage', icon: '🗄️', color: '#c084fc', angleDeg: 198 },
 ];

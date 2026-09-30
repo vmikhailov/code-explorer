@@ -592,7 +592,7 @@
 }
 
 .c1-service-card.is-worker {
-  border-left: 4px solid #f59e0b;
+  border-left: 4px solid #c026d3;
 }
 
 .c1-external-card {
@@ -641,9 +641,9 @@
 .c1-badge-worker {
   font-size: 8.5px;
   font-weight: 700;
-  color: #fcd34d;
-  background: rgba(245, 158, 11, 0.14);
-  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f0abfc;
+  background: rgba(192, 38, 211, 0.16);
+  border: 1px solid rgba(192, 38, 211, 0.4);
   padding: 1.5px 5px;
   border-radius: 3px;
   letter-spacing: 0.5px;

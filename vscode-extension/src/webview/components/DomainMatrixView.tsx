@@ -101,7 +101,7 @@ export const DomainMatrixView: React.FC<DomainMatrixViewProps> = ({
       case 'Service':
         return '#4ade80';
       case 'Worker':
-        return '#fb923c';
+        return '#c026d3';
       case 'Topic':
         return '#fbbf24';
       case 'Database':

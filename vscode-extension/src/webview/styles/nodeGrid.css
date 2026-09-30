@@ -264,9 +264,15 @@
 }
 
 .badge-topic {
-  background: rgba(14, 165, 233, 0.2);
-  color: #38bdf8;
-  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-worker {
+  background: rgba(192, 38, 211, 0.2);
+  color: #e879f9;
+  border: 1px solid rgba(192, 38, 211, 0.3);
 }
 
 .badge-default {

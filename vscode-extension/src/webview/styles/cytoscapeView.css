@@ -484,6 +484,12 @@
   border: 1px solid rgba(251, 191, 36, 0.4);
 }
 
+.badge-worker {
+  background: rgba(192, 38, 211, 0.2) !important;
+  color: #e879f9 !important;
+  border: 1px solid rgba(192, 38, 211, 0.4);
+}
+
 .badge-endpoint {
   background: rgba(56, 189, 248, 0.2) !important;
   color: #38bdf8 !important;
