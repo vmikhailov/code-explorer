@@ -276,35 +276,53 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     foreach (var prop in devDepsObj.EnumerateObject()) allDeps.Add(prop.Name);
                 }
 
-                // Framework detection
-                if (allDeps.Any(d => d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next" or "nuxt"))
+                var hasNgPackage = root.TryGetProperty("ngPackage", out _) ||
+                                   filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase));
+                var hasIndexHtml = filesInDirectory.Any(f => Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase));
+
+                if (hasNgPackage)
                 {
+                    props["manifest_type"] = "library";
                     props["framework_type"] = "frontend";
-                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
+                    props["is_ui_library"] = "true";
+                    props["is_library"] = "true";
+                }
+
+                // Framework and workload detection
+                if (allDeps.Any(d => d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib" or "kafkajs" or "@cloudflare/workers-types" or "wrangler" or "node-cron" or "cron" or "agenda"))
+                {
+                    props["framework_type"] = "worker";
+                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
                 }
                 else if (allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono"))
                 {
                     props["framework_type"] = "web";
                     if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
                 }
-                else if (allDeps.Any(d => d is "bullmq" or "bull" or "amqplib" or "kafkajs" or "@cloudflare/workers-types" or "wrangler"))
+                else if (allDeps.Any(d => d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next" or "nuxt"))
                 {
-                    props["framework_type"] = "worker";
-                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
+                    props["framework_type"] = "frontend";
+                    if (!props.ContainsKey("manifest_type"))
+                    {
+                        var isExplicitUiLib = hasNgPackage || (!hasIndexHtml && !allDeps.Contains("next") && !allDeps.Contains("nuxt") && root.TryGetProperty("exports", out _));
+                        props["manifest_type"] = isExplicitUiLib ? "library" : "application";
+                        if (isExplicitUiLib)
+                        {
+                            props["is_ui_library"] = "true";
+                            props["is_library"] = "true";
+                        }
+                    }
                 }
                 else if (allDeps.Any(d => d.StartsWith("@aws-cdk/") || d.StartsWith("@pulumi/") || d == "serverless"))
                 {
                     props["framework_type"] = "cloud";
                 }
-
-                // Check if library by export declarations (main, types, exports without index.html)
-                if (!props.ContainsKey("manifest_type"))
+                else if (root.TryGetProperty("exports", out _) || root.TryGetProperty("types", out _) || root.TryGetProperty("typings", out _) || root.TryGetProperty("main", out _))
                 {
-                    var hasMainOrTypes = root.TryGetProperty("main", out _) || root.TryGetProperty("types", out _) || root.TryGetProperty("exports", out _);
-                    var hasIndexHtml = filesInDirectory.Any(f => Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase));
-                    if (hasMainOrTypes && !hasIndexHtml)
+                    if (!props.ContainsKey("manifest_type"))
                     {
                         props["manifest_type"] = "library";
+                        props["is_library"] = "true";
                     }
                 }
             }

@@ -22,5 +22,10 @@ public enum LibraryRole
     CliFramework,
     FunctionFramework,
     WorkerService,
-    DatabaseMigration
+    DatabaseMigration,
+    UiComponentLibrary,
+    Scheduler,
+    ApiGateway,
+    EgressClient,
+    SharedLibrary = General
 }

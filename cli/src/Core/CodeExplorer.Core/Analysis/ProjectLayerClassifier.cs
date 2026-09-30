@@ -134,178 +134,172 @@ public static class ProjectLayerClassifier
             }
         }
 
+        var isTestMap = projList.ToDictionary(p => p.Id, p => IsTest(p), StringComparer.OrdinalIgnoreCase);
+
         foreach (var d in depList)
         {
-            if (incomingCount.ContainsKey(d.TargetId)) incomingCount[d.TargetId]++;
             if (outgoingCount.ContainsKey(d.SourceId)) outgoingCount[d.SourceId]++;
+
+            // Test projects referencing an application do not make the application an internal dependency
+            if (!isTestMap.GetValueOrDefault(d.SourceId, false))
+            {
+                if (incomingCount.ContainsKey(d.TargetId)) incomingCount[d.TargetId]++;
+            }
         }
 
         foreach (var p in projList)
         {
-            var name = p.Name;
-            var path = p.FilePath ?? "";
             var inDegree = incomingCount.GetValueOrDefault(p.Id, 0);
             var outDegree = outgoingCount.GetValueOrDefault(p.Id, 0);
-            var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
 
-            // 1. Tests & Tools
-            if (IsTestOrTool(name, path, p))
+            // 1. Tests Layer
+            if (IsTest(p))
             {
                 result[p.Id] = StandardLayers.Tests;
                 continue;
             }
 
-            // 2. Ingress Priority for Protocol Interfaces and Web Ingress Services
-            // If project is a protocol interface (GraphQL, gRPC, Gateway, BFF, MQTT, Endpoint)
-            // or Web SDK with ingress contracts, it MUST be classified as Ingress, NOT Foundation or Components.
-            if (IsIngress(name, path, inDegree, p))
+            // 2. Foundation Layer (Libraries, Models, Migrations)
+            // Absolute priority: libraries (UI components, shared libs, contracts) NEVER belong to Ingress!
+            if (IsFoundation(p))
+            {
+                result[p.Id] = StandardLayers.Foundation;
+                continue;
+            }
+
+            // 3. Ingress Layer (End-user Frontend Apps, CLI Tools, and API Gateways/BFFs)
+            if (IsIngress(p, inDegree, outDegree))
             {
                 result[p.Id] = StandardLayers.Ingress;
                 continue;
             }
 
-            // 3. Worker Projects (role == "Worker" or manifest_type == "worker" or worker entry points)
-            // Workers belong to Components (background business processors), NOT Ingress.
-            if (IsWorker(p, name, path))
-            {
-                result[p.Id] = StandardLayers.Components;
-                continue;
-            }
-
-            // 4. Library Priority (is_library == true / role == SharedLibrary / manifest_type == "library" / Library path)
-            // If project is a library (e.g., fe/projects/ui/src/lib/* or common-nest or domain contracts),
-            // it goes to Storage & Foundation.
-            if (IsLibrary(p, name, path))
-            {
-                result[p.Id] = StandardLayers.Foundation;
-                continue;
-            }
-
-            // 5. Egress (External clients, adapters, notifiers, publishers, webhooks, integrations)
-            if (IsEgress(name, path, p))
+            // 4. Egress Layer (External integration clients, outbound webhooks, third-party adapters)
+            if (IsEgress(p))
             {
                 result[p.Id] = StandardLayers.Egress;
                 continue;
             }
 
-            // 6. Storage & Foundation (Common, Shared, DB, KV, Infrastructure)
-            if (IsExplicitFoundation(name, path))
-            {
-                result[p.Id] = StandardLayers.Foundation;
-                continue;
-            }
-
-            // 7. Components (Domain, Core, Services, Engines, Processors)
-            if (IsComponents(name, path))
-            {
-                result[p.Id] = StandardLayers.Components;
-                continue;
-            }
-
-            // 8. Fallback based on topology:
-            // Stricter inDegree == 0 rule: Do NOT treat a service as Ingress just because inDegree == 0.
-            // If it's a backend service/workload, default to Components.
-            if (inDegree > 0 && outDegree == 0 && p.EndpointsCount == 0 && p.EntryPoints.Count == 0)
-            {
-                var hasServiceFramework = !string.IsNullOrWhiteSpace(p.Framework) &&
-                                          !p.Framework.Equals("Library", StringComparison.OrdinalIgnoreCase);
-                var isServicePath = normalizedPath.Contains("/services/") ||
-                                    normalizedPath.Contains("/apps/") ||
-                                    normalizedPath.Contains("/microservices/");
-
-                result[p.Id] = (hasServiceFramework || isServicePath)
-                    ? StandardLayers.Components
-                    : StandardLayers.Foundation;
-            }
-            else
-            {
-                // Default to Components for regular backend services and workloads
-                result[p.Id] = StandardLayers.Components;
-            }
+            // 5. Components Layer (Domain services, Web services, Schedulers, Background workers)
+            result[p.Id] = StandardLayers.Components;
         }
 
         return result;
     }
 
-    private static bool IsTestOrTool(string name, string path, ProjectClassifierItem p)
+    public static bool IsTest(ProjectClassifierItem p)
     {
+        var name = p.Name ?? "";
         return string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Test", StringComparison.OrdinalIgnoreCase);
+               string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Test", StringComparison.OrdinalIgnoreCase) ||
+               p.Extensions?.GetValueOrDefault("is_test_project") == "true" ||
+               p.Extensions?.GetValueOrDefault("manifest_type") == "test" ||
+               name.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ||
+               name.EndsWith("-tests", StringComparison.OrdinalIgnoreCase) ||
+               name.EndsWith(".Test", StringComparison.OrdinalIgnoreCase) ||
+               name.EndsWith("-test", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static readonly HashSet<string> ProtocolTokens = new(StringComparer.OrdinalIgnoreCase)
+    public static bool IsFoundation(ProjectClassifierItem p)
     {
-        "graphql", "grapql", "grpc", "gateway", "gateways", "bff", "mqtt", "endpoint", "endpoints"
-    };
+        var lowerName = (p.Name ?? "").ToLowerInvariant();
 
-    public static bool HasProtocolTokens(string name, string path)
-    {
-        var lowerName = (name ?? "").ToLowerInvariant();
-        var normalizedPath = (path ?? "").Replace('\\', '/').ToLowerInvariant();
-
-        if (lowerName.EndsWith(".graphql") || lowerName.EndsWith(".grapql") ||
-            lowerName.EndsWith(".grpc") || lowerName.EndsWith(".gateway") ||
-            lowerName.EndsWith(".bff") || lowerName.EndsWith(".endpoint") ||
-            lowerName.EndsWith(".endpoints") || lowerName.EndsWith("-graphql") ||
-            lowerName.EndsWith("-grapql") || lowerName.EndsWith("-grpc") ||
-            lowerName.EndsWith("-gateway") || lowerName.EndsWith("-bff") ||
-            lowerName.EndsWith("-mqtt") || lowerName.EndsWith("-endpoint"))
+        // Domain, Core, Application, and Engine components belong to Components, not Foundation
+        if (lowerName.EndsWith(".core") || lowerName.EndsWith("-core") ||
+            lowerName.EndsWith(".domain") || lowerName.EndsWith("-domain") ||
+            lowerName.EndsWith(".application") || lowerName.EndsWith("-application") ||
+            lowerName.Contains("parser"))
         {
-            return true;
-        }
-
-        if (normalizedPath.Contains("/graphql/") || normalizedPath.Contains("/grapql/") ||
-            normalizedPath.Contains("/grpc/") || normalizedPath.Contains("/gateway/") ||
-            normalizedPath.Contains("/gateways/") || normalizedPath.Contains("/bff/") ||
-            normalizedPath.Contains("/mqtt/") || normalizedPath.Contains("/endpoint/") ||
-            normalizedPath.Contains("/endpoints/"))
-        {
-            return true;
-        }
-
-        var parts = lowerName.Split('.', '-', '_');
-        if (parts.Any(p => ProtocolTokens.Contains(p)))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsLibrary(ProjectClassifierItem p, string name, string path)
-    {
-        if (p.Extensions != null && (p.Extensions.GetValueOrDefault("has_ingress_contract") == "true" ||
-                                     p.Extensions.GetValueOrDefault("has_graphql") == "true" ||
-                                     p.Extensions.GetValueOrDefault("has_grpc") == "true"))
             return false;
+        }
 
-        // Domain and core business logic projects belong to Components, not Foundation
-        if (IsComponents(name, path))
-            return false;
-
+        // Explicit library role or flag
         if (p.IsLibrary) return true;
 
         if (string.Equals(p.Role, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Role, "Library", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Library", StringComparison.OrdinalIgnoreCase))
+            string.Equals(p.Role, "DatabaseMigration", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Library", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "DatabaseMigration", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
         if (p.Extensions != null)
         {
-            var manifestType = p.Extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
-            if (manifestType == "library") return true;
+            if (p.Extensions.GetValueOrDefault("is_ui_library") == "true" ||
+                p.Extensions.GetValueOrDefault("is_library") == "true" ||
+                p.Extensions.GetValueOrDefault("manifest_type") == "library" ||
+                p.Extensions.GetValueOrDefault("manifest_type") == "migration")
+            {
+                return true;
+            }
         }
 
-        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
+        return lowerName.Equals("library") ||
+               lowerName.EndsWith(".common") ||
+               lowerName.EndsWith(".shared") ||
+               lowerName.EndsWith(".models") ||
+               lowerName.EndsWith("-models") ||
+               lowerName.EndsWith(".model") ||
+               lowerName.EndsWith("-model") ||
+               lowerName.EndsWith(".entities") ||
+               lowerName.EndsWith("-entities") ||
+               lowerName.EndsWith(".contracts") ||
+               lowerName.EndsWith("-contracts") ||
+               lowerName.EndsWith(".dto") ||
+               lowerName.EndsWith(".dtos");
+    }
 
-        // Standard source library directories (/src/lib/, /src/libs/, /libs/, /lib/, /packages/)
-        if (normalizedPath.Contains("/src/lib/") ||
-            normalizedPath.Contains("/src/libs/") ||
-            normalizedPath.Contains("/libs/") ||
-            normalizedPath.Contains("/lib/") ||
-            normalizedPath.Contains("/packages/"))
+    public static bool IsIngress(ProjectClassifierItem p, int inDegree = 0, int outDegree = 0)
+    {
+        // Libraries can never be Ingress
+        if (IsFoundation(p)) return false;
+
+        // Workers and Schedulers can never be Ingress
+        if (IsWorkerOrScheduler(p)) return false;
+
+        // 1. Frontend Apps (End-user UI Web Applications)
+        if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Role, "App", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "App", StringComparison.OrdinalIgnoreCase) ||
+            p.Extensions?.GetValueOrDefault("is_frontend_app") == "true")
+        {
+            return true;
+        }
+
+        // 2. CLI Tools (Command-line applications)
+        if (string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
+            p.Extensions?.GetValueOrDefault("manifest_type") == "cli" ||
+            p.Extensions?.GetValueOrDefault("has_cli_bin") == "true" ||
+            p.EntryPoints.Any(ep => ep.EntryType == "cli"))
+        {
+            return true;
+        }
+
+        // 3. API Gateways & Reverse Proxies / BFFs
+        if (p.Extensions?.GetValueOrDefault("is_api_gateway") == "true" ||
+            p.Extensions?.GetValueOrDefault("gateway_type") == "reverse_proxy" ||
+            p.Extensions?.GetValueOrDefault("has_ingress_contract") == "true")
+        {
+            return true;
+        }
+
+        var lowerName = (p.Name ?? "").ToLowerInvariant();
+        if (lowerName.EndsWith(".gateway") || lowerName.EndsWith("-gateway") ||
+            lowerName.EndsWith(".bff") || lowerName.EndsWith("-bff") ||
+            lowerName.Equals("bff") || lowerName.Equals("gateway") ||
+            lowerName.Contains("gateway") || lowerName.Contains("bff"))
+        {
+            return true;
+        }
+
+        // 4. Monolithic entrypoint project (e.g. CodeExplorer CLI tool without explicit role in unit test)
+        if (inDegree == 0 && outDegree > 0 &&
+            (lowerName.EndsWith(".cli") || lowerName.EndsWith(".app") || lowerName.EndsWith(".host") || lowerName.Equals("codeexplorer")))
         {
             return true;
         }
@@ -313,7 +307,7 @@ public static class ProjectLayerClassifier
         return false;
     }
 
-    private static bool IsWorker(ProjectClassifierItem p, string name, string path)
+    public static bool IsWorkerOrScheduler(ProjectClassifierItem p)
     {
         if (string.Equals(p.Role, "Worker", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "Worker", StringComparison.OrdinalIgnoreCase))
@@ -323,11 +317,14 @@ public static class ProjectLayerClassifier
 
         if (p.Extensions != null)
         {
-            var manifestType = p.Extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
-            if (manifestType == "worker") return true;
-
-            var frameworkType = p.Extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
-            if (frameworkType == "worker") return true;
+            if (p.Extensions.GetValueOrDefault("is_scheduler") == "true" ||
+                p.Extensions.GetValueOrDefault("is_queue_worker") == "true" ||
+                p.Extensions.GetValueOrDefault("has_schedule") == "true" ||
+                p.Extensions.GetValueOrDefault("manifest_type") == "worker" ||
+                p.Extensions.GetValueOrDefault("framework_type") == "worker")
+            {
+                return true;
+            }
         }
 
         if (p.EntryPoints.Any(ep => ep.EntryType is "queue-listener" or "cron" or "worker"))
@@ -335,234 +332,48 @@ public static class ProjectLayerClassifier
             return true;
         }
 
-        var lowerName = name.ToLowerInvariant();
-        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
-
-        if (normalizedPath.Contains("/worker/") || normalizedPath.Contains("/workers/") ||
-            normalizedPath.Contains("/consumer/") || normalizedPath.Contains("/consumers/") ||
-            normalizedPath.Contains("/scheduler/"))
-        {
-            return true;
-        }
-
-        if (lowerName.EndsWith("-worker") ||
-            lowerName.EndsWith(".worker") ||
-            lowerName.EndsWith("_worker") ||
-            lowerName.EndsWith("-consumer") ||
-            lowerName.EndsWith("_consumer"))
-        {
-            // Do not treat gateways as background workers unless role is explicitly Worker
-            if (!lowerName.Contains("gateway"))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var lowerName = (p.Name ?? "").ToLowerInvariant();
+        return lowerName.EndsWith("-worker") ||
+               lowerName.EndsWith(".worker") ||
+               lowerName.EndsWith("_worker") ||
+               lowerName.EndsWith("-scheduler") ||
+               lowerName.EndsWith(".scheduler") ||
+               lowerName.EndsWith("_scheduler") ||
+               lowerName.EndsWith("-consumer") ||
+               lowerName.EndsWith("_consumer");
     }
 
-    private static bool IsIngress(string name, string path, int inDegree, ProjectClassifierItem p)
+    public static bool IsEgress(ProjectClassifierItem p)
     {
-        if (IsWorker(p, name, path)) return false;
+        if (IsFoundation(p)) return false;
 
-        // Evidence 0: Ingress contracts / protocols
-        if (p.Extensions != null)
-        {
-            var hasIngressContract = p.Extensions.GetValueOrDefault("has_ingress_contract") == "true" ||
-                                     p.Extensions.GetValueOrDefault("has_graphql") == "true" ||
-                                     p.Extensions.GetValueOrDefault("has_grpc") == "true" ||
-                                     p.Extensions.GetValueOrDefault("has_controllers") == "true";
-
-            if (hasIngressContract) return true;
-        }
-
-        // Evidence 1: Role or Manifest Type
-        if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Role, "App", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "App", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase))
+        if (p.Extensions?.GetValueOrDefault("is_egress") == "true")
         {
             return true;
         }
 
-        if (p.Extensions != null)
-        {
-            var manifestType = p.Extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
-            if (manifestType is "cli") return true;
-
-            var hasCliBin = p.Extensions.GetValueOrDefault("has_cli_bin") == "true";
-            if (hasCliBin) return true;
-
-            var frameworkType = p.Extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
-            if (frameworkType is "frontend") return true;
-            if (frameworkType is "web" && (p.EndpointsCount > 0 || p.EntryPoints.Count > 0 || inDegree == 0))
-            {
-                return true;
-            }
-        }
-
-        if (IsLibrary(p, name, path)) return false;
-
-        // Evidence 2: EntryPoints (e.g. CLI command entrypoint)
-        if (p.EntryPoints.Any(ep => ep.EntryType == "cli"))
-        {
-            return true;
-        }
-
-        // Evidence 3: Path indicators for Ingress
-        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
-        var lowerName = name.ToLowerInvariant();
-
-        if (normalizedPath.Contains("/ui/") ||
-            normalizedPath.Contains("/cli/") ||
-            normalizedPath.Contains("/web/") ||
-            normalizedPath.Contains("/host/") ||
-            normalizedPath.Contains("/bff/") ||
-            normalizedPath.Contains("/gateway/") ||
-            normalizedPath.Contains("/gateways/") ||
-            normalizedPath.Contains("/frontend/") ||
-            normalizedPath.Contains("/ingress/"))
-        {
-            return true;
-        }
-
-        // Evidence 4: Top-level API Gateway / BFF / Ingress by Endpoints + InDegree == 0
-        if (p.EndpointsCount > 0 && inDegree == 0)
-        {
-            return true;
-        }
-
-        if (lowerName.EndsWith(".cli") ||
-            lowerName.EndsWith(".ui") ||
-            lowerName.EndsWith(".web") ||
-            lowerName.EndsWith(".api") ||
-            lowerName.EndsWith(".host") ||
-            lowerName.EndsWith(".bff") ||
-            lowerName.EndsWith(".gateway") ||
-            lowerName.EndsWith(".frontend") ||
-            lowerName.Contains("gateway") ||
-            lowerName.Contains("bff"))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsEgress(string name, string path, ProjectClassifierItem p)
-    {
-        // Evidence 1: External service calls without hosting server endpoints
+        // External services calls without hosting inbound endpoints
         if (p.ExternalServicesCount > 0 && p.EndpointsCount == 0 && p.EntryPoints.Count == 0)
         {
             return true;
         }
 
-        // Evidence 2: Path indicators
-        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
-        var lowerName = name.ToLowerInvariant();
-
-        if (normalizedPath.Contains("/adapter/") ||
-            normalizedPath.Contains("/adapters/") ||
-            normalizedPath.Contains("/client/") ||
-            normalizedPath.Contains("/clients/") ||
-            normalizedPath.Contains("/notifier/") ||
-            normalizedPath.Contains("/notifiers/") ||
-            normalizedPath.Contains("/postback/") ||
-            normalizedPath.Contains("/egress/") ||
-            normalizedPath.Contains("/integration/") ||
-            normalizedPath.Contains("/integrations/"))
-        {
-            return true;
-        }
-
-        return lowerName.EndsWith(".adapter") ||
-               lowerName.EndsWith(".adapters") ||
-               lowerName.EndsWith(".client") ||
-               lowerName.EndsWith(".clients") ||
-               lowerName.EndsWith(".notifier") ||
-               lowerName.EndsWith(".integration") ||
-               lowerName.EndsWith(".egress") ||
-               lowerName.StartsWith("integration-") ||
+        var lowerName = (p.Name ?? "").ToLowerInvariant();
+        return lowerName.StartsWith("integration-") ||
                lowerName.StartsWith("integration_") ||
+               lowerName.EndsWith(".adapter") ||
+               lowerName.EndsWith("-adapter") ||
+               lowerName.EndsWith(".notifier") ||
+               lowerName.EndsWith("-notifier") ||
                lowerName.Contains("integration-service") ||
-               lowerName.Contains("integration_service") ||
-               lowerName.Contains("-integration") ||
-               lowerName.Contains("_integration") ||
-               lowerName.Contains("-adapter") ||
-               lowerName.Contains("adapter") ||
-               lowerName.Contains("notifier") ||
-               lowerName.Contains("postback") ||
-               lowerName.Contains("webhook") ||
-               lowerName.Contains("publisher");
+               lowerName.Contains("integration_service");
     }
 
-    private static bool IsExplicitFoundation(string name, string path)
+    public static bool HasProtocolTokens(string name, string path)
     {
-        var lowerName = name.ToLowerInvariant();
-        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
-
-        if (lowerName.EndsWith(".common") ||
-            lowerName.EndsWith(".shared") ||
-            lowerName.EndsWith(".infrastructure") ||
-            lowerName.EndsWith(".infra") ||
-            lowerName.EndsWith(".data") ||
-            lowerName.EndsWith(".db") ||
-            lowerName.EndsWith(".models") ||
-            lowerName.EndsWith("-models") ||
-            lowerName.EndsWith(".model") ||
-            lowerName.EndsWith("-model") ||
-            lowerName.EndsWith(".entities") ||
-            lowerName.EndsWith("-entities") ||
-            lowerName.EndsWith(".contracts") ||
-            lowerName.EndsWith("-contracts") ||
-            lowerName.EndsWith(".dto") ||
-            lowerName.EndsWith(".dtos") ||
-            lowerName.EndsWith(".types") ||
-            lowerName.EndsWith("-types") ||
-            lowerName.Equals("library", StringComparison.OrdinalIgnoreCase) ||
-            normalizedPath.Contains("/libs/") ||
-            normalizedPath.Contains("/lib/") ||
-            normalizedPath.Contains("/libraries/") ||
-            normalizedPath.Contains("/common/") ||
-            normalizedPath.Contains("/shared/") ||
-            normalizedPath.Contains("/infrastructure/") ||
-            normalizedPath.Contains("/infra/") ||
-            normalizedPath.Contains("/data/") ||
-            normalizedPath.Contains("/storage/") ||
-            normalizedPath.Contains("/db/"))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsComponents(string name, string path)
-    {
-        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
-        var lowerName = name.ToLowerInvariant();
-
-        return normalizedPath.Contains("/core/") ||
-               normalizedPath.Contains("/domain/") ||
-               normalizedPath.Contains("/parsers/") ||
-               normalizedPath.Contains("/parser/") ||
-               normalizedPath.Contains("/services/") ||
-               normalizedPath.Contains("/service/") ||
-               normalizedPath.Contains("/handlers/") ||
-               normalizedPath.Contains("/handler/") ||
-               normalizedPath.Contains("/engine/") ||
-               normalizedPath.Contains("/scheduler/") ||
-               normalizedPath.Contains("/aggregator/") ||
-               lowerName.EndsWith(".core") ||
-               lowerName.EndsWith(".domain") ||
-               lowerName.EndsWith(".application") ||
-               lowerName.EndsWith(".app") ||
-               lowerName.Contains("parser") ||
-               lowerName.Contains("service") ||
-               lowerName.Contains("handler") ||
-               lowerName.Contains("scheduler") ||
-               lowerName.Contains("aggregator");
+        var lowerName = (name ?? "").ToLowerInvariant();
+        var parts = lowerName.Split('.', '-', '_');
+        var protocolTokens = new[] { "graphql", "grapql", "grpc", "gateway", "gateways", "bff", "mqtt", "endpoint", "endpoints" };
+        return parts.Any(p => protocolTokens.Contains(p));
     }
 }

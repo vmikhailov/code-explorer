@@ -63,6 +63,43 @@ public static class ProjectEntityClassifierRegistry
             dependencies ?? [],
             extensions ?? new Dictionary<string, string>());
 
+        // 1. Component Library Parsers (Angular, NestJS, React/Next, ASP.NET Core, etc.)
+        var componentProfile = Parser.Components.ComponentLibraryParserRegistry.AnalyzeProject(projectContext);
+        if (extensions is Dictionary<string, string> dict)
+        {
+            dict["component_capabilities"] = ((int)componentProfile.Capabilities).ToString();
+            dict["component_role"] = componentProfile.PrimaryRole.ToString();
+            dict["component_is_library"] = componentProfile.IsLibrary ? "true" : "false";
+
+            if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.UiLibrary)) dict["is_ui_library"] = "true";
+            if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.FrontendApp)) dict["is_frontend_app"] = "true";
+            if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.Scheduler)) dict["is_scheduler"] = "true";
+            if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.QueueWorker)) dict["is_queue_worker"] = "true";
+            if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.ApiGateway)) dict["is_api_gateway"] = "true";
+            if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.EgressClient)) dict["is_egress"] = "true";
+            if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.TestRunner)) dict["has_test_runner"] = "true";
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.TestFramework) dict["is_test_project"] = "true";
+            if (componentProfile.IsLibrary) dict["is_library"] = "true";
+
+            foreach (var (k, v) in componentProfile.Metadata)
+            {
+                dict[k] = v;
+            }
+        }
+
+        if (componentProfile.Capabilities != Parser.Components.ComponentCapabilities.None)
+        {
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.TestFramework) return ProjectClassification.Test;
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.CliFramework) return ProjectClassification.CliApp;
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.FrontendFramework) return ProjectClassification.WebApp;
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.UiComponentLibrary) return ProjectClassification.Library;
+            if (componentProfile.PrimaryRole is Parser.LibraryRole.Scheduler or Parser.LibraryRole.WorkerService) return ProjectClassification.Worker;
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.SharedLibrary) return ProjectClassification.Library;
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.WebService) return ProjectClassification.Service;
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.ApiGateway) return ProjectClassification.Service;
+        }
+
+        // 2. Inversion of Control: query the pluggable dialect parser for this language
         var dialectParser = Parser.WorkspaceIndexer.GetProjectParser(normType) ??
                             (!string.IsNullOrEmpty(projectType) ? Parser.WorkspaceIndexer.GetProjectParser(projectType) : null);
         if (dialectParser != null)
@@ -74,7 +111,7 @@ public static class ProjectEntityClassifierRegistry
             }
         }
 
-        // 2. Generic evidence-based fallback classifiers
+        // 3. Generic evidence-based fallback classifiers
         IProjectEntityClassifier[] snapshot;
         lock (_classifiers)
         {
