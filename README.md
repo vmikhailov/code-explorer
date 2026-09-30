@@ -36,7 +36,7 @@ It helps architects map event-driven systems, engineers refactor legacy services
 
 ---
 
-## What Makes CodeExplorer Unique?
+## What CodeExplorer does?
 
 *   **Interactive Visual Architecture**: Built directly into VS Code. Explore microservice topologies across 5 concentric architectural orbits, swimlanes, bounded context islands, hive plots, and C1/C2 project flow diagrams.
 *   **Interactive Orbit Customization**: Drag-and-drop reordering of orbit rings directly inside the legend. Adjust bezier curve routing factors (-200 to +200) to suit your layout.
