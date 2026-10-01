@@ -24,3 +24,15 @@ jobs:
 
       - name: Run test suite
         run: dotnet test cli/CodeExplorer.slnx -c Release --no-build
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test VS Code Extension
+        working-directory: ./vscode-extension
+        run: |
+          npm ci
+          npm run typecheck
+          npm run test

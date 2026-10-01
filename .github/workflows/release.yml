@@ -191,6 +191,12 @@ jobs:
         working-directory: ./vscode-extension
         run: npm ci
 
+      - name: Typecheck and Test Extension
+        working-directory: ./vscode-extension
+        run: |
+          npm run typecheck
+          npm run test
+
       - name: Build and Package Extension for all Platforms
         working-directory: ./vscode-extension
         run: |
