@@ -532,6 +532,12 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                           DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_ws_del);
                           DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_ws_del);
                           DELETE FROM nodes WHERE id IN (SELECT id FROM temp_ws_del);
+                          DELETE FROM file_registry WHERE lower(replace(relative_path, '\', '/')) = @normPath
+                                                       OR lower(replace(relative_path, '\', '/')) LIKE @normPathSlash
+                                                       OR (@hasRel = 1 AND (
+                                                           lower(replace(relative_path, '\', '/')) = @relPath
+                                                           OR lower(replace(relative_path, '\', '/')) LIKE @relPathSlash
+                                                       ));
 
                           DROP TABLE IF EXISTS temp_ws_del;
                           """;
@@ -598,6 +604,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                           DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_ws_del);
                           DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_ws_del);
                           DELETE FROM nodes WHERE id IN (SELECT id FROM temp_ws_del);
+                          DELETE FROM file_registry;
 
                           DROP TABLE IF EXISTS temp_ws_del;
                           """;

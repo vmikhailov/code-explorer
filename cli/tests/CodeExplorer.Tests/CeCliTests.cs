@@ -1,4 +1,6 @@
+using CodeExplorer.Commands;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Options;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -211,5 +213,88 @@ public class CeCliTests
         Assert.That(exit, Is.EqualTo(0));
         Assert.That(output, Does.Contain(longString));
         Assert.That(output, Does.Not.Contain("..."));
+    }
+
+    [Test]
+    public async Task CeTest_WhenNotInWorkspace_ReturnsErrorAndExitCode1()
+    {
+        var nonWs = Path.Combine(_tempDir, "EmptyNonWs");
+        Directory.CreateDirectory(nonWs);
+
+        var (exit, output, error) = await RunCliAsync("test", "-d", nonWs);
+
+        Assert.That(exit, Is.EqualTo(1));
+        var combined = output + error;
+        Assert.That(combined, Does.Contain("Error: No CodeExplorer workspace found"));
+    }
+
+    [Test]
+    public async Task CeTest_WhenWorkspaceNotIndexed_ReturnsErrorAndExitCode1()
+    {
+        // Directory with .codeexplorer folder but without graph.db
+        Directory.CreateDirectory(Path.Combine(_tempDir, WorkspaceLocator.FolderName));
+
+        var (exit, output, error) = await RunCliAsync("test", "-d", _tempDir);
+
+        Assert.That(exit, Is.EqualTo(1));
+        var combined = output + error;
+        Assert.That(combined, Does.Contain("database has not been initialized yet"));
+    }
+
+    [Test]
+    public void BaseCommandHandler_HasTarget_MatchesCandidateAliases()
+    {
+        Assert.That(BaseCommandHandler.HasTarget("context", "context", "bounded-context"), Is.True);
+        Assert.That(BaseCommandHandler.HasTarget("BOUNDED-CONTEXT", "context", "bounded-context"), Is.True);
+        Assert.That(BaseCommandHandler.HasTarget("  layers  ", "layers", "ontology"), Is.True);
+        Assert.That(BaseCommandHandler.HasTarget("other", "context", "bounded-context"), Is.False);
+        Assert.That(BaseCommandHandler.HasTarget(null, "context", "bounded-context"), Is.False);
+        Assert.That(BaseCommandHandler.HasTarget("   ", "context"), Is.False);
+
+        var viewOpts = new ViewOptions { Target = "context-map" };
+        Assert.That(viewOpts.HasTarget("context", "bounded-context", "context-map"), Is.True);
+        Assert.That(BaseCommandHandler.HasTarget(viewOpts.Target, "context-map"), Is.True);
+    }
+
+    [Test]
+    public void BaseCommandHandler_IsOneOf_And_IsFormat()
+    {
+        Assert.That(BaseCommandHandler.IsOneOf("coverage", "coverage", "test"), Is.True);
+        Assert.That(BaseCommandHandler.IsOneOf("Y", "y", "yes"), Is.True);
+        Assert.That(BaseCommandHandler.IsOneOf("no", "y", "yes"), Is.False);
+
+        Assert.That(BaseCommandHandler.IsFormat("JSON", "json"), Is.True);
+        Assert.That(BaseCommandHandler.IsJsonFormat("json"), Is.True);
+        Assert.That(BaseCommandHandler.IsJsonFormat("markdown", jsonFlag: true), Is.True);
+        Assert.That(BaseCommandHandler.IsJsonFormat("markdown", jsonFlag: false), Is.False);
+    }
+
+    [Test]
+    public void BaseCommandHandler_ParseList_SplitsAndCleansTokens()
+    {
+        var result = BaseCommandHandler.ParseList(" file1.cs, file2.ts ; file3.java ; ");
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.EqualTo(new[] { "file1.cs", "file2.ts", "file3.java" }));
+
+        Assert.That(BaseCommandHandler.ParseList(null), Is.Null);
+        Assert.That(BaseCommandHandler.ParseList("   "), Is.Null);
+        Assert.That(BaseCommandHandler.ParseList(";;,,"), Is.Null);
+    }
+
+    [Test]
+    public void BaseCommandHandler_FileHelpers_WorkCorrectly()
+    {
+        Assert.That(BaseCommandHandler.ContainsAny(new[] { "apple", "banana" }, "BANANA", "cherry"), Is.True);
+        Assert.That(BaseCommandHandler.ContainsAny(new[] { "apple", "banana" }, "cherry", "date"), Is.False);
+
+        Assert.That(BaseCommandHandler.HasExtension("foo/bar.cs", "cs", "ts"), Is.True);
+        Assert.That(BaseCommandHandler.HasExtension("foo/bar.CS", ".cs"), Is.True);
+        Assert.That(BaseCommandHandler.HasExtension("foo/bar.py", "cs", "ts"), Is.False);
+
+        Assert.That(BaseCommandHandler.HasAnyWithExtension(new[] { "foo.js", "bar.ts" }, "ts"), Is.True);
+        Assert.That(BaseCommandHandler.HasAnyWithExtension(new[] { "foo.js", "bar.ts" }, "py"), Is.False);
+
+        Assert.That(BaseCommandHandler.HasFileName("path/to/package.json", "package.json", "pom.xml"), Is.True);
+        Assert.That(BaseCommandHandler.HasFileName("path/to/other.txt", "package.json"), Is.False);
     }
 }

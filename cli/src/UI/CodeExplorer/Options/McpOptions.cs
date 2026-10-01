@@ -3,7 +3,7 @@ using CommandLine;
 namespace CodeExplorer.Options;
 
 [Verb("mcp", HelpText = "Starts the Model Context Protocol (MCP) server for the nearest workspace (stdio by default).")]
-public class McpOptions
+public class McpOptions : ITargetOption
 {
     [Value(0, MetaName = "action", Required = false, HelpText = "Optional action: 'configure', 'setup', or 'doctor'.")]
     public string? Action { get; set; }

@@ -5,28 +5,19 @@ using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
 
-public static class TraceCommandHandler
+public class TraceCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(TraceOptions opts)
     {
         var startService = opts.StartService;
         if (string.IsNullOrWhiteSpace(startService))
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("Error: Starting service is required (--from <service> or --service <service>).");
-            Console.ResetColor();
+            PrintError("Error: Starting service is required (--from <service> or --service <service>).");
             return 1;
         }
 
-        var targetDir = Path.GetFullPath(opts.Dir ?? Directory.GetCurrentDirectory());
-        var ws = WorkspaceLocator.Find(targetDir);
-        if (ws == null)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Error: No CodeExplorer workspace found at '{targetDir}'. Run 'ce init' first.");
-            Console.ResetColor();
-            return 1;
-        }
+        var ws = EnsureInitialized(opts.Dir, requireIndexed: true);
+        if (ws == null) return 1;
 
         await using var client = new SqliteGraphClient(ws.DbPath);
 

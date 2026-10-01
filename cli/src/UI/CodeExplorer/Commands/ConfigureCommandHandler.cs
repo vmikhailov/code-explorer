@@ -6,12 +6,12 @@ using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
 
-public static class ConfigureCommandHandler
+public class ConfigureCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(ConfigureOptions opts)
     {
         var wsRoot = opts.Root ?? WorkspaceLocator.Find()?.RootDirectory ?? Directory.GetCurrentDirectory();
-        var scope = opts.Scope.Equals("global", StringComparison.OrdinalIgnoreCase)
+        var scope = IsOneOf(opts.Scope, "global")
             ? ConfigScope.Global
             : ConfigScope.Workspace;
 
@@ -39,8 +39,7 @@ public static class ConfigureCommandHandler
             return RunInteractiveWizard(detected, wsRoot, scope, opts);
         }
 
-        if (target.Equals("all", StringComparison.OrdinalIgnoreCase) ||
-            target.Equals("auto", StringComparison.OrdinalIgnoreCase))
+        if (HasTarget(target, "all", "auto"))
         {
             var detected = ToolDetector.DetectInstalledTools(wsRoot);
             if (detected.Count == 0)
@@ -76,7 +75,7 @@ public static class ConfigureCommandHandler
 
     private static string? ResolveTarget(ConfigureOptions opts)
     {
-        if (string.Equals(opts.Category, "mcp", StringComparison.OrdinalIgnoreCase))
+        if (IsOneOf(opts.Category, "mcp"))
         {
             return opts.Target;
         }
@@ -118,7 +117,7 @@ public static class ConfigureCommandHandler
         );
 
         RuleResult? ruleResult = null;
-        var shouldHandleRules = (opts.Rules && !opts.NoRules) || opts.Remove;
+        var shouldHandleRules = opts is { Rules: true, NoRules: false } || opts.Remove;
         var ruleInfo = adapter.GetRuleConfigInfo(wsRoot);
         if (ruleInfo != null && shouldHandleRules)
         {
@@ -177,12 +176,12 @@ public static class ConfigureCommandHandler
         Console.Write("Select an option [A]: ");
 
         var input = Console.ReadLine()?.Trim();
-        if (string.IsNullOrEmpty(input) || input.Equals("A", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrEmpty(input) || IsOneOf(input, "A"))
         {
             return ConfigureMultiple(detected, wsRoot, scope, opts);
         }
 
-        if (input.Equals("Q", StringComparison.OrdinalIgnoreCase))
+        if (IsOneOf(input, "Q"))
         {
             Console.WriteLine("Operation cancelled.");
             return 0;
@@ -307,9 +306,9 @@ public static class ConfigureCommandHandler
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                UseShellExecute = false
+                UseShellExecute = false,
+                EnvironmentVariables = { ["WORKSPACE_ROOT"] = wsRoot }
             };
-            psi.EnvironmentVariables["WORKSPACE_ROOT"] = wsRoot;
 
             using var proc = Process.Start(psi);
             if (proc == null) return false;

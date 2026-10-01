@@ -271,7 +271,7 @@ public class CSharpParser : IProjectParser, IFileParser
 
             try
             {
-                var csFiles = Directory.GetFiles(directoryPath, "*.cs", SearchOption.AllDirectories);
+                var csFiles = WorkspaceFileFilter.EnumerateFiles(directoryPath, "*.cs");
                 foreach (var file in csFiles)
                 {
                     var fileName = Path.GetFileName(file);

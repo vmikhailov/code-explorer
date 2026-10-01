@@ -4,7 +4,7 @@ using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
 
-public static class ClearCommandHandler
+public class ClearCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(ClearOptions opts)
     {
@@ -34,8 +34,7 @@ public static class ClearCommandHandler
                 Console.ResetColor();
                 var answer = Console.ReadLine();
 
-                if (!string.Equals(answer?.Trim(), "y", StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(answer?.Trim(), "yes", StringComparison.OrdinalIgnoreCase))
+                if (!IsOneOf(answer?.Trim(), "y", "yes"))
                 {
                     Console.WriteLine("Operation cancelled.");
                     return 0;

@@ -440,27 +440,27 @@ public class IncrementalIndexingTests
         WorkspaceIndexer.Register(new CodeExplorer.Parser.Go.GoParser());
 
         // Files that MUST be recognized as candidate source files
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("bq-routes-calculation/test_env.js"), Is.True,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("bq-routes-calculation/test_env.js"), Is.True,
             "test_env.js should be recognized as a valid JavaScript file, not pruned as a test!");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("stage-worker/src/models/test_calculation.ts"), Is.True,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("stage-worker/src/models/test_calculation.ts"), Is.True,
             "test_calculation.ts should be recognized as a valid TypeScript file, not pruned as a test!");
 
         // Test files are now first-class candidate source files
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("tests/test_calculator.py"), Is.True,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("tests/test_calculator.py"), Is.True,
             "test_*.py should be included for test indexing");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/services/order.test.ts"), Is.True,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/services/order.test.ts"), Is.True,
             "*.test.ts should be included for test indexing");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/services/order.spec.js"), Is.True,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/services/order.spec.js"), Is.True,
             "*.spec.js should be included for test indexing");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("pkg/calc/calc_test.go"), Is.True,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("pkg/calc/calc_test.go"), Is.True,
             "*_test.go should be included for test indexing");
 
         // Non-source files and mocks that MUST be skipped
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/mocks/mock_service.ts"), Is.False,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/mocks/mock_service.ts"), Is.False,
             "mock files must be skipped");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/bundle.min.js"), Is.False,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/bundle.min.js"), Is.False,
             "minified files must be skipped");
-        Assert.That(WorkspaceIndexer.IsCandidateSourceFile("src/types.d.ts"), Is.False,
+        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/types.d.ts"), Is.False,
             "d.ts files must be skipped");
     }
 

@@ -5,19 +5,12 @@ using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
 
-public static class DependenciesCommandHandler
+public class DependenciesCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(DependenciesOptions opts)
     {
-        var targetDir = Path.GetFullPath(opts.Dir ?? Directory.GetCurrentDirectory());
-        var ws = WorkspaceLocator.Find(targetDir);
-        if (ws == null)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Error: No CodeExplorer workspace found at '{targetDir}'. Run 'ce init' first.");
-            Console.ResetColor();
-            return 1;
-        }
+        var ws = EnsureInitialized(opts.Dir, requireIndexed: true);
+        if (ws == null) return 1;
 
         await using var client = new SqliteGraphClient(ws.DbPath);
 

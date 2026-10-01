@@ -256,7 +256,7 @@ public class Layer2ProjectParser
                 {
                     try
                     {
-                        var subDirs = Directory.GetDirectories(libRoot, "*", SearchOption.AllDirectories);
+                        var subDirs = WorkspaceFileFilter.EnumerateDirectories(libRoot);
                         foreach (var subDir in subDirs)
                         {
                             var filesInSubDir = Directory.GetFiles(subDir);

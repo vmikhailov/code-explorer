@@ -187,16 +187,6 @@ public class WorkspaceIndexer
         await _dbClient.SetSchemaVersionAsync(SqliteGraphClient.CurrentSchemaVersion);
     }
 
-    private static readonly HashSet<string> ManifestFileNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "package.json", "pom.xml", "go.mod", "Cargo.toml", "Directory.Build.props", "Directory.Build.targets"
-    };
-
-    private static bool IsManifestFile(string fileName)
-    {
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        return ext is ".csproj" or ".fsproj" or ".vbproj" || ManifestFileNames.Contains(fileName);
-    }
 
     private async Task SyncFileRegistryAsync(
         List<Common.Nodes.Layer1_Physical.FileNode> files,
@@ -250,30 +240,40 @@ public class WorkspaceIndexer
             entries.Add((file.Path, hash, lastMod, file.Path, snapshotJson));
         });
 
-        // Register project manifests from project directories and workspace root
-        var projectDirs = projects.Select(p => Path.Combine(ctx.AbsoluteWorkspacePath, p.Path))
-            .Concat([ctx.AbsoluteWorkspacePath])
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+        // Register all project manifests across the workspace
+        var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath);
+        var candidateManifests = WorkspaceFileFilter.EnumerateCandidateFiles(ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, gitignore)
+            .Where(f => WorkspaceFileFilter.IsManifestFile(Path.GetFileName(f)));
 
-        foreach (var pDir in projectDirs)
+        foreach (var relPath in candidateManifests)
         {
-            if (!Directory.Exists(pDir)) continue;
-            foreach (var manifestPath in Directory.GetFiles(pDir).Where(f => IsManifestFile(Path.GetFileName(f))))
-            {
-                var relPath = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, manifestPath).Replace('\\', '/');
-                if (seen.ContainsKey(relPath)) continue;
-                seen.TryAdd(relPath, 0);
+            if (seen.ContainsKey(relPath)) continue;
+            seen.TryAdd(relPath, 0);
 
-                var lastMod = File.GetLastWriteTimeUtc(manifestPath);
-                var bytes = await File.ReadAllBytesAsync(manifestPath, ctx.CancellationToken);
-                var hash = Incremental.HashUtility.ComputeSha256(bytes);
-                _fileRegistry.UpdateEntry(relPath, hash, lastMod, relPath);
-                entries.Add((relPath, hash, lastMod, relPath, null));
-            }
+            var manifestPath = Path.Combine(ctx.AbsoluteWorkspacePath, relPath);
+            if (!File.Exists(manifestPath)) continue;
+
+            var lastMod = File.GetLastWriteTimeUtc(manifestPath);
+            var bytes = await File.ReadAllBytesAsync(manifestPath, ctx.CancellationToken);
+            var hash = Incremental.HashUtility.ComputeSha256(bytes);
+            _fileRegistry.UpdateEntry(relPath, hash, lastMod, relPath);
+            entries.Add((relPath, hash, lastMod, relPath, null));
         }
 
         ctx.Log($"[Incremental] Persisting {entries.Count} file registry metadata and snapshot entries to SQLite...");
         await _dbClient.SaveFileRegistryEntriesAsync(entries, ctx.CancellationToken);
+
+        // Prune stale entries that were deleted or are now ignored/excluded
+        var staleKeys = _fileRegistry.Entries.Select(e => e.Key).Where(k => !seen.ContainsKey(k)).ToList();
+        if (staleKeys.Count > 0)
+        {
+            ctx.Log($"[Incremental] Pruning {staleKeys.Count} obsolete file registry entries from SQLite...");
+            foreach (var k in staleKeys)
+            {
+                _fileRegistry.RemoveEntry(k);
+            }
+            await _dbClient.DeleteFileRegistryEntriesAsync(staleKeys, ctx.CancellationToken);
+        }
     }
 
     public Task<bool> IndexIncrementalAsync(
@@ -283,52 +283,6 @@ public class WorkspaceIndexer
         bool enableIntentAnalysis = false) =>
         IndexIncrementalAsync(workspacePath, workspaceRoot: null, cancellationToken, progress, enableIntentAnalysis);
 
-    public async Task WarmupSnapshotsAsync(
-        string targetPath,
-        string? workspaceRoot,
-        CancellationToken cancellationToken = default)
-    {
-        var root = string.IsNullOrWhiteSpace(workspaceRoot) ? targetPath : workspaceRoot;
-        var absoluteWorkspacePath = Path.GetFullPath(root).Replace('\\', '/');
-        var workspaceId = await _dbClient.GetOrCreateWorkspaceIdAsync(absoluteWorkspacePath);
-
-        var parallelOptions = new ParallelOptions
-        {
-            CancellationToken = cancellationToken,
-            MaxDegreeOfParallelism = Environment.ProcessorCount
-        };
-
-        var entriesToWarm = _fileRegistry.Entries.Where(e => !_fileRegistry.TryGetSnapshot(e.Key, out _)).ToList();
-        var warmed = 0;
-
-        await Parallel.ForEachAsync(entriesToWarm, parallelOptions, async (kv, ct) =>
-        {
-            var relPath = kv.Key;
-            var entry = kv.Value;
-            var fullPath = Path.Combine(absoluteWorkspacePath, relPath);
-            if (!File.Exists(fullPath)) return;
-
-            try
-            {
-                var snapshot = await TryBuildSnapshotAsync(
-                    fullPath, relPath, workspaceId, absoluteWorkspacePath, entry.ContentHash, entry.LastModifiedUtc, ct);
-                if (snapshot != null)
-                {
-                    _fileRegistry.SetSnapshot(relPath, snapshot);
-                    Interlocked.Increment(ref warmed);
-                }
-            }
-            catch
-            {
-                // Ignore parsing errors during background snapshot warmup
-            }
-        });
-
-        if (warmed > 0)
-        {
-            _logger.LogInformation("[Incremental] Pre-cached AST snapshots for {Count} files in parallel for incremental diffing.", warmed);
-        }
-    }
 
     public async Task<bool> IndexIncrementalAsync(
         string targetPath,
@@ -353,10 +307,12 @@ public class WorkspaceIndexer
             return true;
         }
 
-        var allFiles = Directory.EnumerateFiles(absoluteTargetPath, "*", SearchOption.AllDirectories)
-            .Where(IsCandidateSourceFile)
-            .Select(f => Path.GetRelativePath(absoluteWorkspacePath, f).Replace('\\', '/'))
-            .ToList();
+        var gitignore = new GitIgnoreMatcher(absoluteWorkspacePath);
+        var allFiles = WorkspaceFileFilter.EnumerateCandidateFiles(
+            absoluteTargetPath,
+            absoluteWorkspacePath,
+            gitignore,
+            msg => _logger.LogInformation("{Msg}", msg));
 
         var targetSubPath = string.Equals(absoluteTargetPath, absoluteWorkspacePath, StringComparison.OrdinalIgnoreCase)
             ? null
@@ -374,12 +330,7 @@ public class WorkspaceIndexer
             changeset.Added.Count, changeset.Modified.Count, changeset.Deleted.Count);
 
         var changedManifests = changeset.Added.Concat(changeset.Modified).Concat(changeset.Deleted)
-            .Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
-                        f.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
-                        f.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase) ||
-                        f.EndsWith("package.json", StringComparison.OrdinalIgnoreCase) ||
-                        f.EndsWith("pom.xml", StringComparison.OrdinalIgnoreCase) ||
-                        f.EndsWith("go.mod", StringComparison.OrdinalIgnoreCase))
+            .Where(f => WorkspaceFileFilter.IsManifestFile(Path.GetFileName(f)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -612,30 +563,6 @@ public class WorkspaceIndexer
         }
     }
 
-    public static bool IsCandidateSourceFile(string fullPath)
-    {
-        var normalized = fullPath.Replace('\\', '/');
-        var parts = normalized.Split('/');
-        for (var i = 0; i < parts.Length - 1; i++)
-        {
-            if (Layer1PhysicalParser.IsExcludedDirectory(parts[i]))
-                return false;
-        }
-
-        var fileName = Path.GetFileName(normalized);
-        if (Layer1PhysicalParser.ShouldSkipFileName(fileName))
-            return false;
-
-        var ext = Path.GetExtension(normalized).ToLowerInvariant();
-        var hasParser = _fileParsers.Any(p => p.CanParse(ext));
-        var isConfigFile = ConfigurationParser.IsConfigurationFile(fileName);
-        var isManifest = ext is ".csproj" or ".fsproj" or ".vbproj" ||
-                         fileName.Equals("package.json", StringComparison.OrdinalIgnoreCase) ||
-                         fileName.Equals("pom.xml", StringComparison.OrdinalIgnoreCase) ||
-                         fileName.Equals("go.mod", StringComparison.OrdinalIgnoreCase);
-
-        return hasParser || isConfigFile || isManifest;
-    }
 
     private async Task PrepareDatabaseAsync(ParsingContext ctx)
     {

@@ -4,28 +4,11 @@ namespace CodeExplorer.Core.Parser;
 
 public class GitIgnoreMatcher
 {
-    private static readonly string[] DefaultIgnorePatterns =
+    private static readonly string[] DefaultIgnoreFilePatterns =
     [
-        "node_modules/",
-        "bin/",
-        "obj/",
-        "packages/",
-        "dist/",
-        "build/",
-        ".Build/",
-        ".next/",
-        ".nuxt/",
-        ".output/",
-        "out/",
-        "coverage/",
-        ".git/",
-        ".github/",
-        ".turbo/",
-        ".cache/",
-        ".vscode/",
-        ".idea/",
-        ".vs/",
         "*.min.js",
+        "*.min.mjs",
+        "*.min.cjs",
         "*.min.css",
         "*.bundle.js",
         "*.bundle.min.js"
@@ -35,7 +18,12 @@ public class GitIgnoreMatcher
 
     public GitIgnoreMatcher(string workspaceRoot)
     {
-        foreach (var pattern in DefaultIgnorePatterns)
+        foreach (var dir in WorkspaceFileFilter.ExcludedDirectoryNames)
+        {
+            AddPattern(dir + "/");
+        }
+
+        foreach (var pattern in DefaultIgnoreFilePatterns)
         {
             AddPattern(pattern);
         }

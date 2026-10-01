@@ -6,19 +6,12 @@ using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
 
-public static class CoverageCommandHandler
+public class CoverageCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(CoverageOptions opts)
     {
-        var targetDir = Path.GetFullPath(opts.Dir ?? Directory.GetCurrentDirectory());
-        var ws = WorkspaceLocator.Find(targetDir);
-        if (ws == null)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Error: No CodeExplorer workspace found at '{targetDir}'. Run 'ce init' and 'ce index' first.");
-            Console.ResetColor();
-            return 1;
-        }
+        var ws = EnsureInitialized(opts.Dir, requireIndexed: true);
+        if (ws == null) return 1;
 
         await using var client = new SqliteGraphClient(ws.DbPath);
         var service = new TestIntelligenceService(client);
@@ -35,7 +28,7 @@ public static class CoverageCommandHandler
 
         var report = await service.AnalyzeCoverageAsync(filter);
 
-        if (string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase))
+        if (IsJsonFormat(opts.Format))
         {
             Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }

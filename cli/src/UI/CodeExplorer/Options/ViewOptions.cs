@@ -3,7 +3,7 @@ using CommandLine;
 namespace CodeExplorer.Options;
 
 [Verb("view", HelpText = "View architectural projections (C1 system context, C2 service flow, C3 component, domain map, tiered).")]
-public class ViewOptions
+public class ViewOptions : ITargetOption
 {
     [Value(0, MetaName = "target", Required = false, Default = "architecture", HelpText = "Target view to display ('architecture', 'layers', 'domain', 'context').")]
     public string Target { get; set; } = "architecture";

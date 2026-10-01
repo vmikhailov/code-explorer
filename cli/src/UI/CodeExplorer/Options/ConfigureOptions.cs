@@ -3,7 +3,7 @@ using CommandLine;
 namespace CodeExplorer.Options;
 
 [Verb("configure", HelpText = "Configure MCP servers and agent rules for AI tools (antigravity, cursor, claude, claude-code, windsurf, vscode, cline, zed, all).")]
-public class ConfigureOptions
+public class ConfigureOptions : ITargetOption
 {
     [Value(0, MetaName = "category", Required = false, HelpText = "Category to configure (e.g. 'mcp') or target tool directly.")]
     public string? Category { get; set; }

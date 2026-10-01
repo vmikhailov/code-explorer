@@ -6,22 +6,15 @@ using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
 
-public static class TestCommandHandler
+public class TestCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(TestOptions opts)
     {
-        var targetDir = Path.GetFullPath(opts.Dir ?? Directory.GetCurrentDirectory());
-        var ws = WorkspaceLocator.Find(targetDir);
-        if (ws == null)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Error: No CodeExplorer workspace found at '{targetDir}'. Run 'ce init' and 'ce index' first.");
-            Console.ResetColor();
-            return 1;
-        }
+        var ws = EnsureInitialized(opts.Dir, requireIndexed: true);
+        if (ws == null) return 1;
 
         // Check if user requested coverage subcommand via 'ce test coverage'
-        if (string.Equals(opts.Subcommand, "coverage", StringComparison.OrdinalIgnoreCase))
+        if (IsOneOf(opts.Subcommand, "coverage"))
         {
             var covOpts = new CoverageOptions
             {
@@ -38,17 +31,8 @@ public static class TestCommandHandler
         await using var client = new SqliteGraphClient(ws.DbPath);
         var service = new TestIntelligenceService(client);
 
-        var changedFiles = !string.IsNullOrWhiteSpace(opts.Files)
-            ? opts.Files.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries)
-                .Select(f => f.Trim())
-                .ToList()
-            : null;
-
-        var symbolNames = !string.IsNullOrWhiteSpace(opts.Symbols)
-            ? opts.Symbols.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .ToList()
-            : null;
+        var changedFiles = ParseList(opts.Files);
+        var symbolNames = ParseList(opts.Symbols);
 
         var gitBase = opts.GitBase;
         if (string.IsNullOrWhiteSpace(gitBase) && (opts.Git || (changedFiles == null && opts.Diff == null && symbolNames == null)))

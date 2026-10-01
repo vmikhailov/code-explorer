@@ -12,14 +12,13 @@ using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Commands;
 
-public static class McpCommandHandler
+public class McpCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(McpOptions opts)
     {
         if (!string.IsNullOrEmpty(opts.Action))
         {
-            if (opts.Action.Equals("configure", StringComparison.OrdinalIgnoreCase) ||
-                opts.Action.Equals("setup", StringComparison.OrdinalIgnoreCase))
+            if (IsOneOf(opts.Action, "configure", "setup"))
             {
                 var cfgOpts = new ConfigureOptions
                 {
@@ -29,7 +28,7 @@ public static class McpCommandHandler
                 return await ConfigureCommandHandler.HandleAsync(cfgOpts);
             }
 
-            if (opts.Action.Equals("doctor", StringComparison.OrdinalIgnoreCase))
+            if (IsOneOf(opts.Action, "doctor"))
             {
                 var cfgOpts = new ConfigureOptions
                 {

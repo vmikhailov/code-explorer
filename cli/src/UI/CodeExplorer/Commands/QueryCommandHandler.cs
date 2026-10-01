@@ -8,7 +8,7 @@ using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
 
-public static class QueryCommandHandler
+public class QueryCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(QueryOptions opts)
     {
@@ -157,7 +157,7 @@ public static class QueryCommandHandler
 
             var resultJson = await client.ExecuteQueryAsync(cypherQuery, parameters);
 
-            bool isJsonFormat = opts.Json || string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase);
+            bool isJsonFormat = IsJsonFormat(opts.Format, opts.Json);
 
             if (isJsonFormat)
             {
@@ -284,7 +284,7 @@ public static class QueryCommandHandler
             ? new ProjectQueryManager().ListQueries(ws.RootDirectory)
             : [];
 
-        if (string.Equals(opts.Format, "json", StringComparison.OrdinalIgnoreCase))
+        if (IsJsonFormat(opts.Format))
         {
             var jsonObject = new
             {

@@ -114,10 +114,18 @@ public class FileWatcher : IDisposable
         var parts = normalized.Split('/');
         foreach (var part in parts)
         {
-            if (part is ".git" or ".codeexplorer" or "bin" or "obj" or "node_modules" or ".Packages" or ".Build")
+            if (WorkspaceFileFilter.IsExcludedDirectory(part))
                 return true;
         }
-        return false;
+
+        var fileName = Path.GetFileName(normalized);
+        if (WorkspaceFileFilter.ShouldSkipFileName(fileName))
+            return true;
+
+        if (Directory.Exists(fullPath))
+            return false;
+
+        return !WorkspaceFileFilter.IsSupportedFileType(fileName);
     }
 
     public void Dispose()

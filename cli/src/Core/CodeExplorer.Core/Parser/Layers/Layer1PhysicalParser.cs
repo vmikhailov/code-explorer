@@ -113,6 +113,14 @@ public class Layer1PhysicalParser
         ParsingContext ctx)
     {
         ctx.CancellationToken.ThrowIfCancellationRequested();
+        var dirName = Path.GetFileName(currentDir);
+        if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
+
+        if (currentDir != ctx.AbsoluteWorkspacePath && WorkspaceFileFilter.IsExcludedDirectory(dirName))
+        {
+            return;
+        }
+
         var relativeDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
 
@@ -139,15 +147,7 @@ public class Layer1PhysicalParser
         var libmanPath = Path.Combine(currentDir, "libman.json");
         if (File.Exists(libmanPath))
         {
-            RegisterLibManExclusions(libmanPath, currentDir, ctx.AbsoluteWorkspacePath, gitignore, ctx);
-        }
-
-        var dirName = Path.GetFileName(currentDir);
-        if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
-
-        if (IsExcludedDirectory(dirName))
-        {
-            return;
+            WorkspaceFileFilter.RegisterLibManExclusions(libmanPath, currentDir, ctx.AbsoluteWorkspacePath, gitignore, ctx.Log);
         }
 
         var currentParentNode = parentNode;
@@ -185,7 +185,6 @@ public class Layer1PhysicalParser
         // Process files
         foreach (var fileInfo in dirInfo.GetFiles())
         {
-            var ext = fileInfo.Extension.ToLowerInvariant();
             var file = fileInfo.FullName;
             var relativeFile = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, file).Replace('\\', '/');
 
@@ -194,17 +193,13 @@ public class Layer1PhysicalParser
                 continue;
             }
 
-            var hasParser = WorkspaceIndexer._fileParsers.Any(p => p.CanParse(ext));
-            var isConfigFile = ConfigurationParser.IsConfigurationFile(fileInfo.Name);
-
-            if (!hasParser && !isConfigFile)
+            if (!WorkspaceFileFilter.IsSupportedSourceOrConfigFile(fileInfo.Name))
             {
                 continue;
             }
 
-            if (ShouldSkipFile(fileInfo))
+            if (WorkspaceFileFilter.ShouldSkipFile(fileInfo))
             {
-                // we skip test files for now
                 continue;
             }
 
@@ -218,161 +213,10 @@ public class Layer1PhysicalParser
         }
     }
 
-    public static readonly HashSet<string> ExcludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".git", ".github", ".vscode", ".idea", ".vs", ".go", "node_modules",
-        "bin", "obj", "packages", "dist", "build", ".build", ".next", ".nuxt",
-        ".turbo", ".cache", ".output", "out", "coverage", "scratch", "demo",
-        "vendor", "bower_components", "third_party", "thirdparty", "3rdparty",
-        ".codeexplorer", ".packages"
-    };
-
-    public static bool IsExcludedDirectory(string dirName) => ExcludedDirectoryNames.Contains(dirName);
-
-    private const long MaxSourceFileSize = 1_048_576; // 1 MB limit for AST parsing
-
-    public static bool ShouldSkipFileName(string fileName)
-    {
-        var fn = fileName.ToLowerInvariant();
-
-        // 1. Mocks and synthetic stubs
-        if (fn.Contains("mock")) return true;
-
-        // 2. Scratch, temporary, playground, and debug scratch files
-        if (fn.StartsWith("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||
-            fn.StartsWith("temp_") || fn.StartsWith("tmp_") ||
-            fn.EndsWith("_debug.ts") || fn.EndsWith("_debug.js") ||
-            fn.StartsWith("debug_") || fn.Contains("playground") || fn.Contains("scratchpad"))
-        {
-            return true;
-        }
-
-        // 3. TypeScript Ambient Declaration files (no executable code/endpoints/calls)
-        if (fn.EndsWith(".d.ts")) return true;
-
-        // 4. Minified, bundle, and vendor file conventions
-        if (fn.EndsWith(".min.js") || fn.EndsWith(".min.mjs") || fn.EndsWith(".min.cjs") ||
-            fn.EndsWith(".min.css") || fn.EndsWith(".bundle.js") || fn.EndsWith(".bundle.min.js")) return true;
-        if (fn.Contains(".min.")) return true;
-
-        return false;
-    }
-
-    private static bool ShouldSkipFile(FileInfo fileInfo)
-    {
-        if (ShouldSkipFileName(fileInfo.Name)) return true;
-
-        // 4. Oversized source files (> 1 MB are bundled distributions or generated data tables)
-        // FileInfo.Length is populated from DirectoryInfo enumeration, avoiding per-file system calls
-        try
-        {
-            if (fileInfo.Length > MaxSourceFileSize)
-            {
-                return true;
-            }
-        }
-        catch
-        {
-            // Ignore file access errors
-        }
-
-        // 5. Minification heuristic: check first 4KB for extremely long lines (> 2000 chars)
-        var fileName = fileInfo.Name.ToLowerInvariant();
-        if (fileName.EndsWith(".js") || fileName.EndsWith(".ts") || fileName.EndsWith(".css"))
-        {
-            if (IsMinifiedContent(fileInfo.FullName))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsMinifiedContent(string filePath)
-    {
-        try
-        {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-
-            using var reader = new StreamReader(stream);
-
-            var buffer = new char[8192];
-            var read = reader.Read(buffer, 0, buffer.Length);
-            if (read <= 0) return false;
-
-            var lineLen = 0;
-            var newlines = 0;
-
-            for (int i = 0; i < read; i++)
-            {
-                if (buffer[i] == '\n')
-                {
-                    newlines++;
-                    lineLen = 0;
-                }
-                else
-                {
-                    lineLen++;
-
-                    if (lineLen > 1000)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            if (lineLen > 1000) return true;
-
-            // Average line length heuristic: if read >= 4096 and fewer than 4 newlines (avg line > 1000 chars)
-            if (read >= 4096 && newlines <= 3) return true;
-        }
-        catch
-        {
-            // Fall through if file unreadable
-        }
-        return false;
-    }
-
-    private static void RegisterLibManExclusions(
-        string libmanPath,
-        string currentDir,
-        string workspaceRoot,
-        GitIgnoreMatcher gitignore,
-        ParsingContext ctx)
-    {
-        try
-        {
-            var content = File.ReadAllText(libmanPath);
-
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-
-            if (doc.RootElement.TryGetProperty("libraries", out var libs) &&
-                libs.ValueKind == System.Text.Json.JsonValueKind.Array)
-            {
-                foreach (var lib in libs.EnumerateArray())
-                {
-                    if (lib.TryGetProperty("destination", out var destProp) &&
-                        destProp.ValueKind == System.Text.Json.JsonValueKind.String)
-                    {
-                        var dest = destProp.GetString();
-
-                        if (!string.IsNullOrWhiteSpace(dest))
-                        {
-                            var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
-
-                            var relDest = Path.GetRelativePath(workspaceRoot, fullDest).Replace('\\', '/')
-                                .Trim('/');
-                            gitignore.AddPattern(relDest + "/");
-                            ctx.Log($"[Layer1] LibMan: Excluded library destination '{relDest}'");
-                        }
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            ctx.Log($"[Layer1] Error reading libman.json: {ex.Message}");
-        }
-    }
+    public static HashSet<string> ExcludedDirectoryNames => WorkspaceFileFilter.ExcludedDirectoryNames;
+    public static bool IsExcludedDirectory(string dirName) => WorkspaceFileFilter.IsExcludedDirectory(dirName);
+    public static bool IsSupportedFile(string fileName) => WorkspaceFileFilter.IsSupportedSourceOrConfigFile(fileName);
+    public static bool ShouldSkipFileName(string fileName) => WorkspaceFileFilter.ShouldSkipFileName(fileName);
+    public static bool ShouldSkipFile(FileInfo fileInfo) => WorkspaceFileFilter.ShouldSkipFile(fileInfo);
+    public static bool IsMinifiedContent(string filePath) => WorkspaceFileFilter.IsMinifiedContent(filePath);
 }

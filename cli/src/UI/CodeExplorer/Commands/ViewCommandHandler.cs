@@ -7,29 +7,21 @@ using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
 
-public static class ViewCommandHandler
+public class ViewCommandHandler : BaseCommandHandler
 {
     public static async Task<int> HandleAsync(ViewOptions opts)
     {
-        var targetDir = Path.GetFullPath(opts.Dir ?? Directory.GetCurrentDirectory());
-        var ws = WorkspaceLocator.Find(targetDir);
-        if (ws == null)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Error: No CodeExplorer workspace found at '{targetDir}'. Run 'ce init' first.");
-            Console.ResetColor();
-            return 1;
-        }
+        var ws = EnsureInitialized(opts.Dir, requireIndexed: true);
+        if (ws == null) return 1;
 
         await using var client = new SqliteGraphClient(ws.DbPath);
 
-        if (opts.Target.Equals("layers", StringComparison.OrdinalIgnoreCase) ||
-            opts.Target.Equals("ontology", StringComparison.OrdinalIgnoreCase))
+        if (HasTarget(opts.Target, "layers", "ontology"))
         {
             var engine = new ArchitectureViewEngine(client);
             var layersDto = await engine.GetOntologyLayersAsync();
 
-            if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
+            if (IsJsonFormat(opts.Format))
             {
                 Console.WriteLine(JsonSerializer.Serialize(layersDto,
                     new JsonSerializerOptions { WriteIndented = true }));
@@ -56,14 +48,11 @@ public static class ViewCommandHandler
         var repository = new CodeExplorerRepository(client, defaultWorkspacePath: ws.RootDirectory);
         string output;
 
-        if (opts.Target.Equals("contexts", StringComparison.OrdinalIgnoreCase) ||
-            opts.Target.Equals("bounded-contexts", StringComparison.OrdinalIgnoreCase) ||
-            opts.Target.Equals("context-map", StringComparison.OrdinalIgnoreCase))
+        if (HasTarget(opts.Target, "context", "contexts", "bounded-context", "bounded-contexts", "context-map"))
         {
             output = await repository.GetBoundedContextsAsync(format: opts.Format, workspacePath: ws.RootDirectory);
         }
-        else if (opts.Target.Equals("domain", StringComparison.OrdinalIgnoreCase) ||
-                 opts.Target.Equals("domains", StringComparison.OrdinalIgnoreCase))
+        else if (HasTarget(opts.Target, "domain", "domains"))
         {
             output = await repository.GetDomainArchitectureAsync(includeLibraries: opts.IncludeLibraries,
                 format: opts.Format, workspacePath: ws.RootDirectory);

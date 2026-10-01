@@ -749,8 +749,8 @@ public class SyntaxEnricher : ISyntaxEnricher
             }
 
             // 4. Also scan files in config folder for db.config.ts / data-source.ts / etc.
-            var configFiles = Directory.GetFiles(projectAbsDir, "*config*.ts", SearchOption.AllDirectories)
-                .Concat(Directory.GetFiles(projectAbsDir, "*datasource*.ts", SearchOption.AllDirectories))
+            var configFiles = WorkspaceFileFilter.EnumerateFiles(projectAbsDir, "*config*.ts")
+                .Concat(WorkspaceFileFilter.EnumerateFiles(projectAbsDir, "*datasource*.ts"))
                 .Take(10);
             foreach (var cfg in configFiles)
             {
@@ -917,7 +917,7 @@ public class SyntaxEnricher : ISyntaxEnricher
         {
             try
             {
-                var files = Directory.GetFiles(root, "*.csproj", SearchOption.AllDirectories);
+                var files = WorkspaceFileFilter.EnumerateFiles(root, "*.csproj");
                 var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var f in files)
                 {

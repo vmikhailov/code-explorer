@@ -3,7 +3,7 @@ using CommandLine;
 namespace CodeExplorer.Options;
 
 [Verb("domain", HelpText = "Manage architectural domains, metadata, and service-to-domain overrides.")]
-public class DomainOptions
+public class DomainOptions : ITargetOption
 {
     [Value(0, MetaName = "action", Required = false, HelpText = "Action to perform: 'list' (default), 'add', 'remove', 'assign', 'unassign'.")]
     public string? Action { get; set; } = "list";
