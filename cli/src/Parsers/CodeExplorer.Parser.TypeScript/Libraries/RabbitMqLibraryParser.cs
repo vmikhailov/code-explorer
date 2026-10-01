@@ -196,7 +196,7 @@ public class RabbitMqLibraryParser : ISemanticExtension
                 var right = assign.GetChildForField(TreeSitterSyntax.Fields.Right) ?? assign.Children.LastOrDefault();
                 if (right.IsValid())
                 {
-                    while (right.IsValid() && (right.Type is "await_expression" or "parenthesized_expression"))
+                    while (right.IsValid() && (right.Type is TreeSitterSyntax.Common.AwaitExpression or TreeSitterSyntax.Common.ParenthesizedExpression))
                     {
                         right = right.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "await" and not "(" and not ")");
                     }
@@ -243,19 +243,19 @@ public class RabbitMqLibraryParser : ISemanticExtension
     private static string? FindAssignedVariableName(Node node)
     {
         var curr = node.Parent;
-        while (curr.IsValid() && (curr.Type is "await_expression" or "parenthesized_expression"))
+        while (curr.IsValid() && (curr.Type is TreeSitterSyntax.Common.AwaitExpression or TreeSitterSyntax.Common.ParenthesizedExpression))
         {
             curr = curr.Parent;
         }
 
         if (curr.IsValid())
         {
-            if (curr.Type is "assignment_expression")
+            if (curr.Type is TreeSitterSyntax.TypeScript.AssignmentExpression)
             {
                 var left = curr.GetChildForField(TreeSitterSyntax.Fields.Left) ?? curr.Children.FirstOrDefault();
                 if (left.IsValid()) return left.Text;
             }
-            else if (curr.Type is "variable_declarator")
+            else if (curr.Type is TreeSitterSyntax.TypeScript.VariableDeclarator)
             {
                 var name = curr.GetChildForField(TreeSitterSyntax.Fields.Name) ?? curr.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Common.Identifier);
                 if (name.IsValid()) return name.Text;

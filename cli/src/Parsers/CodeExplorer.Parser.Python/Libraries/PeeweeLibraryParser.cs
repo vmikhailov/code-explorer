@@ -101,7 +101,7 @@ public class PeeweeLibraryParser : ISemanticExtension
                 if (text is "Model" or "peewee.Model" or "BaseModel")
                 {
                     var nameNode = node.GetChildFieldText(TreeSitterSyntax.Fields.Name);
-                    className = nameNode ?? node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier) || c.Type == "identifier")?.Text ?? string.Empty;
+                    className = nameNode ?? node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier))?.Text ?? string.Empty;
                     return !string.IsNullOrEmpty(className);
                 }
             }

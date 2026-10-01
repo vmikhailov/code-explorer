@@ -236,10 +236,10 @@ public class AspNetCoreLibraryParser : ISemanticExtension
 
     private static void ExtractPayloadSchemas(Node methodDecl, SyntacticSymbol symbol)
     {
-        var typeNode = methodDecl.GetField("returns")
+        var typeNode = methodDecl.GetField(TreeSitterSyntax.Fields.Returns)
                        ?? methodDecl.GetField(TreeSitterSyntax.Fields.Type)
-                       ?? methodDecl.GetField("return_type")
-                       ?? methodDecl.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, "predefined_type", "nullable_type", "generic_name", "type_identifier"));
+                       ?? methodDecl.GetField(TreeSitterSyntax.Fields.ReturnType)
+                       ?? methodDecl.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.CSharp.PredefinedType, TreeSitterSyntax.CSharp.NullableType));
         if (typeNode.IsValid())
         {
             var returnTypeText = CleanTypeName(typeNode.Text);
@@ -271,7 +271,7 @@ public class AspNetCoreLibraryParser : ISemanticExtension
                 }
 
                 var pType = param.GetField(TreeSitterSyntax.Fields.Type)
-                            ?? param.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, "predefined_type", "nullable_type", "generic_name", "type_identifier"));
+                            ?? param.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.CSharp.PredefinedType, TreeSitterSyntax.CSharp.NullableType));
                 if (pType.IsValid())
                 {
                     var pTypeName = CleanTypeName(pType.Text);

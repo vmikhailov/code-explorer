@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -14,23 +14,23 @@ public class SocketIoLibraryParser : ISemanticExtension
     public bool IsImplemented => true;
 
     private static readonly NodeSelector _socketOnSelector = NodeSelector.New()
-        .HasType("call_expression")
+        .HasType(TreeSitterSyntax.TypeScript.CallExpression)
         .FunctionNode
         .Where(NodeSelector.Or(
-            NodeSelector.New().HasType("identifier").Text("on"),
+            NodeSelector.New().HasType(TreeSitterSyntax.Common.Identifier).Text("on"),
             NodeSelector.New()
-                .HasType("member_expression")
-                .HasChild("property", NodeSelector.New().Text("on"))
+                .HasType(TreeSitterSyntax.TypeScript.MemberExpression)
+                .HasChild(TreeSitterSyntax.Fields.Property, NodeSelector.New().Text("on"))
         ));
 
     private static readonly NodeSelector _socketEmitSelector = NodeSelector.New()
-        .HasType("call_expression")
+        .HasType(TreeSitterSyntax.TypeScript.CallExpression)
         .FunctionNode
         .Where(NodeSelector.Or(
-            NodeSelector.New().HasType("identifier").Text("emit"),
+            NodeSelector.New().HasType(TreeSitterSyntax.Common.Identifier).Text("emit"),
             NodeSelector.New()
-                .HasType("member_expression")
-                .HasChild("property", NodeSelector.New().Text("emit"))
+                .HasType(TreeSitterSyntax.TypeScript.MemberExpression)
+                .HasChild(TreeSitterSyntax.Fields.Property, NodeSelector.New().Text("emit"))
         ));
 
     public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>

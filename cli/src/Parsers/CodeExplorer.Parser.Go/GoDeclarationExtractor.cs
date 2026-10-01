@@ -25,9 +25,10 @@ public static class GoDeclarationExtractor
             var valNode = node.GetChildForField(TreeSitterSyntax.Fields.Value) ??
                           node.Children.FirstOrDefault(c => c.Type is TreeSitterSyntax.Go.RawStringLiteral or
                                                                     TreeSitterSyntax.Go.InterpretedStringLiteral or
-                                                                    "expression_list" or "binary_expression");
+                                                                    TreeSitterSyntax.Go.ExpressionList or
+                                                                    TreeSitterSyntax.Common.BinaryExpression);
 
-            if (valNode.IsValid() && valNode.Type == "expression_list" && valNode.Children.Count > 0)
+            if (valNode.IsValid() && valNode.Type == TreeSitterSyntax.Go.ExpressionList && valNode.Children.Count > 0)
             {
                 valNode = valNode.Children[0];
             }

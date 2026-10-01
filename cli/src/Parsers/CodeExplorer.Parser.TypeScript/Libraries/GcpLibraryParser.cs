@@ -83,7 +83,7 @@ public class GcpLibraryParser : ISemanticExtension
             // If not found from receiver call or variable, check if arguments contain { topicName: ... } or topic argument
             if (string.IsNullOrEmpty(topic) && args.Count > 0)
             {
-                if (args[0].Is(TreeSitterSyntax.TypeScript.Object) || args[0].Type == "object")
+                if (args[0].Is(TreeSitterSyntax.TypeScript.Object))
                 {
                     if (AstHelper.TryGetObjectProperty(args[0], "topicName", out var tp) ||
                         AstHelper.TryGetObjectProperty(args[0], "topic", out tp))

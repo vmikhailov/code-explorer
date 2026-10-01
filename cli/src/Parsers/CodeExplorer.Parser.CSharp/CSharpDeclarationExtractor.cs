@@ -38,7 +38,7 @@ public static class CSharpDeclarationExtractor
 
             foreach (var child in node.Children)
             {
-                if (child.Type is "enum_member_declaration")
+                if (child.Type is TreeSitterSyntax.CSharp.EnumMemberDeclaration)
                 {
                     var memNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                                       child.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Common.Identifier);
@@ -130,6 +130,6 @@ public static class CSharpDeclarationExtractor
     private static bool HasAnyModifier(Node node, params string[] modifiers)
     {
         return node.Children.Any(c => modifiers.Contains(c.Text) || modifiers.Contains(c.Type)) ||
-               node.FindDescendantsOfType("modifier").Any(m => modifiers.Contains(m.Text));
+               node.FindDescendantsOfType(TreeSitterSyntax.CSharp.Modifier).Any(m => modifiers.Contains(m.Text));
     }
 }

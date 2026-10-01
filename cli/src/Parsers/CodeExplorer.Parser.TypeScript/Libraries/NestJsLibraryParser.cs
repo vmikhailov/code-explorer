@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -15,10 +15,10 @@ public class NestJsLibraryParser : ISemanticExtension
     public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly NodeSelector _decoratorEntryPointSelector = NodeSelector.New()
-        .HasType("decorator")
+        .HasType(TreeSitterSyntax.TypeScript.Decorator)
         .FirstChild
-        .HasType("call_expression")
-        .GetChildForField("function")
+        .HasType(TreeSitterSyntax.TypeScript.CallExpression)
+        .GetChildForField(TreeSitterSyntax.Fields.Function)
         .Text("Controller|Get|Post|Put|Delete|Patch|SubscribeMessage|Query|Mutation|Subscription|GrpcMethod|GrpcStreamMethod");
 
     private static readonly NodeSelector _decoratorCallFunctionSelector = NodeSelector.New()

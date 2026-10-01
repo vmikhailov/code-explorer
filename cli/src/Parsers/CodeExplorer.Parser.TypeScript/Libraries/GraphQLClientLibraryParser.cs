@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -30,10 +30,10 @@ public class GraphQLClientLibraryParser : ISemanticExtension
         // 1. new ApolloClient({ uri: '...' }) or new HttpLink({ uri: '...' }) or createClient({ url: '...' })
         if (node.Is(TreeSitterSyntax.TypeScript.NewExpression) || node.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
-            var func = node.GetField("constructor") ?? node.GetFunctionNode();
+            var func = node.GetField(TreeSitterSyntax.Fields.Constructor) ?? node.GetFunctionNode();
             if (!func.IsValid() || func.Text == "new")
             {
-                func = node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.Identifier, TreeSitterSyntax.TypeScript.MemberExpression, TreeSitterSyntax.Common.Identifier, "type_identifier"));
+                func = node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Common.Identifier, TreeSitterSyntax.TypeScript.MemberExpression, TreeSitterSyntax.Common.TypeIdentifier));
             }
 
             if (func.IsValid())

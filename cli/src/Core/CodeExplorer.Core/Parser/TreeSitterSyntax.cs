@@ -28,6 +28,11 @@ public static class TreeSitterSyntax
         public const string Path = "path";
         public const string Key = "key";
         public const string Operand = "operand";
+        public const string Returns = "returns";
+        public const string ReturnType = "return_type";
+        public const string Index = "index";
+        public const string Subscript = "subscript";
+        public const string ModuleName = "module_name";
     }
 
     public static class Common
@@ -46,6 +51,12 @@ public static class TreeSitterSyntax
         public const string IndexExpression = "index_expression";
         public const string Comment = "comment";
         public const string FunctionDeclaration = "function_declaration";
+        public const string AwaitExpression = "await_expression";
+        public const string ParenthesizedExpression = "parenthesized_expression";
+        public const string ClassDeclaration = "class_declaration";
+        public const string VariableName = "variable_name";
+        public const string Block = "block";
+        public const string MethodDeclaration = "method_declaration";
     }
 
     public static class CSharp
@@ -97,6 +108,14 @@ public static class TreeSitterSyntax
         public const string VariableName = "variable_name";
         public const string Const = "const";
         public const string Readonly = "readonly";
+        public const string EnumMemberDeclaration = "enum_member_declaration";
+        public const string Modifier = "modifier";
+        public const string Interpolation = "interpolation";
+        public const string InterpolatedStringText = "interpolated_string_text";
+        public const string ElementAccessExpression = "element_access_expression";
+        public const string BracketedArgumentList = "bracketed_argument_list";
+        public const string PredefinedType = "predefined_type";
+        public const string NullableType = "nullable_type";
     }
 
     public static class TypeScript
@@ -143,6 +162,13 @@ public static class TreeSitterSyntax
         public const string TaggedTemplateExpression = "tagged_template_expression";
         public const string EnumDeclaration = "enum_declaration";
         public const string Pair = "pair";
+        public const string EnumBody = "enum_body";
+        public const string EnumAssignment = "enum_assignment";
+        public const string Function = "function";
+        public const string GeneratorFunction = "generator_function";
+        public const string Constructor = "constructor";
+        public const string SubscriptExpression = "subscript_expression";
+        public const string ReturnStatement = "return_statement";
     }
 
     public static class Symbols
@@ -206,6 +232,9 @@ public static class TreeSitterSyntax
         public const string VariableName = "variable_name";
         public const string BinaryOperator = "binary_operator";
         public const string Subscript = "subscript";
+        public const string FormatString = "format_string";
+        public const string Block = "block";
+        public const string Module = "module";
     }
 
     public static class Java
@@ -251,5 +280,8 @@ public static class TreeSitterSyntax
         public const string AnnotationTypeBody = "annotation_type_body";
         public const string ElementValuePair = "element_value_pair";
         public const string ElementValueArrayInitializer = "element_value_array_initializer";
+        public const string EnumConstant = "enum_constant";
+        public const string Modifier = "modifier";
+        public const string ArrayAccess = "array_access";
     }
 }

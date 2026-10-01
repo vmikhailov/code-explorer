@@ -36,7 +36,7 @@ public static class JavaDeclarationExtractor
 
             foreach (var child in node.Children)
             {
-                if (child.Type is "enum_constant")
+                if (child.Type is TreeSitterSyntax.Java.EnumConstant)
                 {
                     var memNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                                       child.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Common.Identifier);
@@ -53,10 +53,10 @@ public static class JavaDeclarationExtractor
 
         if (type is TreeSitterSyntax.Java.FieldDeclaration)
         {
-            var isStaticFinal = node.FindDescendantsOfType("modifier").Any(m => m.Text is "static" or "final");
+            var isStaticFinal = node.FindDescendantsOfType(TreeSitterSyntax.Java.Modifier).Any(m => m.Text is "static" or "final");
             if (isStaticFinal)
             {
-                var declarators = node.FindDescendantsOfType("variable_declarator");
+                var declarators = node.FindDescendantsOfType(TreeSitterSyntax.Java.VariableDeclarator);
                 foreach (var decl in declarators)
                 {
                     var nameNode = decl.GetChildForField(TreeSitterSyntax.Fields.Name) ??

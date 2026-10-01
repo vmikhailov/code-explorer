@@ -166,7 +166,7 @@ public static class AstHelper
             }
         }
 
-        if (argNode.Is(TreeSitterSyntax.TypeScript.Object) || argNode.Type == "object")
+        if (argNode.Is(TreeSitterSyntax.TypeScript.Object))
         {
             if (TryGetObjectProperty(argNode, "topicName", out var tp) ||
                 TryGetObjectProperty(argNode, "topic", out tp) ||
@@ -360,7 +360,7 @@ public static class AstHelper
         }
 
         // 5. Object literal: { topicName: ... }
-        if (argNode.Is(TreeSitterSyntax.TypeScript.Object) || argNode.Type == "object")
+        if (argNode.Is(TreeSitterSyntax.TypeScript.Object))
         {
             if (TryGetObjectProperty(argNode, "topicName", out var tp) ||
                 TryGetObjectProperty(argNode, "topic", out tp) ||
@@ -755,20 +755,20 @@ public static class AstHelper
         var curr = node;
         while (curr.IsValid())
         {
-            if (curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) || curr.Type == "class_declaration" || curr.Type == "class_body")
+            if (curr.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassBody))
             {
-                var body = curr.Is("class_body") ? curr : curr.FindChildOfType("class_body") ?? curr;
+                var body = curr.Is(TreeSitterSyntax.TypeScript.ClassBody) ? curr : curr.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? curr;
                 foreach (var member in body.Children)
                 {
                     if (member.Type.Contains("field") || member.Type.Contains("property"))
                     {
                         var nameNode = member.GetField(TreeSitterSyntax.Fields.Name) ??
-                                       member.GetChildForField("name") ??
-                                       member.Children.FirstOrDefault(c => c.Is("property_identifier") || c.Is(TreeSitterSyntax.TypeScript.Identifier));
+                                       member.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                                       member.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.PropertyIdentifier, TreeSitterSyntax.TypeScript.Identifier));
                         if (nameNode.IsValid() && string.Equals(nameNode.Text, cleanProp, StringComparison.OrdinalIgnoreCase))
                         {
                             var valNode = member.GetField(TreeSitterSyntax.Fields.Value) ??
-                                          member.GetChildForField("value");
+                                          member.GetChildForField(TreeSitterSyntax.Fields.Value);
 
                             if (!valNode.IsValid())
                             {
@@ -781,7 +781,7 @@ public static class AstHelper
 
                             if (valNode.IsValid())
                             {
-                                if (valNode.Is("type_annotation") || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
+                                if (valNode.Is(TreeSitterSyntax.TypeScript.TypeAnnotation) || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
                                 {
                                     continue;
                                 }
@@ -858,22 +858,22 @@ public static class AstHelper
                 }
             }
 
-            if (curr.Is(TreeSitterSyntax.TypeScript.Program) || curr.Type == "program")
+            if (curr.Is(TreeSitterSyntax.TypeScript.Program))
             {
-                foreach (var classDecl in curr.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) || c.Type == "class_declaration"))
+                foreach (var classDecl in curr.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)))
                 {
-                    var body = classDecl.FindChildOfType("class_body") ?? classDecl;
+                    var body = classDecl.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? classDecl;
                     foreach (var member in body.Children)
                     {
                         if (member.Type.Contains("field") || member.Type.Contains("property"))
                         {
                             var nameNode = member.GetField(TreeSitterSyntax.Fields.Name) ??
-                                           member.GetChildForField("name") ??
-                                           member.Children.FirstOrDefault(c => c.Is("property_identifier") || c.Is(TreeSitterSyntax.TypeScript.Identifier));
+                                           member.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                                           member.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.PropertyIdentifier, TreeSitterSyntax.TypeScript.Identifier));
                             if (nameNode.IsValid() && string.Equals(nameNode.Text, cleanProp, StringComparison.OrdinalIgnoreCase))
                             {
                                 var valNode = member.GetField(TreeSitterSyntax.Fields.Value) ??
-                                              member.GetChildForField("value");
+                                              member.GetChildForField(TreeSitterSyntax.Fields.Value);
 
                                 if (!valNode.IsValid())
                                 {
@@ -886,7 +886,7 @@ public static class AstHelper
 
                                 if (valNode.IsValid())
                                 {
-                                    if (valNode.Is("type_annotation") || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
+                                    if (valNode.Is(TreeSitterSyntax.TypeScript.TypeAnnotation) || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
                                     {
                                         continue;
                                     }
@@ -949,14 +949,14 @@ public static class AstHelper
             if (mNode.Type.Contains("method") || mNode.Type.Contains("function"))
             {
                 var n = mNode.GetField(TreeSitterSyntax.Fields.Name) ??
-                        mNode.GetChildForField("name") ??
-                        mNode.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.Identifier) || c.Is("property_identifier"));
+                        mNode.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                        mNode.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.Identifier, TreeSitterSyntax.TypeScript.PropertyIdentifier));
                 if (n.IsValid() && string.Equals(n.Text, mName, StringComparison.OrdinalIgnoreCase))
                 {
                     var ret = FindReturnStatement(mNode);
                     if (ret.IsValid())
                     {
-                        var exprNode = ret.Children.LastOrDefault(c => c.IsValid() && c.Type != ";" && c.Type != "return");
+                        var exprNode = ret.Children.LastOrDefault(c => c.IsValid() && c.Type != ";" && c.Type != TreeSitterSyntax.Fields.Return);
                         if (exprNode.IsValid())
                         {
                             return ResolveTemplateExpression(mNode, exprNode.Text, d + 1);
@@ -971,7 +971,7 @@ public static class AstHelper
         {
             foreach (var ch in block.Children)
             {
-                if (ch.Type == "return_statement") return ch;
+                if (ch.Type == TreeSitterSyntax.TypeScript.ReturnStatement) return ch;
                 var nested = FindReturnStatement(ch);
                 if (nested.IsValid()) return nested;
             }

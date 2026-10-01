@@ -175,7 +175,7 @@ public class PythonFileVisitor : BaseParserVisitor
         }
         else if (node.Is(TreeSitterSyntax.Python.ImportFromStatement))
         {
-            var moduleNode = node.GetChildForField("module_name");
+            var moduleNode = node.GetChildForField(TreeSitterSyntax.Fields.ModuleName);
             if (!moduleNode.IsValid())
             {
                 moduleNode = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.DottedName));

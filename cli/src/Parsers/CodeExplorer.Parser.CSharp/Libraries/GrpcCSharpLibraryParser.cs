@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -42,10 +42,10 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
         symbol.OperationType = "Unary";
 
         // Response type from method return type
-        var typeNode = node.GetField("returns")
+        var typeNode = node.GetField(TreeSitterSyntax.Fields.Returns)
                        ?? node.GetField(TreeSitterSyntax.Fields.Type)
-                       ?? node.GetField("return_type")
-                       ?? node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, "predefined_type", "nullable_type", "generic_name", "type_identifier"));
+                       ?? node.GetField(TreeSitterSyntax.Fields.ReturnType)
+                       ?? node.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.CSharp.PredefinedType, TreeSitterSyntax.CSharp.NullableType));
         if (typeNode.IsValid())
         {
             var ret = CleanTypeName(typeNode.Text);
@@ -67,7 +67,7 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
             {
                 if (!param.Is(TreeSitterSyntax.CSharp.Parameter)) continue;
                 var pType = param.GetField(TreeSitterSyntax.Fields.Type)
-                            ?? param.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, "predefined_type", "nullable_type", "generic_name", "type_identifier"));
+                            ?? param.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.CSharp.PredefinedType, TreeSitterSyntax.CSharp.NullableType));
                 if (pType.IsValid())
                 {
                     var pText = pType.Text.Trim();

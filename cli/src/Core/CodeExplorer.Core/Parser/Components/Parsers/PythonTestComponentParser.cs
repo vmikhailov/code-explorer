@@ -45,10 +45,10 @@ public class PythonTestComponentParser : IComponentLibraryParser
 
         void WalkNode(TreeSitter.Node node)
         {
-            if (node.Is("function_definition"))
+            if (node.Is(TreeSitterSyntax.Python.FunctionDefinition))
             {
-                var funcName = node.GetChildForField("name")?.Text
-                               ?? node.FindChildOfType("identifier")?.Text;
+                var funcName = node.GetChildForField(TreeSitterSyntax.Fields.Name)?.Text
+                               ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text;
 
                 if (!string.IsNullOrEmpty(funcName) && (funcName.StartsWith("test_", StringComparison.OrdinalIgnoreCase) || hasTestsInFile))
                 {

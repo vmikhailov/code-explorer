@@ -27,7 +27,7 @@ namespace CodeExplorer.Core.Parser
                 func = firstChild.Id != IntPtr.Zero ? firstChild : null;
             }
 
-            while (func.IsValid() && (func.Type is "await_expression" or "parenthesized_expression"))
+            while (func.IsValid() && (func.Type is TreeSitterSyntax.Common.AwaitExpression or TreeSitterSyntax.Common.ParenthesizedExpression))
             {
                 var inner = func.Children.FirstOrDefault(c => c.IsValid() && c.Type != "await" && c.Type != "(" && c.Type != ")");
                 if (inner.IsValid())

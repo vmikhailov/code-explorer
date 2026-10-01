@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -150,7 +150,7 @@ public class HttpClientJavaLibraryParser : ISemanticExtension
                             return RouteDictionaryRegistry.NormalizeResolvedUrl(resolved);
                         }
                     }
-                    else if (child.Type is "binary_expression" or TreeSitterSyntax.Common.BinaryExpression)
+                    else if (child.Is(TreeSitterSyntax.Common.BinaryExpression))
                     {
                         var left = child.GetField(TreeSitterSyntax.Fields.Left) ?? (child.Children.Count >= 1 ? child.Children[0] : null);
                         if (left.IsValid() && left.IsAny(TreeSitterSyntax.Java.StringLiteral, TreeSitterSyntax.Java.TextBlock))
@@ -201,7 +201,7 @@ public class HttpClientJavaLibraryParser : ISemanticExtension
                                     {
                                         return valNode.Text.Trim('"');
                                     }
-                                    if (valNode.Type is "binary_expression" or TreeSitterSyntax.Common.BinaryExpression)
+                                    if (valNode.Is(TreeSitterSyntax.Common.BinaryExpression))
                                     {
                                         var left = valNode.GetChildForField(TreeSitterSyntax.Fields.Left) ??
                                                    (valNode.Children.Count > 0 ? valNode.Children[0] : null);

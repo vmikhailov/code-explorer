@@ -190,7 +190,7 @@ public static class GoAstHelper
         // 5. Index expression / Map lookup: routes["GET_USER"]
         if (argNode.Type is TreeSitterSyntax.Common.IndexExpression)
         {
-            var indexNode = argNode.GetField("index") ?? (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
+            var indexNode = argNode.GetField(TreeSitterSyntax.Fields.Index) ?? (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
 
             if (indexNode.IsValid())
             {

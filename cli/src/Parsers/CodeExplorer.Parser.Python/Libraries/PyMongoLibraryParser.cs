@@ -69,14 +69,14 @@ public class PyMongoLibraryParser : ISemanticExtension
     private static string? ExtractCollectionName(Node? objNode)
     {
         if (!objNode.IsValid()) return null;
-        if (objNode.Is(TreeSitterSyntax.Python.Attribute) || objNode.Type == "attribute")
+        if (objNode.Is(TreeSitterSyntax.Python.Attribute))
         {
             return objNode.GetChildFieldText(TreeSitterSyntax.Fields.Property) ??
-                   objNode.Children.LastOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier) || c.Type == "identifier")?.Text;
+                   objNode.Children.LastOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier))?.Text;
         }
-        if (objNode.Is(TreeSitterSyntax.Python.Subscript) || objNode.Type == "subscript")
+        if (objNode.Is(TreeSitterSyntax.Python.Subscript))
         {
-            var sub = objNode.GetField("subscript") ?? (objNode.Children.Count >= 3 ? objNode.Children[2] : null);
+            var sub = objNode.GetField(TreeSitterSyntax.Fields.Subscript) ?? (objNode.Children.Count >= 3 ? objNode.Children[2] : null);
             if (sub.IsValid())
             {
                 var resolved = PythonAstHelper.ResolveStringOrVariable(sub);
@@ -84,7 +84,7 @@ public class PyMongoLibraryParser : ISemanticExtension
                 return sub.Text.Trim('\'', '"');
             }
         }
-        if (objNode.Is(TreeSitterSyntax.Python.Identifier) || objNode.Type == "identifier")
+        if (objNode.Is(TreeSitterSyntax.Python.Identifier))
         {
             var text = objNode.Text;
             if (text is not "db" and not "client" and not "self")

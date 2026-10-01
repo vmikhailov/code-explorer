@@ -48,7 +48,7 @@ public class JavaTestComponentParser : IComponentLibraryParser
             if (node.Is(TreeSitterSyntax.Java.MethodDeclaration))
             {
                 var isTest = isTestFile;
-                var annotations = node.FindChildrenOfType("marker_annotation");
+                var annotations = node.FindChildrenOfType(TreeSitterSyntax.Java.MarkerAnnotation);
                 foreach (var a in annotations)
                 {
                     if (a.Text.Contains("Test", StringComparison.OrdinalIgnoreCase))
@@ -60,8 +60,8 @@ public class JavaTestComponentParser : IComponentLibraryParser
 
                 if (isTest)
                 {
-                    var methodName = node.GetChildForField("name")?.Text
-                                     ?? node.FindChildOfType("identifier")?.Text;
+                    var methodName = node.GetChildForField(TreeSitterSyntax.Fields.Name)?.Text
+                                     ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text;
 
                     var startRow = node.StartPosition.Row;
                     MarkMatchingFunction(syntaxTree.FileNode, methodName, startRow, "junit", result);

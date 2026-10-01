@@ -22,12 +22,12 @@ public static class TypeScriptDeclarationExtractor
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
             var enumName = nameNode.IsValid() ? nameNode.Text : "Enum";
 
-            var body = node.FindChildOfType("enum_body");
+            var body = node.FindChildOfType(TreeSitterSyntax.TypeScript.EnumBody);
             if (body.IsValid())
             {
                 foreach (var child in body.Children)
                 {
-                    if (child.Type is "enum_assignment" or TreeSitterSyntax.TypeScript.PropertyIdentifier)
+                    if (child.Type is TreeSitterSyntax.TypeScript.EnumAssignment or TreeSitterSyntax.TypeScript.PropertyIdentifier)
                     {
                         var prop = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                                    child.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.TypeScript.PropertyIdentifier);
@@ -66,9 +66,9 @@ public static class TypeScriptDeclarationExtractor
                     if (valNode.IsValid())
                     {
                         // Handle const Objects: const Topics = { OrderCreated: "...", ... }
-                        if (valNode.Type is TreeSitterSyntax.TypeScript.Object or "object")
+                        if (valNode.Type is TreeSitterSyntax.TypeScript.Object)
                         {
-                            foreach (var pair in valNode.Children.Where(c => c.Type is TreeSitterSyntax.TypeScript.Pair or "pair"))
+                            foreach (var pair in valNode.Children.Where(c => c.Type is TreeSitterSyntax.TypeScript.Pair))
                             {
                                 var keyNode = pair.GetChildForField(TreeSitterSyntax.Fields.Key) ?? pair.Children[0];
                                 var pairValNode = pair.GetChildForField(TreeSitterSyntax.Fields.Value) ?? pair.Children[^1];
@@ -95,7 +95,9 @@ public static class TypeScriptDeclarationExtractor
                     TreeSitterSyntax.TypeScript.MethodDefinition or
                     TreeSitterSyntax.TypeScript.ArrowFunction or
                     TreeSitterSyntax.TypeScript.StatementBlock or
-                    "function" or "generator_function" or "constructor")
+                    TreeSitterSyntax.TypeScript.Function or
+                    TreeSitterSyntax.TypeScript.GeneratorFunction or
+                    TreeSitterSyntax.TypeScript.Constructor)
         {
             return;
         }

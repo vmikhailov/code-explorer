@@ -59,16 +59,16 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
 
         void WalkNode(TreeSitter.Node node)
         {
-            if (node.Is("call_expression"))
+            if (node.Is(TreeSitterSyntax.Common.CallExpression))
             {
-                var func = node.GetChildForField("function") ?? node.Children.FirstOrDefault(c => c.IsValid());
+                var func = node.GetChildForField(TreeSitterSyntax.Fields.Function) ?? node.Children.FirstOrDefault(c => c.IsValid());
                 if (func.IsValid())
                 {
                     var funcName = func.Text;
                     if (TestFunctions.Contains(funcName))
                     {
                         hasTestsInFile = true;
-                        var args = node.GetChildForField("arguments") ?? node.FindChildOfType("arguments");
+                        var args = node.GetChildForField(TreeSitterSyntax.Fields.Arguments) ?? node.FindChildOfType(TreeSitterSyntax.Common.Arguments);
                         var testTitle = "";
                         if (args.IsValid() && args.Children.Count > 1)
                         {

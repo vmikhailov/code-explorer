@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -97,10 +97,10 @@ public class HotChocolateLibraryParser : ISemanticExtension
         if (parentDecl.IsValid() && parentDecl.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
         {
             // Response type
-            var typeNode = parentDecl.GetField("returns")
+            var typeNode = parentDecl.GetField(TreeSitterSyntax.Fields.Returns)
                            ?? parentDecl.GetField(TreeSitterSyntax.Fields.Type)
-                           ?? parentDecl.GetField("return_type")
-                           ?? parentDecl.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, "predefined_type", "nullable_type", "generic_name", "type_identifier"));
+                           ?? parentDecl.GetField(TreeSitterSyntax.Fields.ReturnType)
+                           ?? parentDecl.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.CSharp.PredefinedType, TreeSitterSyntax.CSharp.NullableType));
             if (typeNode.IsValid())
             {
                 var ret = CleanTypeName(typeNode.Text);
@@ -119,7 +119,7 @@ public class HotChocolateLibraryParser : ISemanticExtension
                 {
                     if (!param.Is(TreeSitterSyntax.CSharp.Parameter)) continue;
                     var pType = param.GetField(TreeSitterSyntax.Fields.Type)
-                                ?? param.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, "predefined_type", "nullable_type", "generic_name", "type_identifier"));
+                                ?? param.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.GenericName, TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.CSharp.QualifiedName, TreeSitterSyntax.CSharp.PredefinedType, TreeSitterSyntax.CSharp.NullableType));
                     if (pType.IsValid())
                     {
                         var pTypeName = CleanTypeName(pType.Text);

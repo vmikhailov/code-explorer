@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -16,18 +16,18 @@ public class FetchLibraryParser : ISemanticExtension
     public bool IsBuiltIn => true;   // fetch is available without import in browsers/Node 18+
 
     private static readonly NodeSelector _fetchCallSelector = NodeSelector.New()
-        .HasType("call_expression")
+        .HasType(TreeSitterSyntax.TypeScript.CallExpression)
         .FunctionNode
         .Where(NodeSelector.Or(
-            NodeSelector.New().HasType("identifier").Text("fetch|nodeFetch|got|superagent|restRequest|apiClient"),
+            NodeSelector.New().HasType(TreeSitterSyntax.Common.Identifier).Text("fetch|nodeFetch|got|superagent|restRequest|apiClient"),
             NodeSelector.New()
-                .HasType("member_expression")
-                .HasChild("object", NodeSelector.New().Text("got|superagent|request|http|https|api|client"))
-                .HasChild("property", NodeSelector.New().Text("get|post|put|delete|request|patch|head"))
+                .HasType(TreeSitterSyntax.TypeScript.MemberExpression)
+                .HasChild(TreeSitterSyntax.Fields.Object, NodeSelector.New().Text("got|superagent|request|http|https|api|client"))
+                .HasChild(TreeSitterSyntax.Fields.Property, NodeSelector.New().Text("get|post|put|delete|request|patch|head"))
         ));
 
     private static readonly NodeSelector _callFirstStringArgSelector = NodeSelector.New()
-        .GetChildForField("arguments")
+        .GetChildForField(TreeSitterSyntax.Fields.Arguments)
         .FirstChild;
 
     public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>

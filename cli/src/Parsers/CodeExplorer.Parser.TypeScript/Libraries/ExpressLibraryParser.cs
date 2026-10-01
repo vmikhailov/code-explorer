@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -15,15 +15,15 @@ public class ExpressLibraryParser : ISemanticExtension
     public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly NodeSelector _expressRouteSelector = NodeSelector.New()
-        .HasType("call_expression")
+        .HasType(TreeSitterSyntax.TypeScript.CallExpression)
         .FunctionNode
-        .HasType("member_expression")
-        .HasChild("object", NodeSelector.New().TextContains("app|router|express"))
-        .HasChild("property", NodeSelector.New().Text("get|post|put|delete|patch|options|head|all"));
+        .HasType(TreeSitterSyntax.TypeScript.MemberExpression)
+        .HasChild(TreeSitterSyntax.Fields.Object, NodeSelector.New().TextContains("app|router|express"))
+        .HasChild(TreeSitterSyntax.Fields.Property, NodeSelector.New().Text("get|post|put|delete|patch|options|head|all"));
 
     private static readonly NodeSelector _expressRouteMethodSelector = NodeSelector.New()
         .FunctionNode
-        .GetChildForField("property");
+        .GetChildForField(TreeSitterSyntax.Fields.Property);
 
     public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
     {

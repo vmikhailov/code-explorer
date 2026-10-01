@@ -46,7 +46,7 @@ public static class AstValueResolver
         var type = node.Type;
 
         // 1. Direct String Literals (only if it does not contain interpolation substitutions)
-        var hasInterpolationChildren = node.Children.Any(c => c.IsValid() && c.Type is "interpolation" or "template_substitution");
+        var hasInterpolationChildren = node.Children.Any(c => c.IsValid() && c.Type is TreeSitterSyntax.CSharp.Interpolation or TreeSitterSyntax.TypeScript.TemplateSubstitution);
         if (!hasInterpolationChildren && (IsStringLiteralType(type) || (node.Children.Count == 0 && IsQuoted(node.Text))))
         {
             result = Unquote(node.Text);
@@ -62,7 +62,7 @@ public static class AstValueResolver
         }
 
         // 2b. Argument / Attribute Argument wrapper: unwrap inner expression
-        if (type is "argument" or "attribute_argument")
+        if (type is TreeSitterSyntax.Common.Argument or TreeSitterSyntax.CSharp.AttributeArgument)
         {
             var exprChild = node.GetChildForField(TreeSitterSyntax.Fields.Expression) ??
                             node.Children.FirstOrDefault(c => c.IsValid() && c.Type is not ":" and not "," and not "identifier");
@@ -77,7 +77,7 @@ public static class AstValueResolver
         }
 
         // 2c. Equals value clause: unwrap inner expression
-        if (type is TreeSitterSyntax.CSharp.EqualsValueClause or "equals_value_clause")
+        if (type is TreeSitterSyntax.CSharp.EqualsValueClause)
         {
             var valChild = node.GetField(TreeSitterSyntax.Fields.Value) ??
                            node.Children.LastOrDefault(c => c.IsValid() && c.Type != "=");
@@ -88,7 +88,7 @@ public static class AstValueResolver
         }
 
         // 3. Parenthesized Expression: unwrap inner
-        if (type is "parenthesized_expression")
+        if (type is TreeSitterSyntax.Common.ParenthesizedExpression)
         {
             for (int i = 0; i < node.Children.Count; i++)
             {
@@ -101,9 +101,9 @@ public static class AstValueResolver
         }
 
         // 4. Binary Expressions (String Concatenation: Left + Right)
-        if (type is "binary_expression" or "binary_operator")
+        if (type is TreeSitterSyntax.Common.BinaryExpression or TreeSitterSyntax.Python.BinaryOperator)
         {
-            var op = node.GetChildForField("operator")?.Text ??
+            var op = node.GetChildForField(TreeSitterSyntax.Fields.Operator)?.Text ??
                      node.Children.FirstOrDefault(c => c.Type is "+" or ".")?.Text;
 
             if (op == "+" || op == ".")
@@ -150,7 +150,7 @@ public static class AstValueResolver
                     TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression or
                     TreeSitterSyntax.CSharp.InterpolatedRawStringExpression or
                     TreeSitterSyntax.TypeScript.TemplateString or
-                    "interpolated_string_expression" or "template_string" or "format_string")
+                    TreeSitterSyntax.Python.FormatString)
         {
             var sb = new System.Text.StringBuilder();
             var allResolved = true;
@@ -163,7 +163,7 @@ public static class AstValueResolver
                 var cType = child.Type;
                 if (cType is "$\"" or "@$\"" or "$@\"" or "\"" or "\"\"\"" or "`" or "f\"" or "f'" or "'" or "f" or "string_start" or "string_end" or "interpolation_start") continue;
 
-                if (cType is "interpolation" or "template_substitution")
+                if (cType is TreeSitterSyntax.CSharp.Interpolation or TreeSitterSyntax.TypeScript.TemplateSubstitution)
                 {
                     // Find expression child inside { ... } or ${ ... }
                     var expr = child.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "{" and not "}" and not "${" and not "interpolation_brace");
@@ -272,22 +272,26 @@ public static class AstValueResolver
         }
 
         // 8. Subscript / Element Access (config["Key"], _configuration["Key"], process.env["KEY"])
-        if (type is "subscript_expression" or "element_access_expression" or "bracket_expression" or
-                    TreeSitterSyntax.Python.Subscript or "index_expression" or "array_access")
+        if (type is TreeSitterSyntax.TypeScript.SubscriptExpression or
+                    TreeSitterSyntax.CSharp.ElementAccessExpression or
+                    "bracket_expression" or
+                    TreeSitterSyntax.Python.Subscript or
+                    TreeSitterSyntax.Common.IndexExpression or
+                    TreeSitterSyntax.Java.ArrayAccess)
         {
             Node? argNode = null;
-            var bracketList = node.FindChildOfType("bracketed_argument_list");
+            var bracketList = node.FindChildOfType(TreeSitterSyntax.CSharp.BracketedArgumentList);
             if (bracketList.IsValid())
             {
-                var arg = bracketList.FindChildOfType("argument") ?? bracketList.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "[" and not "]");
+                var arg = bracketList.FindChildOfType(TreeSitterSyntax.Common.Argument) ?? bracketList.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "[" and not "]");
                 if (arg.IsValid())
                 {
-                    argNode = (arg.Type == "argument" && arg.Children.Count > 0) ? arg.Children[0] : arg;
+                    argNode = (arg.Type == TreeSitterSyntax.Common.Argument && arg.Children.Count > 0) ? arg.Children[0] : arg;
                 }
             }
             else
             {
-                argNode = node.GetChildForField("index") ?? node.GetChildForField("subscript");
+                argNode = node.GetChildForField(TreeSitterSyntax.Fields.Index) ?? node.GetChildForField(TreeSitterSyntax.Fields.Subscript);
                 if (!argNode.IsValid())
                 {
                     argNode = node.Children.LastOrDefault(c => c.IsValid() && c.Type is not "[" and not "]" and not ")" and not "(");
@@ -360,8 +364,7 @@ public static class AstValueResolver
 
         // 10. Plain Identifier: Check ConstantRegistry first, then scope reaching definition
         if (type is TreeSitterSyntax.Common.Identifier or TreeSitterSyntax.Common.TypeIdentifier or
-                    TreeSitterSyntax.CSharp.VariableName or TreeSitterSyntax.TypeScript.VariableName or
-                    TreeSitterSyntax.Go.VariableName or TreeSitterSyntax.Python.VariableName)
+                    TreeSitterSyntax.Common.VariableName)
         {
             var varName = node.Text;
 
@@ -469,7 +472,7 @@ public static class AstValueResolver
                                 var valNode = decl.GetField(TreeSitterSyntax.Fields.Value);
                                 if (valNode.IsValid())
                                 {
-                                    if (valNode.Is(TreeSitterSyntax.CSharp.EqualsValueClause) || valNode.Type == "equals_value_clause")
+                                    if (valNode.Is(TreeSitterSyntax.CSharp.EqualsValueClause))
                                     {
                                         var inner = valNode.GetField(TreeSitterSyntax.Fields.Value) ??
                                                     valNode.Children.LastOrDefault(c => c.IsValid() && c.Type != "=");
@@ -553,9 +556,8 @@ public static class AstValueResolver
 
         while (curr.IsValid())
         {
-            if (curr.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration,
-                           TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.TypeScript.ClassDeclaration,
-                           TreeSitterSyntax.Java.ClassDeclaration, TreeSitterSyntax.Python.ClassDefinition))
+            if (curr.IsAny(TreeSitterSyntax.Common.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration,
+                           TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.Python.ClassDefinition))
             {
                 foreach (var child in curr.Children)
                 {
@@ -580,7 +582,7 @@ public static class AstValueResolver
                         var nameNode = child.GetField(TreeSitterSyntax.Fields.Name);
                         if (nameNode.IsValid() && (nameNode.Text == fieldName || nameNode.Text.TrimStart('_') == cleanField))
                         {
-                            var arrow = child.FindChildOfType("arrow_expression_clause");
+                            var arrow = child.FindChildOfType(TreeSitterSyntax.CSharp.ArrowExpressionClause);
                             if (arrow.IsValid() && arrow.Children.Count > 1) return arrow.Children[1];
                         }
                     }
@@ -607,28 +609,22 @@ public static class AstValueResolver
     }
 
     private static bool IsScopeBoundary(string type) =>
-        type is TreeSitterSyntax.CSharp.Block or
-                TreeSitterSyntax.CSharp.MethodDeclaration or
+        type is TreeSitterSyntax.Common.Block or
+                TreeSitterSyntax.Common.MethodDeclaration or
                 TreeSitterSyntax.CSharp.LocalFunctionStatement or
                 TreeSitterSyntax.CSharp.CompilationUnit or
                 TreeSitterSyntax.TypeScript.StatementBlock or
-                TreeSitterSyntax.TypeScript.FunctionDeclaration or
+                TreeSitterSyntax.Common.FunctionDeclaration or
                 TreeSitterSyntax.TypeScript.ArrowFunction or
                 TreeSitterSyntax.TypeScript.Program or
-                TreeSitterSyntax.Go.Block or
-                TreeSitterSyntax.Go.FunctionDeclaration or
-                TreeSitterSyntax.Python.FunctionDefinition or
-                TreeSitterSyntax.Java.Block or
-                TreeSitterSyntax.Java.MethodDeclaration;
+                TreeSitterSyntax.Python.FunctionDefinition;
 
     private static bool IsStringLiteralType(string type) =>
         type is TreeSitterSyntax.Common.String or
                 TreeSitterSyntax.Common.StringLiteral or
-                TreeSitterSyntax.CSharp.StringLiteral or
                 TreeSitterSyntax.CSharp.VerbatimStringLiteral or
                 TreeSitterSyntax.Go.RawStringLiteral or
                 TreeSitterSyntax.Go.InterpretedStringLiteral or
-                TreeSitterSyntax.Java.StringLiteral or
                 TreeSitterSyntax.Java.TextBlock;
 
     public static bool IsQuoted(string text)

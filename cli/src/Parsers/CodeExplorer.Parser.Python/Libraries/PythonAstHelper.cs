@@ -125,7 +125,7 @@ public static class PythonAstHelper
             var steps = 0;
             while (curr.IsValid() && ++steps <= maxScopeSteps)
             {
-                if (curr.IsAny("block", TreeSitterSyntax.Python.FunctionDefinition, TreeSitterSyntax.Python.ClassDefinition, "module"))
+                if (curr.IsAny(TreeSitterSyntax.Python.Block, TreeSitterSyntax.Python.FunctionDefinition, TreeSitterSyntax.Python.ClassDefinition, TreeSitterSyntax.Python.Module))
                 {
                     foreach (var child in curr.Children)
                     {
@@ -202,10 +202,10 @@ public static class PythonAstHelper
         if (!callNode.Is(TreeSitterSyntax.Python.Call)) return false;
 
         var func = callNode.GetFunctionNode();
-        if (func.IsValid() && (func.Is(TreeSitterSyntax.Python.Attribute) || func.Type == "attribute"))
+        if (func.IsValid() && func.Is(TreeSitterSyntax.Python.Attribute))
         {
             methodName = func.GetChildFieldText(TreeSitterSyntax.Fields.Property) ??
-                         func.Children.LastOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier) || c.Type == "identifier")?.Text;
+                         func.Children.LastOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier))?.Text;
             objNode = func.GetField(TreeSitterSyntax.Fields.Object) ?? func.Children.FirstOrDefault();
             return !string.IsNullOrEmpty(methodName);
         }
@@ -218,12 +218,12 @@ public static class PythonAstHelper
         if (!argList.IsValid()) return null;
         foreach (var child in argList.Children)
         {
-            if (child.Type == "keyword_argument")
+            if (child.Type == TreeSitterSyntax.Python.KeywordArgument)
             {
-                var nameNode = child.GetField("name") ?? (child.Children.Count > 0 ? child.Children[0] : null);
+                var nameNode = child.GetField(TreeSitterSyntax.Fields.Name) ?? (child.Children.Count > 0 ? child.Children[0] : null);
                 if (nameNode.IsValid() && nameNode.Text == argName)
                 {
-                    return child.GetField("value") ?? (child.Children.Count > 2 ? child.Children[2] : null);
+                    return child.GetField(TreeSitterSyntax.Fields.Value) ?? (child.Children.Count > 2 ? child.Children[2] : null);
                 }
             }
         }
@@ -246,9 +246,9 @@ public static class PythonAstHelper
         if (positionalIndex >= 0 && positionalIndex < args.Count)
         {
             var arg = args[positionalIndex];
-            if (arg.Type == "keyword_argument")
+            if (arg.Type == TreeSitterSyntax.Python.KeywordArgument)
             {
-                var valNode = arg.GetField("value") ?? (arg.Children.Count > 2 ? arg.Children[2] : null);
+                var valNode = arg.GetField(TreeSitterSyntax.Fields.Value) ?? (arg.Children.Count > 2 ? arg.Children[2] : null);
                 var resolved = ResolveStringOrVariable(valNode);
                 if (!string.IsNullOrEmpty(resolved)) return resolved;
                 return valNode?.Text.Trim('\'', '"');

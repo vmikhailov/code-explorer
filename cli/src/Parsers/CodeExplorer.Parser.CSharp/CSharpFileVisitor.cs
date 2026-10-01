@@ -185,11 +185,11 @@ public class CSharpFileVisitor : BaseParserVisitor
             var sb = new System.Text.StringBuilder();
             foreach (var child in node.Children)
             {
-                if (child.Type == "interpolated_string_text")
+                if (child.Type == TreeSitterSyntax.CSharp.InterpolatedStringText)
                 {
                     sb.Append(child.Text);
                 }
-                else if (child.Type == "interpolation")
+                else if (child.Type == TreeSitterSyntax.CSharp.Interpolation)
                 {
                     var expr = child.Children.FirstOrDefault(c => c.Text != "{" && c.Text != "}");
                     if (expr.IsValid())
