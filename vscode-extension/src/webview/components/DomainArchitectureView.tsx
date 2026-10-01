@@ -220,6 +220,44 @@ export interface SelectedNodeDetail {
   tierLabel?: string;
 }
 
+export interface ConnectionDetailItem {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  targetId: string;
+  targetName: string;
+  category: 'service_call' | 'database' | 'messaging' | 'external';
+  kind: string;
+  label: string;
+  count: number;
+  isTransitive: boolean;
+  viaNames?: string[];
+}
+
+export interface SelectedEdgeDetail {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  sourceKind: EntityKind;
+  sourceTag: string;
+  sourceBgColor: string;
+  targetId: string;
+  targetName: string;
+  targetKind: EntityKind;
+  targetTag: string;
+  targetBgColor: string;
+  isBidirectional: boolean;
+  hasForward: boolean;
+  hasReverse: boolean;
+  totalInteractions: number;
+  directCallsCount: number;
+  messagingCount: number;
+  transitiveCount: number;
+  dbCount: number;
+  primaryCategory: 'service_call' | 'database' | 'messaging' | 'external' | 'mixed';
+  items: ConnectionDetailItem[];
+}
+
 export type DomainNodeDetail = SelectedNodeDetail;
 
 // Cytoscape stylesheets matching the circular Neo4j / graph ontology styling
@@ -365,6 +403,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'line-style': 'solid',
       'line-color': '#38bdf8',
       'target-arrow-color': '#38bdf8',
+      'source-arrow-color': '#38bdf8',
     },
   },
   {
@@ -373,6 +412,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'line-style': 'solid',
       'line-color': '#c084fc',
       'target-arrow-color': '#c084fc',
+      'source-arrow-color': '#c084fc',
     },
   },
   {
@@ -382,6 +422,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'line-dash-pattern': [6, 4],
       'line-color': '#fbbf24',
       'target-arrow-color': '#fbbf24',
+      'source-arrow-color': '#fbbf24',
     },
   },
   {
@@ -390,6 +431,35 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'line-style': 'solid',
       'line-color': '#34d399',
       'target-arrow-color': '#34d399',
+      'source-arrow-color': '#34d399',
+    },
+  },
+  {
+    selector: 'edge[category = "mixed"]',
+    style: {
+      'line-style': 'solid',
+      'line-color': '#38bdf8',
+      'target-arrow-color': '#38bdf8',
+      'source-arrow-color': '#38bdf8',
+    },
+  },
+  // Bidirectional & Unidirectional Edge Arrow Shapes
+  {
+    selector: 'edge[isBidirectional = "true"]',
+    style: {
+      'source-arrow-shape': 'triangle',
+      'target-arrow-shape': 'triangle',
+      'source-arrow-fill': 'filled',
+      'target-arrow-fill': 'filled',
+      'arrow-scale': 1.6,
+    },
+  },
+  {
+    selector: 'edge[isBidirectional = "false"]',
+    style: {
+      'source-arrow-shape': 'none',
+      'target-arrow-shape': 'triangle',
+      'arrow-scale': 1.6,
     },
   },
   // Explicit Direct Edges
@@ -422,8 +492,14 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'width': 3.5,
       'opacity': 1,
       'z-index': 999,
-      'target-arrow-shape': 'triangle',
       'arrow-scale': 2.3,
+    },
+  },
+  {
+    selector: 'edge.highlighted[isBidirectional = "true"], edge:selected[isBidirectional = "true"]',
+    style: {
+      'source-arrow-shape': 'triangle',
+      'target-arrow-shape': 'triangle',
     },
   },
   // Hovered Edge
@@ -433,8 +509,14 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'width': 3.5,
       'opacity': 1,
       'z-index': 998,
-      'target-arrow-shape': 'triangle',
       'arrow-scale': 2.3,
+    },
+  },
+  {
+    selector: 'edge.hovered[isBidirectional = "true"]',
+    style: {
+      'source-arrow-shape': 'triangle',
+      'target-arrow-shape': 'triangle',
     },
   },
   // Edge Label Hover-Only Mode: Hide label by default
@@ -457,6 +539,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     style: {
       'line-color': '#38bdf8',
       'target-arrow-color': '#38bdf8',
+      'source-arrow-color': '#38bdf8',
     },
   },
   {
@@ -464,6 +547,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     style: {
       'line-color': '#c084fc',
       'target-arrow-color': '#c084fc',
+      'source-arrow-color': '#c084fc',
     },
   },
   {
@@ -473,6 +557,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'line-dash-pattern': [8, 5],
       'line-color': '#fbbf24',
       'target-arrow-color': '#fbbf24',
+      'source-arrow-color': '#fbbf24',
     },
   },
   {
@@ -480,6 +565,15 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     style: {
       'line-color': '#34d399',
       'target-arrow-color': '#34d399',
+      'source-arrow-color': '#34d399',
+    },
+  },
+  {
+    selector: 'edge[category = "mixed"].highlighted, edge[category = "mixed"]:selected',
+    style: {
+      'line-color': '#38bdf8',
+      'target-arrow-color': '#38bdf8',
+      'source-arrow-color': '#38bdf8',
     },
   },
   // Transitive Edges MUST retain dashed style and dash pattern in Highlighted & Selected states
@@ -944,6 +1038,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const selectedNodeRef = useRef<SelectedNodeDetail | null>(null);
   selectedNodeRef.current = selectedNode;
 
+  const [selectedEdge, setSelectedEdge] = useState<SelectedEdgeDetail | null>(null);
+  const selectedEdgeRef = useRef<SelectedEdgeDetail | null>(null);
+  selectedEdgeRef.current = selectedEdge;
+  const edgeDetailMapRef = useRef<Map<string, SelectedEdgeDetail>>(new Map());
+
   const highlightOrbitNodes = useCallback((nodeIds: string[]) => {
     const cy = cyRef.current;
     if (!cy || nodeIds.length === 0) return;
@@ -1379,10 +1478,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         dbUsage.get(srcDomain)!.add(tgtDomain);
       } else if (isTopicEdge) {
         cat = 'messaging';
+        const isPub = edge.kind === 'PUBLISHES_TO' || edge.kind === 'PUBLISHED_BY' || edge.kind === 'PUBLISHES';
         const isSub =
-          edge.kind === 'SUBSCRIBES_TO' ||
-          edge.kind === 'SUBSCRIBED_BY' ||
-          (topicNodes.has(srcDomain) && !topicNodes.has(tgtDomain));
+          !isPub &&
+          (edge.kind === 'SUBSCRIBES_TO' ||
+            edge.kind === 'SUBSCRIBED_BY' ||
+            edge.kind === 'SUBSCRIBES' ||
+            (topicNodes.has(srcDomain) && !topicNodes.has(tgtDomain)));
         label = isSub ? 'SUBSCRIBES' : 'PUBLISHES';
 
         const tDomain = topicNodes.has(tgtDomain) ? tgtDomain : srcDomain;
@@ -1839,51 +1941,62 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     const visibleNodes = rawGraph.allNodes.filter((n) => !hiddenNodeIdSet.has(n.data.id as string));
     const visibleNodeIds = new Set<string>(visibleNodes.map((n) => n.data.id as string));
 
-    // Direct edges between visible nodes
-    const visibleEdges: cytoscape.ElementDefinition[] = [];
-    const directVisibleEdgeKeys = new Set<string>();
+    // Collect all interactions between connected node pairs (deduplicating parallel lines)
+    interface RawInteraction {
+      source: string;
+      target: string;
+      category: 'service_call' | 'database' | 'messaging' | 'external';
+      kind: string;
+      label: string;
+      count: number;
+      isTransitive: boolean;
+      viaNames?: string[];
+    }
 
+    const pairInteractionsMap = new Map<string, RawInteraction[]>();
+    const getPairKey = (u: string, v: string) => (u < v ? `${u}--${v}` : `${v}--${u}`);
+
+    const recordInteraction = (item: RawInteraction) => {
+      const pKey = getPairKey(item.source, item.target);
+      let list = pairInteractionsMap.get(pKey);
+      if (!list) {
+        list = [];
+        pairInteractionsMap.set(pKey, list);
+      }
+      const viaKey = (item.viaNames || []).join('>');
+      const existing = list.find(
+        (x) =>
+          x.source === item.source &&
+          x.target === item.target &&
+          x.category === item.category &&
+          x.kind === item.kind &&
+          (x.viaNames || []).join('>') === viaKey
+      );
+      if (existing) {
+        existing.count += item.count;
+      } else {
+        list.push(item);
+      }
+    };
+
+    // 1. Direct edges between visible nodes
+    const directVisibleEdgeKeys = new Set<string>();
     for (const e of rawGraph.rawEdges) {
       if (visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)) {
-        visibleEdges.push({
-          group: 'edges',
-          data: {
-            id: e.id,
-            source: e.source,
-            target: e.target,
-            category: e.category,
-            label: e.count > 1 ? `${e.label} (${e.count})` : e.label,
-            count: e.count,
-            isTransitive: 'false',
-          },
+        recordInteraction({
+          source: e.source,
+          target: e.target,
+          category: e.category,
+          kind: e.label || 'CALLS',
+          label: e.label,
+          count: e.count,
+          isTransitive: false,
         });
         directVisibleEdgeKeys.add(`${e.source}->${e.target}`);
       }
     }
 
-    // Directional Transitive Contraction (u -> hidden... -> v)
-    interface TransitivePath {
-      curr: string;
-      viaNames: string[];
-      category: 'service_call' | 'database' | 'messaging' | 'external';
-      label: string;
-      count: number;
-      depth: number;
-    }
-
-    const transitiveEdgesMap = new Map<
-      string,
-      {
-        source: string;
-        target: string;
-        category: 'service_call' | 'database' | 'messaging' | 'external';
-        label: string;
-        count: number;
-        viaNames: string[];
-      }
-    >();
-
-    // A. Contract hidden Topic nodes: connecting subscribers to publishers
+    // 2. Contract hidden Topic nodes: connecting publishers to subscribers
     for (const topicId of hiddenNodeIdSet) {
       if (!rawGraph.topicPublishers.has(topicId) && !rawGraph.topicSubscribers.has(topicId)) continue;
       const pubs = rawGraph.topicPublishers.get(topicId) || new Set<string>();
@@ -1895,35 +2008,27 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         for (const s of subs) {
           if (p === s) continue;
           if (visibleNodeIds.has(s) && visibleNodeIds.has(p)) {
-            // Direct edge takes precedence
-            if (directVisibleEdgeKeys.has(`${s}->${p}`)) continue;
+            // Direct edge takes precedence if already directly connected in this direction
+            if (directVisibleEdgeKeys.has(`${p}->${s}`)) continue;
 
-            const transKey = `${s}->${p}:messaging`;
-            const existing = transitiveEdgesMap.get(transKey);
-            if (existing) {
-              existing.count += 1;
-              if (!existing.viaNames.includes(tName)) {
-                existing.viaNames.push(tName);
-              }
-            } else {
-              transitiveEdgesMap.set(transKey, {
-                source: s,
-                target: p,
-                category: 'messaging',
-                label: 'SUBSCRIBES',
-                count: 1,
-                viaNames: [tName],
-              });
-            }
+            recordInteraction({
+              source: p,
+              target: s,
+              category: 'messaging',
+              kind: 'PUBLISHES_TO',
+              label: `Topic: ${tName}`,
+              count: 1,
+              isTransitive: true,
+              viaNames: [tName],
+            });
           }
         }
       }
     }
 
-    // B. Direct service-to-service pub/sub chords (when no visible topic connects them)
+    // 3. Direct service-to-service pub/sub chords (when no visible topic connects them)
     for (const chord of rawGraph.directPubSubChords.values()) {
       if (visibleNodeIds.has(chord.source) && visibleNodeIds.has(chord.target)) {
-        // Check if there is an active visible topic connecting them
         const hasVisibleTopic = Array.from(rawGraph.topicPublishers.keys()).some(
           (tId) =>
             visibleNodeIds.has(tId) &&
@@ -1934,22 +2039,30 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         );
 
         if (!hasVisibleTopic) {
-          const transKey = `${chord.source}->${chord.target}:messaging`;
-          if (!directVisibleEdgeKeys.has(`${chord.source}->${chord.target}`) && !transitiveEdgesMap.has(transKey)) {
-            transitiveEdgesMap.set(transKey, {
-              source: chord.source,
-              target: chord.target,
-              category: 'messaging',
-              label: chord.label,
-              count: chord.count,
-              viaNames: ['event-bus'],
-            });
-          }
+          recordInteraction({
+            source: chord.source,
+            target: chord.target,
+            category: 'messaging',
+            kind: chord.label,
+            label: `${chord.label} (event-bus)`,
+            count: chord.count,
+            isTransitive: true,
+            viaNames: ['event-bus'],
+          });
         }
       }
     }
 
-    // C. General Hidden-Node BFS for multi-hop service/worker/infrastructure chains
+    // 4. General Hidden-Node BFS for multi-hop service/worker/infrastructure chains
+    interface TransitivePath {
+      curr: string;
+      viaNames: string[];
+      category: 'service_call' | 'database' | 'messaging' | 'external';
+      label: string;
+      count: number;
+      depth: number;
+    }
+
     for (const u of visibleNodeIds) {
       const queue: TransitivePath[] = [];
       const visitedHidden = new Set<string>();
@@ -1976,7 +2089,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         const item = queue[qIdx++];
         if (item.depth > 6) continue;
 
-        // If current hidden node is a topic, downstream nodes are its subscribers
         const isTopic = rawGraph.topicSubscribers.has(item.curr);
         const nextHops: Array<{ target: string; category: any; label: string; count: number }> = isTopic
           ? Array.from(rawGraph.topicSubscribers.get(item.curr) || []).map((sub) => ({
@@ -1989,33 +2101,24 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
         for (const nextEdge of nextHops) {
           const v = nextEdge.target;
-          if (v === u) continue; // Skip self loops
+          if (v === u) continue;
 
           if (visibleNodeIds.has(v)) {
-            // Direct edge takes precedence
             if (directVisibleEdgeKeys.has(`${u}->${v}`)) {
               continue;
             }
 
-            const transKey = `${u}->${v}`;
-            const existing = transitiveEdgesMap.get(transKey);
-            if (existing) {
-              existing.count += nextEdge.count;
-              for (const via of item.viaNames) {
-                if (!existing.viaNames.includes(via)) {
-                  existing.viaNames.push(via);
-                }
-              }
-            } else {
-              transitiveEdgesMap.set(transKey, {
-                source: u,
-                target: v,
-                category: nextEdge.category,
-                label: nextEdge.label || item.label,
-                count: Math.max(item.count, nextEdge.count),
-                viaNames: [...item.viaNames],
-              });
-            }
+            const viaStr = item.viaNames.slice(0, 2).join(' ➔ ');
+            recordInteraction({
+              source: u,
+              target: v,
+              category: nextEdge.category,
+              kind: nextEdge.label || item.label,
+              label: `${nextEdge.label || item.label} (via ${viaStr})`,
+              count: Math.max(item.count, nextEdge.count),
+              isTransitive: true,
+              viaNames: [...item.viaNames],
+            });
           } else if (hiddenNodeIdSet.has(v) && !visitedHidden.has(v)) {
             visitedHidden.add(v);
             const vDetail = rawGraph.detailMap.get(v);
@@ -2033,24 +2136,131 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
 
-    // Append dashed transitive edges
-    for (const [key, t] of transitiveEdgesMap.entries()) {
-      const viaStr = t.viaNames.slice(0, 2).join(', ') + (t.viaNames.length > 2 ? '...' : '');
-      const transLabel = `${t.label} (via ${viaStr})`;
+    // 5. Synthesize Exactly One Bundled Edge Per Connected Pair {u, v}
+    const visibleEdges: cytoscape.ElementDefinition[] = [];
+    const edgeDetailMap = new Map<string, SelectedEdgeDetail>();
+
+    for (const [pairKey, interactions] of pairInteractionsMap.entries()) {
+      if (interactions.length === 0) continue;
+
+      const parts = pairKey.split('--');
+      const nodeU = parts[0];
+      const nodeV = parts[1];
+
+      const hasUtoV = interactions.some((i) => i.source === nodeU && i.target === nodeV);
+      const hasVtoU = interactions.some((i) => i.source === nodeV && i.target === nodeU);
+      const isBidirectional = hasUtoV && hasVtoU;
+
+      const edgeSource = hasUtoV ? nodeU : nodeV;
+      const edgeTarget = hasUtoV ? nodeV : nodeU;
+
+      const hasServiceCall = interactions.some((i) => i.category === 'service_call');
+      const hasMessaging = interactions.some((i) => i.category === 'messaging');
+      const hasDatabase = interactions.some((i) => i.category === 'database');
+      const allTransitive = interactions.every((i) => i.isTransitive);
+
+      let edgeCategory: 'service_call' | 'database' | 'messaging' | 'external' | 'mixed';
+      if (hasServiceCall && hasMessaging) {
+        edgeCategory = 'mixed';
+      } else if (hasServiceCall) {
+        edgeCategory = 'service_call';
+      } else if (hasMessaging) {
+        edgeCategory = 'messaging';
+      } else if (hasDatabase) {
+        edgeCategory = 'database';
+      } else {
+        edgeCategory = 'external';
+      }
+
+      const totalCount = interactions.reduce((sum, i) => sum + i.count, 0);
+      const serviceCallsCount = interactions.filter((i) => i.category === 'service_call').reduce((s, i) => s + i.count, 0);
+      const messagingCount = interactions.filter((i) => i.category === 'messaging').reduce((s, i) => s + i.count, 0);
+      const dbCount = interactions.filter((i) => i.category === 'database').reduce((s, i) => s + i.count, 0);
+      const transitiveCount = interactions.filter((i) => i.isTransitive).reduce((s, i) => s + i.count, 0);
+
+      let edgeLabel: string;
+      if (isBidirectional) {
+        if (edgeCategory === 'mixed') {
+          edgeLabel = `⇄ ${serviceCallsCount} calls, ${messagingCount} msgs`;
+        } else if (edgeCategory === 'service_call') {
+          edgeLabel = `⇄ ${serviceCallsCount} calls`;
+        } else if (edgeCategory === 'messaging') {
+          edgeLabel = `⇄ ${messagingCount} msgs`;
+        } else {
+          edgeLabel = `⇄ ${totalCount}`;
+        }
+      } else {
+        if (edgeCategory === 'mixed') {
+          edgeLabel = `${serviceCallsCount} calls, ${messagingCount} msgs`;
+        } else if (edgeCategory === 'service_call') {
+          edgeLabel = serviceCallsCount > 1 ? `${serviceCallsCount} calls` : 'CALLS';
+        } else if (edgeCategory === 'messaging') {
+          edgeLabel = messagingCount > 1 ? `${messagingCount} msgs` : 'MSGS';
+        } else if (edgeCategory === 'database') {
+          edgeLabel = 'USES_DB';
+        } else {
+          edgeLabel = totalCount > 1 ? `${totalCount}` : 'CALLS';
+        }
+      }
+
+      const edgeId = `edge:${pairKey}`;
+
       visibleEdges.push({
         group: 'edges',
-        classes: 'transitive-edge',
+        classes: allTransitive ? 'transitive-edge' : '',
         data: {
-          id: `transitive:${key}`,
-          source: t.source,
-          target: t.target,
-          category: t.category,
-          label: transLabel,
-          isTransitive: 'true',
-          count: t.count,
+          id: edgeId,
+          source: edgeSource,
+          target: edgeTarget,
+          category: edgeCategory,
+          label: edgeLabel,
+          count: totalCount,
+          isTransitive: allTransitive ? 'true' : 'false',
+          isBidirectional: isBidirectional ? 'true' : 'false',
         },
       });
+
+      const sDetail = rawGraph.detailMap.get(edgeSource);
+      const tDetail = rawGraph.detailMap.get(edgeTarget);
+
+      edgeDetailMap.set(edgeId, {
+        id: edgeId,
+        sourceId: edgeSource,
+        sourceName: sDetail?.displayName || edgeSource,
+        sourceKind: sDetail?.kind || 'Service',
+        sourceTag: sDetail?.displayTag || ':Service',
+        sourceBgColor: sDetail?.bgColor || '#e53935',
+        targetId: edgeTarget,
+        targetName: tDetail?.displayName || edgeTarget,
+        targetKind: tDetail?.kind || 'Service',
+        targetTag: tDetail?.displayTag || ':Service',
+        targetBgColor: tDetail?.bgColor || '#e53935',
+        isBidirectional,
+        hasForward: interactions.some((i) => i.source === edgeSource && i.target === edgeTarget),
+        hasReverse: interactions.some((i) => i.source === edgeTarget && i.target === edgeSource),
+        totalInteractions: totalCount,
+        directCallsCount: serviceCallsCount,
+        messagingCount,
+        transitiveCount,
+        dbCount,
+        primaryCategory: edgeCategory,
+        items: interactions.map((i, idx) => ({
+          id: `${edgeId}:item:${idx}`,
+          sourceId: i.source,
+          sourceName: rawGraph.detailMap.get(i.source)?.displayName || i.source,
+          targetId: i.target,
+          targetName: rawGraph.detailMap.get(i.target)?.displayName || i.target,
+          category: i.category,
+          kind: i.kind,
+          label: i.label,
+          count: i.count,
+          isTransitive: i.isTransitive,
+          viaNames: i.viaNames,
+        })),
+      });
     }
+
+    edgeDetailMapRef.current = edgeDetailMap;
 
     let finalVisibleNodes = visibleNodes;
     if (hideIsolatedNodes) {
@@ -2139,6 +2349,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const nodeId = node.id();
       const detail = nodeDetailMap.get(nodeId);
       if (detail) {
+        setSelectedEdge(null);
         setSelectedNode(detail);
         const gNode: GraphNode = {
           id: detail.id,
@@ -2166,10 +2377,31 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       node.connectedEdges().addClass('highlighted');
     });
 
+    // Edge Selection -> Open Connection Inspector Panel
+    cy.on('tap', 'edge', (evt) => {
+      const edge = evt.target;
+      const edgeId = edge.id();
+      const detail = edgeDetailMapRef.current.get(edgeId);
+      if (detail) {
+        setSelectedNode(null);
+        setSelectedEdge(detail);
+        onSelectNode?.(null);
+
+        // Highlight this edge and its two endpoints, dim everything else
+        cy.elements().removeClass('highlighted dimmed');
+        const connectedNodes = edge.connectedNodes();
+        const activeGroup = connectedNodes.add(edge);
+        cy.elements().not(activeGroup).addClass('dimmed');
+        edge.addClass('highlighted');
+        connectedNodes.addClass('highlighted');
+      }
+    });
+
     // Background click -> Deselect
     cy.on('tap', (evt) => {
       if (evt.target === cy) {
         setSelectedNode(null);
+        setSelectedEdge(null);
         onSelectNode?.(null);
         cy.elements().removeClass('highlighted dimmed');
       }
@@ -4406,6 +4638,193 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               </div>
             </>
           )}
+        </aside>
+      )}
+
+      {/* Floating Edge / Connection Inspector Panel */}
+      {selectedEdge && (
+        <aside className="domain-inspector-panel domain-edge-inspector-panel">
+          <div className="inspector-header">
+            <div className="inspector-title-group" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 4 }}>
+                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 600 }}>
+                  {selectedEdge.isBidirectional ? '⇄ Bi-directional Connection' : '➔ Directional Connection'}
+                </span>
+                <button
+                  type="button"
+                  className="inspector-close-btn"
+                  onClick={() => {
+                    setSelectedEdge(null);
+                    cyRef.current?.elements().removeClass('highlighted dimmed');
+                  }}
+                  title="Deselect Connection"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Endpoint badges */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    const node = nodeDetailMap.get(selectedEdge.sourceId);
+                    if (node) {
+                      setSelectedEdge(null);
+                      setSelectedNode(node);
+                    }
+                  }}
+                  title={`Inspect ${selectedEdge.sourceName}`}
+                >
+                  <span className="inspector-badge" style={{ backgroundColor: selectedEdge.sourceBgColor, padding: '1px 5px', fontSize: '9px' }}>
+                    {selectedEdge.sourceTag}
+                  </span>
+                  <span style={{ fontWeight: 600, fontSize: '12px', color: '#f8fafc' }}>{selectedEdge.sourceName}</span>
+                </div>
+
+                <span style={{ color: '#38bdf8', fontWeight: 700, fontSize: '14px' }}>
+                  {selectedEdge.isBidirectional ? '⇄' : '➔'}
+                </span>
+
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    const node = nodeDetailMap.get(selectedEdge.targetId);
+                    if (node) {
+                      setSelectedEdge(null);
+                      setSelectedNode(node);
+                    }
+                  }}
+                  title={`Inspect ${selectedEdge.targetName}`}
+                >
+                  <span className="inspector-badge" style={{ backgroundColor: selectedEdge.targetBgColor, padding: '1px 5px', fontSize: '9px' }}>
+                    {selectedEdge.targetTag}
+                  </span>
+                  <span style={{ fontWeight: 600, fontSize: '12px', color: '#f8fafc' }}>{selectedEdge.targetName}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Metrics summary */}
+          <div className="inspector-section" style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <div className="domain-inspector-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+              <div className="metric-box">
+                <span className="metric-val" style={{ color: '#f8fafc' }}>{selectedEdge.totalInteractions}</span>
+                <span className="metric-lbl">Total</span>
+              </div>
+              <div className="metric-box">
+                <span className="metric-val" style={{ color: '#38bdf8' }}>{selectedEdge.directCallsCount}</span>
+                <span className="metric-lbl">RPC / HTTP</span>
+              </div>
+              <div className="metric-box">
+                <span className="metric-val" style={{ color: '#fbbf24' }}>{selectedEdge.messagingCount}</span>
+                <span className="metric-lbl">Events / Msgs</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Detailed list of messages and connection details */}
+          <div className="inspector-body" style={{ overflowY: 'auto', maxHeight: '380px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 2 }}>
+              Connection Details ({selectedEdge.items.length})
+            </div>
+
+            {selectedEdge.items.map((item, idx) => {
+              const isDirectCall = item.category === 'service_call';
+              const isMsg = item.category === 'messaging';
+              const isDb = item.category === 'database';
+              const tagColor = isDirectCall ? '#38bdf8' : isMsg ? '#fbbf24' : isDb ? '#c084fc' : '#34d399';
+              const tagIcon = isDirectCall ? '📞' : isMsg ? '📨' : isDb ? '🗄️' : '🔌';
+
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: tagColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {tagIcon} {item.kind || item.category}
+                      {item.isTransitive && ' (INDIRECT)'}
+                    </span>
+                    {item.count > 1 && (
+                      <span style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', background: 'rgba(255, 255, 255, 0.08)', padding: '1px 5px', borderRadius: 3 }}>
+                        × {item.count}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11px', color: '#e2e8f0', fontWeight: 500 }}>
+                    <span>{item.sourceName}</span>
+                    <span style={{ color: tagColor }}>➔</span>
+                    <span>{item.targetName}</span>
+                  </div>
+
+                  {item.label && item.label !== item.kind && (
+                    <div style={{ fontSize: '11px', color: '#93c5fd', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      {item.label}
+                    </div>
+                  )}
+
+                  {item.viaNames && item.viaNames.length > 0 && (
+                    <div style={{ fontSize: '10px', color: '#fbbf24', opacity: 0.9, marginTop: 2 }}>
+                      Routing via: {item.viaNames.join(' ➔ ')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Quick Action Footer */}
+          <div className="inspector-actions" style={{ padding: '8px 12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', gap: 6 }}>
+            {onFocusInFlow && (
+              <>
+                <button
+                  type="button"
+                  className="inspector-action-btn secondary"
+                  style={{ flex: 1, fontSize: '11px', padding: '4px 6px' }}
+                  onClick={() => onFocusInFlow(selectedEdge.sourceName)}
+                  title={`Focus ${selectedEdge.sourceName} in Project Flow`}
+                >
+                  Focus {selectedEdge.sourceName}
+                </button>
+                <button
+                  type="button"
+                  className="inspector-action-btn secondary"
+                  style={{ flex: 1, fontSize: '11px', padding: '4px 6px' }}
+                  onClick={() => onFocusInFlow(selectedEdge.targetName)}
+                  title={`Focus ${selectedEdge.targetName} in Project Flow`}
+                >
+                  Focus {selectedEdge.targetName}
+                </button>
+              </>
+            )}
+          </div>
         </aside>
       )}
       </div>

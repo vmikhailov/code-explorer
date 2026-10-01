@@ -3116,7 +3116,9 @@ public class ArchitectureViewEngine(IGraphClient db)
             else if (isTopicEdge)
             {
                 cat = "messaging";
-                if (edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" || (topicNodes.ContainsKey(srcDomain) && !topicNodes.ContainsKey(tgtDomain)))
+                var isPub = edge.Kind is "PUBLISHES_TO" or "PUBLISHED_BY" or "PUBLISHES";
+                var isSub = !isPub && (edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "SUBSCRIBES" || (topicNodes.ContainsKey(srcDomain) && !topicNodes.ContainsKey(tgtDomain)));
+                if (isSub)
                 {
                     label = "SUBSCRIBES";
                 }

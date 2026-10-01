@@ -115,30 +115,23 @@ public class ResourceReconciliationService
             if (!string.IsNullOrEmpty(rawName))
             {
                 var normRaw = NormalizeAlias(rawName);
-                if (!string.IsNullOrEmpty(normRaw))
+                if (!string.IsNullOrEmpty(normRaw) && !IsDisallowedDatabaseAlias(normRaw))
                 {
                     aliasSet.Add(normRaw);
                     _aliasToResourceId[normRaw] = id;
                 }
             }
 
-            if (!string.IsNullOrEmpty(engine))
-            {
-                var normEngine = NormalizeAlias(engine);
-                if (!string.IsNullOrEmpty(normEngine))
-                {
-                    aliasSet.Add(normEngine);
-                    // Only map alias to this ID if engine alias isn't claimed yet
-                    _aliasToResourceId.TryAdd(normEngine, id);
-                }
-            }
+            // Note: engine is intentionally NOT registered as an alias in aliasSet or _aliasToResourceId.
+            // Engine names (e.g. "postgresql", "redis") are technology families, not unique resource aliases.
+            // Matching by engine is handled dynamically in ResolveResource when unique.
 
             if (aliases != null)
             {
                 foreach (var a in aliases)
                 {
                     var norm = NormalizeAlias(a);
-                    if (!string.IsNullOrEmpty(norm))
+                    if (!string.IsNullOrEmpty(norm) && !IsDisallowedDatabaseAlias(norm))
                     {
                         aliasSet.Add(norm);
                         _aliasToResourceId[norm] = id;
@@ -147,12 +140,14 @@ public class ResourceReconciliationService
             }
 
             // If this is a concrete database engine, retire and transfer any previous generic "Database" placeholders of the same dbType
+            // ONLY within the same project (or unattached). Do not collapse placeholders across different projects!
             var isConcrete = !IsGenericConfigKey(engine) && !string.Equals(engine, "Database", StringComparison.OrdinalIgnoreCase);
             if (isConcrete)
             {
                 var genericPlaceholders = _resourcesById.Values
                     .Where(r => string.Equals(r.DbType, dbType, StringComparison.OrdinalIgnoreCase) &&
-                                (IsGenericConfigKey(r.Engine) || string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase)))
+                                (IsGenericConfigKey(r.Engine) || string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase)) &&
+                                (projectId == null || r.ProjectId == null || string.Equals(r.ProjectId, projectId, StringComparison.OrdinalIgnoreCase)))
                     .ToList();
 
                 foreach (var placeholder in genericPlaceholders)
@@ -160,8 +155,11 @@ public class ResourceReconciliationService
                     _resourcesById.TryRemove(placeholder.Id, out _);
                     foreach (var a in placeholder.Aliases)
                     {
-                        aliasSet.Add(a);
-                        _aliasToResourceId[a] = id;
+                        if (!IsDisallowedDatabaseAlias(a))
+                        {
+                            aliasSet.Add(a);
+                            _aliasToResourceId[a] = id;
+                        }
                     }
                     _aliasToResourceId[placeholder.Id] = id;
                 }
@@ -194,7 +192,7 @@ public class ResourceReconciliationService
     public void RegisterAlias(string alias, string resourceId)
     {
         var norm = NormalizeAlias(alias);
-        if (!string.IsNullOrEmpty(norm))
+        if (!string.IsNullOrEmpty(norm) && !IsDisallowedDatabaseAlias(norm))
         {
             _aliasToResourceId[norm] = resourceId;
             if (_resourcesById.TryGetValue(resourceId, out var res))
@@ -212,7 +210,7 @@ public class ResourceReconciliationService
                 var dbSegment = norm[(slashIdx + 1)..];
                 var qIdx = dbSegment.IndexOf('?');
                 if (qIdx > 0) dbSegment = dbSegment[..qIdx];
-                if (!string.IsNullOrEmpty(dbSegment) && !IsGenericConfigKey(dbSegment))
+                if (!string.IsNullOrEmpty(dbSegment) && !IsDisallowedDatabaseAlias(dbSegment))
                 {
                     _aliasToResourceId.TryAdd(dbSegment, resourceId);
                     if (_resourcesById.TryGetValue(resourceId, out var res))
@@ -242,6 +240,12 @@ public class ResourceReconciliationService
     {
         if (!string.IsNullOrWhiteSpace(aliasOrName))
         {
+            if (_resourcesById.TryGetValue(aliasOrName, out var directById))
+            {
+                if (expectedDbType == null || string.Equals(directById.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                    return directById;
+            }
+
             var norm = NormalizeAlias(aliasOrName);
             if (_aliasToResourceId.TryGetValue(norm, out var id) && _resourcesById.TryGetValue(id, out var found))
             {
@@ -264,12 +268,11 @@ public class ResourceReconciliationService
                 }
             }
 
-            // Direct scan by alias or name
+            // Direct scan by alias or name (engine matching is evaluated dynamically below)
             foreach (var res in _resourcesById.Values)
             {
                 if (res.Aliases.Contains(norm) ||
-                    string.Equals(res.Name, aliasOrName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(res.Engine, aliasOrName, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(res.Name, aliasOrName, StringComparison.OrdinalIgnoreCase))
                 {
                     if (expectedDbType != null && !string.Equals(res.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
                         continue;
@@ -281,17 +284,22 @@ public class ResourceReconciliationService
         // Fallback by engine: only if no specific name/schema was requested, or alias is a generic client/engine reference
         var isGenericAlias = string.IsNullOrWhiteSpace(aliasOrName) ||
                              IsGenericConfigKey(aliasOrName) ||
+                             IsKnownDatabaseEngine(aliasOrName) ||
                              aliasOrName.EndsWith("_client", StringComparison.OrdinalIgnoreCase) ||
                              aliasOrName.EndsWith("-client", StringComparison.OrdinalIgnoreCase) ||
                              (!string.IsNullOrWhiteSpace(expectedEngine) && 
                               (aliasOrName.Equals(expectedEngine, StringComparison.OrdinalIgnoreCase) ||
                                aliasOrName.StartsWith($"{expectedEngine}_", StringComparison.OrdinalIgnoreCase)));
 
-        if (isGenericAlias && !string.IsNullOrWhiteSpace(expectedEngine))
+        var targetEngine = !string.IsNullOrWhiteSpace(expectedEngine)
+            ? NormalizeEngineName(expectedEngine)
+            : (IsKnownDatabaseEngine(aliasOrName) ? NormalizeEngineName(aliasOrName) : null);
+
+        if (isGenericAlias && !string.IsNullOrWhiteSpace(targetEngine))
         {
-            var matchingEngine = _resourcesById.Values.Where(r => string.Equals(r.Engine, expectedEngine, StringComparison.OrdinalIgnoreCase)).ToList();
+            var matchingEngine = _resourcesById.Values.Where(r => string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase)).ToList();
             if (matchingEngine.Count == 1) return matchingEngine[0];
-            return null; // expectedEngine was specified but not matched; do not guess
+            return null; // targetEngine was specified but ambiguous (multiple databases) or not matched; do not guess
         }
 
         // If no engine was specified (e.g. raw anonymous SQL), and only 1 resource matches dbType
@@ -422,5 +430,31 @@ public class ResourceReconciliationService
             clean = clean[(clean.IndexOf("://") + 3)..];
 
         return clean;
+    }
+
+    public static bool IsKnownDatabaseEngine(string? engine)
+    {
+        var lower = (engine ?? "").Trim().ToLowerInvariant();
+        return lower is "postgres" or "postgresql" or "npgsql" or "pg" or
+               "mysql" or "mysql2" or "mariadb" or
+               "sqlite" or "sqlite3" or
+               "mssql" or "sqlserver" or "sql server" or "tedious" or
+               "oracle" or "oracledb" or
+               "mongodb" or "mongo" or
+               "redis" or "ioredis" or
+               "clickhouse" or "bigquery" or "cassandra" or "elasticsearch" or "neo4j";
+    }
+
+    public static bool IsDisallowedDatabaseAlias(string alias)
+    {
+        if (string.IsNullOrWhiteSpace(alias)) return true;
+        var lower = alias.Trim().ToLowerInvariant();
+        return IsKnownDatabaseEngine(lower) ||
+               lower is "typeorm" or "ef-core" or "microsoft.entityframeworkcore" or "dapper" or
+               "prisma" or "sequelize" or "drizzle" or "hibernate" or "sqlalchemy" or
+               "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex" or
+               "database" or "db" or "datasource" or "relational" or "keyvalue" or "document" or
+               "public" or "dbo" or "main" or "default" ||
+               lower.Contains("jpa") || lower.Contains("hibernate") || lower.Contains("spring data");
     }
 }

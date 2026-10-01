@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.18.1] - 2026-10-01
+
+### Fixed
+- **Database Reconciliation & Schema Isolation**:
+  - Prevented database engine names (e.g. `PostgreSQL`, `Redis`) and generic ORM identifiers (e.g. `TypeORM`, `Prisma`) from being claimed as resource-specific aliases, eliminating cross-service database hijacking.
+  - Restricted generic database placeholder retirement to the originating project ID, preventing one service's concrete database from collapsing other services' databases.
+  - Engine-based fallback resolution now strictly returns `null` when multiple databases share the same engine to avoid ambiguous guessing.
+- **Go GCP Pub/Sub Parser**:
+  - Fixed false-positive topic publishing references created on `client.Topic(topicID)` lookups that do not invoke `.Publish(...)`.
+- **Domain Architecture & Flow Views**:
+  - Corrected message directionality on subscriber service nodes (subscribers now display received messages under "Receives Messages").
+  - Fixed edge deduplication and zoom sensitivity normalization in webview.
+
 ## [1.18.0] - 2026-10-01
 
 ### Added

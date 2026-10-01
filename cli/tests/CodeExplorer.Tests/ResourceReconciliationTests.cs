@@ -235,4 +235,78 @@ public class ResourceReconciliationTests
         Assert.That(cName2, Is.EqualTo("BigQuery.default"));
         Assert.That(cKey2, Is.EqualTo("bigquery:default"));
     }
+
+    [Test]
+    public void MultipleServices_DoNotConflateIntoSingleDatabaseEngine()
+    {
+        var db1 = _service.RegisterResource(
+            "ws1",
+            "PostgreSQL.action-scheduler",
+            "PostgreSQL",
+            "relational",
+            OntologyConstants.NodeLabels.Database,
+            "services/action-scheduler/src/orm.ts",
+            projectId: "proj:action-scheduler",
+            aliases: ["action-scheduler"]
+        );
+
+        var db2 = _service.RegisterResource(
+            "ws1",
+            "PostgreSQL.billing",
+            "PostgreSQL",
+            "relational",
+            OntologyConstants.NodeLabels.Database,
+            "services/billing/src/orm.ts",
+            projectId: "proj:billing",
+            aliases: ["billing"]
+        );
+
+        Assert.That(_service.AllResources.Count, Is.EqualTo(2));
+        Assert.That(db1.Id, Is.Not.EqualTo(db2.Id));
+
+        // Looking up by specific schema/alias resolves to correct DB
+        var resolvedAction = _service.ResolveResource("action-scheduler");
+        Assert.That(resolvedAction, Is.Not.Null);
+        Assert.That(resolvedAction!.Id, Is.EqualTo(db1.Id));
+
+        var resolvedBilling = _service.ResolveResource("billing");
+        Assert.That(resolvedBilling, Is.Not.Null);
+        Assert.That(resolvedBilling!.Id, Is.EqualTo(db2.Id));
+
+        // Generic engine lookup must NOT guess or collapse when multiple databases exist
+        var ambiguous = _service.ResolveResource("PostgreSQL");
+        Assert.That(ambiguous, Is.Null, "Ambiguous engine lookup across multiple databases must not guess");
+
+        var ambiguousWithExpected = _service.ResolveResource(null, expectedDbType: "relational", expectedEngine: "PostgreSQL");
+        Assert.That(ambiguousWithExpected, Is.Null, "Ambiguous engine lookup across multiple databases must not guess");
+    }
+
+    [Test]
+    public void GenericPlaceholders_AreNotStolenAcrossProjects()
+    {
+        var placeholderA = _service.RegisterResource(
+            "ws1",
+            "Database",
+            "relational",
+            "relational",
+            OntologyConstants.NodeLabels.Database,
+            "services/service-a/src/repo.ts",
+            projectId: "proj:service-a"
+        );
+
+        var concreteB = _service.RegisterResource(
+            "ws1",
+            "PostgreSQL.service-b",
+            "PostgreSQL",
+            "relational",
+            OntologyConstants.NodeLabels.Database,
+            "services/service-b/src/orm.ts",
+            projectId: "proj:service-b",
+            aliases: ["service-b"]
+        );
+
+        Assert.That(_service.AllResources.Count, Is.EqualTo(2), "Concrete DB in project B must not retire placeholder in project A");
+        Assert.That(_service.ResolveResource(placeholderA.Id), Is.EqualTo(placeholderA));
+        Assert.That(_service.ResolveResource("service-b"), Is.EqualTo(concreteB));
+    }
 }

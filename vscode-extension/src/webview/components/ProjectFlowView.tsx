@@ -128,7 +128,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         cMap.get(node.id.toLowerCase()) ||
         cMap.get(node.name.toLowerCase());
       if (!c) {
-        c = { callsOut: [], acceptsIn: [], libsOut: [], libsIn: [], dbOut: [], messagesOut: [], messagesIn: [] };
+        c = { callsOut: [], acceptsIn: [], libsOut: [], libsIn: [], dbOut: [], dbIn: [], messagesOut: [], messagesIn: [] };
         cMap.set(node.id, c);
         cMap.set(node.name, c);
         cMap.set(node.id.toLowerCase(), c);
@@ -199,12 +199,56 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         if (!srcComms.dbOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase() || x.name.toLowerCase() === tgtNode.name.toLowerCase())) {
           srcComms.dbOut.push({ id: tgtNode.id, name: tgtNode.name, dbType: tgtNode.properties?.db_type });
         }
-      } else if (category === 'messaging') {
-        if (!srcComms.messagesOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase())) {
-          srcComms.messagesOut.push({ id: tgtNode.id, name: tgtNode.name });
+        if (!tgtComms.acceptsIn.some((x) => x.id.toLowerCase() === srcNode.id.toLowerCase() || x.name.toLowerCase() === srcNode.name.toLowerCase())) {
+          tgtComms.acceptsIn.push({ id: srcNode.id, name: srcNode.name, type: 'database', filePath: srcNode.filePath });
         }
-        if (!tgtComms.messagesIn.some((x) => x.id.toLowerCase() === srcNode.id.toLowerCase())) {
-          tgtComms.messagesIn.push({ id: srcNode.id, name: srcNode.name });
+        if (!tgtComms.dbIn) tgtComms.dbIn = [];
+        if (!tgtComms.dbIn.some((x) => x.id.toLowerCase() === srcNode.id.toLowerCase() || x.name.toLowerCase() === srcNode.name.toLowerCase())) {
+          tgtComms.dbIn.push({ id: srcNode.id, name: srcNode.name, type: 'database', filePath: srcNode.filePath });
+        }
+      } else if (category === 'messaging') {
+        const k = (e.kind || '').toUpperCase();
+        const isSub = k === 'SUBSCRIBES_TO' || k === 'SUBSCRIBED_BY' || k === 'SUBSCRIBES' || k === 'CONSUMES' || k === 'CONSUMES_FROM';
+        const isPub = k === 'PUBLISHES_TO' || k === 'PUBLISHED_BY' || k === 'PUBLISHES' || k === 'PRODUCES';
+        const isTargetTopic = tgtNode.kind === 'Topic';
+        const isSourceTopic = srcNode.kind === 'Topic';
+
+        let senderComms = srcComms;
+        let senderNode = srcNode;
+        let receiverComms = tgtComms;
+        let receiverNode = tgtNode;
+
+        if (isSub) {
+          if (isTargetTopic) {
+            senderComms = tgtComms;
+            senderNode = tgtNode;
+            receiverComms = srcComms;
+            receiverNode = srcNode;
+          } else {
+            senderComms = srcComms;
+            senderNode = srcNode;
+            receiverComms = tgtComms;
+            receiverNode = tgtNode;
+          }
+        } else if (isPub) {
+          if (isSourceTopic) {
+            senderComms = tgtComms;
+            senderNode = tgtNode;
+            receiverComms = srcComms;
+            receiverNode = srcNode;
+          } else {
+            senderComms = srcComms;
+            senderNode = srcNode;
+            receiverComms = tgtComms;
+            receiverNode = tgtNode;
+          }
+        }
+
+        if (!senderComms.messagesOut.some((x) => x.id.toLowerCase() === receiverNode.id.toLowerCase())) {
+          senderComms.messagesOut.push({ id: receiverNode.id, name: receiverNode.name });
+        }
+        if (!receiverComms.messagesIn.some((x) => x.id.toLowerCase() === senderNode.id.toLowerCase())) {
+          receiverComms.messagesIn.push({ id: senderNode.id, name: senderNode.name });
         }
       } else if (category === 'library') {
         if (!srcComms.libsOut.some((x) => x.id.toLowerCase() === tgtNode.id.toLowerCase() || x.name.toLowerCase() === tgtNode.name.toLowerCase())) {
@@ -565,9 +609,19 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           }
         }
 
-        // Inbound accepts calls
-        if (visibleEdgeTypes.service_call && activeCats.has('acceptsIn') && comms?.acceptsIn) {
+        // Inbound accepts calls & connected database callers
+        if ((visibleEdgeTypes.service_call || visibleEdgeTypes.database) && activeCats.has('acceptsIn') && comms?.acceptsIn) {
           for (const item of comms.acceptsIn) {
+            const srcNode = findTargetNode(item.id, item.name);
+            if (srcNode && !isAlreadyVisible(srcNode)) {
+              visibleNodesMap.set(srcNode.id, srcNode);
+              newlyAdded = true;
+            }
+          }
+        }
+
+        if (visibleEdgeTypes.database && activeCats.has('dbIn') && comms?.dbIn) {
+          for (const item of comms.dbIn) {
             const srcNode = findTargetNode(item.id, item.name);
             if (srcNode && !isAlreadyVisible(srcNode)) {
               visibleNodesMap.set(srcNode.id, srcNode);
@@ -641,22 +695,29 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
         let outCat = 'callsOut';
         let inCat: string | null = 'acceptsIn';
         if (category === 'database') {
-          if (sharedDbsOnly) {
+          if (sharedDbsOnly && !tgtCats.has('acceptsIn') && !tgtCats.has('dbIn')) {
             const count = dbUsageCounts.get(targetId.toLowerCase()) || (tgtNode?.name ? dbUsageCounts.get(tgtNode.name.toLowerCase()) : 0) || 0;
             if (count <= 1) return;
           }
           outCat = 'dbOut';
-          inCat = null;
+          inCat = 'acceptsIn';
         } else if (category === 'messaging') {
-          outCat = 'messagesOut';
-          inCat = 'messagesIn';
+          const k = (edgeObj?.kind || '').toUpperCase();
+          const isSub = k === 'SUBSCRIBES_TO' || k === 'SUBSCRIBED_BY' || k === 'SUBSCRIBES' || k === 'CONSUMES' || k === 'CONSUMES_FROM';
+          if (isSub && tgtNode?.kind === 'Topic') {
+            outCat = 'messagesIn';
+            inCat = 'messagesOut';
+          } else {
+            outCat = 'messagesOut';
+            inCat = 'messagesIn';
+          }
         } else if (category === 'library') {
           outCat = 'libsOut';
           inCat = 'libsIn';
         }
 
         const isOutActive = srcCats.has(outCat);
-        const isInActive = inCat ? tgtCats.has(inCat) : false;
+        const isInActive = inCat ? (tgtCats.has(inCat) || (inCat === 'acceptsIn' && tgtCats.has('dbIn'))) : false;
 
         // An edge is visible if the source actively requests outbound OR target actively requests inbound
         if (!isOutActive && !isInActive) {
@@ -684,7 +745,7 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           if (category === 'service_call') targetHandle = 'target-calls';
           else if (category === 'library') targetHandle = 'target-libs';
           else if (category === 'messaging') targetHandle = 'target-events';
-          else if (category === 'database') targetHandle = 'target-default';
+          else if (category === 'database') targetHandle = tgtNode?.kind === 'Database' ? 'target-calls' : 'target-default';
         }
 
         generatedEdges.push({

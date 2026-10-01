@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Visual knowledge graph and codebase intelligence tool for developers and AI agents.",
-  "version": "1.18.0",
+  "version": "1.18.1",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon.png",

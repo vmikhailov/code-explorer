@@ -9,6 +9,7 @@ export interface NodeCommsSummary {
   libsOut: Array<{ id: string; name: string }>;
   libsIn?: Array<{ id: string; name: string; filePath?: string }>;
   dbOut: Array<{ id: string; name: string; dbType?: string }>;
+  dbIn?: Array<{ id: string; name: string; type?: string; filePath?: string }>;
   messagesOut: Array<{ id: string; name: string }>;
   messagesIn: Array<{ id: string; name: string }>;
 }
@@ -62,7 +63,7 @@ export const ProjectCardNode = memo((props: any) => {
 
   const isCardExpanded = isExternalRefs
     ? (isExpanded ?? localExpanded)
-    : !isDatabase && !isPackage && !isTopic && (isExpanded ?? localExpanded);
+    : !isPackage && (isExpanded ?? localExpanded);
 
   const packageList: Array<{ id?: string; name: string; version?: string; type?: string }> = useMemo(() => {
     if (!isExternalRefs || !graphNode.properties?.packages) return [];
@@ -234,7 +235,7 @@ export const ProjectCardNode = memo((props: any) => {
       updateNodeInternals(props.id);
     });
     return () => cancelAnimationFrame(raf);
-  }, [isCardExpanded, props.id, updateNodeInternals, visibleCommRows.length]);
+  }, [isCardExpanded, props.id, updateNodeInternals, visibleCommRows.length, inboundCallsCount, inboundEventsCount]);
 
   const handleOpenClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -248,7 +249,7 @@ export const ProjectCardNode = memo((props: any) => {
 
   const handleTitleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isCenter && !isDatabase && !isPackage && onFocusProject) {
+    if (!isCenter && !isPackage && onFocusProject) {
       onFocusProject(graphNode.name);
     }
   };
@@ -415,7 +416,7 @@ export const ProjectCardNode = memo((props: any) => {
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        if (!isCenter && !isDatabase && !isPackage && !isTopic && onFocusProject) {
+        if (!isCenter && !isPackage && onFocusProject) {
           onFocusProject(graphNode.name);
         }
       }}
@@ -432,7 +433,23 @@ export const ProjectCardNode = memo((props: any) => {
               className="flow-handle center-handle target-handle"
               isConnectable={false}
               style={{ top: '50%' }}
-              title={inboundCallsCount + inboundEventsCount > 0 ? `Inbound (${inboundCallsCount + inboundEventsCount})` : 'Inbound'}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isDatabase && inboundCallsCount > 0 && onToggleCategory) {
+                  onToggleCategory(graphNode.name, 'acceptsIn', graphNode.id, activeCategoriesSet.has('acceptsIn'));
+                } else if (isTopic && inboundEventsCount > 0 && onToggleCategory) {
+                  onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, activeCategoriesSet.has('messagesIn'));
+                }
+              }}
+              title={
+                isDatabase
+                  ? `Inbound (${inboundCallsCount} connected services) — Click to toggle on diagram`
+                  : isTopic
+                  ? `Inbound (${inboundEventsCount} publishers) — Click to toggle on diagram`
+                  : inboundCallsCount + inboundEventsCount > 0
+                  ? `Inbound (${inboundCallsCount + inboundEventsCount})`
+                  : 'Inbound'
+              }
             />
             <Handle
               id="source-default"
@@ -499,23 +516,28 @@ export const ProjectCardNode = memo((props: any) => {
           )}
         </div>
         <div className="card-top-actions">
-          {!isDatabase && !isPackage && !isTopic && (
+          {!isPackage && (
             <button
               className="card-icon-link toggle-expand-btn"
               onClick={(e) => {
                 e.stopPropagation();
+                if (isDatabase && !isCardExpanded && onToggleCategory && !activeCategoriesSet.has('acceptsIn')) {
+                  onToggleCategory(graphNode.name, 'acceptsIn', graphNode.id, false);
+                } else if (isTopic && !isCardExpanded && onToggleCategory && !activeCategoriesSet.has('messagesIn')) {
+                  onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, false);
+                }
                 if (onToggleExpand) {
                   onToggleExpand(graphNode.name, graphNode.id);
                 } else {
                   setLocalExpanded((v) => !v);
                 }
               }}
-              title={isCardExpanded ? 'Collapse protocols matrix' : 'Expand protocols matrix'}
+              title={isCardExpanded ? 'Collapse connection details' : 'Expand connection details'}
             >
               {isCardExpanded ? '▴' : '▾'}
             </button>
           )}
-          {totalCommsCount > 0 && !isDatabase && !isPackage && !isTopic && (
+          {totalCommsCount > 0 && !isPackage && (
             <button
               className={`card-icon-link comms-btn ${showCommsPopover ? 'active' : ''}`}
               onClick={(e) => {
@@ -536,7 +558,7 @@ export const ProjectCardNode = memo((props: any) => {
               📄
             </button>
           )}
-          {!isCenter && !isDatabase && !isPackage && !isTopic && (
+          {!isCenter && !isPackage && (
             <button
               className="card-icon-link"
               onClick={handleTitleClick}
@@ -550,11 +572,11 @@ export const ProjectCardNode = memo((props: any) => {
 
       {/* Project Title */}
       <div
-        className={`project-card-title ${!isCenter && !isDatabase && !isPackage && !isTopic ? 'clickable-title' : ''}`}
+        className={`project-card-title ${!isCenter && !isPackage ? 'clickable-title' : ''}`}
         onClick={handleTitleClick}
-        title={!isCenter && !isDatabase && !isPackage && !isTopic ? `Click to center focus on ${graphNode.name}` : (graphNode.displayName || graphNode.name)}
+        title={!isCenter && !isPackage ? `Click to center focus on ${graphNode.name}` : (graphNode.displayName || graphNode.name)}
       >
-        {isTopic ? '📨 ' : ''}{graphNode.displayName || graphNode.name}
+        {isTopic ? '📨 ' : ''}{isDatabase ? '🗄️ ' : ''}{graphNode.displayName || graphNode.name}
       </div>
     </div>
 
@@ -593,7 +615,9 @@ export const ProjectCardNode = memo((props: any) => {
             )}
             {comms.acceptsIn.length > 0 && (
               <div className="comms-section">
-                <div className="comms-section-label accepts">📥 Accepts Inbound ({comms.acceptsIn.length})</div>
+                <div className="comms-section-label accepts">
+                  {isDatabase ? '📥 Connected Services' : '📥 Accepts Inbound'} ({comms.acceptsIn.length})
+                </div>
                 <div className="comms-chips-wrap">
                   {comms.acceptsIn.map((c) => (
                     <span
@@ -671,8 +695,8 @@ export const ProjectCardNode = memo((props: any) => {
         </div>
       )}
 
-      {/* Expandable Bottom Extension (Symmetric Protocol Matrix) */}
-      {isCardExpanded && visibleCommRows.length > 0 && (
+      {/* Expandable Bottom Extension (Symmetric Protocol Matrix for standard services) */}
+      {isCardExpanded && !isDatabase && !isTopic && visibleCommRows.length > 0 && (
         <div className="card-bottom-extension card-protocol-matrix">
           {visibleCommRows.map((row) => (
             <div key={row.id} className="protocol-row">
@@ -822,12 +846,199 @@ export const ProjectCardNode = memo((props: any) => {
         </div>
       )}
 
-      {/* Bottom Side Hover Expansion Trigger (only for actual services) */}
-      {!isDatabase && !isPackage && !isTopic && (
+      {/* Expandable Bottom Extension for Database */}
+      {isCardExpanded && isDatabase && (
+        <div className="card-bottom-extension database-card-extension">
+          <div className="database-connections-header">
+            <Handle
+              id="target-calls"
+              type="target"
+              position={Position.Left}
+              className={`flow-handle typed-handle handle-acceptsIn ${inboundCallsCount === 0 ? 'is-empty' : ''}`}
+              isConnectable={false}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (inboundCallsCount > 0 && onToggleCategory) {
+                  onToggleCategory(graphNode.name, 'acceptsIn', graphNode.id, activeCategoriesSet.has('acceptsIn'));
+                }
+              }}
+              title={inboundCallsCount > 0 ? `Connected Services (${inboundCallsCount}) — Click to toggle on diagram` : 'No connected services'}
+              style={{
+                top: '50%',
+                left: 0,
+                backgroundColor: inboundCallsCount === 0 ? '#334155' : activeCategoriesSet.has('acceptsIn') ? '#34d399' : '#1c1c24',
+                border: inboundCallsCount === 0 ? '1.5px solid #475569' : activeCategoriesSet.has('acceptsIn') ? '1.5px solid #ffffff' : '2px solid #34d399',
+                boxShadow: inboundCallsCount > 0 && activeCategoriesSet.has('acceptsIn') ? '0 0 6px #34d399, 0 0 2px #fff' : 'none',
+                cursor: inboundCallsCount > 0 ? 'pointer' : 'default',
+                pointerEvents: inboundCallsCount > 0 ? 'auto' : 'none',
+              }}
+            />
+            <Handle
+              id="target-default"
+              type="target"
+              position={Position.Left}
+              className="flow-handle"
+              isConnectable={false}
+              style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
+            />
+            <Handle
+              id="source-default"
+              type="source"
+              position={Position.Right}
+              className="flow-handle"
+              isConnectable={false}
+              style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
+            />
+            <div
+              className={`database-toggle-row ${activeCategoriesSet.has('acceptsIn') ? 'is-active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (inboundCallsCount > 0 && onToggleCategory) {
+                  onToggleCategory(graphNode.name, 'acceptsIn', graphNode.id, activeCategoriesSet.has('acceptsIn'));
+                }
+              }}
+              title="Click to toggle connected services on diagram"
+            >
+              <span className="database-toggle-label">🔗 Connected Services</span>
+              <span className="database-count-badge">{inboundCallsCount}</span>
+              <span className="database-diagram-status">
+                {activeCategoriesSet.has('acceptsIn') ? 'Visible on diagram' : 'Click to show on diagram'}
+              </span>
+            </div>
+          </div>
+
+          <div className="database-services-list">
+            {(comms?.acceptsIn || []).map((svc) => (
+              <div
+                key={svc.id}
+                className="database-service-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFocusProject?.(svc.name);
+                }}
+                title={`Click to focus on ${svc.name}`}
+              >
+                <span className="database-service-icon">⚡</span>
+                <span className="database-service-name">{svc.name}</span>
+                <span className="database-service-action" title="Focus service">🎯</span>
+              </div>
+            ))}
+            {(!comms?.acceptsIn || comms.acceptsIn.length === 0) && (
+              <div className="database-services-empty">No other known services connect directly to this schema</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Expandable Bottom Extension for Topic */}
+      {isCardExpanded && isTopic && (
+        <div className="card-bottom-extension database-card-extension topic-card-extension">
+          <div className="database-connections-header">
+            <Handle
+              id="target-events"
+              type="target"
+              position={Position.Left}
+              className={`flow-handle typed-handle handle-messagesIn ${inboundEventsCount === 0 ? 'is-empty' : ''}`}
+              isConnectable={false}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (inboundEventsCount > 0 && onToggleCategory) {
+                  onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, activeCategoriesSet.has('messagesIn'));
+                }
+              }}
+              title={inboundEventsCount > 0 ? `Publishers (${inboundEventsCount}) — Click to toggle on diagram` : 'No publishers'}
+              style={{
+                top: '50%',
+                left: 0,
+                backgroundColor: inboundEventsCount === 0 ? '#334155' : activeCategoriesSet.has('messagesIn') ? '#fbbf24' : '#1c1c24',
+                border: inboundEventsCount === 0 ? '1.5px solid #475569' : activeCategoriesSet.has('messagesIn') ? '1.5px solid #ffffff' : '2px solid #fbbf24',
+                boxShadow: inboundEventsCount > 0 && activeCategoriesSet.has('messagesIn') ? '0 0 6px #fbbf24, 0 0 2px #fff' : 'none',
+                cursor: inboundEventsCount > 0 ? 'pointer' : 'default',
+                pointerEvents: inboundEventsCount > 0 ? 'auto' : 'none',
+              }}
+            />
+            <Handle
+              id="target-default"
+              type="target"
+              position={Position.Left}
+              className="flow-handle"
+              isConnectable={false}
+              style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
+            />
+            <Handle
+              id="source-default"
+              type="source"
+              position={Position.Right}
+              className="flow-handle"
+              isConnectable={false}
+              style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
+            />
+            <div
+              className={`database-toggle-row ${activeCategoriesSet.has('messagesIn') ? 'is-active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (inboundEventsCount > 0 && onToggleCategory) {
+                  onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, activeCategoriesSet.has('messagesIn'));
+                }
+              }}
+              title="Click to toggle publishers on diagram"
+            >
+              <span className="database-toggle-label" style={{ color: '#fbbf24' }}>📨 Connected Services</span>
+              <span className="database-count-badge" style={{ backgroundColor: 'rgba(251, 191, 36, 0.2)', color: '#fde68a', borderColor: 'rgba(251, 191, 36, 0.4)' }}>
+                {inboundEventsCount + messagesOutCount}
+              </span>
+              <span className="database-diagram-status">
+                {activeCategoriesSet.has('messagesIn') ? 'Visible on diagram' : 'Click to show on diagram'}
+              </span>
+            </div>
+          </div>
+
+          <div className="database-services-list">
+            {(comms?.messagesIn || []).map((svc) => (
+              <div
+                key={`pub-${svc.id}`}
+                className="database-service-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFocusProject?.(svc.name);
+                }}
+                title={`Publisher: Click to focus on ${svc.name}`}
+              >
+                <span className="database-service-icon">📤</span>
+                <span className="database-service-name">{svc.name}</span>
+                <span className="database-service-action" title="Focus service">🎯</span>
+              </div>
+            ))}
+            {(comms?.messagesOut || []).map((svc) => (
+              <div
+                key={`sub-${svc.id}`}
+                className="database-service-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFocusProject?.(svc.name);
+                }}
+                title={`Subscriber: Click to focus on ${svc.name}`}
+              >
+                <span className="database-service-icon">📥</span>
+                <span className="database-service-name">{svc.name}</span>
+                <span className="database-service-action" title="Focus service">🎯</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Side Hover Expansion Trigger */}
+      {!isPackage && (
         <div
           className={`card-bottom-trigger ${isCardExpanded ? 'is-expanded' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
+            if (isDatabase && !isCardExpanded && onToggleCategory && !activeCategoriesSet.has('acceptsIn')) {
+              onToggleCategory(graphNode.name, 'acceptsIn', graphNode.id, false);
+            } else if (isTopic && !isCardExpanded && onToggleCategory && !activeCategoriesSet.has('messagesIn')) {
+              onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, false);
+            }
             if (onToggleExpand) {
               onToggleExpand(graphNode.name, graphNode.id);
             } else {

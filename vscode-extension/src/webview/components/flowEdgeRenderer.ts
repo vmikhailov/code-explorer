@@ -84,7 +84,7 @@ export const getEdgeCategory = (edge?: GraphEdge): EdgeCategory => {
 
   const kind = edge?.kind?.toUpperCase();
   if (kind === 'USES_DB') return 'database';
-  if (kind === 'TRIGGERS' || kind === 'PUBLISHES' || kind === 'PUBLISHES_TO' || kind === 'SUBSCRIBES_TO') return 'messaging';
+  if (kind === 'TRIGGERS' || kind === 'PUBLISHES' || kind === 'PUBLISHES_TO' || kind === 'PUBLISHED_BY' || kind === 'SUBSCRIBES' || kind === 'SUBSCRIBES_TO' || kind === 'SUBSCRIBED_BY' || kind === 'CONSUMES' || kind === 'CONSUMES_FROM') return 'messaging';
   if (kind === 'SERVICE_CALL' || kind === 'CALLS_ENDPOINT') return 'service_call';
 
   return 'library';

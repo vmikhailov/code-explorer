@@ -414,6 +414,67 @@ func RunPubSub(ctx context.Context, client *pubsub.Client) {
     }
 
     [Test]
+    public async Task Test_GoPubSubParser_EnsureSubscription_DoesNotPublish()
+    {
+        var parser = new GoParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_gopubsub_nopub_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "subscriber.go");
+
+        var code = @"
+package main
+
+import (
+    ""context""
+    ""cloud.google.com/go/pubsub""
+)
+
+func EnsureSubscription(ctx context.Context, client *pubsub.Client) {
+    topic := client.Topic(""incoming_events"")
+    sub := client.Subscription(""incoming_sub"")
+    _, _ = client.CreateSubscription(ctx, ""incoming_sub"", pubsub.SubscriptionConfig{
+        Topic: topic,
+    })
+    _ = sub
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+
+            await using (var client = new InMemoryGraphClient())
+            {
+                var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+                using (var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
+                           ctx.AbsoluteWorkspacePath))
+                {
+                    Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+                    var fileNode = syntaxTree.FileNode;
+                    Assert.That(fileNode, Is.Not.Null);
+
+                    var refs = FindReferences(fileNode.Children);
+
+                    // Must NOT have any PUBLISHES_TO because client.Topic was only retrieved for subscription setup, never published to!
+                    var pubRel = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO");
+                    Assert.That(pubRel, Is.Null, "Expected NO PUBLISHES_TO relationship when .Publish() is never called");
+
+                    // Should have SUBSCRIBES_TO for subscription
+                    var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:incoming_sub");
+                    Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for gcp:incoming_sub");
+                }
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Test_TypeScriptRabbitMq_WrapperAndSendListen()
     {
         var parser = new TypeScriptParser();

@@ -1053,3 +1053,145 @@
 .react-flow__controls-button:last-child {
   border-bottom: none !important;
 }
+
+/* Database and Topic card expansion extension */
+.database-card-extension {
+  padding: 6px 8px 8px 8px !important;
+}
+
+.database-connections-header {
+  position: relative;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.database-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px 3px 14px;
+  border-radius: 4px;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.topic-card-extension .database-toggle-row {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+.database-toggle-row:hover {
+  background: rgba(52, 211, 153, 0.16);
+  border-color: rgba(52, 211, 153, 0.45);
+}
+
+.topic-card-extension .database-toggle-row:hover {
+  background: rgba(251, 191, 36, 0.16);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.database-toggle-row.is-active {
+  background: rgba(52, 211, 153, 0.22);
+  border-color: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.2);
+}
+
+.topic-card-extension .database-toggle-row.is-active {
+  background: rgba(251, 191, 36, 0.22);
+  border-color: #fbbf24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.2);
+}
+
+.database-toggle-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #34d399;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.database-count-badge {
+  font-size: 8px;
+  font-weight: 800;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  line-height: 1.2;
+}
+
+.database-diagram-status {
+  font-size: 8px;
+  color: #94a3b8;
+  margin-left: auto;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.database-services-list {
+  max-height: 150px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-right: 2px;
+}
+
+.database-service-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 9.5px;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.database-service-item:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+
+.database-service-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.database-service-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+}
+
+.database-service-action {
+  font-size: 9.5px;
+  opacity: 0.6;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.database-service-item:hover .database-service-action {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.database-services-empty {
+  font-size: 8.5px;
+  color: #64748b;
+  font-style: italic;
+  padding: 4px 6px;
+  text-align: center;
+}
+

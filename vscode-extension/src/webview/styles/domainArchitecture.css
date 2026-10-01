@@ -910,6 +910,10 @@
   border-color: rgba(56, 189, 248, 0.4);
 }
 
+.domain-inspector-panel.domain-edge-inspector-panel {
+  width: 330px;
+}
+
 .domain-inspector-collapsed-badge {
   display: inline-flex;
   align-items: center;

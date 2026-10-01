@@ -230,6 +230,109 @@ public static class GoAstHelper
         return result;
     }
 
+    public static Node? FindVariableInitializerNodeInScope(Node node, string varName)
+    {
+        var curr = node.Parent;
+        var maxScopeSteps = 50;
+        var steps = 0;
+
+        while (curr.IsValid() && ++steps <= maxScopeSteps)
+        {
+            if (curr.IsAny("statement_list", TreeSitterSyntax.Go.Block, TreeSitterSyntax.Go.FunctionDeclaration,
+                    "source_file"))
+            {
+                foreach (var child in curr.Children)
+                {
+                    // short_var_declaration: url := ...
+                    if (child.Is(TreeSitterSyntax.Go.ShortVarDeclaration))
+                    {
+                        var leftList = child.GetField(TreeSitterSyntax.Fields.Left) ??
+                                       (child.Children.Count > 0 ? child.Children[0] : null);
+
+                        var rightList = child.GetField(TreeSitterSyntax.Fields.Right) ??
+                                        (child.Children.Count > 2 ? child.Children[2] : null);
+
+                        if (leftList.IsValid() && rightList.IsValid())
+                        {
+                            var lefts = leftList.Is(TreeSitterSyntax.Go.ExpressionList)
+                                ? leftList.Children.Where(c =>
+                                        c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName))
+                                    .ToList()
+                                : new List<Node> { leftList };
+
+                            var rights = rightList.Is(TreeSitterSyntax.Go.ExpressionList)
+                                ? rightList.Children.Where(c => char.IsLetter(c.Type[0]) || c.Type[0] == '_')
+                                    .ToList()
+                                : new List<Node> { rightList };
+
+                            for (var i = 0; i < lefts.Count && i < rights.Count; i++)
+                            {
+                                if (lefts[i].Text == varName)
+                                {
+                                    if (IsNodeContainedWithin(node, rights[i]))
+                                    {
+                                        continue;
+                                    }
+
+                                    var rNode = rights[i];
+                                    if (rNode.Is(TreeSitterSyntax.Go.ExpressionList))
+                                    {
+                                        var expr = rNode.Children.FirstOrDefault(c => c.IsValid() && (char.IsLetter(c.Type[0]) || c.Type[0] == '_'));
+                                        if (expr.IsValid()) rNode = expr;
+                                    }
+                                    return rNode;
+                                }
+                            }
+                        }
+                    }
+
+                    // var_declaration / const_declaration: var url = ... or const url = ...
+                    else if (child.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec,
+                                 "var_declaration", "const_declaration"))
+                    {
+                        var specs = child.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec)
+                            ? new List<Node> { child }
+                            : child.Children.Where(c =>
+                                c.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec)).ToList();
+
+                        foreach (var spec in specs)
+                        {
+                            var nameNode = spec.GetField(TreeSitterSyntax.Fields.Name) ??
+                                           spec.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier,
+                                               TreeSitterSyntax.Go.VariableName));
+
+                            if (nameNode.IsValid() && nameNode.Text == varName)
+                            {
+                                var valNode = spec.GetField(TreeSitterSyntax.Fields.Value) ??
+                                              (spec.Children.Count >= 3 ? spec.Children[^1] : null);
+
+                                if (valNode.IsValid())
+                                {
+                                    if (IsNodeContainedWithin(node, valNode))
+                                    {
+                                        continue;
+                                    }
+
+                                    var vNode = valNode;
+                                    if (vNode.Is(TreeSitterSyntax.Go.ExpressionList))
+                                    {
+                                        var expr = vNode.Children.FirstOrDefault(c => c.IsValid() && (char.IsLetter(c.Type[0]) || c.Type[0] == '_'));
+                                        if (expr.IsValid()) vNode = expr;
+                                    }
+                                    return vNode;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            curr = curr.Parent;
+        }
+
+        return null;
+    }
+
     private static string? FindVariableInitializerInScope(
         Node node,
         string varName,
@@ -247,90 +350,10 @@ public static class GoAstHelper
 
         try
         {
-            var curr = node.Parent;
-            var maxScopeSteps = 50;
-            var steps = 0;
-
-            while (curr.IsValid() && ++steps <= maxScopeSteps)
+            var initNode = FindVariableInitializerNodeInScope(node, varName);
+            if (initNode.IsValid())
             {
-                if (curr.IsAny("statement_list", TreeSitterSyntax.Go.Block, TreeSitterSyntax.Go.FunctionDeclaration,
-                        "source_file"))
-                {
-                    foreach (var child in curr.Children)
-                    {
-                        // short_var_declaration: url := ...
-                        if (child.Is(TreeSitterSyntax.Go.ShortVarDeclaration))
-                        {
-                            var leftList = child.GetField(TreeSitterSyntax.Fields.Left) ??
-                                           (child.Children.Count > 0 ? child.Children[0] : null);
-
-                            var rightList = child.GetField(TreeSitterSyntax.Fields.Right) ??
-                                            (child.Children.Count > 2 ? child.Children[2] : null);
-
-                            if (leftList.IsValid() && rightList.IsValid())
-                            {
-                                var lefts = leftList.Is(TreeSitterSyntax.Go.ExpressionList)
-                                    ? leftList.Children.Where(c =>
-                                            c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName))
-                                        .ToList()
-                                    : new List<Node> { leftList };
-
-                                var rights = rightList.Is(TreeSitterSyntax.Go.ExpressionList)
-                                    ? rightList.Children.Where(c => char.IsLetter(c.Type[0]) || c.Type[0] == '_')
-                                        .ToList()
-                                    : new List<Node> { rightList };
-
-                                for (var i = 0; i < lefts.Count && i < rights.Count; i++)
-                                {
-                                    if (lefts[i].Text == varName)
-                                    {
-                                        if (IsNodeContainedWithin(node, rights[i]))
-                                        {
-                                            continue;
-                                        }
-
-                                        return ResolveStringOrVariable(rights[i], depth + 1, visitedVars);
-                                    }
-                                }
-                            }
-                        }
-
-                        // var_declaration / const_declaration: var url = ... or const url = ...
-                        else if (child.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec,
-                                     "var_declaration", "const_declaration"))
-                        {
-                            var specs = child.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec)
-                                ? new List<Node> { child }
-                                : child.Children.Where(c =>
-                                    c.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec)).ToList();
-
-                            foreach (var spec in specs)
-                            {
-                                var nameNode = spec.GetField(TreeSitterSyntax.Fields.Name) ??
-                                               spec.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier,
-                                                   TreeSitterSyntax.Go.VariableName));
-
-                                if (nameNode.IsValid() && nameNode.Text == varName)
-                                {
-                                    var valNode = spec.GetField(TreeSitterSyntax.Fields.Value) ??
-                                                  (spec.Children.Count >= 3 ? spec.Children[^1] : null);
-
-                                    if (valNode.IsValid())
-                                    {
-                                        if (IsNodeContainedWithin(node, valNode))
-                                        {
-                                            continue;
-                                        }
-
-                                        return ResolveStringOrVariable(valNode, depth + 1, visitedVars);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                curr = curr.Parent;
+                return ResolveStringOrVariable(initNode, depth + 1, visitedVars);
             }
 
             return null;

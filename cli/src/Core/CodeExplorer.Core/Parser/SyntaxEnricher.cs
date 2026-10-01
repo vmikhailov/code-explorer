@@ -186,8 +186,15 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                         if (canonicalRes == null)
                         {
-                            var aliasList = new List<string> { canonicalDbName, targetEngine.ToLowerInvariant(), parser.Id.ToLowerInvariant() };
-                            if (!string.IsNullOrEmpty(declaredSchema)) aliasList.Add(declaredSchema);
+                            var aliasList = new List<string> { canonicalDbName };
+                            if (!string.IsNullOrEmpty(declaredSchema) &&
+                                !declaredSchema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
+                                !declaredSchema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&
+                                !declaredSchema.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                                !declaredSchema.Equals("main", StringComparison.OrdinalIgnoreCase))
+                            {
+                                aliasList.Add(declaredSchema);
+                            }
 
                             canonicalRes = ctx.ResourceRegistry.RegisterResource(
                                 ctx.WorkspaceId,

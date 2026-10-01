@@ -39,12 +39,15 @@ public class PubSubGoLibraryParser : ISemanticExtension
                         {
                             target = target[(target.LastIndexOf('.') + 1)..];
                         }
-                        AddSubscribe(references, scopeSymbolId, target);
+                        if (!WorkspaceConventions.IsPlaceholderName(target))
+                        {
+                            AddSubscribe(references, scopeSymbolId, target);
+                        }
                     }
                 }
 
                 var subMatch = Regex.Match(node.Text, @"SubID\s*:\s*([^\s,;\}]+)");
-                if (subMatch.Success)
+                if (subMatch.Success && !topicMatch.Success)
                 {
                     var raw = subMatch.Groups[1].Value.Trim('"', '`');
                     if (!string.IsNullOrEmpty(raw))
@@ -54,7 +57,10 @@ public class PubSubGoLibraryParser : ISemanticExtension
                         {
                             target = target[(target.LastIndexOf('.') + 1)..];
                         }
-                        AddSubscribe(references, scopeSymbolId, target);
+                        if (!WorkspaceConventions.IsPlaceholderName(target))
+                        {
+                            AddSubscribe(references, scopeSymbolId, target);
+                        }
                     }
                 }
             }
@@ -69,17 +75,8 @@ public class PubSubGoLibraryParser : ISemanticExtension
         var funcText = func.Text;
         var args = GoAstHelper.GetCallArguments(node);
 
-        // Client Topic: client.Topic(topicName)
-        if (funcText.EndsWith(".Topic", StringComparison.Ordinal))
-        {
-            if (args.Count > 0)
-            {
-                var topic = GoAstHelper.ResolveStringOrVariable(args[0]);
-                AddPublish(references, scopeSymbolId, topic);
-            }
-        }
         // Client Subscription: client.Subscription(subName)
-        else if (funcText.EndsWith(".Subscription", StringComparison.Ordinal))
+        if (funcText.EndsWith(".Subscription", StringComparison.Ordinal))
         {
             if (args.Count > 0)
             {
@@ -101,14 +98,34 @@ public class PubSubGoLibraryParser : ISemanticExtension
                 AddSubscribe(references, scopeSymbolId, target);
             }
         }
-        // Topic Publish: topic.Publish(ctx, msg) or manager.Publish(ctx, topic, msg, ...)
-        else if (funcText.EndsWith(".Publish", StringComparison.Ordinal))
+        // Topic Publish: topic.Publish(ctx, msg) or client.Topic(name).Publish(ctx, msg) or manager.Publish(ctx, topic, msg, ...)
+        else if (funcText.EndsWith(".Publish", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".PublishAsync", StringComparison.Ordinal))
         {
-            if (args.Count >= 2)
+            string? topic = null;
+
+            if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
             {
-                var topic = GoAstHelper.ResolveStringOrVariable(args[1]);
-                AddPublish(references, scopeSymbolId, topic);
+                var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
+                if (operand.IsValid())
+                {
+                    topic = ResolveTopicFromOperand(operand);
+                }
             }
+
+            if (string.IsNullOrEmpty(topic) && args.Count > 0)
+            {
+                if (args.Count >= 2)
+                {
+                    topic = GoAstHelper.ResolveStringOrVariable(args[1]);
+                }
+                if (string.IsNullOrEmpty(topic))
+                {
+                    topic = GoAstHelper.ResolveStringOrVariable(args[0]);
+                }
+            }
+
+            AddPublish(references, scopeSymbolId, topic);
         }
         // Subscription Receive / Subscribe: sub.Receive(ctx, handler) or manager.Subscribe(ctx, to, handler, ...)
         else if (funcText.EndsWith(".Receive", StringComparison.Ordinal) ||
@@ -134,9 +151,81 @@ public class PubSubGoLibraryParser : ISemanticExtension
         }
     }
 
+    private static string? ResolveTopicFromOperand(Node operand)
+    {
+        // 1. Direct call: client.Topic("events_topic").Publish(...)
+        if (operand.Is(TreeSitterSyntax.Go.CallExpression))
+        {
+            var opFunc = operand.GetFunctionNode();
+            if (opFunc.IsValid() && opFunc.Text.EndsWith(".Topic", StringComparison.Ordinal))
+            {
+                var opArgs = GoAstHelper.GetCallArguments(operand);
+                if (opArgs.Count > 0)
+                {
+                    return GoAstHelper.ResolveStringOrVariable(opArgs[0]);
+                }
+            }
+            return null;
+        }
+
+        // 2. Identifier: topic.Publish(...)
+        if (operand.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName))
+        {
+            var varName = operand.Text;
+
+            // Find declaration in scope: topic := client.Topic("events_topic")
+            var declRhs = GoAstHelper.FindVariableInitializerNodeInScope(operand, varName);
+            if (declRhs.IsValid())
+            {
+                if (declRhs.Is(TreeSitterSyntax.Go.CallExpression))
+                {
+                    var opFunc = declRhs.GetFunctionNode();
+                    if (opFunc.IsValid() && opFunc.Text.EndsWith(".Topic", StringComparison.Ordinal))
+                    {
+                        var opArgs = GoAstHelper.GetCallArguments(declRhs);
+                        if (opArgs.Count > 0)
+                        {
+                            return GoAstHelper.ResolveStringOrVariable(opArgs[0]);
+                        }
+                    }
+                }
+
+                var resolved = GoAstHelper.ResolveStringOrVariable(declRhs);
+                if (!string.IsNullOrEmpty(resolved) && !WorkspaceConventions.IsPlaceholderName(resolved))
+                {
+                    return resolved;
+                }
+            }
+
+            if (!WorkspaceConventions.IsPlaceholderName(varName) &&
+                (varName.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                 Regex.IsMatch(varName, @"^[A-Z0-9_]{3,}$")))
+            {
+                return varName;
+            }
+        }
+
+        // 3. Selector expression: p.topic.Publish(...)
+        if (operand.Is(TreeSitterSyntax.Go.SelectorExpression))
+        {
+            var field = operand.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (field.IsValid())
+            {
+                var fieldText = field.Text;
+                if (!WorkspaceConventions.IsPlaceholderName(fieldText) &&
+                    fieldText.EndsWith("Topic", StringComparison.OrdinalIgnoreCase))
+                {
+                    return fieldText;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static void AddPublish(List<Reference> references, string scopeSymbolId, string? target)
     {
-        if (!string.IsNullOrEmpty(target) && WorkspaceConventions.IsValidTopicOrQueueName(target))
+        if (!string.IsNullOrEmpty(target) && !WorkspaceConventions.IsPlaceholderName(target) && WorkspaceConventions.IsValidTopicOrQueueName(target))
         {
             references.Add(new Reference(scopeSymbolId, "gcp:" + target.Trim(), OntologyConstants.Relationships.PublishesTo));
         }
@@ -144,7 +233,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
 
     private static void AddSubscribe(List<Reference> references, string scopeSymbolId, string? target)
     {
-        if (!string.IsNullOrEmpty(target) && WorkspaceConventions.IsValidTopicOrQueueName(target))
+        if (!string.IsNullOrEmpty(target) && !WorkspaceConventions.IsPlaceholderName(target) && WorkspaceConventions.IsValidTopicOrQueueName(target))
         {
             references.Add(new Reference(scopeSymbolId, "gcp:" + target.Trim(), OntologyConstants.Relationships.SubscribesTo));
         }

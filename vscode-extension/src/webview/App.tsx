@@ -674,9 +674,14 @@ export const App: React.FC = () => {
       if (!edges) return;
       for (const e of edges) {
         let otherId: string | null = null;
-        if (e.target === selectedDrawerNode.id || e.target.endsWith(`:${selectedDrawerNode.name}`)) {
+        const sId = selectedDrawerNode.id.toLowerCase();
+        const sName = selectedDrawerNode.name.toLowerCase();
+        const tLower = (e.target || '').toLowerCase();
+        const srcLower = (e.source || '').toLowerCase();
+
+        if (tLower === sId || tLower === sName || tLower.endsWith(`:${sName}`) || tLower.endsWith(`:${sId}`)) {
           otherId = e.source;
-        } else if (e.source === selectedDrawerNode.id || e.source.endsWith(`:${selectedDrawerNode.name}`)) {
+        } else if (srcLower === sId || srcLower === sName || srcLower.endsWith(`:${sName}`) || srcLower.endsWith(`:${sId}`)) {
           otherId = e.target;
         }
         if (otherId && otherId !== selectedDrawerNode.id) {
@@ -1656,7 +1661,7 @@ export const App: React.FC = () => {
             <div className="drawer-content">
               {/* Quick Actions */}
               <div className="drawer-actions-row">
-                {isProjectKind(selectedDrawerNode.kind) && (
+                {(isProjectKind(selectedDrawerNode.kind) || ['database', 'topic'].includes(selectedDrawerNode.kind?.toLowerCase() || '')) && (
                   <button
                     className="drawer-action-btn primary"
                     onClick={() => handleDrillDownToFlow(selectedDrawerNode.name)}
