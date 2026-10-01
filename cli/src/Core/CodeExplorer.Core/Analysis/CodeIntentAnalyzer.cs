@@ -91,7 +91,7 @@ public static class CodeIntentAnalyzer
                         {
                             foreach (var svc in d.Services)
                             {
-                                toSave[svc.Trim()] = (d.Name, d.Description, new List<string>());
+                                toSave[svc.Trim()] = (d.Name, d.Description, []);
                             }
                         }
                         if (toSave.Count > 0)
@@ -247,7 +247,13 @@ public static class CodeIntentAnalyzer
                     }
 
                     var targetServices = filterList.Count > 0
-                        ? businessServices.Where(s => filterList.Any(f => s.Name.ToLowerInvariant().Contains(f) || (!string.IsNullOrEmpty(s.RelativePath) && s.RelativePath.ToLowerInvariant().Contains(f)))).ToList()
+                        ?
+                        [
+                            .. businessServices.Where(s => filterList.Any(f =>
+                                s.Name.ToLowerInvariant().Contains(f) || (!string.IsNullOrEmpty(s.RelativePath) &&
+                                                                          s.RelativePath.ToLowerInvariant()
+                                                                              .Contains(f))))
+                        ]
                         : businessServices;
 
                     if (targetServices.Count > 0)
@@ -319,7 +325,7 @@ public static class CodeIntentAnalyzer
                                         {
                                             var cleanSvc = svc.Trim();
                                             var existingSummary = projectIntentsToSave.TryGetValue(cleanSvc, out var existing) ? existing.Summary : d.Description;
-                                            var existingAggs = existing.Capabilities ?? new List<string>();
+                                            var existingAggs = existing.Capabilities ?? [];
                                             projectDomainMap[cleanSvc] = (d.Name, existingSummary);
                                             projectIntentsToSave[cleanSvc] = (d.Name, existingSummary, existingAggs);
                                         }
@@ -350,7 +356,7 @@ public static class CodeIntentAnalyzer
                                         {
                                             var cleanSvc = svc.Trim();
                                             var existingSummary = projectIntentsToSave.TryGetValue(cleanSvc, out var existing) ? existing.Summary : d.Description;
-                                            var existingAggs = existing.Capabilities ?? new List<string>();
+                                            var existingAggs = existing.Capabilities ?? [];
                                             projectDomainMap[cleanSvc] = (canonicalName, existingSummary);
                                             projectIntentsToSave[cleanSvc] = (canonicalName, existingSummary, existingAggs);
                                         }
@@ -368,7 +374,7 @@ public static class CodeIntentAnalyzer
                                             {
                                                 var cleanSvc = svc.Trim();
                                                 var existingSummary = projectIntentsToSave.TryGetValue(cleanSvc, out var existing) ? existing.Summary : d.Description;
-                                                var existingAggs = existing.Capabilities ?? new List<string>();
+                                                var existingAggs = existing.Capabilities ?? [];
                                                 projectDomainMap[cleanSvc] = (canonicalName, existingSummary);
                                                 projectIntentsToSave[cleanSvc] = (canonicalName, existingSummary, existingAggs);
                                             }
@@ -451,7 +457,7 @@ public static class CodeIntentAnalyzer
                             if (string.IsNullOrWhiteSpace(fallbackDomain)) fallbackDomain = "CoreDomain";
                             var fallbackRole = $"Component of {fallbackDomain} domain";
                             projectDomainMap[sig.Name] = (fallbackDomain, fallbackRole);
-                            projectIntentsToSave[sig.Name] = (fallbackDomain, fallbackRole, new List<string>());
+                            projectIntentsToSave[sig.Name] = (fallbackDomain, fallbackRole, []);
                             unassignedCount++;
                         }
 
@@ -698,7 +704,7 @@ public static class CodeIntentAnalyzer
                 {
                     if (!tableMap.TryGetValue(tbl, out var list))
                     {
-                        list = new List<string>();
+                        list = [];
                         tableMap[tbl] = list;
                     }
                     list.Add(sig.Name);
@@ -707,7 +713,7 @@ public static class CodeIntentAnalyzer
                 {
                     if (!topicMap.TryGetValue(top, out var list))
                     {
-                        list = new List<string>();
+                        list = [];
                         topicMap[top] = list;
                     }
                     list.Add(sig.Name);
@@ -848,7 +854,7 @@ public static class CodeIntentAnalyzer
                 {
                     desc = $"Business domain for {g.Key} capabilities and services.";
                 }
-                configuredResult.Add(new SystemDomainAssignment(g.Key, desc, g.Distinct().ToList()));
+                configuredResult.Add(new SystemDomainAssignment(g.Key, desc, [.. g.Distinct()]));
             }
 
             return new SystemDomainsResult(configuredResult);
@@ -874,7 +880,7 @@ public static class CodeIntentAnalyzer
             {
                 if (!genericTableMap.TryGetValue(tbl, out var list))
                 {
-                    list = new List<string>();
+                    list = [];
                     genericTableMap[tbl] = list;
                 }
                 list.Add(sig.Name);
@@ -896,7 +902,7 @@ public static class CodeIntentAnalyzer
             {
                 if (!genericTopicMap.TryGetValue(top, out var list))
                 {
-                    list = new List<string>();
+                    list = [];
                     genericTopicMap[top] = list;
                 }
                 list.Add(sig.Name);
@@ -919,7 +925,7 @@ public static class CodeIntentAnalyzer
             {
                 if (!namespaceMap.TryGetValue(ns, out var list))
                 {
-                    list = new List<string>();
+                    list = [];
                     namespaceMap[ns] = list;
                 }
                 list.Add(sig.Name);
@@ -963,7 +969,7 @@ public static class CodeIntentAnalyzer
                 "TestingInfrastructure" => "Testing harnesses, fixtures, and mock implementations.",
                 _ => $"Business domain for {g.Key} capabilities and operations."
             };
-            genericResult.Add(new SystemDomainAssignment(g.Key, desc, g.Distinct().ToList()));
+            genericResult.Add(new SystemDomainAssignment(g.Key, desc, [.. g.Distinct()]));
         }
 
         return new SystemDomainsResult(genericResult);

@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
+using CodeExplorer.Cypher.Linq;
 using CodeExplorer.Cypher.Parser;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -28,6 +30,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
     public int CommandTimeoutSeconds { get; set; } = 15;
     public string DbPath => _conn.DataSource;
     public SqliteConnection Connection => _conn;
+    public GraphContext Graph => new(this);
 
     public const int CurrentSchemaVersion = 3;
     public int SchemaVersion { get; private set; }
@@ -659,7 +662,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             const int batchSize = 100;
-            var distinctNodes = nodes.Count > 1 ? nodes.DistinctBy(n => n.Id).ToList() : nodes;
+            var distinctNodes = nodes.Count > 1 ? [.. nodes.DistinctBy(n => n.Id)] : nodes;
 
             for (int i = 0; i < distinctNodes.Count; i += batchSize)
             {
@@ -715,7 +718,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
             const string emptyPropsJson = "{}";
             const int batchSize = 100;
-            var distinctRels = rels.Count > 1 ? rels.DistinctBy(r => (r.From, r.To, r.Kind)).ToList() : rels;
+            var distinctRels = rels.Count > 1 ? [.. rels.DistinctBy(r => (r.From, r.To, r.Kind))] : rels;
 
             for (int i = 0; i < distinctRels.Count; i += batchSize)
             {
@@ -805,6 +808,50 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             _lock.Release();
         }
     }
+
+    public async Task<string> ExecuteQueryAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var compiled = SqliteCompiler.Compile(query, parameters);
+
+        await _lock.WaitAsync(ct);
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+
+            cmd.CommandTimeout = CommandTimeoutSeconds;
+            cmd.CommandText = compiled.Sql;
+
+            foreach (var (k, v) in compiled.Parameters)
+            {
+                cmd.Parameters.AddWithValue("@" + k, v ?? DBNull.Value);
+            }
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+
+            var rows = await ReadRowsAsync(reader, ct);
+            sw.Stop();
+
+            _logger.LogDebug("[DB:QueryAst] Completed in {ElapsedMs:F1}ms (rows: {RowCount})",
+                sw.Elapsed.TotalMilliseconds, rows.Count);
+
+            return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
+        {
+            sw.Stop();
+            _logger.LogError(ex, "[DB:QueryAst] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s)",
+                sw.Elapsed.TotalMilliseconds, CommandTimeoutSeconds);
+            throw new TimeoutException($"Query execution timed out after {CommandTimeoutSeconds} seconds.", ex);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public Task<string> ExecuteRawAsync(string cypher, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default) =>
+        ExecuteQueryAsync(cypher, parameters, ct);
 
     private static string GetQueryPreview(string query)
     {
@@ -1781,7 +1828,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             // 3. Determine target projects: filter to workloads if requested and available
             var hasWorkloads = projects.Any(p => p.Role is "Service" or "Worker" or "FrontendApp" or "App");
             var targetProjects = (workloadsOnly && hasWorkloads)
-                ? projects.Where(p => p.Role is "Service" or "Worker" or "FrontendApp" or "App").ToList()
+                ? [.. projects.Where(p => p.Role is "Service" or "Worker" or "FrontendApp" or "App")]
                 : projects;
 
             // 4. Assemble ProjectSignature objects
@@ -1819,10 +1866,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                     p.Id,
                     p.Name,
                     p.Path,
-                    endpoints,
-                    tables.OrderBy(x => x).Take(15).ToList(),
-                    topics,
-                    types.OrderBy(x => x).Take(20).ToList(),
+                    endpoints, [.. tables.OrderBy(x => x).Take(15)],
+                    topics, [.. types.OrderBy(x => x).Take(20)],
                     p.Domain,
                     p.Summary,
                     Role: p.Role,

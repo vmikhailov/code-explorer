@@ -298,8 +298,7 @@ public class JavaParser : IProjectParser, IFileParser
             }
         }
 
-        return Task.FromResult(new ProjectDependencyInfo(
-            localProjects.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+        return Task.FromResult(new ProjectDependencyInfo([.. localProjects.Distinct(StringComparer.OrdinalIgnoreCase)],
             externalPackages
         ));
     }

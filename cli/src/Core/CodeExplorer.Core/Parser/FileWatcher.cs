@@ -94,7 +94,7 @@ public class FileWatcher : IDisposable
         lock (_lock)
         {
             if (_pendingChanges.IsEmpty) return;
-            batch = _pendingChanges.Keys.ToList();
+            batch = [.. _pendingChanges.Keys];
             _pendingChanges.Clear();
         }
 

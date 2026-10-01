@@ -132,7 +132,7 @@ public static class RouteDictionaryRegistry
         return false;
     }
 
-    public static IReadOnlyCollection<string> GetAllKnownServices() => _serviceDomains.Values.ToList();
+    public static IReadOnlyCollection<string> GetAllKnownServices() => [.. _serviceDomains.Values];
 
     public static void Clear()
     {

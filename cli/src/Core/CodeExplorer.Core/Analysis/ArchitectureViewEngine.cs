@@ -1877,7 +1877,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
         var (_, isLib) = ProjectRoleDetector.DetectRole(
             "",
-            Array.Empty<string>(),
+            [],
             node.FilePath ?? "",
             node.Name,
             projectType ?? ""
@@ -1889,7 +1889,7 @@ public class ArchitectureViewEngine(IGraphClient db)
     {
         if (string.IsNullOrEmpty(sourceId)) return null;
 
-        var projList = projects as IList<GraphNodeDto> ?? projects.ToList();
+        var projList = projects as IList<GraphNodeDto> ?? [.. projects];
         if (projList.Count == 0) return null;
 
         // 1. Direct project ID match
@@ -3801,19 +3801,19 @@ public class ArchitectureViewEngine(IGraphClient db)
                 Layers = layers,
                 Patterns = patterns,
                 Operations = operations,
-                TargetEntities = entities.OrderBy(e => e).ToList(),
-                Capabilities = capabilities.OrderBy(c => c).ToList(),
-                EmittedEvents = emittedEvents.OrderBy(e => e).ToList(),
-                HandledEvents = handledEvents.OrderBy(e => e).ToList(),
-                Projects = projects.OrderBy(p => p).ToList(),
-                Files = files.OrderBy(f => f.FilePath).ToList(),
+                TargetEntities = [.. entities.OrderBy(e => e)],
+                Capabilities = [.. capabilities.OrderBy(c => c)],
+                EmittedEvents = [.. emittedEvents.OrderBy(e => e)],
+                HandledEvents = [.. handledEvents.OrderBy(e => e)],
+                Projects = [.. projects.OrderBy(p => p)],
+                Files = [.. files.OrderBy(f => f.FilePath)],
                 BgColor = cat.BgColor,
                 BorderColor = cat.BorderColor,
                 Size = Math.Min(140, Math.Max(70, 60 + (int)Math.Sqrt(records.Count) * 7))
             });
         }
 
-        result.Contexts = contexts.OrderByDescending(c => c.FileCount).ToList();
+        result.Contexts = [.. contexts.OrderByDescending(c => c.FileCount)];
         result.TotalPureDomains = contexts.Count(c => c.PurityPercentage > 50.0);
 
         // Aggregate domains
@@ -3844,9 +3844,10 @@ public class ArchitectureViewEngine(IGraphClient db)
             dom.TotalEntities += c.TargetEntities.Count;
         }
 
-        result.Domains = domainMap.Values
-            .OrderByDescending(d => d.TotalFiles)
-            .ToList();
+        result.Domains =
+        [
+            .. domainMap.Values.OrderByDescending(d => d.TotalFiles)
+        ];
 
         // Load strategic cross-domain interactions grouped by canonical Bounded Contexts
         var interactions = new List<BoundedContextInteractionDto>();
@@ -3967,11 +3968,11 @@ public class ArchitectureViewEngine(IGraphClient db)
                 FileCount = projs.Count * 5,
                 PureDomainCount = 0,
                 PurityPercentage = 0.0,
-                TargetEntities = entities.OrderBy(e => e).ToList(),
-                Capabilities = capabilities.OrderBy(c => c).ToList(),
-                EmittedEvents = emittedEvents.OrderBy(e => e).ToList(),
+                TargetEntities = [.. entities.OrderBy(e => e)],
+                Capabilities = [.. capabilities.OrderBy(c => c)],
+                EmittedEvents = [.. emittedEvents.OrderBy(e => e)],
                 HandledEvents = [],
-                Projects = projectNames.OrderBy(p => p).ToList(),
+                Projects = [.. projectNames.OrderBy(p => p)],
                 Files = [],
                 BgColor = cat.BgColor,
                 BorderColor = cat.BorderColor,
@@ -3979,7 +3980,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             });
         }
 
-        result.Contexts = contexts.OrderByDescending(c => c.Projects.Count).ToList();
+        result.Contexts = [.. contexts.OrderByDescending(c => c.Projects.Count)];
 
         var domainMap = new Dictionary<string, DomainDto>(StringComparer.OrdinalIgnoreCase);
         foreach (var c in contexts)
@@ -4008,9 +4009,10 @@ public class ArchitectureViewEngine(IGraphClient db)
             dom.TotalEntities += c.TargetEntities.Count;
         }
 
-        result.Domains = domainMap.Values
-            .OrderByDescending(d => d.TotalFiles)
-            .ToList();
+        result.Domains =
+        [
+            .. domainMap.Values.OrderByDescending(d => d.TotalFiles)
+        ];
 
         var crossCalls = await db.LoadCrossDomainInteractionsAsync(workspaceId ?? "", ct);
         var macroCalls = new List<(string SourceKey, string TargetKey, string EdgeKind, int Count)>();

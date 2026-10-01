@@ -1175,9 +1175,8 @@ public class PostIndexAnalyzer(IGraphClient db)
             projectExternalApis[projId] = [.. domains.OrderBy(x => x)];
         }
 
-        return new PostIndexAnalysisResult(
-            transitivelyCalls.DistinctBy(x => (x.From, x.To)).ToList(),
-            attributedTo.DistinctBy(x => (x.EpId, x.SinkId)).ToList(),
+        return new PostIndexAnalysisResult([.. transitivelyCalls.DistinctBy(x => (x.From, x.To))],
+            [.. attributedTo.DistinctBy(x => (x.EpId, x.SinkId))],
             projectExternalApis);
     }
 
@@ -1741,7 +1740,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         if (canonicalDbNodes.Count > 0)
         {
             ctx.Log($"[PostIndexAnalyzer] Materializing {canonicalDbNodes.Count} canonical Database nodes into graph...");
-            await ctx.DbClient.UploadNodesAsync(canonicalDbNodes.Values.Select(Node.FromNode).ToList());
+            await ctx.DbClient.UploadNodesAsync([.. canonicalDbNodes.Values.Select(Node.FromNode)]);
             ctx.AddNodesCount(canonicalDbNodes.Count);
         }
 

@@ -41,7 +41,7 @@ public sealed class NativeIntentPredictor : IIntentPredictor
 
     private readonly LLamaWeights _weights;
     private readonly ModelParams _parameters;
-    private readonly System.Collections.Concurrent.ConcurrentBag<StatelessExecutor> _executorPool = new();
+    private readonly System.Collections.Concurrent.ConcurrentBag<StatelessExecutor> _executorPool = [];
     private readonly SemaphoreSlim _semaphore;
     private readonly int _concurrency;
     private readonly JsonSerializerOptions _jsonOptions;

@@ -34,15 +34,14 @@ public class ArchitectureQueryServiceTests
     [Test]
     public async Task GetViewAsync_DelegatesToEngine_Successfully()
     {
-        await _db.UploadNodesAsync(new List<Node>
-        {
-            new("proj:test", "Project", new Dictionary<string, object>
-            {
-                ["name"] = "TestService",
-                ["role"] = "Service",
-                ["is_library"] = "false"
-            })
-        });
+        await _db.UploadNodesAsync([
+
+            new("proj:test", "Project",
+                new Dictionary<string, object>
+                {
+                    ["name"] = "TestService", ["role"] = "Service", ["is_library"] = "false"
+                })
+        ]);
 
         var result = await _service.GetViewAsync(new ArchitectureViewRequest
         {
@@ -56,11 +55,10 @@ public class ArchitectureQueryServiceTests
     [Test]
     public async Task GetAllProjectsAsync_ReturnsProjectNames()
     {
-        await _db.UploadNodesAsync(new List<Node>
-        {
+        await _db.UploadNodesAsync([
             new("p1", "Project", new Dictionary<string, object> { ["name"] = "OrderService" }),
             new("p2", "Project", new Dictionary<string, object> { ["name"] = "BillingService" })
-        });
+        ]);
 
         var projects = await _service.GetAllProjectsAsync();
 
@@ -71,16 +69,14 @@ public class ArchitectureQueryServiceTests
     [Test]
     public async Task GetMetadataAsync_ReturnsAggregates()
     {
-        await _db.UploadNodesAsync(new List<Node>
-        {
+        await _db.UploadNodesAsync([
             new("p1", "Project", new Dictionary<string, object> { ["name"] = "AuthService" }),
             new("db1", "Database", new Dictionary<string, object> { ["name"] = "users_db" })
-        });
+        ]);
 
-        await _db.UploadRelationshipsAsync(new List<Relationship>
-        {
+        await _db.UploadRelationshipsAsync([
             new("p1", "db1", "USES_DB", new Dictionary<string, object>())
-        });
+        ]);
 
         var meta = await _service.GetMetadataAsync();
 
@@ -92,20 +88,23 @@ public class ArchitectureQueryServiceTests
     [Test]
     public async Task GetNodeUsagesAsync_ReturnsAllUsagesOfDatabase()
     {
-        await _db.UploadNodesAsync(new List<Node>
-        {
+        await _db.UploadNodesAsync([
             new("p1", "Project", new Dictionary<string, object> { ["name"] = "OrderService" }),
             new("p2", "Project", new Dictionary<string, object> { ["name"] = "BillingService" }),
-            new("f1", "File", new Dictionary<string, object> { ["name"] = "OrderRepository.cs", ["path"] = "src/OrderRepository.cs", ["line"] = 42 }),
-            new("db1", "Database", new Dictionary<string, object> { ["name"] = "orders_db", ["path"] = "appsettings.json", ["line"] = 10 })
-        });
+            new("f1", "File",
+                new Dictionary<string, object>
+                {
+                    ["name"] = "OrderRepository.cs", ["path"] = "src/OrderRepository.cs", ["line"] = 42
+                }),
+            new("db1", "Database",
+                new Dictionary<string, object> { ["name"] = "orders_db", ["path"] = "appsettings.json", ["line"] = 10 })
+        ]);
 
-        await _db.UploadRelationshipsAsync(new List<Relationship>
-        {
+        await _db.UploadRelationshipsAsync([
             new("p1", "db1", "USES_DB", new Dictionary<string, object>()),
             new("p2", "db1", "USES_DB", new Dictionary<string, object>()),
             new("f1", "db1", "WRITES_DATA", new Dictionary<string, object>())
-        });
+        ]);
 
         var result = await _service.GetNodeUsagesAsync("db1");
 

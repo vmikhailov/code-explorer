@@ -14,9 +14,9 @@ public static class WorkspaceConventions
     private static readonly ConcurrentDictionary<string, string> ProjectToDomain = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, string> ServiceOverrides = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, string> DomainIcons = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ConcurrentBag<(Regex Regex, string Domain)> PatternToDomain = new();
-    private static readonly ConcurrentBag<string> CustomRouteFunctions = new();
-    private static readonly ConcurrentBag<string> CustomServicePrefixes = new();
+    private static readonly ConcurrentBag<(Regex Regex, string Domain)> PatternToDomain = [];
+    private static readonly ConcurrentBag<string> CustomRouteFunctions = [];
+    private static readonly ConcurrentBag<string> CustomServicePrefixes = [];
     private static readonly ConcurrentDictionary<string, string> DatabaseAliases = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex DefaultRouteFunctionRegex = new(

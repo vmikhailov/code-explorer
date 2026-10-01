@@ -481,27 +481,37 @@ public class CodeExplorerRepository
             if (row.TryGetProperty("outgoingDependencies", out var outProp) &&
                 outProp.ValueKind == JsonValueKind.Array)
             {
-                outgoing = outProp.EnumerateArray().Select(x => x.GetString() ?? "")
-                    .Where(x => !string.IsNullOrEmpty(x)).ToList();
+                outgoing =
+                [
+                    .. outProp.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x))
+                ];
             }
 
             if (row.TryGetProperty("incomingDependencies", out var inProp) &&
                 inProp.ValueKind == JsonValueKind.Array)
             {
-                incoming = inProp.EnumerateArray().Select(x => x.GetString() ?? "")
-                    .Where(x => !string.IsNullOrEmpty(x)).ToList();
+                incoming =
+                [
+                    .. inProp.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => !string.IsNullOrEmpty(x))
+                ];
             }
         }
 
         if (type.Equals("runtime", StringComparison.OrdinalIgnoreCase))
         {
-            outgoing = outgoing.Where(x =>
-                !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
-                !x.Contains("Mock", StringComparison.OrdinalIgnoreCase)).ToList();
+            outgoing =
+            [
+                .. outgoing.Where(x =>
+                    !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
+                    !x.Contains("Mock", StringComparison.OrdinalIgnoreCase))
+            ];
 
-            incoming = incoming.Where(x =>
-                !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
-                !x.Contains("Mock", StringComparison.OrdinalIgnoreCase)).ToList();
+            incoming =
+            [
+                .. incoming.Where(x =>
+                    !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
+                    !x.Contains("Mock", StringComparison.OrdinalIgnoreCase))
+            ];
         }
 
         if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))

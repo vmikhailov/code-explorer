@@ -137,10 +137,9 @@ public class TestIntelligenceServiceTests
             ["end_line"] = 35
         });
 
-        await _db.UploadNodesAsync(new List<Node>
-        {
+        await _db.UploadNodesAsync([
             projCore, projTests, typeUser, typeOrder, fnUserCreate, fnUserDelete, fnOrderPlace, fnTestUserCreate
-        });
+        ]);
 
         var emptyProps = new Dictionary<string, object>();
         var edges = new List<Relationship>
@@ -206,14 +205,13 @@ public class TestIntelligenceServiceTests
             ["end_line"] = 35
         });
 
-        await _db.UploadNodesAsync(new List<Node> { fnRepo, fnService, fnTest1 });
+        await _db.UploadNodesAsync([fnRepo, fnService, fnTest1]);
 
         var emptyProps = new Dictionary<string, object>();
-        await _db.UploadRelationshipsAsync(new List<Relationship>
-        {
+        await _db.UploadRelationshipsAsync([
             new("fn:svc_process", "fn:repo_save", "CALLS", emptyProps),
             new("fn:test_order_process", "fn:svc_process", "CALLS", emptyProps)
-        });
+        ]);
 
         // 1. When RepoMethod changes, TIA should find Test_ProcessOrder_EmitsEvent with Depth = 2
         var reportRepo = await _service.AnalyzeImpactAsync(new TestImpactRequest
@@ -264,12 +262,11 @@ public class TestIntelligenceServiceTests
             ["end_line"] = 20
         });
 
-        await _db.UploadNodesAsync(new List<Node> { fnTarget, fnTest });
+        await _db.UploadNodesAsync([fnTarget, fnTest]);
         var emptyProps = new Dictionary<string, object>();
-        await _db.UploadRelationshipsAsync(new List<Relationship>
-        {
+        await _db.UploadRelationshipsAsync([
             new("fn:test_target", "fn:target", "CALLS", emptyProps)
-        });
+        ]);
 
         var impactReport = await _service.AnalyzeImpactAsync(new TestImpactRequest
         {
@@ -300,14 +297,13 @@ public class TestIntelligenceServiceTests
 
         var test1 = new Node("fn:t1", "Function", new Dictionary<string, object> { ["name"] = "Test_M1", ["project"] = "P1Tests", ["is_test"] = "true", ["file_path"] = "tests/T1.cs", ["start_line"] = 5, ["end_line"] = 15 });
 
-        await _db.UploadNodesAsync(new List<Node> { proj1, proj2, type1, type2, fn1, fn2, test1 });
+        await _db.UploadNodesAsync([proj1, proj2, type1, type2, fn1, fn2, test1]);
         var empty = new Dictionary<string, object>();
-        await _db.UploadRelationshipsAsync(new List<Relationship>
-        {
+        await _db.UploadRelationshipsAsync([
             new("type:t1", "fn:f1", "HAS_METHOD", empty),
             new("type:t2", "fn:f2", "HAS_METHOD", empty),
             new("fn:t1", "fn:f1", "CALLS", empty)
-        });
+        ]);
 
         // 1. Filter by Project P1
         var reportP1 = await _service.AnalyzeCoverageAsync(new TestCoverageFilter(Project: "P1"));
@@ -336,13 +332,12 @@ public class TestIntelligenceServiceTests
         var fnGo = new Node("fn:go_target", "Function", new Dictionary<string, object> { ["name"] = "Handle", ["file_path"] = "handler.go", ["project"] = "app", ["start_line"] = 1, ["end_line"] = 10 });
         var testGo = new Node("fn:go_test", "Function", new Dictionary<string, object> { ["name"] = "TestHandle", ["file_path"] = "handler_test.go", ["project"] = "app", ["is_test"] = "true", ["test_framework"] = "gotest", ["start_line"] = 1, ["end_line"] = 10 });
 
-        await _db.UploadNodesAsync(new List<Node> { fnPy, testPy, fnGo, testGo });
+        await _db.UploadNodesAsync([fnPy, testPy, fnGo, testGo]);
         var empty = new Dictionary<string, object>();
-        await _db.UploadRelationshipsAsync(new List<Relationship>
-        {
+        await _db.UploadRelationshipsAsync([
             new("fn:py_test", "fn:py_target", "CALLS", empty),
             new("fn:go_test", "fn:go_target", "CALLS", empty)
-        });
+        ]);
 
         var report = await _service.AnalyzeImpactAsync(new TestImpactRequest
         {

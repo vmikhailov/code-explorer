@@ -58,14 +58,14 @@ public static class StandardLayers
         "Unit tests, integration suites, benchmarks, and generator tools"
     );
 
-    public static readonly IReadOnlyList<ProjectLayerInfo> All = new[]
-    {
+    public static readonly IReadOnlyList<ProjectLayerInfo> All =
+    [
         Ingress,
         Components,
         Egress,
         Foundation,
         Tests
-    };
+    ];
 }
 
 public class ProjectClassifierItem

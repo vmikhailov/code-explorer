@@ -48,7 +48,7 @@ public class ServiceOverrideDto
 public class WorkspaceDomainsConfigDto
 {
     [JsonPropertyName("domains")]
-    public List<DomainDefinitionDto> Domains { get; set; } = new();
+    public List<DomainDefinitionDto> Domains { get; set; } = [];
 
     [JsonPropertyName("overrides")]
     public Dictionary<string, ServiceOverrideDto> Overrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -86,7 +86,8 @@ public static class DomainManagementService
             {
                 if (domainsEl.ValueKind == JsonValueKind.Array)
                 {
-                    result.Domains = JsonSerializer.Deserialize<List<DomainDefinitionDto>>(domainsEl.GetRawText(), JsonOpts) ?? new();
+                    result.Domains = JsonSerializer.Deserialize<List<DomainDefinitionDto>>(domainsEl.GetRawText(), JsonOpts) ??
+                                     [];
                 }
                 else if (domainsEl.ValueKind == JsonValueKind.Object)
                 {

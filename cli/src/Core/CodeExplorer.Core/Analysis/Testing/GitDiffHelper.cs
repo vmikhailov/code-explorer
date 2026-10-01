@@ -77,13 +77,33 @@ public static class GitDiffHelper
             : "diff --name-only HEAD";
 
         var output = await RunGitCommandAsync(root, args, cancellationToken);
-        if (string.IsNullOrWhiteSpace(output)) return new List<string>();
+        if (string.IsNullOrWhiteSpace(output)) return [];
 
-        return output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(f => f.Trim().Replace('\\', '/'))
-            .Where(f => !string.IsNullOrEmpty(f))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return
+        [
+            .. output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(f => f.Trim().Replace('\\', '/')).Where(f => !string.IsNullOrEmpty(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+        ];
+    }
+
+    /// <summary>
+    /// Fetches list of untracked file names from git.
+    /// </summary>
+    public static async Task<List<string>> GetGitUntrackedFilesAsync(
+        string? workspaceRoot,
+        CancellationToken cancellationToken = default)
+    {
+        var root = string.IsNullOrWhiteSpace(workspaceRoot) ? Directory.GetCurrentDirectory() : workspaceRoot;
+        var output = await RunGitCommandAsync(root, "ls-files --others --exclude-standard", cancellationToken);
+        if (string.IsNullOrWhiteSpace(output)) return [];
+
+        return
+        [
+            .. output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(f => f.Trim().Replace('\\', '/')).Where(f => !string.IsNullOrEmpty(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+        ];
     }
 
     private static async Task<string?> RunGitCommandAsync(string workingDirectory, string arguments, CancellationToken ct)

@@ -67,16 +67,19 @@ public static class ConfigStore
     {
         if (string.IsNullOrWhiteSpace(projectName))
         {
-            return _discoveredUrls.ToList();
+            return [.. _discoveredUrls];
         }
 
         var pName = projectName.Trim();
         var domain = ConstantRegistry.ExtractDomainNameFromProject(pName);
 
-        return _discoveredUrls.Where(u =>
-            string.Equals(u.ProjectName, pName, StringComparison.OrdinalIgnoreCase) ||
-            (!string.IsNullOrEmpty(domain) && string.Equals(u.ProjectName, domain, StringComparison.OrdinalIgnoreCase))
-        ).ToList();
+        return
+        [
+            .. _discoveredUrls.Where(u =>
+                string.Equals(u.ProjectName, pName, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(domain) &&
+                 string.Equals(u.ProjectName, domain, StringComparison.OrdinalIgnoreCase)))
+        ];
     }
 
     public static bool TryGetConfig(string? projectName, string key, out string value)
@@ -127,7 +130,7 @@ public static class ConfigStore
         {
             lock (entries)
             {
-                return entries.ToList();
+                return [.. entries];
             }
         }
 
@@ -136,7 +139,7 @@ public static class ConfigStore
         {
             lock (entries)
             {
-                return entries.ToList();
+                return [.. entries];
             }
         }
 
@@ -145,7 +148,7 @@ public static class ConfigStore
         {
             lock (match.Value)
             {
-                return match.Value.ToList();
+                return [.. match.Value];
             }
         }
 

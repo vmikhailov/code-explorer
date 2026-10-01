@@ -524,8 +524,11 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         List<string> orderItems = [];
         if (query.OrderBy is { Items.Count: > 0 })
         {
-            orderItems = query.OrderBy.Items.Select(item =>
-                $"{VisitExpression(item.Expression)} {(item.IsDescending ? "DESC" : "ASC")}").ToList();
+            orderItems =
+            [
+                .. query.OrderBy.Items.Select(item =>
+                    $"{VisitExpression(item.Expression)} {(item.IsDescending ? "DESC" : "ASC")}")
+            ];
         }
 
         string? limitVal = null;

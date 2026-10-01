@@ -52,19 +52,35 @@ public class TestIntelligenceService
             // Apply project / path prefix filter if specified
             if (!string.IsNullOrWhiteSpace(filter.Project))
             {
-                prodTypes = prodTypes.Where(t => string.Equals(t.Project, filter.Project, StringComparison.OrdinalIgnoreCase)).ToList();
-                prodMethods = prodMethods.Where(m => string.Equals(m.Project, filter.Project, StringComparison.OrdinalIgnoreCase)).ToList();
+                prodTypes =
+                [
+                    .. prodTypes.Where(t =>
+                        string.Equals(t.Project, filter.Project, StringComparison.OrdinalIgnoreCase))
+                ];
+                prodMethods =
+                [
+                    .. prodMethods.Where(m =>
+                        string.Equals(m.Project, filter.Project, StringComparison.OrdinalIgnoreCase))
+                ];
             }
 
             if (!string.IsNullOrWhiteSpace(filter.PathPrefix))
             {
                 var normPrefix = filter.PathPrefix.Replace('\\', '/').TrimStart('/');
-                prodTypes = prodTypes.Where(t => t.FilePath.Replace('\\', '/').Contains(normPrefix, StringComparison.OrdinalIgnoreCase)).ToList();
-                prodMethods = prodMethods.Where(m => m.FilePath.Replace('\\', '/').Contains(normPrefix, StringComparison.OrdinalIgnoreCase)).ToList();
+                prodTypes =
+                [
+                    .. prodTypes.Where(t =>
+                        t.FilePath.Replace('\\', '/').Contains(normPrefix, StringComparison.OrdinalIgnoreCase))
+                ];
+                prodMethods =
+                [
+                    .. prodMethods.Where(m =>
+                        m.FilePath.Replace('\\', '/').Contains(normPrefix, StringComparison.OrdinalIgnoreCase))
+                ];
             }
 
             // 2. Compute reachability from test methods using recursive CTE
-            var reachedNodes = await ComputeTestReachabilityAsync(conn, testMethods.Select(t => t.Id).ToList(), cancellationToken);
+            var reachedNodes = await ComputeTestReachabilityAsync(conn, [.. testMethods.Select(t => t.Id)], cancellationToken);
 
             // 3. Classify Methods
             var coveredMethods = new List<CoveredMethodInfo>();
@@ -106,7 +122,7 @@ public class TestIntelligenceService
 
             foreach (var t in prodTypes)
             {
-                var methodsOfClass = typeToMethods.GetValueOrDefault(t.Id) ?? new List<RawFunctionSymbol>();
+                var methodsOfClass = typeToMethods.GetValueOrDefault(t.Id) ?? [];
                 var coveredCount = methodsOfClass.Count(m => reachedNodes.ContainsKey(m.Id));
                 var totalMethods = methodsOfClass.Count;
 
@@ -181,21 +197,21 @@ public class TestIntelligenceService
             // Apply status filter if requested
             if (string.Equals(filter.Status, "covered", StringComparison.OrdinalIgnoreCase))
             {
-                uncoveredClasses = new List<UncoveredClassInfo>();
-                uncoveredMethods = new List<UncoveredMethodInfo>();
+                uncoveredClasses = [];
+                uncoveredMethods = [];
             }
             else if (string.Equals(filter.Status, "uncovered", StringComparison.OrdinalIgnoreCase))
             {
-                coveredClasses = new List<CoveredClassInfo>();
-                coveredMethods = new List<CoveredMethodInfo>();
+                coveredClasses = [];
+                coveredMethods = [];
             }
 
             if (filter.Limit.HasValue && filter.Limit.Value > 0)
             {
-                coveredClasses = coveredClasses.Take(filter.Limit.Value).ToList();
-                uncoveredClasses = uncoveredClasses.Take(filter.Limit.Value).ToList();
-                coveredMethods = coveredMethods.Take(filter.Limit.Value).ToList();
-                uncoveredMethods = uncoveredMethods.Take(filter.Limit.Value).ToList();
+                coveredClasses = [.. coveredClasses.Take(filter.Limit.Value)];
+                uncoveredClasses = [.. uncoveredClasses.Take(filter.Limit.Value)];
+                coveredMethods = [.. coveredMethods.Take(filter.Limit.Value)];
+                uncoveredMethods = [.. uncoveredMethods.Take(filter.Limit.Value)];
             }
 
             return new TestCoverageReport(summary, coveredClasses, uncoveredClasses, coveredMethods, uncoveredMethods);
@@ -255,8 +271,7 @@ public class TestIntelligenceService
                 using var doc = JsonDocument.Parse(propsJson);
                 var root = doc.RootElement;
 
-                var path = root.TryGetProperty("path", out var pProp) ? pProp.GetString() ?? "" : "";
-                var filePath = root.TryGetProperty("file_path", out var fpProp) ? fpProp.GetString() ?? path : path;
+                var filePath = ResolveBestFilePath(root);
                 var name = root.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
                 var symbol = root.TryGetProperty("symbol", out var sProp) ? sProp.GetString() ?? name : name;
                 var sLine = root.TryGetProperty("start_line", out var slProp) ? slProp.GetInt32() : 0;
@@ -290,7 +305,7 @@ public class TestIntelligenceService
                         {
                             if (!typeToMethods.TryGetValue(tRef.TypeId, out var list))
                             {
-                                list = new List<RawFunctionSymbol>();
+                                list = [];
                                 typeToMethods[tRef.TypeId] = list;
                             }
                             list.Add(funcSymbol);
@@ -424,42 +439,53 @@ public class TestIntelligenceService
                     var gitFiles = await GitDiffHelper.GetGitChangedFilesAsync(request.WorkspaceRoot, request.GitBase, cancellationToken);
                     foreach (var f in gitFiles) changedFiles.Add(f);
                 }
+
+                // Also include newly created (untracked) files in working directory
+                var untracked = await GitDiffHelper.GetGitUntrackedFilesAsync(request.WorkspaceRoot, cancellationToken);
+                foreach (var u in untracked) changedFiles.Add(u);
             }
 
             // 2. Identify modified AST symbols in the database
             var (changedSymbols, changedIds) = await FindChangedSymbolsAsync(conn, changedFiles, changedHunks, request.SymbolNames, cancellationToken);
 
             var affectedTestMap = new Dictionary<string, AffectedTestMethod>(StringComparer.OrdinalIgnoreCase);
+            var prodChangedIds = new HashSet<string>(StringComparer.Ordinal);
 
-            // If any directly modified symbol is already a test, include it immediately
+            // 2. Identify directly modified test code vs production code
             foreach (var sym in changedSymbols)
             {
                 var normPath = sym.FilePath.Replace('\\', '/').ToLowerInvariant();
                 var isTestFile = normPath.Contains("/test/") || normPath.Contains("/tests/") ||
                                  normPath.EndsWith("_test.go") || normPath.EndsWith(".test.ts") || normPath.EndsWith(".spec.ts");
 
-                if (sym.Kind == "Function" && (isTestFile || sym.Name.StartsWith("Test", StringComparison.Ordinal) || sym.Name.StartsWith("test_", StringComparison.OrdinalIgnoreCase)))
+                if (isTestFile)
                 {
-                    affectedTestMap[sym.Name] = new AffectedTestMethod(
-                        sym.Name,
-                        sym.Symbol,
-                        ExtractClassNameFromSymbol(sym.Symbol),
-                        sym.FilePath,
-                        sym.StartLine,
-                        DetectFramework(sym.FilePath),
-                        "Directly modified test code",
-                        0,
-                        new[] { sym.Name },
-                        sym.Symbol,
-                        sym.FilePath
-                    );
+                    if (sym.Kind == "Function")
+                    {
+                        affectedTestMap[sym.Name] = new AffectedTestMethod(
+                            sym.Name,
+                            sym.Symbol,
+                            ExtractClassNameFromSymbol(sym.Symbol),
+                            sym.FilePath,
+                            sym.StartLine,
+                            DetectFramework(sym.FilePath),
+                            "Directly modified test code",
+                            0, [sym.Name],
+                            sym.Symbol,
+                            sym.FilePath
+                        );
+                    }
+                }
+                else
+                {
+                    prodChangedIds.Add(sym.Id);
                 }
             }
 
-            if (changedIds.Count > 0)
+            if (prodChangedIds.Count > 0)
             {
                 // 3. Traverse reverse graph up to test methods
-                var reverseAffected = await TraverseReverseToTestsAsync(conn, changedIds, request.MaxDepth, cancellationToken);
+                var reverseAffected = await TraverseReverseToTestsAsync(conn, prodChangedIds, request.MaxDepth, cancellationToken);
                 foreach (var t in reverseAffected)
                 {
                     if (!affectedTestMap.TryGetValue(t.TestMethodName, out var existing) || t.Depth < existing.Depth)
@@ -512,8 +538,7 @@ public class TestIntelligenceService
             using var doc = JsonDocument.Parse(propsJson);
             var root = doc.RootElement;
 
-            var path = root.TryGetProperty("path", out var pProp) ? pProp.GetString() ?? "" : "";
-            var filePath = root.TryGetProperty("file_path", out var fpProp) ? fpProp.GetString() ?? path : path;
+            var filePath = ResolveBestFilePath(root);
             var name = root.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
             var symbol = root.TryGetProperty("symbol", out var sProp) ? sProp.GetString() ?? name : name;
             var sLine = root.TryGetProperty("start_line", out var slProp) ? slProp.GetInt32() : 0;
@@ -540,7 +565,7 @@ public class TestIntelligenceService
                     normCf.EndsWith("/" + normPath, StringComparison.OrdinalIgnoreCase))
                 {
                     // If we have line hunks for this file, match line ranges
-                    if (hunkMap.TryGetValue(cf, out var hunks) || hunkMap.TryGetValue(normPath, out hunks))
+                    if ((hunkMap.TryGetValue(cf, out var hunks) || hunkMap.TryGetValue(normPath, out hunks)) && hunks != null)
                     {
                         var overlaps = hunks.Any(h => sLine <= h.EndLine && eLine >= h.StartLine);
                         if (overlaps)
@@ -598,7 +623,7 @@ public class TestIntelligenceService
             cmd.CommandText = """
                 SELECT f.id,
                        COALESCE(json_extract(n.properties, '$.name'), f.id) AS name,
-                       json_extract(n.properties, '$.file_path') AS file_path
+                       COALESCE(json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS file_path
                 FROM temp_frontier f
                 LEFT JOIN nodes n ON f.id = n.id;
                 """;
@@ -608,7 +633,7 @@ public class TestIntelligenceService
                 var id = reader.GetString(0);
                 var name = reader.GetString(1);
                 var file = reader.IsDBNull(2) ? null : reader.GetString(2);
-                paths[id] = (name, file, new List<string> { name });
+                paths[id] = (name, file, [name]);
             }
         }
 
@@ -655,7 +680,7 @@ public class TestIntelligenceService
 
                     if (!paths.TryGetValue(toId, out var targetPath))
                     {
-                        targetPath = (toId, null, new List<string> { toId });
+                        targetPath = (toId, null, [toId]);
                     }
 
                     var newPath = new List<string>(targetPath.Path.Count + 1) { callerName };
@@ -666,8 +691,7 @@ public class TestIntelligenceService
 
                     var name = root.TryGetProperty("name", out var np) ? np.GetString() ?? callerName : callerName;
                     var symbol = root.TryGetProperty("symbol", out var sp) ? sp.GetString() ?? name : name;
-                    var path = root.TryGetProperty("path", out var pp) ? pp.GetString() ?? "" : "";
-                    var filePath = root.TryGetProperty("file_path", out var fp) ? fp.GetString() ?? path : path;
+                    var filePath = ResolveBestFilePath(root);
                     var sLine = root.TryGetProperty("start_line", out var slp) ? slp.GetInt32() : 0;
                     var framework = root.TryGetProperty("test_framework", out var tfp) ? tfp.GetString() : DetectFramework(filePath);
 
@@ -681,10 +705,6 @@ public class TestIntelligenceService
                         var normPath = filePath.Replace('\\', '/').ToLowerInvariant();
                         if (normPath.Contains("/test/") || normPath.Contains("/tests/") ||
                             normPath.EndsWith("_test.go") || normPath.EndsWith(".test.ts") || normPath.EndsWith(".spec.ts"))
-                        {
-                            isTest = true;
-                        }
-                        else if (name.StartsWith("Test", StringComparison.Ordinal) || name.StartsWith("test_", StringComparison.OrdinalIgnoreCase))
                         {
                             isTest = true;
                         }
@@ -727,7 +747,7 @@ public class TestIntelligenceService
             currentFrontier = nextFrontier;
         }
 
-        return testResults.Values.OrderBy(t => t.Depth).ThenBy(t => t.TestMethodName).ToList();
+        return [.. testResults.Values.OrderBy(t => t.Depth).ThenBy(t => t.TestMethodName)];
     }
 
     private static string? ExtractClassNameFromSymbol(string symbol)
@@ -750,6 +770,24 @@ public class TestIntelligenceService
         if (norm.EndsWith(".ts") || norm.EndsWith(".js")) return "jest";
         if (norm.EndsWith(".java")) return "junit";
         return "generic";
+    }
+
+    private static string ResolveBestFilePath(JsonElement root)
+    {
+        var path = root.TryGetProperty("path", out var pp) ? pp.GetString() ?? "" : "";
+        var filePath = root.TryGetProperty("file_path", out var fp) ? fp.GetString() ?? "" : "";
+
+        if (path.Contains('/') || path.Contains('\\'))
+        {
+            return path;
+        }
+
+        if (filePath.Contains('/') || filePath.Contains('\\'))
+        {
+            return filePath;
+        }
+
+        return !string.IsNullOrEmpty(path) ? path : filePath;
     }
 
     private static Dictionary<string, string> BuildRunnerCommands(List<AffectedTestMethod> tests)

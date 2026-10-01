@@ -218,7 +218,7 @@ public class Layer4SemanticParser
             CollectSemanticNodes(project, semanticNodes);
         }
         CollectSemanticNodes(semanticStructureNode, semanticNodes);
-        semanticNodes = semanticNodes.DistinctBy(n => n.Id).ToList();
+        semanticNodes = [.. semanticNodes.DistinctBy(n => n.Id)];
 
         if (semanticRelationships.Count > 0)
         {

@@ -139,6 +139,21 @@ public partial class SqliteCompiler
             return propSrc;
         }
 
+        if (propName.Equals("language", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"COALESCE(json_extract({propSrc}, '$.language'), json_extract({propSrc}, '$.project_type'))";
+        }
+
+        if (propName.Equals("project_type", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"COALESCE(json_extract({propSrc}, '$.project_type'), json_extract({propSrc}, '$.language'))";
+        }
+
+        if (propName.Equals("is_library", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"(COALESCE(json_extract({propSrc}, '$.is_library'), 0) IN (1, 'true', 'True'))";
+        }
+
         return $"json_extract({propSrc}, '$.{propName}')";
     }
 
@@ -187,6 +202,21 @@ public partial class SqliteCompiler
         if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
         {
             return $"{v}.properties";
+        }
+
+        if (propName.Equals("language", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"COALESCE(json_extract({v}.properties, '$.language'), json_extract({v}.properties, '$.project_type'))";
+        }
+
+        if (propName.Equals("project_type", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"COALESCE(json_extract({v}.properties, '$.project_type'), json_extract({v}.properties, '$.language'))";
+        }
+
+        if (propName.Equals("is_library", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"(COALESCE(json_extract({v}.properties, '$.is_library'), 0) IN (1, 'true', 'True'))";
         }
 
         return $"json_extract({v}.properties, '$.{propName}')";

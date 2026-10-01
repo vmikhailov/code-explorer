@@ -39,7 +39,7 @@ public class ResourceReconciliationService
     private readonly List<DatabaseUsageRecord> _usages = [];
     private readonly object _lock = new();
 
-    public IReadOnlyCollection<CanonicalResource> AllResources => _resourcesById.Values.ToList();
+    public IReadOnlyCollection<CanonicalResource> AllResources => [.. _resourcesById.Values];
 
     public static string BuildCanonicalDatabaseId(string workspaceId, string dbType, string canonicalName)
     {

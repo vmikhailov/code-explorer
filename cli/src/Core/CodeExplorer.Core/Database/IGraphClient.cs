@@ -1,9 +1,13 @@
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Cypher.Ast;
+using CodeExplorer.Cypher.Linq;
 
 namespace CodeExplorer.Core.Database;
 
-public interface IGraphClient : IAsyncDisposable
+public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
 {
+    GraphContext Graph => new(this);
+
     Task CreateIndicesAsync();
     Task ClearDatabaseAsync();
     Task<bool> ClearWorkspaceAsync(string workspacePath);
@@ -13,6 +17,12 @@ public interface IGraphClient : IAsyncDisposable
     Task UploadRelationshipsAsync(List<Relationship> rels);
     Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
     Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
+
+    Task<string> ICypherQueryExecutor.ExecuteQueryAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) =>
+        ExecuteQueryAsync(query.ToString() ?? "", parameters, ct);
+
+    Task<string> ICypherQueryExecutor.ExecuteRawAsync(string cypher, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) =>
+        ExecuteQueryAsync(cypher, parameters, ct);
 
     Task<Dictionary<(string Kind, string Name), string>> LoadSymbolsByNamesAsync(
         IEnumerable<string> names,

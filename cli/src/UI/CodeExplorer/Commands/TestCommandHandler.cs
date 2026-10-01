@@ -39,13 +39,13 @@ public static class TestCommandHandler
         var service = new TestIntelligenceService(client);
 
         var changedFiles = !string.IsNullOrWhiteSpace(opts.Files)
-            ? opts.Files.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            ? opts.Files.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries)
                 .Select(f => f.Trim())
                 .ToList()
             : null;
 
         var symbolNames = !string.IsNullOrWhiteSpace(opts.Symbols)
-            ? opts.Symbols.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            ? opts.Symbols.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries)
                 .Select(s => s.Trim())
                 .ToList()
             : null;

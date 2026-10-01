@@ -54,12 +54,11 @@ public class SemanticExtensionRegistry
 
         if (results.Count == 0) return [];
 
-        return results
-            .OrderByDescending(r => r.Pattern.Length)
-            .ThenBy(r => r.Pattern, StringComparer.Ordinal)
-            .Select(r => r.Extension)
-            .Distinct()
-            .ToList();
+        return
+        [
+            .. results.OrderByDescending(r => r.Pattern.Length).ThenBy(r => r.Pattern, StringComparer.Ordinal)
+                .Select(r => r.Extension).Distinct()
+        ];
     }
 
     private void MatchRecursive(TrieNode node, string[] importSegments, int index, List<MatchResult> results)

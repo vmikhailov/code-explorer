@@ -30,7 +30,7 @@ public static class ToolDetector
 
     public static IReadOnlyList<IMcpTargetAdapter> DetectInstalledTools(string workspaceRoot)
     {
-        return AllAdapters.Where(a => a.IsInstalled(workspaceRoot)).ToList();
+        return [.. AllAdapters.Where(a => a.IsInstalled(workspaceRoot))];
     }
 
     public static bool IsExecutableInPath(string exeName)

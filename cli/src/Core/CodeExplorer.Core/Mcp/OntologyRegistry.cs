@@ -8,19 +8,18 @@ public record NodeMetadataInfo(string Kind, Type NodeType, OntologyNodeAttribute
 
 public static class OntologyRegistry
 {
-    public static readonly IReadOnlyList<NodeMetadataInfo> AllNodes = 
-        typeof(IOntologyNode).Assembly.GetTypes()
-            .Where(t => typeof(IOntologyNode).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-            .Select(t => 
+    public static readonly IReadOnlyList<NodeMetadataInfo> AllNodes =
+    [
+        .. typeof(IOntologyNode).Assembly.GetTypes()
+            .Where(t => typeof(IOntologyNode).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract).Select(t =>
             {
                 var attr = t.GetCustomAttribute<OntologyNodeAttribute>();
                 if (attr == null) return null;
+
                 var instance = (IOntologyNode)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t);
                 return new NodeMetadataInfo(instance.Kind, t, attr);
-            })
-            .Where(x => x != null)
-            .Select(x => x!)
-            .ToList();
+            }).Where(x => x != null).Select(x => x!)
+    ];
 
     public static readonly HashSet<string> SystemKinds = AllNodes
         .Where(x => x.Attribute.IsSystemNode)

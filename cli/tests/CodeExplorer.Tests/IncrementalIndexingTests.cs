@@ -357,11 +357,11 @@ public class IncrementalIndexingTests
     {
         var parser = new CommandLine.Parser(with => with.CaseInsensitiveEnumValues = true);
 
-        var resultScan = parser.ParseArguments<ScanOptions, IndexOptions>(new[] { "scan", "--watch" });
+        var resultScan = parser.ParseArguments<ScanOptions, IndexOptions>(["scan", "--watch"]);
         Assert.That(resultScan.Errors, Is.Empty);
         Assert.That(((ScanOptions)resultScan.Value).Watch, Is.True);
 
-        var resultIndex = parser.ParseArguments<ScanOptions, IndexOptions>(new[] { "index", "--watch" });
+        var resultIndex = parser.ParseArguments<ScanOptions, IndexOptions>(["index", "--watch"]);
         Assert.That(resultIndex.Errors, Is.Empty);
         Assert.That(((IndexOptions)resultIndex.Value).Watch, Is.True);
     }

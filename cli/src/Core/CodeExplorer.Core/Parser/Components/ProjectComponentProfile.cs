@@ -190,12 +190,12 @@ public record ProjectComponentProfile
             Capabilities = combinedCapabilities,
             PrimaryRole = dominantRole,
             SecondaryRoles = secondaryRoles,
-            AllRoles = allRoles.ToList(),
+            AllRoles = [.. allRoles],
             IsLibrary = isLib,
-            EntryPoints = entryPoints.Distinct().ToList(),
-            Endpoints = endpoints.Distinct().ToList(),
-            Schedules = schedules.Distinct().ToList(),
-            Tests = tests.Distinct().ToList(),
+            EntryPoints = [.. entryPoints.Distinct()],
+            Endpoints = [.. endpoints.Distinct()],
+            Schedules = [.. schedules.Distinct()],
+            Tests = [.. tests.Distinct()],
             Metadata = metadata
         };
     }

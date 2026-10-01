@@ -79,7 +79,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
                     foreach (var sub in ExtractStringList(row, "subscribes")) subscribes.Add(sub);
                 }
 
-                return new ServiceSurfaceDto(serviceName, endpoints.ToList(), publishes.ToList(), subscribes.ToList());
+                return new ServiceSurfaceDto(serviceName, [.. endpoints], [.. publishes], [.. subscribes]);
             }
         }
         catch
@@ -87,7 +87,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
             // Fallback to empty on query error
         }
 
-        return new ServiceSurfaceDto(serviceName, new List<string>(), new List<string>(), new List<string>());
+        return new ServiceSurfaceDto(serviceName, [], [], []);
     }
 
     public async Task<ServiceDataLineageDto> GetDataLineageAsync(string serviceName, CancellationToken ct = default)
@@ -117,7 +117,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
                     foreach (var tb in ExtractStringList(row, "tables")) tables.Add(tb);
                 }
 
-                return new ServiceDataLineageDto(serviceName, databases.ToList(), tables.ToList());
+                return new ServiceDataLineageDto(serviceName, [.. databases], [.. tables]);
             }
         }
         catch
@@ -125,7 +125,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
             // Fallback to empty
         }
 
-        return new ServiceDataLineageDto(serviceName, new List<string>(), new List<string>());
+        return new ServiceDataLineageDto(serviceName, [], []);
     }
 
     public async Task<ServiceDependenciesDto> GetServiceDependenciesAsync(string serviceName, CancellationToken ct = default)
@@ -175,7 +175,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
                     }
                 }
 
-                return new ServiceDependenciesDto(serviceName, libs.ToList(), calls.ToList(), calledBy.ToList());
+                return new ServiceDependenciesDto(serviceName, [.. libs], [.. calls], [.. calledBy]);
             }
         }
         catch
@@ -183,7 +183,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
             // Fallback to empty
         }
 
-        return new ServiceDependenciesDto(serviceName, new List<string>(), new List<string>(), new List<string>());
+        return new ServiceDependenciesDto(serviceName, [], [], []);
     }
 
     public async Task<LibraryEntitiesDto> GetLibraryEntitiesAsync(string libraryName, CancellationToken ct = default)
@@ -215,7 +215,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
                     }
                 }
 
-                return new LibraryEntitiesDto(libraryName, entities.Take(25).ToList());
+                return new LibraryEntitiesDto(libraryName, [.. entities.Take(25)]);
             }
         }
         catch
@@ -223,7 +223,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
             // Fallback to empty
         }
 
-        return new LibraryEntitiesDto(libraryName, new List<string>());
+        return new LibraryEntitiesDto(libraryName, []);
     }
 
     private static List<string> ExtractStringList(JsonElement element, string propName)
