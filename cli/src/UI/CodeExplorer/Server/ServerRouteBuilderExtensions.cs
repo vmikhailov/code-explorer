@@ -56,6 +56,7 @@ public static class ServerRouteBuilderExtensions
                 return Results.Ok(new
                 {
                     status = "ok",
+                    version = AppVersionProvider.GetAppVersion(),
                     workspace = wsRoot,
                     nodes = nodeCountJson,
                     edges = edgeCountJson

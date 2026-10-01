@@ -77,7 +77,11 @@ public static class ServeCommandHandler
         var wsUrl = $"ws://{opts.Host}:{actualPort}/ws";
 
         // Machine-readable stdout line
-        Console.WriteLine($"{{\"status\":\"ready\",\"port\":{actualPort},\"wsUrl\":\"{wsUrl}\",\"httpUrl\":\"{boundAddress}\",\"workspace\":\"{wsRoot.Replace("\\", "/")}\"}}");
+        var appVersion = AppVersionProvider.GetAppVersion();
+        var wsJson = wsRoot.Replace("\\", "/");
+        Console.WriteLine(
+            $"{{\"status\":\"ready\",\"port\":{actualPort},\"wsUrl\":\"{wsUrl}\",\"httpUrl\":\"{boundAddress}\"," +
+            $"\"workspace\":\"{wsJson}\",\"version\":\"{appVersion}\"}}");
 
         if (client.IsSchemaOutdated)
         {

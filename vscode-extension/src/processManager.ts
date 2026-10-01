@@ -3,7 +3,11 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as readline from 'readline';
-import { BinaryManager } from './binaryManager';
+import {
+  BinaryManager,
+  matchesEnginePattern,
+  getEngineConfigFromExtensionVersion,
+} from './binaryManager';
 
 export interface ServerInfo {
   status: string;
@@ -11,6 +15,7 @@ export interface ServerInfo {
   wsUrl: string;
   httpUrl: string;
   workspace: string;
+  version?: string;
 }
 
 export class ProcessManager implements vscode.Disposable {
@@ -137,8 +142,21 @@ export class ProcessManager implements vscode.Disposable {
       throw new Error('No workspace folder is currently open.');
     }
 
+    const extVersion = this.binaryManager?.getExtensionVersion() || '1.18.2';
+    const config = vscode.workspace.getConfiguration('codeExplorer');
+    const userSetting = config?.get<string>('engineVersion', '')?.trim() || undefined;
+    const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
+
     if (this.serverInfo && this.serverProcess && !this.serverProcess.killed) {
-      return this.serverInfo;
+      if (this.serverInfo.version && !matchesEnginePattern(this.serverInfo.version, pattern)) {
+        this.outputChannel.appendLine(
+          `[ProcessManager] Active server version (v${this.serverInfo.version}) ` +
+          `does not match required pattern '${pattern}'. Restarting server...`
+        );
+        this.stopServer();
+      } else {
+        return this.serverInfo;
+      }
     }
 
     if (this.startPromise) {
@@ -168,7 +186,8 @@ export class ProcessManager implements vscode.Disposable {
     if (!executable) {
       this.outputChannel.appendLine('[ProcessManager] Error: No valid CodeExplorer executable could be found.');
       throw new Error(
-        'CodeExplorer (ce) executable not found. Please specify "codeExplorer.executablePath" in settings, build the CLI, or install "ce" to PATH.'
+        'CodeExplorer (ce) executable not found. Please specify "codeExplorer.executablePath" in settings, ' +
+        'build the CLI, or install "ce" to PATH.'
       );
     }
 
@@ -183,7 +202,9 @@ export class ProcessManager implements vscode.Disposable {
       (idleTimeout ?? 60).toString(),
     ];
 
-    this.outputChannel.appendLine(`[ProcessManager] Spawning: ${executable.command} ${serverArgs.join(' ')} (CWD: ${workspaceRoot})`);
+    this.outputChannel.appendLine(
+      `[ProcessManager] Spawning: ${executable.command} ${serverArgs.join(' ')} (CWD: ${workspaceRoot})`
+    );
 
     return new Promise<ServerInfo>((resolve, reject) => {
       let isReady = false;
@@ -241,7 +262,9 @@ export class ProcessManager implements vscode.Disposable {
         if (!isReady) {
           const report = diagnoseProcessExit(null, null, err.message, executable.command, serverArgs, workspaceRoot);
           this.outputChannel.appendLine('\n' + report.fullReport + '\n');
-          const detailedError = new Error(`${report.title}\n${report.summary}\n\nSuggested Action:\n${report.suggestion}\n\n${report.fullReport}`);
+          const detailedError = new Error(
+            `${report.title}\n${report.summary}\n\nSuggested Action:\n${report.suggestion}\n\n${report.fullReport}`
+          );
           (detailedError as any).diagnosticReport = report;
           reject(detailedError);
         }
@@ -257,7 +280,9 @@ export class ProcessManager implements vscode.Disposable {
           const rawStderr = stderrChunks.join('');
           const report = diagnoseProcessExit(code, signal, rawStderr, executable.command, serverArgs, workspaceRoot);
           this.outputChannel.appendLine('\n' + report.fullReport + '\n');
-          const detailedError = new Error(`${report.title}\n${report.summary}\n\nSuggested Action:\n${report.suggestion}\n\n${report.fullReport}`);
+          const detailedError = new Error(
+            `${report.title}\n${report.summary}\n\nSuggested Action:\n${report.suggestion}\n\n${report.fullReport}`
+          );
           (detailedError as any).diagnosticReport = report;
           reject(detailedError);
         }
@@ -312,22 +337,7 @@ export class ProcessManager implements vscode.Disposable {
       }
     }
 
-    // 2. System PATH "ce" (e.g. dotnet global tool installed via dotnet tool update -g)
-    const isWindows = process.platform === 'win32';
-    try {
-      const checkRes = cp.spawnSync(isWindows ? 'where.exe' : 'which', ['ce'], { encoding: 'utf8' });
-      if (checkRes.status === 0 && checkRes.stdout?.trim()) {
-        const sysPath = checkRes.stdout.trim().split(/\r?\n/)[0];
-        if (fs.existsSync(sysPath)) {
-          this.outputChannel.appendLine(`[ProcessManager] Using system PATH executable: ${sysPath}`);
-          return { command: sysPath, args: [] };
-        }
-      }
-    } catch {
-      // Fallback
-    }
-
-    // 3. Managed on-demand binary via BinaryManager (cached or downloaded from GitHub releases)
+    // 2. Managed on-demand binary via BinaryManager (preferred for version matching)
     if (this.binaryManager) {
       try {
         const managed = await this.binaryManager.ensureBinary();
@@ -340,6 +350,49 @@ export class ProcessManager implements vscode.Disposable {
           `[ProcessManager] BinaryManager engine download/resolution failed: ${err?.message || err}`
         );
       }
+    }
+
+    // 3. System PATH "ce" (ONLY if it matches the required engine pattern!)
+    const extVersion = this.binaryManager?.getExtensionVersion() || '1.18.2';
+    const config = vscode.workspace.getConfiguration('codeExplorer');
+    const userSetting = config?.get<string>('engineVersion', '')?.trim() || undefined;
+    const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
+
+    const probeVersion = (cmd: string, args: string[] = []): string | null => {
+      try {
+        const res = cp.spawnSync(cmd, [...args, '--version'], { encoding: 'utf8', timeout: 4000 });
+        if (res.status === 0 && res.stdout?.trim()) {
+          const match = res.stdout.trim().match(/(\d+\.\d+\.\d+)/);
+          return match ? match[1] : res.stdout.trim().replace(/^v/, '');
+        }
+      } catch {
+        // ignore
+      }
+      return null;
+    };
+
+    const isWindows = process.platform === 'win32';
+    try {
+      const checkRes = cp.spawnSync(isWindows ? 'where.exe' : 'which', ['ce'], { encoding: 'utf8' });
+      if (checkRes.status === 0 && checkRes.stdout?.trim()) {
+        const sysPath = checkRes.stdout.trim().split(/\r?\n/)[0];
+        if (fs.existsSync(sysPath)) {
+          const sysVer = probeVersion(sysPath);
+          if (sysVer && matchesEnginePattern(sysVer, pattern)) {
+            this.outputChannel.appendLine(
+              `[ProcessManager] Using system PATH executable: ${sysPath} (v${sysVer})`
+            );
+            return { command: sysPath, args: [] };
+          } else {
+            this.outputChannel.appendLine(
+              `[ProcessManager] System PATH 'ce' (v${sysVer || 'unknown'}) ` +
+              `does not match required pattern '${pattern}'. Skipping system PATH.`
+            );
+          }
+        }
+      }
+    } catch {
+      // Fallback
     }
 
     // 4. Bundled platform-specific binary in extension (legacy/offline fallback)
@@ -425,7 +478,9 @@ export function diagnoseProcessExit(
     title = '.NET 10 Runtime Missing (0x80008096)';
     category = '.NET Host Runtime Failure';
     summary = 'The .NET runtime host could not find Microsoft.NETCore.App 10.0 runtime.';
-    suggestion = 'Install the .NET 10 Runtime or SDK (x64) from https://dotnet.microsoft.com/download/dotnet/10.0 or check installed runtimes via `dotnet --list-runtimes`.';
+    suggestion =
+      'Install the .NET 10 Runtime or SDK (x64) from https://dotnet.microsoft.com/download/dotnet/10.0 ' +
+      'or check installed runtimes via `dotnet --list-runtimes`.';
   } else if (isPortConflict) {
     title = 'Server Port Already In Use';
     category = 'Network / Port Conflict';
@@ -452,7 +507,8 @@ export function diagnoseProcessExit(
     `--------------------------------------------------`,
     `Command: ${command} ${args.join(' ')}`,
     `Workspace: ${workspaceRoot}`,
-    `Exit Code: ${code} (hex: ${code !== null ? '0x' + (code >>> 0).toString(16).toUpperCase() : 'N/A'}), Signal: ${signal ?? 'none'}`,
+    `Exit Code: ${code} (hex: ${code !== null ? '0x' + (code >>> 0).toString(16).toUpperCase() : 'N/A'}), ` +
+    `Signal: ${signal ?? 'none'}`,
     `--------------------------------------------------`,
     `Console stderr output:`,
     stderr.trim() ? stderr.trim() : '(no stderr output recorded)'
