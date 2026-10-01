@@ -166,6 +166,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <option value="contexts">🧩 Bounded Contexts</option>
             <option value="layers">🏛️ Architecture Tiers</option>
             <option value="flow">🔀 Project Flow</option>
+            <option value="settings">⚙️ Settings & AI Models</option>
             {/* Kept commented out:
             <option value="c1">🌍 System Context</option>
             <option value="full">🕸️ Physical Graph</option>
@@ -178,6 +179,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             {viewMode === 'contexts' && '🧩 Bounded Context Map'}
             {viewMode === 'layers' && '🏛️ Architecture Tiers'}
             {viewMode === 'flow' && '🔀 Project Flow'}
+            {viewMode === 'settings' && '⚙️ Settings & AI Models'}
           </span>
         )}
       </div>

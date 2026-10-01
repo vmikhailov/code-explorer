@@ -42,6 +42,10 @@ public static class McpCommandHandler
         await using (var client = new SqliteGraphClient(dbPath!))
         {
             var wsRoot = ws?.RootDirectory;
+            if (!string.IsNullOrEmpty(wsRoot))
+            {
+                WorkspaceConventions.LoadFromWorkspace(wsRoot);
+            }
 
             if (opts.Port > 0)
             {

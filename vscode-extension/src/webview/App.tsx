@@ -23,6 +23,7 @@ import { BoundedContextMapView } from './components/BoundedContextMapView';
 import { C1SystemContextView } from './components/C1SystemContextView';
 import { NodeGridView, NodeCategorySelection } from './components/NodeGridView';
 import { MermaidDiagramView } from './components/MermaidDiagramView';
+import { SettingsView, AiSettings, ModelDescriptor, ModelStatus } from './components/SettingsView';
 import {
   CommandManager,
   CommandProvider,
@@ -194,6 +195,14 @@ export const App: React.FC = () => {
     return '';
   });
 
+  // AI Settings & Models State
+  const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
+  const [builtinModels, setBuiltinModels] = useState<ModelDescriptor[]>([]);
+  const [externalModels, setExternalModels] = useState<ModelDescriptor[]>([]);
+  const [ggufStatus, setGgufStatus] = useState<ModelStatus | null>(null);
+  const [isTestingAi, setIsTestingAi] = useState<boolean>(false);
+  const [testAiResult, setTestAiResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // Active error and diagnostics state
   const [activeError, setActiveError] = useState<ErrorInfo | null>(null);
   const [showErrorDetails, setShowErrorDetails] = useState<boolean>(false);
@@ -226,6 +235,22 @@ export const App: React.FC = () => {
 
     return { projectInCounts: inMap, projectOutCounts: outMap };
   }, [fullGraph]);
+
+  // Aggregate business domains discovered from graph for quick domain override picker
+  const availableDomains = useMemo(() => {
+    const domains = new Set<string>();
+    for (const node of fullGraph?.nodes || []) {
+      if (node.properties?.domain) domains.add(node.properties.domain);
+      if (node.properties?.intent_domain) domains.add(node.properties.intent_domain);
+    }
+    for (const node of contextsGraph?.nodes || []) {
+      if (node.kind === 'Domain' && node.name) domains.add(node.name);
+    }
+    if (domains.size === 0) {
+      return ['OrderManagement', 'BillingAndPayments', 'CoreDomain', 'UserInterface', 'SharedKernel'];
+    }
+    return Array.from(domains).sort();
+  }, [fullGraph, contextsGraph]);
 
   // Command Manager for Universal Undo / Redo
   const commandManager = useMemo(() => new CommandManager(100), []);
@@ -292,6 +317,47 @@ export const App: React.FC = () => {
     sendWsMessage(req);
   }, [sendWsMessage]);
 
+  const handleSaveAiSettings = useCallback((settings: AiSettings) => {
+    setAiSettings(settings);
+    if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'SAVE_AI_SETTINGS', settings });
+    }
+  }, []);
+
+  const handleTestAiConnection = useCallback((settings: AiSettings) => {
+    setIsTestingAi(true);
+    setTestAiResult(null);
+    if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'TEST_AI_CONNECTION', settings });
+    }
+  }, []);
+
+  const handleDownloadGguf = useCallback(() => {
+    if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'DOWNLOAD_GGUF_MODEL' });
+    }
+  }, []);
+
+  const handleSetDomainOverride = useCallback(
+    (serviceName: string, domain: string, context?: string, reset?: boolean) => {
+      logToExtension(
+        'INFO',
+        `Setting domain override: service=${serviceName}, domain=${domain}, context=${context}, reset=${reset}`
+      );
+      sendWsMessage({
+        type: 'SET_DOMAIN_OVERRIDE_REQUEST',
+        requestId: `req_override_${Date.now()}`,
+        payload: {
+          serviceName,
+          domain: reset ? undefined : domain,
+          context: reset ? undefined : context,
+          removeOverride: !!reset,
+        },
+      });
+    },
+    [sendWsMessage]
+  );
+
   const viewModeRef = useRef<ViewMode>(viewMode);
   viewModeRef.current = viewMode;
 
@@ -334,7 +400,11 @@ export const App: React.FC = () => {
         if (!contextsGraphRef.current || contextsGraphRef.current.nodes?.length === 0) {
           requestContexts();
         }
-      } else if (targetMode !== 'flow' && !fullGraphRef.current) {
+      } else if (targetMode === 'settings') {
+        if (vscodeApi) {
+          vscodeApi.postMessage({ type: 'GET_AI_SETTINGS' });
+        }
+      } else if (targetMode !== 'flow' && targetMode !== 'settings' && !fullGraphRef.current) {
         requestArchitecture();
       }
     },
@@ -987,6 +1057,23 @@ export const App: React.FC = () => {
             }
             break;
           }
+
+          case 'DOMAIN_MUTATION_RESPONSE': {
+            const mutResp = msg.payload as { success: boolean; message: string };
+            logToExtension('INFO', `Domain mutation response: success=${mutResp?.success}, msg=${mutResp?.message}`);
+            if (mutResp?.success) {
+              setScanNotification({ type: 'success', text: mutResp.message });
+              setTimeout(() => setScanNotification(null), 4000);
+              requestArchitecture();
+              if (viewModeRef.current === 'contexts') {
+                requestContexts();
+              }
+            } else {
+              setScanNotification({ type: 'error', text: mutResp?.message || 'Domain mutation failed' });
+              setTimeout(() => setScanNotification(null), 6000);
+            }
+            break;
+          }
         }
       } catch (err: any) {
         logToExtension('ERROR', `Failed to parse WS message: ${err?.message || err}`);
@@ -1146,6 +1233,20 @@ export const App: React.FC = () => {
           }
           setFocusTargetContext({ contextName: msg.contextName, contextId: msg.contextId, domainId: msg.domainId });
           break;
+
+        case 'AI_SETTINGS_DATA':
+          logToExtension('INFO', 'Received AI_SETTINGS_DATA from extension');
+          setAiSettings(msg.settings);
+          setBuiltinModels(msg.builtinModels || []);
+          setExternalModels(msg.externalModels || []);
+          setGgufStatus(msg.ggufStatus || null);
+          break;
+
+        case 'TEST_AI_CONNECTION_RESULT':
+          logToExtension('INFO', `Received TEST_AI_CONNECTION_RESULT: success=${msg.result?.success}`);
+          setIsTestingAi(false);
+          setTestAiResult(msg.result || null);
+          break;
       }
     };
 
@@ -1259,9 +1360,7 @@ export const App: React.FC = () => {
               }
             }}
             onManageModel={() => {
-              if (vscodeApi) {
-                vscodeApi.postMessage({ type: 'MANAGE_MODEL' });
-              }
+              handleViewModeChange('settings');
             }}
           />
         )}
@@ -1361,7 +1460,7 @@ export const App: React.FC = () => {
           {/* Global Loading Overlay when fetching initial graph data */}
           {((viewMode === 'flow' && !flowGraph) ||
             (viewMode === 'contexts' && !contextsGraph) ||
-            (viewMode !== 'flow' && viewMode !== 'contexts' && !fullGraph)) &&
+            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'settings' && !fullGraph)) &&
             connectionStatus !== 'error' &&
             connectionStatus !== 'disconnected' && (
               <div className="view-loading-overlay">
@@ -1400,6 +1499,8 @@ export const App: React.FC = () => {
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
                 onSwitchToContexts={() => handleViewModeChange('contexts')}
+                onSetDomainOverride={handleSetDomainOverride}
+                availableDomains={availableDomains}
               />
             )}
 
@@ -1419,9 +1520,7 @@ export const App: React.FC = () => {
                   }
                 }}
                 onManageModel={() => {
-                  if (vscodeApi) {
-                    vscodeApi.postMessage({ type: 'MANAGE_MODEL' });
-                  }
+                  handleViewModeChange('settings');
                 }}
               />
             )}
@@ -1516,6 +1615,21 @@ export const App: React.FC = () => {
                     }
                   }
                 }}
+              />
+            )}
+
+            {viewMode === 'settings' && (
+              <SettingsView
+                initialSettings={aiSettings || undefined}
+                availableBuiltinModels={builtinModels}
+                availableExternalModels={externalModels}
+                ggufStatus={ggufStatus || undefined}
+                onSaveSettings={handleSaveAiSettings}
+                onTestConnection={handleTestAiConnection}
+                onDownloadGguf={handleDownloadGguf}
+                onClose={() => handleViewModeChange('contexts')}
+                testResult={testAiResult}
+                isTesting={isTestingAi}
               />
             )}
           </ErrorBoundary>

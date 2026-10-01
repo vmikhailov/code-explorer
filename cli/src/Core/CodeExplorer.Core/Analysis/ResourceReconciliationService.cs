@@ -81,10 +81,9 @@ public class ResourceReconciliationService
         lock (_lock)
         {
             var canonicalName = NormalizeResourceName(rawName, engine);
-            if (engine.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) &&
-                canonicalName.EndsWith(".default", StringComparison.OrdinalIgnoreCase))
+            if (WorkspaceConventions.TryGetDatabaseAlias(canonicalName, out var dbAlias))
             {
-                canonicalName = canonicalName[..^8] + ".defaults";
+                canonicalName = dbAlias;
             }
             var id = BuildCanonicalDatabaseId(workspaceId, dbType, canonicalName);
 
@@ -340,13 +339,10 @@ public class ResourceReconciliationService
             var dotParts = trimmed.Split('.', 2);
             var eng = NormalizeEngineName(dotParts[0]);
             var sch = dotParts[1].Trim();
-            if (eng.Equals("BigQuery", StringComparison.OrdinalIgnoreCase) && sch.Equals("default", StringComparison.OrdinalIgnoreCase))
-            {
-                sch = "defaults";
-            }
             if (!string.IsNullOrEmpty(sch) && !IsGenericConfigKey(sch))
             {
-                return $"{eng}.{sch}";
+                var full = $"{eng}.{sch}";
+                return WorkspaceConventions.TryGetDatabaseAlias(full, out var dbAlias) ? dbAlias : full;
             }
         }
 

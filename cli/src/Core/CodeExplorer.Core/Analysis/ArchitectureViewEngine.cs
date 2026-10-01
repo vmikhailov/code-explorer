@@ -566,6 +566,23 @@ public class ArchitectureViewEngine(IGraphClient db)
                         props["layerIcon"] = defaultLayer.Icon;
                     }
 
+                    var (domKey, domDisp, _) = ExtractDomainKey(projNode);
+                    if (!props.ContainsKey("domainId"))
+                    {
+                        props["domainId"] = domKey;
+                    }
+                    if (!props.ContainsKey("domain"))
+                    {
+                        var cleanDomName = domKey.StartsWith("domain:", StringComparison.OrdinalIgnoreCase)
+                            ? domKey["domain:".Length..]
+                            : domKey;
+                        props["domain"] = ToPascalCase(cleanDomName);
+                    }
+                    if (!props.ContainsKey("domainDisplayName"))
+                    {
+                        props["domainDisplayName"] = domDisp;
+                    }
+
                     nodeMap[id] = projNode;
                     graph.Nodes.Add(projNode);
                 }
@@ -2800,8 +2817,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             lookup.TryAdd(p.Name, p);
             var normP = WorkspaceConventions.NormalizeServiceName(p.Name);
-            var clean = Regex.Replace(normP, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "", RegexOptions.IgnoreCase)
-                             .Replace("-", "").Replace("_", "");
+            var clean = normP.Replace("-", "").Replace("_", "");
             if (clean.Length > 0) lookup.TryAdd(clean, p);
             if (normP.Length > 0) lookup.TryAdd(normP, p);
             var norm = p.Name.Replace("-", "").Replace("_", "");
@@ -2852,35 +2868,41 @@ public class ArchitectureViewEngine(IGraphClient db)
         var path = (node.FilePath ?? "").Replace('\\', '/').ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 
-        // 0. Configured workspace domain (.codeexplorer/domains.json or .codeexplorer/conventions.json)
-        if (WorkspaceConventions.TryGetConfiguredDomain(name, node.FilePath, out var configuredDomain))
-        {
-            var clean = ToPascalCase(configuredDomain);
-            var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
-                                string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
-            return ($"domain:{clean.ToLowerInvariant()}", clean, isIngressHint);
-        }
-
-        // 0b. Explicit domain from node properties (e.g. SLM intent, DDD metadata)
+        // 0. Explicit domain / intent_domain from node properties
         if (node.Properties != null)
         {
             if (node.Properties.TryGetValue("domain", out var expDomain) && !string.IsNullOrWhiteSpace(expDomain))
             {
                 var clean = ToPascalCase(expDomain);
                 var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
-                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
-                                    string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
-                return ($"domain:{clean.ToLowerInvariant()}", clean, isIngressHint);
+                                    string.Equals(node.Properties.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(node.Properties.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
+                var domainKey = node.Properties.TryGetValue("domainId", out var expId) && !string.IsNullOrWhiteSpace(expId)
+                    ? expId
+                    : $"domain:{clean.ToLowerInvariant()}";
+                var disp = node.Properties.TryGetValue("domainDisplayName", out var expDisp) && !string.IsNullOrWhiteSpace(expDisp)
+                    ? expDisp
+                    : WorkspaceConventions.FormatDomainDisplayName(clean);
+                return (domainKey, disp, isIngressHint);
             }
-            if (node.Properties.TryGetValue("bounded_context", out var expBc) && !string.IsNullOrWhiteSpace(expBc))
+            if (node.Properties.TryGetValue("intent_domain", out var intDomain) && !string.IsNullOrWhiteSpace(intDomain))
             {
-                var clean = ToPascalCase(expBc);
+                var clean = ToPascalCase(intDomain);
                 var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
-                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
-                                    string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
-                return ($"domain:{clean.ToLowerInvariant()}", clean, isIngressHint);
+                                    string.Equals(node.Properties.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(node.Properties.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
+                return ($"domain:{clean.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(clean), isIngressHint);
             }
+        }
+
+        // 0b. Configured workspace domain (.codeexplorer/domains.json or .codeexplorer/conventions.json)
+        if (WorkspaceConventions.TryGetConfiguredDomain(name, node.FilePath, out var configuredDomain))
+        {
+            var clean = ToPascalCase(configuredDomain);
+            var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
+                                string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
+            return ($"domain:{clean.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(clean), isIngressHint);
         }
 
         // 1. Suffix match
@@ -2896,33 +2918,31 @@ public class ArchitectureViewEngine(IGraphClient db)
             return ($"domain:{parentName.ToLowerInvariant()}", $"{shortName} Service", isIngressHint);
         }
 
-        // 2. Directory structure
+        // 2. Directory structure (safe against Windows drive letters C:/ and container roots)
         if (!string.IsNullOrEmpty(path))
         {
-            var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries)
-                            .Where(p => p != ".." && p != ".")
+            var cleanPath = Regex.Replace(path, @"^[a-zA-Z]:[/]", "").TrimStart('/');
+            var parts = cleanPath.Split('/', StringSplitOptions.RemoveEmptyEntries)
+                            .Where(p => p != ".." && p != "." && !Regex.IsMatch(p, @"^[a-zA-Z]:$"))
                             .ToArray();
-            var servicesIdx = Array.FindIndex(parts, p => p.Equals("services", StringComparison.OrdinalIgnoreCase) || p.Equals("microservices", StringComparison.OrdinalIgnoreCase));
-            if (servicesIdx != -1 && servicesIdx + 1 < parts.Length)
-            {
-                var folder = parts[servicesIdx + 1];
-                var cleanName = char.ToUpperInvariant(folder[0]) + folder[1..];
-                var isIngressHint = IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
-                return ($"domain:{folder.ToLowerInvariant()}", $"{cleanName} Service", isIngressHint);
-            }
 
-            if (parts.Length >= 2 && !parts[0].Equals("src", StringComparison.OrdinalIgnoreCase) && !parts[0].Equals("packages", StringComparison.OrdinalIgnoreCase) && !parts[0].Equals("libs", StringComparison.OrdinalIgnoreCase))
+            var skipRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                var folder = parts[0];
-                var cleanName = char.ToUpperInvariant(folder[0]) + folder[1..];
+                "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects", "cmd", "home", "users"
+            };
+
+            var meaningful = parts.Take(parts.Length - 1).Where(p => !skipRoots.Contains(p)).ToList();
+            if (meaningful.Count >= 1)
+            {
+                var folder = meaningful[0];
+                var cleanName = ToPascalCase(WorkspaceConventions.NormalizeServiceName(folder));
                 var isIngressHint = IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
                                     string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
-                return ($"domain:{folder.ToLowerInvariant()}", cleanName, isIngressHint);
+                return ($"domain:{folder.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(cleanName), isIngressHint);
             }
         }
 
-        // 3. Standalone
+        // 3. Standalone fallback
         var framework = node.Properties?.GetValueOrDefault("framework", "") ?? "";
         var isIngress = node.Kind.Equals("App", StringComparison.OrdinalIgnoreCase) ||
                         node.Kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
@@ -2933,7 +2953,14 @@ public class ArchitectureViewEngine(IGraphClient db)
                         IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
                         IngressFrameworks.Any(fw => framework.Contains(fw, StringComparison.OrdinalIgnoreCase));
 
-        return ($"domain:{lowerName}", name, isIngress);
+        var cleanSvc = WorkspaceConventions.NormalizeServiceName(name);
+        var svcPascal = ToPascalCase(cleanSvc);
+        if (svcPascal.Length > 2)
+        {
+            return ($"domain:{cleanSvc.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(svcPascal), isIngress);
+        }
+
+        return ("domain:coredomain", "Core Domain", isIngress);
     }
 
     public static bool IsInternalTopic(GraphNodeDto node)
@@ -3572,21 +3599,21 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
 
         var lower = domainName.ToLowerInvariant();
-        if (lower.Contains("billing") || lower.Contains("payment") || lower.Contains("settler") || lower.Contains("finance"))
+        if (lower.Contains("billing") || lower.Contains("payment") || lower.Contains("finance"))
             return "💳";
-        if (lower.Contains("advert") || lower.Contains("partner") || lower.Contains("hub") || lower.Contains("conversion"))
+        if (lower.Contains("advert") || lower.Contains("marketing") || lower.Contains("partner"))
             return "📢";
-        if (lower.Contains("campaign") || lower.Contains("bundle") || lower.Contains("landing") || lower.Contains("offer") || lower.Contains("postback"))
+        if (lower.Contains("campaign") || lower.Contains("offer"))
             return "🎯";
-        if (lower.Contains("traffic") || lower.Contains("routing") || lower.Contains("tracker") || lower.Contains("gateway") || lower.Contains("edge"))
+        if (lower.Contains("traffic") || lower.Contains("routing") || lower.Contains("gateway"))
             return "🌐";
-        if (lower.Contains("domain") || lower.Contains("dns") || lower.Contains("domvain"))
+        if (lower.Contains("domain") || lower.Contains("dns"))
             return "🏷️";
-        if (lower.Contains("config") || lower.Contains("setting") || lower.Contains("kv") || lower.Contains("binding"))
+        if (lower.Contains("config") || lower.Contains("setting"))
             return "⚙️";
-        if (lower.Contains("analytic") || lower.Contains("stat") || lower.Contains("calc") || lower.Contains("metric") || lower.Contains("journal") || lower.Contains("log"))
+        if (lower.Contains("analytic") || lower.Contains("stat") || lower.Contains("metric") || lower.Contains("report") || lower.Contains("log"))
             return "📊";
-        if (lower.Contains("operation") || lower.Contains("workflow") || lower.Contains("approval") || lower.Contains("notifier") || lower.Contains("schedule"))
+        if (lower.Contains("operation") || lower.Contains("workflow") || lower.Contains("schedule") || lower.Contains("process"))
             return "🔄";
         if (lower.Contains("ident") || lower.Contains("auth") || lower.Contains("user") || lower.Contains("security"))
             return "🔒";

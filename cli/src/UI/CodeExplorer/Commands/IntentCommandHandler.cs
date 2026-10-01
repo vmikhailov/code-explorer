@@ -167,6 +167,9 @@ public static class IntentCommandHandler
                                     domainsOnly: opts.DomainsOnly,
                                     reanalyze: opts.Reanalyze,
                                     deep: opts.Deep,
+                                    endpoint: opts.Endpoint,
+                                    model: opts.Model,
+                                    apiKey: opts.ApiKey,
                                     cancellationToken: cts.Token);
 
                                 Console.ForegroundColor = ConsoleColor.Green;

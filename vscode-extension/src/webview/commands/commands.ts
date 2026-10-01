@@ -2,7 +2,7 @@ import { ICommand } from './types';
 import { GraphNode } from '../../../../proto/types';
 import { EdgeCategory } from '../components/ProjectFlowView';
 
-export type ViewMode = 'c1' | 'semantic' | 'layers' | 'flow' | 'full' | 'grid' | 'mermaid' | 'contexts';
+export type ViewMode = 'c1' | 'semantic' | 'layers' | 'flow' | 'full' | 'grid' | 'mermaid' | 'contexts' | 'settings';
 
 function getViewModeLabel(mode: ViewMode): string {
   switch (mode) {
@@ -22,6 +22,8 @@ function getViewModeLabel(mode: ViewMode): string {
       return 'Node Grid';
     case 'mermaid':
       return 'Mermaid Architecture Diagram';
+    case 'settings':
+      return 'Settings & AI Model Preferences';
     default:
       return mode;
   }

@@ -430,7 +430,7 @@ Domain Entities:
             new("Integrations", "External partner integrations", ["integration", "nrt", "network"]),
             new("Ops", "Internal operations and workflows", ["approval", "journal", "ops"]),
             new("Edge", "Edge proxy and KV", ["kv", "edge", "worker"]),
-            new("Bundles", "Auction and bundles", ["tbmap", "bundle", "auction"]),
+            new("Auctions", "Auction and bidding", ["bidding", "bundle", "auction"]),
             new("UserInterface", "UI widgets and presentations", ["ui", "component", "widget"])
         ]);
 
@@ -440,7 +440,7 @@ Domain Entities:
             new("p2", "InternalServiceApproval", "services/internal-service-approval", [], [], [], []),
             new("p3", "InternalServiceJournal", "services/internal-service-journal", [], [], [], []),
             new("p4", "InternalServiceKvV2", "services/internal-service-kv-v2", [], [], [], []),
-            new("p5", "Atstbmap", "services/ats-tbmap", [], [], [], []),
+            new("p5", "AuctionService", "services/auction-service", [], [], [], []),
             new("p6", "Button", "packages/ui/button", [], [], [], []),
             new("p7", "Modal", "packages/ui/modal", [], [], [], []),
             new("p8", "SelectButton", "packages/ui/select-button", [], [], [], []),
@@ -469,9 +469,9 @@ Domain Entities:
         Assert.That(edge, Is.Not.Null);
         Assert.That(edge!.Services, Does.Contain("InternalServiceKvV2"));
 
-        var bundles = result.Domains.FirstOrDefault(d => d.Name == "Bundles");
-        Assert.That(bundles, Is.Not.Null);
-        Assert.That(bundles!.Services, Does.Contain("Atstbmap"));
+        var auctions = result.Domains.FirstOrDefault(d => d.Name == "Auctions");
+        Assert.That(auctions, Is.Not.Null);
+        Assert.That(auctions!.Services, Does.Contain("AuctionService"));
 
         // 2. UI widgets collapsed into UserInterface
         var ui = result.Domains.FirstOrDefault(d => d.Name == "UserInterface");
@@ -717,48 +717,29 @@ Domain Entities:
     [Test]
     public void CanonicalizeDomain_CorrectlyMapsMicroservicesAndTablesToProblemSpaces()
     {
-        // 1. Operations & Workflows
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-approval"), Is.EqualTo("OperationsAndWorkflows"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-notifier"), Is.EqualTo("OperationsAndWorkflows"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-scheduler"), Is.EqualTo("OperationsAndWorkflows"));
+        // 1. Service name normalization into clean PascalCase domain
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-approval"), Is.EqualTo("Approval"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-notifier"), Is.EqualTo("Notifier"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-scheduler"), Is.EqualTo("Scheduler"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-billing"), Is.EqualTo("Billing"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "integration-service-payment"), Is.EqualTo("Payment"));
 
-        // 2. Billing & Payments
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-billing"), Is.EqualTo("BillingAndPayments"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-settler"), Is.EqualTo("BillingAndPayments"));
+        // 2. Directory structure extraction
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, null, "services/billing/invoicing-service"), Is.EqualTo("Billing"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, null, "src/identity/auth-service"), Is.EqualTo("Identity"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, null, "services/orders/order-processor"), Is.EqualTo("Orders"));
 
-        // 3. Configuration & Settings
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "kv-v2"), Is.EqualTo("ConfigurationAndSettings"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "cf-bindings"), Is.EqualTo("ConfigurationAndSettings"));
+        // 3. Technical paths and ontology roles
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "button", "packages/ui/button"), Is.EqualTo("UserInterface"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "common-utils", role: "SharedLibrary"), Is.EqualTo("SharedKernel"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "cli-tool", role: "CliTool"), Is.EqualTo("DeveloperTooling"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "unit-tests", role: "Test"), Is.EqualTo("TestingInfrastructure"));
 
-        // 4. Analytics & Monitoring
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-calc"), Is.EqualTo("AnalyticsAndMonitoring"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain("BrowserVersionTypes"), Is.EqualTo("AnalyticsAndMonitoring"));
-
-        // 5. Domain Management
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-domvains"), Is.EqualTo("DomainManagement"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "domain-checker"), Is.EqualTo("DomainManagement"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "domain-template"), Is.EqualTo("DomainManagement"));
-
-        // 6. Advertising & Partners
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-hub"), Is.EqualTo("AdvertisingAndPartners"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-tbmap"), Is.EqualTo("AdvertisingAndPartners"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-conversion"), Is.EqualTo("AdvertisingAndPartners"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-click"), Is.EqualTo("AdvertisingAndPartners"));
-
-        // 7. Traffic & Routing
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-tracker"), Is.EqualTo("TrafficAndRouting"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "telecom-gateway"), Is.EqualTo("TrafficAndRouting"));
-
-        // 8. Campaigns & Bundling
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "postback"), Is.EqualTo("CampaignsAndBundling"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "landing"), Is.EqualTo("CampaignsAndBundling"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-staging"), Is.EqualTo("CampaignsAndBundling"));
-
-        // Display formatting
+        // 4. Universal Display formatting
         Assert.That(WorkspaceConventions.FormatDomainDisplayName("OperationsAndWorkflows"), Is.EqualTo("Operations & Workflows"));
         Assert.That(WorkspaceConventions.FormatDomainDisplayName("BillingAndPayments"), Is.EqualTo("Billing & Payments"));
-        Assert.That(WorkspaceConventions.FormatDomainDisplayName("ConfigurationAndSettings"), Is.EqualTo("Configuration & Settings"));
-        Assert.That(WorkspaceConventions.FormatDomainDisplayName("AnalyticsAndMonitoring"), Is.EqualTo("Analytics & Monitoring"));
+        Assert.That(WorkspaceConventions.FormatDomainDisplayName("OrderManagement"), Is.EqualTo("Order Management"));
+        Assert.That(WorkspaceConventions.FormatDomainDisplayName("IdentityAndAccess"), Is.EqualTo("Identity & Access"));
     }
 }
 

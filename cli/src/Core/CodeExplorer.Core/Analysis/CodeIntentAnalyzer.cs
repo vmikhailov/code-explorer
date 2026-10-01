@@ -119,19 +119,37 @@ public static class CodeIntentAnalyzer
         bool domainsOnly = false,
         bool reanalyze = false,
         bool deep = false,
+        string? endpoint = null,
+        string? model = null,
+        string? apiKey = null,
+        IIntentPredictor? customPredictor = null,
         CancellationToken cancellationToken = default)
     {
         if (!ShouldRun(ctx)) return 0;
 
-        var modelPath = await ModelManager.EnsureModelAvailableAsync(ctx, cancellationToken);
-        if (string.IsNullOrEmpty(modelPath) || !File.Exists(modelPath))
-        {
-            ctx.Log("[CodeIntent] Intent distillation model not available; skipping intent distillation.");
-            return 0;
-        }
+        IIntentPredictor? predictor = null;
+        var envEndpoint = Environment.GetEnvironmentVariable("CODE_INTENT_ENDPOINT");
+        var activeEndpoint = !string.IsNullOrWhiteSpace(endpoint) ? endpoint : envEndpoint;
 
-        try
+        if (customPredictor != null)
         {
+            predictor = customPredictor;
+        }
+        else if (!string.IsNullOrWhiteSpace(activeEndpoint))
+        {
+            var activeModel = !string.IsNullOrWhiteSpace(model) ? model : Environment.GetEnvironmentVariable("CODE_INTENT_MODEL");
+            var activeApiKey = !string.IsNullOrWhiteSpace(apiKey) ? apiKey : Environment.GetEnvironmentVariable("CODE_INTENT_API_KEY");
+            predictor = new OpenAiIntentPredictor(activeEndpoint, activeModel, activeApiKey);
+        }
+        else
+        {
+            var modelPath = await ModelManager.EnsureModelAvailableAsync(ctx, cancellationToken);
+            if (string.IsNullOrEmpty(modelPath) || !File.Exists(modelPath))
+            {
+                ctx.Log("[CodeIntent] Intent distillation model not available; skipping intent distillation.");
+                return 0;
+            }
+
             var gpuLayers = 99;
             if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_GPU_LAYERS"), out var envLayers))
             {
@@ -144,9 +162,14 @@ public static class CodeIntentAnalyzer
                 contextSize = envContext;
             }
 
-            using (var predictor = new NativeIntentPredictor(modelPath, contextSize: contextSize, gpuLayers: gpuLayers))
+            predictor = new NativeIntentPredictor(modelPath, contextSize: contextSize, gpuLayers: gpuLayers);
+        }
+
+        try
+        {
+            using (predictor)
             {
-                ctx.Log($"[CodeIntent] Compute Device: {predictor.ExecutionDevice} (GPU layers: {gpuLayers})");
+                ctx.Log($"[CodeIntent] Compute Device: {predictor.ExecutionDevice}");
                 ctx.Log($"[CodeIntent] Concurrency: {predictor.Concurrency}x ({predictor.ConcurrencyReason})");
 
                 // Top-Down Phase 0: Whole-System Macro-Domain Synthesis (DDD Problem Space)
@@ -997,7 +1020,7 @@ public static class CodeIntentAnalyzer
         {
             "internal", "service", "services", "integration", "adapter", "controller",
             "scheduler", "app", "microservice", "api", "worker", "job",
-            "core", "client", "daemon", "svc", "ats", "backend", "server", "host",
+            "core", "client", "daemon", "svc", "backend", "server", "host",
             "gateway", "proxy", "handler"
         };
 

@@ -56,7 +56,7 @@ public class WorkspaceConventionsTests
     [Test]
     public void TryMatchRouteFunction_MatchesStandardPatterns()
     {
-        Assert.That(WorkspaceConventions.TryMatchRouteFunction("getServiceDomainByRoute('auth')", out var r1), Is.True);
+        Assert.That(WorkspaceConventions.TryMatchRouteFunction("serviceRoute('auth')", out var r1), Is.True);
         Assert.That(r1, Is.EqualTo("auth"));
 
         Assert.That(WorkspaceConventions.TryMatchRouteFunction("resolveRoute(\"billing\")", out var r2), Is.True);
@@ -65,7 +65,54 @@ public class WorkspaceConventionsTests
         Assert.That(WorkspaceConventions.TryMatchRouteFunction("routeFor('orders')", out var r3), Is.True);
         Assert.That(r3, Is.EqualTo("orders"));
 
+        Assert.That(WorkspaceConventions.TryMatchRouteFunction("getRoute('payments')", out var r4), Is.True);
+        Assert.That(r4, Is.EqualTo("payments"));
+
         Assert.That(WorkspaceConventions.TryMatchRouteFunction("someOtherFunc('foo')", out _), Is.False);
+    }
+
+    [Test]
+    public void LoadFromWorkspace_ConventionsJson_LoadsCustomRouteFunctionsPrefixesAndDbAliases()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_conv_custom_" + Guid.NewGuid().ToString("N"));
+        var configDir = Path.Combine(tempDir, ".codeexplorer");
+        Directory.CreateDirectory(configDir);
+
+        try
+        {
+            var conventionsJson = """
+            {
+              "service_prefixes": ["ats-", "ats_", "internal-bundle-"],
+              "route_functions": ["getServiceDomainByRoute", "customRouter"],
+              "database_aliases": {
+                "BigQuery.default": "BigQuery.defaults"
+              }
+            }
+            """;
+            File.WriteAllText(Path.Combine(configDir, "conventions.json"), conventionsJson);
+
+            WorkspaceConventions.LoadFromWorkspace(tempDir);
+
+            // Custom route function
+            Assert.That(WorkspaceConventions.TryMatchRouteFunction("getServiceDomainByRoute('reporting')", out var r1), Is.True);
+            Assert.That(r1, Is.EqualTo("reporting"));
+
+            Assert.That(WorkspaceConventions.TryMatchRouteFunction("customRouter('telecom')", out var r2), Is.True);
+            Assert.That(r2, Is.EqualTo("telecom"));
+
+            // Custom service prefix
+            Assert.That(WorkspaceConventions.NormalizeServiceName("ats-service-tbmap"), Is.EqualTo("tbmap"));
+            Assert.That(WorkspaceConventions.NormalizeServiceName("ats_ad_manager"), Is.EqualTo("ad_manager"));
+            Assert.That(WorkspaceConventions.NormalizeServiceName("internal-bundle-optimizer"), Is.EqualTo("optimizer"));
+
+            // Database alias
+            Assert.That(WorkspaceConventions.TryGetDatabaseAlias("BigQuery.default", out var dbAlias), Is.True);
+            Assert.That(dbAlias, Is.EqualTo("BigQuery.defaults"));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 
     [Test]

@@ -18,6 +18,10 @@ public static class WsMessageTypes
     public const string TriggerScanRequest = "TRIGGER_SCAN_REQUEST";
     public const string GetOntologyLayersRequest = "GET_ONTOLOGY_LAYERS_REQUEST";
     public const string GetBoundedContextsRequest = "GET_BOUNDED_CONTEXTS_REQUEST";
+    public const string GetDomainsRequest = "GET_DOMAINS_REQUEST";
+    public const string SetDomainOverrideRequest = "SET_DOMAIN_OVERRIDE_REQUEST";
+    public const string AddDomainRequest = "ADD_DOMAIN_REQUEST";
+    public const string DeleteDomainRequest = "DELETE_DOMAIN_REQUEST";
 
     // Server -> Client responses
     public const string HandshakeResponse = "HANDSHAKE_RESPONSE";
@@ -26,6 +30,8 @@ public static class WsMessageTypes
     public const string GetViewResponse = "GET_VIEW_RESPONSE";
     public const string GetOntologyLayersResponse = "GET_ONTOLOGY_LAYERS_RESPONSE";
     public const string GetBoundedContextsResponse = "GET_BOUNDED_CONTEXTS_RESPONSE";
+    public const string GetDomainsResponse = "GET_DOMAINS_RESPONSE";
+    public const string DomainMutationResponse = "DOMAIN_MUTATION_RESPONSE";
     public const string ErrorResponse = "ERROR_RESPONSE";
 
     // Server -> Client broadcast events
@@ -1014,6 +1020,57 @@ public class ServiceOntologyDetailsDto
 
     [JsonPropertyName("groups")]
     public List<ServiceOntologyGroupDto> Groups { get; set; } = [];
+}
+
+public class SetDomainOverrideRequestDto
+{
+    [JsonPropertyName("serviceName")]
+    public string ServiceName { get; set; } = string.Empty;
+
+    [JsonPropertyName("domain")]
+    public string? Domain { get; set; }
+
+    [JsonPropertyName("context")]
+    public string? Context { get; set; }
+
+    [JsonPropertyName("removeOverride")]
+    public bool RemoveOverride { get; set; }
+}
+
+public class AddDomainRequestDto
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("icon")]
+    public string? Icon { get; set; }
+
+    [JsonPropertyName("color")]
+    public string? Color { get; set; }
+}
+
+public class DeleteDomainRequestDto
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("reassignTo")]
+    public string? ReassignTo { get; set; }
+}
+
+public class DomainMutationResponseDto
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
 }
 
 

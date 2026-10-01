@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
@@ -260,6 +261,94 @@ public class WebSocketServerHandler
                 case "GET_BOUNDED_CONTEXTS":
                     var bcMap = await _archQueryService.GetBoundedContextMapAsync(ct: cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.GetBoundedContextsResponse, reqId, bcMap, cancellationToken);
+                    break;
+
+                case WsMessageTypes.GetDomainsRequest:
+                case "GET_DOMAINS":
+                    var domainConfig = DomainManagementService.LoadConfig(_workspaceRoot);
+                    await SendResponseAsync(session, WsMessageTypes.GetDomainsResponse, reqId, domainConfig, cancellationToken);
+                    break;
+
+                case WsMessageTypes.SetDomainOverrideRequest:
+                case "SET_DOMAIN_OVERRIDE":
+                    var overrideReq = envelope.Payload.ValueKind == JsonValueKind.Object
+                        ? JsonSerializer.Deserialize<SetDomainOverrideRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
+                        : null;
+                    if (overrideReq == null || string.IsNullOrWhiteSpace(overrideReq.ServiceName))
+                    {
+                        await SendErrorAsync(session, reqId, "INVALID_REQUEST", "'serviceName' is required.", cancellationToken);
+                        break;
+                    }
+                    if (overrideReq.RemoveOverride)
+                    {
+                        var removed = DomainManagementService.RemoveServiceOverride(_workspaceRoot, overrideReq.ServiceName);
+                        _repository.InvalidateCache();
+                        await SendResponseAsync(session, WsMessageTypes.DomainMutationResponse, reqId, new DomainMutationResponseDto
+                        {
+                            Success = removed,
+                            Message = removed ? $"Override removed for service '{overrideReq.ServiceName}'." : $"No override found for '{overrideReq.ServiceName}'."
+                        }, cancellationToken);
+                    }
+                    else
+                    {
+                        if (string.IsNullOrWhiteSpace(overrideReq.Domain))
+                        {
+                            await SendErrorAsync(session, reqId, "INVALID_REQUEST", "'domain' is required when setting override.", cancellationToken);
+                            break;
+                        }
+                        DomainManagementService.AssignServiceDomain(_workspaceRoot, overrideReq.ServiceName, overrideReq.Domain, overrideReq.Context, _graphClient, cancellationToken);
+                        _repository.InvalidateCache();
+                        await SendResponseAsync(session, WsMessageTypes.DomainMutationResponse, reqId, new DomainMutationResponseDto
+                        {
+                            Success = true,
+                            Message = $"Service '{overrideReq.ServiceName}' assigned to domain '{overrideReq.Domain}'."
+                        }, cancellationToken);
+                    }
+                    break;
+
+                case WsMessageTypes.AddDomainRequest:
+                case "ADD_DOMAIN":
+                    var addReq = envelope.Payload.ValueKind == JsonValueKind.Object
+                        ? JsonSerializer.Deserialize<AddDomainRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
+                        : null;
+                    if (addReq == null || string.IsNullOrWhiteSpace(addReq.Name))
+                    {
+                        await SendErrorAsync(session, reqId, "INVALID_REQUEST", "Domain 'name' is required.", cancellationToken);
+                        break;
+                    }
+                    DomainManagementService.AddOrUpdateDomain(_workspaceRoot, new DomainDefinitionDto
+                    {
+                        Name = addReq.Name.Trim(),
+                        DisplayName = addReq.DisplayName,
+                        Description = addReq.Description,
+                        Icon = addReq.Icon,
+                        Color = addReq.Color
+                    });
+                    _repository.InvalidateCache();
+                    await SendResponseAsync(session, WsMessageTypes.DomainMutationResponse, reqId, new DomainMutationResponseDto
+                    {
+                        Success = true,
+                        Message = $"Domain '{addReq.Name}' added/updated."
+                    }, cancellationToken);
+                    break;
+
+                case WsMessageTypes.DeleteDomainRequest:
+                case "DELETE_DOMAIN":
+                    var delReq = envelope.Payload.ValueKind == JsonValueKind.Object
+                        ? JsonSerializer.Deserialize<DeleteDomainRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
+                        : null;
+                    if (delReq == null || string.IsNullOrWhiteSpace(delReq.Name))
+                    {
+                        await SendErrorAsync(session, reqId, "INVALID_REQUEST", "Domain 'name' is required.", cancellationToken);
+                        break;
+                    }
+                    var delSuccess = DomainManagementService.RemoveDomain(_workspaceRoot, delReq.Name.Trim(), delReq.ReassignTo);
+                    _repository.InvalidateCache();
+                    await SendResponseAsync(session, WsMessageTypes.DomainMutationResponse, reqId, new DomainMutationResponseDto
+                    {
+                        Success = delSuccess,
+                        Message = delSuccess ? $"Domain '{delReq.Name}' removed." : $"Domain '{delReq.Name}' not found."
+                    }, cancellationToken);
                     break;
 
                 case WsMessageTypes.GetOntologyLayersRequest:

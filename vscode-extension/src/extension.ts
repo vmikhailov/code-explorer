@@ -4,6 +4,7 @@ import { ProcessManager } from './processManager';
 import { GraphPanel } from './graphPanel';
 import { CodeExplorerTreeDataProvider } from './codeExplorerTreeProvider';
 import { getModelStatus } from './modelManager';
+import { LlmBridgeService } from './services/llmBridgeService';
 import { isProjectKind } from '../../proto/types';
 
 let processManager: ProcessManager | null = null;
@@ -547,18 +548,38 @@ export function activate(context: vscode.ExtensionContext) {
       const pm = processManager;
       if (!pm) return;
 
-      const modelStatus = getModelStatus(workspaceRoot);
-      if (!modelStatus.exists) {
-        const choice = await vscode.window.showInformationMessage(
-          'CodeExplorer AI model (~940 MB) is required for intent distillation. Would you like to download it now?',
-          'Download Model',
-          'Cancel'
-        );
-        if (choice === 'Download Model') {
-          await vscode.commands.executeCommand('codeExplorer.downloadModel', false);
-        } else {
-          return;
+      const aiSettings = LlmBridgeService.getInstance().getSettings();
+      if (aiSettings.provider === 'gguf') {
+        const modelStatus = getModelStatus(workspaceRoot);
+        if (!modelStatus.exists) {
+          const choice = await vscode.window.showInformationMessage(
+            'CodeExplorer AI model (~940 MB) is required for local GGUF intent distillation. Would you like to download it now or switch to Built-in IDE model (0 MB)?',
+            'Download Model',
+            'AI Settings',
+            'Cancel'
+          );
+          if (choice === 'Download Model') {
+            await vscode.commands.executeCommand('codeExplorer.downloadModel', false);
+          } else if (choice === 'AI Settings') {
+            await vscode.commands.executeCommand('codeExplorer.openSettings');
+            return;
+          } else {
+            return;
+          }
         }
+      }
+
+      const cliArgs = ['intent'];
+      if (aiSettings.provider === 'openai' && aiSettings.endpoint) {
+        cliArgs.push('--endpoint', aiSettings.endpoint);
+        if (aiSettings.model) {
+          cliArgs.push('--model', aiSettings.model);
+        }
+        if (aiSettings.apiKey) {
+          cliArgs.push('--api-key', aiSettings.apiKey);
+        }
+      } else if (aiSettings.provider === 'builtin') {
+        cliArgs.push('--domains-only');
       }
 
       await vscode.window.withProgress(
@@ -578,8 +599,8 @@ export function activate(context: vscode.ExtensionContext) {
           });
 
           try {
-            progress.report({ message: 'Running SLM intent distillation pass...' });
-            await pm.runCliCommand(workspaceRoot, ['intent'], (line) => {
+            progress.report({ message: `Running intent distillation (${aiSettings.provider})...` });
+            await pm.runCliCommand(workspaceRoot, cliArgs, (line) => {
               if (line.includes('[CodeIntent]') || line.includes('Enriched') || line.includes('candidate') || line.includes('Compute Device')) {
                 progress.report({ message: line.replace(/^\[.*?\]\s*/, '') });
               }
@@ -792,12 +813,21 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: Open Settings
+  const openSettingsCommand = vscode.commands.registerCommand(
+    'codeExplorer.openSettings',
+    async () => {
+      await vscode.commands.executeCommand('codeExplorer.openView', 'settings');
+    }
+  );
+
   context.subscriptions.push(
     initAndScanCommand,
     showGraphCommand,
     refreshTreeCommand,
     openNodeGridCommand,
     openViewCommand,
+    openSettingsCommand,
     focusBoundedContextCommand,
     focusNodeCommand,
     openSourceCommand,

@@ -38,6 +38,7 @@ public static class ServeCommandHandler
         }
 
         var wsRoot = ws?.RootDirectory ?? (opts.Root != null ? Path.GetFullPath(opts.Root) : Directory.GetCurrentDirectory());
+        WorkspaceConventions.LoadFromWorkspace(wsRoot);
 
         if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
         {

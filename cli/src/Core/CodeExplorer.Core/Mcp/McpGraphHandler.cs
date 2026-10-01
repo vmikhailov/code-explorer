@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using CodeExplorer.Core.Analysis;
+using CodeExplorer.Core.Common;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -19,24 +21,37 @@ public class McpGraphHandler(
     private readonly ILogger _logger = (ILogger?)logger ?? NullLogger.Instance;
     private string? GetCurrentWorkspacePath(string? explicitWorkspace = null)
     {
+        string? ws = null;
         if (!string.IsNullOrWhiteSpace(explicitWorkspace))
         {
-            return explicitWorkspace;
+            ws = explicitWorkspace;
         }
-        var httpContext = httpContextAccessor?.HttpContext;
-        if (httpContext != null)
+        else
         {
-            var workspacePath = httpContext.Request.Query["ws"].ToString();
-            if (string.IsNullOrEmpty(workspacePath))
+            var httpContext = httpContextAccessor?.HttpContext;
+            if (httpContext != null)
             {
-                workspacePath = httpContext.Request.Query["workspacePath"].ToString();
+                var workspacePath = httpContext.Request.Query["ws"].ToString();
+                if (string.IsNullOrEmpty(workspacePath))
+                {
+                    workspacePath = httpContext.Request.Query["workspacePath"].ToString();
+                }
+                if (!string.IsNullOrEmpty(workspacePath))
+                {
+                    ws = workspacePath;
+                }
             }
-            if (!string.IsNullOrEmpty(workspacePath))
+            if (string.IsNullOrEmpty(ws))
             {
-                return workspacePath;
+                ws = repository.DefaultWorkspacePath ?? Common.WorkspaceLocator.FindWithFallbacks()?.RootDirectory;
             }
         }
-        return repository.DefaultWorkspacePath ?? Common.WorkspaceLocator.FindWithFallbacks()?.RootDirectory;
+
+        if (!string.IsNullOrEmpty(ws))
+        {
+            WorkspaceConventions.LoadFromWorkspace(ws);
+        }
+        return ws;
     }
 
     private static CallToolResult WrapResult(string text)
@@ -535,5 +550,86 @@ public class McpGraphHandler(
 
         return await ExecuteAsync(() => repository.IngestGraphDataAsync(
             nodesJson, relationshipsJson, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Lists, adds, or removes architectural domain definitions in .codeexplorer/domains.json.")]
+    public Task<CallToolResult> ManageDomainAsync(
+        [Description("Action to perform: 'list', 'add', or 'remove'.")] string action,
+        [Description("Domain name (required for 'add' and 'remove').")] string? name = null,
+        [Description("Human-readable display name (e.g. 'Billing & Payments').")] string? displayName = null,
+        [Description("Domain description.")] string? description = null,
+        [Description("Domain icon (e.g. emoji or icon identifier).")] string? icon = null,
+        [Description("Hex color code (e.g. '#3b82f6').")] string? color = null,
+        [Description("Target domain to reassign existing services to when deleting a domain.")] string? reassignTo = null,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var wsRoot = workspacePath ?? GetCurrentWorkspacePath();
+        if (string.IsNullOrWhiteSpace(wsRoot)) return Task.FromResult(WrapError("No active workspace found."));
+
+        switch (action.ToLowerInvariant())
+        {
+            case "list":
+                var config = DomainManagementService.LoadConfig(wsRoot);
+                return Task.FromResult(WrapResult(System.Text.Json.JsonSerializer.Serialize(config, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })));
+
+            case "add":
+                if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(WrapError("Domain 'name' is required for 'add' action."));
+                var domain = DomainManagementService.AddOrUpdateDomain(wsRoot, new DomainDefinitionDto
+                {
+                    Name = name.Trim(),
+                    DisplayName = displayName,
+                    Description = description,
+                    Icon = icon,
+                    Color = color
+                });
+                return Task.FromResult(WrapResult($"Domain '{domain.Name}' added/updated in {DomainManagementService.GetConfigFilePath(wsRoot)}."));
+
+            case "remove":
+            case "delete":
+                if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(WrapError("Domain 'name' is required for 'remove' action."));
+                var removed = DomainManagementService.RemoveDomain(wsRoot, name.Trim(), reassignTo);
+                return Task.FromResult(removed
+                    ? WrapResult($"Domain '{name}' removed from {DomainManagementService.GetConfigFilePath(wsRoot)}.")
+                    : WrapError($"Domain '{name}' not found."));
+
+            default:
+                return Task.FromResult(WrapError($"Unknown action '{action}'. Valid actions are 'list', 'add', 'remove'."));
+        }
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Assigns or overrides the architectural domain and/or bounded context for a specific service or project.")]
+    public async Task<CallToolResult> AssignServiceDomainAsync(
+        [Description("The service or project name to override.")] string serviceName,
+        [Description("The target domain name (required unless removeOverride is true).")] string? domainName = null,
+        [Description("Optional bounded context name.")] string? boundedContext = null,
+        [Description("If true, removes any existing override for this service instead of adding one.")] bool removeOverride = false,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var wsRoot = workspacePath ?? GetCurrentWorkspacePath();
+        if (string.IsNullOrWhiteSpace(wsRoot)) return WrapError("No active workspace found.");
+
+        if (removeOverride)
+        {
+            var removed = DomainManagementService.RemoveServiceOverride(wsRoot, serviceName);
+            return removed
+                ? WrapResult($"Override removed for service '{serviceName}'.")
+                : WrapError($"No override found for service '{serviceName}'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(domainName))
+        {
+            return WrapError("'domainName' is required when assigning a domain.");
+        }
+
+        var client = await repository.ResolveClientAsync(wsRoot);
+        DomainManagementService.AssignServiceDomain(wsRoot, serviceName, domainName, boundedContext, client, cancellationToken);
+        return WrapResult($"Assigned service '{serviceName}' to domain '{domainName}'" +
+            (string.IsNullOrWhiteSpace(boundedContext) ? "" : $" (context: '{boundedContext}')") + ".");
     }
 }

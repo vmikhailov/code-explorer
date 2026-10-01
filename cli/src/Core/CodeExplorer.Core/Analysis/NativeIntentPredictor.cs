@@ -34,7 +34,7 @@ public record SystemDomainsResult(
     [property: JsonPropertyName("domains")] List<SystemDomainAssignment> Domains
 );
 
-public sealed class NativeIntentPredictor : IDisposable
+public sealed class NativeIntentPredictor : IIntentPredictor
 {
     private static readonly object ConfigLock = new();
     private static bool _configured;
@@ -354,13 +354,8 @@ string ::= "\"" ([^"\\] | "\\" ["\\/bfnrt])* "\""
 ws ::= [ \t\n\r]*
 """;
 
-    public async Task<SystemDomainsResult?> PredictSystemDomainsAsync(
-        IReadOnlyList<ProjectSignature> signatures,
-        CancellationToken cancellationToken = default)
+    public static string BuildSystemDomainsUserPrompt(IReadOnlyList<ProjectSignature> signatures)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (signatures.Count == 0) return null;
-
         var sbUser = new StringBuilder();
         sbUser.AppendLine($"Total Services in System: {signatures.Count}");
         sbUser.AppendLine();
@@ -391,6 +386,150 @@ ws ::= [ \t\n\r]*
             var detailStr = details.Count > 0 ? " | " + string.Join(" | ", details) : "";
             sbUser.AppendLine($"- Service: {sig.Name}{detailStr}");
         }
+        return sbUser.ToString();
+    }
+
+    public static string BuildProjectBoundedContextUserPrompt(ProjectSignature signature)
+    {
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Service Name: {signature.Name}");
+        if (!string.IsNullOrWhiteSpace(signature.Role))
+        {
+            sbUser.AppendLine($"Workload Role: {signature.Role}");
+        }
+        if (!string.IsNullOrWhiteSpace(signature.RelativePath))
+        {
+            sbUser.AppendLine($"Path: {signature.RelativePath.Replace('\\', '/')}");
+        }
+        if (signature.InboundCallers != null && signature.InboundCallers.Count > 0)
+        {
+            sbUser.AppendLine($"Called By (Inbound Clients): [{string.Join(", ", signature.InboundCallers.Take(6))}]");
+        }
+        if (signature.OutboundCalls != null && signature.OutboundCalls.Count > 0)
+        {
+            sbUser.AppendLine($"Calls (Outbound Services): [{string.Join(", ", signature.OutboundCalls.Take(6))}]");
+        }
+        if (signature.ReferencedLibraries != null && signature.ReferencedLibraries.Count > 0)
+        {
+            sbUser.AppendLine($"Referenced Libraries: [{string.Join(", ", signature.ReferencedLibraries.Take(6))}]");
+        }
+        if (signature.Tables.Count > 0)
+        {
+            sbUser.AppendLine($"Database Tables: [{string.Join(", ", signature.Tables.Take(12))}]");
+        }
+        if (signature.DomainTypes.Count > 0)
+        {
+            var prioritizedTypes = signature.DomainTypes
+                .OrderByDescending(t =>
+                {
+                    var lower = t.ToLowerInvariant();
+                    if (lower.EndsWith("module") || lower.EndsWith("config") || lower.EndsWith("options") || lower.EndsWith("constant") || lower.EndsWith("constants")) return 0;
+                    if (lower.EndsWith("dto") || lower.EndsWith("request") || lower.EndsWith("response")) return 2;
+                    if (lower.EndsWith("service") || lower.EndsWith("handler") || lower.EndsWith("repository") || lower.EndsWith("gateway")) return 3;
+                    if (lower.EndsWith("entity") || lower.EndsWith("model") || lower.EndsWith("aggregate") || lower.EndsWith("item")) return 5;
+                    return 1;
+                })
+                .Take(12);
+
+            sbUser.AppendLine($"Domain Entities / Aggregates: [{string.Join(", ", prioritizedTypes)}]");
+        }
+        if (signature.Endpoints.Count > 0)
+        {
+            sbUser.AppendLine($"API Endpoints: [{string.Join(", ", signature.Endpoints.Take(10))}]");
+        }
+        if (signature.Topics.Count > 0)
+        {
+            sbUser.AppendLine($"Message Topics / Queues: [{string.Join(", ", signature.Topics.Take(8))}]");
+        }
+        return sbUser.ToString();
+    }
+
+    public static string BuildMacroDomainsUserPrompt(IReadOnlyList<ProjectBoundedContextResult> contexts)
+    {
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Total Services in System: {contexts.Count}");
+        sbUser.AppendLine("Service Bounded Contexts, Aggregates, and Capabilities:");
+        sbUser.AppendLine();
+
+        foreach (var ctx in contexts)
+        {
+            var aggs = ctx.PrimaryAggregates.Count > 0 ? string.Join(", ", ctx.PrimaryAggregates.Take(3)) : "None";
+            sbUser.AppendLine($"- {ctx.Service}: {ctx.BoundedContext} | Aggs: [{aggs}] | Domain: {ctx.SuggestedDomain}");
+        }
+        return sbUser.ToString();
+    }
+
+    public static string BuildProjectUserPrompt(ProjectSignature signature, IReadOnlyList<string>? knownDomains = null)
+    {
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Project Name: {signature.Name}");
+        if (signature.Endpoints.Count > 0)
+        {
+            sbUser.AppendLine($"Key Endpoints: {string.Join(", ", signature.Endpoints.Take(12))}");
+        }
+        if (signature.Tables.Count > 0)
+        {
+            sbUser.AppendLine($"Tables / Collections: {string.Join(", ", signature.Tables.Take(12))}");
+        }
+        if (signature.Topics.Count > 0)
+        {
+            sbUser.AppendLine($"Message Topics: {string.Join(", ", signature.Topics.Take(10))}");
+        }
+        if (signature.DomainTypes.Count > 0)
+        {
+            sbUser.AppendLine($"Core Domain Types: {string.Join(", ", signature.DomainTypes.Take(12))}");
+        }
+        return sbUser.ToString();
+    }
+
+    public static string BuildFileUserPrompt(
+        string filePath,
+        string content,
+        string? projectName = null,
+        IReadOnlyList<string>? knownDomains = null,
+        string? projectDomain = null,
+        string? projectRole = null)
+    {
+        var lang = DetectLanguage(filePath);
+        var truncated = TruncateContent(content, 4000);
+        var fileName = Path.GetFileName(filePath);
+
+        var sbUser = new StringBuilder();
+        sbUser.AppendLine($"Language: {lang}");
+        sbUser.AppendLine($"File: {fileName}");
+        if (!string.IsNullOrWhiteSpace(projectName))
+        {
+            sbUser.AppendLine($"Project / Subsystem: {projectName}");
+        }
+        if (!string.IsNullOrWhiteSpace(projectDomain))
+        {
+            sbUser.AppendLine($"Parent Project Bounded Context: {projectDomain}");
+            if (!string.IsNullOrWhiteSpace(projectRole))
+            {
+                sbUser.AppendLine($"Parent Project Purpose: {projectRole}");
+            }
+        }
+        else if (knownDomains != null && knownDomains.Count > 0)
+        {
+            var domainList = string.Join(", ", knownDomains.Take(12));
+            sbUser.AppendLine($"Known Repository Bounded Contexts: [{domainList}]");
+        }
+        sbUser.AppendLine();
+        sbUser.AppendLine("Code Skeleton:");
+        sbUser.AppendLine("```");
+        sbUser.AppendLine(truncated);
+        sbUser.AppendLine("```");
+        return sbUser.ToString();
+    }
+
+    public async Task<SystemDomainsResult?> PredictSystemDomainsAsync(
+        IReadOnlyList<ProjectSignature> signatures,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (signatures.Count == 0) return null;
+
+        var sbUser = BuildSystemDomainsUserPrompt(signatures);
 
         var prompt = $"<|im_start|>system\n{SystemDomainsPrompt}<|im_end|>\n"
                    + $"<|im_start|>user\n{sbUser}<|im_end|>\n"
@@ -445,16 +584,10 @@ ws ::= [ \t\n\r]*
 
         try
         {
-            var firstBrace = rawOutput.IndexOf('{');
-            var lastBrace = rawOutput.LastIndexOf('}');
-            if (firstBrace >= 0 && lastBrace > firstBrace)
+            if (RobustJsonParser.TryDeserialize<SystemDomainsResult>(rawOutput, out var parsed, _jsonOptions) &&
+                parsed?.Domains != null && parsed.Domains.Count > 0)
             {
-                var jsonStr = rawOutput.Substring(firstBrace, lastBrace - firstBrace + 1);
-                var parsed = JsonSerializer.Deserialize<SystemDomainsResult>(jsonStr, _jsonOptions);
-                if (parsed?.Domains != null && parsed.Domains.Count > 0)
-                {
-                    return parsed;
-                }
+                return parsed;
             }
         }
         catch
@@ -470,8 +603,8 @@ ws ::= [ \t\n\r]*
         "Analyze the provided Service Signature (service name, relative directory path, database tables, domain entities, and API endpoints).\n" +
         "Extract its architectural Bounded Context, primary Aggregate Roots, core capability, and suggested Problem Space Domain:\n\n" +
         "1. \"service\": The exact service name provided.\n" +
-        "2. \"bounded_context\": Canonical Bounded Context name in PascalCase (e.g. \"ApprovalManagement\", \"EpmCalculation\", \"CampaignBundling\", \"DomainVerification\").\n" +
-        "3. \"primary_aggregates\": 1 to 3 primary Aggregate Root entity names in PascalCase (e.g. [\"ApprovalRequest\"]).\n" +
+        "2. \"bounded_context\": Canonical Bounded Context name in PascalCase (e.g. \"OrderManagement\", \"PaymentProcessing\", \"InventoryFulfillment\", \"CustomerIdentity\").\n" +
+        "3. \"primary_aggregates\": 1 to 3 primary Aggregate Root entity names in PascalCase (e.g. [\"Order\", \"Payment\"]).\n" +
         "4. \"capability\": One clear, concise sentence describing the core business capability delivered by this service.\n" +
         "5. \"suggested_domain\": An overarching high-level Business Domain (Problem Space) noun in PascalCase (e.g. \"Operations\", \"Calculations\", \"Bundles\", \"Domains\", \"Traffic\", \"Identity\", \"Billing\", \"Integrations\", \"Analytics\", \"Metadata\"). Keep it 1 to 2 words maximum (e.g. \"Calculations\", NOT \"CalculationsAndReportingDataManagement\").\n\n" +
         "Respond ONLY with valid JSON.";
@@ -805,16 +938,10 @@ ws ::= [ \t\n\r]*
 
         try
         {
-            var firstBrace = rawOutput.IndexOf('{');
-            var lastBrace = rawOutput.LastIndexOf('}');
-            if (firstBrace >= 0 && lastBrace > firstBrace)
+            if (RobustJsonParser.TryDeserialize<ProjectBoundedContextResult>(rawOutput, out var parsed, _jsonOptions) &&
+                parsed != null && !string.IsNullOrWhiteSpace(parsed.BoundedContext))
             {
-                var jsonStr = rawOutput.Substring(firstBrace, lastBrace - firstBrace + 1);
-                var parsed = JsonSerializer.Deserialize<ProjectBoundedContextResult>(jsonStr, _jsonOptions);
-                if (parsed != null && !string.IsNullOrWhiteSpace(parsed.BoundedContext))
-                {
-                    return parsed;
-                }
+                return parsed;
             }
         }
         catch
@@ -985,7 +1112,7 @@ ws ::= [ \t\n\r]*
         }
     }
 
-    private const string SystemPrompt =
+    public const string SystemPrompt =
         "You are an expert Enterprise Software Architect and Static Code Analyzer.\n" +
         "Analyze the provided code module skeleton (namespace, classes, interfaces, dependencies, method signatures, attributes, and internal calls).\n" +
         "Determine its architectural role, bounded context (business domain), mutations, capabilities, and intent for a Code Knowledge Graph.\n\n" +
@@ -1134,148 +1261,20 @@ ws ::= [ \t\n\r]*
 
     private BatchInferenceResult? ParseJsonResult(string rawOutput, string filePath)
     {
-        if (string.IsNullOrWhiteSpace(rawOutput)) return null;
-
-        var firstBrace = rawOutput.IndexOf('{');
-        if (firstBrace < 0) return null;
-
-        var lastBrace = rawOutput.LastIndexOf('}');
-        string? jsonStr = null;
-
-        if (lastBrace > firstBrace)
+        if (RobustJsonParser.TryDeserialize<BatchInferenceResult>(rawOutput, out var parsed, _jsonOptions) && parsed != null)
         {
-            jsonStr = rawOutput.Substring(firstBrace, lastBrace - firstBrace + 1);
-            try
-            {
-                var parsed = JsonSerializer.Deserialize<BatchInferenceResult>(jsonStr, _jsonOptions);
-                if (parsed != null)
-                {
-                    return parsed with { FilePath = filePath };
-                }
-            }
-            catch
-            {
-                // Fall through to attempt healing
-            }
+            return parsed with { FilePath = filePath };
         }
-
-        // Attempt healing if truncated (e.g. missing closing braces)
-        try
-        {
-            var candidate = rawOutput[firstBrace..].Trim();
-            // Remove markdown closing fence if present
-            if (candidate.EndsWith("```"))
-            {
-                candidate = candidate[..^3].TrimEnd();
-            }
-
-            var openBraces = 0;
-            var openBrackets = 0;
-            var inString = false;
-            var escape = false;
-
-            foreach (var ch in candidate)
-            {
-                if (escape) { escape = false; continue; }
-                if (ch == '\\') { escape = true; continue; }
-                if (ch == '"') { inString = !inString; continue; }
-                if (inString) continue;
-
-                if (ch == '{') openBraces++;
-                else if (ch == '}') openBraces--;
-                else if (ch == '[') openBrackets++;
-                else if (ch == ']') openBrackets--;
-            }
-
-            var sb = new StringBuilder(candidate);
-            if (inString) sb.Append('"');
-            while (openBrackets > 0) { sb.Append(']'); openBrackets--; }
-            while (openBraces > 0) { sb.Append('}'); openBraces--; }
-
-            var healed = sb.ToString();
-            var parsed = JsonSerializer.Deserialize<BatchInferenceResult>(healed, _jsonOptions);
-            if (parsed != null)
-            {
-                return parsed with { FilePath = filePath };
-            }
-        }
-        catch
-        {
-            // Failed to parse or heal JSON
-        }
-
         return null;
     }
 
     private ProjectIntentResult? ParseProjectJsonResult(string rawOutput)
     {
-        if (string.IsNullOrWhiteSpace(rawOutput)) return null;
-
-        var firstBrace = rawOutput.IndexOf('{');
-        if (firstBrace < 0) return null;
-
-        var lastBrace = rawOutput.LastIndexOf('}');
-        if (lastBrace > firstBrace)
+        if (RobustJsonParser.TryDeserialize<ProjectIntentResult>(rawOutput, out var parsed, _jsonOptions) &&
+            parsed != null && !string.IsNullOrWhiteSpace(parsed.Domain))
         {
-            var jsonStr = rawOutput.Substring(firstBrace, lastBrace - firstBrace + 1);
-            try
-            {
-                var parsed = JsonSerializer.Deserialize<ProjectIntentResult>(jsonStr, _jsonOptions);
-                if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Domain))
-                {
-                    return parsed;
-                }
-            }
-            catch
-            {
-                // Fall through to healing
-            }
+            return parsed;
         }
-
-        // Attempt healing if truncated
-        try
-        {
-            var candidate = rawOutput[firstBrace..].Trim();
-            if (candidate.EndsWith("```"))
-            {
-                candidate = candidate[..^3].TrimEnd();
-            }
-
-            var openBraces = 0;
-            var openBrackets = 0;
-            var inString = false;
-            var escape = false;
-
-            foreach (var ch in candidate)
-            {
-                if (escape) { escape = false; continue; }
-                if (ch == '\\') { escape = true; continue; }
-                if (ch == '"') { inString = !inString; continue; }
-                if (inString) continue;
-
-                if (ch == '{') openBraces++;
-                else if (ch == '}') openBraces--;
-                else if (ch == '[') openBrackets++;
-                else if (ch == ']') openBrackets--;
-            }
-
-            var sb = new StringBuilder(candidate);
-            if (inString) sb.Append('"');
-            while (openBrackets > 0) { sb.Append(']'); openBrackets--; }
-            while (openBraces > 0) { sb.Append('}'); openBraces--; }
-
-            var healed = sb.ToString();
-            var parsed = JsonSerializer.Deserialize<ProjectIntentResult>(healed, _jsonOptions);
-            if (parsed != null && !string.IsNullOrWhiteSpace(parsed.Domain))
-            {
-                return parsed;
-            }
-        }
-        catch
-        {
-            // Failed to parse
-        }
-
         return null;
     }
 

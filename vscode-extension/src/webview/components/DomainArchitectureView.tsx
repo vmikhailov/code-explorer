@@ -19,6 +19,7 @@ import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout
 import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslandsLayout';
 import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
 import { DomainMatrixView } from './DomainMatrixView';
+import { DomainOverrideModal } from './DomainOverrideModal';
 import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 
 export type DomainLayoutName =
@@ -40,6 +41,8 @@ export interface DomainArchitectureViewProps {
   onOpenFile?: (filePath: string, lineStart?: number) => void;
   onSelectNode?: (node: GraphNode | null) => void;
   onSwitchToContexts?: () => void;
+  onSetDomainOverride?: (serviceName: string, domain: string, context?: string, reset?: boolean) => void;
+  availableDomains?: string[];
 }
 
 // Common sub-project naming suffixes that belong to a parent domain
@@ -109,6 +112,27 @@ function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayNa
     node.properties?.layer === 'layer_ingress' ||
     node.properties?.layerId === 'layer_ingress';
 
+  // 0. Explicit domain from backend node properties (takes highest precedence)
+  const propDomainId = node.properties?.domainId;
+  const propDomain = node.properties?.domain || node.properties?.bounded_context;
+  const propDisplayName = node.properties?.domainDisplayName;
+  if (propDomainId && !propDomainId.startsWith('domain:c:') && !propDomainId.startsWith('domain:home')) {
+    const displayName = propDisplayName || propDomain || propDomainId.replace(/^domain:/, '');
+    return {
+      domainKey: propDomainId,
+      domainDisplayName: displayName,
+      isIngressHint: isProtocolIngress,
+    };
+  }
+  if (propDomain && propDomain.toLowerCase() !== 'c:' && propDomain.toLowerCase() !== 'home') {
+    const clean = propDomain.trim();
+    return {
+      domainKey: `domain:${clean.toLowerCase()}`,
+      domainDisplayName: propDisplayName || clean,
+      isIngressHint: isProtocolIngress,
+    };
+  }
+
   // 1. Check if name ends with standard architectural suffix (e.g. Lidoma.Services.Player.Logic)
   const suffixMatch = name.match(SUB_PROJECT_SUFFIX_REGEX);
   if (suffixMatch) {
@@ -122,9 +146,12 @@ function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayNa
     };
   }
 
-  // 2. Directory-based grouping (e.g. services/player/... or adhub/...)
+  // 2. Directory-based grouping (e.g. services/player/... or billing/...)
   if (path) {
-    const pathParts = path.split('/').filter(Boolean);
+    // Strip Windows drive letter (e.g. C:/) and leading slashes
+    const cleanPath = path.replace(/^[a-z]:\//i, '').replace(/^\/+/, '');
+    const pathParts = cleanPath.split('/').filter((p) => p && !/^[a-z]:$/i.test(p));
+
     const servicesIdx = pathParts.findIndex((p) => p === 'services' || p === 'microservices');
     if (servicesIdx !== -1 && servicesIdx + 1 < pathParts.length) {
       const folderDomain = pathParts[servicesIdx + 1];
@@ -136,14 +163,14 @@ function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayNa
       };
     }
 
-    // Monorepo sub-directory pattern (e.g. adhub/adhub-cli -> adhub)
-    if (pathParts.length >= 2 && !['src', 'packages', 'libs', 'projects'].includes(pathParts[0])) {
-      const folderDomain = pathParts[0];
-      const cleanName = folderDomain.charAt(0).toUpperCase() + folderDomain.slice(1);
+    const skipFolders = new Set(['src', 'packages', 'libs', 'projects', 'apps', 'modules', 'cmd', 'home', 'users']);
+    const meaningfulFolder = pathParts.find((p) => !skipFolders.has(p) && p.length > 1);
+    if (meaningfulFolder) {
+      const cleanName = meaningfulFolder.charAt(0).toUpperCase() + meaningfulFolder.slice(1);
       return {
-        domainKey: `domain:${folderDomain.toLowerCase()}`,
-        domainDisplayName: `${cleanName}`,
-        isIngressHint: INGRESS_KEYWORDS.some((kw) => folderDomain.toLowerCase().includes(kw)),
+        domainKey: `domain:${meaningfulFolder.toLowerCase()}`,
+        domainDisplayName: cleanName,
+        isIngressHint: INGRESS_KEYWORDS.some((kw) => meaningfulFolder.toLowerCase().includes(kw)),
       };
     }
   }
@@ -791,9 +818,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   onOpenFile,
   onSelectNode,
   onSwitchToContexts,
+  onSetDomainOverride,
+  availableDomains = [],
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
+
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  const [overrideTargetService, setOverrideTargetService] = useState('');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [layoutName, setLayoutName] = useState<DomainLayoutName>(() => {
@@ -4342,6 +4374,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       Explore in Flow ➔
                     </button>
                   )}
+                  {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && onSetDomainOverride && (
+                    <button
+                      className="inspector-action-btn secondary"
+                      onClick={() => {
+                        setOverrideTargetService(selectedNode.name);
+                        setOverrideModalOpen(true);
+                      }}
+                      title="Override or reassign service domain and bounded context"
+                    >
+                      🏷️ Override Domain
+                    </button>
+                  )}
                   {selectedNode.primaryFilePath && onOpenFile && (
                     <button
                       className="inspector-action-btn secondary"
@@ -4365,6 +4409,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </aside>
       )}
       </div>
+
+      <DomainOverrideModal
+        isOpen={overrideModalOpen}
+        serviceName={overrideTargetService}
+        currentDomain={selectedNode?.displayName}
+        availableDomains={availableDomains}
+        onSave={(svc, dom, ctx) => onSetDomainOverride?.(svc, dom, ctx, false)}
+        onReset={(svc) => onSetDomainOverride?.(svc, '', undefined, true)}
+        onClose={() => setOverrideModalOpen(false)}
+      />
     </div>
   );
 };

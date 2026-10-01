@@ -126,6 +126,11 @@
         "icon": "$(hubot)"
       },
       {
+        "command": "codeExplorer.openSettings",
+        "title": "CodeExplorer: Settings & AI Model Preferences",
+        "icon": "$(gear)"
+      },
+      {
         "command": "codeExplorer.clearIntents",
         "title": "CodeExplorer: Clear AI Intent Cache",
         "icon": "$(trash)"
@@ -321,6 +326,32 @@
           "type": "number",
           "default": 60,
           "description": "Idle timeout in seconds before the background ce.exe server terminates when all windows are closed."
+        },
+        "codeExplorer.ai.provider": {
+          "type": "string",
+          "enum": ["builtin", "openai", "gguf"],
+          "enumDescriptions": [
+            "Use built-in IDE language model (Copilot / Gemini in Antigravity) with zero download",
+            "Use local or cloud OpenAI-compatible server (Ollama, LM Studio, vLLM, DeepSeek, etc.)",
+            "Use locally downloaded Qwen-2.5 GGUF model via llama.cpp"
+          ],
+          "default": "builtin",
+          "description": "AI provider used for domain discovery and architectural intent distillation."
+        },
+        "codeExplorer.ai.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model identifier or family (e.g. 'copilot-gpt-4o', 'gemini-2.0-flash', 'qwen2.5-coder:7b'). Leave empty to use default."
+        },
+        "codeExplorer.ai.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/v1",
+          "description": "Endpoint URL for OpenAI-compatible provider (e.g. http://localhost:11434/v1 for Ollama, http://localhost:1234/v1 for LM Studio)."
+        },
+        "codeExplorer.ai.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Optional API Key for custom OpenAI-compatible endpoints."
         }
       }
     }

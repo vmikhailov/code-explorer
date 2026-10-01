@@ -293,9 +293,11 @@ public static class ProjectLayerClassifier
             return true;
         }
 
-        // 4. Monolithic entrypoint project (e.g. CodeExplorer CLI tool without explicit role in unit test)
+        // 4. Monolithic entrypoint project
+        var normPath = (p.FilePath ?? "").Replace('\\', '/');
         if (inDegree == 0 && outDegree > 0 &&
-            (lowerName.EndsWith(".cli") || lowerName.EndsWith(".app") || lowerName.EndsWith(".host") || lowerName.Equals("codeexplorer")))
+            (lowerName.EndsWith(".cli") || lowerName.EndsWith(".app") || lowerName.EndsWith(".host") || lowerName.Equals("cli") ||
+             normPath.Contains("/ui/", StringComparison.OrdinalIgnoreCase) || normPath.Contains("/apps/", StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
@@ -386,7 +388,6 @@ public static class ProjectLayerClassifier
         if (lowerName.StartsWith("integration-") ||
             lowerName.StartsWith("integration_") ||
             lowerName.EndsWith("adapter") ||
-            lowerName.EndsWith("notifier") ||
             lowerName.EndsWith("client") ||
             lowerName.Contains("integration-service") ||
             lowerName.Contains("integration_service"))

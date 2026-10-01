@@ -298,12 +298,12 @@ public class ProjectLayerClassifierTests
                 Extensions = new Dictionary<string, string> { ["framework_type"] = "web" }
             },
 
-            // 5. Frontend App (ats-front) -> Must be Ingress!
+            // 5. Frontend App (customer-portal) -> Must be Ingress!
             new()
             {
                 Id = "app_front",
-                Name = "ats-front",
-                FilePath = "fe/projects/ats-front/package.json",
+                Name = "customer-portal",
+                FilePath = "fe/projects/customer-portal/package.json",
                 Role = "FrontendApp",
                 Extensions = new Dictionary<string, string> { ["is_frontend_app"] = "true", ["framework_type"] = "frontend" }
             },

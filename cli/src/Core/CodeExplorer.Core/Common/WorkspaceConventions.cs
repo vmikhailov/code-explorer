@@ -12,11 +12,31 @@ public static class WorkspaceConventions
 {
     private static readonly ConcurrentDictionary<string, string> TopicAliases = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, string> ProjectToDomain = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> ServiceOverrides = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, string> DomainIcons = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentBag<(Regex Regex, string Domain)> PatternToDomain = new();
+    private static readonly ConcurrentBag<string> CustomRouteFunctions = new();
+    private static readonly ConcurrentBag<string> CustomServicePrefixes = new();
+    private static readonly ConcurrentDictionary<string, string> DatabaseAliases = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Regex RouteFunctionRegex = new(
-        @"(?:get(?:ServiceDomainBy)?Route|resolveRoute|routeFor|serviceRoute)\s*\(\s*['""]([^'""]+)['""]",
+    private static readonly Regex DefaultRouteFunctionRegex = new(
+        @"(?:resolveRoute|routeFor|serviceRoute|getRoute)\s*\(\s*['""]([^'""]+)['""]",
         RegexOptions.Compiled);
+
+    private static readonly string[] GenericServicePrefixes =
+    [
+        "internal-service-",
+        "integration-service-",
+        "external-service-",
+        "internal--",
+        "integration--",
+        "external--",
+        "internal-",
+        "integration-",
+        "external-",
+        "service-",
+        "srv-"
+    ];
 
     /// <summary>
     /// Loads custom conventions from .codeexplorer/conventions.json and .codeexplorer/domains.json if present.
@@ -47,6 +67,51 @@ public static class WorkspaceConventions
                         domainsEl.ValueKind == JsonValueKind.Object)
                     {
                         ParseDomainMappings(domainsEl);
+                    }
+
+                    if (doc.RootElement.TryGetProperty("overrides", out var ovrEl) &&
+                        ovrEl.ValueKind == JsonValueKind.Object)
+                    {
+                        ParseOverrides(ovrEl);
+                    }
+
+                    if (doc.RootElement.TryGetProperty("service_prefixes", out var prefixesEl) &&
+                        prefixesEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var p in prefixesEl.EnumerateArray())
+                        {
+                            var prefix = p.GetString();
+                            if (!string.IsNullOrWhiteSpace(prefix))
+                            {
+                                CustomServicePrefixes.Add(prefix.Trim().ToLowerInvariant());
+                            }
+                        }
+                    }
+
+                    if (doc.RootElement.TryGetProperty("route_functions", out var routesEl) &&
+                        routesEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var r in routesEl.EnumerateArray())
+                        {
+                            var fn = r.GetString();
+                            if (!string.IsNullOrWhiteSpace(fn))
+                            {
+                                CustomRouteFunctions.Add(fn.Trim());
+                            }
+                        }
+                    }
+
+                    if (doc.RootElement.TryGetProperty("database_aliases", out var dbAliasesEl) &&
+                        dbAliasesEl.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in dbAliasesEl.EnumerateObject())
+                        {
+                            var target = prop.Value.GetString();
+                            if (!string.IsNullOrWhiteSpace(target))
+                            {
+                                DatabaseAliases[prop.Name.Trim()] = target.Trim();
+                            }
+                        }
                     }
                 }
             }
@@ -86,12 +151,65 @@ public static class WorkspaceConventions
                     {
                         ParseDomainMappings(root);
                     }
+
+                    if (root.TryGetProperty("overrides", out var ovrEl) &&
+                        ovrEl.ValueKind == JsonValueKind.Object)
+                    {
+                        ParseOverrides(ovrEl);
+                    }
                 }
             }
             catch
             {
                 // Ignore malformed custom domains files
             }
+        }
+    }
+
+    private static void ParseOverrides(JsonElement overridesEl)
+    {
+        foreach (var prop in overridesEl.EnumerateObject())
+        {
+            var serviceName = prop.Name.Trim();
+            if (prop.Value.ValueKind == JsonValueKind.String)
+            {
+                var targetDomain = prop.Value.GetString();
+                if (!string.IsNullOrWhiteSpace(targetDomain))
+                {
+                    ServiceOverrides[serviceName] = targetDomain.Trim();
+                    ProjectToDomain[serviceName] = targetDomain.Trim();
+                }
+            }
+            else if (prop.Value.ValueKind == JsonValueKind.Object)
+            {
+                if (prop.Value.TryGetProperty("domain", out var domProp) && domProp.ValueKind == JsonValueKind.String)
+                {
+                    var targetDomain = domProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(targetDomain))
+                    {
+                        ServiceOverrides[serviceName] = targetDomain.Trim();
+                        ProjectToDomain[serviceName] = targetDomain.Trim();
+                    }
+                }
+            }
+        }
+    }
+
+    public static void AddPattern(string globPattern, string domainName)
+    {
+        if (string.IsNullOrWhiteSpace(globPattern) || string.IsNullOrWhiteSpace(domainName)) return;
+        try
+        {
+            var pattern = "^" + Regex.Escape(globPattern.Trim().Replace('\\', '/'))
+                .Replace(@"\*\*", ".*")
+                .Replace(@"\*", @"[^/]*")
+                .Replace(@"\?", ".") + "$";
+            var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            PatternToDomain.Add((regex, domainName.Trim()));
+        }
+        catch
+        {
+            // Ignore invalid glob regexes
         }
     }
 
@@ -138,6 +256,18 @@ public static class WorkspaceConventions
                         }
                     }
                 }
+
+                if (item.TryGetProperty("patterns", out var patsProp) && patsProp.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var pat in patsProp.EnumerateArray())
+                    {
+                        var patternStr = pat.GetString();
+                        if (!string.IsNullOrWhiteSpace(patternStr))
+                        {
+                            AddPattern(patternStr, domainName.Trim());
+                        }
+                    }
+                }
             }
         }
     }
@@ -166,14 +296,50 @@ public static class WorkspaceConventions
                     ProjectToDomain[domainName] = val.Trim();
                 }
             }
-            else if (prop.Value.ValueKind == JsonValueKind.Object && prop.Name.Equals("projects", StringComparison.OrdinalIgnoreCase))
+            else if (prop.Value.ValueKind == JsonValueKind.Object)
             {
-                foreach (var projProp in prop.Value.EnumerateObject())
+                if (prop.Name.Equals("projects", StringComparison.OrdinalIgnoreCase))
                 {
-                    var assignedDomain = projProp.Value.GetString();
-                    if (!string.IsNullOrWhiteSpace(assignedDomain))
+                    foreach (var projProp in prop.Value.EnumerateObject())
                     {
-                        ProjectToDomain[projProp.Name.Trim()] = assignedDomain.Trim();
+                        var assignedDomain = projProp.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(assignedDomain))
+                        {
+                            ProjectToDomain[projProp.Name.Trim()] = assignedDomain.Trim();
+                        }
+                    }
+                }
+                else
+                {
+                    if (prop.Value.TryGetProperty("patterns", out var pats) && pats.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var pat in pats.EnumerateArray())
+                        {
+                            var patStr = pat.GetString();
+                            if (!string.IsNullOrWhiteSpace(patStr))
+                            {
+                                AddPattern(patStr, domainName.Trim());
+                            }
+                        }
+                    }
+                    if (prop.Value.TryGetProperty("services", out var srvs) && srvs.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var srv in srvs.EnumerateArray())
+                        {
+                            var srvStr = srv.GetString();
+                            if (!string.IsNullOrWhiteSpace(srvStr))
+                            {
+                                ProjectToDomain[srvStr.Trim()] = domainName.Trim();
+                            }
+                        }
+                    }
+                    if (prop.Value.TryGetProperty("icon", out var iconProp) && iconProp.ValueKind == JsonValueKind.String)
+                    {
+                        var iconStr = iconProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(iconStr))
+                        {
+                            DomainIcons[domainName.Trim()] = iconStr.Trim();
+                        }
                     }
                 }
             }
@@ -187,7 +353,20 @@ public static class WorkspaceConventions
     {
         TopicAliases.Clear();
         ProjectToDomain.Clear();
+        ServiceOverrides.Clear();
         DomainIcons.Clear();
+        PatternToDomain.Clear();
+        CustomRouteFunctions.Clear();
+        CustomServicePrefixes.Clear();
+        DatabaseAliases.Clear();
+    }
+
+    /// <summary>
+    /// Attempts to resolve a database dataset or table alias configured in conventions.json.
+    /// </summary>
+    public static bool TryGetDatabaseAlias(string name, out string alias)
+    {
+        return DatabaseAliases.TryGetValue(name, out alias!);
     }
 
     /// <summary>
@@ -212,6 +391,25 @@ public static class WorkspaceConventions
     public static bool TryGetConfiguredDomain(string? projectName, string? filePath, out string domain)
     {
         domain = string.Empty;
+
+        // 1. Explicit service override takes precedence
+        if (!string.IsNullOrWhiteSpace(projectName))
+        {
+            var p = projectName.Trim();
+            if (ServiceOverrides.TryGetValue(p, out var ovr))
+            {
+                domain = ovr;
+                return true;
+            }
+            var clean = NormalizeServiceName(p);
+            if (ServiceOverrides.TryGetValue(clean, out ovr))
+            {
+                domain = ovr;
+                return true;
+            }
+        }
+
+        // 2. Exact project name mapping
         if (!string.IsNullOrWhiteSpace(projectName))
         {
             var p = projectName.Trim();
@@ -228,9 +426,28 @@ public static class WorkspaceConventions
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(filePath))
+        // 3. Glob patterns against project name or file path
+        var normPath = filePath?.Replace('\\', '/');
+        if (!PatternToDomain.IsEmpty)
         {
-            var normPath = filePath.Replace('\\', '/');
+            foreach (var (regex, targetDomain) in PatternToDomain)
+            {
+                if (!string.IsNullOrWhiteSpace(projectName) && regex.IsMatch(projectName))
+                {
+                    domain = targetDomain;
+                    return true;
+                }
+                if (!string.IsNullOrEmpty(normPath) && regex.IsMatch(normPath))
+                {
+                    domain = targetDomain;
+                    return true;
+                }
+            }
+        }
+
+        // 4. File path substring match in configured projects
+        if (!string.IsNullOrEmpty(normPath))
+        {
             foreach (var (key, d) in ProjectToDomain)
             {
                 if (normPath.Contains("/" + key + "/", StringComparison.OrdinalIgnoreCase) ||
@@ -268,8 +485,7 @@ public static class WorkspaceConventions
             or "exchange" or "exchangename" or "exchange-name" or "exchangekey" or "exchange-key" or "routingkey" or "routing-key"
             or "worker-name" or "workername"
             or "placeholder" or "dummy" or "test"
-            or "undefined" or "null" or "string" or "void" or "any" or "unknown" or "never" or "object" or "boolean" or "number"
-            or "appmodule" or "app-module" or "other" or "broken";
+            or "undefined" or "null" or "string" or "void" or "any" or "unknown" or "never" or "object" or "boolean" or "number";
     }
 
     /// <summary>
@@ -339,18 +555,32 @@ public static class WorkspaceConventions
     }
 
     /// <summary>
-    /// Matches route resolution function calls (e.g., getServiceDomainByRoute('auth'), resolveRoute('billing')).
+    /// Matches route resolution function calls (e.g. resolveRoute('billing'), routeFor('orders'),
+    /// or custom route functions configured in conventions.json).
     /// </summary>
     public static bool TryMatchRouteFunction(string text, out string routeKey)
     {
         routeKey = string.Empty;
         if (string.IsNullOrWhiteSpace(text)) return false;
 
-        var match = RouteFunctionRegex.Match(text);
+        var match = DefaultRouteFunctionRegex.Match(text);
         if (match.Success)
         {
             routeKey = match.Groups[1].Value;
             return true;
+        }
+
+        if (!CustomRouteFunctions.IsEmpty)
+        {
+            foreach (var fn in CustomRouteFunctions)
+            {
+                var m = Regex.Match(text, Regex.Escape(fn) + @"\s*\(\s*['""]([^'""]+)['""]");
+                if (m.Success)
+                {
+                    routeKey = m.Groups[1].Value;
+                    return true;
+                }
+            }
         }
 
         return false;
@@ -391,87 +621,28 @@ public static class WorkspaceConventions
         do
         {
             changed = false;
-            if (clean.StartsWith("internal--"))
+            if (!CustomServicePrefixes.IsEmpty)
             {
-                clean = clean["internal--".Length..];
-                changed = true;
+                foreach (var p in CustomServicePrefixes)
+                {
+                    if (clean.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+                    {
+                        clean = clean[p.Length..];
+                        changed = true;
+                        break;
+                    }
+                }
+                if (changed) continue;
             }
-            else if (clean.StartsWith("integration--"))
+
+            foreach (var p in GenericServicePrefixes)
             {
-                clean = clean["integration--".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("external--"))
-            {
-                clean = clean["external--".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("internal-service-"))
-            {
-                clean = clean["internal-service-".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("integration-service-"))
-            {
-                clean = clean["integration-service-".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("external-service-"))
-            {
-                clean = clean["external-service-".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("service-"))
-            {
-                clean = clean["service-".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("internal-"))
-            {
-                clean = clean["internal-".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("integration-"))
-            {
-                clean = clean["integration-".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("external-"))
-            {
-                clean = clean["external-".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("srv-"))
-            {
-                clean = clean["srv-".Length..];
-                changed = true;
-            }
-            else if (clean.StartsWith("internalservice-") || clean.StartsWith("internalservice_") || (clean.StartsWith("internalservice") && clean.Length > "internalservice".Length))
-            {
-                var len = clean.StartsWith("internalservice-") ? "internalservice-".Length :
-                          clean.StartsWith("internalservice_") ? "internalservice_".Length : "internalservice".Length;
-                clean = clean[len..];
-                changed = true;
-            }
-            else if (clean.StartsWith("integrationservice-") || clean.StartsWith("integrationservice_") || (clean.StartsWith("integrationservice") && clean.Length > "integrationservice".Length))
-            {
-                var len = clean.StartsWith("integrationservice-") ? "integrationservice-".Length :
-                          clean.StartsWith("integrationservice_") ? "integrationservice_".Length : "integrationservice".Length;
-                clean = clean[len..];
-                changed = true;
-            }
-            else if (clean.StartsWith("externalservice-") || clean.StartsWith("externalservice_") || (clean.StartsWith("externalservice") && clean.Length > "externalservice".Length))
-            {
-                var len = clean.StartsWith("externalservice-") ? "externalservice-".Length :
-                          clean.StartsWith("externalservice_") ? "externalservice_".Length : "externalservice".Length;
-                clean = clean[len..];
-                changed = true;
-            }
-            else if (clean.StartsWith("ats-") || clean.StartsWith("ats_"))
-            {
-                var len = clean.StartsWith("ats-") ? "ats-".Length : "ats_".Length;
-                clean = clean[len..];
-                changed = true;
+                if (clean.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+                {
+                    clean = clean[p.Length..];
+                    changed = true;
+                    break;
+                }
             }
         } while (changed);
 
@@ -498,86 +669,9 @@ public static class WorkspaceConventions
         return sb.Length > 0 ? sb.ToString() : text;
     }
 
-    private static readonly HashSet<string> BillingKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "billing", "billings", "payment", "payments", "payout", "payouts", "settler", "settlement", "settlements",
-        "invoice", "invoices", "invoicing", "cpm", "cpa", "rate", "rates", "pricing", "charge", "charges",
-        "wallet", "wallets", "balance", "balances", "finance", "financial", "transaction", "transactions",
-        "money", "subscription", "subscriptions"
-    };
-
-    private static readonly HashSet<string> AdvertisingKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "adhub", "ad-hub", "ad_hub", "hub", "advert", "advertising", "advertiser", "advertisers", "partner",
-        "partners", "partnership", "conversion", "conversions", "tbmap", "adserver", "ad-server", "affiliate",
-        "affiliates", "publisher", "publishers", "click", "clicks"
-    };
-
-    private static readonly HashSet<string> CampaignKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "campaign", "campaigns", "bundle", "bundles", "bundl", "bundling", "split", "splits", "smartcpa",
-        "smart-cpa", "smart_cpa", "landing", "landings", "lander", "landers", "staging", "creative",
-        "creatives", "offer", "offers", "promo", "promotions", "targeting", "postback", "postbacks"
-    };
-
-    private static readonly HashSet<string> TrafficKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "traffic", "routing", "router", "routers", "routes", "route", "tracker", "tracking", "tracker-v2",
-        "trackers", "gateway", "gateways", "edge", "proxy", "proxies", "redirect", "redirector", "redirects",
-        "telecom", "carrier", "network", "networks", "skin", "skins", "ingress", "egress", "cdn"
-    };
-
-    private static readonly HashSet<string> DomainMgmtKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "domain", "domains", "domvain", "domvains", "dns", "nameserver", "nameservers", "registrar",
-        "checker", "template", "ssl", "certificate", "certificates", "whois", "zone", "zones"
-    };
-
-    private static readonly HashSet<string> ConfigKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "config", "configs", "configuration", "configurations", "settings", "setting", "preference",
-        "preferences", "kv", "keyvalue", "key-value", "kvv2", "kv-v2", "bindings", "binding", "cfworker",
-        "cf-worker", "cloudflare-worker", "featureflag", "featureflags", "flags", "source", "sources", "rules"
-    };
-
-    private static readonly HashSet<string> AnalyticsKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "analytic", "analytics", "calc", "calculation", "calculations", "calculator", "stat", "stats",
-        "statistic", "statistics", "metric", "metrics", "measure", "measures", "telemetry", "monitoring",
-        "monitor", "journal", "journals", "log", "logs", "logging", "logger", "nrt", "stream", "streaming",
-        "epm", "counter", "counters", "report", "reports", "reporting", "audit", "auditing", "benchmark",
-        "browser", "browserversion", "browserversiontypes"
-    };
-
-    private static readonly HashSet<string> OperationsKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "approval", "approvals", "approve", "notifier", "notification", "notifications", "alert", "alerts",
-        "action", "actions", "scheduler", "schedule", "schedules", "scheduling", "cron", "workflow",
-        "workflows", "orchestration", "orchestrator", "task", "tasks", "job", "jobs", "queue", "queues",
-        "worker", "workers", "dispatch", "dispatcher", "workerpool"
-    };
-
-    private static readonly HashSet<string> IdentityKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "auth", "authentication", "authorize", "authorization", "identity", "iam", "oauth", "token",
-        "tokens", "credential", "credentials", "session", "sessions", "user", "users", "account", "accounts",
-        "role", "roles", "permission", "permissions", "security", "sso"
-    };
-
-    private static readonly HashSet<string> ContentKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "content", "media", "asset", "assets", "image", "images", "video", "videos", "upload", "uploads",
-        "storage", "file", "files", "document", "documents", "blob"
-    };
-
-    private static readonly HashSet<string> SupportKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "support", "ticket", "tickets", "helpdesk", "crm", "customer", "customers", "feedback"
-    };
-
     /// <summary>
     /// Canonicalizes any raw domain, project name, or file path into a canonical DDD Problem Space (Macro-Domain).
-    /// Prevents single-service micro-domains and database table names from becoming domains.
+    /// Uses user configuration, ontology roles, directory structure, or normalized service names.
     /// </summary>
     public static string CanonicalizeDomain(
         string? rawDomain,
@@ -585,7 +679,7 @@ public static class WorkspaceConventions
         string? filePath = null,
         string? role = null)
     {
-        // 1. Explicit user configuration takes absolute precedence
+        // 1. Explicit user configuration (.codeexplorer/domains.json) takes absolute precedence
         if (TryGetConfiguredDomain(serviceOrProjectName ?? rawDomain, filePath, out var userConfigured))
         {
             return ToPascalCase(userConfigured);
@@ -626,90 +720,19 @@ public static class WorkspaceConventions
             }
         }
 
-        // 4. Check if rawDomain already matches a canonical macro-domain
+        // 4. If rawDomain is already provided and not a placeholder/generic word, use it
         var cleanRaw = (rawDomain ?? "").Trim();
         if (cleanRaw.StartsWith("domain:", StringComparison.OrdinalIgnoreCase))
             cleanRaw = cleanRaw["domain:".Length..];
         if (cleanRaw.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
             cleanRaw = cleanRaw["dom:".Length..];
 
-        var rawPascal = ToPascalCase(cleanRaw);
-        if (rawPascal is "BillingAndPayments" or "AdvertisingAndPartners" or "CampaignsAndBundling" or
-                        "TrafficAndRouting" or "DomainManagement" or "ConfigurationAndSettings" or
-                        "AnalyticsAndMonitoring" or "OperationsAndWorkflows" or "IdentityAndAccess" or
-                        "UserInterface" or "SharedKernel" or "DeveloperTooling" or "TestingInfrastructure" or
-                        "CustomerSupport" or "ContentAndMedia")
-        {
-            return rawPascal;
-        }
-
-        // Canonical aliases
-        if (rawPascal is "Billing" or "Payments" or "Payment" or "Settlement") return "BillingAndPayments";
-        if (rawPascal is "Advertising" or "Partners" or "Partner" or "AdHub" or "AdHubAndPartners" or "Conversion" or "Tbmap") return "AdvertisingAndPartners";
-        if (rawPascal is "Campaigns" or "Campaign" or "CampaignManagement" or "Bundling" or "Bundles" or "Landing" or "Staging" or "Postback") return "CampaignsAndBundling";
-        if (rawPascal is "Traffic" or "Routing" or "Routes" or "Tracker" or "Telecom" or "Gateways") return "TrafficAndRouting";
-        if (rawPascal is "Domains" or "Domain" or "Domvains" or "Dns") return "DomainManagement";
-        if (rawPascal is "Configuration" or "Settings" or "Config" or "Kv" or "KvV2" or "Bindings") return "ConfigurationAndSettings";
-        if (rawPascal is "Analytics" or "Monitoring" or "Statistics" or "Calc" or "Journal" or "Stats") return "AnalyticsAndMonitoring";
-        if (rawPascal is "Operations" or "Workflows" or "Workflow" or "Approval" or "Notifier" or "Scheduler") return "OperationsAndWorkflows";
-        if (rawPascal is "Identity" or "Auth" or "Security" or "Iam") return "IdentityAndAccess";
-        if (rawPascal is "PresentationComponents" or "Presentation" or "Components") return "UserInterface";
-
-        // 5. Token-based multi-criteria scoring across rawDomain, service name, and path
-        var normalizedService = NormalizeServiceName(serviceOrProjectName);
-        var tokens = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(cleanRaw))
-        {
-            tokens.AddRange(cleanRaw.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries));
-        }
-        if (!string.IsNullOrWhiteSpace(normalizedService))
-        {
-            tokens.AddRange(normalizedService.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries));
-        }
-        if (!string.IsNullOrEmpty(normPath))
-        {
-            var segments = normPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var seg in segments)
-            {
-                if (!seg.Equals("src", StringComparison.OrdinalIgnoreCase) &&
-                    !seg.Equals("services", StringComparison.OrdinalIgnoreCase) &&
-                    !seg.Equals("apps", StringComparison.OrdinalIgnoreCase) &&
-                    !seg.Equals("packages", StringComparison.OrdinalIgnoreCase))
-                {
-                    tokens.AddRange(seg.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries));
-                }
-            }
-        }
-
-        var domainScores = new Dictionary<string, int>
-        {
-            ["BillingAndPayments"] = ScoreTokens(tokens, BillingKeywords, cleanRaw, normalizedService),
-            ["AdvertisingAndPartners"] = ScoreTokens(tokens, AdvertisingKeywords, cleanRaw, normalizedService),
-            ["CampaignsAndBundling"] = ScoreTokens(tokens, CampaignKeywords, cleanRaw, normalizedService),
-            ["TrafficAndRouting"] = ScoreTokens(tokens, TrafficKeywords, cleanRaw, normalizedService),
-            ["DomainManagement"] = ScoreTokens(tokens, DomainMgmtKeywords, cleanRaw, normalizedService),
-            ["ConfigurationAndSettings"] = ScoreTokens(tokens, ConfigKeywords, cleanRaw, normalizedService),
-            ["AnalyticsAndMonitoring"] = ScoreTokens(tokens, AnalyticsKeywords, cleanRaw, normalizedService),
-            ["OperationsAndWorkflows"] = ScoreTokens(tokens, OperationsKeywords, cleanRaw, normalizedService),
-            ["IdentityAndAccess"] = ScoreTokens(tokens, IdentityKeywords, cleanRaw, normalizedService),
-            ["ContentAndMedia"] = ScoreTokens(tokens, ContentKeywords, cleanRaw, normalizedService),
-            ["CustomerSupport"] = ScoreTokens(tokens, SupportKeywords, cleanRaw, normalizedService)
-        };
-
-        var best = domainScores.OrderByDescending(kv => kv.Value).FirstOrDefault();
-        if (best.Value >= 2)
-        {
-            return best.Key;
-        }
-
-        // 6. If no canonical domain matched, check if rawDomain is a valid custom domain name
         if (!string.IsNullOrWhiteSpace(cleanRaw))
         {
             var genericDomainWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "core", "service", "services", "app", "application", "default", "internal", "microservice",
-                "table", "tables", "database", "sql"
+                "table", "tables", "database", "sql", "boundedcontext", "context"
             };
             if (!genericDomainWords.Contains(cleanRaw))
             {
@@ -717,19 +740,43 @@ public static class WorkspaceConventions
             }
         }
 
-        // 7. Fallback to directory namespace if present
+        // 5. Extract domain from directory structure only when an enclosing domain directory exists
         if (!string.IsNullOrEmpty(normPath))
         {
-            var segments = normPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            for (var i = 0; i < segments.Length - 1; i++)
+            var sanitizedPath = Regex.Replace(normPath, @"^[a-zA-Z]:[/]", "");
+            var segments = sanitizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var skipRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                var s = segments[i];
-                if (!s.Equals("src", StringComparison.OrdinalIgnoreCase) &&
-                    !s.Equals("services", StringComparison.OrdinalIgnoreCase) &&
-                    !s.Equals("apps", StringComparison.OrdinalIgnoreCase) &&
-                    !s.Equals("packages", StringComparison.OrdinalIgnoreCase))
+                "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects", "cmd", "home", "users"
+            };
+
+            var meaningful = segments.Take(segments.Length - 1).Where(s => !skipRoots.Contains(s)).ToList();
+            if (meaningful.Count >= 1)
+            {
+                var cleanDir = NormalizeServiceName(meaningful[0]);
+                var dirPascal = ToPascalCase(cleanDir);
+                if (dirPascal.Length > 2)
                 {
-                    return ToPascalCase(s);
+                    return dirPascal;
+                }
+            }
+        }
+
+        // 6. Infer domain from normalized service or project name
+        if (!string.IsNullOrWhiteSpace(serviceOrProjectName))
+        {
+            var cleanSvc = NormalizeServiceName(serviceOrProjectName);
+            var genericDomainWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "core", "service", "services", "app", "application", "default", "internal", "microservice",
+                "table", "tables", "database", "sql", "boundedcontext", "context"
+            };
+            if (!genericDomainWords.Contains(cleanSvc))
+            {
+                var svcPascal = ToPascalCase(cleanSvc);
+                if (svcPascal.Length > 2)
+                {
+                    return svcPascal;
                 }
             }
         }
@@ -737,52 +784,14 @@ public static class WorkspaceConventions
         return "CoreDomain";
     }
 
-    private static int ScoreTokens(
-        List<string> tokens,
-        HashSet<string> keywords,
-        string rawDomain,
-        string normalizedService)
-    {
-        var score = 0;
-        foreach (var t in tokens)
-        {
-            if (keywords.Contains(t)) score += 3;
-            else if (keywords.Any(kw => kw.Contains(t, StringComparison.OrdinalIgnoreCase) || t.Contains(kw, StringComparison.OrdinalIgnoreCase)))
-            {
-                score += 1;
-            }
-        }
-
-        if (!string.IsNullOrEmpty(rawDomain) && keywords.Contains(rawDomain)) score += 5;
-        if (!string.IsNullOrEmpty(normalizedService) && keywords.Contains(normalizedService)) score += 4;
-
-        return score;
-    }
-
     /// <summary>
     /// Formats a canonical PascalCase domain name into a clean, human-readable display name.
-    /// E.g. "BillingAndPayments" -&gt; "Billing &amp; Payments"
+    /// E.g. "BillingAndPayments" -&gt; "Billing &amp; Payments", "OrderManagement" -&gt; "Order Management"
     /// </summary>
     public static string FormatDomainDisplayName(string canonicalDomain)
     {
-        return canonicalDomain switch
-        {
-            "BillingAndPayments" => "Billing & Payments",
-            "AdvertisingAndPartners" => "Advertising & Partners",
-            "CampaignsAndBundling" => "Campaigns & Bundling",
-            "TrafficAndRouting" => "Traffic & Routing",
-            "DomainManagement" => "Domain Management",
-            "ConfigurationAndSettings" => "Configuration & Settings",
-            "AnalyticsAndMonitoring" => "Analytics & Monitoring",
-            "OperationsAndWorkflows" => "Operations & Workflows",
-            "IdentityAndAccess" => "Identity & Access",
-            "UserInterface" => "User Interface",
-            "SharedKernel" => "Shared Kernel",
-            "DeveloperTooling" => "Developer Tooling",
-            "TestingInfrastructure" => "Testing Infrastructure",
-            "CustomerSupport" => "Customer Support",
-            "ContentAndMedia" => "Content & Media",
-            _ => Regex.Replace(canonicalDomain, "([a-z])([A-Z])", "$1 $2")
-        };
+        if (string.IsNullOrWhiteSpace(canonicalDomain)) return "Core Domain";
+        var withSpaces = Regex.Replace(canonicalDomain, "([a-z])([A-Z])", "$1 $2");
+        return withSpaces.Replace(" And ", " & ");
     }
 }

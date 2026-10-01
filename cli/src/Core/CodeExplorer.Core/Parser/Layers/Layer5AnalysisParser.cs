@@ -1066,8 +1066,7 @@ public class Layer5AnalysisParser
 
         var pName = proj.Name.ToLowerInvariant();
         var normP = WorkspaceConventions.NormalizeServiceName(pName);
-        var cleanPName = System.Text.RegularExpressions.Regex.Replace(normP, @"^(internal-service-|integration-service-|internal-bundle-|ats)", "")
-            .Replace("-", "").Replace("_", "");
+        var cleanPName = normP.Replace("-", "").Replace("_", "");
         cleanPName = System.Text.RegularExpressions.Regex.Replace(cleanPName, @"(_service|service)$", "");
 
         if (cleanDomain == cleanPName || cleanDomain.TrimEnd('s') == cleanPName.TrimEnd('s'))

@@ -63,7 +63,8 @@ public class Program
             typeof(ContractsOptions),
             typeof(TraceOptions),
             typeof(IntentOptions),
-            typeof(ModelOptions)
+            typeof(ModelOptions),
+            typeof(DomainOptions)
         ]);
 
         if (parseResult is Parsed<object> parsed)
@@ -86,6 +87,7 @@ public class Program
                 TraceOptions opts => await TraceCommandHandler.HandleAsync(opts),
                 IntentOptions opts => await IntentCommandHandler.HandleAsync(opts),
                 ModelOptions opts => await ModelCommandHandler.HandleAsync(opts),
+                DomainOptions opts => await DomainCommandHandler.HandleAsync(opts),
                 _ => 1
             };
         }

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { LlmBridgeService } from './services/llmBridgeService';
 
 export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
@@ -20,6 +21,8 @@ export function getViewTitle(viewMode?: string): string {
       return 'CodeExplorer: Node Grid';
     case 'mermaid':
       return 'CodeExplorer: Mermaid Diagram';
+    case 'settings':
+      return 'CodeExplorer: AI & Model Settings';
     default:
       return 'CodeExplorer: Architecture';
   }
@@ -183,8 +186,44 @@ export class GraphPanel {
 
           case 'MANAGE_MODEL':
             this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] MANAGE_MODEL requested`);
-            await vscode.commands.executeCommand('codeExplorer.modelStatus');
+            await vscode.commands.executeCommand('codeExplorer.openSettings');
             break;
+
+          case 'GET_AI_SETTINGS': {
+            const llm = LlmBridgeService.getInstance();
+            const currentSettings = llm.getSettings();
+            const modelsInfo = await llm.listAvailableModels();
+            this.panel.webview.postMessage({
+              type: 'AI_SETTINGS_DATA',
+              settings: currentSettings,
+              builtinModels: modelsInfo.builtinModels,
+              externalModels: modelsInfo.externalModels,
+              ggufStatus: modelsInfo.ggufStatus,
+            });
+            break;
+          }
+
+          case 'SAVE_AI_SETTINGS': {
+            const llm = LlmBridgeService.getInstance();
+            await llm.saveSettings(message.settings);
+            vscode.window.showInformationMessage('CodeExplorer: AI settings saved.');
+            break;
+          }
+
+          case 'TEST_AI_CONNECTION': {
+            const llm = LlmBridgeService.getInstance();
+            const testResult = await llm.testConnection(message.settings);
+            this.panel.webview.postMessage({
+              type: 'TEST_AI_CONNECTION_RESULT',
+              result: testResult,
+            });
+            break;
+          }
+
+          case 'DOWNLOAD_GGUF_MODEL': {
+            await vscode.commands.executeCommand('codeExplorer.downloadModel', false);
+            break;
+          }
 
           case 'OPEN_FILE':
             this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Open file requested: ${message.filePath}:${message.lineStart || 1}`);

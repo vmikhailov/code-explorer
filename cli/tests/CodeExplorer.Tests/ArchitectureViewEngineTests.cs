@@ -227,9 +227,9 @@ public class ArchitectureViewEngineTests
                     new("ws:project:action-scheduler:", "Project",
                         new() { ["name"] = "action-scheduler", ["role"] = "Worker" }),
                     new("ws:worker:action-scheduler", "Worker", new() { ["name"] = "action-scheduler" }),
-                    new("ws:project:ats-front:", "Project",
-                        new() { ["name"] = "ats-front", ["role"] = "FrontendApp" }),
-                    new("ws:app:ats-front", "App", new() { ["name"] = "ats-front" }),
+                    new("ws:project:admin-portal:", "Project",
+                        new() { ["name"] = "admin-portal", ["role"] = "FrontendApp" }),
+                    new("ws:app:admin-portal", "App", new() { ["name"] = "admin-portal" }),
                     new("ws:project:adhub-cli:", "Project", new() { ["name"] = "adhub-cli", ["role"] = "CliTool" }),
                     new("ws:cli:adhub-cli", "CliTool", new() { ["name"] = "adhub-cli" })
                 };
