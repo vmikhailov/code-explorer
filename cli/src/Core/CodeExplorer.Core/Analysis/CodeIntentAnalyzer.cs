@@ -256,10 +256,12 @@ public static class CodeIntentAnalyzer
 
                                 if (pbc != null)
                                 {
-                                    distilledContexts.Add(pbc);
-                                    ctx.Log($"  - [{sig.Name}] -> Context: {pbc.BoundedContext} | Aggregates: [{(pbc.PrimaryAggregates.Count > 0 ? string.Join(", ", pbc.PrimaryAggregates) : "None")}] | Domain: {pbc.SuggestedDomain}");
-                                    projectDomainMap[sig.Name] = (pbc.SuggestedDomain, pbc.Capability);
-                                    projectIntentsToSave[sig.Name] = (pbc.SuggestedDomain, pbc.Capability, pbc.PrimaryAggregates);
+                                    var canonicalDomain = WorkspaceConventions.CanonicalizeDomain(pbc.SuggestedDomain, sig.Name, sig.RelativePath, sig.Role);
+                                    var pbcCanonical = pbc with { SuggestedDomain = canonicalDomain };
+                                    distilledContexts.Add(pbcCanonical);
+                                    ctx.Log($"  - [{sig.Name}] -> Context: {pbc.BoundedContext} | Aggregates: [{(pbc.PrimaryAggregates.Count > 0 ? string.Join(", ", pbc.PrimaryAggregates) : "None")}] | Domain: {canonicalDomain}");
+                                    projectDomainMap[sig.Name] = (canonicalDomain, pbc.Capability);
+                                    projectIntentsToSave[sig.Name] = (canonicalDomain, pbc.Capability, pbc.PrimaryAggregates);
                                 }
                             }
                             catch (Exception ex)
@@ -319,14 +321,15 @@ public static class CodeIntentAnalyzer
                                     ctx.Log($"[CodeIntent] Discovered {macroDomains.Domains.Count} Business Domains via LLM synthesis:");
                                     foreach (var d in macroDomains.Domains)
                                     {
-                                        ctx.Log($"  - [{d.Name}] ({d.Services.Count} services): {d.Description}");
+                                        var canonicalName = WorkspaceConventions.CanonicalizeDomain(d.Name);
+                                        ctx.Log($"  - [{canonicalName}] ({d.Services.Count} services): {d.Description}");
                                         foreach (var svc in d.Services)
                                         {
                                             var cleanSvc = svc.Trim();
                                             var existingSummary = projectIntentsToSave.TryGetValue(cleanSvc, out var existing) ? existing.Summary : d.Description;
                                             var existingAggs = existing.Capabilities ?? new List<string>();
-                                            projectDomainMap[cleanSvc] = (d.Name, existingSummary);
-                                            projectIntentsToSave[cleanSvc] = (d.Name, existingSummary, existingAggs);
+                                            projectDomainMap[cleanSvc] = (canonicalName, existingSummary);
+                                            projectIntentsToSave[cleanSvc] = (canonicalName, existingSummary, existingAggs);
                                         }
                                     }
                                 }
@@ -337,13 +340,14 @@ public static class CodeIntentAnalyzer
                                     {
                                         foreach (var d in topoResult.Domains)
                                         {
+                                            var canonicalName = WorkspaceConventions.CanonicalizeDomain(d.Name);
                                             foreach (var svc in d.Services)
                                             {
                                                 var cleanSvc = svc.Trim();
                                                 var existingSummary = projectIntentsToSave.TryGetValue(cleanSvc, out var existing) ? existing.Summary : d.Description;
                                                 var existingAggs = existing.Capabilities ?? new List<string>();
-                                                projectDomainMap[cleanSvc] = (d.Name, existingSummary);
-                                                projectIntentsToSave[cleanSvc] = (d.Name, existingSummary, existingAggs);
+                                                projectDomainMap[cleanSvc] = (canonicalName, existingSummary);
+                                                projectIntentsToSave[cleanSvc] = (canonicalName, existingSummary, existingAggs);
                                             }
                                         }
                                     }
@@ -418,11 +422,10 @@ public static class CodeIntentAnalyzer
                                 fallbackDomain = "TestingInfrastructure";
                             else
                             {
-                                var ns = GetDirectoryNamespace(sig.RelativePath);
-                                fallbackDomain = !string.IsNullOrWhiteSpace(ns) ? ns : ToPascalCase(WorkspaceConventions.NormalizeServiceName(sig.Name));
+                                fallbackDomain = WorkspaceConventions.CanonicalizeDomain(null, sig.Name, sig.RelativePath, sig.Role);
                             }
 
-                            if (string.IsNullOrWhiteSpace(fallbackDomain)) fallbackDomain = "Core";
+                            if (string.IsNullOrWhiteSpace(fallbackDomain)) fallbackDomain = "CoreDomain";
                             var fallbackRole = $"Component of {fallbackDomain} domain";
                             projectDomainMap[sig.Name] = (fallbackDomain, fallbackRole);
                             projectIntentsToSave[sig.Name] = (fallbackDomain, fallbackRole, new List<string>());
@@ -809,15 +812,7 @@ public static class CodeIntentAnalyzer
             {
                 if (serviceToDomain.ContainsKey(sig.Name)) continue;
 
-                var ns = GetDirectoryNamespace(sig.RelativePath);
-                if (!string.IsNullOrWhiteSpace(ns))
-                {
-                    serviceToDomain[sig.Name] = ns;
-                    continue;
-                }
-
-                var clean = ToPascalCase(WorkspaceConventions.NormalizeServiceName(sig.Name));
-                serviceToDomain[sig.Name] = !string.IsNullOrWhiteSpace(clean) ? clean : "CoreDomain";
+                serviceToDomain[sig.Name] = WorkspaceConventions.CanonicalizeDomain(sig.ExistingDomain, sig.Name, sig.RelativePath, sig.Role);
             }
 
             var groupedConfigured = serviceToDomain
@@ -955,7 +950,20 @@ public static class CodeIntentAnalyzer
     {
         if (signatures.Count == 0) return "CoreDomain";
 
-        // 1. If majority of services share a directory namespace, use it
+        // 1. Determine canonical macro-domains for all services in this cluster
+        var domainCandidates = signatures
+            .Select(s => WorkspaceConventions.CanonicalizeDomain(s.ExistingDomain, s.Name, s.RelativePath, s.Role))
+            .Where(d => !string.IsNullOrWhiteSpace(d) && !d.Equals("CoreDomain", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(d => d, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count())
+            .ToList();
+
+        if (domainCandidates.Count > 0)
+        {
+            return domainCandidates[0].Key;
+        }
+
+        // 2. If majority of services share a directory namespace, canonicalize it
         var nsCounts = signatures
             .Select(s => GetDirectoryNamespace(s.RelativePath))
             .Where(ns => !string.IsNullOrWhiteSpace(ns))
@@ -965,45 +973,17 @@ public static class CodeIntentAnalyzer
 
         if (nsCounts != null && (signatures.Count <= 2 || nsCounts.Count() >= signatures.Count / 2))
         {
+            var canonicalFromNs = WorkspaceConventions.CanonicalizeDomain(nsCounts.Key, filePath: nsCounts.Key);
+            if (!string.IsNullOrWhiteSpace(canonicalFromNs) && !canonicalFromNs.Equals("CoreDomain", StringComparison.OrdinalIgnoreCase))
+            {
+                return canonicalFromNs;
+            }
             return nsCounts.Key;
         }
 
-        // 2. If services share common significant name stems
-        var stemCounts = signatures
-            .Select(s => GetSignificantPrefixStem(s.Name))
-            .Where(stem => !string.IsNullOrWhiteSpace(stem))
-            .GroupBy(stem => stem!, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(g => g.Count())
-            .FirstOrDefault();
-
-        if (stemCounts != null && stemCounts.Count() > 1 && stemCounts.Key.Length > 2)
-        {
-            return stemCounts.Key;
-        }
-
-        // 3. If services share a prominent database table
-        var tableCounts = signatures
-            .SelectMany(s => s.Tables)
-            .GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(g => g.Count())
-            .FirstOrDefault();
-
-        if (tableCounts != null && tableCounts.Count() > 1)
-        {
-            var candidate = ToPascalCase(WorkspaceConventions.NormalizeServiceName(tableCounts.Key));
-            if (candidate.Length > 2) return candidate;
-        }
-
-        // 4. For single or dominant service, derive from normalized name
+        // 3. For single or dominant service, canonicalize via conventions
         var primary = signatures[0];
-        var primaryStem = GetSignificantPrefixStem(primary.Name);
-        if (!string.IsNullOrWhiteSpace(primaryStem) && primaryStem.Length > 2)
-        {
-            return primaryStem;
-        }
-
-        var clean = ToPascalCase(WorkspaceConventions.NormalizeServiceName(primary.Name));
-        return !string.IsNullOrWhiteSpace(clean) && clean.Length > 2 ? clean : "CoreDomain";
+        return WorkspaceConventions.CanonicalizeDomain(primary.ExistingDomain, primary.Name, primary.RelativePath, primary.Role);
     }
 
     private static string? GetSignificantPrefixStem(string name)

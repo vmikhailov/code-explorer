@@ -1924,6 +1924,31 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                             await cmd.ExecuteNonQueryAsync(cancellationToken);
                         }
 
+                        // Remove any prior BELONGS_TO_DOMAIN edges for this project to prevent domain fragmentation
+                        await using (var delCmd = _conn.CreateCommand())
+                        {
+                            delCmd.Transaction = tx;
+                            delCmd.CommandTimeout = CommandTimeoutSeconds;
+                            delCmd.CommandText = """
+                                                DELETE FROM edges
+                                                WHERE kind = 'BELONGS_TO_DOMAIN'
+                                                  AND from_id IN (
+                                                      SELECT id FROM nodes
+                                                      WHERE kind IN ('Project', 'Service', 'App', 'Worker')
+                                                        AND (
+                                                            lower(json_extract(properties, '$.name')) = lower(@pname)
+                                                            OR lower(json_extract(properties, '$.clean_name')) = lower(@pname)
+                                                            OR lower(json_extract(properties, '$.raw_name')) = lower(@pname)
+                                                            OR lower(id) = lower(@pname)
+                                                            OR lower(id) LIKE ('%/' || lower(@pname))
+                                                            OR lower(id) LIKE ('%:' || lower(@pname))
+                                                        )
+                                                  );
+                                                """;
+                            delCmd.Parameters.AddWithValue("@pname", projectName);
+                            await delCmd.ExecuteNonQueryAsync(cancellationToken);
+                        }
+
                         await using (var cmd = _conn.CreateCommand())
                         {
                             cmd.Transaction = tx;
@@ -1977,6 +2002,19 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                             cmd.Parameters.AddWithValue("@pname", projectName);
                             await cmd.ExecuteNonQueryAsync(cancellationToken);
                         }
+                    }
+
+                    // 4. Prune orphan Domain nodes that have no incoming BELONGS_TO_DOMAIN edges
+                    await using (var pruneCmd = _conn.CreateCommand())
+                    {
+                        pruneCmd.Transaction = tx;
+                        pruneCmd.CommandTimeout = CommandTimeoutSeconds;
+                        pruneCmd.CommandText = """
+                            DELETE FROM nodes
+                            WHERE kind = 'Domain'
+                              AND id NOT IN (SELECT to_id FROM edges WHERE kind = 'BELONGS_TO_DOMAIN');
+                            """;
+                        await pruneCmd.ExecuteNonQueryAsync(cancellationToken);
                     }
 
                     await tx.CommitAsync(cancellationToken);

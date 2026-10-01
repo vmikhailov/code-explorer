@@ -3446,7 +3446,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             var p = ToPascalCase(userConfigured);
             var k = p.ToLowerInvariant();
-            var dName = Regex.Replace(p, "([a-z])([A-Z])", "$1 $2");
+            var dName = WorkspaceConventions.FormatDomainDisplayName(p);
             return new BoundedContextCategory(
                 k, p, dName,
                 $"domain:{k}", dName, "Core",
@@ -3535,20 +3535,23 @@ public class ArchitectureViewEngine(IGraphClient db)
         var key = pascal.ToLowerInvariant();
         var displayName = Regex.Replace(pascal, "([a-z])([A-Z])", "$1 $2");
 
-        // 2. Classify into Domain (Problem Space)
-        var (domId, domName, domType) = ResolveDomainClassification(key, displayName, rawDomain);
+        // 2. Classify into Domain (Problem Space) via CanonicalizeDomain
+        var canonicalDomain = WorkspaceConventions.CanonicalizeDomain(rawDomain, projectName, filePath);
+        var domPascal = ToPascalCase(canonicalDomain);
+        var domKey = domPascal.ToLowerInvariant();
+        var domDisplayName = WorkspaceConventions.FormatDomainDisplayName(domPascal);
 
         // Deterministic color assignment based on domain id
-        var (bgCol, borderCol) = ResolveContextColors(domType, domId);
+        var (bgCol, borderCol) = ResolveContextColors("", $"domain:{domKey}");
 
         return new BoundedContextCategory(
             key,
             pascal,
             displayName,
-            domId,
-            domName,
-            domType,
-            $"Bounded context for {displayName} (Domain: {domName}).",
+            $"domain:{domKey}",
+            domDisplayName,
+            "",
+            $"Bounded context for {displayName} (Domain: {domDisplayName}).",
             bgCol,
             borderCol
         );
@@ -3569,6 +3572,24 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
 
         var lower = domainName.ToLowerInvariant();
+        if (lower.Contains("billing") || lower.Contains("payment") || lower.Contains("settler") || lower.Contains("finance"))
+            return "💳";
+        if (lower.Contains("advert") || lower.Contains("partner") || lower.Contains("hub") || lower.Contains("conversion"))
+            return "📢";
+        if (lower.Contains("campaign") || lower.Contains("bundle") || lower.Contains("landing") || lower.Contains("offer") || lower.Contains("postback"))
+            return "🎯";
+        if (lower.Contains("traffic") || lower.Contains("routing") || lower.Contains("tracker") || lower.Contains("gateway") || lower.Contains("edge"))
+            return "🌐";
+        if (lower.Contains("domain") || lower.Contains("dns") || lower.Contains("domvain"))
+            return "🏷️";
+        if (lower.Contains("config") || lower.Contains("setting") || lower.Contains("kv") || lower.Contains("binding"))
+            return "⚙️";
+        if (lower.Contains("analytic") || lower.Contains("stat") || lower.Contains("calc") || lower.Contains("metric") || lower.Contains("journal") || lower.Contains("log"))
+            return "📊";
+        if (lower.Contains("operation") || lower.Contains("workflow") || lower.Contains("approval") || lower.Contains("notifier") || lower.Contains("schedule"))
+            return "🔄";
+        if (lower.Contains("ident") || lower.Contains("auth") || lower.Contains("user") || lower.Contains("security"))
+            return "🔒";
         if (lower.Contains("ui") || lower.Contains("interface") || lower.Contains("presentation") || lower.Contains("frontend"))
             return "🖥️";
         if (lower.Contains("shared") || lower.Contains("kernel") || lower.Contains("common") || lower.Contains("library"))
@@ -3580,22 +3601,6 @@ public class ArchitectureViewEngine(IGraphClient db)
 
         var hash = (uint)Math.Abs(domainName.GetHashCode());
         return GenericDomainIcons[hash % GenericDomainIcons.Length];
-    }
-
-    private static (string DomainId, string DomainName, string DomainType) ResolveDomainClassification(string key, string displayName, string? explicitDomain = null)
-    {
-        var domainName = !string.IsNullOrWhiteSpace(explicitDomain)
-            ? ToPascalCase(explicitDomain)
-            : DetermineDomainFromContext(key, displayName);
-
-        var domainKey = domainName.ToLowerInvariant();
-        return ($"domain:{domainKey}", domainName, "");
-    }
-
-    private static string DetermineDomainFromContext(string key, string displayName)
-    {
-        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 0 ? ToPascalCase(parts[0]) : "General";
     }
 
     private static (string BgColor, string BorderColor) ResolveContextColors(string domainType, string key)

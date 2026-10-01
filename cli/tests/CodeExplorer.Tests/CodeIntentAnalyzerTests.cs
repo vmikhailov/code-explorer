@@ -713,5 +713,52 @@ Domain Entities:
         var intents = await client.LoadExistingIntentsAsync("ws");
         Assert.That(intents.Any(i => i.FilePath.EndsWith(".sql")), Is.False);
     }
+
+    [Test]
+    public void CanonicalizeDomain_CorrectlyMapsMicroservicesAndTablesToProblemSpaces()
+    {
+        // 1. Operations & Workflows
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-approval"), Is.EqualTo("OperationsAndWorkflows"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-notifier"), Is.EqualTo("OperationsAndWorkflows"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-scheduler"), Is.EqualTo("OperationsAndWorkflows"));
+
+        // 2. Billing & Payments
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-billing"), Is.EqualTo("BillingAndPayments"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-settler"), Is.EqualTo("BillingAndPayments"));
+
+        // 3. Configuration & Settings
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "kv-v2"), Is.EqualTo("ConfigurationAndSettings"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "cf-bindings"), Is.EqualTo("ConfigurationAndSettings"));
+
+        // 4. Analytics & Monitoring
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-calc"), Is.EqualTo("AnalyticsAndMonitoring"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain("BrowserVersionTypes"), Is.EqualTo("AnalyticsAndMonitoring"));
+
+        // 5. Domain Management
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-domvains"), Is.EqualTo("DomainManagement"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "domain-checker"), Is.EqualTo("DomainManagement"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "domain-template"), Is.EqualTo("DomainManagement"));
+
+        // 6. Advertising & Partners
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-hub"), Is.EqualTo("AdvertisingAndPartners"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-tbmap"), Is.EqualTo("AdvertisingAndPartners"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-conversion"), Is.EqualTo("AdvertisingAndPartners"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-click"), Is.EqualTo("AdvertisingAndPartners"));
+
+        // 7. Traffic & Routing
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-tracker"), Is.EqualTo("TrafficAndRouting"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "telecom-gateway"), Is.EqualTo("TrafficAndRouting"));
+
+        // 8. Campaigns & Bundling
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "postback"), Is.EqualTo("CampaignsAndBundling"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "landing"), Is.EqualTo("CampaignsAndBundling"));
+        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-staging"), Is.EqualTo("CampaignsAndBundling"));
+
+        // Display formatting
+        Assert.That(WorkspaceConventions.FormatDomainDisplayName("OperationsAndWorkflows"), Is.EqualTo("Operations & Workflows"));
+        Assert.That(WorkspaceConventions.FormatDomainDisplayName("BillingAndPayments"), Is.EqualTo("Billing & Payments"));
+        Assert.That(WorkspaceConventions.FormatDomainDisplayName("ConfigurationAndSettings"), Is.EqualTo("Configuration & Settings"));
+        Assert.That(WorkspaceConventions.FormatDomainDisplayName("AnalyticsAndMonitoring"), Is.EqualTo("Analytics & Monitoring"));
+    }
 }
 

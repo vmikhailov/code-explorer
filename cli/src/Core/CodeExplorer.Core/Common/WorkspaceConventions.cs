@@ -478,4 +478,311 @@ public static class WorkspaceConventions
         clean = clean.Trim('-', '_');
         return string.IsNullOrEmpty(clean) ? name.Trim().ToLowerInvariant() : clean;
     }
+
+    /// <summary>
+    /// Converts a delimited or mixed-case string into PascalCase.
+    /// </summary>
+    public static string ToPascalCase(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "Default";
+        var parts = text.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries);
+        var sb = new System.Text.StringBuilder();
+        foreach (var p in parts)
+        {
+            if (p.Length > 0)
+            {
+                sb.Append(char.ToUpperInvariant(p[0]));
+                if (p.Length > 1) sb.Append(p[1..]);
+            }
+        }
+        return sb.Length > 0 ? sb.ToString() : text;
+    }
+
+    private static readonly HashSet<string> BillingKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "billing", "billings", "payment", "payments", "payout", "payouts", "settler", "settlement", "settlements",
+        "invoice", "invoices", "invoicing", "cpm", "cpa", "rate", "rates", "pricing", "charge", "charges",
+        "wallet", "wallets", "balance", "balances", "finance", "financial", "transaction", "transactions",
+        "money", "subscription", "subscriptions"
+    };
+
+    private static readonly HashSet<string> AdvertisingKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "adhub", "ad-hub", "ad_hub", "hub", "advert", "advertising", "advertiser", "advertisers", "partner",
+        "partners", "partnership", "conversion", "conversions", "tbmap", "adserver", "ad-server", "affiliate",
+        "affiliates", "publisher", "publishers", "click", "clicks"
+    };
+
+    private static readonly HashSet<string> CampaignKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "campaign", "campaigns", "bundle", "bundles", "bundl", "bundling", "split", "splits", "smartcpa",
+        "smart-cpa", "smart_cpa", "landing", "landings", "lander", "landers", "staging", "creative",
+        "creatives", "offer", "offers", "promo", "promotions", "targeting", "postback", "postbacks"
+    };
+
+    private static readonly HashSet<string> TrafficKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "traffic", "routing", "router", "routers", "routes", "route", "tracker", "tracking", "tracker-v2",
+        "trackers", "gateway", "gateways", "edge", "proxy", "proxies", "redirect", "redirector", "redirects",
+        "telecom", "carrier", "network", "networks", "skin", "skins", "ingress", "egress", "cdn"
+    };
+
+    private static readonly HashSet<string> DomainMgmtKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "domain", "domains", "domvain", "domvains", "dns", "nameserver", "nameservers", "registrar",
+        "checker", "template", "ssl", "certificate", "certificates", "whois", "zone", "zones"
+    };
+
+    private static readonly HashSet<string> ConfigKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "config", "configs", "configuration", "configurations", "settings", "setting", "preference",
+        "preferences", "kv", "keyvalue", "key-value", "kvv2", "kv-v2", "bindings", "binding", "cfworker",
+        "cf-worker", "cloudflare-worker", "featureflag", "featureflags", "flags", "source", "sources", "rules"
+    };
+
+    private static readonly HashSet<string> AnalyticsKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "analytic", "analytics", "calc", "calculation", "calculations", "calculator", "stat", "stats",
+        "statistic", "statistics", "metric", "metrics", "measure", "measures", "telemetry", "monitoring",
+        "monitor", "journal", "journals", "log", "logs", "logging", "logger", "nrt", "stream", "streaming",
+        "epm", "counter", "counters", "report", "reports", "reporting", "audit", "auditing", "benchmark",
+        "browser", "browserversion", "browserversiontypes"
+    };
+
+    private static readonly HashSet<string> OperationsKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "approval", "approvals", "approve", "notifier", "notification", "notifications", "alert", "alerts",
+        "action", "actions", "scheduler", "schedule", "schedules", "scheduling", "cron", "workflow",
+        "workflows", "orchestration", "orchestrator", "task", "tasks", "job", "jobs", "queue", "queues",
+        "worker", "workers", "dispatch", "dispatcher", "workerpool"
+    };
+
+    private static readonly HashSet<string> IdentityKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "auth", "authentication", "authorize", "authorization", "identity", "iam", "oauth", "token",
+        "tokens", "credential", "credentials", "session", "sessions", "user", "users", "account", "accounts",
+        "role", "roles", "permission", "permissions", "security", "sso"
+    };
+
+    private static readonly HashSet<string> ContentKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "content", "media", "asset", "assets", "image", "images", "video", "videos", "upload", "uploads",
+        "storage", "file", "files", "document", "documents", "blob"
+    };
+
+    private static readonly HashSet<string> SupportKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "support", "ticket", "tickets", "helpdesk", "crm", "customer", "customers", "feedback"
+    };
+
+    /// <summary>
+    /// Canonicalizes any raw domain, project name, or file path into a canonical DDD Problem Space (Macro-Domain).
+    /// Prevents single-service micro-domains and database table names from becoming domains.
+    /// </summary>
+    public static string CanonicalizeDomain(
+        string? rawDomain,
+        string? serviceOrProjectName = null,
+        string? filePath = null,
+        string? role = null)
+    {
+        // 1. Explicit user configuration takes absolute precedence
+        if (TryGetConfiguredDomain(serviceOrProjectName ?? rawDomain, filePath, out var userConfigured))
+        {
+            return ToPascalCase(userConfigured);
+        }
+
+        // 2. Ontology role classification
+        if (role is "SharedLibrary" or "Library") return "SharedKernel";
+        if (role is "CliTool") return "DeveloperTooling";
+        if (role is "Test") return "TestingInfrastructure";
+
+        // 3. Technical file path heuristics
+        var normPath = (filePath ?? "").Replace('\\', '/');
+        if (!string.IsNullOrEmpty(normPath))
+        {
+            if (normPath.StartsWith("ui/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.StartsWith("frontend/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.StartsWith("client/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.StartsWith("web/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.Contains("/ui/") ||
+                normPath.Contains("/components/") ||
+                normPath.Contains("/packages/ui"))
+            {
+                return "UserInterface";
+            }
+
+            if (normPath.StartsWith("tools/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.StartsWith("cli/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.Contains("/tools/") ||
+                normPath.Contains("/cli/"))
+            {
+                return "DeveloperTooling";
+            }
+
+            if (normPath.StartsWith("tests/", StringComparison.OrdinalIgnoreCase) ||
+                normPath.Contains("/tests/"))
+            {
+                return "TestingInfrastructure";
+            }
+        }
+
+        // 4. Check if rawDomain already matches a canonical macro-domain
+        var cleanRaw = (rawDomain ?? "").Trim();
+        if (cleanRaw.StartsWith("domain:", StringComparison.OrdinalIgnoreCase))
+            cleanRaw = cleanRaw["domain:".Length..];
+        if (cleanRaw.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
+            cleanRaw = cleanRaw["dom:".Length..];
+
+        var rawPascal = ToPascalCase(cleanRaw);
+        if (rawPascal is "BillingAndPayments" or "AdvertisingAndPartners" or "CampaignsAndBundling" or
+                        "TrafficAndRouting" or "DomainManagement" or "ConfigurationAndSettings" or
+                        "AnalyticsAndMonitoring" or "OperationsAndWorkflows" or "IdentityAndAccess" or
+                        "UserInterface" or "SharedKernel" or "DeveloperTooling" or "TestingInfrastructure" or
+                        "CustomerSupport" or "ContentAndMedia")
+        {
+            return rawPascal;
+        }
+
+        // Canonical aliases
+        if (rawPascal is "Billing" or "Payments" or "Payment" or "Settlement") return "BillingAndPayments";
+        if (rawPascal is "Advertising" or "Partners" or "Partner" or "AdHub" or "AdHubAndPartners" or "Conversion" or "Tbmap") return "AdvertisingAndPartners";
+        if (rawPascal is "Campaigns" or "Campaign" or "CampaignManagement" or "Bundling" or "Bundles" or "Landing" or "Staging" or "Postback") return "CampaignsAndBundling";
+        if (rawPascal is "Traffic" or "Routing" or "Routes" or "Tracker" or "Telecom" or "Gateways") return "TrafficAndRouting";
+        if (rawPascal is "Domains" or "Domain" or "Domvains" or "Dns") return "DomainManagement";
+        if (rawPascal is "Configuration" or "Settings" or "Config" or "Kv" or "KvV2" or "Bindings") return "ConfigurationAndSettings";
+        if (rawPascal is "Analytics" or "Monitoring" or "Statistics" or "Calc" or "Journal" or "Stats") return "AnalyticsAndMonitoring";
+        if (rawPascal is "Operations" or "Workflows" or "Workflow" or "Approval" or "Notifier" or "Scheduler") return "OperationsAndWorkflows";
+        if (rawPascal is "Identity" or "Auth" or "Security" or "Iam") return "IdentityAndAccess";
+        if (rawPascal is "PresentationComponents" or "Presentation" or "Components") return "UserInterface";
+
+        // 5. Token-based multi-criteria scoring across rawDomain, service name, and path
+        var normalizedService = NormalizeServiceName(serviceOrProjectName);
+        var tokens = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(cleanRaw))
+        {
+            tokens.AddRange(cleanRaw.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries));
+        }
+        if (!string.IsNullOrWhiteSpace(normalizedService))
+        {
+            tokens.AddRange(normalizedService.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries));
+        }
+        if (!string.IsNullOrEmpty(normPath))
+        {
+            var segments = normPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var seg in segments)
+            {
+                if (!seg.Equals("src", StringComparison.OrdinalIgnoreCase) &&
+                    !seg.Equals("services", StringComparison.OrdinalIgnoreCase) &&
+                    !seg.Equals("apps", StringComparison.OrdinalIgnoreCase) &&
+                    !seg.Equals("packages", StringComparison.OrdinalIgnoreCase))
+                {
+                    tokens.AddRange(seg.Split(['_', '-', '.', ' '], StringSplitOptions.RemoveEmptyEntries));
+                }
+            }
+        }
+
+        var domainScores = new Dictionary<string, int>
+        {
+            ["BillingAndPayments"] = ScoreTokens(tokens, BillingKeywords, cleanRaw, normalizedService),
+            ["AdvertisingAndPartners"] = ScoreTokens(tokens, AdvertisingKeywords, cleanRaw, normalizedService),
+            ["CampaignsAndBundling"] = ScoreTokens(tokens, CampaignKeywords, cleanRaw, normalizedService),
+            ["TrafficAndRouting"] = ScoreTokens(tokens, TrafficKeywords, cleanRaw, normalizedService),
+            ["DomainManagement"] = ScoreTokens(tokens, DomainMgmtKeywords, cleanRaw, normalizedService),
+            ["ConfigurationAndSettings"] = ScoreTokens(tokens, ConfigKeywords, cleanRaw, normalizedService),
+            ["AnalyticsAndMonitoring"] = ScoreTokens(tokens, AnalyticsKeywords, cleanRaw, normalizedService),
+            ["OperationsAndWorkflows"] = ScoreTokens(tokens, OperationsKeywords, cleanRaw, normalizedService),
+            ["IdentityAndAccess"] = ScoreTokens(tokens, IdentityKeywords, cleanRaw, normalizedService),
+            ["ContentAndMedia"] = ScoreTokens(tokens, ContentKeywords, cleanRaw, normalizedService),
+            ["CustomerSupport"] = ScoreTokens(tokens, SupportKeywords, cleanRaw, normalizedService)
+        };
+
+        var best = domainScores.OrderByDescending(kv => kv.Value).FirstOrDefault();
+        if (best.Value >= 2)
+        {
+            return best.Key;
+        }
+
+        // 6. If no canonical domain matched, check if rawDomain is a valid custom domain name
+        if (!string.IsNullOrWhiteSpace(cleanRaw))
+        {
+            var genericDomainWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "core", "service", "services", "app", "application", "default", "internal", "microservice",
+                "table", "tables", "database", "sql"
+            };
+            if (!genericDomainWords.Contains(cleanRaw))
+            {
+                return ToPascalCase(cleanRaw);
+            }
+        }
+
+        // 7. Fallback to directory namespace if present
+        if (!string.IsNullOrEmpty(normPath))
+        {
+            var segments = normPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < segments.Length - 1; i++)
+            {
+                var s = segments[i];
+                if (!s.Equals("src", StringComparison.OrdinalIgnoreCase) &&
+                    !s.Equals("services", StringComparison.OrdinalIgnoreCase) &&
+                    !s.Equals("apps", StringComparison.OrdinalIgnoreCase) &&
+                    !s.Equals("packages", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ToPascalCase(s);
+                }
+            }
+        }
+
+        return "CoreDomain";
+    }
+
+    private static int ScoreTokens(
+        List<string> tokens,
+        HashSet<string> keywords,
+        string rawDomain,
+        string normalizedService)
+    {
+        var score = 0;
+        foreach (var t in tokens)
+        {
+            if (keywords.Contains(t)) score += 3;
+            else if (keywords.Any(kw => kw.Contains(t, StringComparison.OrdinalIgnoreCase) || t.Contains(kw, StringComparison.OrdinalIgnoreCase)))
+            {
+                score += 1;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(rawDomain) && keywords.Contains(rawDomain)) score += 5;
+        if (!string.IsNullOrEmpty(normalizedService) && keywords.Contains(normalizedService)) score += 4;
+
+        return score;
+    }
+
+    /// <summary>
+    /// Formats a canonical PascalCase domain name into a clean, human-readable display name.
+    /// E.g. "BillingAndPayments" -&gt; "Billing &amp; Payments"
+    /// </summary>
+    public static string FormatDomainDisplayName(string canonicalDomain)
+    {
+        return canonicalDomain switch
+        {
+            "BillingAndPayments" => "Billing & Payments",
+            "AdvertisingAndPartners" => "Advertising & Partners",
+            "CampaignsAndBundling" => "Campaigns & Bundling",
+            "TrafficAndRouting" => "Traffic & Routing",
+            "DomainManagement" => "Domain Management",
+            "ConfigurationAndSettings" => "Configuration & Settings",
+            "AnalyticsAndMonitoring" => "Analytics & Monitoring",
+            "OperationsAndWorkflows" => "Operations & Workflows",
+            "IdentityAndAccess" => "Identity & Access",
+            "UserInterface" => "User Interface",
+            "SharedKernel" => "Shared Kernel",
+            "DeveloperTooling" => "Developer Tooling",
+            "TestingInfrastructure" => "Testing Infrastructure",
+            "CustomerSupport" => "Customer Support",
+            "ContentAndMedia" => "Content & Media",
+            _ => Regex.Replace(canonicalDomain, "([a-z])([A-Z])", "$1 $2")
+        };
+    }
 }
