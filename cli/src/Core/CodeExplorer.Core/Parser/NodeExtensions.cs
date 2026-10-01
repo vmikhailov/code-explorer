@@ -129,5 +129,16 @@ namespace CodeExplorer.Core.Parser
                 }
             }
         }
+
+        public static bool IsContainedWithin(this Node? inner, Node? outer)
+        {
+            if (!inner.IsValid() || !outer.IsValid()) return false;
+            if (inner.Tree != outer.Tree) return false;
+            if (inner.StartPosition.Row < outer.StartPosition.Row) return false;
+            if (inner.StartPosition.Row == outer.StartPosition.Row && inner.StartPosition.Column < outer.StartPosition.Column) return false;
+            if (inner.EndPosition.Row > outer.EndPosition.Row) return false;
+            if (inner.EndPosition.Row == outer.EndPosition.Row && inner.EndPosition.Column > outer.EndPosition.Column) return false;
+            return true;
+        }
     }
 }

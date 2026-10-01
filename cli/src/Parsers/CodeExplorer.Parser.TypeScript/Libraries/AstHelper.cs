@@ -1036,13 +1036,5 @@ public static class AstHelper
         return $"{service}{cleanPath}";
     }
 
-    private static bool IsNodeContainedWithin(Node inner, Node outer)
-    {
-        if (inner.Tree != outer.Tree) return false;
-        if (inner.StartPosition.Row < outer.StartPosition.Row) return false;
-        if (inner.StartPosition.Row == outer.StartPosition.Row && inner.StartPosition.Column < outer.StartPosition.Column) return false;
-        if (inner.EndPosition.Row > outer.EndPosition.Row) return false;
-        if (inner.EndPosition.Row == outer.EndPosition.Row && inner.EndPosition.Column > outer.EndPosition.Column) return false;
-        return true;
-    }
+    private static bool IsNodeContainedWithin(Node inner, Node outer) => inner.IsContainedWithin(outer);
 }
