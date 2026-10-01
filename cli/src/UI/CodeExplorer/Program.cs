@@ -98,9 +98,23 @@ public class Program
             };
         }
 
+        if (parseResult is NotParsed<object> notParsed)
+        {
+            if (notParsed.Errors.Any(e => e.Tag is ErrorType.VersionRequestedError or
+                                                  ErrorType.HelpRequestedError or
+                                                  ErrorType.HelpVerbRequestedError))
+            {
+                return 0;
+            }
+        }
+
         return 1;
     }
 
-    public static WebApplication CreateWebApplication(ServeOptions opts, string wsRoot, SqliteGraphClient client, string[]? args = null)
+    public static WebApplication CreateWebApplication(
+        ServeOptions opts,
+        string wsRoot,
+        SqliteGraphClient client,
+        string[]? args = null)
         => ServeCommandHandler.CreateWebApplication(opts, wsRoot, client, args);
 }
