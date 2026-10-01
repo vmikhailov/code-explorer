@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.TypeScript.Libraries;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

@@ -1,9 +1,6 @@
 using System.Threading.Channels;
 using NUnit.Framework;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
@@ -12,7 +9,6 @@ using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Java;
 using CodeExplorer.Parser.Python;
 using CodeExplorer.Parser.TypeScript;
-using CodeExplorer.Tests.Shared;
 
 namespace CodeExplorer.Tests;
 
@@ -38,15 +34,15 @@ public class MultiLanguageHttpResolutionTests
             var client = new InMemoryGraphClient();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
-            using (var syntaxTree =
-                   await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath))
-            {
-                Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            using var syntaxTree =
 
-                var extServices = new List<ExternalServiceNode>();
-                FindNodes(syntaxTree.FileNode.Children, extServices);
-                return extServices;
-            }
+                await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var extServices = new List<ExternalServiceNode>();
+            FindNodes(syntaxTree.FileNode.Children, extServices);
+            return extServices;
         }
         finally
         {

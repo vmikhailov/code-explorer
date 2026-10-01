@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Analysis.Testing;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using NUnit.Framework;
 

@@ -64,21 +64,20 @@ public class RideGatewayController : ControllerBase
         // 2. Index workspace
         var dbPath = Path.Combine(_tempDir, "graph.db");
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new CSharpParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            // 3. Execute trace_ingress_to_egress query
-            var cypher = Queries.Get("trace_ingress_to_egress");
-            var result = await client.ExecuteQueryAsync(cypher);
+        WorkspaceIndexer.Register(new CSharpParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-            Assert.That(result, Does.Contain("WebAppGateway"));
-            Assert.That(result, Does.Contain("POST"));
-            Assert.That(result, Does.Contain("StartRide"));
-            Assert.That(result, Does.Contain("StartRideRequest"));
-            Assert.That(result, Does.Contain("RideDto"));
-        }
+        // 3. Execute trace_ingress_to_egress query
+        var cypher = Queries.Get("trace_ingress_to_egress");
+        var result = await client.ExecuteQueryAsync(cypher);
+
+        Assert.That(result, Does.Contain("WebAppGateway"));
+        Assert.That(result, Does.Contain("POST"));
+        Assert.That(result, Does.Contain("StartRide"));
+        Assert.That(result, Does.Contain("StartRideRequest"));
+        Assert.That(result, Does.Contain("RideDto"));
     }
 }

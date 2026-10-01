@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
@@ -154,25 +153,23 @@ function setupRabbit(rabbit: any) {
 ";
         var language = SyntaxTree.GetLanguage("typescript");
 
-        using (var parser = new TreeSitter.Parser(language))
-        {
-            using (var tree = parser.Parse(tsCode))
-            {
-                Assert.That(tree, Is.Not.Null);
+        using var parser = new TreeSitter.Parser(language);
 
-                // Find the call expression rabbit.createQueue(queueName)
-                var call = tree!.RootNode.FindDescendantOfType("call_expression");
-                Assert.That(call.IsValid(), Is.True);
+        using var tree = parser.Parse(tsCode);
 
-                var args = call!.FindChildOfType("arguments");
-                Assert.That(args.IsValid(), Is.True);
-                var firstArg = args!.Children.FirstOrDefault(c => c.Type == "identifier");
-                Assert.That(firstArg.IsValid(), Is.True);
+        Assert.That(tree, Is.Not.Null);
 
-                var resolved = AstValueResolver.ResolveString(firstArg!);
-                Assert.That(resolved, Is.EqualTo("orders-v2-queue"));
-            }
-        }
+        // Find the call expression rabbit.createQueue(queueName)
+        var call = tree!.RootNode.FindDescendantOfType("call_expression");
+        Assert.That(call.IsValid(), Is.True);
+
+        var args = call!.FindChildOfType("arguments");
+        Assert.That(args.IsValid(), Is.True);
+        var firstArg = args!.Children.FirstOrDefault(c => c.Type == "identifier");
+        Assert.That(firstArg.IsValid(), Is.True);
+
+        var resolved = AstValueResolver.ResolveString(firstArg!);
+        Assert.That(resolved, Is.EqualTo("orders-v2-queue"));
     }
 
     [Test]
@@ -191,22 +188,20 @@ class Worker {
 ";
         var language = SyntaxTree.GetLanguage("c-sharp");
 
-        using (var parser = new TreeSitter.Parser(language))
-        {
-            using (var tree = parser.Parse(csharpCode))
-            {
-                Assert.That(tree, Is.Null.Or.Not.Null);
+        using var parser = new TreeSitter.Parser(language);
 
-                var subscript = tree!.RootNode.FindDescendantOfType("element_access_expression");
-                Assert.That(subscript!.IsValid(), Is.True);
-                Assert.That(AstValueResolver.ResolveString(subscript!), Is.EqualTo("payments-v1"));
+        using var tree = parser.Parse(csharpCode);
 
-                var member = tree!.RootNode.FindDescendantsOfType("member_access_expression")
-                    .FirstOrDefault(m => m.Text.Contains("ORDER_TOPIC"));
-                Assert.That(member!.IsValid(), Is.True);
-                Assert.That(AstValueResolver.ResolveString(member!), Is.EqualTo("orders-stream"));
-            }
-        }
+        Assert.That(tree, Is.Null.Or.Not.Null);
+
+        var subscript = tree!.RootNode.FindDescendantOfType("element_access_expression");
+        Assert.That(subscript!.IsValid(), Is.True);
+        Assert.That(AstValueResolver.ResolveString(subscript!), Is.EqualTo("payments-v1"));
+
+        var member = tree!.RootNode.FindDescendantsOfType("member_access_expression")
+            .FirstOrDefault(m => m.Text.Contains("ORDER_TOPIC"));
+        Assert.That(member!.IsValid(), Is.True);
+        Assert.That(AstValueResolver.ResolveString(member!), Is.EqualTo("orders-stream"));
     }
 
     [Test]

@@ -1,6 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Parser;
 
 [assembly: ParserAssembly]

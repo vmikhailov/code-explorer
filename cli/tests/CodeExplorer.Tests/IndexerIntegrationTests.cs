@@ -58,31 +58,30 @@ public class IndexerIntegrationTests
             var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
 
             // Register parsers if they aren't already registered
-            await using (var client = new SqliteGraphClient(dbPath))
-            {
-                WorkspaceIndexer.Register(new CSharpParser());
-                WorkspaceIndexer.Register(new TypeScriptParser()); // Run scanner
-                var parser = new WorkspaceIndexer(client);
-                var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
+            await using var client = new SqliteGraphClient(dbPath);
 
-                Assert.That(results.NodesCount, Is.GreaterThan(0));
-                Assert.That(results.RelationshipsCount, Is.GreaterThan(0));
+            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.Register(new TypeScriptParser()); // Run scanner
+            var parser = new WorkspaceIndexer(client);
+            var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
-                // Verify Endpoint and CALLS_ENDPOINT in the database
-                var wsId = await client.GetOrCreateWorkspaceIdAsync(tempWorkspace);
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
+            Assert.That(results.RelationshipsCount, Is.GreaterThan(0));
 
-                var endpointCountJson = await client.ExecuteQueryAsync(
-                    $"MATCH (ep:Endpoint) WHERE toString(ep.id) STARTS WITH '{wsId}:' RETURN count(ep) AS count");
-                Assert.That(endpointCountJson, Contains.Substring("\"count\": 2"));
+            // Verify Endpoint and CALLS_ENDPOINT in the database
+            var wsId = await client.GetOrCreateWorkspaceIdAsync(tempWorkspace);
 
-                var implByJson = await client.ExecuteQueryAsync(
-                    $"MATCH (ep:Endpoint)-[:EXPOSED_BY]->(f:Function {{name: 'charge'}}) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
-                Assert.That(implByJson, Contains.Substring(":ep:POST:/orders/charge"));
+            var endpointCountJson = await client.ExecuteQueryAsync(
+                $"MATCH (ep:Endpoint) WHERE toString(ep.id) STARTS WITH '{wsId}:' RETURN count(ep) AS count");
+            Assert.That(endpointCountJson, Contains.Substring("\"count\": 2"));
 
-                var lateBoundJson = await client.ExecuteQueryAsync(
-                    $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
-                Assert.That(lateBoundJson, Contains.Substring(":ep:POST:/orders/charge"));
-            }
+            var implByJson = await client.ExecuteQueryAsync(
+                $"MATCH (ep:Endpoint)-[:EXPOSED_BY]->(f:Function {{name: 'charge'}}) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
+            Assert.That(implByJson, Contains.Substring(":ep:POST:/orders/charge"));
+
+            var lateBoundJson = await client.ExecuteQueryAsync(
+                $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN ep.id AS id");
+            Assert.That(lateBoundJson, Contains.Substring(":ep:POST:/orders/charge"));
         }
         finally
         {
@@ -124,24 +123,23 @@ export class OrderService {
             var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
 
             // Register parsers if they aren't already registered
-            await using (var client = new SqliteGraphClient(dbPath))
-            {
-                WorkspaceIndexer.Register(new TypeScriptParser());
+            await using var client = new SqliteGraphClient(dbPath);
 
-                // Run scanner
-                var parser = new WorkspaceIndexer(client);
-                var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
+            WorkspaceIndexer.Register(new TypeScriptParser());
 
-                Assert.That(results.NodesCount, Is.GreaterThan(0));
+            // Run scanner
+            var parser = new WorkspaceIndexer(client);
+            var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
-                // Verify using database query that Function 'process' CALLS Function 'charge' in Type 'PaymentService'
-                var callsQuery =
-                    $"MATCH (c:Type {{name: 'PaymentService'}})-[:HAS_METHOD]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
-                var queryResult = await client.ExecuteQueryAsync(callsQuery);
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
 
-                Assert.That(queryResult, Contains.Substring("\"f1Name\": \"process\""));
-                Assert.That(queryResult, Contains.Substring("\"f2Name\": \"charge\""));
-            }
+            // Verify using database query that Function 'process' CALLS Function 'charge' in Type 'PaymentService'
+            var callsQuery =
+                $"MATCH (c:Type {{name: 'PaymentService'}})-[:HAS_METHOD]->(f2:Function {{name: 'charge'}})<-[:CALLS]-(f1:Function {{name: 'process'}}) RETURN f1.name AS f1Name, f2.name AS f2Name";
+            var queryResult = await client.ExecuteQueryAsync(callsQuery);
+
+            Assert.That(queryResult, Contains.Substring("\"f1Name\": \"process\""));
+            Assert.That(queryResult, Contains.Substring("\"f2Name\": \"charge\""));
         }
         finally
         {
@@ -174,33 +172,32 @@ export class OrderService {
             var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
 
             // Register parsers if they aren't already registered
-            await using (var client = new SqliteGraphClient(dbPath))
-            {
-                WorkspaceIndexer.Register(new TypeScriptParser());
+            await using var client = new SqliteGraphClient(dbPath);
 
-                // Run scanner
-                var parser = new WorkspaceIndexer(client);
-                var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
+            WorkspaceIndexer.Register(new TypeScriptParser());
 
-                Assert.That(results.NodesCount, Is.GreaterThan(0));
+            // Run scanner
+            var parser = new WorkspaceIndexer(client);
+            var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
-                // Verify using database queries
-                // ProjectB should be nested under ProjectA via their Folder locations
-                var projectAQuery = "MATCH (p:Project {name: 'ProjectA'}) RETURN p.id AS id";
-                var projectBQuery = "MATCH (p:Project {name: 'ProjectB'}) RETURN p.id AS id";
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
 
-                var containsQuery =
-                    "MATCH (p1:Project {name: 'ProjectA'})-[:LOCATED_IN]->(f1:Folder)-[:CONTAINS]->(f2:Folder)<-[:LOCATED_IN]-(p2:Project {name: 'ProjectB'}) RETURN p1.name AS p1Name, p2.name AS p2Name";
+            // Verify using database queries
+            // ProjectB should be nested under ProjectA via their Folder locations
+            var projectAQuery = "MATCH (p:Project {name: 'ProjectA'}) RETURN p.id AS id";
+            var projectBQuery = "MATCH (p:Project {name: 'ProjectB'}) RETURN p.id AS id";
 
-                var resA = await client.ExecuteQueryAsync(projectAQuery);
-                var resB = await client.ExecuteQueryAsync(projectBQuery);
-                var resContains = await client.ExecuteQueryAsync(containsQuery);
+            var containsQuery =
+                "MATCH (p1:Project {name: 'ProjectA'})-[:LOCATED_IN]->(f1:Folder)-[:CONTAINS]->(f2:Folder)<-[:LOCATED_IN]-(p2:Project {name: 'ProjectB'}) RETURN p1.name AS p1Name, p2.name AS p2Name";
 
-                Assert.That(resA, Contains.Substring("ProjectA"));
-                Assert.That(resB, Contains.Substring("ProjectB"));
-                Assert.That(resContains, Contains.Substring("\"p1Name\": \"ProjectA\""));
-                Assert.That(resContains, Contains.Substring("\"p2Name\": \"ProjectB\""));
-            }
+            var resA = await client.ExecuteQueryAsync(projectAQuery);
+            var resB = await client.ExecuteQueryAsync(projectBQuery);
+            var resContains = await client.ExecuteQueryAsync(containsQuery);
+
+            Assert.That(resA, Contains.Substring("ProjectA"));
+            Assert.That(resB, Contains.Substring("ProjectB"));
+            Assert.That(resContains, Contains.Substring("\"p1Name\": \"ProjectA\""));
+            Assert.That(resContains, Contains.Substring("\"p2Name\": \"ProjectB\""));
         }
         finally
         {
@@ -233,31 +230,30 @@ export class OrderService {
 
             var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
 
-            await using (var client = new SqliteGraphClient(dbPath))
-            {
-                WorkspaceIndexer.Register(new CSharpParser());
-                var indexer = new WorkspaceIndexer(client);
+            await using var client = new SqliteGraphClient(dbPath);
 
-                // Index ONLY SubA
-                var results = await indexer.IndexAsync(targetPath: subADir, workspaceRoot: tempWorkspace, clear: false);
+            WorkspaceIndexer.Register(new CSharpParser());
+            var indexer = new WorkspaceIndexer(client);
 
-                Assert.That(results.NodesCount, Is.GreaterThan(0));
+            // Index ONLY SubA
+            var results = await indexer.IndexAsync(targetPath: subADir, workspaceRoot: tempWorkspace, clear: false);
 
-                // Verify A.cs exists and has path SubA/A.cs
-                var fileAQuery = "MATCH (f:File) WHERE f.name = 'A.cs' RETURN f.id AS id, f.path AS path";
-                var fileAResult = await client.ExecuteQueryAsync(fileAQuery);
-                Assert.That(fileAResult, Contains.Substring("SubA/A.cs"));
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
 
-                // Verify B.cs was NOT scanned
-                var fileBQuery = "MATCH (f:File) WHERE f.name = 'B.cs' RETURN count(f) AS count";
-                var fileBResult = await client.ExecuteQueryAsync(fileBQuery);
-                Assert.That(fileBResult, Contains.Substring("\"count\": 0"));
+            // Verify A.cs exists and has path SubA/A.cs
+            var fileAQuery = "MATCH (f:File) WHERE f.name = 'A.cs' RETURN f.id AS id, f.path AS path";
+            var fileAResult = await client.ExecuteQueryAsync(fileAQuery);
+            Assert.That(fileAResult, Contains.Substring("SubA/A.cs"));
 
-                // Verify SubA is linked to FilesStructure
-                var folderLinkQuery = "MATCH (fs:FilesStructure)-[:CONTAINS]->(f:Folder) RETURN f.name AS name";
-                var folderLinkResult = await client.ExecuteQueryAsync(folderLinkQuery);
-                Assert.That(folderLinkResult, Contains.Substring("\"name\": \"SubA\""));
-            }
+            // Verify B.cs was NOT scanned
+            var fileBQuery = "MATCH (f:File) WHERE f.name = 'B.cs' RETURN count(f) AS count";
+            var fileBResult = await client.ExecuteQueryAsync(fileBQuery);
+            Assert.That(fileBResult, Contains.Substring("\"count\": 0"));
+
+            // Verify SubA is linked to FilesStructure
+            var folderLinkQuery = "MATCH (fs:FilesStructure)-[:CONTAINS]->(f:Folder) RETURN f.name AS name";
+            var folderLinkResult = await client.ExecuteQueryAsync(folderLinkQuery);
+            Assert.That(folderLinkResult, Contains.Substring("\"name\": \"SubA\""));
         }
         finally
         {
@@ -289,32 +285,31 @@ export class OrderService {
 
             var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
 
-            await using (var client = new SqliteGraphClient(dbPath))
-            {
-                WorkspaceIndexer.Register(new CSharpParser());
-                var indexer = new WorkspaceIndexer(client);
+            await using var client = new SqliteGraphClient(dbPath);
 
-                // Index ONLY Handlers subfolder
-                var results =
-                    await indexer.IndexAsync(targetPath: handlersDir, workspaceRoot: tempWorkspace, clear: false);
+            WorkspaceIndexer.Register(new CSharpParser());
+            var indexer = new WorkspaceIndexer(client);
 
-                Assert.That(results.NodesCount, Is.GreaterThan(0));
+            // Index ONLY Handlers subfolder
+            var results =
+                await indexer.IndexAsync(targetPath: handlersDir, workspaceRoot: tempWorkspace, clear: false);
 
-                // Verify enclosing project MyService was detected
-                var projQuery = "MATCH (p:Project) RETURN p.name AS name, p.path AS path";
-                var projResult = await client.ExecuteQueryAsync(projQuery);
-                Assert.That(projResult, Contains.Substring("\"name\": \"MyService\""));
+            Assert.That(results.NodesCount, Is.GreaterThan(0));
 
-                // Verify OrderHandler was parsed into the syntax structure
-                var handlerQuery = "MATCH (f:File {name: 'OrderHandler.cs'}) RETURN f.id AS id";
-                var handlerResult = await client.ExecuteQueryAsync(handlerQuery);
-                Assert.That(handlerResult, Contains.Substring("OrderHandler.cs"));
+            // Verify enclosing project MyService was detected
+            var projQuery = "MATCH (p:Project) RETURN p.name AS name, p.path AS path";
+            var projResult = await client.ExecuteQueryAsync(projQuery);
+            Assert.That(projResult, Contains.Substring("\"name\": \"MyService\""));
 
-                // Verify OrderModel was NOT parsed
-                var modelQuery = "MATCH (f:File {name: 'OrderModel.cs'}) RETURN count(f) AS count";
-                var modelResult = await client.ExecuteQueryAsync(modelQuery);
-                Assert.That(modelResult, Contains.Substring("\"count\": 0"));
-            }
+            // Verify OrderHandler was parsed into the syntax structure
+            var handlerQuery = "MATCH (f:File {name: 'OrderHandler.cs'}) RETURN f.id AS id";
+            var handlerResult = await client.ExecuteQueryAsync(handlerQuery);
+            Assert.That(handlerResult, Contains.Substring("OrderHandler.cs"));
+
+            // Verify OrderModel was NOT parsed
+            var modelQuery = "MATCH (f:File {name: 'OrderModel.cs'}) RETURN count(f) AS count";
+            var modelResult = await client.ExecuteQueryAsync(modelQuery);
+            Assert.That(modelResult, Contains.Substring("\"count\": 0"));
         }
         finally
         {
@@ -347,32 +342,31 @@ export class OrderService {
 
             var dbPath = Path.Combine(tempWorkspace, "test_graph.db");
 
-            await using (var client = new SqliteGraphClient(dbPath))
-            {
-                WorkspaceIndexer.Register(new CSharpParser());
-                var indexer = new WorkspaceIndexer(client);
+            await using var client = new SqliteGraphClient(dbPath);
 
-                // Index full workspace first
-                await indexer.IndexAsync(tempWorkspace, clear: true);
+            WorkspaceIndexer.Register(new CSharpParser());
+            var indexer = new WorkspaceIndexer(client);
 
-                // Verify both A and B are present
-                var allFilesQuery = "MATCH (f:File) RETURN count(f) AS count";
-                var allFilesRes = await client.ExecuteQueryAsync(allFilesQuery);
-                Assert.That(allFilesRes, Contains.Substring("\"count\": 2"));
+            // Index full workspace first
+            await indexer.IndexAsync(tempWorkspace, clear: true);
 
-                // Clear ONLY SubA
-                var cleared = await client.ClearWorkspaceAsync(subADir);
-                Assert.That(cleared, Is.True);
+            // Verify both A and B are present
+            var allFilesQuery = "MATCH (f:File) RETURN count(f) AS count";
+            var allFilesRes = await client.ExecuteQueryAsync(allFilesQuery);
+            Assert.That(allFilesRes, Contains.Substring("\"count\": 2"));
 
-                // Verify A.cs is gone, but B.cs remains
-                var fileAQuery = "MATCH (f:File {name: 'A.cs'}) RETURN count(f) AS count";
-                var fileARes = await client.ExecuteQueryAsync(fileAQuery);
-                Assert.That(fileARes, Contains.Substring("\"count\": 0"));
+            // Clear ONLY SubA
+            var cleared = await client.ClearWorkspaceAsync(subADir);
+            Assert.That(cleared, Is.True);
 
-                var fileBQuery = "MATCH (f:File {name: 'B.cs'}) RETURN count(f) AS count";
-                var fileBRes = await client.ExecuteQueryAsync(fileBQuery);
-                Assert.That(fileBRes, Contains.Substring("\"count\": 1"));
-            }
+            // Verify A.cs is gone, but B.cs remains
+            var fileAQuery = "MATCH (f:File {name: 'A.cs'}) RETURN count(f) AS count";
+            var fileARes = await client.ExecuteQueryAsync(fileAQuery);
+            Assert.That(fileARes, Contains.Substring("\"count\": 0"));
+
+            var fileBQuery = "MATCH (f:File {name: 'B.cs'}) RETURN count(f) AS count";
+            var fileBRes = await client.ExecuteQueryAsync(fileBQuery);
+            Assert.That(fileBRes, Contains.Substring("\"count\": 1"));
         }
         finally
         {

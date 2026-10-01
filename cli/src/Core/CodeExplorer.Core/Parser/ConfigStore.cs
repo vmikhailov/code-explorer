@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -212,12 +211,11 @@ public static class ConfigStore
     {
         var content = File.ReadAllText(filePath);
 
-        using (var doc = JsonDocument.Parse(content))
-        {
-            if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
+        using var doc = JsonDocument.Parse(content);
 
-            TraverseJsonElement(doc.RootElement, "", filePath, projectName);
-        }
+        if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
+
+        TraverseJsonElement(doc.RootElement, "", filePath, projectName);
     }
 
     private static void TraverseJsonElement(JsonElement element, string currentPrefix, string filePath, string? projectName)

@@ -52,65 +52,64 @@ public static class WorkspaceConventions
             {
                 var json = File.ReadAllText(configPath);
 
-                using (var doc = JsonDocument.Parse(json))
+                using var doc = JsonDocument.Parse(json);
+
+                if (doc.RootElement.TryGetProperty("topics", out var topicsEl) &&
+                    topicsEl.ValueKind == JsonValueKind.Object)
                 {
-                    if (doc.RootElement.TryGetProperty("topics", out var topicsEl) &&
-                        topicsEl.ValueKind == JsonValueKind.Object)
+                    foreach (var prop in topicsEl.EnumerateObject())
                     {
-                        foreach (var prop in topicsEl.EnumerateObject())
+                        TopicAliases[prop.Name] = prop.Value.GetString() ?? prop.Name;
+                    }
+                }
+
+                if (doc.RootElement.TryGetProperty("domains", out var domainsEl) &&
+                    domainsEl.ValueKind == JsonValueKind.Object)
+                {
+                    ParseDomainMappings(domainsEl);
+                }
+
+                if (doc.RootElement.TryGetProperty("overrides", out var ovrEl) &&
+                    ovrEl.ValueKind == JsonValueKind.Object)
+                {
+                    ParseOverrides(ovrEl);
+                }
+
+                if (doc.RootElement.TryGetProperty("service_prefixes", out var prefixesEl) &&
+                    prefixesEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var p in prefixesEl.EnumerateArray())
+                    {
+                        var prefix = p.GetString();
+                        if (!string.IsNullOrWhiteSpace(prefix))
                         {
-                            TopicAliases[prop.Name] = prop.Value.GetString() ?? prop.Name;
+                            CustomServicePrefixes.Add(prefix.Trim().ToLowerInvariant());
                         }
                     }
+                }
 
-                    if (doc.RootElement.TryGetProperty("domains", out var domainsEl) &&
-                        domainsEl.ValueKind == JsonValueKind.Object)
+                if (doc.RootElement.TryGetProperty("route_functions", out var routesEl) &&
+                    routesEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var r in routesEl.EnumerateArray())
                     {
-                        ParseDomainMappings(domainsEl);
-                    }
-
-                    if (doc.RootElement.TryGetProperty("overrides", out var ovrEl) &&
-                        ovrEl.ValueKind == JsonValueKind.Object)
-                    {
-                        ParseOverrides(ovrEl);
-                    }
-
-                    if (doc.RootElement.TryGetProperty("service_prefixes", out var prefixesEl) &&
-                        prefixesEl.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var p in prefixesEl.EnumerateArray())
+                        var fn = r.GetString();
+                        if (!string.IsNullOrWhiteSpace(fn))
                         {
-                            var prefix = p.GetString();
-                            if (!string.IsNullOrWhiteSpace(prefix))
-                            {
-                                CustomServicePrefixes.Add(prefix.Trim().ToLowerInvariant());
-                            }
+                            CustomRouteFunctions.Add(fn.Trim());
                         }
                     }
+                }
 
-                    if (doc.RootElement.TryGetProperty("route_functions", out var routesEl) &&
-                        routesEl.ValueKind == JsonValueKind.Array)
+                if (doc.RootElement.TryGetProperty("database_aliases", out var dbAliasesEl) &&
+                    dbAliasesEl.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in dbAliasesEl.EnumerateObject())
                     {
-                        foreach (var r in routesEl.EnumerateArray())
+                        var target = prop.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(target))
                         {
-                            var fn = r.GetString();
-                            if (!string.IsNullOrWhiteSpace(fn))
-                            {
-                                CustomRouteFunctions.Add(fn.Trim());
-                            }
-                        }
-                    }
-
-                    if (doc.RootElement.TryGetProperty("database_aliases", out var dbAliasesEl) &&
-                        dbAliasesEl.ValueKind == JsonValueKind.Object)
-                    {
-                        foreach (var prop in dbAliasesEl.EnumerateObject())
-                        {
-                            var target = prop.Value.GetString();
-                            if (!string.IsNullOrWhiteSpace(target))
-                            {
-                                DatabaseAliases[prop.Name.Trim()] = target.Trim();
-                            }
+                            DatabaseAliases[prop.Name.Trim()] = target.Trim();
                         }
                     }
                 }
@@ -128,35 +127,34 @@ public static class WorkspaceConventions
             {
                 var json = File.ReadAllText(domainsPath);
 
-                using (var doc = JsonDocument.Parse(json))
+                using var doc = JsonDocument.Parse(json);
+
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("domains", out var domainsEl))
                 {
-                    var root = doc.RootElement;
+                    if (domainsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        ParseDomainDefinitionsArray(domainsEl);
+                    }
+                    else if (domainsEl.ValueKind == JsonValueKind.Object)
+                    {
+                        ParseDomainMappings(domainsEl);
+                    }
+                }
+                else if (root.ValueKind == JsonValueKind.Array)
+                {
+                    ParseDomainDefinitionsArray(root);
+                }
+                else if (root.ValueKind == JsonValueKind.Object)
+                {
+                    ParseDomainMappings(root);
+                }
 
-                    if (root.TryGetProperty("domains", out var domainsEl))
-                    {
-                        if (domainsEl.ValueKind == JsonValueKind.Array)
-                        {
-                            ParseDomainDefinitionsArray(domainsEl);
-                        }
-                        else if (domainsEl.ValueKind == JsonValueKind.Object)
-                        {
-                            ParseDomainMappings(domainsEl);
-                        }
-                    }
-                    else if (root.ValueKind == JsonValueKind.Array)
-                    {
-                        ParseDomainDefinitionsArray(root);
-                    }
-                    else if (root.ValueKind == JsonValueKind.Object)
-                    {
-                        ParseDomainMappings(root);
-                    }
-
-                    if (root.TryGetProperty("overrides", out var ovrEl) &&
-                        ovrEl.ValueKind == JsonValueKind.Object)
-                    {
-                        ParseOverrides(ovrEl);
-                    }
+                if (root.TryGetProperty("overrides", out var ovrEl) &&
+                    ovrEl.ValueKind == JsonValueKind.Object)
+                {
+                    ParseOverrides(ovrEl);
                 }
             }
             catch

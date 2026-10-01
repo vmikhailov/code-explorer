@@ -116,17 +116,16 @@ public class ApiServerTests
 
         var json = await response.Content.ReadAsStringAsync();
 
-        using (var doc = JsonDocument.Parse(json))
-        {
-            var root = doc.RootElement;
+        using var doc = JsonDocument.Parse(json);
 
-            Assert.That(root.GetProperty("service").GetString(), Is.EqualTo("CodeExplorer API Server"));
+        var root = doc.RootElement;
 
-            Assert.That(root.TryGetProperty("version", out var version) && !string.IsNullOrEmpty(version.GetString()),
-                Is.True);
-            Assert.That(root.GetProperty("wsEndpoint").GetString(), Is.EqualTo("/ws"));
-            Assert.That(root.GetProperty("workspace").GetString(), Is.EqualTo(_tempWorkspace));
-        }
+        Assert.That(root.GetProperty("service").GetString(), Is.EqualTo("CodeExplorer API Server"));
+
+        Assert.That(root.TryGetProperty("version", out var version) && !string.IsNullOrEmpty(version.GetString()),
+            Is.True);
+        Assert.That(root.GetProperty("wsEndpoint").GetString(), Is.EqualTo("/ws"));
+        Assert.That(root.GetProperty("workspace").GetString(), Is.EqualTo(_tempWorkspace));
     }
 
     [Test]
@@ -137,15 +136,14 @@ public class ApiServerTests
 
         var json = await response.Content.ReadAsStringAsync();
 
-        using (var doc = JsonDocument.Parse(json))
-        {
-            var root = doc.RootElement;
+        using var doc = JsonDocument.Parse(json);
 
-            Assert.That(root.GetProperty("status").GetString(), Is.EqualTo("ok"));
-            Assert.That(root.GetProperty("workspace").GetString(), Is.EqualTo(_tempWorkspace));
-            Assert.That(root.TryGetProperty("nodes", out _), Is.True);
-            Assert.That(root.TryGetProperty("edges", out _), Is.True);
-        }
+        var root = doc.RootElement;
+
+        Assert.That(root.GetProperty("status").GetString(), Is.EqualTo("ok"));
+        Assert.That(root.GetProperty("workspace").GetString(), Is.EqualTo(_tempWorkspace));
+        Assert.That(root.TryGetProperty("nodes", out _), Is.True);
+        Assert.That(root.TryGetProperty("edges", out _), Is.True);
     }
 
     [Test]
@@ -156,14 +154,13 @@ public class ApiServerTests
 
         var json = await response.Content.ReadAsStringAsync();
 
-        using (var doc = JsonDocument.Parse(json))
-        {
-            var root = doc.RootElement;
+        using var doc = JsonDocument.Parse(json);
 
-            Assert.That(root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array, Is.True);
-            Assert.That(root.TryGetProperty("edges", out var edges) && edges.ValueKind == JsonValueKind.Array, Is.True);
-            Assert.That(nodes.GetArrayLength(), Is.GreaterThan(0));
-        }
+        var root = doc.RootElement;
+
+        Assert.That(root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array, Is.True);
+        Assert.That(root.TryGetProperty("edges", out var edges) && edges.ValueKind == JsonValueKind.Array, Is.True);
+        Assert.That(nodes.GetArrayLength(), Is.GreaterThan(0));
     }
 
     [Test]
@@ -174,13 +171,12 @@ public class ApiServerTests
 
         var json = await response.Content.ReadAsStringAsync();
 
-        using (var doc = JsonDocument.Parse(json))
-        {
-            var root = doc.RootElement;
+        using var doc = JsonDocument.Parse(json);
 
-            Assert.That(root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array, Is.True);
-            Assert.That(nodes.GetArrayLength(), Is.GreaterThan(0));
-        }
+        var root = doc.RootElement;
+
+        Assert.That(root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array, Is.True);
+        Assert.That(nodes.GetArrayLength(), Is.GreaterThan(0));
     }
 
     [Test]
@@ -191,14 +187,13 @@ public class ApiServerTests
 
         var json = await response.Content.ReadAsStringAsync();
 
-        using (var doc = JsonDocument.Parse(json))
-        {
-            Assert.That(doc.RootElement.ValueKind, Is.EqualTo(JsonValueKind.Array));
-            Assert.That(doc.RootElement.GetArrayLength(), Is.GreaterThan(0));
+        using var doc = JsonDocument.Parse(json);
 
-            var first = doc.RootElement[0];
-            Assert.That(first.GetString(), Is.EqualTo("SampleProject"));
-        }
+        Assert.That(doc.RootElement.ValueKind, Is.EqualTo(JsonValueKind.Array));
+        Assert.That(doc.RootElement.GetArrayLength(), Is.GreaterThan(0));
+
+        var first = doc.RootElement[0];
+        Assert.That(first.GetString(), Is.EqualTo("SampleProject"));
     }
 
     [Test]
@@ -209,14 +204,13 @@ public class ApiServerTests
 
         var json = await response.Content.ReadAsStringAsync();
 
-        using (var doc = JsonDocument.Parse(json))
-        {
-            var root = doc.RootElement;
+        using var doc = JsonDocument.Parse(json);
 
-            Assert.That(root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array, Is.True);
-            Assert.That(root.TryGetProperty("edges", out var edges) && edges.ValueKind == JsonValueKind.Array, Is.True);
-            Assert.That(root.TryGetProperty("metadata", out _), Is.True);
-        }
+        var root = doc.RootElement;
+
+        Assert.That(root.TryGetProperty("nodes", out var nodes) && nodes.ValueKind == JsonValueKind.Array, Is.True);
+        Assert.That(root.TryGetProperty("edges", out var edges) && edges.ValueKind == JsonValueKind.Array, Is.True);
+        Assert.That(root.TryGetProperty("metadata", out _), Is.True);
     }
 
     [Test]
@@ -242,226 +236,218 @@ public class ApiServerTests
     [Test]
     public async Task WebSocket_HandshakeAndPing_Succeeds()
     {
-        using (var ws = new ClientWebSocket())
+        using var ws = new ClientWebSocket();
+
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+        Assert.That(ws.State, Is.EqualTo(WebSocketState.Open));
+
+        var hsReq = new WsEnvelope<HandshakeRequestDto>
         {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
-            Assert.That(ws.State, Is.EqualTo(WebSocketState.Open));
+            Type = WsMessageTypes.HandshakeRequest,
+            RequestId = "hs-1",
+            Payload = new HandshakeRequestDto { ClientName = "test-suite", ClientVersion = "1.0.0" }
+        };
+        await SendJsonAsync(ws, hsReq);
+        var hsResp = await ReceiveJsonAsync<HandshakeResponseDto>(ws);
 
-            var hsReq = new WsEnvelope<HandshakeRequestDto>
-            {
-                Type = WsMessageTypes.HandshakeRequest,
-                RequestId = "hs-1",
-                Payload = new HandshakeRequestDto { ClientName = "test-suite", ClientVersion = "1.0.0" }
-            };
-            await SendJsonAsync(ws, hsReq);
-            var hsResp = await ReceiveJsonAsync<HandshakeResponseDto>(ws);
+        Assert.That(hsResp, Is.Not.Null);
+        Assert.That(hsResp.Type, Is.EqualTo(WsMessageTypes.HandshakeResponse));
+        Assert.That(hsResp.RequestId, Is.EqualTo("hs-1"));
+        Assert.That(hsResp.Payload?.Capabilities, Does.Contain("architecture"));
+        Assert.That(hsResp.Payload?.Capabilities, Does.Contain("cypher"));
+        Assert.That(hsResp.Payload?.TotalNodes, Is.GreaterThan(0));
 
-            Assert.That(hsResp, Is.Not.Null);
-            Assert.That(hsResp.Type, Is.EqualTo(WsMessageTypes.HandshakeResponse));
-            Assert.That(hsResp.RequestId, Is.EqualTo("hs-1"));
-            Assert.That(hsResp.Payload?.Capabilities, Does.Contain("architecture"));
-            Assert.That(hsResp.Payload?.Capabilities, Does.Contain("cypher"));
-            Assert.That(hsResp.Payload?.TotalNodes, Is.GreaterThan(0));
+        var pingReq = new WsEnvelope<PingRequestDto>
+        {
+            Type = WsMessageTypes.PingRequest,
+            RequestId = "ping-1",
+            Payload = new PingRequestDto { Timestamp = 999888777 }
+        };
+        await SendJsonAsync(ws, pingReq);
+        var pingResp = await ReceiveJsonAsync<PongResponseDto>(ws);
 
-            var pingReq = new WsEnvelope<PingRequestDto>
-            {
-                Type = WsMessageTypes.PingRequest,
-                RequestId = "ping-1",
-                Payload = new PingRequestDto { Timestamp = 999888777 }
-            };
-            await SendJsonAsync(ws, pingReq);
-            var pingResp = await ReceiveJsonAsync<PongResponseDto>(ws);
+        Assert.That(pingResp, Is.Not.Null);
+        Assert.That(pingResp.Type, Is.EqualTo(WsMessageTypes.PongResponse));
+        Assert.That(pingResp.Payload?.ClientTimestamp, Is.EqualTo(999888777));
+        Assert.That(pingResp.Payload?.ServerTimestamp, Is.GreaterThan(0));
 
-            Assert.That(pingResp, Is.Not.Null);
-            Assert.That(pingResp.Type, Is.EqualTo(WsMessageTypes.PongResponse));
-            Assert.That(pingResp.Payload?.ClientTimestamp, Is.EqualTo(999888777));
-            Assert.That(pingResp.Payload?.ServerTimestamp, Is.GreaterThan(0));
-
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        }
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
     public async Task WebSocket_ExecuteCypher_ValidQuery_ReturnsResults()
     {
-        using (var ws = new ClientWebSocket())
+        using var ws = new ClientWebSocket();
+
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+
+        var req = new WsEnvelope<ExecuteCypherRequestDto>
         {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
-
-            var req = new WsEnvelope<ExecuteCypherRequestDto>
+            Type = WsMessageTypes.ExecuteCypherRequest,
+            RequestId = "cypher-1",
+            Payload = new ExecuteCypherRequestDto
             {
-                Type = WsMessageTypes.ExecuteCypherRequest,
-                RequestId = "cypher-1",
-                Payload = new ExecuteCypherRequestDto
-                {
-                    Query = "MATCH (p:Project) RETURN p.name AS name, p.language AS language"
-                }
-            };
+                Query = "MATCH (p:Project) RETURN p.name AS name, p.language AS language"
+            }
+        };
 
-            await SendJsonAsync(ws, req);
-            var resp = await ReceiveJsonAsync<QueryResponseDto>(ws);
+        await SendJsonAsync(ws, req);
+        var resp = await ReceiveJsonAsync<QueryResponseDto>(ws);
 
-            Assert.That(resp, Is.Not.Null);
-            Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
-            Assert.That(resp.Payload?.Success, Is.True);
-            Assert.That(resp.Payload?.RawJson, Does.Contain("SampleProject"));
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
+        Assert.That(resp.Payload?.Success, Is.True);
+        Assert.That(resp.Payload?.RawJson, Does.Contain("SampleProject"));
 
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        }
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
     public async Task WebSocket_ExecuteCypher_EmptyQuery_ReturnsInvalidQueryError()
     {
-        using (var ws = new ClientWebSocket())
+        using var ws = new ClientWebSocket();
+
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+
+        var req = new WsEnvelope<ExecuteCypherRequestDto>
         {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+            Type = WsMessageTypes.ExecuteCypherRequest,
+            RequestId = "cypher-empty",
+            Payload = new ExecuteCypherRequestDto { Query = "   " }
+        };
 
-            var req = new WsEnvelope<ExecuteCypherRequestDto>
-            {
-                Type = WsMessageTypes.ExecuteCypherRequest,
-                RequestId = "cypher-empty",
-                Payload = new ExecuteCypherRequestDto { Query = "   " }
-            };
+        await SendJsonAsync(ws, req);
+        var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
 
-            await SendJsonAsync(ws, req);
-            var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
+        Assert.That(resp.Payload?.Code, Is.EqualTo("INVALID_QUERY"));
 
-            Assert.That(resp, Is.Not.Null);
-            Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
-            Assert.That(resp.Payload?.Code, Is.EqualTo("INVALID_QUERY"));
-
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        }
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
     public async Task WebSocket_ExecuteCypher_MalformedQuery_ReturnsExecutionError()
     {
-        using (var ws = new ClientWebSocket())
+        using var ws = new ClientWebSocket();
+
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+
+        var req = new WsEnvelope<ExecuteCypherRequestDto>
         {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+            Type = WsMessageTypes.ExecuteCypherRequest,
+            RequestId = "cypher-malformed",
+            Payload = new ExecuteCypherRequestDto { Query = "THIS IS NOT VALID CYPHER SYNTAX !!!" }
+        };
 
-            var req = new WsEnvelope<ExecuteCypherRequestDto>
-            {
-                Type = WsMessageTypes.ExecuteCypherRequest,
-                RequestId = "cypher-malformed",
-                Payload = new ExecuteCypherRequestDto { Query = "THIS IS NOT VALID CYPHER SYNTAX !!!" }
-            };
+        await SendJsonAsync(ws, req);
+        var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
 
-            await SendJsonAsync(ws, req);
-            var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
+        Assert.That(resp.Payload?.Code, Is.EqualTo("EXECUTION_ERROR"));
 
-            Assert.That(resp, Is.Not.Null);
-            Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
-            Assert.That(resp.Payload?.Code, Is.EqualTo("EXECUTION_ERROR"));
-
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        }
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
     public async Task WebSocket_MalformedJson_ReturnsParseError()
     {
-        using (var ws = new ClientWebSocket())
-        {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+        using var ws = new ClientWebSocket();
 
-            var badJsonBytes = Encoding.UTF8.GetBytes("{ this is not: valid json }");
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
 
-            await ws.SendAsync(new ArraySegment<byte>(badJsonBytes), WebSocketMessageType.Text, true,
-                CancellationToken.None);
+        var badJsonBytes = Encoding.UTF8.GetBytes("{ this is not: valid json }");
 
-            var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
-            Assert.That(resp, Is.Not.Null);
-            Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
-            Assert.That(resp.Payload?.Code, Is.EqualTo("PARSE_ERROR"));
+        await ws.SendAsync(new ArraySegment<byte>(badJsonBytes), WebSocketMessageType.Text, true,
+            CancellationToken.None);
 
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        }
+        var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
+        Assert.That(resp.Payload?.Code, Is.EqualTo("PARSE_ERROR"));
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
     public async Task WebSocket_MissingEnvelopeType_ReturnsInvalidMessageError()
     {
-        using (var ws = new ClientWebSocket())
-        {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+        using var ws = new ClientWebSocket();
 
-            var noTypeJson = Encoding.UTF8.GetBytes("{\"requestId\":\"no-type-1\"}");
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
 
-            await ws.SendAsync(new ArraySegment<byte>(noTypeJson), WebSocketMessageType.Text, true,
-                CancellationToken.None);
+        var noTypeJson = Encoding.UTF8.GetBytes("{\"requestId\":\"no-type-1\"}");
 
-            var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
-            Assert.That(resp, Is.Not.Null);
-            Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
-            Assert.That(resp.Payload?.Code, Is.EqualTo("INVALID_MESSAGE"));
+        await ws.SendAsync(new ArraySegment<byte>(noTypeJson), WebSocketMessageType.Text, true,
+            CancellationToken.None);
 
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        }
+        var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
+        Assert.That(resp.Payload?.Code, Is.EqualTo("INVALID_MESSAGE"));
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
     public async Task WebSocket_UnknownMessageType_ReturnsUnknownTypeError()
     {
-        using (var ws = new ClientWebSocket())
+        using var ws = new ClientWebSocket();
+
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+
+        var unknownMsg = new WsEnvelope<object>
         {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+            Type = "UNSUPPORTED_RANDOM_ACTION", RequestId = "unknown-1", Payload = new { foo = "bar" }
+        };
+        await SendJsonAsync(ws, unknownMsg);
 
-            var unknownMsg = new WsEnvelope<object>
-            {
-                Type = "UNSUPPORTED_RANDOM_ACTION", RequestId = "unknown-1", Payload = new { foo = "bar" }
-            };
-            await SendJsonAsync(ws, unknownMsg);
+        var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
+        Assert.That(resp.Payload?.Code, Is.EqualTo("UNKNOWN_TYPE"));
 
-            var resp = await ReceiveJsonAsync<ErrorResponseDto>(ws);
-            Assert.That(resp, Is.Not.Null);
-            Assert.That(resp.Type, Is.EqualTo(WsMessageTypes.ErrorResponse));
-            Assert.That(resp.Payload?.Code, Is.EqualTo("UNKNOWN_TYPE"));
-
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        }
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
     public async Task WebSocket_GetCallChainAndImpact_Succeeds()
     {
-        using (var ws = new ClientWebSocket())
+        using var ws = new ClientWebSocket();
+
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+
+        // GET_CALL_CHAIN
+        var callReq = new WsEnvelope<GetCallChainRequestDto>
         {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
-
-            // GET_CALL_CHAIN
-            var callReq = new WsEnvelope<GetCallChainRequestDto>
+            Type = WsMessageTypes.GetCallChainRequest,
+            RequestId = "call-1",
+            Payload = new GetCallChainRequestDto
             {
-                Type = WsMessageTypes.GetCallChainRequest,
-                RequestId = "call-1",
-                Payload = new GetCallChainRequestDto
-                {
-                    FromSymbol = "OrdersController", ToSymbol = "chargeOrder", MaxDepth = 3
-                }
-            };
-            await SendJsonAsync(ws, callReq);
-            var callResp = await ReceiveJsonAsync<QueryResponseDto>(ws);
-            Assert.That(callResp, Is.Not.Null);
-            Assert.That(callResp.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
-            Assert.That(callResp.Payload?.Success, Is.True);
+                FromSymbol = "OrdersController", ToSymbol = "chargeOrder", MaxDepth = 3
+            }
+        };
+        await SendJsonAsync(ws, callReq);
+        var callResp = await ReceiveJsonAsync<QueryResponseDto>(ws);
+        Assert.That(callResp, Is.Not.Null);
+        Assert.That(callResp.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
+        Assert.That(callResp.Payload?.Success, Is.True);
 
-            // GET_IMPACT
-            var impactReq = new WsEnvelope<GetImpactRequestDto>
-            {
-                Type = WsMessageTypes.GetImpactRequest,
-                RequestId = "impact-1",
-                Payload = new GetImpactRequestDto { SymbolName = "OrdersController" }
-            };
-            await SendJsonAsync(ws, impactReq);
-            var impactResp = await ReceiveJsonAsync<QueryResponseDto>(ws);
-            Assert.That(impactResp, Is.Not.Null);
-            Assert.That(impactResp.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
-            Assert.That(impactResp.Payload?.Success, Is.True);
+        // GET_IMPACT
+        var impactReq = new WsEnvelope<GetImpactRequestDto>
+        {
+            Type = WsMessageTypes.GetImpactRequest,
+            RequestId = "impact-1",
+            Payload = new GetImpactRequestDto { SymbolName = "OrdersController" }
+        };
+        await SendJsonAsync(ws, impactReq);
+        var impactResp = await ReceiveJsonAsync<QueryResponseDto>(ws);
+        Assert.That(impactResp, Is.Not.Null);
+        Assert.That(impactResp.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
+        Assert.That(impactResp.Payload?.Success, Is.True);
 
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        }
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     // ==========================================
@@ -475,121 +461,118 @@ public class ApiServerTests
         // over the same connection without throwing:
         // "System.InvalidOperationException: There is already one outstanding 'SendAsync' call for this WebSocket instance"
 
-        using (var ws = new ClientWebSocket())
+        using var ws = new ClientWebSocket();
+
+        await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+
+        const int requestCount = 20;
+        var receiveLock = new SemaphoreSlim(1, 1);
+        var receivedResponses = new List<string>();
+
+        // Start background receiver
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+        var receiveTask = Task.Run(async () =>
         {
-            await ws.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+            var buffer = new byte[1024 * 32];
 
-            const int requestCount = 20;
-            var receiveLock = new SemaphoreSlim(1, 1);
-            var receivedResponses = new List<string>();
+            using var ms = new MemoryStream();
 
-            // Start background receiver
-            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-
-            var receiveTask = Task.Run(async () =>
+            while (!cts.Token.IsCancellationRequested && ws.State == WebSocketState.Open)
             {
-                var buffer = new byte[1024 * 32];
-
-                using (var ms = new MemoryStream())
-                {
-                    while (!cts.Token.IsCancellationRequested && ws.State == WebSocketState.Open)
-                    {
-                        ms.SetLength(0);
-                        WebSocketReceiveResult result;
-
-                        try
-                        {
-                            do
-                            {
-                                result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
-                                if (result.MessageType == WebSocketMessageType.Close) return;
-
-                                ms.Write(buffer, 0, result.Count);
-                            } while (!result.EndOfMessage);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            break;
-                        }
-                        catch (WebSocketException)
-                        {
-                            break;
-                        }
-
-                        if (ms.Length > 0)
-                        {
-                            var text = Encoding.UTF8.GetString(ms.ToArray());
-                            await receiveLock.WaitAsync();
-
-                            try
-                            {
-                                receivedResponses.Add(text);
-
-                                if (receivedResponses.Count >= requestCount)
-                                {
-                                    break;
-                                }
-                            }
-                            finally
-                            {
-                                receiveLock.Release();
-                            }
-                        }
-                    }
-                }
-            }, cts.Token);
-
-            // Send 20 requests concurrently over the SAME socket instance
-            var clientSendLock = new SemaphoreSlim(1, 1);
-
-            var sendTasks = Enumerable.Range(0, requestCount).Select(async i =>
-            {
-                var reqId = $"concurrent-{i}";
-
-                var envelope = new WsEnvelope<PingRequestDto>
-                {
-                    Type = WsMessageTypes.PingRequest,
-                    RequestId = reqId,
-                    Payload = new PingRequestDto { Timestamp = i }
-                };
-
-                var json = JsonSerializer.Serialize(envelope,
-                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-                var bytes = Encoding.UTF8.GetBytes(json);
-
-                // Client-side send also uses a lock to avoid client-side concurrency exception
-                await clientSendLock.WaitAsync();
+                ms.SetLength(0);
+                WebSocketReceiveResult result;
 
                 try
                 {
-                    await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true,
-                        CancellationToken.None);
+                    do
+                    {
+                        result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+                        if (result.MessageType == WebSocketMessageType.Close) return;
+
+                        ms.Write(buffer, 0, result.Count);
+                    } while (!result.EndOfMessage);
                 }
-                finally
+                catch (OperationCanceledException)
                 {
-                    clientSendLock.Release();
+                    break;
                 }
-            });
-
-            await Task.WhenAll(sendTasks);
-
-            // Wait for all responses to arrive
-            await receiveTask;
-
-            Assert.That(receivedResponses.Count, Is.EqualTo(requestCount),
-                $"Expected {requestCount} responses without server send collision, received {receivedResponses.Count}");
-
-            foreach (var respJson in receivedResponses)
-            {
-                using (var doc = JsonDocument.Parse(respJson))
+                catch (WebSocketException)
                 {
-                    Assert.That(doc.RootElement.GetProperty("type").GetString(),
-                        Is.EqualTo(WsMessageTypes.PongResponse));
+                    break;
+                }
+
+                if (ms.Length > 0)
+                {
+                    var text = Encoding.UTF8.GetString(ms.ToArray());
+                    await receiveLock.WaitAsync();
+
+                    try
+                    {
+                        receivedResponses.Add(text);
+
+                        if (receivedResponses.Count >= requestCount)
+                        {
+                            break;
+                        }
+                    }
+                    finally
+                    {
+                        receiveLock.Release();
+                    }
                 }
             }
+        }, cts.Token);
 
-            await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+        // Send 20 requests concurrently over the SAME socket instance
+        var clientSendLock = new SemaphoreSlim(1, 1);
+
+        var sendTasks = Enumerable.Range(0, requestCount).Select(async i =>
+        {
+            var reqId = $"concurrent-{i}";
+
+            var envelope = new WsEnvelope<PingRequestDto>
+            {
+                Type = WsMessageTypes.PingRequest,
+                RequestId = reqId,
+                Payload = new PingRequestDto { Timestamp = i }
+            };
+
+            var json = JsonSerializer.Serialize(envelope,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var bytes = Encoding.UTF8.GetBytes(json);
+
+            // Client-side send also uses a lock to avoid client-side concurrency exception
+            await clientSendLock.WaitAsync();
+
+            try
+            {
+                await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true,
+                    CancellationToken.None);
+            }
+            finally
+            {
+                clientSendLock.Release();
+            }
+        });
+
+        await Task.WhenAll(sendTasks);
+
+        // Wait for all responses to arrive
+        await receiveTask;
+
+        Assert.That(receivedResponses.Count, Is.EqualTo(requestCount),
+            $"Expected {requestCount} responses without server send collision, received {receivedResponses.Count}");
+
+        foreach (var respJson in receivedResponses)
+        {
+            using var doc = JsonDocument.Parse(respJson);
+
+            Assert.That(doc.RootElement.GetProperty("type").GetString(),
+                Is.EqualTo(WsMessageTypes.PongResponse));
         }
+
+        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
@@ -597,99 +580,94 @@ public class ApiServerTests
     {
         // Connect a client and abruptly abort it without clean close handshake
 
-        using (var clientAbrupt = new ClientWebSocket())
+        using var clientAbrupt = new ClientWebSocket();
+
+        await clientAbrupt.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+
+        var prePing = new WsEnvelope<PingRequestDto>
         {
-            await clientAbrupt.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+            Type = WsMessageTypes.PingRequest,
+            RequestId = "pre-abort-ping",
+            Payload = new PingRequestDto { Timestamp = 1 }
+        };
+        await SendJsonAsync(clientAbrupt, prePing);
+        var preResp = await ReceiveJsonAsync<PongResponseDto>(clientAbrupt);
+        Assert.That(preResp.Payload?.ClientTimestamp, Is.EqualTo(1));
+        Assert.That(_wsHandler.ActiveSessionsCount, Is.GreaterThan(0));
 
-            var prePing = new WsEnvelope<PingRequestDto>
-            {
-                Type = WsMessageTypes.PingRequest,
-                RequestId = "pre-abort-ping",
-                Payload = new PingRequestDto { Timestamp = 1 }
-            };
-            await SendJsonAsync(clientAbrupt, prePing);
-            var preResp = await ReceiveJsonAsync<PongResponseDto>(clientAbrupt);
-            Assert.That(preResp.Payload?.ClientTimestamp, Is.EqualTo(1));
-            Assert.That(_wsHandler.ActiveSessionsCount, Is.GreaterThan(0));
+        // Abruptly abort connection
+        clientAbrupt.Abort();
 
-            // Abruptly abort connection
-            clientAbrupt.Abort();
+        // Allow handler loop to process disconnect
+        await Task.Delay(200);
 
-            // Allow handler loop to process disconnect
-            await Task.Delay(200);
+        // Now verify that a NEW client can connect and operate normally
 
-            // Now verify that a NEW client can connect and operate normally
+        using var clientHealthy = new ClientWebSocket();
 
-            using (var clientHealthy = new ClientWebSocket())
-            {
-                await clientHealthy.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
-                Assert.That(clientHealthy.State, Is.EqualTo(WebSocketState.Open));
+        await clientHealthy.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+        Assert.That(clientHealthy.State, Is.EqualTo(WebSocketState.Open));
 
-                var ping = new WsEnvelope<PingRequestDto>
-                {
-                    Type = WsMessageTypes.PingRequest,
-                    RequestId = "post-abort-ping",
-                    Payload = new PingRequestDto { Timestamp = 42 }
-                };
-                await SendJsonAsync(clientHealthy, ping);
-                var resp = await ReceiveJsonAsync<PongResponseDto>(clientHealthy);
+        var ping = new WsEnvelope<PingRequestDto>
+        {
+            Type = WsMessageTypes.PingRequest,
+            RequestId = "post-abort-ping",
+            Payload = new PingRequestDto { Timestamp = 42 }
+        };
+        await SendJsonAsync(clientHealthy, ping);
+        var resp = await ReceiveJsonAsync<PongResponseDto>(clientHealthy);
 
-                Assert.That(resp, Is.Not.Null);
-                Assert.That(resp.Payload?.ClientTimestamp, Is.EqualTo(42));
+        Assert.That(resp, Is.Not.Null);
+        Assert.That(resp.Payload?.ClientTimestamp, Is.EqualTo(42));
 
-                await clientHealthy.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-            }
-        }
+        await clientHealthy.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     [Test]
     public async Task WebSocket_MultipleSimultaneousClients_TracksActiveSessionCount()
     {
-        using (var client1 = new ClientWebSocket())
+        using var client1 = new ClientWebSocket();
+
+        using var client2 = new ClientWebSocket();
+
+        using var client3 = new ClientWebSocket();
+
+        await client1.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+        await client2.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+        await client3.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+
+        Assert.That(_wsHandler.ActiveSessionsCount, Is.GreaterThanOrEqualTo(3));
+
+        // Ping from all three
+        var tasks = new[] { client1, client2, client3 }.Select(async (ws, idx) =>
         {
-            using (var client2 = new ClientWebSocket())
+            var req = new WsEnvelope<PingRequestDto>
             {
-                using (var client3 = new ClientWebSocket())
-                {
-                    await client1.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
-                    await client2.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
-                    await client3.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
+                Type = WsMessageTypes.PingRequest,
+                RequestId = $"multi-{idx}",
+                Payload = new PingRequestDto { Timestamp = idx }
+            };
+            await SendJsonAsync(ws, req);
+            var resp = await ReceiveJsonAsync<PongResponseDto>(ws);
+            Assert.That(resp.Payload?.ClientTimestamp, Is.EqualTo(idx));
+        });
 
-                    Assert.That(_wsHandler.ActiveSessionsCount, Is.GreaterThanOrEqualTo(3));
+        await Task.WhenAll(tasks);
 
-                    // Ping from all three
-                    var tasks = new[] { client1, client2, client3 }.Select(async (ws, idx) =>
-                    {
-                        var req = new WsEnvelope<PingRequestDto>
-                        {
-                            Type = WsMessageTypes.PingRequest,
-                            RequestId = $"multi-{idx}",
-                            Payload = new PingRequestDto { Timestamp = idx }
-                        };
-                        await SendJsonAsync(ws, req);
-                        var resp = await ReceiveJsonAsync<PongResponseDto>(ws);
-                        Assert.That(resp.Payload?.ClientTimestamp, Is.EqualTo(idx));
-                    });
+        // Broadcast test
+        await _wsHandler.BroadcastAsync("TEST_BROADCAST", new { testMessage = "broadcast-all" });
 
-                    await Task.WhenAll(tasks);
+        // Read broadcast from client1
+        var broadcastEnvelope = await ReceiveJsonAsync<JsonElement>(client1);
+        Assert.That(broadcastEnvelope.Type, Is.EqualTo("TEST_BROADCAST"));
 
-                    // Broadcast test
-                    await _wsHandler.BroadcastAsync("TEST_BROADCAST", new { testMessage = "broadcast-all" });
+        // Close client 3
+        await client3.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+        await Task.Delay(150);
 
-                    // Read broadcast from client1
-                    var broadcastEnvelope = await ReceiveJsonAsync<JsonElement>(client1);
-                    Assert.That(broadcastEnvelope.Type, Is.EqualTo("TEST_BROADCAST"));
-
-                    // Close client 3
-                    await client3.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-                    await Task.Delay(150);
-
-                    // Close remaining
-                    await client1.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-                    await client2.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-                }
-            }
-        }
+        // Close remaining
+        await client1.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+        await client2.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
 
     // ==========================================
@@ -707,23 +685,22 @@ public class ApiServerTests
     {
         var buffer = new byte[1024 * 32];
 
-        using (var ms = new MemoryStream())
+        using var ms = new MemoryStream();
+
+        WebSocketReceiveResult result;
+
+        do
         {
-            WebSocketReceiveResult result;
+            result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+            ms.Write(buffer, 0, result.Count);
+        } while (!result.EndOfMessage);
 
-            do
+        var json = Encoding.UTF8.GetString(ms.ToArray());
+
+        return JsonSerializer.Deserialize<WsEnvelope<T>>(json,
+            new JsonSerializerOptions
             {
-                result = await ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                ms.Write(buffer, 0, result.Count);
-            } while (!result.EndOfMessage);
-
-            var json = Encoding.UTF8.GetString(ms.ToArray());
-
-            return JsonSerializer.Deserialize<WsEnvelope<T>>(json,
-                new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true
-                })!;
-        }
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true
+            })!;
     }
 }

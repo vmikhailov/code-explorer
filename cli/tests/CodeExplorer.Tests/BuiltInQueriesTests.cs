@@ -99,14 +99,13 @@ export class OrdersController {
         var query = Queries.Get("get_project_entry_points");
         var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["projectName"] = "ProjectB" });
 
-        using (var doc = JsonDocument.Parse(res))
-        {
-            var array = doc.RootElement.EnumerateArray().ToList();
+        using var doc = JsonDocument.Parse(res);
 
-            Assert.That(array.Count, Is.GreaterThan(0), "get_project_entry_points returned 0 rows for ProjectB!");
-            var names = array.Select(x => x.GetProperty("entryPoint").GetString()).ToList();
-            Assert.That(names, Does.Contain("chargeOrder").Or.Contain("getOrderStatus"));
-        }
+        var array = doc.RootElement.EnumerateArray().ToList();
+
+        Assert.That(array.Count, Is.GreaterThan(0), "get_project_entry_points returned 0 rows for ProjectB!");
+        var names = array.Select(x => x.GetProperty("entryPoint").GetString()).ToList();
+        Assert.That(names, Does.Contain("chargeOrder").Or.Contain("getOrderStatus"));
     }
 
     [Test]
@@ -115,14 +114,13 @@ export class OrdersController {
         var query = Queries.Get("find_refactor_god_objects");
         var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["projectName"] = "ProjectA" });
 
-        using (var doc = JsonDocument.Parse(res))
-        {
-            var array = doc.RootElement.EnumerateArray().ToList();
+        using var doc = JsonDocument.Parse(res);
 
-            Assert.That(array.Count, Is.GreaterThan(0), "find_refactor_god_objects returned 0 rows for ProjectA!");
-            var firstName = array[0].GetProperty("name").GetString();
-            Assert.That(firstName, Is.EqualTo("OrderGodObject"));
-        }
+        var array = doc.RootElement.EnumerateArray().ToList();
+
+        Assert.That(array.Count, Is.GreaterThan(0), "find_refactor_god_objects returned 0 rows for ProjectA!");
+        var firstName = array[0].GetProperty("name").GetString();
+        Assert.That(firstName, Is.EqualTo("OrderGodObject"));
     }
 
     [Test]
@@ -131,14 +129,13 @@ export class OrdersController {
         var query = Queries.Get("find_refactor_dead_code");
         var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["projectName"] = "ProjectA" });
 
-        using (var doc = JsonDocument.Parse(res))
-        {
-            var array = doc.RootElement.EnumerateArray().ToList();
+        using var doc = JsonDocument.Parse(res);
 
-            Assert.That(array.Count, Is.GreaterThan(0), "find_refactor_dead_code returned 0 rows for ProjectA!");
-            var names = array.Select(x => x.GetProperty("name").GetString()).ToList();
-            Assert.That(names, Does.Contain("DeadClass").Or.Contain("UnusedMethod"));
-        }
+        var array = doc.RootElement.EnumerateArray().ToList();
+
+        Assert.That(array.Count, Is.GreaterThan(0), "find_refactor_dead_code returned 0 rows for ProjectA!");
+        var names = array.Select(x => x.GetProperty("name").GetString()).ToList();
+        Assert.That(names, Does.Contain("DeadClass").Or.Contain("UnusedMethod"));
     }
 
     [Test]
@@ -147,14 +144,13 @@ export class OrdersController {
         var query = Queries.Get("get_file_outline");
         var res = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["filePath"] = "OrdersController.ts" });
 
-        using (var doc = JsonDocument.Parse(res))
-        {
-            var array = doc.RootElement.EnumerateArray().ToList();
+        using var doc = JsonDocument.Parse(res);
 
-            Assert.That(array.Count, Is.GreaterThan(0), "get_file_outline returned 0 rows for OrdersController.ts!");
-            var names = array.Select(x => x.GetProperty("name").GetString()).ToList();
-            Assert.That(names, Does.Contain("OrdersController"));
-        }
+        var array = doc.RootElement.EnumerateArray().ToList();
+
+        Assert.That(array.Count, Is.GreaterThan(0), "get_file_outline returned 0 rows for OrdersController.ts!");
+        var names = array.Select(x => x.GetProperty("name").GetString()).ToList();
+        Assert.That(names, Does.Contain("OrdersController"));
     }
 
     [Test]

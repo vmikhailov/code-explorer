@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 

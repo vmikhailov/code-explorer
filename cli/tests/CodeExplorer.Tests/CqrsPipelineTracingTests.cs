@@ -3,7 +3,6 @@ using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Java;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -68,29 +67,27 @@ public class CqrsPipelineTracingTests
 
         var dbPath = Path.Combine(_tempDir, "test_mediatr.db").Replace('\\', '/');
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new CSharpParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            // Execute trace_cqrs_pipeline query
-            var query = """
-                        MATCH (topic:Topic)-[:PUBLISHED_BY]->(pub), (topic)-[:SUBSCRIBED_BY]->(sub)
-                        RETURN pub.name AS producer, topic.name AS message, topic.broker_type AS broker, sub.name AS consumer
-                        """;
-            var resultJson = await client.ExecuteQueryAsync(query);
+        WorkspaceIndexer.Register(new CSharpParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-            using (var doc = JsonDocument.Parse(resultJson))
-            {
-                var rows = doc.RootElement.EnumerateArray().ToList();
+        // Execute trace_cqrs_pipeline query
+        var query = """
+                    MATCH (topic:Topic)-[:PUBLISHED_BY]->(pub), (topic)-[:SUBSCRIBED_BY]->(sub)
+                    RETURN pub.name AS producer, topic.name AS message, topic.broker_type AS broker, sub.name AS consumer
+                    """;
+        var resultJson = await client.ExecuteQueryAsync(query);
 
-                Assert.That(rows.Count, Is.GreaterThan(0), "MediatR message pipeline should be traceable");
+        using var doc = JsonDocument.Parse(resultJson);
 
-                Assert.That(rows.Any(r => r.GetProperty("message").GetString() == "OrderCreatedEvent"), Is.True,
-                    "OrderCreatedEvent topic should connect publisher to subscriber");
-            }
-        }
+        var rows = doc.RootElement.EnumerateArray().ToList();
+
+        Assert.That(rows.Count, Is.GreaterThan(0), "MediatR message pipeline should be traceable");
+
+        Assert.That(rows.Any(r => r.GetProperty("message").GetString() == "OrderCreatedEvent"), Is.True,
+            "OrderCreatedEvent topic should connect publisher to subscriber");
     }
 
     [Test]
@@ -130,30 +127,28 @@ public class CqrsPipelineTracingTests
 
         var dbPath = Path.Combine(_tempDir, "test_spring_events.db").Replace('\\', '/');
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new JavaParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            var query = """
-                        MATCH (topic:Topic)-[:PUBLISHED_BY]->(pub), (topic)-[:SUBSCRIBED_BY]->(sub)
-                        RETURN pub.name AS producer, topic.name AS message, topic.broker_type AS broker, sub.name AS consumer
-                        """;
-            var resultJson = await client.ExecuteQueryAsync(query);
+        WorkspaceIndexer.Register(new JavaParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-            using (var doc = JsonDocument.Parse(resultJson))
-            {
-                var rows = doc.RootElement.EnumerateArray().ToList();
+        var query = """
+                    MATCH (topic:Topic)-[:PUBLISHED_BY]->(pub), (topic)-[:SUBSCRIBED_BY]->(sub)
+                    RETURN pub.name AS producer, topic.name AS message, topic.broker_type AS broker, sub.name AS consumer
+                    """;
+        var resultJson = await client.ExecuteQueryAsync(query);
 
-                Assert.That(rows.Count, Is.GreaterThan(0),
-                    "Spring Events pipeline should connect publisher to @EventListener subscriber");
+        using var doc = JsonDocument.Parse(resultJson);
 
-                Assert.That(
-                    rows.Any(r =>
-                        r.GetProperty("message").GetString() == "OrderCreatedEvent" &&
-                        r.GetProperty("broker").GetString() == "spring"), Is.True);
-            }
-        }
+        var rows = doc.RootElement.EnumerateArray().ToList();
+
+        Assert.That(rows.Count, Is.GreaterThan(0),
+            "Spring Events pipeline should connect publisher to @EventListener subscriber");
+
+        Assert.That(
+            rows.Any(r =>
+                r.GetProperty("message").GetString() == "OrderCreatedEvent" &&
+                r.GetProperty("broker").GetString() == "spring"), Is.True);
     }
 }

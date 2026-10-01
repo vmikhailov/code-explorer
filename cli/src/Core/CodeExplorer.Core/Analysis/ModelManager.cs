@@ -1,4 +1,3 @@
-using System.Net.Http;
 using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Core.Analysis;
@@ -110,63 +109,60 @@ public static class ModelManager
 
         try
         {
-            using (var httpClient = new HttpClient { Timeout = TimeSpan.FromHours(1) })
+            using var httpClient = new HttpClient { Timeout = TimeSpan.FromHours(1) };
+
+            using var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            response.EnsureSuccessStatusCode();
+
+            var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+
+            await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+            await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write,
+                             FileShare.None, 81920, true))
             {
-                using (var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead,
-                           cancellationToken))
+                var buffer = new byte[81920];
+                long downloadedBytes = 0;
+                int bytesRead;
+                var lastReportedMb = 0L;
+
+                while ((bytesRead = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
                 {
-                    response.EnsureSuccessStatusCode();
+                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                    downloadedBytes += bytesRead;
+                    progress?.Report((downloadedBytes, totalBytes));
 
-                    var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+                    var currentMb = downloadedBytes / (1024 * 1024);
 
-                    await using (var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken))
+                    if (currentMb - lastReportedMb >= 50)
                     {
-                        await using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write,
-                                         FileShare.None, 81920, true))
+                        lastReportedMb = currentMb;
+
+                        if (totalBytes > 0)
                         {
-                            var buffer = new byte[81920];
-                            long downloadedBytes = 0;
-                            int bytesRead;
-                            var lastReportedMb = 0L;
+                            var pct = (double)downloadedBytes / totalBytes * 100.0;
 
-                            while ((bytesRead = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
-                            {
-                                await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
-                                downloadedBytes += bytesRead;
-                                progress?.Report((downloadedBytes, totalBytes));
-
-                                var currentMb = downloadedBytes / (1024 * 1024);
-
-                                if (currentMb - lastReportedMb >= 50)
-                                {
-                                    lastReportedMb = currentMb;
-
-                                    if (totalBytes > 0)
-                                    {
-                                        var pct = (double)downloadedBytes / totalBytes * 100.0;
-
-                                        ctx?.Log(
-                                            $"[CodeIntent] Downloading model: {currentMb} MB / {totalBytes / (1024 * 1024)} MB ({pct:F0}%)...");
-                                    }
-                                    else
-                                    {
-                                        ctx?.Log($"[CodeIntent] Downloading model: {currentMb} MB...");
-                                    }
-                                }
-                            }
+                            ctx?.Log(
+                                $"[CodeIntent] Downloading model: {currentMb} MB / {totalBytes / (1024 * 1024)} MB ({pct:F0}%)...");
                         }
-
-                        if (File.Exists(destinationPath))
+                        else
                         {
-                            File.Delete(destinationPath);
+                            ctx?.Log($"[CodeIntent] Downloading model: {currentMb} MB...");
                         }
-
-                        File.Move(tempPath, destinationPath);
-                        ctx?.Log($"[CodeIntent] Successfully downloaded model to '{destinationPath}'.");
-                        return destinationPath;
                     }
                 }
             }
+
+            if (File.Exists(destinationPath))
+            {
+                File.Delete(destinationPath);
+            }
+
+            File.Move(tempPath, destinationPath);
+            ctx?.Log($"[CodeIntent] Successfully downloaded model to '{destinationPath}'.");
+            return destinationPath;
         }
         catch (Exception ex)
         {

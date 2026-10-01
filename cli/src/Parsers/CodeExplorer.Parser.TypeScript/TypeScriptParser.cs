@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -157,26 +156,25 @@ public class TypeScriptParser : IProjectParser, IFileParser
             {
                 var content = File.ReadAllText(packageJsonPath);
 
-                using (var doc = System.Text.Json.JsonDocument.Parse(content))
+                using var doc = System.Text.Json.JsonDocument.Parse(content);
+
+                if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
+                    nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
                 {
-                    if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
-                        nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    var rawName = nameProp.GetString();
+
+                    if (!string.IsNullOrWhiteSpace(rawName))
                     {
-                        var rawName = nameProp.GetString();
+                        var name = rawName.Trim();
 
-                        if (!string.IsNullOrWhiteSpace(rawName))
+                        if (name.StartsWith('@') && name.Contains('/'))
                         {
-                            var name = rawName.Trim();
+                            name = name[(name.IndexOf('/') + 1)..].Trim();
+                        }
 
-                            if (name.StartsWith('@') && name.Contains('/'))
-                            {
-                                name = name[(name.IndexOf('/') + 1)..].Trim();
-                            }
-
-                            if (!string.IsNullOrEmpty(name))
-                            {
-                                return name;
-                            }
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            return name;
                         }
                     }
                 }
@@ -212,21 +210,20 @@ public class TypeScriptParser : IProjectParser, IFileParser
             {
                 var content = File.ReadAllText(projectJsonPath);
 
-                using (var doc = System.Text.Json.JsonDocument.Parse(content))
-                {
-                    if (doc.RootElement.TryGetProperty("projectType", out var ptProp) &&
-                        ptProp.ValueKind == System.Text.Json.JsonValueKind.String)
-                    {
-                        var pt = ptProp.GetString()?.ToLowerInvariant();
+                using var doc = System.Text.Json.JsonDocument.Parse(content);
 
-                        if (pt == "library")
-                        {
-                            props["manifest_type"] = "library";
-                        }
-                        else if (pt == "application")
-                        {
-                            props["manifest_type"] = "application";
-                        }
+                if (doc.RootElement.TryGetProperty("projectType", out var ptProp) &&
+                    ptProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var pt = ptProp.GetString()?.ToLowerInvariant();
+
+                    if (pt == "library")
+                    {
+                        props["manifest_type"] = "library";
+                    }
+                    else if (pt == "application")
+                    {
+                        props["manifest_type"] = "application";
                     }
                 }
             }
@@ -253,152 +250,151 @@ public class TypeScriptParser : IProjectParser, IFileParser
             {
                 var content = File.ReadAllText(packageJsonPath);
 
-                using (var doc = System.Text.Json.JsonDocument.Parse(content))
+                using var doc = System.Text.Json.JsonDocument.Parse(content);
+
+                var root = doc.RootElement;
+
+                // Check "bin" property
+                if (root.TryGetProperty("bin", out var binProp))
                 {
-                    var root = doc.RootElement;
-
-                    // Check "bin" property
-                    if (root.TryGetProperty("bin", out var binProp))
+                    if (binProp.ValueKind == System.Text.Json.JsonValueKind.String &&
+                        !string.IsNullOrWhiteSpace(binProp.GetString()))
                     {
-                        if (binProp.ValueKind == System.Text.Json.JsonValueKind.String &&
-                            !string.IsNullOrWhiteSpace(binProp.GetString()))
-                        {
-                            props["has_cli_bin"] = "true";
-                            if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "cli";
-                        }
-                        else if (binProp.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                                 binProp.EnumerateObject().Any())
-                        {
-                            props["has_cli_bin"] = "true";
-                            if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "cli";
-                        }
+                        props["has_cli_bin"] = "true";
+                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "cli";
                     }
-
-                    // Check "ngPackage" in package.json
-                    if (root.TryGetProperty("ngPackage", out _))
+                    else if (binProp.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                             binProp.EnumerateObject().Any())
                     {
-                        props["manifest_type"] = "library";
-                        props["framework_type"] = "frontend";
+                        props["has_cli_bin"] = "true";
+                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "cli";
                     }
+                }
 
-                    // Collect dependencies
-                    var allDeps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                // Check "ngPackage" in package.json
+                if (root.TryGetProperty("ngPackage", out _))
+                {
+                    props["manifest_type"] = "library";
+                    props["framework_type"] = "frontend";
+                }
 
-                    if (root.TryGetProperty("dependencies", out var depsObj) &&
-                        depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var prop in depsObj.EnumerateObject()) allDeps.Add(prop.Name);
-                    }
+                // Collect dependencies
+                var allDeps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                    if (root.TryGetProperty("devDependencies", out var devDepsObj) &&
-                        devDepsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var prop in devDepsObj.EnumerateObject()) allDeps.Add(prop.Name);
-                    }
+                if (root.TryGetProperty("dependencies", out var depsObj) &&
+                    depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var prop in depsObj.EnumerateObject()) allDeps.Add(prop.Name);
+                }
 
-                    var hasNgPackage = root.TryGetProperty("ngPackage", out _) || filesInDirectory.Any(f =>
-                        Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase));
+                if (root.TryGetProperty("devDependencies", out var devDepsObj) &&
+                    devDepsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var prop in devDepsObj.EnumerateObject()) allDeps.Add(prop.Name);
+                }
 
-                    var hasIndexHtml = filesInDirectory.Any(f =>
-                        Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase));
+                var hasNgPackage = root.TryGetProperty("ngPackage", out _) || filesInDirectory.Any(f =>
+                    Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase));
 
-                    if (hasNgPackage)
-                    {
-                        props["manifest_type"] = "library";
-                        props["framework_type"] = "frontend";
-                        props["is_ui_library"] = "true";
-                        props["is_library"] = "true";
-                    }
+                var hasIndexHtml = filesInDirectory.Any(f =>
+                    Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase));
 
-                    // Framework and workload detection
-                    var hasWebFramework =
-                        allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono");
+                if (hasNgPackage)
+                {
+                    props["manifest_type"] = "library";
+                    props["framework_type"] = "frontend";
+                    props["is_ui_library"] = "true";
+                    props["is_library"] = "true";
+                }
 
-                    var hasWorkerDeps = allDeps.Any(d =>
-                        d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib"
-                            or "kafkajs" or "@cloudflare/workers-types" or "wrangler" or "node-cron" or "cron"
-                            or "agenda");
+                // Framework and workload detection
+                var hasWebFramework =
+                    allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono");
 
-                    var hasFrontendDeps = allDeps.Any(d =>
-                        d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next"
-                            or "nuxt");
+                var hasWorkerDeps = allDeps.Any(d =>
+                    d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib"
+                        or "kafkajs" or "@cloudflare/workers-types" or "wrangler" or "node-cron" or "cron"
+                        or "agenda");
 
-                    var pkgName =
-                        root.TryGetProperty("name", out var np) && np.ValueKind == System.Text.Json.JsonValueKind.String
-                            ? (np.GetString() ?? "").ToLowerInvariant()
-                            : "";
-                    var projDirName = Path.GetFileName(directoryPath).ToLowerInvariant();
+                var hasFrontendDeps = allDeps.Any(d =>
+                    d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next"
+                        or "nuxt");
 
-                    var isDedicatedWorkerName = projDirName.EndsWith("-worker") || projDirName.EndsWith(".worker") ||
-                                                projDirName.EndsWith("_worker") || projDirName.EndsWith("-scheduler") ||
-                                                projDirName.EndsWith(".scheduler") ||
-                                                projDirName.EndsWith("_scheduler") ||
-                                                projDirName.EndsWith("-consumer") ||
-                                                projDirName.EndsWith("_consumer") || pkgName.EndsWith("-worker") ||
-                                                pkgName.EndsWith(".worker") || pkgName.EndsWith("_worker") ||
-                                                pkgName.EndsWith("-scheduler") || pkgName.EndsWith(".scheduler") ||
-                                                pkgName.EndsWith("_scheduler") || pkgName.EndsWith("-consumer") ||
-                                                pkgName.EndsWith("_consumer");
+                var pkgName =
+                    root.TryGetProperty("name", out var np) && np.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? (np.GetString() ?? "").ToLowerInvariant()
+                        : "";
+                var projDirName = Path.GetFileName(directoryPath).ToLowerInvariant();
 
-                    if (hasWorkerDeps)
-                    {
-                        if (allDeps.Any(d => d is "@nestjs/schedule" or "node-cron" or "cron" or "agenda"))
-                            props["has_schedule"] = "true";
+                var isDedicatedWorkerName = projDirName.EndsWith("-worker") || projDirName.EndsWith(".worker") ||
+                                            projDirName.EndsWith("_worker") || projDirName.EndsWith("-scheduler") ||
+                                            projDirName.EndsWith(".scheduler") ||
+                                            projDirName.EndsWith("_scheduler") ||
+                                            projDirName.EndsWith("-consumer") ||
+                                            projDirName.EndsWith("_consumer") || pkgName.EndsWith("-worker") ||
+                                            pkgName.EndsWith(".worker") || pkgName.EndsWith("_worker") ||
+                                            pkgName.EndsWith("-scheduler") || pkgName.EndsWith(".scheduler") ||
+                                            pkgName.EndsWith("_scheduler") || pkgName.EndsWith("-consumer") ||
+                                            pkgName.EndsWith("_consumer");
 
-                        if (allDeps.Any(d =>
-                                d is "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib"
-                                    or "kafkajs")) props["has_queue_worker"] = "true";
-                    }
+                if (hasWorkerDeps)
+                {
+                    if (allDeps.Any(d => d is "@nestjs/schedule" or "node-cron" or "cron" or "agenda"))
+                        props["has_schedule"] = "true";
 
-                    if (hasWebFramework)
-                    {
-                        if (isDedicatedWorkerName && hasWorkerDeps)
-                        {
-                            props["framework_type"] = "worker";
-                            if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
-                        }
-                        else
-                        {
-                            props["framework_type"] = "web";
-                            if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
-                        }
-                    }
-                    else if (hasWorkerDeps)
+                    if (allDeps.Any(d =>
+                            d is "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib"
+                                or "kafkajs")) props["has_queue_worker"] = "true";
+                }
+
+                if (hasWebFramework)
+                {
+                    if (isDedicatedWorkerName && hasWorkerDeps)
                     {
                         props["framework_type"] = "worker";
                         if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
                     }
-                    else if (hasFrontendDeps)
+                    else
                     {
-                        props["framework_type"] = "frontend";
-
-                        if (!props.ContainsKey("manifest_type"))
-                        {
-                            var isExplicitUiLib = hasNgPackage || (!hasIndexHtml && !allDeps.Contains("next") &&
-                                                                   !allDeps.Contains("nuxt") &&
-                                                                   root.TryGetProperty("exports", out _));
-                            props["manifest_type"] = isExplicitUiLib ? "library" : "application";
-
-                            if (isExplicitUiLib)
-                            {
-                                props["is_ui_library"] = "true";
-                                props["is_library"] = "true";
-                            }
-                        }
+                        props["framework_type"] = "web";
+                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
                     }
-                    else if (allDeps.Any(d =>
-                                 d.StartsWith("@aws-cdk/") || d.StartsWith("@pulumi/") || d == "serverless"))
+                }
+                else if (hasWorkerDeps)
+                {
+                    props["framework_type"] = "worker";
+                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
+                }
+                else if (hasFrontendDeps)
+                {
+                    props["framework_type"] = "frontend";
+
+                    if (!props.ContainsKey("manifest_type"))
                     {
-                        props["framework_type"] = "cloud";
-                    }
-                    else if (root.TryGetProperty("exports", out _) || root.TryGetProperty("types", out _) ||
-                             root.TryGetProperty("typings", out _) || root.TryGetProperty("main", out _))
-                    {
-                        if (!props.ContainsKey("manifest_type"))
+                        var isExplicitUiLib = hasNgPackage || (!hasIndexHtml && !allDeps.Contains("next") &&
+                                                               !allDeps.Contains("nuxt") &&
+                                                               root.TryGetProperty("exports", out _));
+                        props["manifest_type"] = isExplicitUiLib ? "library" : "application";
+
+                        if (isExplicitUiLib)
                         {
-                            props["manifest_type"] = "library";
+                            props["is_ui_library"] = "true";
                             props["is_library"] = "true";
                         }
+                    }
+                }
+                else if (allDeps.Any(d =>
+                             d.StartsWith("@aws-cdk/") || d.StartsWith("@pulumi/") || d == "serverless"))
+                {
+                    props["framework_type"] = "cloud";
+                }
+                else if (root.TryGetProperty("exports", out _) || root.TryGetProperty("types", out _) ||
+                         root.TryGetProperty("typings", out _) || root.TryGetProperty("main", out _))
+                {
+                    if (!props.ContainsKey("manifest_type"))
+                    {
+                        props["manifest_type"] = "library";
+                        props["is_library"] = "true";
                     }
                 }
             }
@@ -436,26 +432,25 @@ public class TypeScriptParser : IProjectParser, IFileParser
         {
             var content = await File.ReadAllTextAsync(packageJsonPath);
 
-            using (var doc = System.Text.Json.JsonDocument.Parse(content))
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("name", out var nameProp) &&
+                nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
             {
-                var root = doc.RootElement;
+                var name = nameProp.GetString();
+                if (string.IsNullOrEmpty(name)) return null;
 
-                if (root.TryGetProperty("name", out var nameProp) &&
-                    nameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                var version = "1.0.0";
+
+                if (root.TryGetProperty("version", out var versionProp) &&
+                    versionProp.ValueKind == System.Text.Json.JsonValueKind.String)
                 {
-                    var name = nameProp.GetString();
-                    if (string.IsNullOrEmpty(name)) return null;
-
-                    var version = "1.0.0";
-
-                    if (root.TryGetProperty("version", out var versionProp) &&
-                        versionProp.ValueKind == System.Text.Json.JsonValueKind.String)
-                    {
-                        version = versionProp.GetString() ?? "1.0.0";
-                    }
-
-                    return new ProducedPackageInfo(name, version, "npm");
+                    version = versionProp.GetString() ?? "1.0.0";
                 }
+
+                return new ProducedPackageInfo(name, version, "npm");
             }
         }
         catch
@@ -481,55 +476,54 @@ public class TypeScriptParser : IProjectParser, IFileParser
         {
             var content = await File.ReadAllTextAsync(packageJsonPath);
 
-            using (var doc = System.Text.Json.JsonDocument.Parse(content))
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+
+            var root = doc.RootElement;
+
+            var depProperties = new[] { "dependencies", "devDependencies" };
+
+            foreach (var propName in depProperties)
             {
-                var root = doc.RootElement;
-
-                var depProperties = new[] { "dependencies", "devDependencies" };
-
-                foreach (var propName in depProperties)
+                if (root.TryGetProperty(propName, out var depsObj) &&
+                    depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                 {
-                    if (root.TryGetProperty(propName, out var depsObj) &&
-                        depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    foreach (var prop in depsObj.EnumerateObject())
                     {
-                        foreach (var prop in depsObj.EnumerateObject())
+                        var packageName = prop.Name;
+                        var packageVersion = prop.Value.GetString() ?? "unknown";
+
+                        // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
+                        if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
+                            (packageVersion.StartsWith("workspace:", StringComparison.Ordinal) &&
+                             (packageVersion.Contains('/') || packageVersion.Contains('\\'))))
                         {
-                            var packageName = prop.Name;
-                            var packageVersion = prop.Value.GetString() ?? "unknown";
+                            var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
 
-                            // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
-                            if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
-                                (packageVersion.StartsWith("workspace:", StringComparison.Ordinal) &&
-                                 (packageVersion.Contains('/') || packageVersion.Contains('\\'))))
+                            if (!string.IsNullOrEmpty(relativePath) && (relativePath.StartsWith('.') ||
+                                                                        relativePath.StartsWith('/') ||
+                                                                        relativePath.StartsWith('\\')))
                             {
-                                var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
-
-                                if (!string.IsNullOrEmpty(relativePath) && (relativePath.StartsWith('.') ||
-                                                                            relativePath.StartsWith('/') ||
-                                                                            relativePath.StartsWith('\\')))
+                                try
                                 {
-                                    try
-                                    {
-                                        var referencedDir =
-                                            Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!,
-                                                relativePath)).Replace('\\', '/');
+                                    var referencedDir =
+                                        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!,
+                                            relativePath)).Replace('\\', '/');
 
-                                        if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
-                                        {
-                                            localProjectPaths.Add(referencedDir);
-                                            continue;
-                                        }
-                                    }
-                                    catch
+                                    if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
                                     {
-                                        // Fallback to external package
+                                        localProjectPaths.Add(referencedDir);
+                                        continue;
                                     }
                                 }
+                                catch
+                                {
+                                    // Fallback to external package
+                                }
                             }
-
-                            // Treat as npm package reference
-                            externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm"));
                         }
+
+                        // Treat as npm package reference
+                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm"));
                     }
                 }
             }
@@ -649,20 +643,19 @@ public class TypeScriptParser : IProjectParser, IFileParser
         {
             var content = File.ReadAllText(path);
 
-            using (var doc = System.Text.Json.JsonDocument.Parse(content))
-            {
-                var root = doc.RootElement;
-                var depProperties = new[] { "dependencies", "devDependencies" };
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
 
-                foreach (var propName in depProperties)
+            var root = doc.RootElement;
+            var depProperties = new[] { "dependencies", "devDependencies" };
+
+            foreach (var propName in depProperties)
+            {
+                if (root.TryGetProperty(propName, out var depsObj) &&
+                    depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
                 {
-                    if (root.TryGetProperty(propName, out var depsObj) &&
-                        depsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    foreach (var prop in depsObj.EnumerateObject())
                     {
-                        foreach (var prop in depsObj.EnumerateObject())
-                        {
-                            deps.Add(prop.Name);
-                        }
+                        deps.Add(prop.Name);
                     }
                 }
             }

@@ -1,6 +1,5 @@
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
 
@@ -70,20 +69,19 @@ Scripts/vendor/
 
             var dbPath = Path.Combine(tempDir, "test_graph.db");
 
-            await using (var client = new SqliteGraphClient(dbPath))
-            {
-                WorkspaceIndexer.Register(new JavaScriptParser());
+            await using var client = new SqliteGraphClient(dbPath);
 
-                var indexer = new WorkspaceIndexer(client);
-                var results = await indexer.IndexAsync(tempDir, tempDir, clear: true);
+            WorkspaceIndexer.Register(new JavaScriptParser());
 
-                var filesQuery = "MATCH (f:File) RETURN f.path AS path";
-                var queryResult = await client.ExecuteQueryAsync(filesQuery);
+            var indexer = new WorkspaceIndexer(client);
+            var results = await indexer.IndexAsync(tempDir, tempDir, clear: true);
 
-                Assert.That(queryResult, Contains.Substring("MyController.js"));
-                Assert.That(queryResult, Does.Not.Contain("editor.js"));
-                Assert.That(queryResult, Does.Not.Contain("app.d.ts"));
-            }
+            var filesQuery = "MATCH (f:File) RETURN f.path AS path";
+            var queryResult = await client.ExecuteQueryAsync(filesQuery);
+
+            Assert.That(queryResult, Contains.Substring("MyController.js"));
+            Assert.That(queryResult, Does.Not.Contain("editor.js"));
+            Assert.That(queryResult, Does.Not.Contain("app.d.ts"));
         }
         finally
         {

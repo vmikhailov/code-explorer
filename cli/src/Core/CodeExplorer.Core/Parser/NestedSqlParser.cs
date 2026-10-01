@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
@@ -231,41 +230,40 @@ public static class NestedSqlParser
         {
             var parser = new TSql160Parser(true);
 
-            using (var reader = new StringReader(cleanedSql))
+            using var reader = new StringReader(cleanedSql);
+
+            var fragment = parser.Parse(reader, out _);
+
+            var visitor = new SqlDependencyVisitor();
+            fragment?.Accept(visitor);
+
+            foreach (var t in visitor.Tables)
             {
-                var fragment = parser.Parse(reader, out _);
+                var table = ResolveSqlIdentifier(t.Table, rawText);
+                var schema = ResolveSqlIdentifier(t.Schema, rawText);
+                var db = ResolveSqlIdentifier(t.Db, rawText);
 
-                var visitor = new SqlDependencyVisitor();
-                fragment?.Accept(visitor);
+                if (IsSqlKeyword(table)) continue;
+                if (!string.IsNullOrEmpty(schema) && IsSqlKeyword(schema)) continue;
 
-                foreach (var t in visitor.Tables)
-                {
-                    var table = ResolveSqlIdentifier(t.Table, rawText);
-                    var schema = ResolveSqlIdentifier(t.Schema, rawText);
-                    var db = ResolveSqlIdentifier(t.Db, rawText);
+                if (IsUnresolvedVariable(table, rawText) || IsUnresolvedVariable(schema, rawText) ||
+                    IsUnresolvedVariable(db, rawText)) continue;
 
-                    if (IsSqlKeyword(table)) continue;
-                    if (!string.IsNullOrEmpty(schema) && IsSqlKeyword(schema)) continue;
+                tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema,
+                    table));
+            }
 
-                    if (IsUnresolvedVariable(table, rawText) || IsUnresolvedVariable(schema, rawText) ||
-                        IsUnresolvedVariable(db, rawText)) continue;
+            foreach (var p in visitor.Procedures)
+            {
+                var proc = ResolveSqlIdentifier(p.Procedure, rawText);
+                var schema = ResolveSqlIdentifier(p.Schema, rawText);
+                var db = ResolveSqlIdentifier(p.Db, rawText);
 
-                    tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema,
-                        table));
-                }
+                if (IsUnresolvedVariable(proc, rawText) || IsUnresolvedVariable(schema, rawText) ||
+                    IsUnresolvedVariable(db, rawText)) continue;
 
-                foreach (var p in visitor.Procedures)
-                {
-                    var proc = ResolveSqlIdentifier(p.Procedure, rawText);
-                    var schema = ResolveSqlIdentifier(p.Schema, rawText);
-                    var db = ResolveSqlIdentifier(p.Db, rawText);
-
-                    if (IsUnresolvedVariable(proc, rawText) || IsUnresolvedVariable(schema, rawText) ||
-                        IsUnresolvedVariable(db, rawText)) continue;
-
-                    procedures.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema,
-                        proc));
-                }
+                procedures.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema,
+                    proc));
             }
         }
         catch

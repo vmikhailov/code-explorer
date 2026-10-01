@@ -19,26 +19,25 @@ public static class ExportCommandHandler
             return 1;
         }
 
-        await using (var client = new SqliteGraphClient(ws.DbPath))
+        await using var client = new SqliteGraphClient(ws.DbPath);
+
+        var diagram = await DiagramExporter.ExportAsync(client, opts.Format, opts.Type, opts.Project);
+
+        if (!string.IsNullOrWhiteSpace(opts.Output))
         {
-            var diagram = await DiagramExporter.ExportAsync(client, opts.Format, opts.Type, opts.Project);
-
-            if (!string.IsNullOrWhiteSpace(opts.Output))
-            {
-                var outPath = Path.GetFullPath(opts.Output);
-                var dir = Path.GetDirectoryName(outPath);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                await File.WriteAllTextAsync(outPath, diagram);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine($"✓ Exported {opts.Format.ToUpperInvariant()} diagram to '{outPath}'");
-                Console.ResetColor();
-            }
-            else
-            {
-                Console.WriteLine(diagram);
-            }
-
-            return 0;
+            var outPath = Path.GetFullPath(opts.Output);
+            var dir = Path.GetDirectoryName(outPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            await File.WriteAllTextAsync(outPath, diagram);
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"✓ Exported {opts.Format.ToUpperInvariant()} diagram to '{outPath}'");
+            Console.ResetColor();
         }
+        else
+        {
+            Console.WriteLine(diagram);
+        }
+
+        return 0;
     }
 }

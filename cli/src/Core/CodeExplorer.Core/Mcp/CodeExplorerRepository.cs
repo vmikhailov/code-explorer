@@ -68,13 +68,12 @@ public class CodeExplorerRepository
         {
             var testJson = await client.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt LIMIT 1;");
 
-            using (var doc = JsonDocument.Parse(testJson))
+            using var doc = JsonDocument.Parse(testJson);
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0 &&
+                doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
             {
-                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0 &&
-                    doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
-                {
-                    return pCnt.GetInt64() == 0;
-                }
+                return pCnt.GetInt64() == 0;
             }
         }
         catch { }
@@ -94,10 +93,9 @@ public class CodeExplorerRepository
 
         var resultJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
 
-        using (var doc = JsonDocument.Parse(resultJson))
-        {
-            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
-        }
+        using var doc = JsonDocument.Parse(resultJson);
+
+        return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
     }
 
 
@@ -152,11 +150,10 @@ public class CodeExplorerRepository
         {
             var nodesCountJson = await client.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt;", null, cancellationToken);
 
-            using (var doc = JsonDocument.Parse(nodesCountJson))
-            {
-                if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
-                    totalNodes = pCnt.GetInt64();
-            }
+            using var doc = JsonDocument.Parse(nodesCountJson);
+
+            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
+                totalNodes = pCnt.GetInt64();
         }
         catch { }
 
@@ -164,11 +161,10 @@ public class CodeExplorerRepository
         {
             var filesCountJson = await client.ExecuteQueryAsync("MATCH (f:File) RETURN count(f) AS cnt;", null, cancellationToken);
 
-            using (var doc = JsonDocument.Parse(filesCountJson))
-            {
-                if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
-                    totalFiles = pCnt.GetInt64();
-            }
+            using var doc = JsonDocument.Parse(filesCountJson);
+
+            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
+                totalFiles = pCnt.GetInt64();
         }
         catch { }
 
@@ -176,102 +172,100 @@ public class CodeExplorerRepository
         {
             var relsCountJson = await client.ExecuteQueryAsync("MATCH (p1:Project)-[:DEPENDS_ON]->(p2:Project) RETURN count(*) AS cnt;", null, cancellationToken);
 
-            using (var doc = JsonDocument.Parse(relsCountJson))
-            {
-                if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
-                    totalRels = pCnt.GetInt64();
-            }
+            using var doc = JsonDocument.Parse(relsCountJson);
+
+            if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].TryGetProperty("cnt", out var pCnt))
+                totalRels = pCnt.GetInt64();
         }
         catch { }
 
-        using (var overviewDoc = JsonDocument.Parse(rawJson))
+        using var overviewDoc = JsonDocument.Parse(rawJson);
+
+        if (overviewDoc.RootElement.ValueKind != JsonValueKind.Array ||
+            overviewDoc.RootElement.GetArrayLength() == 0)
         {
-            if (overviewDoc.RootElement.ValueKind != JsonValueKind.Array ||
-                overviewDoc.RootElement.GetArrayLength() == 0)
-            {
-                return rawJson;
-            }
-
-            var row = overviewDoc.RootElement[0];
-            var wsName = row.TryGetProperty("workspace", out var wProp) ? wProp.GetString() : "workspace";
-            var wsPath = row.TryGetProperty("path", out var pathProp) ? pathProp.GetString() : "";
-
-            var rawProjects = new List<Dictionary<string, string>>();
-
-            if (row.TryGetProperty("projects", out var projProp) && projProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var p in projProp.EnumerateArray())
-                {
-                    var pName = p.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                    var pLang = p.TryGetProperty("language", out var l) ? l.GetString() ?? "" : "";
-                    var pPath = p.TryGetProperty("path", out var pt) ? pt.GetString() ?? "" : "";
-
-                    if (!string.IsNullOrEmpty(pName))
-                    {
-                        rawProjects.Add(new Dictionary<string, string>
-                        {
-                            ["name"] = pName,
-                            ["language"] = pLang,
-                            ["path"] = pPath,
-                            ["layer"] = ClassifyProjectLayer(pName, pPath)
-                        });
-                    }
-                }
-            }
-
-            var layerOrder = new[]
-            {
-                "Core / Domain", "Services / Backend", "UI / Presentation", "Infrastructure / Data", "Other",
-                "Tests"
-            };
-
-            var groupedLayers = layerOrder.Select(layer =>
-            {
-                var items = rawProjects.Where(p => p["layer"] == layer)
-                    .Select(p => new { name = p["name"], language = p["language"], path = p["path"] }).ToList();
-                return new { layer, count = items.Count, projects = items };
-            }).Where(g => g.count > 0).ToList();
-
-            var databases = new List<string>();
-
-            if (row.TryGetProperty("databases", out var dbProp) && dbProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var db in dbProp.EnumerateArray())
-                {
-                    var dbStr = db.GetString();
-                    if (!string.IsNullOrEmpty(dbStr)) databases.Add(dbStr);
-                }
-            }
-
-            var externalServices = new List<string>();
-
-            if (row.TryGetProperty("externalServices", out var esProp) && esProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var es in esProp.EnumerateArray())
-                {
-                    var esStr = es.GetString();
-                    if (!string.IsNullOrEmpty(esStr)) externalServices.Add(esStr);
-                }
-            }
-
-            var overviewResult = new
-            {
-                workspace = wsName,
-                path = wsPath,
-                stats = new
-                {
-                    total_projects = rawProjects.Count,
-                    total_files = totalFiles,
-                    total_nodes = totalNodes,
-                    total_project_dependencies = totalRels
-                },
-                layers = groupedLayers,
-                databases = databases.Distinct().OrderBy(x => x).ToList(),
-                external_services = externalServices.Distinct().OrderBy(x => x).ToList()
-            };
-
-            return JsonSerializer.Serialize(new { results = overviewResult }, CompactJsonOptions);
+            return rawJson;
         }
+
+        var row = overviewDoc.RootElement[0];
+        var wsName = row.TryGetProperty("workspace", out var wProp) ? wProp.GetString() : "workspace";
+        var wsPath = row.TryGetProperty("path", out var pathProp) ? pathProp.GetString() : "";
+
+        var rawProjects = new List<Dictionary<string, string>>();
+
+        if (row.TryGetProperty("projects", out var projProp) && projProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var p in projProp.EnumerateArray())
+            {
+                var pName = p.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                var pLang = p.TryGetProperty("language", out var l) ? l.GetString() ?? "" : "";
+                var pPath = p.TryGetProperty("path", out var pt) ? pt.GetString() ?? "" : "";
+
+                if (!string.IsNullOrEmpty(pName))
+                {
+                    rawProjects.Add(new Dictionary<string, string>
+                    {
+                        ["name"] = pName,
+                        ["language"] = pLang,
+                        ["path"] = pPath,
+                        ["layer"] = ClassifyProjectLayer(pName, pPath)
+                    });
+                }
+            }
+        }
+
+        var layerOrder = new[]
+        {
+            "Core / Domain", "Services / Backend", "UI / Presentation", "Infrastructure / Data", "Other",
+            "Tests"
+        };
+
+        var groupedLayers = layerOrder.Select(layer =>
+        {
+            var items = rawProjects.Where(p => p["layer"] == layer)
+                .Select(p => new { name = p["name"], language = p["language"], path = p["path"] }).ToList();
+            return new { layer, count = items.Count, projects = items };
+        }).Where(g => g.count > 0).ToList();
+
+        var databases = new List<string>();
+
+        if (row.TryGetProperty("databases", out var dbProp) && dbProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var db in dbProp.EnumerateArray())
+            {
+                var dbStr = db.GetString();
+                if (!string.IsNullOrEmpty(dbStr)) databases.Add(dbStr);
+            }
+        }
+
+        var externalServices = new List<string>();
+
+        if (row.TryGetProperty("externalServices", out var esProp) && esProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var es in esProp.EnumerateArray())
+            {
+                var esStr = es.GetString();
+                if (!string.IsNullOrEmpty(esStr)) externalServices.Add(esStr);
+            }
+        }
+
+        var overviewResult = new
+        {
+            workspace = wsName,
+            path = wsPath,
+            stats = new
+            {
+                total_projects = rawProjects.Count,
+                total_files = totalFiles,
+                total_nodes = totalNodes,
+                total_project_dependencies = totalRels
+            },
+            layers = groupedLayers,
+            databases = databases.Distinct().OrderBy(x => x).ToList(),
+            external_services = externalServices.Distinct().OrderBy(x => x).ToList()
+        };
+
+        return JsonSerializer.Serialize(new { results = overviewResult }, CompactJsonOptions);
     }
 
     private static string ClassifyProjectLayer(string name, string path)
@@ -320,24 +314,23 @@ public class CodeExplorerRepository
             var savedQueries = _queryManager.ListQueries(effectiveWsPath);
             if (savedQueries.Count > 0)
             {
-                using (var doc = JsonDocument.Parse(resultJson))
-                {
-                    var formatted = JsonSerializer.Serialize(
-                        new
+                using var doc = JsonDocument.Parse(resultJson);
+
+                var formatted = JsonSerializer.Serialize(
+                    new
+                    {
+                        results = doc.RootElement.GetProperty("results"),
+                        saved_project_queries = savedQueries.Select(q => new
                         {
-                            results = doc.RootElement.GetProperty("results"),
-                            saved_project_queries = savedQueries.Select(q => new
-                            {
-                                name = q.Name,
-                                description = q.Description,
-                                parameters = q.Parameters,
-                                returns = q.Returns,
-                                tags = q.Tags
-                            })
-                        }, CompactJsonOptions);
-                    _macroCache[cacheKey] = formatted;
-                    return formatted;
-                }
+                            name = q.Name,
+                            description = q.Description,
+                            parameters = q.Parameters,
+                            returns = q.Returns,
+                            tags = q.Tags
+                        })
+                    }, CompactJsonOptions);
+                _macroCache[cacheKey] = formatted;
+                return formatted;
             }
         }
         catch
@@ -356,67 +349,31 @@ public class CodeExplorerRepository
 
     private static string FormatDependenciesAll(string rawJson, string format, int limit, string type = "all")
     {
-        using (var doc = JsonDocument.Parse(rawJson))
+        using var doc = JsonDocument.Parse(rawJson);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-            {
-                return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
-            }
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+        }
 
-            if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeYaml(doc.RootElement);
-            }
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
 
-            if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeToon(doc.RootElement);
-            }
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
 
-            var isRuntimeOnly = type.Equals("runtime", StringComparison.OrdinalIgnoreCase);
+        var isRuntimeOnly = type.Equals("runtime", StringComparison.OrdinalIgnoreCase);
 
-            if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine("```mermaid");
-                sb.AppendLine("graph TD");
-                var count = 0;
-
-                if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var item in doc.RootElement.EnumerateArray())
-                    {
-                        var proj = item.TryGetProperty("project", out var p) ? p.GetString() : null;
-                        var dep = item.TryGetProperty("dependency", out var d) ? d.GetString() : null;
-
-                        if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
-                        {
-                            if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
-                                                  dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
-                                continue;
-
-                            if (count++ >= limit) break;
-
-                            sb.AppendLine(
-                                $"    {SanitizeMermaidId(proj)}[\"{proj}\"] --> {SanitizeMermaidId(dep)}[\"{dep}\"]");
-                        }
-                    }
-                }
-
-                if (count == 0)
-                {
-                    sb.AppendLine("    %% No project dependencies found");
-                }
-
-                sb.Append("```");
-                return sb.ToString();
-            }
-
-            // Markdown format (default)
-            var md = new System.Text.StringBuilder();
-            md.AppendLine($"### Project Dependencies (Filter: {type})\n");
-            var grouped = new Dictionary<string, List<string>>();
-            var total = 0;
+        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("```mermaid");
+            sb.AppendLine("graph TD");
+            var count = 0;
 
             if (doc.RootElement.ValueKind == JsonValueKind.Array)
             {
@@ -431,125 +388,159 @@ public class CodeExplorerRepository
                                               dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
                             continue;
 
-                        if (total++ >= limit) break;
+                        if (count++ >= limit) break;
 
-                        if (!grouped.TryGetValue(proj, out var list))
-                        {
-                            list = [];
-                            grouped[proj] = list;
-                        }
-
-                        list.Add(dep);
+                        sb.AppendLine(
+                            $"    {SanitizeMermaidId(proj)}[\"{proj}\"] --> {SanitizeMermaidId(dep)}[\"{dep}\"]");
                     }
                 }
             }
 
-            if (grouped.Count == 0)
+            if (count == 0)
             {
-                md.AppendLine("No matching project dependencies found in workspace.");
-            }
-            else
-            {
-                foreach (var (proj, deps) in grouped)
-                {
-                    md.AppendLine($"- **{proj}** -> {string.Join(", ", deps)}");
-                }
+                sb.AppendLine("    %% No project dependencies found");
             }
 
-            return md.ToString().TrimEnd();
+            sb.Append("```");
+            return sb.ToString();
         }
+
+        // Markdown format (default)
+        var md = new System.Text.StringBuilder();
+        md.AppendLine($"### Project Dependencies (Filter: {type})\n");
+        var grouped = new Dictionary<string, List<string>>();
+        var total = 0;
+
+        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                var proj = item.TryGetProperty("project", out var p) ? p.GetString() : null;
+                var dep = item.TryGetProperty("dependency", out var d) ? d.GetString() : null;
+
+                if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(dep))
+                {
+                    if (isRuntimeOnly && (proj.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
+                                          dep.Contains("Test", StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    if (total++ >= limit) break;
+
+                    if (!grouped.TryGetValue(proj, out var list))
+                    {
+                        list = [];
+                        grouped[proj] = list;
+                    }
+
+                    list.Add(dep);
+                }
+            }
+        }
+
+        if (grouped.Count == 0)
+        {
+            md.AppendLine("No matching project dependencies found in workspace.");
+        }
+        else
+        {
+            foreach (var (proj, deps) in grouped)
+            {
+                md.AppendLine($"- **{proj}** -> {string.Join(", ", deps)}");
+            }
+        }
+
+        return md.ToString().TrimEnd();
     }
 
     private static string FormatDependenciesFiltered(string rawJson, string format, string projectFilter, string type = "all")
     {
-        using (var doc = JsonDocument.Parse(rawJson))
+        using var doc = JsonDocument.Parse(rawJson);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-            {
-                return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
-            }
-
-            if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeYaml(doc.RootElement);
-            }
-
-            if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeToon(doc.RootElement);
-            }
-
-            var outgoing = new List<string>();
-            var incoming = new List<string>();
-
-            if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
-            {
-                var row = doc.RootElement[0];
-
-                if (row.TryGetProperty("outgoingDependencies", out var outProp) &&
-                    outProp.ValueKind == JsonValueKind.Array)
-                {
-                    outgoing = outProp.EnumerateArray().Select(x => x.GetString() ?? "")
-                        .Where(x => !string.IsNullOrEmpty(x)).ToList();
-                }
-
-                if (row.TryGetProperty("incomingDependencies", out var inProp) &&
-                    inProp.ValueKind == JsonValueKind.Array)
-                {
-                    incoming = inProp.EnumerateArray().Select(x => x.GetString() ?? "")
-                        .Where(x => !string.IsNullOrEmpty(x)).ToList();
-                }
-            }
-
-            if (type.Equals("runtime", StringComparison.OrdinalIgnoreCase))
-            {
-                outgoing = outgoing.Where(x =>
-                    !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
-                    !x.Contains("Mock", StringComparison.OrdinalIgnoreCase)).ToList();
-
-                incoming = incoming.Where(x =>
-                    !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
-                    !x.Contains("Mock", StringComparison.OrdinalIgnoreCase)).ToList();
-            }
-
-            if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine("```mermaid");
-                sb.AppendLine("graph TD");
-                var pId = SanitizeMermaidId(projectFilter);
-
-                foreach (var o in outgoing)
-                {
-                    sb.AppendLine($"    {pId}[\"{projectFilter}\"] --> {SanitizeMermaidId(o)}[\"{o}\"]");
-                }
-
-                foreach (var i in incoming)
-                {
-                    sb.AppendLine($"    {SanitizeMermaidId(i)}[\"{i}\"] --> {pId}[\"{projectFilter}\"]");
-                }
-
-                if (outgoing.Count == 0 && incoming.Count == 0)
-                {
-                    sb.AppendLine($"    {pId}[\"{projectFilter}\"]");
-                    sb.AppendLine("    %% No connected dependencies");
-                }
-
-                sb.Append("```");
-                return sb.ToString();
-            }
-
-            // Markdown format
-            var md = new System.Text.StringBuilder();
-            md.AppendLine($"### Dependencies for Project: `{projectFilter}` (Filter: {type})\n");
-
-            md.AppendLine(
-                $"- **Outgoing Dependencies** ({outgoing.Count}): {(outgoing.Count > 0 ? string.Join(", ", outgoing) : "none")}");
-
-            md.AppendLine(
-                $"- **Incoming Dependencies** ({incoming.Count}): {(incoming.Count > 0 ? string.Join(", ", incoming) : "none")}");
-            return md.ToString().TrimEnd();
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
         }
+
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
+
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
+
+        var outgoing = new List<string>();
+        var incoming = new List<string>();
+
+        if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+        {
+            var row = doc.RootElement[0];
+
+            if (row.TryGetProperty("outgoingDependencies", out var outProp) &&
+                outProp.ValueKind == JsonValueKind.Array)
+            {
+                outgoing = outProp.EnumerateArray().Select(x => x.GetString() ?? "")
+                    .Where(x => !string.IsNullOrEmpty(x)).ToList();
+            }
+
+            if (row.TryGetProperty("incomingDependencies", out var inProp) &&
+                inProp.ValueKind == JsonValueKind.Array)
+            {
+                incoming = inProp.EnumerateArray().Select(x => x.GetString() ?? "")
+                    .Where(x => !string.IsNullOrEmpty(x)).ToList();
+            }
+        }
+
+        if (type.Equals("runtime", StringComparison.OrdinalIgnoreCase))
+        {
+            outgoing = outgoing.Where(x =>
+                !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
+                !x.Contains("Mock", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            incoming = incoming.Where(x =>
+                !x.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
+                !x.Contains("Mock", StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("```mermaid");
+            sb.AppendLine("graph TD");
+            var pId = SanitizeMermaidId(projectFilter);
+
+            foreach (var o in outgoing)
+            {
+                sb.AppendLine($"    {pId}[\"{projectFilter}\"] --> {SanitizeMermaidId(o)}[\"{o}\"]");
+            }
+
+            foreach (var i in incoming)
+            {
+                sb.AppendLine($"    {SanitizeMermaidId(i)}[\"{i}\"] --> {pId}[\"{projectFilter}\"]");
+            }
+
+            if (outgoing.Count == 0 && incoming.Count == 0)
+            {
+                sb.AppendLine($"    {pId}[\"{projectFilter}\"]");
+                sb.AppendLine("    %% No connected dependencies");
+            }
+
+            sb.Append("```");
+            return sb.ToString();
+        }
+
+        // Markdown format
+        var md = new System.Text.StringBuilder();
+        md.AppendLine($"### Dependencies for Project: `{projectFilter}` (Filter: {type})\n");
+
+        md.AppendLine(
+            $"- **Outgoing Dependencies** ({outgoing.Count}): {(outgoing.Count > 0 ? string.Join(", ", outgoing) : "none")}");
+
+        md.AppendLine(
+            $"- **Incoming Dependencies** ({incoming.Count}): {(incoming.Count > 0 ? string.Join(", ", incoming) : "none")}");
+        return md.ToString().TrimEnd();
     }
 
     public async Task<string> GetArchitectureViewAsync(
@@ -684,59 +675,58 @@ public class CodeExplorerRepository
 
     private static string FormatFileOutline(string rawJson, string format, string filePath)
     {
-        using (var doc = JsonDocument.Parse(rawJson))
+        using var doc = JsonDocument.Parse(rawJson);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-            {
-                return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
-            }
-
-            if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeYaml(doc.RootElement);
-            }
-
-            if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeToon(doc.RootElement);
-            }
-
-            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-            {
-                return $"No symbols found in outline for '{filePath}'.";
-            }
-
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"### File Outline: `{filePath}`\n");
-
-            foreach (var item in doc.RootElement.EnumerateArray())
-            {
-                var type = item.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String
-                    ? t.GetString() ?? "Symbol"
-                    : "Symbol";
-
-                var name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
-                    ? n.GetString() ?? ""
-                    : "";
-
-                var startLine = item.TryGetProperty("startLine", out var sl) && sl.ValueKind == JsonValueKind.Number &&
-                                sl.TryGetInt64(out var slVal)
-                    ? slVal
-                    : 0;
-
-                var endLine = item.TryGetProperty("endLine", out var el) && el.ValueKind == JsonValueKind.Number &&
-                              el.TryGetInt64(out var elVal)
-                    ? elVal
-                    : 0;
-
-                var linesStr = startLine > 0
-                    ? (endLine > startLine ? $" (L{startLine}-{endLine})" : $" (L{startLine})")
-                    : "";
-                sb.AppendLine($"- **{type}** `{name}`{linesStr}");
-            }
-
-            return sb.ToString().TrimEnd();
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
         }
+
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
+
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        {
+            return $"No symbols found in outline for '{filePath}'.";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"### File Outline: `{filePath}`\n");
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            var type = item.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String
+                ? t.GetString() ?? "Symbol"
+                : "Symbol";
+
+            var name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
+                ? n.GetString() ?? ""
+                : "";
+
+            var startLine = item.TryGetProperty("startLine", out var sl) && sl.ValueKind == JsonValueKind.Number &&
+                            sl.TryGetInt64(out var slVal)
+                ? slVal
+                : 0;
+
+            var endLine = item.TryGetProperty("endLine", out var el) && el.ValueKind == JsonValueKind.Number &&
+                          el.TryGetInt64(out var elVal)
+                ? elVal
+                : 0;
+
+            var linesStr = startLine > 0
+                ? (endLine > startLine ? $" (L{startLine}-{endLine})" : $" (L{startLine})")
+                : "";
+            sb.AppendLine($"- **{type}** `{name}`{linesStr}");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     public async Task<string> GetFileOutlineAsync(string filePath, string format = "markdown", string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -759,60 +749,59 @@ public class CodeExplorerRepository
 
     private static string FormatFindSymbol(string rawJson, string format, string name, int limit)
     {
-        using (var doc = JsonDocument.Parse(rawJson))
+        using var doc = JsonDocument.Parse(rawJson);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-            {
-                return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
-            }
-
-            if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeYaml(doc.RootElement);
-            }
-
-            if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeToon(doc.RootElement);
-            }
-
-            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-            {
-                return $"No symbols found matching '{name}'.";
-            }
-
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("| Kind | Name | Symbol | File | Lines |");
-            sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
-            var count = 0;
-
-            foreach (var item in doc.RootElement.EnumerateArray())
-            {
-                if (count++ >= limit) break;
-
-                var type = item.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
-                var symName = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                var fullName = item.TryGetProperty("fullName", out var fn) ? fn.GetString() ?? "" : "";
-                var filePath = item.TryGetProperty("filePath", out var fp) ? fp.GetString() ?? "" : "";
-
-                var startLine = item.TryGetProperty("startLine", out var sl) && sl.ValueKind == JsonValueKind.Number &&
-                                sl.TryGetInt64(out var slVal)
-                    ? slVal
-                    : 0;
-
-                var endLine = item.TryGetProperty("endLine", out var el) && el.ValueKind == JsonValueKind.Number &&
-                              el.TryGetInt64(out var elVal)
-                    ? elVal
-                    : 0;
-
-                var linesStr = startLine > 0
-                    ? (endLine > startLine ? $"L{startLine}-{endLine}" : $"L{startLine}")
-                    : "-";
-                sb.AppendLine($"| {type} | `{symName}` | `{fullName}` | `{filePath}` | {linesStr} |");
-            }
-
-            return sb.ToString().TrimEnd();
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
         }
+
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
+
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        {
+            return $"No symbols found matching '{name}'.";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("| Kind | Name | Symbol | File | Lines |");
+        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
+        var count = 0;
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            if (count++ >= limit) break;
+
+            var type = item.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
+            var symName = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+            var fullName = item.TryGetProperty("fullName", out var fn) ? fn.GetString() ?? "" : "";
+            var filePath = item.TryGetProperty("filePath", out var fp) ? fp.GetString() ?? "" : "";
+
+            var startLine = item.TryGetProperty("startLine", out var sl) && sl.ValueKind == JsonValueKind.Number &&
+                            sl.TryGetInt64(out var slVal)
+                ? slVal
+                : 0;
+
+            var endLine = item.TryGetProperty("endLine", out var el) && el.ValueKind == JsonValueKind.Number &&
+                          el.TryGetInt64(out var elVal)
+                ? elVal
+                : 0;
+
+            var linesStr = startLine > 0
+                ? (endLine > startLine ? $"L{startLine}-{endLine}" : $"L{startLine}")
+                : "-";
+            sb.AppendLine($"| {type} | `{symName}` | `{fullName}` | `{filePath}` | {linesStr} |");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     public async Task<string> FindSymbolAsync(string name, string? symbolType = null, string format = "markdown", int limit = 50, string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -854,112 +843,111 @@ public class CodeExplorerRepository
 
     private static string FormatCallChain(string rawJson, string format, string startFunction, string endFunction, int maxDepth)
     {
-        using (var doc = JsonDocument.Parse(rawJson))
+        using var doc = JsonDocument.Parse(rawJson);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
-            {
-                return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
-            }
+            return JsonSerializer.Serialize(new { results = doc.RootElement }, CompactJsonOptions);
+        }
 
-            if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeYaml(doc.RootElement);
-            }
+        if (format.Equals("yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeYaml(doc.RootElement);
+        }
 
-            if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
-            {
-                return ToonYamlSerializer.SerializeToon(doc.RootElement);
-            }
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToonYamlSerializer.SerializeToon(doc.RootElement);
+        }
 
-            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-            {
-                return $"No call chain found between '{startFunction}' and '{endFunction}' within depth {maxDepth}.";
-            }
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        {
+            return $"No call chain found between '{startFunction}' and '{endFunction}' within depth {maxDepth}.";
+        }
 
-            if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine("```mermaid");
-                sb.AppendLine("graph TD");
-                var pathIndex = 0;
-
-                foreach (var row in doc.RootElement.EnumerateArray())
-                {
-                    if (row.TryGetProperty("chain", out var chainProp) && chainProp.ValueKind == JsonValueKind.Array)
-                    {
-                        var nodes = chainProp.EnumerateArray().ToList();
-
-                        for (var i = 0; i < nodes.Count - 1; i++)
-                        {
-                            var fromName =
-                                nodes[i].ValueKind == JsonValueKind.Object &&
-                                nodes[i].TryGetProperty("name", out var fn)
-                                    ? fn.GetString()
-                                    : (nodes[i].ValueKind == JsonValueKind.String ? nodes[i].GetString() : $"Step{i}");
-
-                            var toName =
-                                nodes[i + 1].ValueKind == JsonValueKind.Object &&
-                                nodes[i + 1].TryGetProperty("name", out var tn)
-                                    ? tn.GetString()
-                                    : (nodes[i + 1].ValueKind == JsonValueKind.String
-                                        ? nodes[i + 1].GetString()
-                                        : $"Step{i + 1}");
-                            var fromId = $"p{pathIndex}_n{i}";
-                            var toId = $"p{pathIndex}_n{i + 1}";
-                            sb.AppendLine($"    {fromId}[\"{fromName}()\"] --> {toId}[\"{toName}()\"]");
-                        }
-
-                        pathIndex++;
-                    }
-                }
-
-                sb.Append("```");
-                return sb.ToString();
-            }
-
-            // Markdown format
-            var md = new System.Text.StringBuilder();
-            md.AppendLine($"### Call Chain: `{startFunction}` → `{endFunction}`\n");
-            var pIdx = 1;
+        if (format.Equals("mermaid", StringComparison.OrdinalIgnoreCase))
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("```mermaid");
+            sb.AppendLine("graph TD");
+            var pathIndex = 0;
 
             foreach (var row in doc.RootElement.EnumerateArray())
             {
-                if (doc.RootElement.GetArrayLength() > 1)
-                {
-                    md.AppendLine($"#### Path {pIdx++}:");
-                }
-
                 if (row.TryGetProperty("chain", out var chainProp) && chainProp.ValueKind == JsonValueKind.Array)
                 {
-                    var step = 1;
+                    var nodes = chainProp.EnumerateArray().ToList();
 
-                    foreach (var node in chainProp.EnumerateArray())
+                    for (var i = 0; i < nodes.Count - 1; i++)
                     {
-                        if (node.ValueKind == JsonValueKind.Object)
-                        {
-                            var name = node.TryGetProperty("name", out var n) ? n.GetString() : "Function";
-                            var symbol = node.TryGetProperty("symbol", out var s) ? s.GetString() : null;
-                            var file = node.TryGetProperty("file_path", out var f) ? f.GetString() : null;
-                            var line = node.TryGetProperty("start_line", out var l) ? l.ToString() : null;
+                        var fromName =
+                            nodes[i].ValueKind == JsonValueKind.Object &&
+                            nodes[i].TryGetProperty("name", out var fn)
+                                ? fn.GetString()
+                                : (nodes[i].ValueKind == JsonValueKind.String ? nodes[i].GetString() : $"Step{i}");
 
-                            var loc = !string.IsNullOrEmpty(file)
-                                ? $" *({file}{(line != null ? ":" + line : "")})*"
-                                : "";
-                            md.AppendLine($"{step++}. `{symbol ?? name}`{loc}");
-                        }
-                        else if (node.ValueKind == JsonValueKind.String)
-                        {
-                            var str = node.GetString() ?? "Function";
-                            md.AppendLine($"{step++}. `{str}`");
-                        }
+                        var toName =
+                            nodes[i + 1].ValueKind == JsonValueKind.Object &&
+                            nodes[i + 1].TryGetProperty("name", out var tn)
+                                ? tn.GetString()
+                                : (nodes[i + 1].ValueKind == JsonValueKind.String
+                                    ? nodes[i + 1].GetString()
+                                    : $"Step{i + 1}");
+                        var fromId = $"p{pathIndex}_n{i}";
+                        var toId = $"p{pathIndex}_n{i + 1}";
+                        sb.AppendLine($"    {fromId}[\"{fromName}()\"] --> {toId}[\"{toName}()\"]");
                     }
-                }
 
-                md.AppendLine();
+                    pathIndex++;
+                }
             }
 
-            return md.ToString().TrimEnd();
+            sb.Append("```");
+            return sb.ToString();
         }
+
+        // Markdown format
+        var md = new System.Text.StringBuilder();
+        md.AppendLine($"### Call Chain: `{startFunction}` → `{endFunction}`\n");
+        var pIdx = 1;
+
+        foreach (var row in doc.RootElement.EnumerateArray())
+        {
+            if (doc.RootElement.GetArrayLength() > 1)
+            {
+                md.AppendLine($"#### Path {pIdx++}:");
+            }
+
+            if (row.TryGetProperty("chain", out var chainProp) && chainProp.ValueKind == JsonValueKind.Array)
+            {
+                var step = 1;
+
+                foreach (var node in chainProp.EnumerateArray())
+                {
+                    if (node.ValueKind == JsonValueKind.Object)
+                    {
+                        var name = node.TryGetProperty("name", out var n) ? n.GetString() : "Function";
+                        var symbol = node.TryGetProperty("symbol", out var s) ? s.GetString() : null;
+                        var file = node.TryGetProperty("file_path", out var f) ? f.GetString() : null;
+                        var line = node.TryGetProperty("start_line", out var l) ? l.ToString() : null;
+
+                        var loc = !string.IsNullOrEmpty(file)
+                            ? $" *({file}{(line != null ? ":" + line : "")})*"
+                            : "";
+                        md.AppendLine($"{step++}. `{symbol ?? name}`{loc}");
+                    }
+                    else if (node.ValueKind == JsonValueKind.String)
+                    {
+                        var str = node.GetString() ?? "Function";
+                        md.AppendLine($"{step++}. `{str}`");
+                    }
+                }
+            }
+
+            md.AppendLine();
+        }
+
+        return md.ToString().TrimEnd();
     }
 
     public async Task<string> GetCallChainAsync(string startFunction, string endFunction, int maxDepth = 5, string format = "markdown", string? workspacePath = null, CancellationToken cancellationToken = default)
@@ -1091,12 +1079,11 @@ public class CodeExplorerRepository
         var query = Queries.Get(queryKey);
         var res = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
 
-        using (var doc = JsonDocument.Parse(res))
+        using var doc = JsonDocument.Parse(res);
+
+        foreach (var item in doc.RootElement.EnumerateArray())
         {
-            foreach (var item in doc.RootElement.EnumerateArray())
-            {
-                results.Add(item.Clone());
-            }
+            results.Add(item.Clone());
         }
     }
 
@@ -1351,17 +1338,16 @@ public class CodeExplorerRepository
         {
             var allResult = await _defaultDbClient.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.path AS path LIMIT 1;");
 
-            using (var allDoc = JsonDocument.Parse(allResult))
-            {
-                if (allDoc.RootElement.ValueKind == JsonValueKind.Array && allDoc.RootElement.GetArrayLength() > 0)
-                {
-                    var row = allDoc.RootElement[0];
+            using var allDoc = JsonDocument.Parse(allResult);
 
-                    if (row.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
-                    {
-                        var p = pathProp.GetString();
-                        if (!string.IsNullOrEmpty(p)) return Path.GetFullPath(p);
-                    }
+            if (allDoc.RootElement.ValueKind == JsonValueKind.Array && allDoc.RootElement.GetArrayLength() > 0)
+            {
+                var row = allDoc.RootElement[0];
+
+                if (row.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
+                {
+                    var p = pathProp.GetString();
+                    if (!string.IsNullOrEmpty(p)) return Path.GetFullPath(p);
                 }
             }
         }
@@ -1465,22 +1451,21 @@ public class CodeExplorerRepository
         {
             try
             {
-                using (var doc = JsonDocument.Parse(parametersJson))
+                using var doc = JsonDocument.Parse(parametersJson);
+
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                    foreach (var prop in doc.RootElement.EnumerateObject())
                     {
-                        foreach (var prop in doc.RootElement.EnumerateObject())
+                        paramDict[prop.Name] = prop.Value.ValueKind switch
                         {
-                            paramDict[prop.Name] = prop.Value.ValueKind switch
-                            {
-                                JsonValueKind.String => prop.Value.GetString(),
-                                JsonValueKind.Number => prop.Value.TryGetInt64(out var l) ? l : prop.Value.GetDouble(),
-                                JsonValueKind.True => true,
-                                JsonValueKind.False => false,
-                                JsonValueKind.Null => null,
-                                _ => prop.Value.GetRawText()
-                            };
-                        }
+                            JsonValueKind.String => prop.Value.GetString(),
+                            JsonValueKind.Number => prop.Value.TryGetInt64(out var l) ? l : prop.Value.GetDouble(),
+                            JsonValueKind.True => true,
+                            JsonValueKind.False => false,
+                            JsonValueKind.Null => null,
+                            _ => prop.Value.GetRawText()
+                        };
                     }
                 }
             }
@@ -1624,31 +1609,29 @@ public class CodeExplorerRepository
 
         var projResult = await client.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name, p.language AS language, p.project_type AS type, p.path AS path", null, cancellationToken);
 
-        using (var projDoc = JsonDocument.Parse(projResult))
-        {
-            var countResult = await client.ExecuteQueryAsync(
-                "MATCH (n) RETURN labels(n)[0] AS kind, count(n) AS count ORDER BY count DESC", null,
-                cancellationToken);
+        using var projDoc = JsonDocument.Parse(projResult);
 
-            using (var countDoc = JsonDocument.Parse(countResult))
+        var countResult = await client.ExecuteQueryAsync(
+            "MATCH (n) RETURN labels(n)[0] AS kind, count(n) AS count ORDER BY count DESC", null,
+            cancellationToken);
+
+        using var countDoc = JsonDocument.Parse(countResult);
+
+        var customQueriesCount = Directory.Exists(ws.QueriesDirectory)
+            ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length
+            : 0;
+
+        return JsonSerializer.Serialize(
+            new
             {
-                var customQueriesCount = Directory.Exists(ws.QueriesDirectory)
-                    ? Directory.GetFiles(ws.QueriesDirectory, "*.cypher").Length
-                    : 0;
-
-                return JsonSerializer.Serialize(
-                    new
-                    {
-                        status = "ready",
-                        workspacePath = ws.RootDirectory,
-                        dbPath = ws.DbPath,
-                        databaseSizeMb = Math.Round(sizeMb, 2),
-                        projects = projDoc.RootElement,
-                        nodeCounts = countDoc.RootElement,
-                        customQueriesCount
-                    }, CompactJsonOptions);
-            }
-        }
+                status = "ready",
+                workspacePath = ws.RootDirectory,
+                dbPath = ws.DbPath,
+                databaseSizeMb = Math.Round(sizeMb, 2),
+                projects = projDoc.RootElement,
+                nodeCounts = countDoc.RootElement,
+                customQueriesCount
+            }, CompactJsonOptions);
     }
 
     public async Task<string> ClearWorkspaceIndexAsync(
@@ -1698,66 +1681,64 @@ public class CodeExplorerRepository
             return StandbyMessageJson;
         }
 
-        using (var nodesDoc = JsonDocument.Parse(nodesJson))
-        {
-            int nodesIngested = 0;
-            int relsIngested = 0;
+        using var nodesDoc = JsonDocument.Parse(nodesJson);
 
-            if (nodesDoc.RootElement.ValueKind == JsonValueKind.Array)
+        int nodesIngested = 0;
+        int relsIngested = 0;
+
+        if (nodesDoc.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var node in nodesDoc.RootElement.EnumerateArray())
             {
-                foreach (var node in nodesDoc.RootElement.EnumerateArray())
+                if (node.TryGetProperty("id", out var idProp) && node.TryGetProperty("kind", out var kindProp))
                 {
-                    if (node.TryGetProperty("id", out var idProp) && node.TryGetProperty("kind", out var kindProp))
+                    var id = idProp.GetString()!;
+                    var kind = kindProp.GetString()!;
+                    var props = node.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
+
+                    await client.ExecuteWriteAsync(
+                        "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, json(@props)) ON CONFLICT(id) DO UPDATE SET kind = @kind, properties = json(@props);",
+                        new Dictionary<string, object?> { ["id"] = id, ["kind"] = kind, ["props"] = props },
+                        cancellationToken);
+                    nodesIngested++;
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(relationshipsJson))
+        {
+            using var relsDoc = JsonDocument.Parse(relationshipsJson);
+
+            if (relsDoc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var rel in relsDoc.RootElement.EnumerateArray())
+                {
+                    var kind = rel.TryGetProperty("kind", out var kProp)
+                        ? kProp.GetString()
+                        : (rel.TryGetProperty("type", out var tProp) ? tProp.GetString() : null);
+
+                    if (!string.IsNullOrEmpty(kind) && rel.TryGetProperty("from_id", out var fProp) &&
+                        rel.TryGetProperty("to_id", out var toProp))
                     {
-                        var id = idProp.GetString()!;
-                        var kind = kindProp.GetString()!;
-                        var props = node.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
+                        var fromId = fProp.GetString()!;
+                        var toId = toProp.GetString()!;
+                        var props = rel.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
 
                         await client.ExecuteWriteAsync(
-                            "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, json(@props)) ON CONFLICT(id) DO UPDATE SET kind = @kind, properties = json(@props);",
-                            new Dictionary<string, object?> { ["id"] = id, ["kind"] = kind, ["props"] = props },
-                            cancellationToken);
-                        nodesIngested++;
-                    }
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(relationshipsJson))
-            {
-                using (var relsDoc = JsonDocument.Parse(relationshipsJson))
-                {
-                    if (relsDoc.RootElement.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var rel in relsDoc.RootElement.EnumerateArray())
-                        {
-                            var kind = rel.TryGetProperty("kind", out var kProp)
-                                ? kProp.GetString()
-                                : (rel.TryGetProperty("type", out var tProp) ? tProp.GetString() : null);
-
-                            if (!string.IsNullOrEmpty(kind) && rel.TryGetProperty("from_id", out var fProp) &&
-                                rel.TryGetProperty("to_id", out var toProp))
+                            "INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES (@fromId, @toId, @kind, json(@props));",
+                            new Dictionary<string, object?>
                             {
-                                var fromId = fProp.GetString()!;
-                                var toId = toProp.GetString()!;
-                                var props = rel.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
-
-                                await client.ExecuteWriteAsync(
-                                    "INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES (@fromId, @toId, @kind, json(@props));",
-                                    new Dictionary<string, object?>
-                                    {
-                                        ["kind"] = kind, ["fromId"] = fromId, ["toId"] = toId, ["props"] = props
-                                    }, cancellationToken);
-                                relsIngested++;
-                            }
-                        }
+                                ["kind"] = kind, ["fromId"] = fromId, ["toId"] = toId, ["props"] = props
+                            }, cancellationToken);
+                        relsIngested++;
                     }
                 }
             }
-
-            InvalidateCache();
-
-            return JsonSerializer.Serialize(
-                new { status = "success", nodesIngested, relationshipsIngested = relsIngested }, CompactJsonOptions);
         }
+
+        InvalidateCache();
+
+        return JsonSerializer.Serialize(
+            new { status = "success", nodesIngested, relationshipsIngested = relsIngested }, CompactJsonOptions);
     }
 }

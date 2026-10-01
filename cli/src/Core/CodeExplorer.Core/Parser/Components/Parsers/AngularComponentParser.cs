@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common;
-
 namespace CodeExplorer.Core.Parser.Components.Parsers;
 
 /// <summary>

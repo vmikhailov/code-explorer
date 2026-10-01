@@ -36,23 +36,21 @@ public class CeCliTests
         var prevOut = Console.Out;
         var prevErr = Console.Error;
 
-        using (var outSw = new StringWriter())
+        using var outSw = new StringWriter();
+
+        using var errSw = new StringWriter();
+
+        try
         {
-            using (var errSw = new StringWriter())
-            {
-                try
-                {
-                    Console.SetOut(outSw);
-                    Console.SetError(errSw);
-                    var exitCode = await Program.Main(args);
-                    return (exitCode, outSw.ToString(), errSw.ToString());
-                }
-                finally
-                {
-                    Console.SetOut(prevOut);
-                    Console.SetError(prevErr);
-                }
-            }
+            Console.SetOut(outSw);
+            Console.SetError(errSw);
+            var exitCode = await Program.Main(args);
+            return (exitCode, outSw.ToString(), errSw.ToString());
+        }
+        finally
+        {
+            Console.SetOut(prevOut);
+            Console.SetError(prevErr);
         }
     }
 

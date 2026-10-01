@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using TreeSitter;
 
 namespace CodeExplorer.Core.Parser;
@@ -14,7 +13,7 @@ public static class AstConstantExtractor
 
     public static void ExtractAndRegister(SyntaxTree syntaxTree, string? projectName = null)
     {
-        if (syntaxTree?.Tree?.RootNode == null || syntaxTree.Tree.RootNode.Children.Count == 0) return;
+        if (syntaxTree.Tree?.RootNode == null || syntaxTree.Tree.RootNode.Children.Count == 0) return;
         ExtractAndRegister(syntaxTree.Tree.RootNode, syntaxTree.FileParser, projectName);
     }
 
@@ -48,15 +47,13 @@ public static class AstConstantExtractor
         {
             var language = SyntaxTree.GetLanguage(fileParser.LanguageName);
 
-            using (var parser = new TreeSitter.Parser(language))
+            using var parser = new TreeSitter.Parser(language);
+
+            using var tree = parser.Parse(content);
+
+            if (tree?.RootNode != null && tree.RootNode.Children.Count > 0)
             {
-                using (var tree = parser.Parse(content))
-                {
-                    if (tree?.RootNode != null && tree.RootNode.Children.Count > 0)
-                    {
-                        ExtractAndRegister(tree.RootNode, fileParser, projectName);
-                    }
-                }
+                ExtractAndRegister(tree.RootNode, fileParser, projectName);
             }
         }
         catch (Exception ex)

@@ -39,79 +39,79 @@ public class McpIntegrationTests
 
         var dbPath = Path.Combine(_tempWorkspace, "test_graph.db");
 
-        await using (var client = new SqliteGraphClient(dbPath))
+        await using var client = new SqliteGraphClient(dbPath);
+
+        WorkspaceIndexer.Register(new TypeScriptParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
+
+        // Start the server in a background thread
+        _serverTask = Task.Run(() =>
+            Program.Main(["mcp", "--port", TestPort.ToString(), "--db-path", dbPath, "--quiet"]));
+
+        _httpClient = new HttpClient();
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+        // Wait for the server to become available
+        var available = false;
+        Exception? lastEx = null;
+
+        for (var i = 0; i < 40; i++)
         {
-            WorkspaceIndexer.Register(new TypeScriptParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
-
-            // Start the server in a background thread
-            _serverTask = Task.Run(() =>
-                Program.Main(["mcp", "--port", TestPort.ToString(), "--db-path", dbPath, "--quiet"]));
-
-            _httpClient = new HttpClient();
-            _httpClient.Timeout = TimeSpan.FromSeconds(30);
-
-            // Wait for the server to become available
-            var available = false;
-            Exception? lastEx = null;
-
-            for (var i = 0; i < 40; i++)
+            try
             {
-                try
-                {
-                    var response = await _httpClient.GetAsync($"http://127.0.0.1:{TestPort}/");
-                    available = true;
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    lastEx = ex;
-                }
-
-                await Task.Delay(250);
+                var response = await _httpClient.GetAsync($"http://127.0.0.1:{TestPort}/");
+                available = true;
+                break;
+            }
+            catch (Exception ex)
+            {
+                lastEx = ex;
             }
 
-            if (!available)
-            {
-                Assert.Fail(
-                    $"MCP Server failed to start on port {TestPort}. Last exception: {lastEx?.Message}\n{lastEx?.StackTrace}");
-            }
+            await Task.Delay(250);
+        }
 
-            // Establish the SSE GET stream connection
-            var sseUrl = $"http://127.0.0.1:{TestPort}/mcp/sse";
+        if (!available)
+        {
+            Assert.Fail(
+                $"MCP Server failed to start on port {TestPort}. Last exception: {lastEx?.Message}\n{lastEx?.StackTrace}");
+        }
 
-            if (!string.IsNullOrEmpty(_tempWorkspace))
-            {
-                sseUrl += $"?ws={Uri.EscapeDataString(_tempWorkspace)}";
-            }
+        // Establish the SSE GET stream connection
+        var sseUrl = $"http://127.0.0.1:{TestPort}/mcp/sse";
 
-            var sseRequest = new HttpRequestMessage(HttpMethod.Get, sseUrl);
-            var sseResponse = await _httpClient.SendAsync(sseRequest, HttpCompletionOption.ResponseHeadersRead);
-            Assert.That(sseResponse.IsSuccessStatusCode, Is.True, $"SSE GET returned {sseResponse.StatusCode}");
+        if (!string.IsNullOrEmpty(_tempWorkspace))
+        {
+            sseUrl += $"?ws={Uri.EscapeDataString(_tempWorkspace)}";
+        }
 
-            _sseStream = await sseResponse.Content.ReadAsStreamAsync();
-            _sseReader = new StreamReader(_sseStream);
+        var sseRequest = new HttpRequestMessage(HttpMethod.Get, sseUrl);
+        var sseResponse = await _httpClient.SendAsync(sseRequest, HttpCompletionOption.ResponseHeadersRead);
+        Assert.That(sseResponse.IsSuccessStatusCode, Is.True, $"SSE GET returned {sseResponse.StatusCode}");
 
-            // Read the first event to get the session ID
-            var eventLine = await _sseReader.ReadLineAsync();
-            var dataLine = await _sseReader.ReadLineAsync();
+        _sseStream = await sseResponse.Content.ReadAsStreamAsync();
+        _sseReader = new StreamReader(_sseStream);
 
-            Assert.That(eventLine, Does.StartWith("event:"));
-            Assert.That(dataLine, Does.StartWith("data:"));
+        // Read the first event to get the session ID
+        var eventLine = await _sseReader.ReadLineAsync();
+        var dataLine = await _sseReader.ReadLineAsync();
 
-            var relativeEndpoint = dataLine["data:".Length..].Trim();
-            var queryIndex = relativeEndpoint.IndexOf('?');
-            Assert.That(queryIndex, Is.GreaterThan(0));
-            var queryString = relativeEndpoint[(queryIndex + 1)..];
-            var queryParams = System.Web.HttpUtility.ParseQueryString(queryString);
-            _sessionId = queryParams["sessionId"];
-            Assert.That(_sessionId, Is.Not.Null.And.Not.Empty);
+        Assert.That(eventLine, Does.StartWith("event:"));
+        Assert.That(dataLine, Does.StartWith("data:"));
 
-            // Console.WriteLine($"Established SSE session: {_sessionId}");
+        var relativeEndpoint = dataLine["data:".Length..].Trim();
+        var queryIndex = relativeEndpoint.IndexOf('?');
+        Assert.That(queryIndex, Is.GreaterThan(0));
+        var queryString = relativeEndpoint[(queryIndex + 1)..];
+        var queryParams = System.Web.HttpUtility.ParseQueryString(queryString);
+        _sessionId = queryParams["sessionId"];
+        Assert.That(_sessionId, Is.Not.Null.And.Not.Empty);
 
-            // Perform the handshake (initialize request)
-            var initJson = @"{
+        // Console.WriteLine($"Established SSE session: {_sessionId}");
+
+        // Perform the handshake (initialize request)
+        var initJson = @"{
             ""jsonrpc"": ""2.0"",
             ""id"": 100,
             ""method"": ""initialize"",
@@ -125,29 +125,27 @@ public class McpIntegrationTests
             }
         }";
 
-            var responsePost = await PostMessageAsync(initJson);
+        var responsePost = await PostMessageAsync(initJson);
 
-            Assert.That(responsePost.IsSuccessStatusCode, Is.True,
-                $"Initialize POST returned {responsePost.StatusCode}");
+        Assert.That(responsePost.IsSuccessStatusCode, Is.True,
+            $"Initialize POST returned {responsePost.StatusCode}");
 
-            var initResponseStr = await ReadNextSseResponseAsync();
+        var initResponseStr = await ReadNextSseResponseAsync();
 
-            using (var doc = JsonDocument.Parse(initResponseStr))
-            {
-                Assert.That(doc.RootElement.GetProperty("id").GetInt32(), Is.EqualTo(100));
+        using var doc = JsonDocument.Parse(initResponseStr);
 
-                // Console.WriteLine("Initialization handshake completed successfully!");
+        Assert.That(doc.RootElement.GetProperty("id").GetInt32(), Is.EqualTo(100));
 
-                // Send initialized notification (notification has no response)
-                var initializedJson = @"{
+        // Console.WriteLine("Initialization handshake completed successfully!");
+
+        // Send initialized notification (notification has no response)
+        var initializedJson = @"{
             ""jsonrpc"": ""2.0"",
             ""method"": ""notifications/initialized"",
             ""params"": {}
         }";
-                responsePost = await PostMessageAsync(initializedJson);
-                Assert.That(responsePost.IsSuccessStatusCode, Is.True);
-            }
-        }
+        responsePost = await PostMessageAsync(initializedJson);
+        Assert.That(responsePost.IsSuccessStatusCode, Is.True);
     }
 
     [OneTimeTearDown]
@@ -243,36 +241,35 @@ public class McpIntegrationTests
         var responseStr = await ReadNextSseResponseAsync();
         Assert.That(responseStr, Is.Not.Null);
 
-        using (var doc = JsonDocument.Parse(responseStr))
+        using var doc = JsonDocument.Parse(responseStr);
+
+        var root = doc.RootElement;
+
+        Assert.That(root.GetProperty("id").GetInt32(), Is.EqualTo(responseId));
+
+        // Assert no error field on jsonrpc response
+        if (root.TryGetProperty("error", out var errorElement))
         {
-            var root = doc.RootElement;
+            Assert.Fail($"Tool {toolName} returned error: {errorElement.GetRawText()}");
+        }
 
-            Assert.That(root.GetProperty("id").GetInt32(), Is.EqualTo(responseId));
+        // Verify result exists
+        Assert.That(root.TryGetProperty("result", out var resultElement), Is.True);
 
-            // Assert no error field on jsonrpc response
-            if (root.TryGetProperty("error", out var errorElement))
+        // Verify isError is false in result content
+        if (resultElement.TryGetProperty("isError", out var isErrorElement))
+        {
+            if (isErrorElement.GetBoolean())
             {
-                Assert.Fail($"Tool {toolName} returned error: {errorElement.GetRawText()}");
-            }
+                var errorText = "No details";
 
-            // Verify result exists
-            Assert.That(root.TryGetProperty("result", out var resultElement), Is.True);
-
-            // Verify isError is false in result content
-            if (resultElement.TryGetProperty("isError", out var isErrorElement))
-            {
-                if (isErrorElement.GetBoolean())
+                if (resultElement.TryGetProperty("content", out var contentElement) &&
+                    contentElement.ValueKind == JsonValueKind.Array && contentElement.GetArrayLength() > 0)
                 {
-                    var errorText = "No details";
-
-                    if (resultElement.TryGetProperty("content", out var contentElement) &&
-                        contentElement.ValueKind == JsonValueKind.Array && contentElement.GetArrayLength() > 0)
-                    {
-                        errorText = contentElement[0].GetProperty("text").GetString();
-                    }
-
-                    Assert.Fail($"Tool {toolName} result marked with isError: true. Error details: {errorText}");
+                    errorText = contentElement[0].GetProperty("text").GetString();
                 }
+
+                Assert.Fail($"Tool {toolName} result marked with isError: true. Error details: {errorText}");
             }
         }
 
@@ -391,17 +388,16 @@ public class McpIntegrationTests
             return;
         }
 
-        await using (var client = new SqliteGraphClient(atsDbPath))
-        {
-            var repo = new Core.Mcp.CodeExplorerRepository(client);
+        await using var client = new SqliteGraphClient(atsDbPath);
 
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var resultJson = await repo.InspectDataLineageAsync("campaigns");
-            sw.Stop();
+        var repo = new Core.Mcp.CodeExplorerRepository(client);
 
-            Assert.That(sw.ElapsedMilliseconds, Is.LessThan(2000),
-                $"Query took too long: {sw.ElapsedMilliseconds}ms (expected < 2000ms)");
-            Assert.That(resultJson, Does.Contain("campaigns"));
-        }
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var resultJson = await repo.InspectDataLineageAsync("campaigns");
+        sw.Stop();
+
+        Assert.That(sw.ElapsedMilliseconds, Is.LessThan(2000),
+            $"Query took too long: {sw.ElapsedMilliseconds}ms (expected < 2000ms)");
+        Assert.That(resultJson, Does.Contain("campaigns"));
     }
 }

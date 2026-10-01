@@ -166,13 +166,12 @@ public sealed class NativeIntentPredictor : IIntentPredictor
                     CreateNoWindow = true
                 };
 
-                using (var p = System.Diagnostics.Process.Start(psi))
+                using var p = System.Diagnostics.Process.Start(psi);
+
+                if (p != null)
                 {
-                    if (p != null)
-                    {
-                        var str = p.StandardOutput.ReadToEnd().Trim();
-                        if (ulong.TryParse(str, out var bytes) && bytes > 0) return bytes;
-                    }
+                    var str = p.StandardOutput.ReadToEnd().Trim();
+                    if (ulong.TryParse(str, out var bytes) && bytes > 0) return bytes;
                 }
             }
             catch { }

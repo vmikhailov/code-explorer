@@ -64,13 +64,12 @@ public static class SqliteCypherFunctions
             if (string.IsNullOrEmpty(propsJson)) return "[]";
             try
             {
-                using (var doc = JsonDocument.Parse(propsJson))
+                using var doc = JsonDocument.Parse(propsJson);
+
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                    {
-                        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
-                        return JsonSerializer.Serialize(keys);
-                    }
+                    var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
+                    return JsonSerializer.Serialize(keys);
                 }
             }
             catch { }
@@ -91,15 +90,14 @@ public static class SqliteCypherFunctions
         if (string.IsNullOrEmpty(jsonList)) return null;
         try
         {
-            using (var doc = JsonDocument.Parse(jsonList))
-            {
-                if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
+            using var doc = JsonDocument.Parse(jsonList);
 
-                var len = doc.RootElement.GetArrayLength();
-                if (len == 0) return null;
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
 
-                return (isLast ? doc.RootElement[len - 1] : doc.RootElement[0]).ToString();
-            }
+            var len = doc.RootElement.GetArrayLength();
+            if (len == 0) return null;
+
+            return (isLast ? doc.RootElement[len - 1] : doc.RootElement[0]).ToString();
         }
         catch { }
         return null;
@@ -110,13 +108,12 @@ public static class SqliteCypherFunctions
         if (string.IsNullOrEmpty(jsonList)) return "[]";
         try
         {
-            using (var doc = JsonDocument.Parse(jsonList))
+            using var doc = JsonDocument.Parse(jsonList);
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
             {
-                if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                {
-                    var items = doc.RootElement.EnumerateArray().Skip(1).Select(x => x.ToString()).ToList();
-                    return JsonSerializer.Serialize(items);
-                }
+                var items = doc.RootElement.EnumerateArray().Skip(1).Select(x => x.ToString()).ToList();
+                return JsonSerializer.Serialize(items);
             }
         }
         catch { }

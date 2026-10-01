@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-using CodeExplorer.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 

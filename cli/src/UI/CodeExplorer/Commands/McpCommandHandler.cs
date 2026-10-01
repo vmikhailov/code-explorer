@@ -63,25 +63,24 @@ public static class McpCommandHandler
             dbPath = "Data Source=:memory:;Mode=Memory;Cache=Shared";
         }
 
-        await using (var client = new SqliteGraphClient(dbPath!))
+        await using var client = new SqliteGraphClient(dbPath!);
+
+        var wsRoot = ws?.RootDirectory;
+        if (!string.IsNullOrEmpty(wsRoot))
         {
-            var wsRoot = ws?.RootDirectory;
-            if (!string.IsNullOrEmpty(wsRoot))
-            {
-                WorkspaceConventions.LoadFromWorkspace(wsRoot);
-            }
-
-            if (opts.Port > 0)
-            {
-                await RunMcpWebServerAsync(client, opts.Port, wsRoot, isStandby, opts.Quiet);
-            }
-            else
-            {
-                await RunMcpStdioHostAsync(client, wsRoot, isStandby, opts.Quiet);
-            }
-
-            return 0;
+            WorkspaceConventions.LoadFromWorkspace(wsRoot);
         }
+
+        if (opts.Port > 0)
+        {
+            await RunMcpWebServerAsync(client, opts.Port, wsRoot, isStandby, opts.Quiet);
+        }
+        else
+        {
+            await RunMcpStdioHostAsync(client, wsRoot, isStandby, opts.Quiet);
+        }
+
+        return 0;
     }
 
     private static async Task RunMcpWebServerAsync(SqliteGraphClient client, int port, string? workspaceRoot = null, bool isStandby = false, bool quiet = false)

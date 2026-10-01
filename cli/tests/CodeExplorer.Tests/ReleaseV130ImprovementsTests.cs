@@ -108,76 +108,69 @@ public class GameController : ControllerBase
 
             var dbPath = Path.Combine(tempWorkspace, "v130_graph.db");
 
-            await using (var client = new SqliteGraphClient(dbPath))
-            {
-                WorkspaceIndexer.Register(new CSharpParser());
-                var indexer = new WorkspaceIndexer(client);
-                await indexer.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
+            await using var client = new SqliteGraphClient(dbPath);
 
-                // Verify Orleans Grain EntryPoint
-                var grainRes =
-                    await client.ExecuteQueryAsync(
-                        "MATCH (e:EntryPoint) WHERE e.name CONTAINS 'GameSessionGrain' RETURN e.name AS name");
+            WorkspaceIndexer.Register(new CSharpParser());
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
-                using (var grainDoc = JsonDocument.Parse(grainRes))
-                {
-                    Assert.That(grainDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-                        "Orleans Grain GameSessionGrain should be detected as EntryPoint");
+            // Verify Orleans Grain EntryPoint
+            var grainRes =
+                await client.ExecuteQueryAsync(
+                    "MATCH (e:EntryPoint) WHERE e.name CONTAINS 'GameSessionGrain' RETURN e.name AS name");
 
-                    // Verify no phantom controller endpoint for class
-                    var phantomRes =
-                        await client.ExecuteQueryAsync(
-                            "MATCH (e:Endpoint) WHERE e.name = 'GET:/api/Game' RETURN e.name AS name");
+            using var grainDoc = JsonDocument.Parse(grainRes);
 
-                    using (var phantomDoc = JsonDocument.Parse(phantomRes))
-                    {
-                        Assert.That(phantomDoc.RootElement.GetArrayLength(), Is.EqualTo(0),
-                            "Phantom GET:/api/Game endpoint should NOT exist");
+            Assert.That(grainDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
+                "Orleans Grain GameSessionGrain should be detected as EntryPoint");
 
-                        // Verify real endpoint with trimmed Async
-                        var methodEndpointRes =
-                            await client.ExecuteQueryAsync(
-                                "MATCH (e:Endpoint) WHERE e.name CONTAINS 'connect' RETURN e.name AS name");
+            // Verify no phantom controller endpoint for class
+            var phantomRes =
+                await client.ExecuteQueryAsync(
+                    "MATCH (e:Endpoint) WHERE e.name = 'GET:/api/Game' RETURN e.name AS name");
 
-                        using (var methodDoc = JsonDocument.Parse(methodEndpointRes))
-                        {
-                            Assert.That(methodDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-                                "Endpoint for connect should exist");
+            using var phantomDoc = JsonDocument.Parse(phantomRes);
 
-                            // Verify no Table named 'DbSet'
-                            var dbSetTableRes = await client.ExecuteQueryAsync(
-                                "MATCH (t:Table) WHERE t.name = 'DbSet' OR t.name = 'IDbSet' RETURN t.name AS name");
+            Assert.That(phantomDoc.RootElement.GetArrayLength(), Is.EqualTo(0),
+                "Phantom GET:/api/Game endpoint should NOT exist");
 
-                            using (var dbSetDoc = JsonDocument.Parse(dbSetTableRes))
-                            {
-                                Assert.That(dbSetDoc.RootElement.GetArrayLength(), Is.EqualTo(0),
-                                    "Table named DbSet should NOT exist");
+            // Verify real endpoint with trimmed Async
+            var methodEndpointRes =
+                await client.ExecuteQueryAsync(
+                    "MATCH (e:Endpoint) WHERE e.name CONTAINS 'connect' RETURN e.name AS name");
 
-                                // Verify real Table 'Orders' exists
-                                var ordersTableRes =
-                                    await client.ExecuteQueryAsync(
-                                        "MATCH (t:Table) WHERE t.name = 'Orders' RETURN t.name AS name");
+            using var methodDoc = JsonDocument.Parse(methodEndpointRes);
 
-                                using (var ordersDoc = JsonDocument.Parse(ordersTableRes))
-                                {
-                                    Assert.That(ordersDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-                                        "Table Orders should exist");
+            Assert.That(methodDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
+                "Endpoint for connect should exist");
 
-                                    // Verify MongoDB collection table
-                                    var mongoTableRes = await client.ExecuteQueryAsync(
-                                        "MATCH (t:Table) WHERE t.name = 'orders_collection' RETURN t.name AS name");
+            // Verify no Table named 'DbSet'
+            var dbSetTableRes = await client.ExecuteQueryAsync(
+                "MATCH (t:Table) WHERE t.name = 'DbSet' OR t.name = 'IDbSet' RETURN t.name AS name");
 
-                                    using (var mongoDoc = JsonDocument.Parse(mongoTableRes))
-                                    {
-                                        Assert.That(mongoDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-                                            "MongoDB table orders_collection should exist");
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            using var dbSetDoc = JsonDocument.Parse(dbSetTableRes);
+
+            Assert.That(dbSetDoc.RootElement.GetArrayLength(), Is.EqualTo(0),
+                "Table named DbSet should NOT exist");
+
+            // Verify real Table 'Orders' exists
+            var ordersTableRes =
+                await client.ExecuteQueryAsync(
+                    "MATCH (t:Table) WHERE t.name = 'Orders' RETURN t.name AS name");
+
+            using var ordersDoc = JsonDocument.Parse(ordersTableRes);
+
+            Assert.That(ordersDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
+                "Table Orders should exist");
+
+            // Verify MongoDB collection table
+            var mongoTableRes = await client.ExecuteQueryAsync(
+                "MATCH (t:Table) WHERE t.name = 'orders_collection' RETURN t.name AS name");
+
+            using var mongoDoc = JsonDocument.Parse(mongoTableRes);
+
+            Assert.That(mongoDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
+                "MongoDB table orders_collection should exist");
         }
         finally
         {

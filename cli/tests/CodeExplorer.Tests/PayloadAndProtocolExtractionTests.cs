@@ -58,19 +58,18 @@ public class RideController : ControllerBase
 
         var dbPath = Path.Combine(_tempDir, "graph.db");
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new CSharpParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            var result = await client.ExecuteQueryAsync(
-                "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.http_method AS method, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp");
-            Assert.That(result, Does.Contain("POST"));
-            Assert.That(result, Does.Contain("REST"));
-            Assert.That(result, Does.Contain("StartRideRequest"));
-            Assert.That(result, Does.Contain("RideDto"));
-        }
+        WorkspaceIndexer.Register(new CSharpParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+        var result = await client.ExecuteQueryAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.http_method AS method, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp");
+        Assert.That(result, Does.Contain("POST"));
+        Assert.That(result, Does.Contain("REST"));
+        Assert.That(result, Does.Contain("StartRideRequest"));
+        Assert.That(result, Does.Contain("RideDto"));
     }
 
     [Test]
@@ -103,19 +102,18 @@ public class RideMutations
 
         var dbPath = Path.Combine(_tempDir, "graph.db");
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new CSharpParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            var result = await client.ExecuteQueryAsync(
-                "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp");
-            Assert.That(result, Does.Contain("GraphQL"));
-            Assert.That(result, Does.Contain("Mutation"));
-            Assert.That(result, Does.Contain("StartRideInput"));
-            Assert.That(result, Does.Contain("RidePayload"));
-        }
+        WorkspaceIndexer.Register(new CSharpParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+        var result = await client.ExecuteQueryAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp");
+        Assert.That(result, Does.Contain("GraphQL"));
+        Assert.That(result, Does.Contain("Mutation"));
+        Assert.That(result, Does.Contain("StartRideInput"));
+        Assert.That(result, Does.Contain("RidePayload"));
     }
 
     [Test]
@@ -145,19 +143,18 @@ public class OrderGrpcService : OrderServiceBase
 
         var dbPath = Path.Combine(_tempDir, "graph.db");
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new CSharpParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            var result = await client.ExecuteQueryAsync(
-                "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp");
-            Assert.That(result, Does.Contain("gRPC"));
-            Assert.That(result, Does.Contain("Unary"));
-            Assert.That(result, Does.Contain("CreateOrderRequest"));
-            Assert.That(result, Does.Contain("OrderResponse"));
-        }
+        WorkspaceIndexer.Register(new CSharpParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+        var result = await client.ExecuteQueryAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp");
+        Assert.That(result, Does.Contain("gRPC"));
+        Assert.That(result, Does.Contain("Unary"));
+        Assert.That(result, Does.Contain("CreateOrderRequest"));
+        Assert.That(result, Does.Contain("OrderResponse"));
     }
 
     [Test]
@@ -197,19 +194,18 @@ public class RideGraphQlController {
 
         var dbPath = Path.Combine(_tempDir, "graph.db");
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new JavaParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            var result = await client.ExecuteQueryAsync(
-                "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp");
-            Assert.That(result, Does.Contain("REST"));
-            Assert.That(result, Does.Contain("GraphQL"));
-            Assert.That(result, Does.Contain("StartRideRequest"));
-            Assert.That(result, Does.Contain("RideDto"));
-        }
+        WorkspaceIndexer.Register(new JavaParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+        var result = await client.ExecuteQueryAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp");
+        Assert.That(result, Does.Contain("REST"));
+        Assert.That(result, Does.Contain("GraphQL"));
+        Assert.That(result, Does.Contain("StartRideRequest"));
+        Assert.That(result, Does.Contain("RideDto"));
     }
 
     [Test]
@@ -254,20 +250,19 @@ export class RidesGrpcService {
 
         var dbPath = Path.Combine(_tempDir, "graph.db");
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new TypeScriptParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            var result = await client.ExecuteQueryAsync(
-                "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp ORDER BY ep.protocol");
-            Assert.That(result, Does.Contain("REST"));
-            Assert.That(result, Does.Contain("GraphQL"));
-            Assert.That(result, Does.Contain("gRPC"));
-            Assert.That(result, Does.Contain("StartRideDto"));
-            Assert.That(result, Does.Contain("RideResultDto"));
-        }
+        WorkspaceIndexer.Register(new TypeScriptParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+        var result = await client.ExecuteQueryAsync(
+            "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp ORDER BY ep.protocol");
+        Assert.That(result, Does.Contain("REST"));
+        Assert.That(result, Does.Contain("GraphQL"));
+        Assert.That(result, Does.Contain("gRPC"));
+        Assert.That(result, Does.Contain("StartRideDto"));
+        Assert.That(result, Does.Contain("RideResultDto"));
     }
 
     [Test]
@@ -304,22 +299,21 @@ public static class DirectivesHandlers
 
         var dbPath = Path.Combine(_tempDir, "graph.db");
 
-        await using (var client = new SqliteGraphClient(dbPath))
-        {
-            WorkspaceIndexer.Register(new CSharpParser());
-            var indexer = new WorkspaceIndexer(client);
-            await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+        await using var client = new SqliteGraphClient(dbPath);
 
-            var result =
-                await client.ExecuteQueryAsync(
-                    "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.route AS route ORDER BY ep.route");
-            Assert.That(result, Does.Contain("/directives"));
-            Assert.That(result, Does.Contain("/directives/create"));
+        WorkspaceIndexer.Register(new CSharpParser());
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
-            var triggersResult = await client.ExecuteQueryAsync(
-                "MATCH (ep:Endpoint)-[:TRIGGERS]->(fn:Function) RETURN ep.name AS epName, fn.name AS fnName");
-            Assert.That(triggersResult, Does.Contain("GetAll"));
-        }
+        var result =
+            await client.ExecuteQueryAsync(
+                "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.route AS route ORDER BY ep.route");
+        Assert.That(result, Does.Contain("/directives"));
+        Assert.That(result, Does.Contain("/directives/create"));
+
+        var triggersResult = await client.ExecuteQueryAsync(
+            "MATCH (ep:Endpoint)-[:TRIGGERS]->(fn:Function) RETURN ep.name AS epName, fn.name AS fnName");
+        Assert.That(triggersResult, Does.Contain("GetAll"));
     }
 }
 

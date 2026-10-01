@@ -51,13 +51,12 @@ public static class SqliteCypherFunctions
             if (string.IsNullOrEmpty(propsJson)) return "[]";
             try
             {
-                using (var doc = JsonDocument.Parse(propsJson))
+                using var doc = JsonDocument.Parse(propsJson);
+
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                    {
-                        var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
-                        return JsonSerializer.Serialize(keys);
-                    }
+                    var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).ToList();
+                    return JsonSerializer.Serialize(keys);
                 }
             }
             catch { }
@@ -70,12 +69,11 @@ public static class SqliteCypherFunctions
             if (string.IsNullOrEmpty(jsonList)) return null;
             try
             {
-                using (var doc = JsonDocument.Parse(jsonList))
+                using var doc = JsonDocument.Parse(jsonList);
+
+                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
                 {
-                    if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
-                    {
-                        return doc.RootElement[0].ToString();
-                    }
+                    return doc.RootElement[0].ToString();
                 }
             }
             catch { }
@@ -87,13 +85,12 @@ public static class SqliteCypherFunctions
             if (string.IsNullOrEmpty(jsonList)) return null;
             try
             {
-                using (var doc = JsonDocument.Parse(jsonList))
+                using var doc = JsonDocument.Parse(jsonList);
+
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
                 {
-                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                    {
-                        var len = doc.RootElement.GetArrayLength();
-                        if (len > 0) return doc.RootElement[len - 1].ToString();
-                    }
+                    var len = doc.RootElement.GetArrayLength();
+                    if (len > 0) return doc.RootElement[len - 1].ToString();
                 }
             }
             catch { }
@@ -105,13 +102,12 @@ public static class SqliteCypherFunctions
             if (string.IsNullOrEmpty(jsonList)) return "[]";
             try
             {
-                using (var doc = JsonDocument.Parse(jsonList))
+                using var doc = JsonDocument.Parse(jsonList);
+
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
                 {
-                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                    {
-                        var items = doc.RootElement.EnumerateArray().Skip(1).Select(x => x.ToString()).ToList();
-                        return JsonSerializer.Serialize(items);
-                    }
+                    var items = doc.RootElement.EnumerateArray().Skip(1).Select(x => x.ToString()).ToList();
+                    return JsonSerializer.Serialize(items);
                 }
             }
             catch { }

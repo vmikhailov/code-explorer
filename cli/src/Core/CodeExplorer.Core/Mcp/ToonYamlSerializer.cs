@@ -12,10 +12,9 @@ public static class ToonYamlSerializer
 {
     public static string SerializeYaml(string json)
     {
-        using (var doc = JsonDocument.Parse(json))
-        {
-            return SerializeYaml(doc.RootElement);
-        }
+        using var doc = JsonDocument.Parse(json);
+
+        return SerializeYaml(doc.RootElement);
     }
 
     public static string SerializeYaml(JsonElement element)
@@ -27,10 +26,9 @@ public static class ToonYamlSerializer
 
     public static string SerializeToon(string json)
     {
-        using (var doc = JsonDocument.Parse(json))
-        {
-            return SerializeToon(doc.RootElement);
-        }
+        using var doc = JsonDocument.Parse(json);
+
+        return SerializeToon(doc.RootElement);
     }
 
     public static string SerializeToon(JsonElement element)

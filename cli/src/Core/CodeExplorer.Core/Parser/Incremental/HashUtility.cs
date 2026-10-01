@@ -10,32 +10,31 @@ public static class HashUtility
     public static string ComputeSha256(ReadOnlySpan<byte> bytes)
     {
         // Normalize line endings: strip carriage return '\r' (0x0D) so CRLF and LF yield identical hashes across OSes
-        using (var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
+        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        var remaining = bytes;
+
+        while (!remaining.IsEmpty)
         {
-            var remaining = bytes;
+            var idx = remaining.IndexOf((byte)'\r');
 
-            while (!remaining.IsEmpty)
+            if (idx < 0)
             {
-                var idx = remaining.IndexOf((byte)'\r');
-
-                if (idx < 0)
-                {
-                    sha.AppendData(remaining);
-                    break;
-                }
-
-                if (idx > 0)
-                {
-                    sha.AppendData(remaining[..idx]);
-                }
-
-                remaining = remaining[(idx + 1)..];
+                sha.AppendData(remaining);
+                break;
             }
 
-            Span<byte> hashBytes = stackalloc byte[32];
-            sha.GetHashAndReset(hashBytes);
-            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+            if (idx > 0)
+            {
+                sha.AppendData(remaining[..idx]);
+            }
+
+            remaining = remaining[(idx + 1)..];
         }
+
+        Span<byte> hashBytes = stackalloc byte[32];
+        sha.GetHashAndReset(hashBytes);
+        return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
     public static string ComputeSha256(string text)
@@ -49,10 +48,9 @@ public static class HashUtility
         var clean = text.Replace("\r", "");
         var bytes = System.Text.Encoding.UTF8.GetBytes(clean);
 
-        using (var sha = SHA256.Create())
-        {
-            var hash = sha.ComputeHash(bytes);
-            return Convert.ToHexString(hash).ToLowerInvariant();
-        }
+        using var sha = SHA256.Create();
+
+        var hash = sha.ComputeHash(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }

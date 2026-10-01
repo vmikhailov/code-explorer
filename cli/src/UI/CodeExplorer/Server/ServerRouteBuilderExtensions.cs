@@ -17,14 +17,13 @@ public static class ServerRouteBuilderExtensions
         WebSocketServerHandler wsHandler,
         ILogger logger)
     {
-        endpoints.Map("/ws", async (HttpContext context) =>
+        endpoints.Map("/ws", async context =>
         {
             if (context.WebSockets.IsWebSocketRequest)
             {
-                using (var webSocket = await context.WebSockets.AcceptWebSocketAsync())
-                {
-                    await wsHandler.HandleConnectionAsync(webSocket, context.RequestAborted);
-                }
+                using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+
+                await wsHandler.HandleConnectionAsync(webSocket, context.RequestAborted);
             }
             else
             {

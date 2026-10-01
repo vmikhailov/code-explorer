@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using Superpower;
 
 namespace CodeExplorer.Cypher.Parser;
 

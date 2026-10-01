@@ -1,4 +1,3 @@
-using System.Text;
 using CodeExplorer.Cypher.Ast;
 
 namespace CodeExplorer.Cypher.Compiler;

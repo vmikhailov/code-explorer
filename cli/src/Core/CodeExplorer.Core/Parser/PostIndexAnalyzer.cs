@@ -6,7 +6,6 @@ using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
 
@@ -1936,23 +1935,22 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             var dsQuery = "MATCH (ds:DataSet) RETURN ds.id AS id, ds.name AS name";
             var dsJson = await db.ExecuteQueryAsync(dsQuery, null, cancellationToken);
-            using (var dsDoc = JsonDocument.Parse(dsJson))
+            using var dsDoc = JsonDocument.Parse(dsJson);
+
+            foreach (var row in dsDoc.RootElement.EnumerateArray())
             {
-                foreach (var row in dsDoc.RootElement.EnumerateArray())
+                var dsId = GetStringProp(row, "id");
+                var dsName = GetStringProp(row, "name");
+                if (string.IsNullOrEmpty(dsId) || string.IsNullOrEmpty(dsName)) continue;
+
+                var targetEngine = !string.IsNullOrWhiteSpace(primaryRelationalEngine) ? primaryRelationalEngine : "PostgreSQL";
+                var (cName, cType, cKey) = CanonicalizeDatabase(targetEngine, "relational", null, dsName, primaryRelationalEngine);
+                var canonicalId = BuildCanonicalDatabaseId(dsId, cType, cKey, widPrefix);
+                rawToCanonical[dsId] = canonicalId;
+
+                if (!canonicalNodes.ContainsKey(canonicalId))
                 {
-                    var dsId = GetStringProp(row, "id");
-                    var dsName = GetStringProp(row, "name");
-                    if (string.IsNullOrEmpty(dsId) || string.IsNullOrEmpty(dsName)) continue;
-
-                    var targetEngine = !string.IsNullOrWhiteSpace(primaryRelationalEngine) ? primaryRelationalEngine : "PostgreSQL";
-                    var (cName, cType, cKey) = CanonicalizeDatabase(targetEngine, "relational", null, dsName, primaryRelationalEngine);
-                    var canonicalId = BuildCanonicalDatabaseId(dsId, cType, cKey, widPrefix);
-                    rawToCanonical[dsId] = canonicalId;
-
-                    if (!canonicalNodes.ContainsKey(canonicalId))
-                    {
-                        canonicalNodes[canonicalId] = (cName, cType, cKey, targetEngine);
-                    }
+                    canonicalNodes[canonicalId] = (cName, cType, cKey, targetEngine);
                 }
             }
         }
@@ -2307,17 +2305,16 @@ public class PostIndexAnalyzer(IGraphClient db)
                     {
                         try
                         {
-                            using (var innerDoc = JsonDocument.Parse(pElem.GetString()!))
+                            using var innerDoc = JsonDocument.Parse(pElem.GetString()!);
+
+                            if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
                             {
-                                if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
+                                foreach (var prop in innerDoc.RootElement.EnumerateObject())
                                 {
-                                    foreach (var prop in innerDoc.RootElement.EnumerateObject())
-                                    {
-                                        var valStr = prop.Value.ToString();
-                                        props[prop.Name] = valStr;
-                                        if (prop.NameEquals("category")) existingCategory = valStr;
-                                        if (prop.NameEquals("dependency_type")) existingDepType = valStr;
-                                    }
+                                    var valStr = prop.Value.ToString();
+                                    props[prop.Name] = valStr;
+                                    if (prop.NameEquals("category")) existingCategory = valStr;
+                                    if (prop.NameEquals("dependency_type")) existingDepType = valStr;
                                 }
                             }
                         }
@@ -2446,58 +2443,56 @@ public class PostIndexAnalyzer(IGraphClient db)
         var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
         var projsJson = await db.ExecuteQueryAsync(projQuery, null, cancellationToken);
 
-        using (var projsDoc = JsonDocument.Parse(projsJson))
+        using var projsDoc = JsonDocument.Parse(projsJson);
+
+        var projectList = new List<ProjectNode>();
+
+        foreach (var row in projsDoc.RootElement.EnumerateArray())
         {
-            var projectList = new List<ProjectNode>();
+            var pId = GetStringProp(row, "id");
+            var pName = GetStringProp(row, "name");
 
-            foreach (var row in projsDoc.RootElement.EnumerateArray())
+            var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String
+                ? pt.GetString()
+                : null;
+
+            if (!string.IsNullOrEmpty(pId))
             {
-                var pId = GetStringProp(row, "id");
-                var pName = GetStringProp(row, "name");
-
-                var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String
-                    ? pt.GetString()
-                    : null;
-
-                if (!string.IsNullOrEmpty(pId))
-                {
-                    projectList.Add(new ProjectNode(pId, pName, pPath ?? "", ""));
-                }
+                projectList.Add(new ProjectNode(pId, pName, pPath ?? "", ""));
             }
+        }
 
-            var extQuery =
-                "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.is_external') AS is_ext";
-            var extJson = await db.ExecuteQueryAsync(extQuery, null, cancellationToken);
+        var extQuery =
+            "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.is_external') AS is_ext";
+        var extJson = await db.ExecuteQueryAsync(extQuery, null, cancellationToken);
 
-            using (var extDoc = JsonDocument.Parse(extJson))
+        using var extDoc = JsonDocument.Parse(extJson);
+
+        var idsToDelete = new List<string>();
+
+        foreach (var row in extDoc.RootElement.EnumerateArray())
+        {
+            var id = GetStringProp(row, "id");
+            var name = GetStringProp(row, "name");
+            var domain = GetStringProp(row, "domain");
+            var isExt = GetStringProp(row, "is_ext");
+
+            if (isExt == "true") continue;
+
+            var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
+            if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
+
+            if (IsGarbageExternalService(cand))
             {
-                var idsToDelete = new List<string>();
-
-                foreach (var row in extDoc.RootElement.EnumerateArray())
-                {
-                    var id = GetStringProp(row, "id");
-                    var name = GetStringProp(row, "name");
-                    var domain = GetStringProp(row, "domain");
-                    var isExt = GetStringProp(row, "is_ext");
-
-                    if (isExt == "true") continue;
-
-                    var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
-                    if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
-
-                    if (IsGarbageExternalService(cand))
-                    {
-                        idsToDelete.Add(id);
-                    }
-                }
-
-                foreach (var id in idsToDelete)
-                {
-                    await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @id OR to_id = @id;", new { id },
-                        cancellationToken);
-                    await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @id;", new { id }, cancellationToken);
-                }
+                idsToDelete.Add(id);
             }
+        }
+
+        foreach (var id in idsToDelete)
+        {
+            await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @id OR to_id = @id;", new { id },
+                cancellationToken);
+            await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @id;", new { id }, cancellationToken);
         }
     }
 

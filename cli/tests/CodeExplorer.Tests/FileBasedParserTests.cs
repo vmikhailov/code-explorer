@@ -24,12 +24,11 @@ public class FileBasedParserTests
         Assert.That(File.Exists(filePath), Is.True, $"File does not exist: {filePath}");
         var workspacePath = Path.GetDirectoryName(filePath)!;
 
-        using (var syntaxTree = await _tsParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath))
-        {
-            Assert.That(syntaxTree, Is.Not.Null);
-            Assert.That(syntaxTree.FileNode, Is.Not.Null);
-            Assert.That(syntaxTree.Tree, Is.Not.Null);
-        }
+        using var syntaxTree = await _tsParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath);
+
+        Assert.That(syntaxTree, Is.Not.Null);
+        Assert.That(syntaxTree.FileNode, Is.Not.Null);
+        Assert.That(syntaxTree.Tree, Is.Not.Null);
     }
 
     [Test]
@@ -39,12 +38,11 @@ public class FileBasedParserTests
         Assert.That(File.Exists(filePath), Is.True, $"File does not exist: {filePath}");
         var workspacePath = Path.GetDirectoryName(filePath)!;
 
-        using (var syntaxTree = await _csParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath))
-        {
-            Assert.That(syntaxTree, Is.Not.Null);
-            Assert.That(syntaxTree.FileNode, Is.Not.Null);
-            Assert.That(syntaxTree.Tree, Is.Not.Null);
-        }
+        using var syntaxTree = await _csParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath);
+
+        Assert.That(syntaxTree, Is.Not.Null);
+        Assert.That(syntaxTree.FileNode, Is.Not.Null);
+        Assert.That(syntaxTree.Tree, Is.Not.Null);
     }
 
     [Test]
@@ -54,12 +52,11 @@ public class FileBasedParserTests
         Assert.That(File.Exists(filePath), Is.True, $"File does not exist: {filePath}");
         var workspacePath = Path.GetDirectoryName(filePath)!;
 
-        using (var syntaxTree = await _pyParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath))
-        {
-            Assert.That(syntaxTree, Is.Not.Null);
-            Assert.That(syntaxTree.FileNode, Is.Not.Null);
-            Assert.That(syntaxTree.Tree, Is.Not.Null);
-        }
+        using var syntaxTree = await _pyParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath);
+
+        Assert.That(syntaxTree, Is.Not.Null);
+        Assert.That(syntaxTree.FileNode, Is.Not.Null);
+        Assert.That(syntaxTree.Tree, Is.Not.Null);
     }
 
     [Test]
@@ -69,12 +66,11 @@ public class FileBasedParserTests
         Assert.That(File.Exists(filePath), Is.True, $"File does not exist: {filePath}");
         var workspacePath = Path.GetDirectoryName(filePath)!;
 
-        using (var syntaxTree = await _goParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath))
-        {
-            Assert.That(syntaxTree, Is.Not.Null);
-            Assert.That(syntaxTree.FileNode, Is.Not.Null);
-            Assert.That(syntaxTree.Tree, Is.Not.Null);
-        }
+        using var syntaxTree = await _goParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath);
+
+        Assert.That(syntaxTree, Is.Not.Null);
+        Assert.That(syntaxTree.FileNode, Is.Not.Null);
+        Assert.That(syntaxTree.Tree, Is.Not.Null);
     }
 
     [Test]
@@ -84,10 +80,9 @@ public class FileBasedParserTests
         Assert.That(File.Exists(filePath), Is.True, $"File does not exist: {filePath}");
         var workspacePath = Path.GetDirectoryName(filePath)!;
 
-        using (var syntaxTree = await _sqlParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath))
-        {
-            Assert.That(syntaxTree, Is.Not.Null);
-            Assert.That(syntaxTree.FileNode, Is.Not.Null);
-        }
+        using var syntaxTree = await _sqlParser.ParseAsync(filePath, "parent-id", "ws-id", workspacePath);
+
+        Assert.That(syntaxTree, Is.Not.Null);
+        Assert.That(syntaxTree.FileNode, Is.Not.Null);
     }
 }
