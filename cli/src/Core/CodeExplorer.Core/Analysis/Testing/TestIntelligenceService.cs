@@ -328,14 +328,7 @@ public class TestIntelligenceService
 
         await using (var tx = conn.BeginTransaction())
         {
-            foreach (var testId in testMethodIds)
-            {
-                await using var ins = conn.CreateCommand();
-                ins.Transaction = tx;
-                ins.CommandText = "INSERT OR IGNORE INTO temp_test_ids VALUES ($id);";
-                ins.Parameters.AddWithValue("$id", testId);
-                await ins.ExecuteNonQueryAsync(ct);
-            }
+            await BulkInsertTempIdsAsync(conn, tx, "temp_test_ids", testMethodIds, ct);
             tx.Commit();
         }
 
@@ -596,14 +589,7 @@ public class TestIntelligenceService
 
         await using (var tx = conn.BeginTransaction())
         {
-            foreach (var id in changedIds)
-            {
-                await using var ins = conn.CreateCommand();
-                ins.Transaction = tx;
-                ins.CommandText = "INSERT OR IGNORE INTO temp_frontier VALUES ($id);";
-                ins.Parameters.AddWithValue("$id", id);
-                await ins.ExecuteNonQueryAsync(ct);
-            }
+            await BulkInsertTempIdsAsync(conn, tx, "temp_frontier", changedIds, ct);
             tx.Commit();
         }
 
@@ -638,14 +624,7 @@ public class TestIntelligenceService
 
             await using (var tx = conn.BeginTransaction())
             {
-                foreach (var id in currentFrontier)
-                {
-                    await using var ins = conn.CreateCommand();
-                    ins.Transaction = tx;
-                    ins.CommandText = "INSERT OR IGNORE INTO temp_frontier VALUES ($id);";
-                    ins.Parameters.AddWithValue("$id", id);
-                    await ins.ExecuteNonQueryAsync(ct);
-                }
+                await BulkInsertTempIdsAsync(conn, tx, "temp_frontier", currentFrontier, ct);
                 tx.Commit();
             }
 
@@ -937,6 +916,25 @@ public class TestIntelligenceService
         }
 
         return sb.ToString();
+    }
+
+    private static async Task BulkInsertTempIdsAsync(
+        SqliteConnection conn,
+        SqliteTransaction tx,
+        string tableName,
+        IEnumerable<string> ids,
+        CancellationToken ct)
+    {
+        await using var ins = conn.CreateCommand();
+        ins.Transaction = tx;
+        ins.CommandText = $"INSERT OR IGNORE INTO {tableName} VALUES ($id);";
+        var param = ins.Parameters.Add("$id", SqliteType.Text);
+
+        foreach (var id in ids)
+        {
+            param.Value = id;
+            await ins.ExecuteNonQueryAsync(ct);
+        }
     }
 
     #endregion
