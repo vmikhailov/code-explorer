@@ -310,18 +310,30 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Finds all unit and integration test cases affected by a changed source file or symbol via static call graph traversal. Enables Test Impact Analysis (TIA) and static test coverage tracing.")]
+    [Description("Finds exact unit and integration test methods affected by changed source files, git diff, or symbols via reverse static call graph traversal. Enables Test Impact Analysis (TIA) and outputs ready-to-run test runner commands.")]
     public async Task<CallToolResult> GetAffectedTestsAsync(
         [Description("The relative or absolute path of the changed file (e.g. 'src/Services/OrderService.cs').")] string? filePath = null,
+        [Description("List of changed file paths.")] string[]? filePaths = null,
+        [Description("Raw git unified diff content to inspect modified lines and hunks.")] string? gitDiff = null,
         [Description("The full name of the modified function, class, or symbol.")] string? symbolName = null,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(filePath) && string.IsNullOrEmpty(symbolName))
-        {
-            return WrapError("At least one of 'filePath' or 'symbolName' must be specified.");
-        }
-        return await ExecuteAsync(() => repository.GetAffectedTestsAsync(filePath, symbolName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.GetAffectedTestsAsync(filePath, symbolName, filePaths, gitDiff, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Analyzes static test reachability coverage across the workspace: returns covered and uncovered classes and methods, coverage percentages, and covering test counts without running test suites.")]
+    public async Task<CallToolResult> GetTestCoverageAsync(
+        [Description("Filter by project name (e.g., 'OrderService').")] string? projectName = null,
+        [Description("Filter by directory or file path prefix.")] string? pathPrefix = null,
+        [Description("Filter status: 'all', 'covered', or 'uncovered'.")] string? status = null,
+        [Description("Maximum number of covered/uncovered items to return.")] int? limit = null,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteAsync(() => repository.GetTestCoverageAsync(projectName, pathPrefix, status, limit, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]

@@ -16,6 +16,30 @@ public static class McpCommandHandler
 {
     public static async Task<int> HandleAsync(McpOptions opts)
     {
+        if (!string.IsNullOrEmpty(opts.Action))
+        {
+            if (opts.Action.Equals("configure", StringComparison.OrdinalIgnoreCase) ||
+                opts.Action.Equals("setup", StringComparison.OrdinalIgnoreCase))
+            {
+                var cfgOpts = new ConfigureOptions
+                {
+                    Target = opts.Target,
+                    Root = opts.Root
+                };
+                return await ConfigureCommandHandler.HandleAsync(cfgOpts);
+            }
+
+            if (opts.Action.Equals("doctor", StringComparison.OrdinalIgnoreCase))
+            {
+                var cfgOpts = new ConfigureOptions
+                {
+                    Verify = true,
+                    Root = opts.Root
+                };
+                return await ConfigureCommandHandler.HandleAsync(cfgOpts);
+            }
+        }
+
         WorkspaceInfo? ws = null;
         string? dbPath = null;
         if (!string.IsNullOrWhiteSpace(opts.DbPath))

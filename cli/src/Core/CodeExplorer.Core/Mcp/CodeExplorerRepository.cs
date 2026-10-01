@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Core.Analysis.Testing;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Diagrams;
@@ -1001,13 +1002,65 @@ public class CodeExplorerRepository
         return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
-    public async Task<string> GetAffectedTestsAsync(string? filePath = null, string? symbolName = null, string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> GetAffectedTestsAsync(
+        string? filePath = null,
+        string? symbolName = null,
+        IReadOnlyList<string>? filePaths = null,
+        string? gitDiff = null,
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
     {
+        var client = await ResolveClientAsync(workspacePath);
+        if (client is SqliteGraphClient sqliteClient)
+        {
+            var changedFilesList = new List<string>();
+            if (!string.IsNullOrWhiteSpace(filePath)) changedFilesList.Add(filePath);
+            if (filePaths != null) changedFilesList.AddRange(filePaths);
+
+            var symList = !string.IsNullOrWhiteSpace(symbolName) ? new[] { symbolName } : null;
+            var wsRoot = !string.IsNullOrWhiteSpace(workspacePath) ? workspacePath : DefaultWorkspacePath;
+
+            var service = new TestIntelligenceService(sqliteClient);
+            var req = new TestImpactRequest(
+                ChangedFiles: changedFilesList.Count > 0 ? changedFilesList : null,
+                GitDiff: gitDiff,
+                SymbolNames: symList,
+                WorkspaceRoot: wsRoot
+            );
+
+            var report = await service.AnalyzeImpactAsync(req, cancellationToken);
+            return TestIntelligenceService.FormatImpactMarkdown(report);
+        }
+
         var query = Queries.Get("get_affected_tests");
         var parameters = new Dictionary<string, object?>
         {
             ["filePath"] = filePath,
             ["symbolName"] = symbolName
+        };
+        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
+    }
+
+    public async Task<string> GetTestCoverageAsync(
+        string? projectName = null,
+        string? pathPrefix = null,
+        string? status = null,
+        int? limit = null,
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (client is SqliteGraphClient sqliteClient)
+        {
+            var service = new TestIntelligenceService(sqliteClient);
+            var report = await service.AnalyzeCoverageAsync(new TestCoverageFilter(projectName, pathPrefix, status, limit), cancellationToken);
+            return TestIntelligenceService.FormatCoverageMarkdown(report);
+        }
+
+        var query = Queries.Get("get_test_coverage");
+        var parameters = new Dictionary<string, object?>
+        {
+            ["projectName"] = projectName
         };
         return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
@@ -1152,16 +1205,7 @@ public class CodeExplorerRepository
 
         if (!string.IsNullOrEmpty(hostWorkspacePath)) return hostWorkspacePath;
 
-        var current = Directory.GetCurrentDirectory();
-        while (!string.IsNullOrEmpty(current))
-        {
-            if (File.Exists(Path.Combine(current, "CodeExplorer.slnx")) || File.Exists(Path.Combine(current, "CodeExplorer.sln")))
-            {
-                return current;
-            }
-            current = Path.GetDirectoryName(current);
-        }
-        return null;
+        return WorkspaceLocator.Find()?.RootDirectory;
     }
 
     private static string FormatCodeSnippet(string[] lines, McpRAGNode node)

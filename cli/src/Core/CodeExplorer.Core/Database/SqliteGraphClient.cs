@@ -844,6 +844,24 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         return rows;
     }
 
+    /// <summary>
+    /// Executes a custom operation directly against the underlying SQLite connection under the client lock.
+    /// </summary>
+    public async Task<T> ExecuteRawAsync<T>(
+        Func<SqliteConnection, Task<T>> action,
+        CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            return await action(_conn);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.18.0] - 2026-10-01
+
+### Added
+- **Static Test Reachability Coverage (`ce coverage`)**:
+  - Analyzes static test reachability across AST symbols (`Function`, `Type`, `Member`) via graph relationships (`HAS_METHOD`, `DECLARES`, `CALLS`, `USES_TYPE`, `IMPLEMENTS`).
+  - Reports granular metrics and lists for covered vs. uncovered classes and methods.
+  - Filtering by `--project`, `--path`, `--uncovered-only`, `--covered-only`.
+  - CI test coverage gating via `--threshold <percent>` (exits with code 1 if threshold is not met).
+  - Formats in GitHub-flavored Markdown or structured JSON.
+  - Exposed via MCP tool `get_test_coverage` and built-in Cypher query `get_test_coverage`.
+- **Test Impact Analysis (`ce test`)**:
+  - Analyzes changed files, raw patches, or current `git diff` (working tree or branch comparison via `--git-base`).
+  - AST-aware hunk mapping: resolves git unified diff line ranges directly to affected functions, types, and members.
+  - Reverse reachability traversal to find exact **test methods** (not just test classes) impacted by code changes.
+  - Test runner command generation: emits ready-to-run commands for .NET (`dotnet test --filter`), Python (`pytest`), Go (`go test -run`), JavaScript/TypeScript (`npm test -- -t`), and Java (`mvn test -Dtest=`).
+  - Output formats: `markdown` (with full call chain traces), `list` (test names for piping), `commands` (executable shell commands), `json`.
+  - Enhanced MCP tool `get_affected_tests` to support `filePaths`, `gitDiff`, and `maxDepth`.
+- **MCP Client Auto-Configuration (`ce mcp configure`)**:
+  - Automatically detects installed AI coding tools (Claude Desktop, Cursor, Antigravity, Cline, Roo Code, Windsurf) and registers CodeExplorer MCP server.
+  - Added `ce mcp test` to verify stdio and HTTP server health.
+
+### Changed
+- **Optimized Reverse Graph Traversal**: Replaced recursive CTE queries with bounded breadth-first search (BFS) level-by-level traversal with cycle detection, eliminating exponential path explosion and memory pressure on large enterprise codebases.
+
+---
+
 ## [1.16.0] - 2026-09-30
 
 ### Added

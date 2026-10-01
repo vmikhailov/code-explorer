@@ -64,7 +64,10 @@ public class Program
             typeof(TraceOptions),
             typeof(IntentOptions),
             typeof(ModelOptions),
-            typeof(DomainOptions)
+            typeof(DomainOptions),
+            typeof(TestOptions),
+            typeof(CoverageOptions),
+            typeof(ConfigureOptions)
         ]);
 
         if (parseResult is Parsed<object> parsed)
@@ -78,6 +81,7 @@ public class Program
                 QueriesOptions opts => await QueryCommandHandler.HandleAsync(opts),
                 QueryOptions opts => await QueryCommandHandler.HandleAsync(opts),
                 McpOptions opts => await McpCommandHandler.HandleAsync(opts),
+                ConfigureOptions opts => await ConfigureCommandHandler.HandleAsync(opts),
                 IngestOptions opts => await IngestCommandHandler.HandleAsync(opts),
                 ExportOptions opts => await ExportCommandHandler.HandleAsync(opts),
                 ServeOptions opts => await ServeCommandHandler.HandleAsync(opts),
@@ -88,6 +92,8 @@ public class Program
                 IntentOptions opts => await IntentCommandHandler.HandleAsync(opts),
                 ModelOptions opts => await ModelCommandHandler.HandleAsync(opts),
                 DomainOptions opts => await DomainCommandHandler.HandleAsync(opts),
+                TestOptions opts => await TestCommandHandler.HandleAsync(opts),
+                CoverageOptions opts => await CoverageCommandHandler.HandleAsync(opts),
                 _ => 1
             };
         }

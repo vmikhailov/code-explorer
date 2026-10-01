@@ -69,12 +69,14 @@ public static class HelpDisplay
         Console.WriteLine("  dependencies (or deps)  Inspect project dependencies with runtime vs build filtering");
         Console.WriteLine("  contracts               List ingress/egress APIs, gRPC, and messaging contracts");
         Console.WriteLine("  trace                   Trace distributed cross-service execution flows");
-        Console.WriteLine("  export                  Export architecture and lineage diagrams (Mermaid, C4)");
         Console.WriteLine("  mcp                     Run Model Context Protocol server (stdio default, or --port)");
+        Console.WriteLine("  configure               Auto-configure MCP servers and agent rules for AI tools (antigravity, cursor, etc.)");
         Console.WriteLine("  serve                   Run real-time WebSocket and HTTP API server (ws:// on --port)");
         Console.WriteLine("  ingest                  Direct batch ingestion of code nodes and relationships");
         Console.WriteLine("  intent                  Enrich graph with architectural intents using native LLM distillation");
         Console.WriteLine("  model                   Manage local LLM models (status, download)");
+        Console.WriteLine("  test                    Test Impact Analysis (TIA): find exact test methods affected by changes");
+        Console.WriteLine("  coverage                Analyze static test reachability coverage (covered/uncovered classes/methods)");
         Console.WriteLine();
 
         Console.ForegroundColor = ConsoleColor.White;
@@ -83,7 +85,12 @@ public static class HelpDisplay
         Console.WriteLine("  ce init MyProject");
         Console.WriteLine("  ce scan ./src");
         Console.WriteLine("  ce status");
+        Console.WriteLine("  ce configure mcp antigravity");
+        Console.WriteLine("  ce configure mcp cursor");
+        Console.WriteLine("  ce configure mcp --all");
         Console.WriteLine("  ce queries");
+        Console.WriteLine("  ce test --git origin/main");
+        Console.WriteLine("  ce coverage --threshold 75");
         Console.WriteLine("  ce query -n get_architecture_map_workspace");
         Console.WriteLine("  ce query --show get_architecture_map_workspace");
         Console.WriteLine("  ce query \"MATCH (p:Project) RETURN p.name, p.project_type\"");

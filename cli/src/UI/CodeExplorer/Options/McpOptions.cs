@@ -5,6 +5,12 @@ namespace CodeExplorer.Options;
 [Verb("mcp", HelpText = "Starts the Model Context Protocol (MCP) server for the nearest workspace (stdio by default).")]
 public class McpOptions
 {
+    [Value(0, MetaName = "action", Required = false, HelpText = "Optional action: 'configure', 'setup', or 'doctor'.")]
+    public string? Action { get; set; }
+
+    [Value(1, MetaName = "target", Required = false, HelpText = "Target AI tool when action is 'configure' or 'setup'.")]
+    public string? Target { get; set; }
+
     [Option("db-path", Required = false, HelpText = "Explicit SQLite database path (defaults to nearest .codeexplorer/graph.db).")]
     public string? DbPath { get; set; }
 
