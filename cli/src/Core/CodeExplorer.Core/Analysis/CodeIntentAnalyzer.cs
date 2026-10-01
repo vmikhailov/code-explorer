@@ -138,7 +138,7 @@ public static class CodeIntentAnalyzer
                 gpuLayers = envLayers;
             }
 
-            var contextSize = 4096;
+            var contextSize = 8192;
             if (int.TryParse(Environment.GetEnvironmentVariable("CODE_INTENT_CONTEXT_SIZE"), out var envContext) && envContext >= 1024)
             {
                 contextSize = envContext;
@@ -303,8 +303,17 @@ public static class CodeIntentAnalyzer
                             }
                             else
                             {
-                                ctx.Log($"[CodeIntent] Synthesizing Macro-Domains via LLM from {allForMacro.Count} Bounded Contexts on {predictor.ExecutionDevice}...");
-                                var macroDomains = await predictor.PredictMacroDomainsFromContextsAsync(allForMacro, cancellationToken);
+                                SystemDomainsResult? macroDomains = null;
+                                try
+                                {
+                                    ctx.Log($"[CodeIntent] Synthesizing Macro-Domains via LLM from {allForMacro.Count} Bounded Contexts on {predictor.ExecutionDevice}...");
+                                    macroDomains = await predictor.PredictMacroDomainsFromContextsAsync(allForMacro, cancellationToken);
+                                }
+                                catch (Exception ex)
+                                {
+                                    ctx.LogWarning($"[CodeIntent] Note on LLM macro-domain synthesis: {ex.Message}. Falling back to graph topology synthesis.");
+                                }
+
                                 if (macroDomains?.Domains != null && macroDomains.Domains.Count > 0)
                                 {
                                     ctx.Log($"[CodeIntent] Discovered {macroDomains.Domains.Count} Business Domains via LLM synthesis:");
@@ -452,21 +461,7 @@ public static class CodeIntentAnalyzer
                     }
                 }
 
-                // If user only wanted macro-domain / project intent synthesis, exit here (< 2s execution)
-                if (domainsOnly || (!string.IsNullOrWhiteSpace(serviceFilter) && !reanalyze))
-                {
-                    var fastApplied = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
-                    ctx.Log($"[CodeIntent] Project intent distillation complete. Enriched {fastApplied} nodes in knowledge graph.");
-                    return fastApplied;
-                }
-
-                // Load candidates for Phase 2
-                var candidates = await ctx.DbClient.LoadIntentCandidatesAsync(ctx.WorkspaceId, null, cancellationToken);
-                if (candidates.Count == 0)
-                {
-                    ctx.Log("[CodeIntent] No architectural candidates found for intent distillation.");
-                    return await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
-                }
+                // Load existing intent records to purge any stale/orphan entries
 
                 // Load existing intent records to enable incremental skipping
                 var existingIntents = await ctx.DbClient.LoadExistingIntentsAsync(ctx.WorkspaceId, cancellationToken);
@@ -476,239 +471,69 @@ public static class CodeIntentAnalyzer
                 }
                 var existingMap = existingIntents.ToDictionary(x => x.FilePath, StringComparer.OrdinalIgnoreCase);
 
-                // Group candidates by distinct resolved file path
-                var fileGroups = new Dictionary<string, (string RelativePath, IntentCandidate PrimaryCand, List<IntentCandidate> AllCands)>(StringComparer.OrdinalIgnoreCase);
-                foreach (var cand in candidates)
+                var sigByPrefix = projectSignatures
+                    .Where(s => !string.IsNullOrEmpty(s.RelativePath))
+                    .OrderByDescending(s => s.RelativePath.Length)
+                    .ToList();
+                var rootSig = projectSignatures.FirstOrDefault(s => string.IsNullOrEmpty(s.RelativePath) || s.RelativePath == ".");
+
+                // Purge orphan intents that belong to no recognized project (e.g. standalone scripts, sql/ folder)
+                var orphanPaths = existingIntents
+                    .Where(rec =>
+                    {
+                        var norm = (rec.FilePath ?? "").Replace('\\', '/');
+                        if (norm.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)) return true;
+                        var matched = sigByPrefix.FirstOrDefault(s =>
+                            norm.StartsWith(s.RelativePath.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase) ||
+                            norm.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                            ?? rootSig;
+                        return matched == null;
+                    })
+                    .Select(rec => rec.FilePath)
+                    .ToList();
+
+                if (orphanPaths.Count > 0)
                 {
-                    var fullPath = ResolveCandidateFullPath(cand, ctx);
-                    if (string.IsNullOrEmpty(fullPath) || !File.Exists(fullPath)) continue;
-
-                    var relPath = !string.IsNullOrEmpty(cand.RelativePath)
-                        ? cand.RelativePath.Replace('\\', '/')
-                        : Path.GetRelativePath(ctx.AbsoluteWorkspacePath, fullPath).Replace('\\', '/');
-
-                    if (!fileGroups.TryGetValue(fullPath, out var group))
+                    await ctx.DbClient.PurgeIntentsByPathsAsync(orphanPaths, cancellationToken);
+                    foreach (var op in orphanPaths)
                     {
-                        group = (relPath, cand, [cand]);
-                        fileGroups[fullPath] = group;
+                        existingMap.Remove(op);
                     }
-                    else
+                    ctx.Log($"[CodeIntent] Purged {orphanPaths.Count} orphaned/non-project file intents (including .sql).");
+                }
+
+                // Realign existing file intents to match their parent project's macro-domain
+                var intentsToUpdate = new List<IntentRecord>();
+                foreach (var rec in existingIntents)
+                {
+                    var norm = (rec.FilePath ?? "").Replace('\\', '/');
+                    if (norm.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var matched = sigByPrefix.FirstOrDefault(s =>
+                        norm.StartsWith(s.RelativePath.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase) ||
+                        norm.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                        ?? rootSig;
+
+                    if (matched != null && projectDomainMap.TryGetValue(matched.Name, out var pInfo))
                     {
-                        group.AllCands.Add(cand);
+                        if (!string.Equals(rec.Domain, pInfo.Domain, StringComparison.OrdinalIgnoreCase))
+                        {
+                            intentsToUpdate.Add(rec with { Domain = pInfo.Domain });
+                        }
                     }
                 }
 
-                var toProcess = new List<(string FullPath, string RelativePath, string ProjectName, IntentCandidate Cand, string Hash, DateTime LastModifiedUtc)>();
-                var skippedClean = 0;
-                var skippedErrorLimit = 0;
-
-                foreach (var (fullPath, (relPath, cand, _)) in fileGroups)
+                if (intentsToUpdate.Count > 0)
                 {
-                    var bytes = await File.ReadAllBytesAsync(fullPath, cancellationToken);
-                    var hash = ComputeSha256(bytes);
-                    var lastMod = File.GetLastWriteTimeUtc(fullPath);
-
-                    if (existingMap.TryGetValue(relPath, out var existing))
+                    foreach (var rec in intentsToUpdate)
                     {
-                        if (existing.ErrorCount >= 10 && !reanalyze)
-                        {
-                            skippedErrorLimit++;
-                            continue;
-                        }
-
-                        if (!reanalyze && string.Equals(existing.ContentHash, hash, StringComparison.OrdinalIgnoreCase) && existing.Domain != null)
-                        {
-                            skippedClean++;
-                            continue;
-                        }
+                        await ctx.DbClient.SaveIntentRecordAsync(rec, cancellationToken);
                     }
-
-                    var projectName = ExtractProjectOrSubsystem(relPath);
-                    toProcess.Add((fullPath, relPath, projectName, cand, hash, lastMod));
+                    ctx.Log($"[CodeIntent] Realigned {intentsToUpdate.Count} cached file intents to their parent project macro-domain.");
                 }
 
-                // Filter by service if specified
-                if (!string.IsNullOrWhiteSpace(serviceFilter))
-                {
-                    var filters = serviceFilter.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                        .Select(s => s.Trim().ToLowerInvariant())
-                        .Where(s => !string.IsNullOrEmpty(s))
-                        .ToList();
-
-                    if (filters.Count > 0)
-                    {
-                        toProcess = toProcess.Where(item =>
-                        {
-                            var pLower = item.ProjectName.ToLowerInvariant();
-                            var rLower = item.RelativePath.ToLowerInvariant();
-                            return filters.Any(f => pLower.Contains(f) || rLower.Contains(f));
-                        }).ToList();
-
-                        ctx.Log($"[CodeIntent] Filtered to {toProcess.Count} candidate files matching service filter: '{serviceFilter}'.");
-                    }
-                }
-
-                // Limit candidates if specified
-                if (limit.HasValue && limit.Value > 0 && toProcess.Count > limit.Value)
-                {
-                    toProcess = toProcess.Take(limit.Value).ToList();
-                    ctx.Log($"[CodeIntent] Limited to {toProcess.Count} candidate files (--limit {limit.Value}).");
-                }
-
-                if (toProcess.Count == 0)
-                {
-                    ctx.Log($"[CodeIntent] All matching architectural files are up-to-date in cache" +
-                        (skippedErrorLimit > 0 ? $" ({skippedErrorLimit} files skipped due to >=10 errors; run 'ce intent reset-errors' to retry)" : "") + ".");
-
-                    if (!string.IsNullOrWhiteSpace(serviceFilter))
-                    {
-                        var filters = serviceFilter.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                            .Select(s => s.Trim().ToLowerInvariant())
-                            .Where(s => !string.IsNullOrEmpty(s))
-                            .ToList();
-
-                        var matchingCached = existingMap.Values
-                            .Where(rec =>
-                            {
-                                var p = ExtractProjectOrSubsystem(rec.FilePath).ToLowerInvariant();
-                                var r = rec.FilePath.ToLowerInvariant();
-                                return filters.Any(f => p.Contains(f) || r.Contains(f));
-                            })
-                            .OrderBy(rec => rec.FilePath)
-                            .ToList();
-
-                        if (matchingCached.Count > 0)
-                        {
-                            ctx.Log($"\n[CodeIntent] Cached architectural intents for '{serviceFilter}' ({matchingCached.Count} files):");
-                            foreach (var rec in matchingCached)
-                            {
-                                var fileName = Path.GetFileName(rec.FilePath);
-                                var proj = ExtractProjectOrSubsystem(rec.FilePath);
-                                ctx.Log($"  - [{rec.Domain ?? proj}] {fileName} => Layer: {rec.Layer ?? "Unknown"} | Pattern: {rec.Pattern ?? "Unknown"}");
-                                if (!string.IsNullOrWhiteSpace(rec.IntentSummary))
-                                {
-                                    ctx.Log($"    Intent: {rec.IntentSummary}");
-                                }
-                            }
-                            ctx.Log("\nTip: Use '--reanalyze' (or '-r') to force re-running LLM inference on these files.");
-                        }
-                    }
-
-                    return await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
-                }
-
-                // Phase 2: Per-file intent distillation anchored by parent project Bounded Context
-                ctx.Log(
-                    $"[CodeIntent] Phase 2: Running batch intent inference on {toProcess.Count} files with {predictor.Concurrency}x parallel batching on {predictor.ExecutionDevice} ({skippedClean} unchanged, {skippedErrorLimit} error-locked)...");
-
-                var idx = 0;
-                var successCount = 0;
-
-                var parallelOptions = new ParallelOptions
-                {
-                    MaxDegreeOfParallelism = predictor.Concurrency, CancellationToken = cancellationToken
-                };
-
-                await Parallel.ForEachAsync(toProcess, parallelOptions, async (item, ct) =>
-                {
-                    var currentIdx = Interlocked.Increment(ref idx);
-                    var fileName = Path.GetFileName(item.FullPath);
-
-                    ctx.Log(
-                        $"[CodeIntent] Processing files through LLM: {currentIdx}/{toProcess.Count} ({fileName})...");
-
-                    try
-                    {
-                        var content = await File.ReadAllTextAsync(item.FullPath, ct);
-
-                        // Resolve parent project domain anchor
-                        string? projectDomain = null;
-                        string? projectRole = null;
-
-                        if (!string.IsNullOrWhiteSpace(item.ProjectName) &&
-                            projectDomainMap.TryGetValue(item.ProjectName, out var pInfo))
-                        {
-                            projectDomain = pInfo.Domain;
-                            projectRole = pInfo.Role;
-                        }
-                        else
-                        {
-                            // Fallback matching by longest relative path prefix
-                            var matchedSig = projectSignatures
-                                .Where(s => !string.IsNullOrEmpty(s.RelativePath) && item.RelativePath
-                                    .Replace('\\', '/')
-                                    .StartsWith(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
-                                .OrderByDescending(s => s.RelativePath.Length).FirstOrDefault();
-
-                            if (matchedSig != null && projectDomainMap.TryGetValue(matchedSig.Name, out var sigInfo))
-                            {
-                                projectDomain = sigInfo.Domain;
-                                projectRole = sigInfo.Role;
-                            }
-                        }
-
-                        var (prediction, rawOutput) = await predictor.PredictWithRawAsync(item.FullPath, content,
-                            projectName: item.ProjectName, knownDomains: null, // Fully eliminate runaway snowballing!
-                            projectDomain: projectDomain, projectRole: projectRole, cancellationToken: ct);
-
-                        if (prediction != null || !string.IsNullOrWhiteSpace(projectDomain))
-                        {
-                            // Anchor file domain to the project Bounded Context to prevent micro-domain fragmentation!
-                            var assignedDomain = !string.IsNullOrWhiteSpace(projectDomain)
-                                ? projectDomain
-                                : (!string.IsNullOrWhiteSpace(prediction?.Domain)
-                                    ? prediction.Domain
-                                    : ArchitectureViewEngine
-                                        .CategorizeBoundedContext(null, item.RelativePath, item.ProjectName)
-                                        .CanonicalName);
-
-                            var record = new IntentRecord(FilePath: item.RelativePath, WorkspaceId: ctx.WorkspaceId,
-                                FileId: item.Cand.Id, ContentHash: item.Hash, LastModifiedUtc: item.LastModifiedUtc,
-                                Domain: assignedDomain, Layer: prediction?.Layer, Pattern: prediction?.Pattern,
-                                OperationType: prediction?.OperationType,
-                                CapabilityTag: !string.IsNullOrWhiteSpace(prediction?.CapabilityTag)
-                                    ? prediction.CapabilityTag
-                                    : (!string.IsNullOrWhiteSpace(prediction?.Domain) &&
-                                       !prediction.Domain.Equals(assignedDomain, StringComparison.OrdinalIgnoreCase)
-                                        ? prediction.Domain
-                                        : null), IntentSummary: prediction?.IntentSummary,
-                                TargetEntities: prediction?.TargetEntities, EmittedEvents: prediction?.EmittedEvents,
-                                IsPureDomain: prediction?.IsPureDomain, ErrorCount: 0, LastError: null,
-                                AnalyzedAtUtc: DateTime.UtcNow);
-                            await ctx.DbClient.SaveIntentRecordAsync(record, ct);
-                            Interlocked.Increment(ref successCount);
-
-                            ctx.Log($"  [{item.ProjectName}] {fileName} => Domain: [{assignedDomain}] | Layer: {record.Layer} | Pattern: {record.Pattern}");
-                            if (!string.IsNullOrWhiteSpace(record.IntentSummary))
-                            {
-                                ctx.Log($"    Intent: {record.IntentSummary}");
-                            }
-                        }
-                        else
-                        {
-                            ctx.LogWarning(
-                                $"[CodeIntent] Malformed or empty prediction on '{fileName}' ({currentIdx}/{toProcess.Count})");
-
-                            await ctx.DbClient.IncrementIntentErrorAsync(item.RelativePath, ctx.WorkspaceId,
-                                item.Cand.Id, item.Hash, item.LastModifiedUtc,
-                                "LLM output could not be parsed into valid architectural intent JSON", ct);
-                        }
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        ctx.LogWarning(
-                            $"[CodeIntent] Error during inference on '{fileName}' ({currentIdx}/{toProcess.Count}): {ex.Message}");
-
-                        await ctx.DbClient.IncrementIntentErrorAsync(item.RelativePath, ctx.WorkspaceId, item.Cand.Id,
-                            item.Hash, item.LastModifiedUtc, ex.Message, ct);
-                    }
-                });
-
-                ctx.Log($"[CodeIntent] Completed LLM distillation: {successCount}/{toProcess.Count} succeeded.");
-
-                var appliedCount =
-                    await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
-                ctx.Log($"[CodeIntent] Applied architectural intents to {appliedCount} graph nodes.");
+                var appliedCount = await ctx.DbClient.ApplyCachedIntentsToGraphAsync(ctx.WorkspaceId, cancellationToken);
+                ctx.Log($"[CodeIntent] Architectural intent distillation complete. Enriched {appliedCount} nodes in knowledge graph.");
                 return appliedCount;
             }
         }
@@ -719,51 +544,8 @@ public static class CodeIntentAnalyzer
         }
     }
 
-    private static string ExtractProjectOrSubsystem(string relativePath)
-    {
-        var normalized = relativePath.Replace('\\', '/').TrimStart('/');
-        var parts = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return "Default";
-
-        if (parts.Length > 1 && (parts[0] is "src" or "apps" or "packages" or "libs" or "services" or "modules" or "cli"))
-        {
-            if (parts[0] == "cli" && parts.Length > 2 && parts[1] == "src")
-            {
-                return parts.Length > 3 ? parts[3] : parts[2];
-            }
-            return parts[1];
-        }
-
-        return parts[0];
-    }
-
     public static string ComputeSha256(ReadOnlySpan<byte> bytes) =>
         Parser.Incremental.HashUtility.ComputeSha256(bytes);
-
-    private static string? ResolveCandidateFullPath(IntentCandidate cand, ParsingContext ctx)
-    {
-        if (!string.IsNullOrEmpty(cand.FullPath) && File.Exists(cand.FullPath))
-        {
-            return Path.GetFullPath(cand.FullPath);
-        }
-
-        if (!string.IsNullOrEmpty(cand.RelativePath))
-        {
-            if (!string.IsNullOrEmpty(ctx.HostWorkspacePath))
-            {
-                var p1 = Path.GetFullPath(Path.Combine(ctx.HostWorkspacePath, cand.RelativePath));
-                if (File.Exists(p1)) return p1;
-            }
-
-            if (!string.IsNullOrEmpty(ctx.ScanPath))
-            {
-                var p2 = Path.GetFullPath(Path.Combine(ctx.ScanPath, cand.RelativePath));
-                if (File.Exists(p2)) return p2;
-            }
-        }
-
-        return null;
-    }
 
 
     public static WorkspaceDomainsConfig? LoadWorkspaceDomainsConfig(string? workspacePath)

@@ -1907,7 +1907,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                         }
 
                         // 2. Ensure Domain node exists and link Project/Service to Domain
-                        var domainId = $"ws:dom:{domain.ToLowerInvariant()}";
+                        var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
+                        var domainId = $"{widPrefix}dom:{domain.ToLowerInvariant()}";
 
                         await using (var cmd = _conn.CreateCommand())
                         {
@@ -2051,6 +2052,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                                      AND rel_path NOT LIKE '%/obj/%'
                                      AND rel_path NOT LIKE '%/bin/%'
                                      AND rel_path NOT LIKE '%/node_modules/%'
+                                     AND rel_path NOT LIKE '%.sql'
                                    {limitClause};
                                    """;
 
@@ -2469,6 +2471,73 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
+    public async Task PurgeIntentsByPathsAsync(
+        List<string> filePaths,
+        CancellationToken cancellationToken = default)
+    {
+        if (filePaths == null || filePaths.Count == 0) return;
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await using (var tx = (SqliteTransaction)await _conn.BeginTransactionAsync(cancellationToken))
+            {
+                foreach (var chunk in filePaths.Chunk(500))
+                {
+                    await using (var cmd = _conn.CreateCommand())
+                    {
+                        cmd.Transaction = tx;
+                        cmd.CommandTimeout = CommandTimeoutSeconds;
+
+                        var paramNames = new List<string>();
+                        for (var i = 0; i < chunk.Length; i++)
+                        {
+                            var pName = $"@p{i}";
+                            paramNames.Add(pName);
+                            cmd.Parameters.AddWithValue(pName, chunk[i]);
+                        }
+
+                        var inClause = string.Join(", ", paramNames);
+                        cmd.CommandText = $"""
+                                           DELETE FROM intents WHERE file_path IN ({inClause});
+                                           DELETE FROM edges
+                                           WHERE kind = 'BELONGS_TO_DOMAIN'
+                                             AND from_id IN (
+                                                 SELECT id FROM nodes
+                                                 WHERE json_extract(properties, '$.path') IN ({inClause})
+                                                    OR json_extract(properties, '$.file_path') IN ({inClause})
+                                                    OR id IN ({inClause})
+                                             );
+                                           UPDATE nodes
+                                           SET properties = json_remove(
+                                               properties,
+                                               '$.intent_domain',
+                                               '$.intent_layer',
+                                               '$.intent_pattern',
+                                               '$.intent_operation',
+                                               '$.intent_capability',
+                                               '$.intent_summary',
+                                               '$.is_pure_domain',
+                                               '$.target_entities',
+                                               '$.emitted_events'
+                                           )
+                                           WHERE json_extract(properties, '$.path') IN ({inClause})
+                                              OR json_extract(properties, '$.file_path') IN ({inClause})
+                                              OR id IN ({inClause});
+                                           """;
+                        await cmd.ExecuteNonQueryAsync(cancellationToken);
+                    }
+                }
+
+                await tx.CommitAsync(cancellationToken);
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task<int> ApplyCachedIntentsToGraphAsync(
         string workspaceId,
         CancellationToken cancellationToken = default)
@@ -2486,6 +2555,20 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 {
                     updCmd.Transaction = tx;
                     updCmd.CommandTimeout = CommandTimeoutSeconds;
+
+                    // 0. Ensure no raw .sql scripts are lingering in intents or domain edges
+                    updCmd.CommandText = """
+                                         DELETE FROM intents WHERE file_path LIKE '%.sql';
+                                         DELETE FROM edges
+                                         WHERE kind = 'BELONGS_TO_DOMAIN'
+                                           AND from_id IN (
+                                               SELECT id FROM nodes
+                                               WHERE json_extract(properties, '$.path') LIKE '%.sql'
+                                                  OR json_extract(properties, '$.file_path') LIKE '%.sql'
+                                                  OR id LIKE '%.sql'
+                                           );
+                                         """;
+                    await updCmd.ExecuteNonQueryAsync(cancellationToken);
 
                     updCmd.CommandText = """
                                          UPDATE nodes
@@ -2605,6 +2688,66 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                                                    OR lower(json_extract(d_sub.properties, '$.name')) LIKE '%' || lower(json_extract(d_base.properties, '$.name')));
                                             """;
                     await subDomCmd.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                // 6. Clean up orphaned Domain nodes and edges that have no active intents
+                await using (var purgeCmd = _conn.CreateCommand())
+                {
+                    purgeCmd.Transaction = tx;
+                    purgeCmd.CommandTimeout = CommandTimeoutSeconds;
+
+                    purgeCmd.CommandText = """
+                                           DELETE FROM edges
+                                           WHERE kind = 'BELONGS_TO_DOMAIN'
+                                             AND from_id NOT IN (
+                                                 SELECT file_id FROM intents WHERE file_id IS NOT NULL
+                                                 UNION
+                                                 SELECT id FROM nodes WHERE json_extract(properties, '$.intent_domain') IS NOT NULL
+                                                 UNION
+                                                 SELECT id FROM nodes WHERE kind IN ('Project', 'Service', 'App', 'Worker')
+                                             );
+
+                                           DELETE FROM edges
+                                           WHERE kind = 'BELONGS_TO_DOMAIN'
+                                             AND to_id NOT IN (
+                                                 SELECT @widPrefix || 'dom:' || lower(domain)
+                                                 FROM intents
+                                                 WHERE domain IS NOT NULL AND trim(domain) != ''
+                                                 UNION
+                                                 SELECT @widPrefix || 'dom:' || lower(json_extract(properties, '$.intent_domain'))
+                                                 FROM nodes
+                                                 WHERE json_extract(properties, '$.intent_domain') IS NOT NULL 
+                                                   AND trim(json_extract(properties, '$.intent_domain')) != ''
+                                             );
+
+                                           DELETE FROM edges
+                                           WHERE kind = 'EXPOSES_DOMAIN'
+                                             AND to_id NOT IN (
+                                                 SELECT @widPrefix || 'dom:' || lower(domain)
+                                                 FROM intents
+                                                 WHERE domain IS NOT NULL AND trim(domain) != ''
+                                                 UNION
+                                                 SELECT @widPrefix || 'dom:' || lower(json_extract(properties, '$.intent_domain'))
+                                                 FROM nodes
+                                                 WHERE json_extract(properties, '$.intent_domain') IS NOT NULL 
+                                                   AND trim(json_extract(properties, '$.intent_domain')) != ''
+                                             );
+
+                                           DELETE FROM nodes
+                                           WHERE kind = 'Domain'
+                                             AND id NOT IN (
+                                                 SELECT @widPrefix || 'dom:' || lower(domain)
+                                                 FROM intents
+                                                 WHERE domain IS NOT NULL AND trim(domain) != ''
+                                                 UNION
+                                                 SELECT @widPrefix || 'dom:' || lower(json_extract(properties, '$.intent_domain'))
+                                                 FROM nodes
+                                                 WHERE json_extract(properties, '$.intent_domain') IS NOT NULL 
+                                                   AND trim(json_extract(properties, '$.intent_domain')) != ''
+                                             );
+                                           """;
+                    purgeCmd.Parameters.AddWithValue("@widPrefix", widPrefix);
+                    await purgeCmd.ExecuteNonQueryAsync(cancellationToken);
                 }
 
                 await tx.CommitAsync(cancellationToken);

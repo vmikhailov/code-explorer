@@ -839,8 +839,8 @@ ws ::= [ \t\n\r]*
 
         foreach (var ctx in contexts)
         {
-            var aggs = ctx.PrimaryAggregates.Count > 0 ? string.Join(", ", ctx.PrimaryAggregates) : "None";
-            sbUser.AppendLine($"- Service: {ctx.Service} | Context: {ctx.BoundedContext} | Aggregates: [{aggs}] | Capability: {ctx.Capability} | Candidate Domain: {ctx.SuggestedDomain}");
+            var aggs = ctx.PrimaryAggregates.Count > 0 ? string.Join(", ", ctx.PrimaryAggregates.Take(3)) : "None";
+            sbUser.AppendLine($"- {ctx.Service}: {ctx.BoundedContext} | Aggs: [{aggs}] | Domain: {ctx.SuggestedDomain}");
         }
 
         var prompt = $"<|im_start|>system\n{SystemDomainsPrompt}<|im_end|>\n"
@@ -849,7 +849,7 @@ ws ::= [ \t\n\r]*
 
         var inferenceParams = new InferenceParams
         {
-            MaxTokens = 1536,
+            MaxTokens = 1024,
             TokensKeep = 64,
             OverflowStrategy = ContextOverflowStrategy.TruncateAndReprefill,
             AntiPrompts = ["<|im_end|>", "<|endoftext|>"],
@@ -879,6 +879,10 @@ ws ::= [ \t\n\r]*
 
             var raw = sb.ToString();
             return ParseSystemDomainsJsonResult(raw);
+        }
+        catch
+        {
+            return null;
         }
         finally
         {

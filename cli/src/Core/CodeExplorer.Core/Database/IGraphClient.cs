@@ -128,6 +128,11 @@ public interface IGraphClient : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
+    Task PurgeIntentsByPathsAsync(
+        List<string> filePaths,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
     Task ResetIntentErrorsAsync(
         string workspaceId,
         CancellationToken cancellationToken = default) =>

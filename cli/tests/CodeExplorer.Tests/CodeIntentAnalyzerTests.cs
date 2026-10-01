@@ -583,5 +583,135 @@ Domain Entities:
             }
         }
     }
+
+    [Test]
+    public async Task SqliteGraphClient_LoadIntentCandidates_ExcludesSqlFiles()
+    {
+        using var client = new SqliteGraphClient(":memory:");
+        await client.CreateIndicesAsync();
+
+        var nodes = new List<Node>
+        {
+            new("ws:file:1", OntologyConstants.NodeLabels.File,
+                new Dictionary<string, object>
+                {
+                    ["id"] = "ws:file:1",
+                    ["name"] = "get-bundles.query.sql",
+                    ["path"] = "sql/scripts/get-bundles.query.sql",
+                    ["kind"] = "file"
+                }),
+            new("ws:type:2", OntologyConstants.NodeLabels.Type,
+                new Dictionary<string, object>
+                {
+                    ["id"] = "ws:type:2",
+                    ["name"] = "OrderQueryService",
+                    ["path"] = "src/services/order.query.service.cs",
+                    ["kind"] = "class"
+                })
+        };
+
+        await client.UploadNodesAsync(nodes);
+
+        var candidates = await client.LoadIntentCandidatesAsync("ws");
+
+        Assert.That(candidates.Any(c => c.Name == "OrderQueryService"), Is.True);
+        Assert.That(candidates.Any(c => c.Name == "get-bundles.query.sql"), Is.False);
+    }
+
+    [Test]
+    public async Task SqliteGraphClient_PurgeIntentsByPaths_RemovesIntentsAndCleansOrphanDomains()
+    {
+        using var client = new SqliteGraphClient(":memory:");
+        await client.CreateIndicesAsync();
+
+        var fileNode = new Node("ws:file:orphan", OntologyConstants.NodeLabels.File,
+            new Dictionary<string, object>
+            {
+                ["id"] = "ws:file:orphan",
+                ["name"] = "orphan.js",
+                ["path"] = "scripts/orphan.js",
+                ["kind"] = "file"
+            });
+        await client.UploadNodesAsync([fileNode]);
+
+        await client.SaveIntentRecordAsync(new IntentRecord(
+            FilePath: "scripts/orphan.js",
+            WorkspaceId: "ws",
+            FileId: "ws:file:orphan",
+            ContentHash: "hash",
+            LastModifiedUtc: DateTime.UtcNow,
+            Domain: "GhostDomain",
+            Layer: "Infrastructure",
+            Pattern: "Script",
+            OperationType: "Execute",
+            CapabilityTag: "Orphan",
+            IntentSummary: "Orphan script",
+            TargetEntities: [],
+            EmittedEvents: [],
+            IsPureDomain: false,
+            ErrorCount: 0,
+            LastError: null,
+            AnalyzedAtUtc: DateTime.UtcNow));
+
+        await client.ApplyCachedIntentsToGraphAsync("ws");
+
+        // Verify GhostDomain exists before purge
+        var domainsBefore = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
+        Assert.That(domainsBefore.Contains("GhostDomain"), Is.True);
+
+        // Purge orphan intent
+        await client.PurgeIntentsByPathsAsync(["scripts/orphan.js"]);
+
+        // Apply cache again: orphan Domain node must be cleaned up
+        await client.ApplyCachedIntentsToGraphAsync("ws");
+
+        var domainsAfter = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
+        Assert.That(domainsAfter.Contains("GhostDomain"), Is.False);
+    }
+
+    [Test]
+    public async Task SqliteGraphClient_ApplyCachedIntents_AutoPurgesSqlIntents()
+    {
+        using var client = new SqliteGraphClient(":memory:");
+        await client.CreateIndicesAsync();
+
+        var fileNode = new Node("ws:file:query", OntologyConstants.NodeLabels.File,
+            new Dictionary<string, object>
+            {
+                ["id"] = "ws:file:query",
+                ["name"] = "test.query.sql",
+                ["path"] = "sql/test.query.sql",
+                ["kind"] = "file"
+            });
+        await client.UploadNodesAsync([fileNode]);
+
+        await client.SaveIntentRecordAsync(new IntentRecord(
+            FilePath: "sql/test.query.sql",
+            WorkspaceId: "ws",
+            FileId: "ws:file:query",
+            ContentHash: "hash",
+            LastModifiedUtc: DateTime.UtcNow,
+            Domain: "SqlDomain",
+            Layer: "Infrastructure",
+            Pattern: "Script",
+            OperationType: "Query",
+            CapabilityTag: "Query",
+            IntentSummary: "SQL query",
+            TargetEntities: [],
+            EmittedEvents: [],
+            IsPureDomain: false,
+            ErrorCount: 0,
+            LastError: null,
+            AnalyzedAtUtc: DateTime.UtcNow));
+
+        // Apply cached intents: step 0 auto-deletes .sql intents and step 6 prevents SqlDomain creation
+        await client.ApplyCachedIntentsToGraphAsync("ws");
+
+        var domains = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
+        Assert.That(domains.Contains("SqlDomain"), Is.False);
+
+        var intents = await client.LoadExistingIntentsAsync("ws");
+        Assert.That(intents.Any(i => i.FilePath.EndsWith(".sql")), Is.False);
+    }
 }
 

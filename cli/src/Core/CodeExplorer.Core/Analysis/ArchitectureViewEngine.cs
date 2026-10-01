@@ -3647,14 +3647,9 @@ public class ArchitectureViewEngine(IGraphClient db)
 
         var signatures = await db.LoadProjectSignaturesAsync(workspaceId ?? "", ct);
 
-        if (intents.Count == 0)
+        if (signatures.Count > 0 && (signatures.Any(s => !string.IsNullOrWhiteSpace(s.ExistingDomain)) || intents.Count == 0))
         {
-            // AST-Driven Fallback: Determine Bounded Contexts directly from project topology!
-            if (signatures.Count > 0)
-            {
-                return await BuildAstBoundedContextMapAsync(signatures, workspaceId, ct);
-            }
-            return result;
+            return await BuildAstBoundedContextMapAsync(signatures, workspaceId, ct);
         }
 
         // Map files to enclosing project boundaries using signatures
@@ -3662,16 +3657,18 @@ public class ArchitectureViewEngine(IGraphClient db)
             .Where(s => !string.IsNullOrEmpty(s.RelativePath))
             .OrderByDescending(s => s.RelativePath.Length)
             .ToList();
+        var rootSig = signatures.FirstOrDefault(s => string.IsNullOrEmpty(s.RelativePath) || s.RelativePath == ".");
 
         // Group intents by canonical Bounded Context
         var domainGroups = new Dictionary<string, (BoundedContextCategory Category, List<IntentRecord> Records)>(StringComparer.OrdinalIgnoreCase);
         foreach (var rec in intents)
         {
             if (string.IsNullOrWhiteSpace(rec.Domain) && string.IsNullOrWhiteSpace(rec.FilePath)) continue;
+            var normRel = (rec.FilePath ?? "").Replace('\\', '/');
             var matchedProj = sigByPrefix.FirstOrDefault(s =>
-                !string.IsNullOrEmpty(rec.FilePath) &&
-                (rec.FilePath.StartsWith(s.RelativePath, StringComparison.OrdinalIgnoreCase) ||
-                 rec.FilePath.Replace('\\', '/').StartsWith(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)));
+                normRel.StartsWith(s.RelativePath.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase) ||
+                normRel.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                ?? rootSig;
 
             var cat = CategorizeBoundedContext(rec.Domain, rec.FilePath, matchedProj?.Name);
             if (!domainGroups.TryGetValue(cat.CanonicalKey, out var group))
@@ -3730,12 +3727,16 @@ public class ArchitectureViewEngine(IGraphClient db)
                     handledEvents.Add(r.CapabilityTag.Trim());
                 }
 
-                // Deduce project name from file path if possible
-                var normalizedPath = r.FilePath.Replace('\\', '/');
-                var pathParts = normalizedPath.Split('/');
-                if (pathParts.Length > 1 && !pathParts[0].Equals("src", StringComparison.OrdinalIgnoreCase))
+                // Deduce project name from file path if matching a recognized project boundary
+                var normPath = r.FilePath.Replace('\\', '/');
+                var matchedProj = sigByPrefix.FirstOrDefault(s =>
+                    normPath.StartsWith(s.RelativePath.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase) ||
+                    normPath.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                    ?? rootSig;
+
+                if (matchedProj != null)
                 {
-                    projects.Add(pathParts[0]);
+                    projects.Add(matchedProj.Name);
                 }
 
                 if (representativeSummary == null && !string.IsNullOrWhiteSpace(r.IntentSummary))
@@ -3870,10 +3871,11 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     private async Task<BoundedContextMapDto> BuildAstBoundedContextMapAsync(List<ProjectSignature> signatures, string? workspaceId, CancellationToken ct)
     {
+        var hasAssignedDomains = signatures.Any(s => !string.IsNullOrWhiteSpace(s.ExistingDomain));
         var result = new BoundedContextMapDto
         {
-            HasIntents = false,
-            TotalIntents = 0
+            HasIntents = hasAssignedDomains,
+            TotalIntents = signatures.Count(s => !string.IsNullOrWhiteSpace(s.ExistingDomain))
         };
 
         // If projects lack domain assignments, synthesize cohesive macro-domains topologically from AST
