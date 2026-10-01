@@ -501,10 +501,13 @@ public class TestIntelligenceService
                 .ThenBy(t => t.TestMethodName)
                 .ToList();
 
-            // 4. Generate CLI runner commands
-            var runnerCommands = BuildRunnerCommands(affectedList);
+            // 4. Build smart test groups by class / test file
+            var (updatedTests, groups) = await BuildAffectedTestGroupsAsync(conn, affectedList, cancellationToken);
 
-            return new TestImpactReport(affectedList, changedSymbols, runnerCommands);
+            // 5. Generate CLI runner commands (taking groups into account)
+            var runnerCommands = BuildRunnerCommands(updatedTests, groups);
+
+            return new TestImpactReport(updatedTests, changedSymbols, runnerCommands, groups);
         }, cancellationToken);
     }
 
@@ -753,10 +756,32 @@ public class TestIntelligenceService
     private static string? ExtractClassNameFromSymbol(string symbol)
     {
         if (string.IsNullOrWhiteSpace(symbol)) return null;
+
+        if (symbol.StartsWith("ws:"))
+        {
+            var colonParts = symbol.Split(':');
+            var rawName = colonParts[^1];
+            if (rawName.Contains('.'))
+            {
+                var dotParts = rawName.Split('.');
+                if (dotParts.Length >= 2)
+                {
+                    var c = dotParts[^2];
+                    return (c.Contains('/') || c.Contains('\\')) ? Path.GetFileNameWithoutExtension(c.Replace('\\', '/')) : c;
+                }
+            }
+            return null;
+        }
+
         var parts = symbol.Split('.');
         if (parts.Length >= 2)
         {
-            return parts[^2];
+            var candidate = parts[^2];
+            if (candidate.Contains('/') || candidate.Contains('\\'))
+            {
+                candidate = Path.GetFileNameWithoutExtension(candidate.Replace('\\', '/'));
+            }
+            return candidate;
         }
         return null;
     }
@@ -790,49 +815,310 @@ public class TestIntelligenceService
         return !string.IsNullOrEmpty(path) ? path : filePath;
     }
 
-    private static Dictionary<string, string> BuildRunnerCommands(List<AffectedTestMethod> tests)
+    private static string? DeriveClassNameFromFile(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return null;
+        var norm = filePath.Replace('\\', '/');
+        var fileName = Path.GetFileNameWithoutExtension(norm);
+        if (fileName.EndsWith("Test", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
+            fileName.StartsWith("Test", StringComparison.OrdinalIgnoreCase))
+        {
+            return fileName;
+        }
+        return null;
+    }
+
+    private static async Task<(List<AffectedTestMethod> UpdatedTests, List<AffectedTestGroup> Groups)>
+        BuildAffectedTestGroupsAsync(
+            SqliteConnection conn,
+            List<AffectedTestMethod> tests,
+            CancellationToken ct)
+    {
+        if (tests.Count == 0) return ([], []);
+
+        // 1. Query test functions and their parent types (classes/records/structs) in SQLite
+        var classTotalCounts = new Dictionary<(string FilePath, string ClassName), int>();
+        var classTotalByName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var fileTotalCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var methodToClass = new Dictionary<(string FilePath, string MethodName), string>();
+
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT 
+                    COALESCE(json_extract(f.properties, '$.name'), '') AS name,
+                    COALESCE(json_extract(f.properties, '$.symbol'), '') AS symbol,
+                    COALESCE(json_extract(f.properties, '$.path'), json_extract(f.properties, '$.file_path'), '') AS file_path,
+                    COALESCE(json_extract(p.properties, '$.name'), '') AS class_name
+                FROM nodes f
+                LEFT JOIN edges e ON e.to_id = f.id AND e.kind IN ('HAS_METHOD', 'CONTAINS')
+                LEFT JOIN nodes p ON e.from_id = p.id AND p.kind IN ('Type', 'Class', 'Record', 'class', 'interface')
+                WHERE f.kind IN ('Function', 'Method')
+                  AND (
+                      json_extract(f.properties, '$.is_test') = 'true'
+                      OR f.properties LIKE '%"is_test"%"true"%'
+                      OR f.properties LIKE '%"is_test":true%'
+                      OR REPLACE(COALESCE(json_extract(f.properties, '$.path'), json_extract(f.properties, '$.file_path'), ''), '\', '/') LIKE '%/test/%'
+                      OR REPLACE(COALESCE(json_extract(f.properties, '$.path'), json_extract(f.properties, '$.file_path'), ''), '\', '/') LIKE '%/tests/%'
+                      OR REPLACE(COALESCE(json_extract(f.properties, '$.path'), json_extract(f.properties, '$.file_path'), ''), '\', '/') LIKE '%test%'
+                  );
+                """;
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var name = reader.GetString(0);
+                var symbol = reader.GetString(1);
+                var filePath = reader.GetString(2);
+                var className = reader.GetString(3);
+
+                var normFile = filePath.Replace('\\', '/').TrimStart('/');
+
+                if (string.IsNullOrWhiteSpace(className))
+                {
+                    className = ExtractClassNameFromSymbol(symbol) ?? DeriveClassNameFromFile(normFile) ?? "";
+                }
+
+                if (!string.IsNullOrWhiteSpace(className) && (className.Contains('/') || className.Contains('\\')))
+                {
+                    className = Path.GetFileNameWithoutExtension(className.Replace('\\', '/'));
+                }
+
+                if (!string.IsNullOrWhiteSpace(className))
+                {
+                    var classKey = (normFile, className);
+                    classTotalCounts[classKey] = classTotalCounts.GetValueOrDefault(classKey, 0) + 1;
+                    classTotalByName[className] = classTotalByName.GetValueOrDefault(className, 0) + 1;
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        methodToClass[(normFile, name)] = className;
+                    }
+                }
+
+                fileTotalCounts[normFile] = fileTotalCounts.GetValueOrDefault(normFile, 0) + 1;
+            }
+        }
+
+        // 2. Resolve class name for all affected tests and update records
+        var updatedTests = new List<AffectedTestMethod>(tests.Count);
+        foreach (var t in tests)
+        {
+            var normFile = t.TestFilePath.Replace('\\', '/').TrimStart('/');
+            var resolvedClass = t.TestClassName;
+
+            if (string.IsNullOrWhiteSpace(resolvedClass) && methodToClass.TryGetValue((normFile, t.TestMethodName), out var mc))
+            {
+                resolvedClass = mc;
+            }
+
+            if (string.IsNullOrWhiteSpace(resolvedClass))
+            {
+                resolvedClass = ExtractClassNameFromSymbol(t.TestSymbol);
+            }
+
+            if (string.IsNullOrWhiteSpace(resolvedClass))
+            {
+                resolvedClass = DeriveClassNameFromFile(t.TestFilePath);
+            }
+
+            if (!string.IsNullOrWhiteSpace(resolvedClass) && (resolvedClass.Contains('/') || resolvedClass.Contains('\\')))
+            {
+                resolvedClass = Path.GetFileNameWithoutExtension(resolvedClass.Replace('\\', '/'));
+            }
+
+            updatedTests.Add(t with { TestClassName = resolvedClass });
+        }
+
+        // 3. Group by (FilePath, ClassName)
+        var groups = new List<AffectedTestGroup>();
+        var grouped = updatedTests.GroupBy(t => (
+            NormFile: t.TestFilePath.Replace('\\', '/').TrimStart('/'),
+            ClassName: t.TestClassName ?? ""
+        ));
+
+        foreach (var g in grouped)
+        {
+            var groupMethods = g.ToList();
+            var first = groupMethods[0];
+            var normFile = g.Key.NormFile;
+            var className = string.IsNullOrWhiteSpace(g.Key.ClassName) ? null : g.Key.ClassName;
+            var affectedCount = groupMethods.Count;
+
+            int totalCount;
+            if (className != null)
+            {
+                totalCount = classTotalCounts.GetValueOrDefault((normFile, className), 0);
+                if (totalCount == 0 && classTotalByName.TryGetValue(className, out var byName))
+                {
+                    totalCount = byName;
+                }
+                if (totalCount == 0) totalCount = affectedCount;
+            }
+            else
+            {
+                totalCount = fileTotalCounts.GetValueOrDefault(normFile, affectedCount);
+                if (totalCount == 0) totalCount = affectedCount;
+            }
+
+            if (totalCount < affectedCount) totalCount = affectedCount;
+
+            var allAffected = totalCount > 0 && affectedCount >= totalCount;
+            var groupName = className ?? Path.GetFileName(first.TestFilePath);
+
+            groups.Add(new AffectedTestGroup(
+                GroupName: groupName,
+                ClassName: className,
+                FilePath: first.TestFilePath,
+                TestFramework: first.TestFramework ?? DetectFramework(first.TestFilePath),
+                AffectedTestCount: affectedCount,
+                TotalTestCount: totalCount,
+                AllTestsAffected: allAffected,
+                Methods: groupMethods
+            ));
+        }
+
+        return (updatedTests, groups);
+    }
+
+    public static Dictionary<string, string> BuildRunnerCommands(
+        IReadOnlyList<AffectedTestMethod> tests,
+        IReadOnlyList<AffectedTestGroup>? groups = null)
     {
         var commands = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (tests.Count == 0) return commands;
 
-        var byFramework = tests.GroupBy(t => t.TestFramework ?? DetectFramework(t.TestFilePath));
-
-        foreach (var group in byFramework)
+        if (groups == null || groups.Count == 0)
         {
-            var fw = group.Key.ToLowerInvariant();
+            var byFramework = tests.GroupBy(t => t.TestFramework ?? DetectFramework(t.TestFilePath));
+            foreach (var group in byFramework)
+            {
+                var fw = group.Key.ToLowerInvariant();
+                if (fw is "dotnet" or "nunit" or "xunit" or "mstest" or "csharp")
+                {
+                    var filters = group.Select(t => $"FullyQualifiedName~{t.TestMethodName}").Distinct();
+                    commands["dotnet"] = $"dotnet test --filter \"{string.Join("|", filters)}\"";
+                }
+                else if (fw is "go-testing" or "go" or "gotest")
+                {
+                    var names = group.Select(t => t.TestMethodName).Distinct();
+                    commands["go"] = $"go test ./... -run \"^({string.Join("|", names)})$\"";
+                }
+                else if (fw is "pytest" or "python" or "unittest")
+                {
+                    var testNames = group.Select(t => t.TestMethodName).Distinct();
+                    var files = group.Select(t => t.TestFilePath).Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
+                    var filePrefix = files.Count > 0 ? string.Join(" ", files) + " " : "";
+                    commands["pytest"] = $"pytest {filePrefix}-k \"{string.Join(" or ", testNames)}\"";
+                }
+                else if (fw is "jest" or "vitest" or "js" or "ts" or "mocha")
+                {
+                    var titles = group.Select(t => Regex.Escape(t.TestMethodName)).Distinct();
+                    var files = group.Select(t => t.TestFilePath).Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
+                    var filePrefix = files.Count > 0 ? string.Join(" ", files) + " " : "";
+                    commands["jest"] = $"npm test -- {filePrefix}-t \"{string.Join("|", titles)}\"";
+                }
+                else if (fw is "junit" or "java" or "testng")
+                {
+                    var testNames = group.Select(t => t.TestMethodName).Distinct();
+                    commands["junit"] = $"mvn test -Dtest=\"{string.Join(",", testNames)}\"";
+                }
+            }
+            return commands;
+        }
+
+        var groupedFw = groups.GroupBy(g => g.TestFramework ?? DetectFramework(g.FilePath));
+
+        foreach (var fwGroup in groupedFw)
+        {
+            var fw = fwGroup.Key.ToLowerInvariant();
             if (fw is "dotnet" or "nunit" or "xunit" or "mstest" or "csharp")
             {
-                // dotnet test --filter "FullyQualifiedName~Method1|FullyQualifiedName~Method2"
-                var filters = group.Select(t => $"FullyQualifiedName~{t.TestMethodName}").Distinct();
-                commands["dotnet"] = $"dotnet test --filter \"{string.Join("|", filters)}\"";
+                var filters = new List<string>();
+                foreach (var g in fwGroup)
+                {
+                    if (g.AllTestsAffected && !string.IsNullOrWhiteSpace(g.ClassName))
+                    {
+                        filters.Add($"FullyQualifiedName~{g.ClassName}");
+                    }
+                    else
+                    {
+                        foreach (var m in g.Methods)
+                        {
+                            filters.Add($"FullyQualifiedName~{m.TestMethodName}");
+                        }
+                    }
+                }
+                commands["dotnet"] = $"dotnet test --filter \"{string.Join("|", filters.Distinct())}\"";
             }
             else if (fw is "go-testing" or "go" or "gotest")
             {
-                // go test ./... -run "^(TestA|TestB)$"
-                var names = group.Select(t => t.TestMethodName).Distinct();
+                var names = fwGroup.SelectMany(g => g.Methods.Select(m => m.TestMethodName)).Distinct();
                 commands["go"] = $"go test ./... -run \"^({string.Join("|", names)})$\"";
             }
             else if (fw is "pytest" or "python" or "unittest")
             {
-                // pytest path/to/file.py -k "test_a or test_b"
-                var testNames = group.Select(t => t.TestMethodName).Distinct();
-                var files = group.Select(t => t.TestFilePath).Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
+                var files = fwGroup.Select(g => g.FilePath).Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
                 var filePrefix = files.Count > 0 ? string.Join(" ", files) + " " : "";
-                commands["pytest"] = $"pytest {filePrefix}-k \"{string.Join(" or ", testNames)}\"";
+
+                var patterns = new List<string>();
+                var allFilesWhole = fwGroup.All(g => g.AllTestsAffected && string.IsNullOrEmpty(g.ClassName));
+                if (allFilesWhole && files.Count > 0)
+                {
+                    commands["pytest"] = $"pytest {filePrefix.TrimEnd()}";
+                }
+                else
+                {
+                    foreach (var g in fwGroup)
+                    {
+                        if (g.AllTestsAffected && !string.IsNullOrWhiteSpace(g.ClassName))
+                        {
+                            patterns.Add(g.ClassName);
+                        }
+                        else
+                        {
+                            patterns.AddRange(g.Methods.Select(m => m.TestMethodName));
+                        }
+                    }
+                    commands["pytest"] = $"pytest {filePrefix}-k \"{string.Join(" or ", patterns.Distinct())}\"";
+                }
             }
             else if (fw is "jest" or "vitest" or "js" or "ts" or "mocha")
             {
-                // npm test -- [files] -t "test1|test2"
-                var titles = group.Select(t => Regex.Escape(t.TestMethodName)).Distinct();
-                var files = group.Select(t => t.TestFilePath).Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
+                var files = fwGroup.Select(g => g.FilePath).Where(f => !string.IsNullOrWhiteSpace(f)).Distinct().ToList();
                 var filePrefix = files.Count > 0 ? string.Join(" ", files) + " " : "";
-                commands["jest"] = $"npm test -- {filePrefix}-t \"{string.Join("|", titles)}\"";
+
+                var allWhole = fwGroup.All(g => g.AllTestsAffected);
+                if (allWhole && files.Count > 0)
+                {
+                    commands["jest"] = $"npm test -- {filePrefix.TrimEnd()}";
+                }
+                else
+                {
+                    var titles = fwGroup.SelectMany(g => g.Methods.Select(m => Regex.Escape(m.TestMethodName))).Distinct();
+                    commands["jest"] = $"npm test -- {filePrefix}-t \"{string.Join("|", titles)}\"";
+                }
             }
             else if (fw is "junit" or "java" or "testng")
             {
-                // mvn test -Dtest=TestA,TestB
-                var testNames = group.Select(t => t.TestMethodName).Distinct();
-                commands["junit"] = $"mvn test -Dtest=\"{string.Join(",", testNames)}\"";
+                var patterns = new List<string>();
+                foreach (var g in fwGroup)
+                {
+                    if (g.AllTestsAffected && !string.IsNullOrWhiteSpace(g.ClassName))
+                    {
+                        patterns.Add(g.ClassName);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(g.ClassName))
+                    {
+                        var mNames = string.Join("+", g.Methods.Select(m => m.TestMethodName).Distinct());
+                        patterns.Add($"{g.ClassName}#{mNames}");
+                    }
+                    else
+                    {
+                        patterns.AddRange(g.Methods.Select(m => m.TestMethodName));
+                    }
+                }
+                commands["junit"] = $"mvn test -Dtest=\"{string.Join(",", patterns.Distinct())}\"";
             }
         }
 
@@ -915,7 +1201,9 @@ public class TestIntelligenceService
             sb.AppendLine();
         }
 
-        sb.AppendLine($"### 🧪 Impacted Test Methods ({report.AffectedTestMethods.Count})");
+        var suiteCount = report.Groups?.Count ?? 0;
+        var suiteText = suiteCount > 0 ? $" across {suiteCount} test suite{(suiteCount == 1 ? "" : "s")}" : "";
+        sb.AppendLine($"### 🧪 Impacted Tests ({report.AffectedTestMethods.Count} methods{suiteText})");
         sb.AppendLine();
 
         if (report.AffectedTestMethods.Count == 0)
@@ -924,19 +1212,76 @@ public class TestIntelligenceService
             return sb.ToString();
         }
 
-        var grouped = report.AffectedTestMethods.GroupBy(t => t.TestFilePath).OrderBy(g => g.Key);
-        foreach (var group in grouped)
+        if (report.Groups != null && report.Groups.Count > 0)
         {
-            sb.AppendLine($"#### 📄 `{group.Key}`");
-            sb.AppendLine();
-            sb.AppendLine("| Test Method | Class | Impact Reason | Depth | Call Chain |");
+            sb.AppendLine("| Test Suite / Class | File | Affected | Total | Status |");
             sb.AppendLine("|---|---|---|---|---|");
-            foreach (var t in group.OrderBy(x => x.Depth).ThenBy(x => x.TestMethodName))
+            foreach (var g in report.Groups.OrderByDescending(x => x.AllTestsAffected).ThenBy(x => x.GroupName))
             {
-                var chain = string.Join(" → ", t.CallChain);
-                sb.AppendLine($"| **`{t.TestMethodName}`** | `{t.TestClassName ?? "-"}` | {t.ImpactReason} | {t.Depth} | `{chain}` |");
+                var status = g.AllTestsAffected
+                    ? "🟢 **All tests affected**"
+                    : $"🟡 Partial ({g.AffectedTestCount}/{g.TotalTestCount})";
+                var displayName = g.ClassName != null ? $"`{g.ClassName}`" : $"`{g.GroupName}`";
+                sb.AppendLine($"| {displayName} | `{g.FilePath}` | {g.AffectedTestCount} | {g.TotalTestCount} | {status} |");
             }
             sb.AppendLine();
+
+            sb.AppendLine("### 📋 Breakdown by Test Class / File");
+            sb.AppendLine();
+
+            foreach (var g in report.Groups)
+            {
+                var headerName = g.ClassName != null ? $"`{g.ClassName}`" : $"`{g.GroupName}`";
+                if (g.AllTestsAffected)
+                {
+                    sb.AppendLine($"#### 🟢 {headerName} (`{g.FilePath}`)");
+                    sb.AppendLine($"> **All {g.TotalTestCount} tests in this class are affected.** Running the class directly is recommended.");
+                    sb.AppendLine();
+                    sb.AppendLine("<details>");
+                    sb.AppendLine($"<summary>View all {g.AffectedTestCount} impacted methods</summary>");
+                    sb.AppendLine();
+                    sb.AppendLine("| Test Method | Impact Reason | Depth | Call Chain |");
+                    sb.AppendLine("|---|---|---|---|");
+                    foreach (var t in g.Methods.OrderBy(x => x.Depth).ThenBy(x => x.TestMethodName))
+                    {
+                        var chain = string.Join(" → ", t.CallChain);
+                        sb.AppendLine($"| **`{t.TestMethodName}`** | {t.ImpactReason} | {t.Depth} | `{chain}` |");
+                    }
+                    sb.AppendLine();
+                    sb.AppendLine("</details>");
+                    sb.AppendLine();
+                }
+                else
+                {
+                    sb.AppendLine($"#### 🟡 {headerName} (`{g.FilePath}`) - {g.AffectedTestCount}/{g.TotalTestCount} tests affected");
+                    sb.AppendLine();
+                    sb.AppendLine("| Test Method | Impact Reason | Depth | Call Chain |");
+                    sb.AppendLine("|---|---|---|---|");
+                    foreach (var t in g.Methods.OrderBy(x => x.Depth).ThenBy(x => x.TestMethodName))
+                    {
+                        var chain = string.Join(" → ", t.CallChain);
+                        sb.AppendLine($"| **`{t.TestMethodName}`** | {t.ImpactReason} | {t.Depth} | `{chain}` |");
+                    }
+                    sb.AppendLine();
+                }
+            }
+        }
+        else
+        {
+            var grouped = report.AffectedTestMethods.GroupBy(t => t.TestFilePath).OrderBy(g => g.Key);
+            foreach (var group in grouped)
+            {
+                sb.AppendLine($"#### 📄 `{group.Key}`");
+                sb.AppendLine();
+                sb.AppendLine("| Test Method | Class | Impact Reason | Depth | Call Chain |");
+                sb.AppendLine("|---|---|---|---|---|");
+                foreach (var t in group.OrderBy(x => x.Depth).ThenBy(x => x.TestMethodName))
+                {
+                    var chain = string.Join(" → ", t.CallChain);
+                    sb.AppendLine($"| **`{t.TestMethodName}`** | `{t.TestClassName ?? "-"}` | {t.ImpactReason} | {t.Depth} | `{chain}` |");
+                }
+                sb.AppendLine();
+            }
         }
 
         if (report.RunnerCommands.Count > 0)

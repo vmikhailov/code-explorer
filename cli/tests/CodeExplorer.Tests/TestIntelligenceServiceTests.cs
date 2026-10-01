@@ -226,7 +226,7 @@ public class TestIntelligenceServiceTests
         Assert.That(test.TargetSymbol, Is.EqualTo("SaveEntity"));
         Assert.That(test.TestFramework, Is.EqualTo("nunit"));
         Assert.That(reportRepo.RunnerCommands, Contains.Key("dotnet"));
-        Assert.That(reportRepo.RunnerCommands["dotnet"], Does.Contain("Test_ProcessOrder_EmitsEvent"));
+        Assert.That(reportRepo.RunnerCommands["dotnet"], Does.Contain("OrderServiceTests"));
 
         // 2. When tested directly via changed file line range
         var reportFile = await _service.AnalyzeImpactAsync(new TestImpactRequest
@@ -350,5 +350,158 @@ public class TestIntelligenceServiceTests
 
         Assert.That(report.RunnerCommands, Contains.Key("go"));
         Assert.That(report.RunnerCommands["go"], Does.Contain("go test ./... -run \"^(TestHandle)$\""));
+    }
+
+    [Test]
+    public async Task AnalyzeImpactAsync_WhenAllTestsInClassAffected_CollapsesToClassNameFilter()
+    {
+        var typeCalc = new Node("type:calc_svc", "Type", new Dictionary<string, object>
+        {
+            ["name"] = "Calculator",
+            ["file_path"] = "src/Calculator.cs",
+            ["project"] = "App"
+        });
+        var fnAdd = new Node("fn:calc_add", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "Add",
+            ["file_path"] = "src/Calculator.cs",
+            ["project"] = "App",
+            ["start_line"] = 5,
+            ["end_line"] = 10
+        });
+
+        var typeTest = new Node("type:calc_tests", "Type", new Dictionary<string, object>
+        {
+            ["name"] = "CalculatorTests",
+            ["file_path"] = "tests/CalculatorTests.cs",
+            ["project"] = "AppTests"
+        });
+        var test1 = new Node("fn:test_add1", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "Test_Add_Positive",
+            ["file_path"] = "tests/CalculatorTests.cs",
+            ["project"] = "AppTests",
+            ["is_test"] = "true",
+            ["test_framework"] = "xunit",
+            ["start_line"] = 10,
+            ["end_line"] = 15
+        });
+        var test2 = new Node("fn:test_add2", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "Test_Add_Negative",
+            ["file_path"] = "tests/CalculatorTests.cs",
+            ["project"] = "AppTests",
+            ["is_test"] = "true",
+            ["test_framework"] = "xunit",
+            ["start_line"] = 20,
+            ["end_line"] = 25
+        });
+
+        await _db.UploadNodesAsync([typeCalc, fnAdd, typeTest, test1, test2]);
+        var empty = new Dictionary<string, object>();
+        await _db.UploadRelationshipsAsync([
+            new("type:calc_tests", "fn:test_add1", "HAS_METHOD", empty),
+            new("type:calc_tests", "fn:test_add2", "HAS_METHOD", empty),
+            new("fn:test_add1", "fn:calc_add", "CALLS", empty),
+            new("fn:test_add2", "fn:calc_add", "CALLS", empty)
+        ]);
+
+        var report = await _service.AnalyzeImpactAsync(new TestImpactRequest
+        {
+            SymbolNames = new List<string> { "Add" }
+        });
+
+        Assert.That(report.AffectedTestMethods, Has.Count.EqualTo(2));
+        Assert.That(report.Groups, Is.Not.Null);
+        Assert.That(report.Groups!, Has.Count.EqualTo(1));
+
+        var group = report.Groups![0];
+        Assert.That(group.ClassName, Is.EqualTo("CalculatorTests"));
+        Assert.That(group.AffectedTestCount, Is.EqualTo(2));
+        Assert.That(group.TotalTestCount, Is.EqualTo(2));
+        Assert.That(group.AllTestsAffected, Is.True);
+
+        Assert.That(report.RunnerCommands, Contains.Key("dotnet"));
+        Assert.That(report.RunnerCommands["dotnet"], Is.EqualTo("dotnet test --filter \"FullyQualifiedName~CalculatorTests\""));
+
+        var md = TestIntelligenceService.FormatImpactMarkdown(report);
+        Assert.That(md, Does.Contain("All tests affected"));
+        Assert.That(md, Does.Contain("CalculatorTests"));
+    }
+
+    [Test]
+    public async Task AnalyzeImpactAsync_WhenSubsetOfTestsInClassAffected_EmitsMethodLevelFilters()
+    {
+        var fnAdd = new Node("fn:calc_add", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "Add",
+            ["file_path"] = "src/Calculator.cs",
+            ["project"] = "App",
+            ["start_line"] = 5,
+            ["end_line"] = 10
+        });
+        var fnSub = new Node("fn:calc_sub", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "Sub",
+            ["file_path"] = "src/Calculator.cs",
+            ["project"] = "App",
+            ["start_line"] = 15,
+            ["end_line"] = 20
+        });
+
+        var typeTest = new Node("type:calc_tests", "Type", new Dictionary<string, object>
+        {
+            ["name"] = "CalculatorTests",
+            ["file_path"] = "tests/CalculatorTests.cs",
+            ["project"] = "AppTests"
+        });
+        var test1 = new Node("fn:test_add", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "Test_Add",
+            ["file_path"] = "tests/CalculatorTests.cs",
+            ["project"] = "AppTests",
+            ["is_test"] = "true",
+            ["test_framework"] = "xunit",
+            ["start_line"] = 10,
+            ["end_line"] = 15
+        });
+        var test2 = new Node("fn:test_sub", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "Test_Sub",
+            ["file_path"] = "tests/CalculatorTests.cs",
+            ["project"] = "AppTests",
+            ["is_test"] = "true",
+            ["test_framework"] = "xunit",
+            ["start_line"] = 20,
+            ["end_line"] = 25
+        });
+
+        await _db.UploadNodesAsync([fnAdd, fnSub, typeTest, test1, test2]);
+        var empty = new Dictionary<string, object>();
+        await _db.UploadRelationshipsAsync([
+            new("type:calc_tests", "fn:test_add", "HAS_METHOD", empty),
+            new("type:calc_tests", "fn:test_sub", "HAS_METHOD", empty),
+            new("fn:test_add", "fn:calc_add", "CALLS", empty),
+            new("fn:test_sub", "fn:calc_sub", "CALLS", empty)
+        ]);
+
+        // Modify only 'Add'
+        var report = await _service.AnalyzeImpactAsync(new TestImpactRequest
+        {
+            SymbolNames = new List<string> { "Add" }
+        });
+
+        Assert.That(report.AffectedTestMethods, Has.Count.EqualTo(1));
+        Assert.That(report.Groups, Is.Not.Null);
+        Assert.That(report.Groups!, Has.Count.EqualTo(1));
+
+        var group = report.Groups![0];
+        Assert.That(group.ClassName, Is.EqualTo("CalculatorTests"));
+        Assert.That(group.AffectedTestCount, Is.EqualTo(1));
+        Assert.That(group.TotalTestCount, Is.EqualTo(2));
+        Assert.That(group.AllTestsAffected, Is.False);
+
+        Assert.That(report.RunnerCommands, Contains.Key("dotnet"));
+        Assert.That(report.RunnerCommands["dotnet"], Is.EqualTo("dotnet test --filter \"FullyQualifiedName~Test_Add\""));
     }
 }

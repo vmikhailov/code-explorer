@@ -55,9 +55,29 @@ public class TestCommandHandler : BaseCommandHandler
         {
             case "list":
             case "tests":
-                foreach (var t in report.AffectedTestMethods)
+                if (report.Groups != null && report.Groups.Count > 0)
                 {
-                    Console.WriteLine(t.TestMethodName);
+                    foreach (var g in report.Groups)
+                    {
+                        if (g.AllTestsAffected && !string.IsNullOrEmpty(g.ClassName))
+                        {
+                            Console.WriteLine($"{g.ClassName} (all {g.TotalTestCount} tests)");
+                        }
+                        else
+                        {
+                            foreach (var m in g.Methods)
+                            {
+                                Console.WriteLine(m.TestMethodName);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var t in report.AffectedTestMethods)
+                    {
+                        Console.WriteLine(t.TestMethodName);
+                    }
                 }
                 break;
 

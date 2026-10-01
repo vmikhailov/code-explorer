@@ -35,8 +35,21 @@ public record ChangedSymbolInfo(
     int EndLine
 );
 
+public record AffectedTestGroup(
+    string GroupName,
+    string? ClassName,
+    string FilePath,
+    string? TestFramework,
+    int AffectedTestCount,
+    int TotalTestCount,
+    bool AllTestsAffected,
+    IReadOnlyList<AffectedTestMethod> Methods
+);
+
 public record TestImpactReport(
     IReadOnlyList<AffectedTestMethod> AffectedTestMethods,
     IReadOnlyList<ChangedSymbolInfo> ChangedSymbols,
-    IReadOnlyDictionary<string, string> RunnerCommands
+    IReadOnlyDictionary<string, string> RunnerCommands,
+    IReadOnlyList<AffectedTestGroup>? Groups = null
 );
+

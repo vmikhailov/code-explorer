@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.18.9] - 2026-10-02
+
+### Added
+- **Smart Test Grouping & Runner Command Collapsing**:
+  - Automatically groups impacted test methods by test class and test suite in Test Impact Analysis (`ce test`).
+  - Automatically collapses test runner commands to the class level (`FullyQualifiedName~ClassName`, `pytest -k "ClassName"`, etc.) when all test methods in a class are impacted, dramatically reducing CLI argument length and preventing command-line buffer overflows.
+  - When only a subset of tests in a class are affected, targets only those specific methods.
+  - Added `AffectedTestGroup` model and `Groups` collection to `TestImpactReport`.
+  - In Markdown reports, grouped test classes show a clean summary status with collapsible `<details>` for impacted methods in fully-affected classes.
+  - In `ce test -f list`, outputs `ClassName (all N tests)` when all tests in a class are affected.
+
 ## [1.18.2] - 2026-10-01
 
 ### Fixed
