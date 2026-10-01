@@ -8,6 +8,7 @@ on:
       - '.github/workflows/extension*.yml'
     tags:
       - 'ext-v*'
+      - 'v*'
   workflow_dispatch:
     inputs:
       release_tag:

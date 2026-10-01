@@ -404,7 +404,7 @@ export const App: React.FC = () => {
         if (vscodeApi) {
           vscodeApi.postMessage({ type: 'GET_AI_SETTINGS' });
         }
-      } else if (targetMode !== 'flow' && targetMode !== 'settings' && !fullGraphRef.current) {
+      } else if (!fullGraphRef.current) {
         requestArchitecture();
       }
     },
