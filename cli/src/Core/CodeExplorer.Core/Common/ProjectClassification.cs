@@ -19,5 +19,6 @@ public record ProjectClassification(
     public static readonly ProjectClassification WebApp = new(ProjectEntityKind.App, ProjectEntitySubKind.Web);
     public static readonly ProjectClassification MobileApp = new(ProjectEntityKind.App, ProjectEntitySubKind.Mobile);
     public static readonly ProjectClassification DesktopApp = new(ProjectEntityKind.App, ProjectEntitySubKind.Desktop);
-    public static readonly ProjectClassification CliApp = new(ProjectEntityKind.App, ProjectEntitySubKind.Cli);
+    public static readonly ProjectClassification CliApp = new(ProjectEntityKind.CliTool, ProjectEntitySubKind.Cli);
+    public static readonly ProjectClassification CliTool = new(ProjectEntityKind.CliTool, ProjectEntitySubKind.Cli);
 }

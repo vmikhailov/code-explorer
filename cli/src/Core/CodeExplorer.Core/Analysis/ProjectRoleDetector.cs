@@ -43,6 +43,7 @@ public static class ProjectRoleDetector
         {
             ProjectEntityKind.Library => (ProjectRole.SharedLibrary, true),
             ProjectEntityKind.Test => (ProjectRole.Test, true),
+            ProjectEntityKind.CliTool => (ProjectRole.CliTool, false),
             ProjectEntityKind.App => classification.SubKind switch
             {
                 ProjectEntitySubKind.Cli => (ProjectRole.CliTool, false),

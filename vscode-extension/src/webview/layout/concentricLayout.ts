@@ -60,21 +60,21 @@ export interface ConcentricLayoutResult {
 }
 
 export const ORBIT_TITLES: Record<number, string> = {
-  0: 'Ingress & Gateways',
+  0: 'Applications & Clients',
   1: 'First Echelon (Gateway Facing Services)',
   2: 'Message Topics & Queues (Pub/Sub & RabbitMQ)',
   3: 'Second Echelon (Internal Domain Services & Workers)',
-  4: 'Databases & External Services',
-  5: 'Databases & External Services',
+  4: 'Databases & External Infrastructure',
+  5: 'Databases & External Infrastructure',
 };
 
 export const ORBIT_NAMES: Record<number, string> = {
-  0: 'Orbit 0: Ingress & Gateways',
+  0: 'Orbit 0: Applications & Clients',
   1: 'Orbit 1: First Echelon (Gateway Facing Services)',
   2: 'Orbit 2: Message Topics & Queues (Pub/Sub & RabbitMQ)',
   3: 'Orbit 3: Second Echelon (Internal Domain Services & Workers)',
-  4: 'Orbit 4: Databases & External Services',
-  5: 'Orbit 5: Databases & External Services',
+  4: 'Orbit 4: Databases & External Infrastructure',
+  5: 'Orbit 5: Databases & External Infrastructure',
 };
 
 export function normRad(a: number): number {
@@ -150,9 +150,9 @@ export function computeEchelonTiers(
   const serviceTiers = new Map<string, number>();
   const queue: Array<{ id: string; tier: number }> = [];
 
-  // 1. Ingress nodes (Tier 0)
+  // 1. Applications and Ingress nodes (Tier 0)
   for (const n of allNodes) {
-    if (n.kind === 'Ingress') {
+    if (n.kind === 'App' || n.kind === 'FrontendApp' || n.kind === 'Ingress') {
       queue.push({ id: n.id, tier: 0 });
     }
   }
@@ -186,7 +186,7 @@ export function computeEchelonTiers(
 
   const echelonMap = new Map<string, number>();
   for (const n of allNodes) {
-    if (n.kind === 'Ingress') {
+    if (n.kind === 'App' || n.kind === 'FrontendApp' || n.kind === 'Ingress') {
       echelonMap.set(n.id, 0);
     } else if (n.kind === 'Topic' || n.kind === 'Queue' || n.kind === 'Broker' || n.kind === 'EventBus') {
       // Message Topics & Queues placed between First and Second Echelon of services
@@ -196,7 +196,7 @@ export function computeEchelonTiers(
       // First echelon services (Gateway-facing): Orbit 1
       // Second echelon services (Internal Domain): Orbit 3 (after Topics)
       echelonMap.set(n.id, t <= 1 ? 1 : 3);
-    } else if (n.kind === 'Worker') {
+    } else if (n.kind === 'Worker' || n.kind === 'CliTool') {
       // Workers merged into Second Echelon (Orbit 3) alongside internal domain services
       echelonMap.set(n.id, 3);
     } else if (n.kind === 'Database' || n.kind === 'ExternalService') {

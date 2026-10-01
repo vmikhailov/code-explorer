@@ -154,17 +154,6 @@ function classifyNode(node: GraphNode): C1Category | null {
     return 'app';
   }
 
-  const lowerName = (node.name || '').toLowerCase();
-  if (
-    lowerName.endsWith('-front') ||
-    lowerName.endsWith('-fe') ||
-    lowerName.includes('frontend') ||
-    lowerName.includes('landing') ||
-    lowerName.endsWith('-bff') ||
-    lowerName.endsWith('gateway')
-  ) {
-    return 'app';
-  }
 
   // 4. Services & Workers (Core domain microservices)
   if (
@@ -650,59 +639,23 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
         if (n.category === 'external') {
           return { id: 'ctx_external', title: '🔌 External APIs & SaaS', category: 'external' };
         }
-        const lower = n.name.toLowerCase();
-        if (
-          n.category === 'app' ||
-          lower.includes('front') ||
-          lower.includes('fe') ||
-          lower.includes('landing') ||
-          lower.includes('bff') ||
-          lower.includes('gateway')
-        ) {
-          return { id: 'ctx_ingress', title: '🌐 Ingress & Gateways', category: 'app' };
+        if (n.category === 'app') {
+          return { id: 'ctx_ingress', title: '🌐 Applications & Ingress', category: 'app' };
         }
-        if (
-          lower.includes('route') ||
-          lower.includes('calculation') ||
-          lower.includes('rate') ||
-          lower.includes('redis')
-        ) {
-          return { id: 'ctx_routing', title: '⚡ Traffic & Route Calculation', category: 'service' };
-        }
-        if (
-          lower.includes('analytic') ||
-          lower.includes('stat') ||
-          lower.includes('tracker') ||
-          lower.includes('network')
-        ) {
-          return { id: 'ctx_analytics', title: '📊 Analytics & Telemetry', category: 'service' };
-        }
-        if (
-          lower.includes('partner') ||
-          lower.includes('lander') ||
-          lower.includes('approval') ||
-          lower.includes('template')
-        ) {
-          return { id: 'ctx_partners', title: '🤝 Partners & Landing Ops', category: 'service' };
-        }
-        return { id: 'ctx_platform', title: '⚙️ Core Platform Services', category: 'service' };
+        const dom = n.rawNode.properties?.domain || n.rawNode.properties?.bounded_context || 'Core Platform';
+        const domId = `ctx_${dom.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`;
+        return { id: domId, title: `⚙️ ${dom}`, category: 'service' };
       };
 
-      const groupsMap = new Map<string, { title: string; category: C1Category; nodes: ClassifiedC1Node[] }>();
-      const groupOrder = ['ctx_ingress', 'ctx_routing', 'ctx_partners', 'ctx_analytics', 'ctx_platform', 'ctx_external'];
-
-      for (const gid of groupOrder) {
-        groupsMap.set(gid, { title: '', category: 'service', nodes: [] });
-      }
+      const groupsMap = new Map<string, { id: string; title: string; category: C1Category; nodes: ClassifiedC1Node[] }>();
 
       for (const n of filteredNodes) {
         const ctx = getContextGroup(n);
-        if (!groupsMap.has(ctx.id)) {
-          groupsMap.set(ctx.id, { title: ctx.title, category: ctx.category, nodes: [] });
+        let grp = groupsMap.get(ctx.id);
+        if (!grp) {
+          grp = { id: ctx.id, title: ctx.title, category: ctx.category, nodes: [] };
+          groupsMap.set(ctx.id, grp);
         }
-        const grp = groupsMap.get(ctx.id)!;
-        grp.title = ctx.title;
-        grp.category = ctx.category;
         grp.nodes.push(n);
       }
 
@@ -717,8 +670,14 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
       const clusterBgNodes: Node[] = [];
       const clusterItemNodes: Node[] = [];
 
-      const activeGroups = groupOrder
-        .map((gid) => ({ id: gid, ...groupsMap.get(gid)! }))
+      const activeGroups = Array.from(groupsMap.values())
+        .sort((a, b) => {
+          if (a.id === 'ctx_ingress') return -1;
+          if (b.id === 'ctx_ingress') return 1;
+          if (a.id === 'ctx_external') return 1;
+          if (b.id === 'ctx_external') return -1;
+          return a.title.localeCompare(b.title);
+        })
         .filter((g) => g.nodes.length > 0);
 
       activeGroups.forEach((g, gIdx) => {

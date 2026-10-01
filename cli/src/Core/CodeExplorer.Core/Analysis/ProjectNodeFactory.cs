@@ -35,11 +35,10 @@ public static class ProjectNodeFactory
             ? classification.Kind.ToString() 
             : role.ToString();
 
-        extensions ??= new Dictionary<string, string>();
         extensions["role"] = role.ToString();
         extensions["is_library"] = isLibrary ? "true" : "false";
         extensions["entity_type"] = isLibrary ? "library" : "service";
-        extensions["entity_kind"] = classification.Kind.ToString();
+        extensions["entity_kind"] = kindStr;
         extensions["kind"] = kindStr;
         extensions["sub_kind"] = classification.SubKind.ToString();
         extensions["language"] = projectType;

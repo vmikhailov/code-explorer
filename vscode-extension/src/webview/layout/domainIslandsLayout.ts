@@ -92,8 +92,8 @@ export function computeDomainIslandsLayout(
 
   // 2. Classify services, databases, topics, workers
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-  const serviceNodes = nodes.filter((n) => n.echelonTier <= 2 || n.kind === 'Service' || n.kind === 'Ingress');
-  const infraNodes = nodes.filter((n) => n.echelonTier > 2 && n.kind !== 'Service' && n.kind !== 'Ingress');
+  const serviceNodes = nodes.filter((n) => n.echelonTier <= 2 || n.kind === 'Service' || n.kind === 'Ingress' || n.kind === 'App' || n.kind === 'FrontendApp');
+  const infraNodes = nodes.filter((n) => n.echelonTier > 2 && n.kind !== 'Service' && n.kind !== 'Ingress' && n.kind !== 'App' && n.kind !== 'FrontendApp');
 
   // Assign domains to services
   const nodeDomainMap = new Map<string, string>();
@@ -185,7 +185,7 @@ export function computeDomainIslandsLayout(
     // Separate services vs others inside the island
     const innerNodes = memberIds.filter((id) => {
       const n = nodeMap.get(id);
-      return n && (n.echelonTier <= 2 || n.kind === 'Service' || n.kind === 'Ingress');
+      return n && (n.echelonTier <= 2 || n.kind === 'Service' || n.kind === 'Ingress' || n.kind === 'App' || n.kind === 'FrontendApp');
     });
     const outerNodes = memberIds.filter((id) => !innerNodes.includes(id));
 

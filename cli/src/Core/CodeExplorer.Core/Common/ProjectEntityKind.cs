@@ -44,5 +44,10 @@ public enum ProjectEntityKind
     /// <summary>
     /// Test suite (unit, integration, e2e, benchmark).
     /// </summary>
-    Test
+    Test,
+
+    /// <summary>
+    /// Command-line tool, developer script, or administrative CLI utility.
+    /// </summary>
+    CliTool
 }

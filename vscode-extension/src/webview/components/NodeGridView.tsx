@@ -111,8 +111,14 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
         } else if (layerNum === 3) {
           list = list.filter((n) => ['type', 'function', 'member'].includes(n.kind?.toLowerCase() || ''));
         } else if (layerNum === 4) {
-          list = list.filter((n) => ['service', 'app', 'frontendapp', 'worker', 'library', 'sharedlibrary', 'clitool', 'entrypoint', 'endpoint', 'procedure', 'database', 'table', 'dataset', 'topic', 'externalservice', 'cloudservice', 'apiinuse', 'query'].includes(n.kind?.toLowerCase() || ''));
+          list = list.filter((n) => ['service', 'app', 'frontendapp', 'worker', 'library', 'sharedlibrary', 'clitool', 'testsuite', 'test', 'entrypoint', 'endpoint', 'procedure', 'database', 'table', 'dataset', 'topic', 'externalservice', 'cloudservice', 'apiinuse', 'query'].includes(n.kind?.toLowerCase() || ''));
         }
+      } else if (currentKind.toLowerCase() === 'app') {
+        list = list.filter((n) => ['app', 'frontendapp'].includes(n.kind?.toLowerCase() || ''));
+      } else if (currentKind.toLowerCase() === 'library') {
+        list = list.filter((n) => ['library', 'sharedlibrary'].includes(n.kind?.toLowerCase() || ''));
+      } else if (currentKind.toLowerCase() === 'testsuite' || currentKind.toLowerCase() === 'test') {
+        list = list.filter((n) => ['testsuite', 'test'].includes(n.kind?.toLowerCase() || ''));
       } else {
         list = list.filter((n) => n.kind?.toLowerCase() === currentKind.toLowerCase());
       }

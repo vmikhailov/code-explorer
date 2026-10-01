@@ -1155,7 +1155,12 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public async Task<MetadataResponseDto> GetMetadataAsync(CancellationToken ct = default)
     {
-        var result = new MetadataResponseDto();
+        var asmVer = typeof(ArchitectureViewEngine).Assembly.GetName().Version;
+        var verStr = asmVer != null ? $"{asmVer.Major}.{asmVer.Minor}.{asmVer.Build}" : "";
+        var result = new MetadataResponseDto
+        {
+            Version = verStr
+        };
 
         // 1. Node counts by primary label
         try
@@ -1205,6 +1210,10 @@ public class ArchitectureViewEngine(IGraphClient db)
                     else if (lbl.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
                     {
                         result.NodeCounts["Library"] = result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
+                    }
+                    else if (lbl.Equals("Test", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result.NodeCounts["TestSuite"] = result.NodeCounts.GetValueOrDefault("TestSuite", 0) + cnt;
                     }
                 }
                 else
@@ -1489,7 +1498,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
         else if (string.Equals(safeKind, "Layer4", StringComparison.OrdinalIgnoreCase))
         {
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query)";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "App", StringComparison.OrdinalIgnoreCase) && serviceId == null)
@@ -1517,11 +1526,16 @@ public class ArchitectureViewEngine(IGraphClient db)
             layerFilter = "WHERE (n:Service)";
             safeKind = null;
         }
+        else if ((string.Equals(safeKind, "TestSuite", StringComparison.OrdinalIgnoreCase) || string.Equals(safeKind, "Test", StringComparison.OrdinalIgnoreCase)) && serviceId == null)
+        {
+            layerFilter = "WHERE (n:TestSuite OR n:Test)";
+            safeKind = null;
+        }
 
         if (safeKind == null && layerFilter == null && serviceId == null)
         {
             // Default macro filter for unconstrained / 'all' queries (prevents pulling thousands of raw AST symbols)
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:EntryPoint OR n:Endpoint OR n:Database OR n:Table OR n:Topic OR n:ExternalService OR n:CloudService)";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:EntryPoint OR n:Endpoint OR n:Database OR n:Table OR n:Topic OR n:ExternalService OR n:CloudService)";
         }
 
         var matchClause = safeKind != null ? $"MATCH (n:{safeKind})" : "MATCH (n)";

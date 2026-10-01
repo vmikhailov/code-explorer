@@ -106,7 +106,7 @@ public class ProjectEntityClassifierTests
             "typescript",
             extensions: new Dictionary<string, string> { ["has_cli_bin"] = "true" }
         );
-        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.App));
+        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.CliTool));
         Assert.That(kind1?.SubKind, Is.EqualTo(ProjectEntitySubKind.Cli));
 
         // 2. CLI directory & suffix
@@ -117,7 +117,7 @@ public class ProjectEntityClassifierTests
             "my-tool-cli",
             "csharp"
         );
-        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.App));
+        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.CliTool));
         Assert.That(kind2?.SubKind, Is.EqualTo(ProjectEntitySubKind.Cli));
     }
 

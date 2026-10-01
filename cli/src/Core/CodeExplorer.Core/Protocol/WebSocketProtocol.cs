@@ -369,6 +369,9 @@ public class ScanProgressEventDto
 
 public class MetadataResponseDto
 {
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = string.Empty;
+
     [JsonPropertyName("nodeCounts")]
     public Dictionary<string, long> NodeCounts { get; set; } = [];
 

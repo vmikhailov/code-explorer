@@ -16,9 +16,11 @@ export type DomainLayoutName =
 export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 
 export type EntityKind =
+  | 'App'
   | 'Service'
   | 'Ingress'
   | 'Worker'
+  | 'CliTool'
   | 'Library'
   | 'Database'
   | 'Topic'

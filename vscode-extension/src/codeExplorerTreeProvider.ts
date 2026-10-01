@@ -918,8 +918,12 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       } catch {}
     }
 
-    const engineVersion = meta?.version || '1.16.2';
-    const cleanVersion = engineVersion.startsWith('v') ? engineVersion : `v${engineVersion}`;
+    const engineVersion =
+      meta?.version ||
+      this.processManager.getBinaryManager()?.getCachedVersion() ||
+      this.processManager.getBinaryManager()?.getExtensionVersion() ||
+      '';
+    const cleanVersion = engineVersion ? (engineVersion.startsWith('v') ? engineVersion : `v${engineVersion}`) : 'Unknown';
     const updateStr = dbMtime ? this.formatGraphUpdateTime(dbMtime) : 'Not indexed yet';
 
     const statusItem = new CodeExplorerTreeItem(

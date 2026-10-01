@@ -49,13 +49,7 @@ export interface DomainArchitectureViewProps {
   availableDomains?: string[];
 }
 
-// Common sub-project naming suffixes that belong to a parent domain
-const SUB_PROJECT_SUFFIX_REGEX =
-  /\.(Logic|Client|Contracts|Data|Core|Domain|Infrastructure|Api|Service|Services|Web|Worker|Test|Tests|Shared|Models|Dto|SDK|UnitTests|IntegrationTests|GraphQL|GrapQL|Grpc|Gateway|Bff|Endpoint)$/i;
 
-// Ingress / Frontend indicators
-const INGRESS_KEYWORDS = ['admin', 'app', 'ui', 'fe', 'gateway', 'bff', 'portal', 'web', 'client-app', 'landing', 'graphql', 'grapql', 'grpc', 'mqtt', 'endpoint'];
-const INGRESS_FRAMEWORKS = ['angular', 'react', 'vue', 'svelte', 'next', 'vite', 'blazor'];
 
 export const EyeIcon: React.FC<{ size?: number; className?: string; style?: React.CSSProperties }> = ({
   size = 14,
@@ -101,96 +95,6 @@ export const EyeOffIcon: React.FC<{ size?: number; className?: string; style?: R
   </svg>
 );
 
-/**
- * Normalizes project names and directory paths into a cohesive Domain / Bounded Context key.
- */
-function extractDomainKey(node: GraphNode): { domainKey: string; domainDisplayName: string; isIngressHint: boolean } {
-  const name = node.name || '';
-  const path = (node.filePath || '').toLowerCase().replace(/\\/g, '/');
-  const lowerName = name.toLowerCase();
-
-  const isProtocolIngress =
-    INGRESS_KEYWORDS.some((kw) => lowerName.includes(kw) || path.includes(`/${kw}/`)) ||
-    INGRESS_FRAMEWORKS.some((fw) => (node.properties?.framework || '').toLowerCase().includes(fw)) ||
-    node.properties?.has_ingress_contract === 'true' ||
-    node.properties?.layer === 'layer_ingress' ||
-    node.properties?.layerId === 'layer_ingress';
-
-  // 0. Explicit domain from backend node properties (takes highest precedence)
-  const propDomainId = node.properties?.domainId;
-  const propDomain = node.properties?.domain || node.properties?.bounded_context;
-  const propDisplayName = node.properties?.domainDisplayName;
-  if (propDomainId && !propDomainId.startsWith('domain:c:') && !propDomainId.startsWith('domain:home')) {
-    const displayName = propDisplayName || propDomain || propDomainId.replace(/^domain:/, '');
-    return {
-      domainKey: propDomainId,
-      domainDisplayName: displayName,
-      isIngressHint: isProtocolIngress,
-    };
-  }
-  if (propDomain && propDomain.toLowerCase() !== 'c:' && propDomain.toLowerCase() !== 'home') {
-    const clean = propDomain.trim();
-    return {
-      domainKey: `domain:${clean.toLowerCase()}`,
-      domainDisplayName: propDisplayName || clean,
-      isIngressHint: isProtocolIngress,
-    };
-  }
-
-  // 1. Check if name ends with standard architectural suffix (e.g. Lidoma.Services.Player.Logic)
-  const suffixMatch = name.match(SUB_PROJECT_SUFFIX_REGEX);
-  if (suffixMatch) {
-    const parentName = name.substring(0, suffixMatch.index);
-    const dotParts = parentName.split('.');
-    const shortName = dotParts[dotParts.length - 1];
-    return {
-      domainKey: `domain:${parentName.toLowerCase()}`,
-      domainDisplayName: `${shortName} Service`,
-      isIngressHint: isProtocolIngress,
-    };
-  }
-
-  // 2. Directory-based grouping (e.g. services/player/... or billing/...)
-  if (path) {
-    // Strip Windows drive letter (e.g. C:/) and leading slashes
-    const cleanPath = path.replace(/^[a-z]:\//i, '').replace(/^\/+/, '');
-    const pathParts = cleanPath.split('/').filter((p) => p && !/^[a-z]:$/i.test(p));
-
-    const servicesIdx = pathParts.findIndex((p) => p === 'services' || p === 'microservices');
-    if (servicesIdx !== -1 && servicesIdx + 1 < pathParts.length) {
-      const folderDomain = pathParts[servicesIdx + 1];
-      const cleanName = folderDomain.charAt(0).toUpperCase() + folderDomain.slice(1);
-      return {
-        domainKey: `domain:${folderDomain.toLowerCase()}`,
-        domainDisplayName: `${cleanName} Service`,
-        isIngressHint: isProtocolIngress,
-      };
-    }
-
-    const skipFolders = new Set(['src', 'packages', 'libs', 'projects', 'apps', 'modules', 'cmd', 'home', 'users']);
-    const meaningfulFolder = pathParts.find((p) => !skipFolders.has(p) && p.length > 1);
-    if (meaningfulFolder) {
-      const cleanName = meaningfulFolder.charAt(0).toUpperCase() + meaningfulFolder.slice(1);
-      return {
-        domainKey: `domain:${meaningfulFolder.toLowerCase()}`,
-        domainDisplayName: cleanName,
-        isIngressHint: INGRESS_KEYWORDS.some((kw) => meaningfulFolder.toLowerCase().includes(kw)),
-      };
-    }
-  }
-
-  // 3. Standalone project
-  const isIngress =
-    INGRESS_KEYWORDS.some((kw) => lowerName.includes(kw)) ||
-    INGRESS_FRAMEWORKS.some((fw) => (node.properties?.framework || '').toLowerCase().includes(fw));
-
-  return {
-    domainKey: `domain:${lowerName}`,
-    domainDisplayName: name,
-    isIngressHint: isIngress,
-  };
-}
-
 export interface DomainProjectInfo {
   id: string;
   name: string;
@@ -200,7 +104,16 @@ export interface DomainProjectInfo {
   gitBranch?: string;
 }
 
-export type EntityKind = 'Service' | 'Ingress' | 'Worker' | 'Library' | 'Database' | 'Topic' | 'ExternalService';
+export type EntityKind =
+  | 'App'
+  | 'Service'
+  | 'Ingress'
+  | 'Worker'
+  | 'CliTool'
+  | 'Library'
+  | 'Database'
+  | 'Topic'
+  | 'ExternalService';
 
 export interface SelectedNodeDetail {
   id: string;
@@ -300,7 +213,7 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   },
   // Ingress / App
   {
-    selector: 'node[kind = "Ingress"]',
+    selector: 'node[kind = "Ingress"], node[kind = "App"], node[kind = "FrontendApp"]',
     style: {
       'background-color': '#0288d1',
       'border-color': '#01579b',
@@ -1307,142 +1220,183 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const rawGraph = useMemo(() => {
     const cyNodes: cytoscape.NodeDefinition[] = [];
     const detailMap = new Map<string, SelectedNodeDetail>();
-
-    const projToDomainMap = new Map<string, string>();
-    const domainProjectsMap = new Map<string, DomainProjectInfo[]>();
-    const domainPrimaryMap = new Map<string, GraphNode>();
-    const domainZoneMap = new Map<string, 'ingress' | 'service'>();
     const domainNameMap = new Map<string, { name: string; displayName: string; framework?: string; language?: string; color?: string }>();
+    const domainEntitiesMap = new Map<string, SelectedNodeDetail[]>();
 
-    // 1a. Categorize Projects into Domains
+    let appCount = 0;
+    let serviceCount = 0;
+    let workerCount = 0;
+    let cliCount = 0;
+    let dbCount = 0;
+    let topicCount = 0;
+    let extCount = 0;
+    let libCount = 0;
+
     for (const node of graph?.nodes || []) {
-      if (!isProjectKind(node.kind)) continue;
+      // Ignore NuGet / npm package dependencies
+      if (node.kind === 'Package') continue;
 
-      const { domainKey, domainDisplayName, isIngressHint } = extractDomainKey(node);
-      projToDomainMap.set(node.id, domainKey);
-      projToDomainMap.set(node.name, domainKey);
-      projToDomainMap.set(node.id.toLowerCase(), domainKey);
-      projToDomainMap.set(node.name.toLowerCase(), domainKey);
+      let tag = ':Service';
+      let nodeKind: EntityKind = 'Service';
+      let bgColor = '#e53935';
+      let borderColor = '#7f1d1d';
+      let size = 50;
+
+      const isApp =
+        node.kind === 'App' ||
+        node.kind === 'FrontendApp' ||
+        node.properties?.role === 'App' ||
+        node.properties?.role === 'FrontendApp';
+
+      const isWorker =
+        node.kind === 'Worker' ||
+        node.properties?.role === 'Worker';
+
+      const isCli =
+        node.kind === 'CliTool' ||
+        node.properties?.role === 'CliTool';
+
+      const isDb =
+        node.kind === 'Database' ||
+        node.properties?.role === 'database' ||
+        node.properties?.role === 'Database';
+
+      const isTopic =
+        node.kind === 'Topic' ||
+        node.properties?.role === 'topic' ||
+        node.properties?.role === 'Topic';
+
+      const isExt =
+        node.kind === 'ExternalService' ||
+        node.properties?.role === 'ExternalService';
 
       const isLib =
         node.kind === 'Library' ||
         node.kind === 'SharedLibrary' ||
         node.properties?.is_library === 'true';
 
-      let pList = domainProjectsMap.get(domainKey);
-      if (!pList) {
-        pList = [];
-        domainProjectsMap.set(domainKey, pList);
+      if (isApp) {
+        appCount++;
+        tag = ':App';
+        nodeKind = 'App';
+        bgColor = '#0288d1';
+        borderColor = '#01579b';
+        size = 54;
+      } else if (isWorker) {
+        workerCount++;
+        tag = ':Worker';
+        nodeKind = 'Worker';
+        bgColor = '#c026d3';
+        borderColor = '#86198f';
+        size = 48;
+      } else if (isCli) {
+        cliCount++;
+        tag = ':CliTool';
+        nodeKind = 'CliTool';
+        bgColor = '#d97706';
+        borderColor = '#92400e';
+        size = 48;
+      } else if (isDb) {
+        dbCount++;
+        tag = ':DB';
+        nodeKind = 'Database';
+        bgColor = '#7b1fa2';
+        borderColor = '#4a148c';
+        size = 48;
+      } else if (isTopic) {
+        topicCount++;
+        tag = ':Topic';
+        nodeKind = 'Topic';
+        bgColor = '#f59e0b';
+        borderColor = '#b45309';
+        size = 46;
+      } else if (isExt) {
+        extCount++;
+        tag = ':External';
+        nodeKind = 'ExternalService';
+        bgColor = '#26a69a';
+        borderColor = '#004d40';
+        size = 44;
+      } else if (isLib) {
+        libCount++;
+        tag = ':Library';
+        nodeKind = 'Library';
+        bgColor = '#4b5563';
+        borderColor = '#374151';
+        size = 40;
+      } else {
+        serviceCount++;
+      }
 
-        const isIngress =
-          !isLib &&
-          (node.kind === 'App' ||
-           node.kind === 'FrontendApp' ||
-           node.properties?.layer === 'layer_ingress' ||
-           node.properties?.layerId === 'layer_ingress' ||
-           node.properties?.has_ingress_contract === 'true' ||
-           isIngressHint) &&
-          node.kind !== 'Worker';
-        domainZoneMap.set(domainKey, isIngress ? 'ingress' : 'service');
+      const rawDomain =
+        node.properties?.domain ||
+        node.properties?.domainDisplayName ||
+        node.properties?.bounded_context ||
+        (isDb ? 'Databases' : isTopic ? 'Messaging' : isExt ? 'External Services' : 'Core Platform');
 
-        domainNameMap.set(domainKey, {
-          name: node.name,
+      const domain = rawDomain.trim();
+      const domainDisplayName = node.properties?.domainDisplayName || domain;
+
+      if (!domainNameMap.has(domain)) {
+        domainNameMap.set(domain, {
+          name: domain,
           displayName: domainDisplayName,
           framework: node.properties?.framework,
           language: node.properties?.language || node.properties?.project_type,
         });
       }
 
-      pList.push({
+      const displayName = node.displayName || node.name || node.id;
+      const detail: SelectedNodeDetail = {
         id: node.id,
-        name: node.name,
-        kind: node.kind,
-        filePath: node.filePath,
-        isLibrary: isLib,
+        name: node.name || displayName,
+        displayName,
+        domain,
+        kind: nodeKind,
+        displayTag: tag,
+        bgColor,
+        borderColor,
+        framework: node.properties?.framework || node.properties?.db_type || node.properties?.broker_type || node.properties?.service_type,
+        language: node.properties?.language || node.properties?.project_type,
         gitBranch: node.properties?.git_branch,
+        primaryFilePath: node.filePath,
+        projects: [
+          {
+            id: node.id,
+            name: node.name || displayName,
+            kind: node.kind,
+            filePath: node.filePath,
+            isLibrary: isLib,
+            gitBranch: node.properties?.git_branch,
+          },
+        ],
+        inboundCallsCount: 0,
+        outboundCallsCount: 0,
+        dbCount: 0,
+        messagingCount: 0,
+      };
+      detailMap.set(node.id, detail);
+
+      let dList = domainEntitiesMap.get(domain);
+      if (!dList) {
+        dList = [];
+        domainEntitiesMap.set(domain, dList);
+      }
+      dList.push(detail);
+
+      cyNodes.push({
+        group: 'nodes',
+        data: {
+          id: node.id,
+          name: node.name || displayName,
+          displayName,
+          displayLabel: `${tag}\n${displayName}`,
+          kind: nodeKind,
+          bgColor,
+          borderColor,
+          size,
+        },
       });
-
-      const currPrimary = domainPrimaryMap.get(domainKey);
-      const isCurrLib =
-        currPrimary?.kind === 'Library' ||
-        currPrimary?.kind === 'SharedLibrary' ||
-        currPrimary?.properties?.is_library === 'true';
-      if (!currPrimary || (isCurrLib && !isLib)) {
-        domainPrimaryMap.set(domainKey, node);
-        if (!isLib) {
-          domainNameMap.set(domainKey, {
-            name: node.name,
-            displayName: domainDisplayName,
-            framework: node.properties?.framework,
-            language: node.properties?.language || node.properties?.project_type,
-          });
-          const isIngress =
-            (node.kind === 'App' ||
-             node.kind === 'FrontendApp' ||
-             node.properties?.layer === 'layer_ingress' ||
-             node.properties?.layerId === 'layer_ingress' ||
-             node.properties?.has_ingress_contract === 'true' ||
-             isIngressHint) &&
-            node.kind !== 'Worker';
-          domainZoneMap.set(domainKey, isIngress ? 'ingress' : 'service');
-        }
-      }
-    }
-
-    // 1b. Collect Infrastructure Entities (Databases, Topics, ExternalServices)
-    const dbNodes = new Map<string, { id: string; name: string; dbType: string }>();
-    const topicNodes = new Map<string, { id: string; name: string; broker: string }>();
-    const extNodes = new Map<string, { id: string; name: string; serviceType: string }>();
-
-    for (const node of graph?.nodes || []) {
-      if (node.kind === 'Database' || node.properties?.role === 'database') {
-        const name = node.name || node.displayName || 'Database';
-        dbNodes.set(node.id, {
-          id: node.id,
-          name,
-          dbType: node.properties?.db_type || 'relational',
-        });
-        projToDomainMap.set(node.id, node.id);
-        projToDomainMap.set(node.id.toLowerCase(), node.id);
-      } else if (node.kind === 'Topic' || node.properties?.role === 'topic') {
-        const broker = (node.properties?.broker_type || '').toLowerCase();
-        const isInternal =
-          node.properties?.is_internal === 'true' ||
-          node.properties?.scope === 'internal' ||
-          broker === 'mediatr' ||
-          broker === 'in-memory' ||
-          node.id.includes(':mediatr:') ||
-          node.id.includes(':in-memory:');
-        if (isInternal) continue;
-
-        const rawName = node.name || node.displayName || 'Topic';
-        const isBogus =
-          !rawName ||
-          rawName.startsWith(':') ||
-          rawName.toLowerCase() === 'topic' ||
-          rawName.toLowerCase() === 'string' ||
-          rawName.toLowerCase() === 'undefined' ||
-          rawName.startsWith('http://') ||
-          rawName.startsWith('https://');
-        if (isBogus) continue;
-        const name = rawName;
-        topicNodes.set(node.id, {
-          id: node.id,
-          name,
-          broker: node.properties?.broker_type || 'Message Queue',
-        });
-        projToDomainMap.set(node.id, node.id);
-        projToDomainMap.set(node.id.toLowerCase(), node.id);
-      } else if (node.kind === 'ExternalService') {
-        const name = node.name || node.displayName || 'External Service';
-        extNodes.set(node.id, {
-          id: node.id,
-          name,
-          serviceType: node.properties?.service_type || 'API',
-        });
-        projToDomainMap.set(node.id, node.id);
-        projToDomainMap.set(node.id.toLowerCase(), node.id);
-      }
     }
 
     // 2. Synthesize Macro Edges
@@ -1463,41 +1417,30 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     const topicSubscribers = new Map<string, Set<string>>();
     const directPubSubChords = new Map<string, { source: string; target: string; label: string; count: number }>();
 
+    const validNodeIdSet = new Set(cyNodes.map((n) => n.data.id as string));
+
     for (const edge of graph?.edges || []) {
-      const isInternalEdge =
-        edge.properties?.is_internal === 'true' ||
-        edge.properties?.scope === 'internal' ||
-        edge.properties?.broker_type === 'mediatr' ||
-        edge.source.includes(':mediatr:') ||
-        edge.target.includes(':mediatr:');
-      if (isInternalEdge) continue;
+      if (!validNodeIdSet.has(edge.source) || !validNodeIdSet.has(edge.target)) continue;
+      if (edge.source === edge.target) continue;
+      if (edge.category === 'library' || edge.kind === 'LIBRARY') continue;
 
-      const srcDomain =
-        projToDomainMap.get(edge.source) ||
-        projToDomainMap.get(edge.source.toLowerCase()) ||
-        (dbNodes.has(edge.source) ? edge.source : null) ||
-        (topicNodes.has(edge.source) ? edge.source : null);
-
-      const tgtDomain =
-        projToDomainMap.get(edge.target) ||
-        projToDomainMap.get(edge.target.toLowerCase()) ||
-        (dbNodes.has(edge.target) ? edge.target : null) ||
-        (topicNodes.has(edge.target) ? edge.target : null) ||
-        (extNodes.has(edge.target) ? edge.target : null);
-
-      if (!srcDomain || !tgtDomain || srcDomain === tgtDomain) continue;
+      const srcDetail = detailMap.get(edge.source);
+      const tgtDetail = detailMap.get(edge.target);
+      if (!srcDetail || !tgtDetail) continue;
 
       let cat: 'service_call' | 'database' | 'messaging' | 'external' | null = null;
       let label = 'CALLS';
 
-      const isTopicEdge = topicNodes.has(tgtDomain) || topicNodes.has(srcDomain);
+      const isDb = tgtDetail.kind === 'Database' || srcDetail.kind === 'Database' || edge.category === 'database' || edge.kind === 'USES_DB';
+      const isTopic = tgtDetail.kind === 'Topic' || srcDetail.kind === 'Topic' || edge.category === 'messaging';
+      const isExt = tgtDetail.kind === 'ExternalService' || edge.category === 'external';
 
-      if (dbNodes.has(tgtDomain) || edge.category === 'database' || edge.kind === 'USES_DB') {
+      if (isDb) {
         cat = 'database';
         label = 'USES_DB';
-        if (!dbUsage.has(srcDomain)) dbUsage.set(srcDomain, new Set());
-        dbUsage.get(srcDomain)!.add(tgtDomain);
-      } else if (isTopicEdge) {
+        if (!dbUsage.has(edge.source)) dbUsage.set(edge.source, new Set());
+        dbUsage.get(edge.source)!.add(edge.target);
+      } else if (isTopic) {
         cat = 'messaging';
         const isPub = edge.kind === 'PUBLISHES_TO' || edge.kind === 'PUBLISHED_BY' || edge.kind === 'PUBLISHES';
         const isSub =
@@ -1505,28 +1448,28 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           (edge.kind === 'SUBSCRIBES_TO' ||
             edge.kind === 'SUBSCRIBED_BY' ||
             edge.kind === 'SUBSCRIBES' ||
-            (topicNodes.has(srcDomain) && !topicNodes.has(tgtDomain)));
+            (tgtDetail.kind !== 'Topic' && srcDetail.kind === 'Topic'));
         label = isSub ? 'SUBSCRIBES' : 'PUBLISHES';
 
-        const tDomain = topicNodes.has(tgtDomain) ? tgtDomain : srcDomain;
-        const sDomain = topicNodes.has(tgtDomain) ? srcDomain : tgtDomain;
+        const tNode = tgtDetail.kind === 'Topic' ? edge.target : edge.source;
+        const sNode = tgtDetail.kind === 'Topic' ? edge.source : edge.target;
 
         if (isSub) {
-          if (!topicSubscribers.has(tDomain)) topicSubscribers.set(tDomain, new Set());
-          topicSubscribers.get(tDomain)!.add(sDomain);
+          if (!topicSubscribers.has(tNode)) topicSubscribers.set(tNode, new Set());
+          topicSubscribers.get(tNode)!.add(sNode);
         } else {
-          if (!topicPublishers.has(tDomain)) topicPublishers.set(tDomain, new Set());
-          topicPublishers.get(tDomain)!.add(sDomain);
+          if (!topicPublishers.has(tNode)) topicPublishers.set(tNode, new Set());
+          topicPublishers.get(tNode)!.add(sNode);
         }
 
-        if (topicNodes.has(tgtDomain)) {
-          if (!msgUsage.has(srcDomain)) msgUsage.set(srcDomain, new Set());
-          msgUsage.get(srcDomain)!.add(tgtDomain);
-        } else if (topicNodes.has(srcDomain)) {
-          if (!msgUsage.has(tgtDomain)) msgUsage.set(tgtDomain, new Set());
-          msgUsage.get(tgtDomain)!.add(srcDomain);
+        if (tgtDetail.kind === 'Topic') {
+          if (!msgUsage.has(edge.source)) msgUsage.set(edge.source, new Set());
+          msgUsage.get(edge.source)!.add(edge.target);
+        } else if (srcDetail.kind === 'Topic') {
+          if (!msgUsage.has(edge.target)) msgUsage.set(edge.target, new Set());
+          msgUsage.get(edge.target)!.add(edge.source);
         }
-      } else if (extNodes.has(tgtDomain)) {
+      } else if (isExt) {
         cat = 'external';
         label = 'CALLS';
       } else if (
@@ -1541,49 +1484,40 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         edge.kind === 'SUBSCRIBES_TO' ||
         edge.kind === 'SUBSCRIBED_BY' ||
         edge.kind === 'PUBLISHES_TO' ||
-        edge.kind === 'PUBLISHED_BY' ||
-        edge.category === 'messaging'
+        edge.kind === 'PUBLISHED_BY'
       ) {
-        // Direct pub/sub relation between two services (unrolled contract / shared event).
-        // Record as a direct pub/sub candidate chord.
         const chordLabel =
           edge.kind === 'SUBSCRIBES_TO' || edge.kind === 'SUBSCRIBED_BY' ? 'SUBSCRIBES' : 'PUBLISHES';
-        const chordKey = `${srcDomain}->${tgtDomain}`;
+        const chordKey = `${edge.source}->${edge.target}`;
         const existingChord = directPubSubChords.get(chordKey);
         if (existingChord) {
           existingChord.count += 1;
         } else {
           directPubSubChords.set(chordKey, {
-            source: srcDomain,
-            target: tgtDomain,
+            source: edge.source,
+            target: edge.target,
             label: chordLabel,
             count: 1,
           });
         }
         continue;
-      } else {
-        const isClientLib = edge.target.toLowerCase().includes('.client') || edge.target.toLowerCase().endsWith('client');
-        if (isClientLib) {
-          cat = 'service_call';
-          label = 'CALLS';
-        }
       }
 
       if (!cat) continue;
 
       if (cat === 'service_call') {
-        outCalls.set(srcDomain, (outCalls.get(srcDomain) || 0) + 1);
-        inCalls.set(tgtDomain, (inCalls.get(tgtDomain) || 0) + 1);
+        outCalls.set(edge.source, (outCalls.get(edge.source) || 0) + 1);
+        inCalls.set(edge.target, (inCalls.get(edge.target) || 0) + 1);
       }
 
-      const key = `${srcDomain}->${tgtDomain}:${cat}`;
+      const key = `${edge.source}->${edge.target}:${cat}`;
       const existing = macroEdges.get(key);
       if (existing) {
         existing.count += 1;
       } else {
         macroEdges.set(key, {
-          source: srcDomain,
-          target: tgtDomain,
+          source: edge.source,
+          target: edge.target,
           category: cat,
           label,
           count: 1,
@@ -1591,237 +1525,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
 
-    // 3. Build Cytoscape Nodes
-    let ingressCount = 0;
-    let serviceCount = 0;
-    let workerCount = 0;
-
-    // 3a. Service / Ingress / Worker Nodes
-    for (const [domainId, meta] of domainNameMap.entries()) {
-      const projects = domainProjectsMap.get(domainId) || [];
-      const primaryNode = domainPrimaryMap.get(domainId);
-
-      const isPureLibDomain =
-        projects.length > 0
-          ? projects.every(
-              (p) =>
-                p.isLibrary ||
-                p.kind === 'Library' ||
-                p.kind === 'SharedLibrary' ||
-                p.kind === 'Shared'
-            )
-          : primaryNode?.kind === 'Library' ||
-            primaryNode?.kind === 'SharedLibrary' ||
-            primaryNode?.properties?.is_library === 'true';
-
-      const isUiComponentPackage =
-        projects.length > 0 &&
-        projects.every((p) => {
-          const fp = (p.filePath || '').toLowerCase().replace(/\\/g, '/');
-          return fp.includes('/packages/ui/') || fp.includes('/packages/components/') || fp.includes('/src/components/');
-        });
-
-      if (isPureLibDomain || isUiComponentPackage) {
-        // Pure library & UI component domains MUST NOT appear on Domain Service Map
-        continue;
-      }
-
-      const zone = domainZoneMap.get(domainId) || 'service';
-      const isIngress = zone === 'ingress';
-
-      const isWorker =
-        primaryNode?.kind === 'Worker' ||
-        primaryNode?.properties?.role === 'Worker' ||
-        projects.some((p) => p.kind === 'Worker');
-
-      let tag = ':Service';
-      let nodeKind: EntityKind = 'Service';
-      let bgColor = '#e53935';
-      let borderColor = '#7f1d1d';
-      let size = 50;
-
-      if (isIngress) {
-        ingressCount++;
-        tag = ':Ingress';
-        nodeKind = 'Ingress';
-        bgColor = '#0288d1';
-        borderColor = '#01579b';
-        size = 54;
-      } else if (isWorker) {
-        workerCount++;
-        tag = ':Worker';
-        nodeKind = 'Worker';
-        bgColor = '#c026d3';
-        borderColor = '#86198f';
-        size = 48;
-      } else {
-        serviceCount++;
-      }
-
-      const detail: SelectedNodeDetail = {
-        id: domainId,
-        name: meta.name,
-        displayName: meta.displayName,
-        domain: domainId,
-        kind: nodeKind,
-        displayTag: tag,
-        bgColor,
-        borderColor,
-        framework: meta.framework,
-        language: meta.language,
-        gitBranch: primaryNode?.properties?.git_branch || projects.find((p) => p.gitBranch)?.gitBranch,
-        primaryFilePath: primaryNode?.filePath || projects[0]?.filePath,
-        projects,
-        inboundCallsCount: inCalls.get(domainId) || 0,
-        outboundCallsCount: outCalls.get(domainId) || 0,
-        dbCount: dbUsage.get(domainId)?.size || 0,
-        messagingCount: msgUsage.get(domainId)?.size || 0,
-      };
-      detailMap.set(domainId, detail);
-
-      cyNodes.push({
-        group: 'nodes',
-        data: {
-          id: domainId,
-          name: meta.name,
-          displayName: meta.displayName,
-          displayLabel: `${tag}\n${meta.displayName}`,
-          kind: nodeKind,
-          bgColor,
-          borderColor,
-          size,
-        },
-      });
+    // Update node details with traffic stats
+    for (const [id, detail] of detailMap.entries()) {
+      detail.inboundCallsCount = inCalls.get(id) || 0;
+      detail.outboundCallsCount = outCalls.get(id) || 0;
+      detail.dbCount = dbUsage.get(id)?.size || 0;
+      detail.messagingCount = msgUsage.get(id)?.size || 0;
     }
 
-    // 3b. Database Nodes
-    let dbCount = 0;
-    for (const [dbId, db] of dbNodes.entries()) {
-      const isUsed = Array.from(macroEdges.values()).some((e) => e.target === dbId || e.source === dbId);
-      if (!isUsed && dbNodes.size > 20) continue;
-      dbCount++;
-
-      const tag = ':DB';
-      const bgColor = '#7b1fa2';
-      const borderColor = '#4a148c';
-
-      detailMap.set(dbId, {
-        id: dbId,
-        name: db.name,
-        displayName: db.name,
-        kind: 'Database',
-        displayTag: tag,
-        bgColor,
-        borderColor,
-        framework: db.dbType,
-        projects: [],
-        inboundCallsCount: 0,
-        outboundCallsCount: 0,
-        dbCount: 0,
-        messagingCount: 0,
-      });
-
-      cyNodes.push({
-        group: 'nodes',
-        data: {
-          id: dbId,
-          name: db.name,
-          displayName: db.name,
-          displayLabel: `${tag}\n${db.name}`,
-          kind: 'Database',
-          bgColor,
-          borderColor,
-          size: 48,
-        },
-      });
-    }
-
-    // 3c. Message Topics / Queues
-    let topicCount = 0;
-    for (const [tId, t] of topicNodes.entries()) {
-      const isUsed = Array.from(macroEdges.values()).some((e) => e.target === tId || e.source === tId);
-      if (!isUsed && topicNodes.size > 25) continue;
-      topicCount++;
-
-      const tag = ':Topic';
-      const bgColor = '#f59e0b';
-      const borderColor = '#b45309';
-
-      detailMap.set(tId, {
-        id: tId,
-        name: t.name,
-        displayName: t.name,
-        kind: 'Topic',
-        displayTag: tag,
-        bgColor,
-        borderColor,
-        framework: t.broker,
-        projects: [],
-        inboundCallsCount: 0,
-        outboundCallsCount: 0,
-        dbCount: 0,
-        messagingCount: 0,
-      });
-
-      cyNodes.push({
-        group: 'nodes',
-        data: {
-          id: tId,
-          name: t.name,
-          displayName: t.name,
-          displayLabel: `${tag}\n${t.name}`,
-          kind: 'Topic',
-          bgColor,
-          borderColor,
-          size: 46,
-        },
-      });
-    }
-
-    // 3d. External Services
-    let extCount = 0;
-    for (const [extId, ext] of extNodes.entries()) {
-      const isUsed = Array.from(macroEdges.values()).some((e) => e.target === extId);
-      if (!isUsed) continue;
-      extCount++;
-
-      const tag = ':External';
-      const bgColor = '#26a69a';
-      const borderColor = '#004d40';
-
-      detailMap.set(extId, {
-        id: extId,
-        name: ext.name,
-        displayName: ext.name,
-        kind: 'ExternalService',
-        displayTag: tag,
-        bgColor,
-        borderColor,
-        framework: ext.serviceType,
-        projects: [],
-        inboundCallsCount: 0,
-        outboundCallsCount: 0,
-        dbCount: 0,
-        messagingCount: 0,
-      });
-
-      cyNodes.push({
-        group: 'nodes',
-        data: {
-          id: extId,
-          name: ext.name,
-          displayName: ext.name,
-          displayLabel: `${tag}\n${ext.name}`,
-          kind: 'ExternalService',
-          bgColor,
-          borderColor,
-          size: 44,
-        },
-      });
-    }
-
-    // 4. Raw Macro Edges & Outgoing Adjacency
-    const validNodeIdSet = new Set(cyNodes.map((n) => n.data.id as string));
+    // 3. Raw Macro Edges & Outgoing Adjacency
     const rawEdges: Array<{ id: string; source: string; target: string; category: 'service_call' | 'database' | 'messaging' | 'external'; label: string; count: number }> = [];
     const outAdj = new Map<string, Array<{ target: string; category: 'service_call' | 'database' | 'messaging' | 'external'; label: string; count: number }>>();
 
@@ -1856,7 +1568,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       });
     }
 
-    // 5. Compute connected source services for each database node
+    // 4. Compute connected source services for each database node
     const dbSourceServicesMap = new Map<string, Set<string>>();
     for (const e of rawEdges) {
       if (e.category === 'database' || e.label === 'USES_DB') {
@@ -1883,7 +1595,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
 
-    // 6. Compute Stable Architectural Echelon Tiers (0..5) across Full Graph
+    // 5. Compute Stable Architectural Echelon Tiers (0..5) across Full Graph
     const echelonMap = computeEchelonTiers(
       cyNodes.map((n) => ({ id: n.data.id as string, kind: (n.data as any).kind as string })),
       rawEdges
@@ -1909,46 +1621,44 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
 
+    // 6. Compute Domain Groups for Grid View
     const domainGroups: DomainGroupSummary[] = [];
-    for (const [dKey, pList] of domainProjectsMap.entries()) {
-      const dMeta = domainNameMap.get(dKey);
-      const displayName = dMeta?.displayName || dKey.replace(/^domain:/, '');
-      const primaryNode = domainPrimaryMap.get(dKey);
-      const primaryDetail = primaryNode ? detailMap.get(primaryNode.id) : undefined;
+    for (const [domKey, entities] of domainEntitiesMap.entries()) {
+      const dMeta = domainNameMap.get(domKey);
+      const displayName = dMeta?.displayName || domKey;
 
-      const dNodes: SelectedNodeDetail[] = [];
-      if (primaryDetail) {
-        dNodes.push(primaryDetail);
-      }
+      const workloadNodes = entities.filter(
+        (e) => e.kind === 'Service' || e.kind === 'App' || e.kind === 'Worker' || e.kind === 'CliTool'
+      );
+      if (workloadNodes.length === 0) continue;
 
+      const domainNodeIds = new Set(workloadNodes.map((n) => n.id));
       const dDbs = new Map<string, SelectedNodeDetail>();
       const dTopics = new Map<string, SelectedNodeDetail>();
       const dExt = new Map<string, SelectedNodeDetail>();
 
-      if (primaryNode) {
-        for (const edge of rawEdges) {
-          if (edge.source === primaryNode.id) {
-            const targetDetail = detailMap.get(edge.target);
-            if (targetDetail) {
-              if (targetDetail.kind === 'Database') dDbs.set(targetDetail.id, targetDetail);
-              else if (targetDetail.kind === 'Topic') dTopics.set(targetDetail.id, targetDetail);
-              else if (targetDetail.kind === 'ExternalService') dExt.set(targetDetail.id, targetDetail);
-            }
-          } else if (edge.target === primaryNode.id) {
-            const sourceDetail = detailMap.get(edge.source);
-            if (sourceDetail) {
-              if (sourceDetail.kind === 'Database') dDbs.set(sourceDetail.id, sourceDetail);
-              else if (sourceDetail.kind === 'Topic') dTopics.set(sourceDetail.id, sourceDetail);
-              else if (sourceDetail.kind === 'ExternalService') dExt.set(sourceDetail.id, sourceDetail);
-            }
+      for (const edge of rawEdges) {
+        if (domainNodeIds.has(edge.source)) {
+          const targetDetail = detailMap.get(edge.target);
+          if (targetDetail) {
+            if (targetDetail.kind === 'Database') dDbs.set(targetDetail.id, targetDetail);
+            else if (targetDetail.kind === 'Topic') dTopics.set(targetDetail.id, targetDetail);
+            else if (targetDetail.kind === 'ExternalService') dExt.set(targetDetail.id, targetDetail);
+          }
+        } else if (domainNodeIds.has(edge.target)) {
+          const sourceDetail = detailMap.get(edge.source);
+          if (sourceDetail) {
+            if (sourceDetail.kind === 'Database') dDbs.set(sourceDetail.id, sourceDetail);
+            else if (sourceDetail.kind === 'Topic') dTopics.set(sourceDetail.id, sourceDetail);
+            else if (sourceDetail.kind === 'ExternalService') dExt.set(sourceDetail.id, sourceDetail);
           }
         }
       }
 
       domainGroups.push({
-        domainKey: dKey,
+        domainKey: domKey.toLowerCase(),
         displayName,
-        nodes: dNodes,
+        nodes: workloadNodes,
         databases: Array.from(dDbs.values()),
         topics: Array.from(dTopics.values()),
         externalServices: Array.from(dExt.values()),
@@ -1970,10 +1680,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       directPubSubChords,
       domainMap: domainNameMap,
       counts: {
-        ingress: ingressCount,
+        ingress: appCount,
         services: serviceCount,
         workers: workerCount,
-        libraries: 0,
+        cli: cliCount,
+        libraries: libCount,
         databases: dbCount,
         singleConnDbs: singleConnDbCount,
         sharedDbs: sharedDbCount,
@@ -3854,11 +3565,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             {rawGraph.counts.ingress > 0 && (
               <button
                 type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('Ingress') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('Ingress')}
-                title={hiddenTypes.has('Ingress') ? 'Show Ingress & Apps' : 'Hide Ingress & Apps'}
+                className={`hud-type-filter-btn ${hiddenTypes.has('App') || hiddenTypes.has('Ingress') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => {
+                  toggleTypeVisibility('App');
+                  toggleTypeVisibility('Ingress');
+                }}
+                title={hiddenTypes.has('App') || hiddenTypes.has('Ingress') ? 'Show Applications' : 'Hide Applications'}
               >
-                {hiddenTypes.has('Ingress') && <span className="filter-cross">✕</span>}
+                {(hiddenTypes.has('App') || hiddenTypes.has('Ingress')) && <span className="filter-cross">✕</span>}
                 🌐 Apps ({rawGraph.counts.ingress})
               </button>
             )}
@@ -3882,6 +3596,28 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               >
                 {hiddenTypes.has('Worker') && <span className="filter-cross">✕</span>}
                 ⚡ Workers ({rawGraph.counts.workers})
+              </button>
+            )}
+            {rawGraph.counts.cli > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('CliTool') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('CliTool')}
+                title={hiddenTypes.has('CliTool') ? 'Show CLI Tools' : 'Hide CLI Tools'}
+              >
+                {hiddenTypes.has('CliTool') && <span className="filter-cross">✕</span>}
+                💻 CLI ({rawGraph.counts.cli})
+              </button>
+            )}
+            {rawGraph.counts.libraries > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('Library') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('Library')}
+                title={hiddenTypes.has('Library') ? 'Show Libraries' : 'Hide Libraries'}
+              >
+                {hiddenTypes.has('Library') && <span className="filter-cross">✕</span>}
+                📚 Libs ({rawGraph.counts.libraries})
               </button>
             )}
             {rawGraph.counts.databases > 0 && (

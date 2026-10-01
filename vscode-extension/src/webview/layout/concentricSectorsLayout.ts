@@ -117,7 +117,7 @@ export function computeConcentricSectorsLayout(
       domain = explicitDomainMap.get(n.id);
     } else if (n.domain) {
       domain = n.domain;
-    } else if (n.echelonTier <= 3 || n.kind === 'Service' || n.kind === 'Ingress' || n.kind === 'Worker') {
+    } else if (n.echelonTier <= 3 || n.kind === 'Service' || n.kind === 'Ingress' || n.kind === 'App' || n.kind === 'FrontendApp' || n.kind === 'Worker') {
       domain = extractDomainToken(n.displayName || n.name || n.id);
     }
     if (domain) {

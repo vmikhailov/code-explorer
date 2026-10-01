@@ -720,30 +720,34 @@ public partial class SqliteCompiler
         label.Equals("CliTool", StringComparison.OrdinalIgnoreCase) ||
         label.Equals("TestSuite", StringComparison.OrdinalIgnoreCase);
 
+    private const string WorkloadNodeKindsSql = "'Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool', 'TestSuite', 'Test'";
+
     internal static string CompileNodeLabelPredicate(string nVar, string label)
     {
+        var notHasWorkloadNode = $"NOT EXISTS (SELECT 1 FROM nodes _w WHERE _w.kind IN ({WorkloadNodeKindsSql}) AND (json_extract(_w.properties, '$.project_id') = {nVar}.id OR json_extract(_w.properties, '$.name') = json_extract({nVar}.properties, '$.name')))";
+
         if (label.Equals("Service", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Service' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'Service' OR json_extract({nVar}.properties, '$.role') = 'Service') AND NOT EXISTS (SELECT 1 FROM nodes _s WHERE _s.kind = 'Service' AND (json_extract(_s.properties, '$.project_id') = {nVar}.id OR json_extract(_s.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind = 'Service' OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'Service' AND {notHasWorkloadNode}))";
         if (label.Equals("App", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind IN ('App', 'FrontendApp') OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'App' OR json_extract({nVar}.properties, '$.role') IN ('App', 'FrontendApp')) AND NOT EXISTS (SELECT 1 FROM nodes _a WHERE _a.kind IN ('App', 'FrontendApp') AND (json_extract(_a.properties, '$.project_id') = {nVar}.id OR json_extract(_a.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind IN ('App', 'FrontendApp') OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) IN ('App', 'FrontendApp') AND {notHasWorkloadNode}))";
         if (label.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'FrontendApp' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'FrontendApp' OR json_extract({nVar}.properties, '$.role') = 'FrontendApp') AND NOT EXISTS (SELECT 1 FROM nodes _a WHERE _a.kind IN ('App', 'FrontendApp') AND (json_extract(_a.properties, '$.project_id') = {nVar}.id OR json_extract(_a.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind = 'FrontendApp' OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'FrontendApp' AND {notHasWorkloadNode}))";
         if (label.Equals("Library", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind IN ('Library', 'SharedLibrary') OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') IN ('Library', 'SharedLibrary') OR json_extract({nVar}.properties, '$.role') IN ('Library', 'SharedLibrary') OR json_extract({nVar}.properties, '$.is_library') = 1) AND NOT EXISTS (SELECT 1 FROM nodes _l WHERE _l.kind IN ('Library', 'SharedLibrary') AND (json_extract(_l.properties, '$.project_id') = {nVar}.id OR json_extract(_l.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind IN ('Library', 'SharedLibrary') OR ({nVar}.kind = 'Project' AND (COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) IN ('Library', 'SharedLibrary') OR json_extract({nVar}.properties, '$.is_library') = 1) AND {notHasWorkloadNode}))";
         if (label.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'SharedLibrary' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'SharedLibrary' OR json_extract({nVar}.properties, '$.role') = 'SharedLibrary' OR json_extract({nVar}.properties, '$.is_library') = 1) AND NOT EXISTS (SELECT 1 FROM nodes _l WHERE _l.kind IN ('Library', 'SharedLibrary') AND (json_extract(_l.properties, '$.project_id') = {nVar}.id OR json_extract(_l.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind = 'SharedLibrary' OR ({nVar}.kind = 'Project' AND (COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'SharedLibrary' OR json_extract({nVar}.properties, '$.is_library') = 1) AND {notHasWorkloadNode}))";
         if (label.Equals("Worker", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Worker' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'Worker' OR json_extract({nVar}.properties, '$.role') = 'Worker') AND NOT EXISTS (SELECT 1 FROM nodes _w WHERE _w.kind = 'Worker' AND (json_extract(_w.properties, '$.project_id') = {nVar}.id OR json_extract(_w.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind = 'Worker' OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'Worker' AND {notHasWorkloadNode}))";
         if (label.Equals("CliTool", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'CliTool' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'CliTool' OR json_extract({nVar}.properties, '$.role') = 'CliTool') AND NOT EXISTS (SELECT 1 FROM nodes _c WHERE _c.kind = 'CliTool' AND (json_extract(_c.properties, '$.project_id') = {nVar}.id OR json_extract(_c.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind = 'CliTool' OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'CliTool' AND {notHasWorkloadNode}))";
         if (label.Equals("TestSuite", StringComparison.OrdinalIgnoreCase) || label.Equals("Test", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind IN ('TestSuite', 'Test') OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') IN ('TestSuite', 'Test') OR json_extract({nVar}.properties, '$.role') = 'Test') AND NOT EXISTS (SELECT 1 FROM nodes _ts WHERE _ts.kind IN ('TestSuite', 'Test') AND (json_extract(_ts.properties, '$.project_id') = {nVar}.id OR json_extract(_ts.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind IN ('TestSuite', 'Test') OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) IN ('TestSuite', 'Test') AND {notHasWorkloadNode}))";
         if (label.Equals("DatabaseMigration", StringComparison.OrdinalIgnoreCase))
             return $"({nVar}.kind = 'DatabaseMigration' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'DatabaseMigration' OR json_extract({nVar}.properties, '$.role') = 'DatabaseMigration')))";
         if (label.Equals("FunctionApp", StringComparison.OrdinalIgnoreCase))
             return $"({nVar}.kind = 'FunctionApp' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'FunctionApp' OR json_extract({nVar}.properties, '$.role') = 'FunctionApp')))";
         if (label.Equals("Project", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Project' OR ({nVar}.kind IN ('Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool', 'TestSuite') AND NOT EXISTS (SELECT 1 FROM nodes _p WHERE _p.kind = 'Project' AND (json_extract({nVar}.properties, '$.project_id') = _p.id OR json_extract(_p.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
+            return $"({nVar}.kind = 'Project' OR ({nVar}.kind IN ({WorkloadNodeKindsSql}) AND NOT EXISTS (SELECT 1 FROM nodes _p WHERE _p.kind = 'Project' AND (json_extract({nVar}.properties, '$.project_id') = _p.id OR json_extract(_p.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
         return $"{nVar}.kind = '{label}'";
     }
 
