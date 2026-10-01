@@ -24,7 +24,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // 1. WorkerDef composite literals (used in streaming ingest pipelines)
-        if (node.Type is "composite_literal" or TreeSitterSyntax.Go.CompositeLiteral)
+        if (node.Type is TreeSitterSyntax.Go.CompositeLiteral)
         {
             if (node.Text.Contains("WorkerDef"))
             {

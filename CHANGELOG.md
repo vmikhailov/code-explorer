@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.18.2] - 2026-10-01
+
+### Fixed
+- **Go GCP Pub/Sub & AST Parser**:
+  - Refined composite literal node type matching for worker definitions using `TreeSitterSyntax.Go.CompositeLiteral`.
+  - Added explicit namespace imports in `PubSubGoLibraryParser.cs` and `GoAstHelper.cs`.
+
 ## [1.18.1] - 2026-10-01
 
 ### Fixed
