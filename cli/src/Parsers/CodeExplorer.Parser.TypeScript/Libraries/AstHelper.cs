@@ -7,9 +7,16 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public static class AstHelper
 {
+    private const int MaxRecursionDepth = 8;
+
     public static string? ResolveStringOrTemplate(Node? argNode, string? contextOrProject = null)
     {
-        if (!argNode.IsValid()) return null;
+        return ResolveStringOrTemplate(argNode, contextOrProject, 0, null);
+    }
+
+    public static string? ResolveStringOrTemplate(Node? argNode, string? contextOrProject, int depth, HashSet<string>? visitedVars)
+    {
+        if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
 
         if (IsStringLiteralNode(argNode))
         {
@@ -53,7 +60,7 @@ public static class AstHelper
                 return cVal;
             }
 
-            var val = FindVariableInitializerInAst(argNode, varName);
+            var val = FindVariableInitializerInAst(argNode, varName, depth + 1, visitedVars);
             if (val != null)
             {
                 var subDecomp = TryDecomposeTemplateString(argNode, val);
@@ -139,7 +146,7 @@ public static class AstHelper
                 }
 
                 var propText = prop.Text;
-                var val = FindVariableInitializerInAst(argNode, propText);
+                var val = FindVariableInitializerInAst(argNode, propText, depth + 1, visitedVars);
                 if (val != null)
                 {
                     var subDecomp = TryDecomposeTemplateString(argNode, val);
@@ -480,68 +487,87 @@ public static class AstHelper
 
     public static string? FindVariableInitializerInAst(Node node, string varName)
     {
-        var cleanVar = varName.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? varName[5..].Trim() : varName;
-        var curr = node.Parent;
-        while (curr.IsValid())
+        return FindVariableInitializerInAst(node, varName, 0, null);
+    }
+
+    public static string? FindVariableInitializerInAst(Node node, string varName, int depth, HashSet<string>? visitedVars)
+    {
+        if (depth > MaxRecursionDepth) return null;
+        visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!visitedVars.Add(varName)) return null;
+
+        try
         {
-            if (curr.Is("class_body") || curr.Is("class_declaration") || curr.Type.Contains("class"))
+            var cleanVar = varName.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? varName[5..].Trim() : varName;
+            var curr = node.Parent;
+            var maxScopeSteps = 50;
+            var steps = 0;
+            while (curr.IsValid() && ++steps <= maxScopeSteps)
             {
-                var fieldVal = FindClassFieldInitializerInAst(curr, cleanVar);
-                if (fieldVal != null) return fieldVal;
-            }
-
-            if (curr.IsAny(TreeSitterSyntax.TypeScript.StatementBlock, TreeSitterSyntax.TypeScript.Program))
-            {
-                foreach (var child in curr.Children)
+                if (curr.Is("class_body") || curr.Is("class_declaration") || curr.Type.Contains("class"))
                 {
-                    if (child.IsAny(TreeSitterSyntax.TypeScript.LexicalDeclaration, TreeSitterSyntax.TypeScript.VariableDeclaration))
+                    var fieldVal = FindClassFieldInitializerInAst(curr, cleanVar);
+                    if (fieldVal != null) return fieldVal;
+                }
+
+                if (curr.IsAny(TreeSitterSyntax.TypeScript.StatementBlock, TreeSitterSyntax.TypeScript.Program))
+                {
+                    foreach (var child in curr.Children)
                     {
-                        foreach (var decl in child.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.VariableDeclarator)))
+                        if (child.IsAny(TreeSitterSyntax.TypeScript.LexicalDeclaration, TreeSitterSyntax.TypeScript.VariableDeclaration))
                         {
-                            var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name);
-                            if (nameNode.IsValid() && (nameNode.Text == varName || nameNode.Text == cleanVar))
+                            foreach (var decl in child.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.VariableDeclarator)))
                             {
-                                var valNode = decl.GetField(TreeSitterSyntax.Fields.Value);
-                                if (valNode.IsValid())
+                                var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name);
+                                if (nameNode.IsValid() && (nameNode.Text == varName || nameNode.Text == cleanVar))
                                 {
-                                    if (IsStringLiteralNode(valNode))
+                                    var valNode = decl.GetField(TreeSitterSyntax.Fields.Value);
+                                    if (valNode.IsValid())
                                     {
-                                        var text = valNode.Text.Trim('\'', '"', '`');
-                                        if (!text.Contains('\n') && text.Length <= 500)
+                                        if (IsNodeContainedWithin(node, valNode))
                                         {
-                                            return text;
-                                        }
-                                    }
-                                    else if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
-                                    {
-                                        var callRes = ResolveStringOrTemplate(valNode);
-                                        if (!string.IsNullOrEmpty(callRes))
-                                        {
-                                            return callRes;
+                                            continue;
                                         }
 
-                                        var funcNode = valNode.GetFunctionNode();
-                                        if (funcNode.IsValid())
+                                        if (IsStringLiteralNode(valNode))
                                         {
-                                            var propNode = funcNode.Is(TreeSitterSyntax.TypeScript.MemberExpression)
-                                                ? funcNode.GetField(TreeSitterSyntax.Fields.Property)
-                                                : default;
-                                            var funcName = propNode.IsValid() ? propNode.Text : funcNode.Text;
-                                            var methodRet = FindMethodReturnInAst(valNode, funcName);
-                                            if (!string.IsNullOrEmpty(methodRet)) return methodRet;
+                                            var text = valNode.Text.Trim('\'', '"', '`');
+                                            if (!text.Contains('\n') && text.Length <= 500)
+                                            {
+                                                return text;
+                                            }
                                         }
-                                    }
-                                    else if (valNode.Is(TreeSitterSyntax.Common.BinaryExpression))
-                                    {
-                                        var left = valNode.GetField(TreeSitterSyntax.Fields.Left);
-                                        var right = valNode.GetField(TreeSitterSyntax.Fields.Right);
-                                        var leftRes = left.IsValid() ? ResolveStringOrTemplate(left) : null;
-                                        if (!string.IsNullOrEmpty(leftRes) && (leftRes.StartsWith("http") || leftRes.Contains('.'))) return leftRes;
-                                        var rightRes = right.IsValid() ? ResolveStringOrTemplate(right) : null;
-                                        if (!string.IsNullOrEmpty(rightRes)) return rightRes;
-                                        if (right.IsValid() && IsStringLiteralNode(right))
+                                        else if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
                                         {
-                                            return right.Text.Trim('\'', '"', '`');
+                                            var callRes = ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
+                                            if (!string.IsNullOrEmpty(callRes))
+                                            {
+                                                return callRes;
+                                            }
+
+                                            var funcNode = valNode.GetFunctionNode();
+                                            if (funcNode.IsValid())
+                                            {
+                                                var propNode = funcNode.Is(TreeSitterSyntax.TypeScript.MemberExpression)
+                                                    ? funcNode.GetField(TreeSitterSyntax.Fields.Property)
+                                                    : default;
+                                                var funcName = propNode.IsValid() ? propNode.Text : funcNode.Text;
+                                                var methodRet = FindMethodReturnInAst(valNode, funcName);
+                                                if (!string.IsNullOrEmpty(methodRet)) return methodRet;
+                                            }
+                                        }
+                                        else if (valNode.Is(TreeSitterSyntax.Common.BinaryExpression))
+                                        {
+                                            var left = valNode.GetField(TreeSitterSyntax.Fields.Left);
+                                            var right = valNode.GetField(TreeSitterSyntax.Fields.Right);
+                                            var leftRes = left.IsValid() ? ResolveStringOrTemplate(left, null, depth + 1, visitedVars) : null;
+                                            if (!string.IsNullOrEmpty(leftRes) && (leftRes.StartsWith("http") || leftRes.Contains('.'))) return leftRes;
+                                            var rightRes = right.IsValid() ? ResolveStringOrTemplate(right, null, depth + 1, visitedVars) : null;
+                                            if (!string.IsNullOrEmpty(rightRes)) return rightRes;
+                                            if (right.IsValid() && IsStringLiteralNode(right))
+                                            {
+                                                return right.Text.Trim('\'', '"', '`');
+                                            }
                                         }
                                     }
                                 }
@@ -549,10 +575,14 @@ public static class AstHelper
                         }
                     }
                 }
+                curr = curr.Parent;
             }
-            curr = curr.Parent;
+            return null;
         }
-        return null;
+        finally
+        {
+            visitedVars.Remove(varName);
+        }
     }
 
     private static string? TryDecomposeTemplateString(Node node, string raw)
@@ -1004,5 +1034,15 @@ public static class AstHelper
             return cleanPath;
         }
         return $"{service}{cleanPath}";
+    }
+
+    private static bool IsNodeContainedWithin(Node inner, Node outer)
+    {
+        if (inner.Tree != outer.Tree) return false;
+        if (inner.StartPosition.Row < outer.StartPosition.Row) return false;
+        if (inner.StartPosition.Row == outer.StartPosition.Row && inner.StartPosition.Column < outer.StartPosition.Column) return false;
+        if (inner.EndPosition.Row > outer.EndPosition.Row) return false;
+        if (inner.EndPosition.Row == outer.EndPosition.Row && inner.EndPosition.Column > outer.EndPosition.Column) return false;
+        return true;
     }
 }

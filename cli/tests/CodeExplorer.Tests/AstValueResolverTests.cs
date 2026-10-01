@@ -217,5 +217,95 @@ class Worker {
         Assert.That(AstValueResolver.Unquote("`template`"), Is.EqualTo("template"));
         Assert.That(AstValueResolver.Unquote("@\"escaped\"\"quote\"\"\""), Is.EqualTo("escaped\"quote\""));
         Assert.That(AstValueResolver.Unquote("\"\"\"raw string\"\"\""), Is.EqualTo("raw string"));
+        Assert.That(AstValueResolver.Unquote("\"line1\\nline2\\tcol\""), Is.EqualTo("line1\nline2\tcol"));
+    }
+
+    [Test]
+    public void AstValueResolver_HandlesRegexPatternsAndRawStringsWithoutThrowing()
+    {
+        // Go raw string literals in backticks must preserve literal backslashes without Regex.Unescape
+        Assert.That(AstValueResolver.Unquote("`[\\s`"), Is.EqualTo("[\\s"));
+        Assert.That(AstValueResolver.Unquote("`<html>\r\n<div>{{name}}</div>`"), Is.EqualTo("<html>\n<div>{{name}}</div>"));
+
+        // Quoted strings with regex escape sequences like \s, \d must not throw RegexParseException
+        Assert.That(AstValueResolver.Unquote("\"[\\s\""), Is.EqualTo("[\\s"));
+        Assert.That(AstValueResolver.Unquote("\"^(\\+\\d{1,2}\\s)?\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}$\""),
+            Is.EqualTo("^(\\+\\d{1,2}\\s)?\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}$"));
+    }
+
+    [Test]
+    public void GoAstHelper_HandlesCyclicSelfReferencingVariablesWithoutStackOverflow()
+    {
+        var goCode = @"
+package main
+
+func Fetch() {
+    url := url + ""/api/v1/orders""
+    http.Get(url)
+}
+";
+        var language = SyntaxTree.GetLanguage("go");
+        using var parser = new TreeSitter.Parser(language);
+        using var tree = parser.Parse(goCode);
+        Assert.That(tree, Is.Not.Null);
+
+        var call = tree!.RootNode.FindDescendantOfType("call_expression");
+        Assert.That(call.IsValid(), Is.True);
+
+        var args = CodeExplorer.Parser.Go.Libraries.GoAstHelper.GetCallArguments(call);
+        Assert.That(args.Count, Is.GreaterThan(0));
+
+        // Must terminate safely without StackOverflowException
+        var res = CodeExplorer.Parser.Go.Libraries.GoAstHelper.ResolveStringOrVariable(args[0]);
+        Assert.That(res, Is.EqualTo("/api/v1/orders"));
+    }
+
+    [Test]
+    public void PythonAstHelper_HandlesCyclicSelfReferencingVariablesWithoutStackOverflow()
+    {
+        var pyCode = @"
+def fetch():
+    url = url + '/api/v1/items'
+    requests.get(url)
+";
+        var language = SyntaxTree.GetLanguage("python");
+        using var parser = new TreeSitter.Parser(language);
+        using var tree = parser.Parse(pyCode);
+        Assert.That(tree, Is.Not.Null);
+
+        var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.Python.Call);
+        Assert.That(call.IsValid(), Is.True);
+
+        var args = CodeExplorer.Parser.Python.Libraries.PythonAstHelper.GetCallArguments(call);
+        Assert.That(args.Count, Is.GreaterThan(0));
+
+        // Must terminate safely without StackOverflowException
+        var res = CodeExplorer.Parser.Python.Libraries.PythonAstHelper.ResolveStringOrVariable(args[0]);
+        Assert.That(res, Is.EqualTo("/api/v1/items"));
+    }
+
+    [Test]
+    public void TypeScriptAstHelper_HandlesCyclicSelfReferencingVariablesWithoutStackOverflow()
+    {
+        var tsCode = @"
+function fetch() {
+    let url = url + '/api/v1/users';
+    get(url);
+}
+";
+        var language = SyntaxTree.GetLanguage("typescript");
+        using var parser = new TreeSitter.Parser(language);
+        using var tree = parser.Parse(tsCode);
+        Assert.That(tree, Is.Not.Null);
+
+        var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.TypeScript.CallExpression);
+        Assert.That(call.IsValid(), Is.True);
+
+        var args = CodeExplorer.Parser.TypeScript.Libraries.AstHelper.GetCallArguments(call);
+        Assert.That(args.Count, Is.GreaterThan(0));
+
+        // Must terminate safely without StackOverflowException
+        var res = CodeExplorer.Parser.TypeScript.Libraries.AstHelper.ResolveStringOrTemplate(args[0]);
+        Assert.That(res, Is.EqualTo("/api/v1/users"));
     }
 }

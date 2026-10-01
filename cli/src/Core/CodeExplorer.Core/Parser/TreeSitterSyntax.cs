@@ -43,6 +43,7 @@ public static class TreeSitterSyntax
         public const string Argument = "argument";
         public const string AssignmentExpression = "assignment_expression";
         public const string BinaryExpression = "binary_expression";
+        public const string IndexExpression = "index_expression";
         public const string Comment = "comment";
         public const string FunctionDeclaration = "function_declaration";
     }

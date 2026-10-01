@@ -652,13 +652,66 @@ public static class AstValueResolver
         {
             return t[2..^1].Replace("\"\"", "\"");
         }
+        if (t.StartsWith('`') && t.EndsWith('`') && t.Length >= 2)
+        {
+            return t[1..^1].Replace("\r", "");
+        }
         if ((t.StartsWith('"') && t.EndsWith('"') && t.Length >= 2) ||
-            (t.StartsWith('\'') && t.EndsWith('\'') && t.Length >= 2) ||
-            (t.StartsWith('`') && t.EndsWith('`') && t.Length >= 2))
+            (t.StartsWith('\'') && t.EndsWith('\'') && t.Length >= 2))
         {
             var inner = t[1..^1];
-            return Regex.Unescape(inner);
+            return UnescapeQuotedString(inner);
         }
         return t;
+    }
+
+    public static string UnescapeQuotedString(string inner)
+    {
+        if (string.IsNullOrEmpty(inner) || inner.IndexOf('\\') < 0)
+        {
+            return inner;
+        }
+
+        var sb = new System.Text.StringBuilder(inner.Length);
+        for (var i = 0; i < inner.Length; i++)
+        {
+            var c = inner[i];
+            if (c == '\\' && i + 1 < inner.Length)
+            {
+                var next = inner[i + 1];
+                switch (next)
+                {
+                    case 'n': sb.Append('\n'); i++; break;
+                    case 'r': sb.Append('\r'); i++; break;
+                    case 't': sb.Append('\t'); i++; break;
+                    case '"': sb.Append('"'); i++; break;
+                    case '\'': sb.Append('\''); i++; break;
+                    case '\\': sb.Append('\\'); i++; break;
+                    case '0': sb.Append('\0'); i++; break;
+                    case 'a': sb.Append('\a'); i++; break;
+                    case 'b': sb.Append('\b'); i++; break;
+                    case 'f': sb.Append('\f'); i++; break;
+                    case 'v': sb.Append('\v'); i++; break;
+                    case 'u' when i + 5 < inner.Length && int.TryParse(inner.AsSpan(i + 2, 4), System.Globalization.NumberStyles.HexNumber, null, out var u):
+                        sb.Append((char)u);
+                        i += 5;
+                        break;
+                    case 'x' when i + 3 < inner.Length && byte.TryParse(inner.AsSpan(i + 2, 2), System.Globalization.NumberStyles.HexNumber, null, out var b):
+                        sb.Append((char)b);
+                        i += 3;
+                        break;
+                    default:
+                        sb.Append('\\');
+                        sb.Append(next);
+                        i++;
+                        break;
+                }
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+        return sb.ToString();
     }
 }

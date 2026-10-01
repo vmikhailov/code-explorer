@@ -8,15 +8,22 @@ namespace CodeExplorer.Parser.Go.Libraries;
 
 public static class GoAstHelper
 {
+    private const int MaxRecursionDepth = 8;
+
     public static string? ResolveStringOrVariable(Node? argNode)
     {
-        if (!argNode.IsValid()) return null;
+        return ResolveStringOrVariable(argNode, 0, null);
+    }
+
+    private static string? ResolveStringOrVariable(Node? argNode, int depth, HashSet<string>? visitedVars)
+    {
+        if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
 
         // 0. Unwrap expression_list if passed
         if (argNode.Is(TreeSitterSyntax.Go.ExpressionList) || argNode.Type == "expression_list")
         {
             var firstExpr = argNode.Children.FirstOrDefault(c => c.IsValid() && (char.IsLetter(c.Type[0]) || c.Type[0] == '_'));
-            if (firstExpr.IsValid()) return ResolveStringOrVariable(firstExpr);
+            if (firstExpr.IsValid()) return ResolveStringOrVariable(firstExpr, depth + 1, visitedVars);
         }
 
         // 1. String literal
@@ -39,7 +46,7 @@ public static class GoAstHelper
                 return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
             }
 
-            var val = FindVariableInitializerInScope(argNode, varName);
+            var val = FindVariableInitializerInScope(argNode, varName, depth + 1, visitedVars);
             if (val != null)
             {
                 return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
@@ -62,7 +69,7 @@ public static class GoAstHelper
             if (field.IsValid())
             {
                 var fieldText = field.Text;
-                var val = FindVariableInitializerInScope(argNode, fieldText);
+                var val = FindVariableInitializerInScope(argNode, fieldText, depth + 1, visitedVars);
                 if (val != null)
                 {
                     return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
@@ -90,12 +97,12 @@ public static class GoAstHelper
                 var args = GetCallArguments(argNode);
                 if (args.Count > 1)
                 {
-                    var defaultVal = ResolveStringOrVariable(args[1]);
+                    var defaultVal = ResolveStringOrVariable(args[1], depth + 1, visitedVars);
                     if (!string.IsNullOrEmpty(defaultVal)) return defaultVal;
                 }
                 if (args.Count > 0)
                 {
-                    var envKey = ResolveStringOrVariable(args[0]);
+                    var envKey = ResolveStringOrVariable(args[0], depth + 1, visitedVars);
                     if (!string.IsNullOrEmpty(envKey)) return envKey;
                 }
             }
@@ -105,12 +112,12 @@ public static class GoAstHelper
                 var args = GetCallArguments(argNode);
                 if (args.Count > 0)
                 {
-                    var formatStr = ResolveStringOrVariable(args[0]);
+                    var formatStr = ResolveStringOrVariable(args[0], depth + 1, visitedVars);
                     if (!string.IsNullOrEmpty(formatStr))
                     {
                         if (args.Count > 1)
                         {
-                            var hostArg = ResolveStringOrVariable(args[1]);
+                            var hostArg = ResolveStringOrVariable(args[1], depth + 1, visitedVars);
                             if (!string.IsNullOrEmpty(hostArg) && (hostArg.StartsWith("http") || hostArg.EndsWith("service") || hostArg.Contains('.')))
                             {
                                 var pathPart = formatStr.TrimStart('*', '%', 's', '/');
@@ -126,7 +133,7 @@ public static class GoAstHelper
                 var args = GetCallArguments(argNode);
                 foreach (var arg in args)
                 {
-                    var resolved = ResolveStringOrVariable(arg);
+                    var resolved = ResolveStringOrVariable(arg, depth + 1, visitedVars);
                     if (!string.IsNullOrEmpty(resolved) && (resolved.Contains('/') || resolved.StartsWith("http")))
                     {
                         return resolved;
@@ -136,13 +143,13 @@ public static class GoAstHelper
         }
 
         // 4. Binary expression: host + "/api/v1/..."
-        if (argNode.Type is "binary_expression" or TreeSitterSyntax.Common.BinaryExpression)
+        if (argNode.Type is TreeSitterSyntax.Common.BinaryExpression)
         {
             var right = argNode.GetField(TreeSitterSyntax.Fields.Right) ??
                         (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
             if (right.IsValid())
             {
-                var rightResolved = ResolveStringOrVariable(right);
+                var rightResolved = ResolveStringOrVariable(right, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(rightResolved))
                 {
                     return rightResolved;
@@ -152,7 +159,7 @@ public static class GoAstHelper
                        (argNode.Children.Count > 0 ? argNode.Children[0] : null);
             if (left.IsValid())
             {
-                return ResolveStringOrVariable(left);
+                return ResolveStringOrVariable(left, depth + 1, visitedVars);
             }
         }
 
@@ -196,68 +203,104 @@ public static class GoAstHelper
         return result;
     }
 
-    private static string? FindVariableInitializerInScope(Node node, string varName)
+    private static string? FindVariableInitializerInScope(Node node, string varName, int depth, HashSet<string>? visitedVars)
     {
-        var curr = node.Parent;
-        while (curr.IsValid())
+        if (depth > MaxRecursionDepth) return null;
+        visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!visitedVars.Add(varName))
         {
-            if (curr.IsAny("statement_list", TreeSitterSyntax.Go.Block, TreeSitterSyntax.Go.FunctionDeclaration, "source_file"))
+            return null;
+        }
+
+        try
+        {
+            var curr = node.Parent;
+            var maxScopeSteps = 50;
+            var steps = 0;
+            while (curr.IsValid() && ++steps <= maxScopeSteps)
             {
-                foreach (var child in curr.Children)
+                if (curr.IsAny("statement_list", TreeSitterSyntax.Go.Block, TreeSitterSyntax.Go.FunctionDeclaration, "source_file"))
                 {
-                    // short_var_declaration: url := ...
-                    if (child.Is(TreeSitterSyntax.Go.ShortVarDeclaration))
+                    foreach (var child in curr.Children)
                     {
-                        var leftList = child.GetField(TreeSitterSyntax.Fields.Left) ??
-                                       (child.Children.Count > 0 ? child.Children[0] : null);
-                        var rightList = child.GetField(TreeSitterSyntax.Fields.Right) ??
-                                         (child.Children.Count > 2 ? child.Children[2] : null);
-
-                        if (leftList.IsValid() && rightList.IsValid())
+                        // short_var_declaration: url := ...
+                        if (child.Is(TreeSitterSyntax.Go.ShortVarDeclaration))
                         {
-                            var lefts = leftList.Is(TreeSitterSyntax.Go.ExpressionList)
-                                ? leftList.Children.Where(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName)).ToList()
-                                : new List<Node> { leftList };
+                            var leftList = child.GetField(TreeSitterSyntax.Fields.Left) ??
+                                           (child.Children.Count > 0 ? child.Children[0] : null);
+                            var rightList = child.GetField(TreeSitterSyntax.Fields.Right) ??
+                                             (child.Children.Count > 2 ? child.Children[2] : null);
 
-                            var rights = rightList.Is(TreeSitterSyntax.Go.ExpressionList)
-                                ? rightList.Children.Where(c => char.IsLetter(c.Type[0]) || c.Type[0] == '_').ToList()
-                                : new List<Node> { rightList };
-
-                            for (var i = 0; i < lefts.Count && i < rights.Count; i++)
+                            if (leftList.IsValid() && rightList.IsValid())
                             {
-                                if (lefts[i].Text == varName)
+                                var lefts = leftList.Is(TreeSitterSyntax.Go.ExpressionList)
+                                    ? leftList.Children.Where(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName)).ToList()
+                                    : new List<Node> { leftList };
+
+                                var rights = rightList.Is(TreeSitterSyntax.Go.ExpressionList)
+                                    ? rightList.Children.Where(c => char.IsLetter(c.Type[0]) || c.Type[0] == '_').ToList()
+                                    : new List<Node> { rightList };
+
+                                for (var i = 0; i < lefts.Count && i < rights.Count; i++)
                                 {
-                                    return ResolveStringOrVariable(rights[i]);
+                                    if (lefts[i].Text == varName)
+                                    {
+                                        if (IsNodeContainedWithin(node, rights[i]))
+                                        {
+                                            continue;
+                                        }
+
+                                        return ResolveStringOrVariable(rights[i], depth + 1, visitedVars);
+                                    }
                                 }
                             }
                         }
-                    }
-                    // var_declaration / const_declaration: var url = ... or const url = ...
-                    else if (child.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec, "var_declaration", "const_declaration"))
-                    {
-                        var specs = child.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec)
-                            ? new List<Node> { child }
-                            : child.Children.Where(c => c.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec)).ToList();
-
-                        foreach (var spec in specs)
+                        // var_declaration / const_declaration: var url = ... or const url = ...
+                        else if (child.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec, "var_declaration", "const_declaration"))
                         {
-                            var nameNode = spec.GetField(TreeSitterSyntax.Fields.Name) ??
-                                           spec.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName));
-                            if (nameNode.IsValid() && nameNode.Text == varName)
+                            var specs = child.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec)
+                                ? new List<Node> { child }
+                                : child.Children.Where(c => c.IsAny(TreeSitterSyntax.Go.VarSpec, TreeSitterSyntax.Go.ConstSpec)).ToList();
+
+                            foreach (var spec in specs)
                             {
-                                var valNode = spec.GetField(TreeSitterSyntax.Fields.Value) ??
-                                              (spec.Children.Count >= 3 ? spec.Children[^1] : null);
-                                if (valNode.IsValid())
+                                var nameNode = spec.GetField(TreeSitterSyntax.Fields.Name) ??
+                                               spec.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName));
+                                if (nameNode.IsValid() && nameNode.Text == varName)
                                 {
-                                    return ResolveStringOrVariable(valNode);
+                                    var valNode = spec.GetField(TreeSitterSyntax.Fields.Value) ??
+                                                  (spec.Children.Count >= 3 ? spec.Children[^1] : null);
+                                    if (valNode.IsValid())
+                                    {
+                                        if (IsNodeContainedWithin(node, valNode))
+                                        {
+                                            continue;
+                                        }
+
+                                        return ResolveStringOrVariable(valNode, depth + 1, visitedVars);
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                curr = curr.Parent;
             }
-            curr = curr.Parent;
+            return null;
         }
-        return null;
+        finally
+        {
+            visitedVars.Remove(varName);
+        }
+    }
+
+    private static bool IsNodeContainedWithin(Node inner, Node outer)
+    {
+        if (inner.Tree != outer.Tree) return false;
+        if (inner.StartPosition.Row < outer.StartPosition.Row) return false;
+        if (inner.StartPosition.Row == outer.StartPosition.Row && inner.StartPosition.Column < outer.StartPosition.Column) return false;
+        if (inner.EndPosition.Row > outer.EndPosition.Row) return false;
+        if (inner.EndPosition.Row == outer.EndPosition.Row && inner.EndPosition.Column > outer.EndPosition.Column) return false;
+        return true;
     }
 }

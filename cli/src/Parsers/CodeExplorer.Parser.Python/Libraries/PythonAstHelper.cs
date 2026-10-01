@@ -7,9 +7,16 @@ namespace CodeExplorer.Parser.Python.Libraries;
 
 public static class PythonAstHelper
 {
+    private const int MaxRecursionDepth = 8;
+
     public static string? ResolveStringOrVariable(Node? argNode)
     {
-        if (!argNode.IsValid()) return null;
+        return ResolveStringOrVariable(argNode, 0, null);
+    }
+
+    private static string? ResolveStringOrVariable(Node? argNode, int depth, HashSet<string>? visitedVars)
+    {
+        if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
 
         // 1. String literal / f-string
         if (argNode.Is(TreeSitterSyntax.Python.String))
@@ -35,7 +42,7 @@ public static class PythonAstHelper
                 return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
             }
 
-            var val = FindVariableInitializerInScope(argNode, varName);
+            var val = FindVariableInitializerInScope(argNode, varName, depth + 1, visitedVars);
             if (val != null)
             {
                 return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
@@ -49,7 +56,7 @@ public static class PythonAstHelper
                         (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
             if (right.IsValid())
             {
-                var rightResolved = ResolveStringOrVariable(right);
+                var rightResolved = ResolveStringOrVariable(right, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(rightResolved))
                 {
                     return rightResolved;
@@ -59,7 +66,7 @@ public static class PythonAstHelper
                        (argNode.Children.Count > 0 ? argNode.Children[0] : null);
             if (left.IsValid())
             {
-                return ResolveStringOrVariable(left);
+                return ResolveStringOrVariable(left, depth + 1, visitedVars);
             }
         }
 
@@ -102,56 +109,78 @@ public static class PythonAstHelper
         return null;
     }
 
-    private static string? FindVariableInitializerInScope(Node node, string varName)
+    private static string? FindVariableInitializerInScope(Node node, string varName, int depth, HashSet<string>? visitedVars)
     {
-        var curr = node.Parent;
-        while (curr.IsValid())
+        if (depth > MaxRecursionDepth) return null;
+        visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!visitedVars.Add(varName))
         {
-            if (curr.IsAny("block", TreeSitterSyntax.Python.FunctionDefinition, TreeSitterSyntax.Python.ClassDefinition, "module"))
+            return null;
+        }
+
+        try
+        {
+            var curr = node.Parent;
+            var maxScopeSteps = 50;
+            var steps = 0;
+            while (curr.IsValid() && ++steps <= maxScopeSteps)
             {
-                foreach (var child in curr.Children)
+                if (curr.IsAny("block", TreeSitterSyntax.Python.FunctionDefinition, TreeSitterSyntax.Python.ClassDefinition, "module"))
                 {
-                    var assign = child.Is(TreeSitterSyntax.Python.Assignment) ? child : child.FindChildOfType(TreeSitterSyntax.Python.Assignment);
-                    if (assign.IsValid())
+                    foreach (var child in curr.Children)
                     {
-                        var left = assign.GetField(TreeSitterSyntax.Fields.Left) ??
-                                   assign.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.VariableName));
-                        if (left.IsValid() && left.Text == varName)
+                        var assign = child.Is(TreeSitterSyntax.Python.Assignment) ? child : child.FindChildOfType(TreeSitterSyntax.Python.Assignment);
+                        if (assign.IsValid())
                         {
-                            var right = assign.GetField(TreeSitterSyntax.Fields.Right);
-                            if (!right.IsValid())
+                            var left = assign.GetField(TreeSitterSyntax.Fields.Left) ??
+                                       assign.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.VariableName));
+                            if (left.IsValid() && left.Text == varName)
                             {
-                                var eqIdx = -1;
-                                for (var i = 0; i < assign.Children.Count; i++)
+                                var right = assign.GetField(TreeSitterSyntax.Fields.Right);
+                                if (!right.IsValid())
                                 {
-                                    if (assign.Children[i].Text == "=")
+                                    var eqIdx = -1;
+                                    for (var i = 0; i < assign.Children.Count; i++)
                                     {
-                                        eqIdx = i;
-                                        break;
+                                        if (assign.Children[i].Text == "=")
+                                        {
+                                            eqIdx = i;
+                                            break;
+                                        }
+                                    }
+                                    if (eqIdx >= 0 && eqIdx + 1 < assign.Children.Count)
+                                    {
+                                        right = assign.Children[eqIdx + 1];
                                     }
                                 }
-                                if (eqIdx >= 0 && eqIdx + 1 < assign.Children.Count)
-                                {
-                                    right = assign.Children[eqIdx + 1];
-                                }
-                            }
 
-                            if (right.IsValid())
-                            {
-                                return ResolveStringOrVariable(right);
+                                if (right.IsValid())
+                                {
+                                    if (IsNodeContainedWithin(node, right))
+                                    {
+                                        continue;
+                                    }
+
+                                    return ResolveStringOrVariable(right, depth + 1, visitedVars);
+                                }
                             }
                         }
                     }
                 }
+                curr = curr.Parent;
             }
-            curr = curr.Parent;
+            return null;
         }
-        return null;
+        finally
+        {
+            visitedVars.Remove(varName);
+        }
     }
 
-    public static List<Node> GetCallArguments(Node callNode)
+    public static List<Node> GetCallArguments(Node? callNode)
     {
         var result = new List<Node>();
+        if (!callNode.IsValid()) return result;
         var argList = callNode.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
         if (argList.IsValid())
         {
@@ -229,6 +258,16 @@ public static class PythonAstHelper
             return arg.Text.Trim('\'', '"');
         }
         return null;
+    }
+
+    private static bool IsNodeContainedWithin(Node inner, Node outer)
+    {
+        if (inner.Tree != outer.Tree) return false;
+        if (inner.StartPosition.Row < outer.StartPosition.Row) return false;
+        if (inner.StartPosition.Row == outer.StartPosition.Row && inner.StartPosition.Column < outer.StartPosition.Column) return false;
+        if (inner.EndPosition.Row > outer.EndPosition.Row) return false;
+        if (inner.EndPosition.Row == outer.EndPosition.Row && inner.EndPosition.Column > outer.EndPosition.Column) return false;
+        return true;
     }
 }
 
