@@ -21,6 +21,10 @@ import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
 import { DomainMatrixView } from './DomainMatrixView';
 import { DomainOverrideModal } from './DomainOverrideModal';
 import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
+import { DomainGridView } from '../domain/components/DomainGridView';
+import { DomainInspector } from '../domain/components/DomainInspector';
+import { DomainHiddenPanel } from '../domain/components/DomainHiddenPanel';
+import { DomainGroupSummary, PresentationMode } from '../domain/types';
 
 export type DomainLayoutName =
   | 'concentric'
@@ -920,6 +924,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [overrideTargetService, setOverrideTargetService] = useState('');
+
+  const [presentationMode, setPresentationMode] = useState<PresentationMode>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_presentation_mode');
+      if (saved === 'graph' || saved === 'grid' || saved === 'matrix') {
+        return saved as PresentationMode;
+      }
+    } catch { }
+    return 'graph';
+  });
+
+  const handlePresentationModeChange = useCallback((mode: PresentationMode) => {
+    setPresentationMode(mode);
+    try {
+      localStorage.setItem('ce_domain_presentation_mode', mode);
+    } catch { }
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [layoutName, setLayoutName] = useState<DomainLayoutName>(() => {
@@ -1888,11 +1909,60 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
 
+    const domainGroups: DomainGroupSummary[] = [];
+    for (const [dKey, pList] of domainProjectsMap.entries()) {
+      const dMeta = domainNameMap.get(dKey);
+      const displayName = dMeta?.displayName || dKey.replace(/^domain:/, '');
+      const primaryNode = domainPrimaryMap.get(dKey);
+      const primaryDetail = primaryNode ? detailMap.get(primaryNode.id) : undefined;
+
+      const dNodes: SelectedNodeDetail[] = [];
+      if (primaryDetail) {
+        dNodes.push(primaryDetail);
+      }
+
+      const dDbs = new Map<string, SelectedNodeDetail>();
+      const dTopics = new Map<string, SelectedNodeDetail>();
+      const dExt = new Map<string, SelectedNodeDetail>();
+
+      if (primaryNode) {
+        for (const edge of rawEdges) {
+          if (edge.source === primaryNode.id) {
+            const targetDetail = detailMap.get(edge.target);
+            if (targetDetail) {
+              if (targetDetail.kind === 'Database') dDbs.set(targetDetail.id, targetDetail);
+              else if (targetDetail.kind === 'Topic') dTopics.set(targetDetail.id, targetDetail);
+              else if (targetDetail.kind === 'ExternalService') dExt.set(targetDetail.id, targetDetail);
+            }
+          } else if (edge.target === primaryNode.id) {
+            const sourceDetail = detailMap.get(edge.source);
+            if (sourceDetail) {
+              if (sourceDetail.kind === 'Database') dDbs.set(sourceDetail.id, sourceDetail);
+              else if (sourceDetail.kind === 'Topic') dTopics.set(sourceDetail.id, sourceDetail);
+              else if (sourceDetail.kind === 'ExternalService') dExt.set(sourceDetail.id, sourceDetail);
+            }
+          }
+        }
+      }
+
+      domainGroups.push({
+        domainKey: dKey,
+        displayName,
+        nodes: dNodes,
+        databases: Array.from(dDbs.values()),
+        topics: Array.from(dTopics.values()),
+        externalServices: Array.from(dExt.values()),
+      });
+    }
+
+    domainGroups.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
     return {
       allNodes: cyNodes,
       rawEdges,
       detailMap,
       echelonMap,
+      domainGroups,
       outAdj,
       dbSourceServicesMap,
       topicPublishers,
@@ -3359,7 +3429,54 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           {/* Row 1: Studio Canvas Controls */}
           <div className="domain-hud-row domain-hud-primary-row">
             <div className="domain-hud-controls-left">
-            {/* Layout & Curve Selector */}
+            {/* Presentation Mode: Graph | Grid | Matrix */}
+            <div
+              style={{
+                display: 'inline-flex',
+                borderRadius: 6,
+                background: 'rgba(255, 255, 255, 0.08)',
+                padding: 2,
+                gap: 2,
+                marginRight: 6,
+              }}
+            >
+              <button
+                type="button"
+                className={`domain-hud-btn ${presentationMode === 'graph' ? 'is-active' : ''}`}
+                onClick={() => {
+                  handlePresentationModeChange('graph');
+                  if (layoutName === 'matrix') handleLayoutChange('concentric');
+                }}
+                style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 4 }}
+                title="Interactive 2D Graph Canvas"
+              >
+                🕸️ Graph
+              </button>
+              <button
+                type="button"
+                className={`domain-hud-btn ${presentationMode === 'grid' ? 'is-active' : ''}`}
+                onClick={() => handlePresentationModeChange('grid')}
+                style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 4 }}
+                title="Unified Domain & Services Grid"
+              >
+                ⊞ Grid
+              </button>
+              <button
+                type="button"
+                className={`domain-hud-btn ${presentationMode === 'matrix' ? 'is-active' : ''}`}
+                onClick={() => {
+                  handlePresentationModeChange('matrix');
+                  handleLayoutChange('matrix');
+                }}
+                style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 4 }}
+                title="High-Density Interaction Matrix"
+              >
+                ▦ Matrix
+              </button>
+            </div>
+
+            {/* Layout & Curve Selector (Graph mode only) */}
+            {presentationMode === 'graph' && (
             <div className="domain-hud-layout-select">
               <select
                 value={layoutName}
@@ -3374,7 +3491,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
                 <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
                 <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
-                <option value="matrix">▦ Dependency Matrix</option>
                 <option value="cose">⚡ Force (COSE)</option>
               </select>
 
@@ -3389,6 +3505,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
               </select>
             </div>
+            )}
 
             {/* Display & Sliders Tuning Popover */}
             <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
@@ -3894,11 +4011,52 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       </div>
     </header>
 
-      {/* Main Graph Canvas Area */}
-      <div className="domain-cytoscape-wrapper">
+      {/* Main Graph / Grid / Matrix Viewport Area */}
+      <div className="domain-cytoscape-wrapper" style={{ display: 'flex', flexDirection: 'column', flex: 1, position: 'relative', overflow: 'hidden' }}>
 
-      {/* Matrix View or Cytoscape Canvas with SVG Overlays */}
-      {layoutName === 'matrix' ? (
+      {presentationMode === 'grid' ? (
+        <DomainGridView
+          domainGroups={rawGraph.domainGroups}
+          allNodes={Array.from(rawGraph.detailMap.values())}
+          searchQuery={searchQuery}
+          hiddenTypes={hiddenTypes}
+          hiddenNodeIds={hiddenNodeIds}
+          hiddenOrbitTiers={hiddenOrbitTiers}
+          hideSingleConnectionDbs={hideSingleConnectionDbs}
+          hideIsolatedNodes={hideIsolatedNodes}
+          selectedNode={selectedNode}
+          onSelectNode={(node) => {
+            setSelectedNode(node);
+            if (node) {
+              const gNode: GraphNode = {
+                id: node.id,
+                name: node.name,
+                displayName: node.displayName,
+                kind: node.kind === 'Service' || node.kind === 'Ingress' ? 'Service' : node.kind,
+                filePath: node.primaryFilePath,
+                properties: {
+                  kind: node.kind,
+                  framework: node.framework || '',
+                  language: node.language || '',
+                  inboundCalls: String(node.inboundCallsCount),
+                  outboundCalls: String(node.outboundCallsCount),
+                  dbCount: String(node.dbCount),
+                  messagingCount: String(node.messagingCount),
+                },
+              };
+              onSelectNode?.(gNode);
+            } else {
+              onSelectNode?.(null);
+            }
+          }}
+          onFocusInFlow={onFocusInFlow}
+          onOpenFile={onOpenFile}
+          onOpenOverrideModal={(svc) => {
+            setOverrideTargetService(svc);
+            setOverrideModalOpen(true);
+          }}
+        />
+      ) : presentationMode === 'matrix' || layoutName === 'matrix' ? (
         <DomainMatrixView
           nodes={visibleNodes.map((n) => rawGraph.detailMap.get(n.data.id as string)!).filter(Boolean)}
           edges={visibleEdges.map((e) => ({
