@@ -45,6 +45,11 @@ public class DiagramExportTests
         """;
         await File.WriteAllTextAsync(Path.Combine(projDir, "appsettings.json"), appsettings);
 
+        var libDir = Path.Combine(_tempDir, "CommonUtils").Replace('\\', '/');
+        Directory.CreateDirectory(libDir);
+        await File.WriteAllTextAsync(Path.Combine(libDir, "CommonUtils.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net9.0</TargetFramework></PropertyGroup></Project>");
+        await File.WriteAllTextAsync(Path.Combine(libDir, "Utils.cs"), "public class Utils { }");
+
         var dbPath = Path.Combine(_tempDir, "diagram_test.db").Replace('\\', '/');
         _client = new SqliteGraphClient(dbPath);
 
@@ -69,8 +74,19 @@ public class DiagramExportTests
         var mermaid = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "architecture");
         Assert.That(mermaid, Does.StartWith("flowchart TD"));
         Assert.That(mermaid, Does.Contain("OrderService"));
+        Assert.That(mermaid, Does.Not.Contain("CommonUtils"));
         Assert.That(mermaid, Does.Contain("Postgres").IgnoreCase);
         Assert.That(mermaid, Does.Contain("Stripe"));
+    }
+
+    [Test]
+    public async Task Test_ExportMermaidArchitecture_WithLibraries_IncludesLibrariesSubgraph()
+    {
+        var mermaid = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "architecture", includeLibraries: true);
+        Assert.That(mermaid, Does.StartWith("flowchart TD"));
+        Assert.That(mermaid, Does.Contain("OrderService"));
+        Assert.That(mermaid, Does.Contain("CommonUtils"));
+        Assert.That(mermaid, Does.Contain("subgraph Libraries [Shared Libraries & SDKs]"));
     }
 
     [Test]
@@ -79,7 +95,18 @@ public class DiagramExportTests
         var c4 = await DiagramExporter.ExportAsync(_client, format: "c4", type: "architecture");
         Assert.That(c4, Does.StartWith("C4Container"));
         Assert.That(c4, Does.Contain("Container("));
+        Assert.That(c4, Does.Not.Contain("CommonUtils"));
         Assert.That(c4, Does.Contain("ContainerDb("));
+    }
+
+    [Test]
+    public async Task Test_ExportC4Architecture_WithLibraries()
+    {
+        var c4 = await DiagramExporter.ExportAsync(_client, format: "c4", type: "architecture", includeLibraries: true);
+        Assert.That(c4, Does.StartWith("C4Container"));
+        Assert.That(c4, Does.Contain("Container("));
+        Assert.That(c4, Does.Contain("CommonUtils"));
+        Assert.That(c4, Does.Contain("Shared Library"));
     }
 
     [Test]

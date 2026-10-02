@@ -361,7 +361,7 @@ public class WebSocketServerHandler
                     var archReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<GetArchitectureRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    var archGraph = await _archQueryService.GetArchitectureGraphAsync(archReq?.ProjectFilter, cancellationToken);
+                    var archGraph = await _archQueryService.GetArchitectureGraphAsync(archReq?.ProjectFilter, archReq?.IncludeLibraries ?? false, cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,

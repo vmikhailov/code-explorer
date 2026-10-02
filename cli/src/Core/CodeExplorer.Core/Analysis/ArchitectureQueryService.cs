@@ -16,9 +16,9 @@ public class ArchitectureQueryService(IGraphClient db) : IArchitectureQueryServi
         return _viewEngine.GetViewAsync(request, ct);
     }
 
-    public Task<GraphDataDto> GetArchitectureGraphAsync(string? projectFilter = null, CancellationToken ct = default)
+    public Task<GraphDataDto> GetArchitectureGraphAsync(string? projectFilter = null, bool includeLibraries = false, CancellationToken ct = default)
     {
-        return _viewEngine.GetSystemContextViewAsync(includeLibraries: true, projectFilter, ct: ct);
+        return _viewEngine.GetSystemContextViewAsync(includeLibraries: includeLibraries, projectFilter, ct: ct);
     }
 
     public Task<GraphDataDto> GetProjectNeighborhoodAsync(string? projectName = null, CancellationToken ct = default)

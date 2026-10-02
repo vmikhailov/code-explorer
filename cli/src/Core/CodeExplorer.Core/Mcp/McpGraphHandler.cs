@@ -136,7 +136,7 @@ public class McpGraphHandler(
     public async Task<CallToolResult> GetArchitectureViewAsync(
         [Description("View level: 'c1' (system context), 'c2' (service flow), 'c3' (component), 'domain' (bounded contexts), or 'tiers' (layered architecture). Default: 'c1'.")] string level = "c1",
         [Description("Optional scope (e.g. project or service name) to isolate in the view.")] string? scope = null,
-        [Description("Whether to include shared libraries and utility projects. Default: true.")] bool includeLibraries = true,
+        [Description("Whether to include shared libraries and utility projects. Default: false.")] bool includeLibraries = false,
         [Description("Output format: 'markdown', 'toon', 'mermaid', or 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path. If omitted, uses current workspace context.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
@@ -492,11 +492,12 @@ public class McpGraphHandler(
         [Description("Diagram syntax format: 'mermaid' (default) or 'c4'.")] string format = "mermaid",
         [Description("Diagram type: 'architecture' (default system topology), 'domain' (domain microservices and bounded contexts map), 'lineage' (data model/entities to tables), or 'cqrs' (events/commands/saga message flow).")] string type = "architecture",
         [Description("Optional project name to scope the diagram to a specific subsystem.")] string? project = null,
+        [Description("Whether to include shared libraries and utility projects. Default: false.")] bool includeLibraries = false,
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
         return await ExecuteAsync(() => repository.ExportArchitectureDiagramAsync(
-            format, type, project, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
+            format, type, project, includeLibraries, workspacePath ?? GetCurrentWorkspacePath(), cancellationToken));
     }
 
     [UsedImplicitly]

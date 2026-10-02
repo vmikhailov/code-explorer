@@ -14,8 +14,8 @@ public class ViewOptions : ITargetOption
     [Option('s', "scope", Required = false, HelpText = "Optional scope filter (e.g. project name).")]
     public string? Scope { get; set; }
 
-    [Option("include-libs", Required = false, Default = true, HelpText = "Include library projects.")]
-    public bool IncludeLibraries { get; set; } = true;
+    [Option("include-libs", Required = false, Default = false, HelpText = "Include library projects.")]
+    public bool IncludeLibraries { get; set; } = false;
 
     [Option('f', "format", Required = false, Default = "markdown", HelpText = "Output format: 'markdown', 'toon', 'mermaid', 'json'.")]
     public string Format { get; set; } = "markdown";

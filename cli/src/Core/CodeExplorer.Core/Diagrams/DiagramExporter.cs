@@ -12,6 +12,7 @@ public static class DiagramExporter
         string format = "mermaid",
         string type = "architecture",
         string? projectFilter = null,
+        bool includeLibraries = false,
         CancellationToken cancellationToken = default)
     {
         return type.ToLowerInvariant() switch
@@ -19,10 +20,10 @@ public static class DiagramExporter
             "lineage" or "data_lineage" => await GenerateDataLineageDiagramAsync(client, cancellationToken),
             "cqrs" or "saga" or "events" => await GenerateCqrsPipelineDiagramAsync(client, cancellationToken),
             "context" or "contexts" or "bounded-context" or "bounded-contexts" or "context-map" or "contextmap" => await GenerateBoundedContextDiagramAsync(client, format, cancellationToken),
-            "domain" or "domains" or "domain-services" => await GenerateDomainDiagramAsync(client, format, cancellationToken),
+            "domain" or "domains" or "domain-services" => await GenerateDomainDiagramAsync(client, format, includeLibraries, cancellationToken),
             _ => format.ToLowerInvariant() == "c4"
-                ? await GenerateC4ArchitectureAsync(client, projectFilter, cancellationToken)
-                : await GenerateMermaidArchitectureAsync(client, projectFilter, cancellationToken)
+                ? await GenerateC4ArchitectureAsync(client, projectFilter, includeLibraries, cancellationToken)
+                : await GenerateMermaidArchitectureAsync(client, projectFilter, includeLibraries, cancellationToken)
         };
     }
 
@@ -39,29 +40,33 @@ public static class DiagramExporter
     public static async Task<string> GenerateDomainDiagramAsync(
         IGraphClient client,
         string format = "mermaid",
+        bool includeLibraries = false,
         CancellationToken cancellationToken = default)
     {
         var engine = new ArchitectureViewEngine(client);
-        var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries: false, cancellationToken);
+        var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries: includeLibraries, cancellationToken);
         return ArchitectureViewEngine.SerializeDomainArchitecture(domainDto, format);
     }
 
     public static async Task<string> GenerateMermaidArchitectureAsync(
         IGraphClient client,
         string? projectFilter = null,
+        bool includeLibraries = false,
         CancellationToken cancellationToken = default)
     {
         var sb = new StringBuilder();
         sb.AppendLine("flowchart TD");
 
+        var allNodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         // 1. Query Projects
-        var projQuery = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS id, p.name AS name, p.framework AS framework";
+        var projQuery = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS id, p.name AS name, p.framework AS framework, labels(p) AS labels, p.role AS role, p.is_library AS is_library";
         var projJson = await client.ExecuteQueryAsync(projQuery, null, cancellationToken);
 
         using var projDoc = JsonDocument.Parse(projJson);
 
-        var projects = new HashSet<string>();
-        sb.AppendLine("  subgraph Projects [Applications & Services]");
+        var serviceNodes = new List<(string id, string label)>();
+        var libNodes = new List<(string id, string label)>();
 
         foreach (var row in projDoc.RootElement.EnumerateArray())
         {
@@ -72,11 +77,65 @@ public static class DiagramExporter
                 ? f.GetString()
                 : null;
             var label = string.IsNullOrEmpty(framework) ? name : $"{name}\\n({framework})";
-            sb.AppendLine($"    {id}[\"{label}\"]");
-            projects.Add(id);
+
+            var role = row.TryGetProperty("role", out var r) && r.ValueKind == JsonValueKind.String
+                ? r.GetString()
+                : null;
+            var isLibStr = row.TryGetProperty("is_library", out var il) && il.ValueKind == JsonValueKind.String
+                ? il.GetString()
+                : null;
+
+            bool isLib = string.Equals(isLibStr, "true", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(role, "SharedLibrary", StringComparison.OrdinalIgnoreCase);
+
+            if (!isLib && row.TryGetProperty("labels", out var lbls) && lbls.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var lbl in lbls.EnumerateArray())
+                {
+                    var l = lbl.GetString();
+                    if (string.Equals(l, "Library", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(l, "SharedLibrary", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isLib = true;
+                        break;
+                    }
+                }
+            }
+
+            if (isLib)
+            {
+                if (includeLibraries)
+                {
+                    libNodes.Add((id, label));
+                    allNodes.Add(id);
+                }
+            }
+            else
+            {
+                serviceNodes.Add((id, label));
+                allNodes.Add(id);
+            }
         }
 
-        sb.AppendLine("  end");
+        if (serviceNodes.Count > 0)
+        {
+            sb.AppendLine("  subgraph Projects [Applications & Services]");
+            foreach (var (id, label) in serviceNodes)
+            {
+                sb.AppendLine($"    {id}[\"{label}\"]");
+            }
+            sb.AppendLine("  end");
+        }
+
+        if (includeLibraries && libNodes.Count > 0)
+        {
+            sb.AppendLine("  subgraph Libraries [Shared Libraries & SDKs]");
+            foreach (var (id, label) in libNodes)
+            {
+                sb.AppendLine($"    {id}[\"{label}\"]");
+            }
+            sb.AppendLine("  end");
+        }
 
         // 2. Query Databases
         var dbQuery =
@@ -94,6 +153,7 @@ public static class DiagramExporter
             hasDbs = true;
             var id = SanitizeId(row.GetProperty("id").GetString() ?? "db");
             var name = row.GetProperty("name").GetString() ?? "Database";
+            allNodes.Add(id);
 
             var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String
                 ? dt.GetString()
@@ -129,6 +189,7 @@ public static class DiagramExporter
             hasTopics = true;
             var id = SanitizeId(row.GetProperty("id").GetString() ?? "topic");
             var name = row.GetProperty("name").GetString() ?? "Topic";
+            allNodes.Add(id);
 
             var broker = row.TryGetProperty("broker", out var b) && b.ValueKind == JsonValueKind.String
                 ? b.GetString()
@@ -155,6 +216,7 @@ public static class DiagramExporter
             hasExt = true;
             var id = SanitizeId(row.GetProperty("id").GetString() ?? "ext");
             var name = row.GetProperty("name").GetString() ?? "Service";
+            allNodes.Add(id);
             extSb.AppendLine($"    {id}[\"{name}\"]");
         }
 
@@ -185,6 +247,7 @@ public static class DiagramExporter
             var rel = row.GetProperty("rel_type").GetString() ?? "USES";
 
             if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) continue;
+            if (!allNodes.Contains(from) || !allNodes.Contains(to)) continue;
 
             var edgeKey = $"{from}->{to}:{rel}";
 
@@ -200,6 +263,7 @@ public static class DiagramExporter
     public static async Task<string> GenerateC4ArchitectureAsync(
         IGraphClient client,
         string? projectFilter = null,
+        bool includeLibraries = false,
         CancellationToken cancellationToken = default)
     {
         var sb = new StringBuilder();
@@ -207,8 +271,10 @@ public static class DiagramExporter
         sb.AppendLine("  title System Architecture Diagram");
         sb.AppendLine();
 
+        var allNodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         // 1. Containers (Projects)
-        var projQuery = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS id, p.name AS name, p.framework AS framework";
+        var projQuery = "MATCH (p) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) RETURN p.id AS id, p.name AS name, p.framework AS framework, labels(p) AS labels, p.role AS role, p.is_library AS is_library";
         var projJson = await client.ExecuteQueryAsync(projQuery, null, cancellationToken);
 
         using var projDoc = JsonDocument.Parse(projJson);
@@ -221,7 +287,39 @@ public static class DiagramExporter
             var framework = row.TryGetProperty("framework", out var f) && f.ValueKind == JsonValueKind.String
                 ? f.GetString()
                 : "Application";
-            sb.AppendLine($"  Container({id}, \"{name}\", \"{framework}\", \"Service component\")");
+
+            var role = row.TryGetProperty("role", out var r) && r.ValueKind == JsonValueKind.String
+                ? r.GetString()
+                : null;
+            var isLibStr = row.TryGetProperty("is_library", out var il) && il.ValueKind == JsonValueKind.String
+                ? il.GetString()
+                : null;
+
+            bool isLib = string.Equals(isLibStr, "true", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(role, "SharedLibrary", StringComparison.OrdinalIgnoreCase);
+
+            if (!isLib && row.TryGetProperty("labels", out var lbls) && lbls.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var lbl in lbls.EnumerateArray())
+                {
+                    var l = lbl.GetString();
+                    if (string.Equals(l, "Library", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(l, "SharedLibrary", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isLib = true;
+                        break;
+                    }
+                }
+            }
+
+            if (isLib && !includeLibraries)
+            {
+                continue;
+            }
+
+            allNodes.Add(id);
+            var desc = isLib ? "Shared Library" : "Service component";
+            sb.AppendLine($"  Container({id}, \"{name}\", \"{framework}\", \"{desc}\")");
         }
 
         // 2. Databases
@@ -235,6 +333,7 @@ public static class DiagramExporter
         {
             var id = SanitizeId(row.GetProperty("id").GetString() ?? "db");
             var name = row.GetProperty("name").GetString() ?? "Database";
+            allNodes.Add(id);
 
             var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String
                 ? dt.GetString()
@@ -258,6 +357,7 @@ public static class DiagramExporter
         {
             var id = SanitizeId(row.GetProperty("id").GetString() ?? "topic");
             var name = row.GetProperty("name").GetString() ?? "Topic";
+            allNodes.Add(id);
 
             var broker = row.TryGetProperty("broker", out var b) && b.ValueKind == JsonValueKind.String
                 ? b.GetString()
@@ -276,6 +376,7 @@ public static class DiagramExporter
         {
             var id = SanitizeId(row.GetProperty("id").GetString() ?? "ext");
             var name = row.GetProperty("name").GetString() ?? "External Service";
+            allNodes.Add(id);
             sb.AppendLine($"  System_Ext({id}, \"{name}\", \"External / Cloud Service\")");
         }
 
@@ -305,6 +406,7 @@ public static class DiagramExporter
             var rel = row.GetProperty("rel_type").GetString() ?? "Uses";
 
             if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) continue;
+            if (!allNodes.Contains(from) || !allNodes.Contains(to)) continue;
 
             var edgeKey = $"{from}->{to}:{rel}";
 

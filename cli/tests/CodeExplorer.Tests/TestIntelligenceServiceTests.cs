@@ -504,4 +504,94 @@ public class TestIntelligenceServiceTests
         Assert.That(report.RunnerCommands, Contains.Key("dotnet"));
         Assert.That(report.RunnerCommands["dotnet"], Is.EqualTo("dotnet test --filter \"FullyQualifiedName~Test_Add\""));
     }
+
+    [Test]
+    public async Task AnalyzeImpactAsync_IgnoresLifecycleAndHelperMethods_AsAffectedTests_WhileUsingHelpersAsBridges()
+    {
+        var fnTarget = new Node("fn:core_dowork", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "DoWork",
+            ["file_path"] = "src/Core/Worker.cs",
+            ["project"] = "Core",
+            ["start_line"] = 10,
+            ["end_line"] = 20
+        });
+
+        var typeTest = new Node("type:worker_tests", "Type", new Dictionary<string, object>
+        {
+            ["name"] = "WorkerTests",
+            ["file_path"] = "tests/WorkerTests.cs",
+            ["project"] = "CoreTests"
+        });
+
+        // Lifecycle method (e.g. OneTimeSetUp) - not a test
+        var fnSetUp = new Node("fn:setup", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "OneTimeSetUp",
+            ["file_path"] = "tests/WorkerTests.cs",
+            ["project"] = "CoreTests",
+            ["start_line"] = 5,
+            ["end_line"] = 9
+        });
+
+        // Test helper method (RunCliAsync / helper) - not a test
+        var fnHelper = new Node("fn:helper", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "RunCliAsync",
+            ["file_path"] = "tests/WorkerTests.cs",
+            ["project"] = "CoreTests",
+            ["start_line"] = 11,
+            ["end_line"] = 18
+        });
+
+        // Real test
+        var fnTest = new Node("fn:real_test", "Function", new Dictionary<string, object>
+        {
+            ["name"] = "Test_DoWork_Success",
+            ["file_path"] = "tests/WorkerTests.cs",
+            ["project"] = "CoreTests",
+            ["is_test"] = "true",
+            ["test_framework"] = "nunit",
+            ["start_line"] = 20,
+            ["end_line"] = 30
+        });
+
+        await _db.UploadNodesAsync([fnTarget, typeTest, fnSetUp, fnHelper, fnTest]);
+        var empty = new Dictionary<string, object>();
+        await _db.UploadRelationshipsAsync([
+            new("type:worker_tests", "fn:setup", "HAS_METHOD", empty),
+            new("type:worker_tests", "fn:helper", "HAS_METHOD", empty),
+            new("type:worker_tests", "fn:real_test", "HAS_METHOD", empty),
+            new("fn:setup", "fn:core_dowork", "CALLS", empty),
+            new("fn:helper", "fn:core_dowork", "CALLS", empty),
+            new("fn:real_test", "fn:helper", "CALLS", empty)
+        ]);
+
+        var report = await _service.AnalyzeImpactAsync(new TestImpactRequest
+        {
+            SymbolNames = new List<string> { "DoWork" },
+            MaxDepth = 3
+        });
+
+        // Only Test_DoWork_Success should be in AffectedTestMethods
+        Assert.That(report.AffectedTestMethods, Has.Count.EqualTo(1));
+        var test = report.AffectedTestMethods[0];
+        Assert.That(test.TestMethodName, Is.EqualTo("Test_DoWork_Success"));
+        Assert.That(test.Depth, Is.EqualTo(2));
+        Assert.That(string.Join(" → ", test.CallChain), Is.EqualTo("Test_DoWork_Success → RunCliAsync → DoWork"));
+
+        // Groups: WorkerTests should have TotalTestCount = 1 (excluding OneTimeSetUp and RunCliAsync)
+        Assert.That(report.Groups, Is.Not.Null);
+        Assert.That(report.Groups!, Has.Count.EqualTo(1));
+        var group = report.Groups![0];
+        Assert.That(group.ClassName, Is.EqualTo("WorkerTests"));
+        Assert.That(group.AffectedTestCount, Is.EqualTo(1));
+        Assert.That(group.TotalTestCount, Is.EqualTo(1));
+        Assert.That(group.AllTestsAffected, Is.True);
+
+        // Command should target the class since all tests in it are affected
+        Assert.That(report.RunnerCommands, Contains.Key("dotnet"));
+        Assert.That(report.RunnerCommands["dotnet"], Is.EqualTo("dotnet test --filter \"FullyQualifiedName~WorkerTests\""));
+    }
 }
+

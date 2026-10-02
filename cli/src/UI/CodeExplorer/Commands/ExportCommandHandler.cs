@@ -14,7 +14,7 @@ public class ExportCommandHandler : BaseCommandHandler
 
         await using var client = new SqliteGraphClient(ws.DbPath);
 
-        var diagram = await DiagramExporter.ExportAsync(client, opts.Format, opts.Type, opts.Project);
+        var diagram = await DiagramExporter.ExportAsync(client, opts.Format, opts.Type, opts.Project, opts.IncludeLibraries);
 
         if (!string.IsNullOrWhiteSpace(opts.Output))
         {

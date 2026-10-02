@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.18.10] - 2026-10-02
+
+### Fixed
+- **Test Impact Analysis (`ce test`)**:
+  - Filtered out fixture lifecycle methods (`SetUp`, `TearDown`, `OneTimeSetUp`, `OneTimeTearDown`, `Dispose`) and helper routines (`RunCliAsync`, etc.) from runnable test results and total test counts.
+  - Non-test helpers now serve cleanly as transparent call-graph bridges during reverse reachability BFS without polluting test results or commands.
+  - Suppressed automatic git diff inspection when explicit `--symbols` are provided.
+  - Sanitized class name formatting in test grouping to eliminate leading path separators.
+
+### Added
+- **Architecture Diagram Exports**:
+  - Added `--include-libraries` flag support to CLI export command, MCP endpoints, and WebSocket protocol for C4 and domain diagrams.
+
 ## [1.18.9] - 2026-10-02
 
 ### Added

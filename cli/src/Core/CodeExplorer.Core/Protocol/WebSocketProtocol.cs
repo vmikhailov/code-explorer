@@ -171,6 +171,9 @@ public class GetArchitectureRequestDto
     [JsonPropertyName("projectFilter")]
     public string? ProjectFilter { get; set; }
 
+    [JsonPropertyName("includeLibraries")]
+    public bool IncludeLibraries { get; set; } = false;
+
     [JsonPropertyName("format")]
     public string? Format { get; set; } // "graph", "mermaid", "c4"
 }

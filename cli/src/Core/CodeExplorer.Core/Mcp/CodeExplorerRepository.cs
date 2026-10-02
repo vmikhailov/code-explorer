@@ -556,7 +556,7 @@ public class CodeExplorerRepository
     public async Task<string> GetArchitectureViewAsync(
         string level = "c1",
         string? scope = null,
-        bool includeLibraries = true,
+        bool includeLibraries = false,
         string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
@@ -592,7 +592,7 @@ public class CodeExplorerRepository
     }
 
     public async Task<string> GetDomainArchitectureAsync(
-        bool includeLibraries = true,
+        bool includeLibraries = false,
         string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
@@ -1510,6 +1510,7 @@ public class CodeExplorerRepository
         string format = "mermaid",
         string type = "architecture",
         string? projectFilter = null,
+        bool includeLibraries = false,
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -1519,7 +1520,7 @@ public class CodeExplorerRepository
             return GetStandbyMessage(format);
         }
 
-        return await DiagramExporter.ExportAsync(client, format, type, projectFilter, cancellationToken);
+        return await DiagramExporter.ExportAsync(client, format, type, projectFilter, includeLibraries, cancellationToken);
     }
 
     public async Task<string> InitWorkspaceAsync(

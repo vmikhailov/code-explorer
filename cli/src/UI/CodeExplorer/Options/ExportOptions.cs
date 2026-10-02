@@ -14,6 +14,9 @@ public class ExportOptions
     [Option('p', "project", Required = false, HelpText = "Optional project name filter.")]
     public string? Project { get; set; }
 
+    [Option("include-libs", Required = false, Default = false, HelpText = "Include library projects.")]
+    public bool IncludeLibraries { get; set; } = false;
+
     [Option('o', "output", Required = false, HelpText = "Output file path (prints to stdout if omitted).")]
     public string? Output { get; set; }
 

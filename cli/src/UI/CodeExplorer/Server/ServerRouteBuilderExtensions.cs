@@ -201,12 +201,12 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
-        endpoints.MapGet("/api/architecture", async (IArchitectureQueryService archQueryService, string? project) =>
+        endpoints.MapGet("/api/architecture", async (IArchitectureQueryService archQueryService, string? project, bool? includeLibraries) =>
         {
             try
             {
                 logger.LogInformation("[REST] GET /api/architecture (project: {Project})", project ?? "all");
-                var graph = await archQueryService.GetArchitectureGraphAsync(project);
+                var graph = await archQueryService.GetArchitectureGraphAsync(project, includeLibraries ?? false);
                 return Results.Ok(graph);
             }
             catch (Exception ex)
@@ -295,14 +295,14 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
-        endpoints.MapGet("/api/diagram", async (IGraphClient graphClient, string? type, string? format, string? project, CancellationToken ct) =>
+        endpoints.MapGet("/api/diagram", async (IGraphClient graphClient, string? type, string? format, string? project, bool? includeLibraries, CancellationToken ct) =>
         {
             try
             {
                 var diagramType = type ?? "architecture";
                 var diagramFormat = format ?? "mermaid";
                 logger.LogInformation("[REST] GET /api/diagram (type: {Type}, format: {Format}, project: {Project})", diagramType, diagramFormat, project ?? "all");
-                var diagram = await DiagramExporter.ExportAsync(graphClient, diagramFormat, diagramType, project, ct);
+                var diagram = await DiagramExporter.ExportAsync(graphClient, diagramFormat, diagramType, project, includeLibraries ?? false, ct);
                 return Results.Text(diagram, "text/plain");
             }
             catch (Exception ex)

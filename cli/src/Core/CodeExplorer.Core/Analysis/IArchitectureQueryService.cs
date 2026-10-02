@@ -15,7 +15,7 @@ public interface IArchitectureQueryService
     /// <summary>
     /// Retrieves the system architecture graph with materialized macro-relationships.
     /// </summary>
-    Task<GraphDataDto> GetArchitectureGraphAsync(string? projectFilter = null, CancellationToken ct = default);
+    Task<GraphDataDto> GetArchitectureGraphAsync(string? projectFilter = null, bool includeLibraries = false, CancellationToken ct = default);
 
     /// <summary>
     /// Retrieves the 3-column dependency flow / neighborhood graph for a specific project.

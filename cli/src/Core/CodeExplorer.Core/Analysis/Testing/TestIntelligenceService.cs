@@ -425,6 +425,10 @@ public class TestIntelligenceService
                     if (!string.IsNullOrEmpty(clean)) changedFiles.Add(clean);
                 }
             }
+            else if (request.SymbolNames != null && request.SymbolNames.Count > 0)
+            {
+                // Explicit symbols requested without diff/files; skip automatic git diff
+            }
             else
             {
                 // Attempt automatic git diff detection
@@ -458,7 +462,7 @@ public class TestIntelligenceService
                 var isTestFile = normPath.Contains("/test/") || normPath.Contains("/tests/") ||
                                  normPath.EndsWith("_test.go") || normPath.EndsWith(".test.ts") || normPath.EndsWith(".spec.ts");
 
-                if (isTestFile)
+                if (isTestFile && !IsLifecycleOrHelperName(sym.Name))
                 {
                     if (sym.Kind == "Function")
                     {
@@ -698,20 +702,7 @@ public class TestIntelligenceService
                     var sLine = root.TryGetProperty("start_line", out var slp) ? slp.GetInt32() : 0;
                     var framework = root.TryGetProperty("test_framework", out var tfp) ? tfp.GetString() : DetectFramework(filePath);
 
-                    var isTest = false;
-                    if (root.TryGetProperty("is_test", out var itp) && string.Equals(itp.GetString(), "true", StringComparison.OrdinalIgnoreCase))
-                    {
-                        isTest = true;
-                    }
-                    else
-                    {
-                        var normPath = filePath.Replace('\\', '/').ToLowerInvariant();
-                        if (normPath.Contains("/test/") || normPath.Contains("/tests/") ||
-                            normPath.EndsWith("_test.go") || normPath.EndsWith(".test.ts") || normPath.EndsWith(".spec.ts"))
-                        {
-                            isTest = true;
-                        }
-                    }
+                    var isTest = IsTestFunction(root, name, filePath);
 
                     if (isTest)
                     {
@@ -784,6 +775,41 @@ public class TestIntelligenceService
             return candidate;
         }
         return null;
+    }
+
+    private static bool IsTestFunction(JsonElement root, string name, string filePath)
+    {
+        if (IsLifecycleOrHelperName(name)) return false;
+
+        if (root.TryGetProperty("is_test", out var itp))
+        {
+            if (itp.ValueKind == JsonValueKind.True) return true;
+            if (itp.ValueKind == JsonValueKind.String && string.Equals(itp.GetString(), "true", StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        var normPath = filePath.Replace('\\', '/').ToLowerInvariant();
+        var isTestFile = normPath.Contains("/test/") || normPath.Contains("/tests/") ||
+                         normPath.EndsWith("_test.go") || normPath.EndsWith(".test.ts") || normPath.EndsWith(".spec.ts");
+
+        if (isTestFile)
+        {
+            if (normPath.EndsWith(".go") && name.StartsWith("Test", StringComparison.Ordinal) && name.Length > 4 && char.IsUpper(name[4]))
+                return true;
+            if (normPath.EndsWith(".py") && (name.StartsWith("test_", StringComparison.OrdinalIgnoreCase) || name.EndsWith("_test", StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsLifecycleOrHelperName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return true;
+        var lower = name.ToLowerInvariant();
+        return lower is "setup" or "teardown" or "onetimesetup" or "onetimeteardown"
+            or "beforeeach" or "aftereach" or "beforeall" or "afterall"
+            or "testinitialize" or "testcleanup" or "classinitialize" or "classcleanup"
+            or "dispose" or "init" or "runcliasync";
     }
 
     private static string DetectFramework(string filePath)
@@ -859,9 +885,6 @@ public class TestIntelligenceService
                       json_extract(f.properties, '$.is_test') = 'true'
                       OR f.properties LIKE '%"is_test"%"true"%'
                       OR f.properties LIKE '%"is_test":true%'
-                      OR REPLACE(COALESCE(json_extract(f.properties, '$.path'), json_extract(f.properties, '$.file_path'), ''), '\', '/') LIKE '%/test/%'
-                      OR REPLACE(COALESCE(json_extract(f.properties, '$.path'), json_extract(f.properties, '$.file_path'), ''), '\', '/') LIKE '%/tests/%'
-                      OR REPLACE(COALESCE(json_extract(f.properties, '$.path'), json_extract(f.properties, '$.file_path'), ''), '\', '/') LIKE '%test%'
                   );
                 """;
 
@@ -869,6 +892,7 @@ public class TestIntelligenceService
             while (await reader.ReadAsync(ct))
             {
                 var name = reader.GetString(0);
+                if (IsLifecycleOrHelperName(name)) continue;
                 var symbol = reader.GetString(1);
                 var filePath = reader.GetString(2);
                 var className = reader.GetString(3);
