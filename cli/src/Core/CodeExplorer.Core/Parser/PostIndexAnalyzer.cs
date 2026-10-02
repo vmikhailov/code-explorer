@@ -8,6 +8,7 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -2140,6 +2141,17 @@ public class PostIndexAnalyzer(IGraphClient db)
                 return new CanonicalizeDatabasesResult(nodesToUpload.Count, relationshipsToUpload.Count);
             }
         }
+    }
+
+    public static (string Category, string DependencyType, string NormalizedKind) NormalizeEdgeCategory(
+        string? rawKind,
+        NodeKind sourceKind,
+        NodeKind targetKind,
+        string? existingCategory = null,
+        string? existingDepType = null,
+        bool isTargetLibrary = false)
+    {
+        return NormalizeEdgeCategory(rawKind, sourceKind.ToCypherLabel(), targetKind.ToCypherLabel(), existingCategory, existingDepType, isTargetLibrary);
     }
 
     public static (string Category, string DependencyType, string NormalizedKind) NormalizeEdgeCategory(

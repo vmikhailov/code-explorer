@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Non-test helpers now serve cleanly as transparent call-graph bridges during reverse reachability BFS without polluting test results or commands.
   - Suppressed automatic git diff inspection when explicit `--symbols` are provided.
   - Sanitized class name formatting in test grouping to eliminate leading path separators.
+  - In `ce test -f list`, output clean, raw class/method names without text annotations (such as `(all N tests)`) for direct compatibility with shell pipelines and `xargs`.
 
 ### Added
 - **Architecture Diagram Exports**:

@@ -36,14 +36,23 @@ public class EnumsTests
         Assert.That(NodeKind.Test.ToCypherLabel(), Is.EqualTo("Test"));
         Assert.That(NodeKind.Procedure.ToCypherLabel(), Is.EqualTo("Procedure"));
         Assert.That(NodeKind.Workspace.ToCypherLabel(), Is.EqualTo("Workspace"));
+        Assert.That(NodeKind.Domain.ToCypherLabel(), Is.EqualTo("Domain"));
+        Assert.That(NodeKind.BoundedContext.ToCypherLabel(), Is.EqualTo("BoundedContext"));
+        Assert.That(NodeKind.Ingress.ToCypherLabel(), Is.EqualTo("Ingress"));
     }
 
+    [TestCase("Domain", NodeKind.Domain)]
+    [TestCase("domain", NodeKind.Domain)]
+    [TestCase("BoundedContext", NodeKind.BoundedContext)]
+    [TestCase("boundedcontext", NodeKind.BoundedContext)]
+    [TestCase("context", NodeKind.BoundedContext)]
+    [TestCase("Ingress", NodeKind.Ingress)]
+    [TestCase("ingress", NodeKind.Ingress)]
     [TestCase("Service", NodeKind.Service)]
     [TestCase("service", NodeKind.Service)]
     [TestCase("SERVICE", NodeKind.Service)]
     [TestCase("App", NodeKind.App)]
     [TestCase("FrontendApp", NodeKind.App)]
-    [TestCase("ingress", NodeKind.App)]
     [TestCase("Worker", NodeKind.Worker)]
     [TestCase("worker", NodeKind.Worker)]
     [TestCase("CliTool", NodeKind.CliTool)]

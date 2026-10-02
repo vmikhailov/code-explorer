@@ -6,6 +6,7 @@ using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Core.Analysis;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Java;
@@ -672,7 +673,7 @@ public class CrossLanguageCommunicationDetectionTests
             // 7. Verify Project Neighborhood (Flow View)
             var flow = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:svc_order",
                 includeLibraries: true);
-            var flowDatabases = flow.Nodes.Where(n => n.Kind == "Database").ToList();
+            var flowDatabases = flow.Nodes.Where(n => n.Kind == NodeKind.Database).ToList();
 
             Assert.That(flowDatabases.Any(d => d.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)),
                 Is.True, "Flow must include resolved PostgreSQL");

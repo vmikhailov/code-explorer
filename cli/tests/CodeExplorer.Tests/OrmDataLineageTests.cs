@@ -4,6 +4,7 @@ using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Java;
 using CodeExplorer.Parser.TypeScript;
@@ -422,12 +423,12 @@ export class Product {
             var projNode = graph.Nodes.FirstOrDefault(n => n.Id == "proj:svc_a");
             Assert.That(projNode, Is.Not.Null);
 
-            Assert.That(projNode.Kind, Is.EqualTo("Project"),
+            Assert.That(projNode.Kind, Is.EqualTo(NodeKind.Project),
                 "Project node with db_type property must not be converted to Kind 'Database'!");
 
             var dbNode = graph.Nodes.FirstOrDefault(n => n.Id == "ws:db:relational:postgresql");
             Assert.That(dbNode, Is.Not.Null);
-            Assert.That(dbNode.Kind, Is.EqualTo("Database"));
+            Assert.That(dbNode.Kind, Is.EqualTo(NodeKind.Database));
         }
         finally
         {

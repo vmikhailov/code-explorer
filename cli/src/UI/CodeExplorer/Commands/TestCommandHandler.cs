@@ -55,19 +55,20 @@ public class TestCommandHandler : BaseCommandHandler
         {
             case "list":
             case "tests":
-                if (report.Groups != null && report.Groups.Count > 0)
+                var sb = new System.Text.StringBuilder();
+                if (report.Groups is { Count: > 0 })
                 {
                     foreach (var g in report.Groups)
                     {
                         if (g.AllTestsAffected && !string.IsNullOrEmpty(g.ClassName))
                         {
-                            Console.WriteLine($"{g.ClassName} (all {g.TotalTestCount} tests)");
+                            sb.AppendLine(g.ClassName);
                         }
                         else
                         {
                             foreach (var m in g.Methods)
                             {
-                                Console.WriteLine(m.TestMethodName);
+                                sb.AppendLine(m.TestMethodName);
                             }
                         }
                     }
@@ -76,9 +77,10 @@ public class TestCommandHandler : BaseCommandHandler
                 {
                     foreach (var t in report.AffectedTestMethods)
                     {
-                        Console.WriteLine(t.TestMethodName);
+                        sb.AppendLine(t.TestMethodName);
                     }
                 }
+                Console.Write(sb.ToString());
                 break;
 
             case "commands":

@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -356,7 +357,7 @@ public class ArchitectureViewEngineTests
         var domain = await _engine.GetDomainArchitectureAsync();
 
         Assert.That(domain.Nodes.Any(n => n.Name == "common-dto" || n.DisplayName == "common-dto"), Is.False, "Libraries must NOT appear on Domain Service Map");
-        Assert.That(domain.Nodes.Any(n => n.Kind == "Library"), Is.False, "No nodes with kind 'Library' should exist on Domain Service Map");
+        Assert.That(domain.Nodes.Any(n => n.Kind == NodeKind.Library), Is.False, "No nodes with kind 'Library' should exist on Domain Service Map");
         Assert.That(domain.Stats.Libraries, Is.EqualTo(0));
 
         // Verify runnable services are present
@@ -365,7 +366,7 @@ public class ArchitectureViewEngineTests
 
         // Also verify GraphDataDto representation
         var graph = await _engine.GetDomainArchitectureGraphAsync();
-        Assert.That(graph.Nodes.Any(n => n.Name == "common-dto" || n.Kind == "Library"), Is.False, "Libraries must not appear in DomainMap GraphDataDto");
+        Assert.That(graph.Nodes.Any(n => n.Name == "common-dto" || n.Kind == NodeKind.Library), Is.False, "Libraries must not appear in DomainMap GraphDataDto");
     }
 
     [Test]

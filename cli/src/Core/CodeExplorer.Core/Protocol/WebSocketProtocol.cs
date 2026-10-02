@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Protocol;
 
@@ -73,7 +74,7 @@ public class GraphNodeDto
     public string Id { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty;
+    public NodeKind Kind { get; set; } = NodeKind.Unspecified;
 
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -530,7 +531,7 @@ public class DomainProjectInfoDto
 
     [JsonPropertyName("kind")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Kind { get; set; }
+    public NodeKind? Kind { get; set; }
 
     [JsonPropertyName("filePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -552,7 +553,7 @@ public class DomainEntityDto
     public string DisplayName { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = "Service";
+    public NodeKind Kind { get; set; } = NodeKind.Service;
 
     [JsonPropertyName("displayTag")]
     public string DisplayTag { get; set; } = ":Service";
@@ -845,7 +846,7 @@ public class ServiceContractDto
     public string ServiceName { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = "Service";
+    public NodeKind Kind { get; set; } = NodeKind.Service;
 
     [JsonPropertyName("framework")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -925,7 +926,7 @@ public class ServiceSummaryDto
     public string ServiceId { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = "Service";
+    public NodeKind Kind { get; set; } = NodeKind.Service;
 
     [JsonPropertyName("framework")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -960,7 +961,7 @@ public class ServiceCapabilityItemDto
     public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty;
+    public NodeKind Kind { get; set; } = NodeKind.Unspecified;
 
     [JsonPropertyName("protocol")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1014,7 +1015,7 @@ public class ServiceOntologyDetailsDto
     public string ServiceId { get; set; } = string.Empty;
 
     [JsonPropertyName("kind")]
-    public string Kind { get; set; } = "Service";
+    public NodeKind Kind { get; set; } = NodeKind.Service;
 
     [JsonPropertyName("framework")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

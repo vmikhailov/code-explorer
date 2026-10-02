@@ -5,6 +5,8 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Protocol;
+using CodeExplorer.Cypher.Common;
+using ArchitectureViewType = CodeExplorer.Core.Analysis.ArchitectureViewType;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -258,7 +260,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                     var node = new GraphNodeDto
                     {
                         Id = canonicalId,
-                        Kind = "Database",
+                        Kind = NodeKind.Database,
                         Name = cName,
                         DisplayName = dispName,
                         Properties = props
@@ -317,7 +319,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var pkgNode = new GraphNodeDto
                 {
                     Id = id,
-                    Kind = "Package",
+                    Kind = NodeKind.Package,
                     Name = name,
                     DisplayName = dispName,
                     Properties = props
@@ -367,7 +369,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var topicNode = new GraphNodeDto
                 {
                     Id = id,
-                    Kind = "Topic",
+                    Kind = NodeKind.Topic,
                     Name = name,
                     DisplayName = dispName,
                     Properties = props
@@ -436,7 +438,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var esNode = new GraphNodeDto
                 {
                     Id = id,
-                    Kind = "ExternalService",
+                    Kind = NodeKind.ExternalService,
                     Name = name,
                     DisplayName = dispName,
                     Properties = props
@@ -530,7 +532,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var projNode = new GraphNodeDto
                 {
                     Id = id,
-                    Kind = !string.IsNullOrEmpty(kind) ? kind : "Project",
+                    Kind = !string.IsNullOrEmpty(kind) ? EnumExtensions.ParseNodeKind(kind) : NodeKind.Project,
                     Name = name,
                     DisplayName = dispName,
                     FilePath = string.IsNullOrEmpty(path) ? null : path,
@@ -665,7 +667,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
 
             var edgeProps = elem.ExtractProperties();
-            var isTargetLib = tgtNode.Kind == "Package" || IsLibraryProject(tgtNode);
+            var isTargetLib = tgtNode.Kind == NodeKind.Package || IsLibraryProject(tgtNode);
 
             var (category, depType, normalizedKind) = PostIndexAnalyzer.NormalizeEdgeCategory(rKind,
                 srcNode.Kind, tgtNode.Kind, edgeProps.GetValueOrDefault("category"),
@@ -674,8 +676,8 @@ public class ArchitectureViewEngine(IGraphClient db)
             edgeProps["category"] = category;
             edgeProps["dependency_type"] = depType;
 
-            var isBothProjects = (srcNode.Kind is "Project" or "Service" or "Worker" or "App") &&
-                                 (tgtNode.Kind is "Project" or "Service" or "Worker" or "App");
+            var isBothProjects = (srcNode.Kind is NodeKind.Project or NodeKind.Service or NodeKind.Worker or NodeKind.App) &&
+                                 (tgtNode.Kind is NodeKind.Project or NodeKind.Service or NodeKind.Worker or NodeKind.App);
 
             if (isBothProjects)
             {
@@ -770,7 +772,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
 
             var singleConnDbIds = graph.Nodes
-                .Where(n => n.Kind == "Database" && dbInDegree.GetValueOrDefault(n.Id) <= 1).Select(n => n.Id)
+                .Where(n => n.Kind == NodeKind.Database && dbInDegree.GetValueOrDefault(n.Id) <= 1).Select(n => n.Id)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             if (singleConnDbIds.Count > 0)
@@ -952,7 +954,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 if (nodeLookup.TryGetValue(edge.Target, out var tgtNode))
                 {
-                    if (tgtNode.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) && edge.Kind.Equals("SUBSCRIBES_TO", StringComparison.OrdinalIgnoreCase))
+                    if (tgtNode.Kind == NodeKind.Topic && edge.Kind.Equals("SUBSCRIBES_TO", StringComparison.OrdinalIgnoreCase))
                     {
                         AddNeighborNode(tgtNode, column: "left", role: "topic");
                         AddNeighborEdge(tgtNode.Id, centerId, "SUBSCRIBES", "messaging", edge.Properties);
@@ -961,18 +963,18 @@ public class ArchitectureViewEngine(IGraphClient db)
                     {
                         var role = tgtNode.Kind switch
                         {
-                            "Database" => "database",
-                            "ExternalService" => "service",
-                            "Topic" => "topic",
-                            "Package" => "outbound",
+                            NodeKind.Database => "database",
+                            NodeKind.ExternalService => "service",
+                            NodeKind.Topic => "topic",
+                            NodeKind.Package => "outbound",
                             _ => "outbound"
                         };
                         var cat = edge.Category ?? (tgtNode.Kind switch
                         {
-                            "Database" => "database",
-                            "ExternalService" => "service_call",
-                            "Topic" => "messaging",
-                            "Package" => "library",
+                            NodeKind.Database => "database",
+                            NodeKind.ExternalService => "service_call",
+                            NodeKind.Topic => "messaging",
+                            NodeKind.Package => "library",
                             _ => (edge.Kind == "LIBRARY" ? "library" : "service_call")
                         });
 
@@ -985,10 +987,10 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 if (nodeLookup.TryGetValue(edge.Source, out var srcNode))
                 {
-                    var role = srcNode.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase) ? "topic" : "inbound";
+                    var role = srcNode.Kind == NodeKind.Topic ? "topic" : "inbound";
                     var cat = edge.Category ?? (srcNode.Kind switch
                     {
-                        "Topic" => "messaging",
+                        NodeKind.Topic => "messaging",
                         _ => (edge.Kind == "LIBRARY" ? "library" : "service_call")
                     });
 
@@ -1037,7 +1039,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             if (compIds.Add(id))
             {
-                graph.Nodes.Add(new GraphNodeDto { Id = id, Name = name, Kind = kind, FilePath = path });
+                graph.Nodes.Add(new GraphNodeDto { Id = id, Name = name, Kind = EnumExtensions.ParseNodeKind(kind), FilePath = path });
             }
         }
 
@@ -1460,7 +1462,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                         Id = id,
                         Name = string.IsNullOrEmpty(name) ? $"{srcName} ➔ {tgtName}" : name,
                         DisplayName = $"{srcName} ➔ {tgtName}",
-                        Kind = string.IsNullOrEmpty(relTypeVal) ? (relType ?? "RELATIONSHIP") : relTypeVal,
+                        Kind = EnumExtensions.ParseNodeKind(string.IsNullOrEmpty(relTypeVal) ? relType : relTypeVal),
                         FilePath = filePath,
                         LineStart = line,
                         Properties = new Dictionary<string, string>
@@ -1684,7 +1686,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 {
                     Id = id,
                     Name = name,
-                    Kind = nodeKind,
+                    Kind = EnumExtensions.ParseNodeKind(nodeKind),
                     FilePath = string.IsNullOrEmpty(filePath) ? null : filePath,
                     LineStart = line,
                     Properties = new Dictionary<string, string>()
@@ -1843,22 +1845,16 @@ public class ArchitectureViewEngine(IGraphClient db)
         return response;
     }
 
+    public static bool IsProjectNodeKind(NodeKind kind) =>
+        kind is NodeKind.Project or NodeKind.Service or NodeKind.App or NodeKind.Ingress or NodeKind.Library or NodeKind.SharedLibrary or NodeKind.Worker or NodeKind.CliTool;
+
     public static bool IsProjectNodeKind(string? kind) =>
-        kind != null && (
-            kind.Equals("Project", StringComparison.OrdinalIgnoreCase) ||
-            kind.Equals("Service", StringComparison.OrdinalIgnoreCase) ||
-            kind.Equals("App", StringComparison.OrdinalIgnoreCase) ||
-            kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
-            kind.Equals("Library", StringComparison.OrdinalIgnoreCase) ||
-            kind.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
-            kind.Equals("Worker", StringComparison.OrdinalIgnoreCase) ||
-            kind.Equals("CliTool", StringComparison.OrdinalIgnoreCase));
+        IsProjectNodeKind(EnumExtensions.ParseNodeKind(kind));
 
     public static bool IsLibraryProject(GraphNodeDto? node)
     {
         if (node == null) return false;
-        if (node.Kind.Equals("Library", StringComparison.OrdinalIgnoreCase) ||
-            node.Kind.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
+        if (node.Kind is NodeKind.Library or NodeKind.SharedLibrary)
         {
             return true;
         }
@@ -2055,7 +2051,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                     foreach (var inEdge in incomingToLib)
                     {
                         if (!nodesById.TryGetValue(inEdge.Source, out var srcNode)) continue;
-                        if (srcNode.Kind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase) || inEdge.Kind == "TRIGGERS" || inEdge.Kind == "SUBSCRIBES_TO")
+                        if (srcNode.Kind == NodeKind.Topic || inEdge.Kind == "TRIGGERS" || inEdge.Kind == "SUBSCRIBES_TO")
                         {
                             if (IsInternalTopic(srcNode) || inEdge.Properties?.GetValueOrDefault("is_internal") == "true") continue;
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == srcNode.Id && e.Kind == "SUBSCRIBES_TO")))
@@ -2087,7 +2083,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                         if (!nodesById.TryGetValue(edge.Target, out var targetNode)) continue;
 
                         // Case 1: Library connects to Database -> Lift direct USES_DB to Service
-                        if (targetNode.Kind.Equals(OntologyConstants.NodeLabels.Database, StringComparison.OrdinalIgnoreCase) || edge.Kind == "USES_DB")
+                        if (targetNode.Kind == NodeKind.Database || edge.Kind == "USES_DB")
                         {
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id)))
                             {
@@ -2131,7 +2127,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                             }
                         }
                         // Case 3: Library connects to External Service -> Lift direct SERVICE_CALL
-                        else if (targetNode.Kind.Equals(OntologyConstants.NodeLabels.ExternalService, StringComparison.OrdinalIgnoreCase))
+                        else if (targetNode.Kind == NodeKind.ExternalService)
                         {
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && e.Kind == "SERVICE_CALL")))
                             {
@@ -2153,7 +2149,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                             }
                         }
                         // Case 4: Library publishes to Topic -> Lift direct PUBLISHES_TO
-                        else if (targetNode.Kind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
+                        else if (targetNode.Kind == NodeKind.Topic)
                         {
                             if (IsInternalTopic(targetNode) || edge.Properties?.GetValueOrDefault("is_internal") == "true") continue;
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && (e.Kind == "TRIGGERS" || e.Kind == "PUBLISHES_TO"))))
@@ -2341,16 +2337,16 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var name = row.GetStringProp("name", id);
                 if (string.IsNullOrWhiteSpace(name)) continue;
 
-                var kind = "Service";
+                var nodeKind = NodeKind.Service;
 
                 if (row.TryGetProperty("role", out var roleProp) && roleProp.ValueKind == JsonValueKind.String)
                 {
                     var r = roleProp.GetString();
 
-                    if (r is "FrontendApp" or "App") kind = "App";
-                    else if (r is "Worker") kind = "Worker";
-                    else if (r is "SharedLibrary" or "Library") kind = "Library";
-                    else if (r is "CliTool") kind = "CliTool";
+                    if (r is "FrontendApp" or "App") nodeKind = NodeKind.App;
+                    else if (r is "Worker") nodeKind = NodeKind.Worker;
+                    else if (r is "SharedLibrary" or "Library") nodeKind = NodeKind.Library;
+                    else if (r is "CliTool") nodeKind = NodeKind.CliTool;
                 }
                 else if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
                 {
@@ -2360,7 +2356,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
                         if (ls is "Service" or "Worker" or "App" or "CliTool" or "FrontendApp")
                         {
-                            kind = ls;
+                            nodeKind = EnumExtensions.ParseNodeKind(ls);
                             break;
                         }
                     }
@@ -2372,16 +2368,16 @@ public class ArchitectureViewEngine(IGraphClient db)
                     {
                         ServiceId = id,
                         ServiceName = name,
-                        Kind = kind,
+                        Kind = nodeKind,
                         Framework = row.GetStringProp("framework"),
                         Language = row.GetStringProp("language")
                     };
                     serviceMap[name] = dto;
                 }
-                else if (existing.Kind == "Project" && kind != "Project")
+                else if (existing.Kind == NodeKind.Project && nodeKind != NodeKind.Project)
                 {
                     existing.ServiceId = id;
-                    existing.Kind = kind;
+                    existing.Kind = nodeKind;
 
                     if (!string.IsNullOrEmpty(row.GetStringProp("framework")))
                         existing.Framework = row.GetStringProp("framework");
@@ -2450,7 +2446,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 {
                     var tgtName = tgtNode?.Name ?? edge.Target;
 
-                    if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == "Database")
+                    if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == NodeKind.Database)
                     {
                         if (seenServiceDbs.Add($"{srcSummary.ServiceName}->{tgtName}"))
                         {
@@ -2458,7 +2454,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                         }
                     }
                     else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" ||
-                             tgtNode?.Kind == "Topic")
+                             tgtNode?.Kind == NodeKind.Topic)
                     {
                         var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
                                          tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
@@ -2474,7 +2470,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                     else
                     {
                         var isInternalDirect = tgtNode != null && IsProjectNodeKind(tgtNode.Kind) &&
-                                               tgtNode.Kind is not ("ExternalService" or "CloudService");
+                                               tgtNode.Kind is not (NodeKind.ExternalService or NodeKind.CloudService);
 
                         var isServiceCall = edge.Category == "service_call" ||
                                             edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT" ||
@@ -2489,7 +2485,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                                 srcSummary.ServiceCount++;
                             }
                         }
-                        else if (tgtNode?.Kind is "ExternalService" or "CloudService" ||
+                        else if (tgtNode?.Kind is NodeKind.ExternalService or NodeKind.CloudService ||
                                  (!isInternalDirect && (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT")))
                         {
                             var resolved = ResolveInternalServiceNode(tgtName, internalProjectsByName);
@@ -2530,7 +2526,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 if (tgtNode != null && serviceMap.TryGetValue(tgtNode.Name, out var tgtSummary))
                 {
                     if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBED_BY" or "SUBSCRIBES_TO" ||
-                        srcNode?.Kind == "Topic")
+                        srcNode?.Kind == NodeKind.Topic)
                     {
                         var topicName = srcNode?.Name ?? edge.Source;
 
@@ -2566,7 +2562,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             ServiceName = targetNode?.Name ?? serviceName,
             ServiceId = targetNode?.Id ?? serviceName,
-            Kind = targetNode?.Kind ?? "Service",
+            Kind = targetNode?.Kind ?? NodeKind.Service,
             Framework = targetNode?.Properties?.GetValueOrDefault("framework"),
             Language = targetNode?.Properties?.GetValueOrDefault("language") ?? targetNode?.Properties?.GetValueOrDefault("project_type")
         };
@@ -2604,7 +2600,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 {
                     Id = id,
                     Name = name,
-                    Kind = "Endpoint",
+                    Kind = NodeKind.Endpoint,
                     Method = method,
                     Route = route,
                     Protocol = protocol,
@@ -2632,7 +2628,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var tgtNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Target, StringComparison.OrdinalIgnoreCase));
                 var tgtName = tgtNode?.Name ?? edge.Target;
 
-                if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == "Database")
+                if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == NodeKind.Database)
                 {
                     if (seenDbs.Add(tgtName))
                     {
@@ -2640,14 +2636,14 @@ public class ArchitectureViewEngine(IGraphClient db)
                         {
                             Id = tgtNode?.Id ?? edge.Target,
                             Name = tgtName,
-                            Kind = "Database",
+                            Kind = NodeKind.Database,
                             Details = tgtNode?.Properties?.GetValueOrDefault("engine") ?? tgtNode?.Properties?.GetValueOrDefault("db_type") ?? "database",
                             FilePath = tgtNode?.FilePath,
                             Line = tgtNode?.LineStart
                         });
                     }
                 }
-                else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == "Topic")
+                else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == NodeKind.Topic)
                 {
                     if (seenTopics.Add(tgtName))
                     {
@@ -2655,7 +2651,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                         {
                             Id = tgtNode?.Id ?? edge.Target,
                             Name = tgtName,
-                            Kind = "Topic",
+                            Kind = NodeKind.Topic,
                             Details = "Published topic",
                             FilePath = tgtNode?.FilePath,
                             Line = tgtNode?.LineStart
@@ -2664,7 +2660,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 }
                 else
                 {
-                    var isInternalDirect = tgtNode != null && IsProjectNodeKind(tgtNode.Kind) && tgtNode.Kind is not ("ExternalService" or "CloudService");
+                    var isInternalDirect = tgtNode != null && IsProjectNodeKind(tgtNode.Kind) && tgtNode.Kind is not (NodeKind.ExternalService or NodeKind.CloudService);
                     var isServiceCall = edge.Category == "service_call" || edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT" || (edge.Kind == "DEPENDS_ON" && edge.Properties?.GetValueOrDefault("dependency_type") == "service_call");
 
                     if (isInternalDirect && isServiceCall)
@@ -2684,14 +2680,14 @@ public class ArchitectureViewEngine(IGraphClient db)
                             {
                                 Id = tgtNode?.Id ?? edge.Target,
                                 Name = tgtName,
-                                Kind = tgtNode?.Kind ?? "Service",
+                                Kind = tgtNode?.Kind ?? NodeKind.Service,
                                 Details = detailsStr,
                                 FilePath = tgtNode?.FilePath,
                                 Line = tgtNode?.LineStart
                             });
                         }
                     }
-                    else if (tgtNode?.Kind is "ExternalService" or "CloudService" || (!isInternalDirect && (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT")))
+                    else if (tgtNode?.Kind is NodeKind.ExternalService or NodeKind.CloudService || (!isInternalDirect && (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT")))
                     {
                         var resolved = ResolveInternalServiceNode(tgtName, internalProjectsByName);
                         if (resolved != null)
@@ -2733,7 +2729,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                                 {
                                     Id = tgtNode?.Id ?? edge.Target,
                                     Name = cleanSvc,
-                                    Kind = "Service",
+                                    Kind = NodeKind.Service,
                                     Details = "Internal Service (via environment)",
                                     FilePath = tgtNode?.FilePath,
                                     Line = tgtNode?.LineStart
@@ -2748,7 +2744,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                                 {
                                     Id = tgtNode?.Id ?? edge.Target,
                                     Name = tgtName,
-                                    Kind = tgtNode?.Kind ?? "ExternalService",
+                                    Kind = tgtNode?.Kind ?? NodeKind.ExternalService,
                                     Details = tgtNode?.Properties?.GetValueOrDefault("service_type") ?? "external API",
                                     FilePath = tgtNode?.FilePath,
                                     Line = tgtNode?.LineStart
@@ -2770,7 +2766,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                         {
                             Id = srcNode?.Id ?? edge.Source,
                             Name = topicName,
-                            Kind = "Topic",
+                            Kind = NodeKind.Topic,
                             Details = "Subscribed topic",
                             FilePath = srcNode?.FilePath,
                             Line = srcNode?.LineStart
@@ -2938,8 +2934,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
         // 3. Standalone fallback
         var framework = node.Properties?.GetValueOrDefault("framework", "") ?? "";
-        var isIngress = node.Kind.Equals("App", StringComparison.OrdinalIgnoreCase) ||
-                        node.Kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+        var isIngress = node.Kind is NodeKind.App or NodeKind.Ingress ||
                         string.Equals(node.Properties?.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(node.Properties?.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
@@ -2959,7 +2954,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
     public static bool IsInternalTopic(GraphNodeDto node)
     {
-        if (!string.Equals(node.Kind, OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase)) return false;
+        if (node.Kind != NodeKind.Topic) return false;
         var broker = node.Properties?.GetValueOrDefault("broker_type")?.ToLowerInvariant() ?? "";
         return broker is "mediatr" or "in-memory" ||
                string.Equals(node.Properties?.GetValueOrDefault("is_internal"), "true", StringComparison.OrdinalIgnoreCase) ||
@@ -2996,14 +2991,13 @@ public class ArchitectureViewEngine(IGraphClient db)
                 domainProjectsMap[domainKey] = pList;
 
                 var isIngress = !isLib &&
-                                (node.Kind.Equals("App", StringComparison.OrdinalIgnoreCase) ||
-                                 node.Kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                                (node.Kind is NodeKind.App or NodeKind.Ingress ||
                                  string.Equals(node.Properties?.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
                                  string.Equals(node.Properties?.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase) ||
                                  string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
                                  string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
                                  isIngressHint) &&
-                                !node.Kind.Equals("Worker", StringComparison.OrdinalIgnoreCase) &&
+                                node.Kind != NodeKind.Worker &&
                                 node.Properties?.GetValueOrDefault("role") != "Worker";
                 domainZoneMap[domainKey] = isIngress ? "ingress" : "service";
                 domainNameMap[domainKey] = (node.Name, domainDisplayName, node.Properties?.GetValueOrDefault("framework"), node.Properties?.GetValueOrDefault("language") ?? node.Properties?.GetValueOrDefault("project_type"));
@@ -3024,14 +3018,13 @@ public class ArchitectureViewEngine(IGraphClient db)
                 if (!isLib)
                 {
                     domainNameMap[domainKey] = (node.Name, domainDisplayName, node.Properties?.GetValueOrDefault("framework"), node.Properties?.GetValueOrDefault("language") ?? node.Properties?.GetValueOrDefault("project_type"));
-                    var isIngress = (node.Kind.Equals("App", StringComparison.OrdinalIgnoreCase) ||
-                                     node.Kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                    var isIngress = (node.Kind is NodeKind.App or NodeKind.Ingress ||
                                      string.Equals(node.Properties?.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
                                      string.Equals(node.Properties?.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase) ||
                                      string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
                                      string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
                                      isIngressHint) &&
-                                    !node.Kind.Equals("Worker", StringComparison.OrdinalIgnoreCase) &&
+                                    node.Kind != NodeKind.Worker &&
                                     node.Properties?.GetValueOrDefault("role") != "Worker";
                     domainZoneMap[domainKey] = isIngress ? "ingress" : "service";
                 }
@@ -3045,12 +3038,12 @@ public class ArchitectureViewEngine(IGraphClient db)
 
         foreach (var node in archGraph.Nodes)
         {
-            if (node.Kind.Equals("Database", StringComparison.OrdinalIgnoreCase))
+            if (node.Kind == NodeKind.Database)
             {
                 dbNodes[node.Id] = node;
                 projToDomainMap[node.Id] = node.Id;
             }
-            else if (node.Kind.Equals("Topic", StringComparison.OrdinalIgnoreCase))
+            else if (node.Kind == NodeKind.Topic)
             {
                 if (IsInternalTopic(node))
                 {
@@ -3071,7 +3064,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 topicNodes[node.Id] = node;
                 projToDomainMap[node.Id] = node.Id;
             }
-            else if (node.Kind.Equals("ExternalService", StringComparison.OrdinalIgnoreCase))
+            else if (node.Kind == NodeKind.ExternalService)
             {
                 extNodes[node.Id] = node;
                 projToDomainMap[node.Id] = node.Id;
@@ -3182,7 +3175,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             var primary = domainPrimaryMap.GetValueOrDefault(domainId);
 
             var isLibDomain = projects.Count > 0
-                ? projects.All(p => p.IsLibrary || p.Kind?.Equals("Library", StringComparison.OrdinalIgnoreCase) == true || p.Kind?.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase) == true)
+                ? projects.All(p => p.IsLibrary || p.Kind is NodeKind.Library or NodeKind.SharedLibrary)
                 : (primary != null && IsLibraryProject(primary));
 
             if (isLibDomain)
@@ -3193,12 +3186,12 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             var zone = domainZoneMap.GetValueOrDefault(domainId, "service");
             var isIngress = zone == "ingress";
-            var isWorker = primary?.Kind?.Equals("Worker", StringComparison.OrdinalIgnoreCase) == true ||
+            var isWorker = primary?.Kind == NodeKind.Worker ||
                            primary?.Properties?.GetValueOrDefault("role") == "Worker" ||
-                           projects.Any(p => p.Kind?.Equals("Worker", StringComparison.OrdinalIgnoreCase) == true);
+                           projects.Any(p => p.Kind == NodeKind.Worker);
 
             string tag;
-            string nodeKind;
+            NodeKind nodeKind;
             string bgColor;
             string borderColor;
             int size;
@@ -3207,7 +3200,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 stats.Ingress++;
                 tag = ":Ingress";
-                nodeKind = "Ingress";
+                nodeKind = NodeKind.Ingress;
                 bgColor = "#0288d1";
                 borderColor = "#01579b";
                 size = 54;
@@ -3216,7 +3209,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 stats.Workers++;
                 tag = ":Worker";
-                nodeKind = "Worker";
+                nodeKind = NodeKind.Worker;
                 bgColor = "#c026d3";
                 borderColor = "#86198f";
                 size = 48;
@@ -3225,7 +3218,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 stats.Services++;
                 tag = ":Service";
-                nodeKind = "Service";
+                nodeKind = NodeKind.Service;
                 bgColor = "#e53935";
                 borderColor = "#7f1d1d";
                 size = 50;
@@ -3265,7 +3258,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 Id = dbId,
                 Name = dbNode.Name,
                 DisplayName = dbNode.DisplayName ?? dbNode.Name,
-                Kind = "Database",
+                Kind = NodeKind.Database,
                 DisplayTag = ":DB",
                 Zone = "database",
                 BgColor = "#7b1fa2",
@@ -3287,7 +3280,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 Id = tId,
                 Name = tNode.Name,
                 DisplayName = tNode.DisplayName ?? tNode.Name,
-                Kind = "Topic",
+                Kind = NodeKind.Topic,
                 DisplayTag = ":Topic",
                 Zone = "topic",
                 BgColor = "#f59e0b",
@@ -3309,7 +3302,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 Id = extId,
                 Name = extNode.Name,
                 DisplayName = extNode.DisplayName ?? extNode.Name,
-                Kind = "ExternalService",
+                Kind = NodeKind.ExternalService,
                 DisplayTag = ":External",
                 Zone = "external",
                 BgColor = "#26a69a",
@@ -3322,7 +3315,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         var validNodeIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var filteredEdges = macroEdges.Values.Where(e => validNodeIds.Contains(e.Source) && validNodeIds.Contains(e.Target)).ToList();
 
-        stats.TotalDomains = nodes.Count(n => n.Kind is "Service" or "Ingress" or "Worker");
+        stats.TotalDomains = nodes.Count(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.Worker);
         stats.ServiceCalls = filteredEdges.Where(e => e.Category == "service_call").Sum(e => e.Count);
         stats.Messages = filteredEdges.Where(e => e.Category == "messaging").Sum(e => e.Count);
 
@@ -3401,7 +3394,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
 
             var singleConnDbIds = graph.Nodes
-                .Where(n => n.Kind == "Database" && dbInDegree.GetValueOrDefault(n.Id) <= 1)
+                .Where(n => n.Kind == NodeKind.Database && dbInDegree.GetValueOrDefault(n.Id) <= 1)
                 .Select(n => n.Id)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -4082,7 +4075,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             graph.Nodes.Add(new GraphNodeDto
             {
                 Id = c.Id,
-                Kind = "BoundedContext",
+                Kind = NodeKind.BoundedContext,
                 Name = c.Name,
                 DisplayName = c.DisplayName,
                 Properties = new Dictionary<string, string>
@@ -4148,7 +4141,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         var contract = new ServiceContractDto
         {
             ServiceName = targetNode?.Name ?? serviceName,
-            Kind = targetNode?.Kind ?? "Service",
+            Kind = targetNode?.Kind ?? NodeKind.Service,
             Framework = targetNode?.Properties?.GetValueOrDefault("framework"),
             Language = targetNode?.Properties?.GetValueOrDefault("language") ?? targetNode?.Properties?.GetValueOrDefault("project_type")
         };
@@ -4213,11 +4206,11 @@ public class ArchitectureViewEngine(IGraphClient db)
                     var tgtNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Target, StringComparison.OrdinalIgnoreCase));
                     var tgtName = tgtNode?.Name ?? edge.Target;
 
-                    if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == "Database")
+                    if (edge.Category == "database" || edge.Kind == "USES_DB" || tgtNode?.Kind == NodeKind.Database)
                     {
                         if (!contract.Databases.Contains(tgtName)) contract.Databases.Add(tgtName);
                     }
-                    else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == "Topic")
+                    else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == NodeKind.Topic)
                     {
                         var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
                                          tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
@@ -4225,7 +4218,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                                          edge.Target.Contains(":mediatr:");
                         if (!isInternal && !contract.PublishedTopics.Contains(tgtName)) contract.PublishedTopics.Add(tgtName);
                     }
-                    else if (tgtNode?.Kind == "ExternalService")
+                    else if (tgtNode?.Kind == NodeKind.ExternalService)
                     {
                         if (!contract.ExternalServices.Contains(tgtName)) contract.ExternalServices.Add(tgtName);
                     }
@@ -4328,10 +4321,10 @@ public class ArchitectureViewEngine(IGraphClient db)
         sb.AppendLine("## Bounded Contexts & Services");
         sb.AppendLine("| Domain | Kind | Projects | Inbound Calls | Outbound Calls | Databases | Topics |");
         sb.AppendLine("|---|---|---|---|---|---|---|");
-        foreach (var d in dto.Nodes.Where(n => n.Kind is "Service" or "Ingress" or "Worker" or "Library"))
+        foreach (var d in dto.Nodes.Where(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.Worker or NodeKind.Library))
         {
             var pCount = d.Projects.Count > 0 ? string.Join(", ", d.Projects.Select(p => p.Name)) : d.Name;
-            sb.AppendLine($"| {d.DisplayName} | `{d.Kind}` | {pCount} | {d.InboundCallsCount} | {d.OutboundCallsCount} | {d.DbCount} | {d.MessagingCount} |");
+            sb.AppendLine($"| {d.DisplayName} | `{d.Kind.ToCypherLabel()}` | {pCount} | {d.InboundCallsCount} | {d.OutboundCallsCount} | {d.DbCount} | {d.MessagingCount} |");
         }
         sb.AppendLine();
         sb.AppendLine("## Inter-Domain Relationships");
@@ -4358,9 +4351,9 @@ public class ArchitectureViewEngine(IGraphClient db)
         sb.AppendLine($"    calls: {dto.Stats.ServiceCalls}");
         sb.AppendLine($"    messages: {dto.Stats.Messages}");
         sb.AppendLine("  domains:");
-        foreach (var d in dto.Nodes.Where(n => n.Kind is "Service" or "Ingress" or "Worker" or "Library"))
+        foreach (var d in dto.Nodes.Where(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.Worker or NodeKind.Library))
         {
-            sb.AppendLine($"    - id: {d.Id}, name: {d.DisplayName}, kind: {d.Kind}, calls_in: {d.InboundCallsCount}, calls_out: {d.OutboundCallsCount}, dbs: {d.DbCount}, topics: {d.MessagingCount}");
+            sb.AppendLine($"    - id: {d.Id}, name: {d.DisplayName}, kind: {d.Kind.ToCypherLabel()}, calls_in: {d.InboundCallsCount}, calls_out: {d.OutboundCallsCount}, dbs: {d.DbCount}, topics: {d.MessagingCount}");
         }
         sb.AppendLine("  macro_edges:");
         foreach (var e in dto.Edges)
@@ -4380,12 +4373,12 @@ public class ArchitectureViewEngine(IGraphClient db)
             var raw = node.Id ?? "";
             string prefix = node.Kind switch
             {
-                "Ingress" => "app",
-                "Service" or "Worker" => "svc",
-                "Database" => "db",
-                "Topic" => "topic",
-                "ExternalService" => "ext",
-                "Library" => "lib",
+                NodeKind.Ingress => "app",
+                NodeKind.Service or NodeKind.Worker => "svc",
+                NodeKind.Database => "db",
+                NodeKind.Topic => "topic",
+                NodeKind.ExternalService => "ext",
+                NodeKind.Library => "lib",
                 _ => "node"
             };
 
@@ -4448,7 +4441,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                                   Regex.Replace(s, @"[^a-zA-Z0-9_]", "_");
         var esc = (string s) => s?.Replace("\"", "'") ?? "";
 
-        var ingress = dto.Nodes.Where(n => n.Kind == "Ingress").ToList();
+        var ingress = dto.Nodes.Where(n => n.Kind == NodeKind.Ingress).ToList();
         if (ingress.Count > 0)
         {
             sb.AppendLine("  subgraph Ingress [\"Apps & Ingress\"]");
@@ -4456,7 +4449,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             sb.AppendLine("  end");
         }
 
-        var services = dto.Nodes.Where(n => n.Kind == "Service" || n.Kind == "Worker").ToList();
+        var services = dto.Nodes.Where(n => n.Kind is NodeKind.Service or NodeKind.Worker).ToList();
         if (services.Count > 0)
         {
             sb.AppendLine("  subgraph Services [\"Core Services\"]");
@@ -4464,7 +4457,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             sb.AppendLine("  end");
         }
 
-        var dbs = dto.Nodes.Where(n => n.Kind == "Database").ToList();
+        var dbs = dto.Nodes.Where(n => n.Kind == NodeKind.Database).ToList();
         if (dbs.Count > 0)
         {
             sb.AppendLine("  subgraph Databases [\"Databases\"]");
@@ -4472,7 +4465,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             sb.AppendLine("  end");
         }
 
-        var topics = dto.Nodes.Where(n => n.Kind == "Topic").ToList();
+        var topics = dto.Nodes.Where(n => n.Kind == NodeKind.Topic).ToList();
         if (topics.Count > 0)
         {
             sb.AppendLine("  subgraph Topics [\"Message Queues\"]");
@@ -4480,7 +4473,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             sb.AppendLine("  end");
         }
 
-        var external = dto.Nodes.Where(n => n.Kind == "ExternalService").ToList();
+        var external = dto.Nodes.Where(n => n.Kind == NodeKind.ExternalService).ToList();
         if (external.Count > 0)
         {
             sb.AppendLine("  subgraph External [\"External Systems\"]");
@@ -4488,7 +4481,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             sb.AppendLine("  end");
         }
 
-        var libs = dto.Nodes.Where(n => n.Kind == "Library").ToList();
+        var libs = dto.Nodes.Where(n => n.Kind == NodeKind.Library).ToList();
         if (libs.Count > 0)
         {
             sb.AppendLine("  subgraph Libraries [\"Shared Libraries\"]");
@@ -4657,7 +4650,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             var label = !string.IsNullOrWhiteSpace(node.Name) ? node.Name : node.Id;
             sb.AppendLine($"    - id: {node.Id}");
             sb.AppendLine($"      name: {label}");
-            sb.AppendLine($"      kind: {node.Kind}");
+            sb.AppendLine($"      kind: {node.Kind.ToCypherLabel()}");
         }
         sb.AppendLine("  edges:");
         foreach (var edge in graph.Edges)
@@ -4681,7 +4674,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         {
             var label = !string.IsNullOrWhiteSpace(node.Name) ? node.Name : node.Id;
             var subkind = node.Properties != null && node.Properties.TryGetValue("subkind", out var sk) ? sk : "N/A";
-            sb.AppendLine($"| **{label}** | `{node.Kind}` | {subkind} |");
+            sb.AppendLine($"| **{label}** | `{node.Kind.ToCypherLabel()}` | {subkind} |");
         }
         sb.AppendLine();
         sb.AppendLine("## Relationships");

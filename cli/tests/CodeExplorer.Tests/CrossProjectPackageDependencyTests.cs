@@ -2,6 +2,7 @@ using System.Text.Json;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
@@ -412,7 +413,7 @@ require (
 
             var angularNode = hood.Nodes.FirstOrDefault(n => n.Id == "workspace:package:@angular/core");
             Assert.That(angularNode, Is.Not.Null, "@angular/core should exist in neighborhood nodes");
-            Assert.That(angularNode!.Kind, Is.EqualTo("Package"));
+            Assert.That(angularNode!.Kind, Is.EqualTo(NodeKind.Package));
             Assert.That(angularNode.DisplayName, Is.EqualTo("@angular/core@^13.0.1"));
             Assert.That(angularNode.Properties?.GetValueOrDefault("column"), Is.EqualTo("right"));
             Assert.That(angularNode.Properties?.GetValueOrDefault("is_library"), Is.EqualTo("true"));
@@ -431,7 +432,7 @@ require (
             var archProj = arch.Nodes.FirstOrDefault(n => n.Id == "workspace:project:Admin:");
             Assert.That(archProj?.Properties?.GetValueOrDefault("package_count"), Is.EqualTo("2"));
 
-            Assert.That(arch.Nodes.Any(n => n.Kind == "Package"), Is.True,
+            Assert.That(arch.Nodes.Any(n => n.Kind == NodeKind.Package), Is.True,
                 "Architecture graph should contain package nodes");
 
             Assert.That(arch.Edges.Any(e => e.Target == "workspace:package:@angular/core" && e.Kind == "LIBRARY"),

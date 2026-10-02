@@ -1,5 +1,10 @@
+using System;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace CodeExplorer.Cypher.Common;
 
+[JsonConverter(typeof(NodeKindJsonConverter))]
 public enum NodeKind
 {
     Unspecified = 0,
@@ -29,7 +34,10 @@ public enum NodeKind
     TestSuite = 24,
     Test = 25,
     Procedure = 26,
-    Workspace = 27
+    Workspace = 27,
+    Domain = 28,
+    BoundedContext = 29,
+    Ingress = 30
 }
 
 public enum RelationshipKind
@@ -101,71 +109,25 @@ public enum ArchitectureViewType
 
 public static class EnumExtensions
 {
-    public static string ToCypherLabel(this NodeKind kind) => kind switch
-    {
-        NodeKind.Service => "Service",
-        NodeKind.App => "App",
-        NodeKind.Worker => "Worker",
-        NodeKind.CliTool => "CliTool",
-        NodeKind.Library => "Library",
-        NodeKind.SharedLibrary => "SharedLibrary",
-        NodeKind.Database => "Database",
-        NodeKind.Topic => "Topic",
-        NodeKind.ExternalService => "ExternalService",
-        NodeKind.Project => "Project",
-        NodeKind.Endpoint => "Endpoint",
-        NodeKind.EntryPoint => "EntryPoint",
-        NodeKind.Table => "Table",
-        NodeKind.Query => "Query",
-        NodeKind.Type => "Type",
-        NodeKind.Function => "Function",
-        NodeKind.Member => "Member",
-        NodeKind.File => "File",
-        NodeKind.Folder => "Folder",
-        NodeKind.Package => "Package",
-        NodeKind.DataSet => "DataSet",
-        NodeKind.CloudService => "CloudService",
-        NodeKind.ApiInUse => "ApiInUse",
-        NodeKind.TestSuite => "TestSuite",
-        NodeKind.Test => "Test",
-        NodeKind.Procedure => "Procedure",
-        NodeKind.Workspace => "Workspace",
-        _ => kind.ToString()
-    };
+    public static string ToCypherLabel(this NodeKind kind) => kind.ToString();
 
     public static NodeKind ParseNodeKind(string? label)
     {
         if (string.IsNullOrWhiteSpace(label)) return NodeKind.Unspecified;
         if (Enum.TryParse<NodeKind>(label, ignoreCase: true, out var kind))
             return kind;
+        
         return label.ToLowerInvariant() switch
         {
-            "service" => NodeKind.Service,
-            "app" or "frontendapp" or "ingress" => NodeKind.App,
-            "worker" => NodeKind.Worker,
-            "clitool" or "cli" => NodeKind.CliTool,
-            "library" => NodeKind.Library,
-            "sharedlibrary" => NodeKind.SharedLibrary,
-            "database" or "db" => NodeKind.Database,
-            "topic" or "queue" or "broker" => NodeKind.Topic,
-            "externalservice" or "external" => NodeKind.ExternalService,
-            "endpoint" => NodeKind.Endpoint,
-            "entrypoint" => NodeKind.EntryPoint,
-            "table" => NodeKind.Table,
-            "query" => NodeKind.Query,
-            "type" or "class" or "interface" => NodeKind.Type,
-            "function" or "method" => NodeKind.Function,
-            "member" or "field" or "property" => NodeKind.Member,
-            "file" => NodeKind.File,
-            "folder" => NodeKind.Folder,
-            "package" => NodeKind.Package,
-            "dataset" => NodeKind.DataSet,
-            "cloudservice" => NodeKind.CloudService,
-            "apiinuse" => NodeKind.ApiInUse,
-            "testsuite" => NodeKind.TestSuite,
-            "test" => NodeKind.Test,
-            "procedure" => NodeKind.Procedure,
-            "workspace" => NodeKind.Workspace,
+            "frontendapp" => NodeKind.App,
+            "cli" => NodeKind.CliTool,
+            "db" => NodeKind.Database,
+            "queue" or "broker" => NodeKind.Topic,
+            "external" => NodeKind.ExternalService,
+            "class" or "interface" => NodeKind.Type,
+            "method" => NodeKind.Function,
+            "field" or "property" => NodeKind.Member,
+            "bounded_context" or "context" => NodeKind.BoundedContext,
             _ => NodeKind.Unspecified
         };
     }
@@ -192,89 +154,85 @@ public static class EnumExtensions
     public static RelationshipKind ParseRelationshipKind(string? relType)
     {
         if (string.IsNullOrWhiteSpace(relType)) return RelationshipKind.Unspecified;
-        var normalized = relType.Replace("_", "").ToLowerInvariant();
-        return normalized switch
-        {
-            "calls" => RelationshipKind.Calls,
-            "dependson" => RelationshipKind.DependsOn,
-            "servicecall" => RelationshipKind.ServiceCall,
-            "usesdb" => RelationshipKind.UsesDb,
-            "produces" => RelationshipKind.Produces,
-            "consumes" => RelationshipKind.Consumes,
-            "callsendpoint" => RelationshipKind.CallsEndpoint,
-            "contains" => RelationshipKind.Contains,
-            "implements" => RelationshipKind.Implements,
-            "writesto" => RelationshipKind.WritesTo,
-            "readsfrom" => RelationshipKind.ReadsFrom,
-            "exposes" => RelationshipKind.Exposes,
-            "attributedto" => RelationshipKind.AttributedTo,
-            "configures" => RelationshipKind.Configures,
-            _ => Enum.TryParse<RelationshipKind>(relType, ignoreCase: true, out var kind) ? kind : RelationshipKind.Unspecified
-        };
+        return Enum.TryParse<RelationshipKind>(relType.Replace("_", ""), ignoreCase: true, out var kind)
+            ? kind
+            : RelationshipKind.Unspecified;
     }
 
     public static ProjectRole ParseProjectRole(string? role)
     {
         if (string.IsNullOrWhiteSpace(role)) return ProjectRole.Unspecified;
+        if (Enum.TryParse<ProjectRole>(role, ignoreCase: true, out var r))
+            return r;
         return role.ToLowerInvariant() switch
         {
-            "service" => ProjectRole.Service,
-            "app" or "frontendapp" or "ingress" => ProjectRole.App,
-            "worker" => ProjectRole.Worker,
-            "clitool" or "cli" => ProjectRole.CliTool,
-            "sharedlibrary" or "library" => ProjectRole.SharedLibrary,
-            "test" => ProjectRole.Test,
-            "general" => ProjectRole.General,
-            _ => Enum.TryParse<ProjectRole>(role, ignoreCase: true, out var r) ? r : ProjectRole.Unspecified
+            "frontendapp" or "ingress" => ProjectRole.App,
+            "cli" => ProjectRole.CliTool,
+            "library" => ProjectRole.SharedLibrary,
+            _ => ProjectRole.Unspecified
         };
     }
 
     public static DatabaseType ParseDatabaseType(string? dbType)
     {
         if (string.IsNullOrWhiteSpace(dbType)) return DatabaseType.Unspecified;
+        if (Enum.TryParse<DatabaseType>(dbType, ignoreCase: true, out var t))
+            return t;
         return dbType.ToLowerInvariant() switch
         {
-            "relational" or "rdbms" or "sql" => DatabaseType.Relational,
-            "document" or "nosql" or "mongodb" => DatabaseType.Document,
-            "keyvalue" or "kv" => DatabaseType.KeyValue,
-            "search" or "elasticsearch" => DatabaseType.Search,
-            "cache" or "redis" or "memcached" => DatabaseType.Cache,
-            "vector" => DatabaseType.Vector,
-            "graph" => DatabaseType.Graph,
-            _ => Enum.TryParse<DatabaseType>(dbType, ignoreCase: true, out var t) ? t : DatabaseType.Unspecified
+            "rdbms" or "sql" => DatabaseType.Relational,
+            "nosql" or "mongodb" => DatabaseType.Document,
+            "kv" => DatabaseType.KeyValue,
+            "elasticsearch" => DatabaseType.Search,
+            "redis" or "memcached" => DatabaseType.Cache,
+            _ => DatabaseType.Unspecified
         };
     }
 
     public static NetworkProtocol ParseNetworkProtocol(string? protocol)
     {
         if (string.IsNullOrWhiteSpace(protocol)) return NetworkProtocol.Unspecified;
-        return protocol.ToLowerInvariant() switch
-        {
-            "http" => NetworkProtocol.Http,
-            "https" => NetworkProtocol.Https,
-            "grpc" => NetworkProtocol.Grpc,
-            "ws" => NetworkProtocol.Ws,
-            "wss" => NetworkProtocol.Wss,
-            "amqp" => NetworkProtocol.Amqp,
-            "kafka" => NetworkProtocol.Kafka,
-            "soap" => NetworkProtocol.Soap,
-            _ => Enum.TryParse<NetworkProtocol>(protocol, ignoreCase: true, out var p) ? p : NetworkProtocol.Unspecified
-        };
+        return Enum.TryParse<NetworkProtocol>(protocol, ignoreCase: true, out var p)
+            ? p
+            : NetworkProtocol.Unspecified;
     }
 
     public static ArchitectureViewType ParseArchitectureViewType(string? viewType)
     {
         if (string.IsNullOrWhiteSpace(viewType)) return ArchitectureViewType.Unspecified;
-        var normalized = viewType.Replace("-", "").Replace("_", "").ToLowerInvariant();
-        return normalized switch
+        var normalized = viewType.Replace("-", "").Replace("_", "");
+        if (Enum.TryParse<ArchitectureViewType>(normalized, ignoreCase: true, out var vt))
+            return vt;
+        return normalized.ToLowerInvariant() switch
         {
-            "systemcontext" or "c1" => ArchitectureViewType.SystemContext,
-            "domainarchitecture" or "domain" or "macro" => ArchitectureViewType.DomainArchitecture,
-            "serviceflow" or "c2" => ArchitectureViewType.ServiceFlow,
-            "boundedcontexts" or "context" => ArchitectureViewType.BoundedContexts,
-            "tiered" or "layer" => ArchitectureViewType.Tiered,
-            "nodegrid" or "grid" => ArchitectureViewType.NodeGrid,
-            _ => Enum.TryParse<ArchitectureViewType>(viewType, ignoreCase: true, out var vt) ? vt : ArchitectureViewType.Unspecified
+            "c1" => ArchitectureViewType.SystemContext,
+            "domain" or "macro" => ArchitectureViewType.DomainArchitecture,
+            "c2" => ArchitectureViewType.ServiceFlow,
+            "context" => ArchitectureViewType.BoundedContexts,
+            "layer" => ArchitectureViewType.Tiered,
+            "grid" => ArchitectureViewType.NodeGrid,
+            _ => ArchitectureViewType.Unspecified
         };
+    }
+}
+
+public class NodeKindJsonConverter : JsonConverter<NodeKind>
+{
+    public override NodeKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            return EnumExtensions.ParseNodeKind(reader.GetString());
+        }
+        if (reader.TokenType == JsonTokenType.Number)
+        {
+            return (NodeKind)reader.GetInt32();
+        }
+        return NodeKind.Unspecified;
+    }
+
+    public override void Write(Utf8JsonWriter writer, NodeKind value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToCypherLabel());
     }
 }
