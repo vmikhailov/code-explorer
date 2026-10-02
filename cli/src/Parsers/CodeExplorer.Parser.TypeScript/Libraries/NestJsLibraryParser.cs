@@ -96,6 +96,12 @@ public class NestJsLibraryParser : ISemanticExtension
                 {
                     routeVal = CombineRoutes(classPrefix, routeVal);
                 }
+
+                var version = GetVersionForNode(node);
+                if (!string.IsNullOrEmpty(version))
+                {
+                    routeVal = CombineRoutes(version, routeVal);
+                }
             }
 
             if (string.IsNullOrEmpty(routeVal)) routeVal = "/";
@@ -106,6 +112,100 @@ public class NestJsLibraryParser : ISemanticExtension
 
             return $"{(name == "Controller" ? "GET" : name.ToUpperInvariant())}:{routeVal}";
         }
+        return null;
+    }
+
+    private static string? GetVersionForNode(Node node)
+    {
+        // 1. Look for @Version on method decorators
+        var decorators = new List<Node>();
+        var parent = node.Parent;
+        if (parent.IsValid())
+        {
+            var children = parent.Children.ToList();
+            var idx = children.FindIndex(c => c.Id == node.Id);
+            if (idx >= 0)
+            {
+                for (int i = 0; i < children.Count; i++)
+                {
+                    if (children[i].Is(TreeSitterSyntax.TypeScript.Decorator))
+                    {
+                        decorators.Add(children[i]);
+                    }
+                }
+            }
+        }
+
+        var p = node.Parent;
+        while (p.IsValid())
+        {
+            if (p.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
+            {
+                decorators.AddRange(GetPrecedingDecorators(p));
+                decorators.AddRange(p.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+                break;
+            }
+            p = p.Parent;
+        }
+
+        // 2. Also look for @Version on class level if not found on method
+        var classDecl = node;
+        while (classDecl.IsValid() && !classDecl.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
+        {
+            classDecl = classDecl.Parent;
+        }
+        if (classDecl.IsValid())
+        {
+            decorators.AddRange(classDecl.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+            if (classDecl.Parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
+            {
+                decorators.AddRange(classDecl.Parent.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+            }
+        }
+
+        foreach (var dec in decorators)
+        {
+            var callFunc = _decoratorCallFunctionSelector.Select(dec);
+            var decName = callFunc.IsValid() ? callFunc.Text : dec.Text.TrimStart('@');
+            if (decName.Contains('(')) decName = decName[..decName.IndexOf('(')];
+
+            if (decName == "Version")
+            {
+                var callExpr = dec.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
+                if (callExpr.IsValid())
+                {
+                    var ver = AstHelper.ExtractFirstStringArgument(callExpr);
+                    if (string.IsNullOrEmpty(ver))
+                    {
+                        // Check if argument is an array of versions e.g. ['1', '2']
+                        var args = callExpr.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+                        var arr = args.FindChildOfType(TreeSitterSyntax.TypeScript.Array);
+                        if (arr.IsValid())
+                        {
+                            foreach (var c in arr.Children)
+                            {
+                                if (c.Type.Contains("string"))
+                                {
+                                    ver = c.Text.Trim('\'', '"', '`');
+                                    if (!string.IsNullOrEmpty(ver)) break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(ver))
+                    {
+                        ver = ver.Trim().Trim('\'', '"', '`');
+                        if (!ver.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ver = "v" + ver;
+                        }
+                        return ver;
+                    }
+                }
+            }
+        }
+
         return null;
     }
 

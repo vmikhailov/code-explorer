@@ -944,7 +944,10 @@ public class PostIndexAnalyzer(IGraphClient db)
                             }
                         }
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
-                        else if (projects.Any(p => p.Id == edge.To && !p.IsLibrary && p.Id != service.Id))
+                        // Only lift if the library's edge to the target service is an actual service call (not a generic compile-time project dependency)
+                        else if (projects.Any(p => p.Id == edge.To && !p.IsLibrary && p.Id != service.Id) &&
+                                 (edge.Kind is OntologyConstants.Relationships.ServiceCall or "CALLS_ENDPOINT" or "CALLS" ||
+                                  (edge.Properties?.TryGetValue("dependency_type", out var dt) == true && dt?.ToString() == "service_call")))
                         {
                             if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.ServiceCall)))
                             {
@@ -2270,7 +2273,17 @@ public class PostIndexAnalyzer(IGraphClient db)
                 {
                     kind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "Node";
                 }
-                var isLib = row.TryGetProperty("is_lib", out var il) && il.ValueKind == JsonValueKind.String && il.GetString() == "true";
+                var isLib = false;
+                if (row.TryGetProperty("is_lib", out var il))
+                {
+                    isLib = il.ValueKind switch
+                    {
+                        JsonValueKind.True => true,
+                        JsonValueKind.String => string.Equals(il.GetString(), "true", StringComparison.OrdinalIgnoreCase),
+                        JsonValueKind.Number => il.GetInt32() == 1,
+                        _ => false
+                    };
+                }
                 var role = GetStringProp(row, "role");
                 if (role is "SharedLibrary" or "Test") isLib = true;
 
@@ -2399,12 +2412,16 @@ public class PostIndexAnalyzer(IGraphClient db)
         // 1. Exact domain match on non-library project
         var exactNonLib = projList.FirstOrDefault(p =>
             !p.IsLibrary &&
-            SyntaxEnricher.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase));
+            (SyntaxEnricher.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
+             EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
+             EndpointScoringEngine.NormalizeAlphanumeric(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase)));
         if (exactNonLib != null) return exactNonLib;
 
         // 2. Exact domain match on any project
         var exactAny = projList.FirstOrDefault(p =>
-            SyntaxEnricher.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase));
+            SyntaxEnricher.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
+            EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
+            EndpointScoringEngine.NormalizeAlphanumeric(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase));
         if (exactAny != null) return exactAny;
 
         // 3. Name ends with .Services.{key} or .Gateways.{key}
@@ -2414,7 +2431,22 @@ public class PostIndexAnalyzer(IGraphClient db)
              p.Name.EndsWith($".Gateways.{key}", StringComparison.OrdinalIgnoreCase)));
         if (nameMatch != null) return nameMatch;
 
-        // 4. Substring contains on domain name (e.g. 'tracking' matches 'DeviceTracking')
+        // 4. EndpointScoringEngine matching
+        var candidates = projList.Select(p => new ProjectMatchCandidate(
+            p.Id,
+            p.Name,
+            p.Path,
+            p.Extensions?.TryGetValue("git_repo", out var gr) == true ? gr : null,
+            p.IsLibrary)).ToList();
+
+        var match = EndpointScoringEngine.MatchCall(cleanKey, null, null, candidates);
+        if (match.IsInternal && match.Project != null)
+        {
+            var matchedProj = projList.FirstOrDefault(p => p.Id == match.Project.ProjectId);
+            if (matchedProj != null) return matchedProj;
+        }
+
+        // 5. Substring contains on domain name (e.g. 'tracking' matches 'DeviceTracking')
         var subMatches = projList.Where(p =>
             SyntaxEnricher.CleanProjectNameToDomain(p.Name).Contains(normKey, StringComparison.OrdinalIgnoreCase)).ToList();
         if (subMatches.Count > 0)
@@ -2494,6 +2526,14 @@ public class PostIndexAnalyzer(IGraphClient db)
             if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
 
             if (IsGarbageExternalService(cand))
+            {
+                idsToDelete.Add(id);
+                continue;
+            }
+
+            // Check if this ExternalService matches an internal project with high confidence
+            var matchingProj = FindMatchingServiceProject(cand, projectList);
+            if (matchingProj != null)
             {
                 idsToDelete.Add(id);
             }

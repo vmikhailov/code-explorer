@@ -1000,7 +1000,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       cy.elements().removeClass('highlighted dimmed');
     });
   }, []);
-  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(new Set());
+  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => new Set<EntityKind>(['ExternalService']));
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
   const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(new Set());
   const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(new Set());
@@ -1121,9 +1121,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const centroidRef = useRef<{ cx: number; cy: number }>({ cx: 0, cy: 0 });
   const rawGraphRef = useRef<any>(null);
 
-  // Clear hidden filters when switching graph
+  // Clear hidden filters when switching graph (ExternalService hidden by default)
   useEffect(() => {
-    setHiddenTypes(new Set());
+    setHiddenTypes(new Set<EntityKind>(['ExternalService']));
     setHiddenNodeIds(new Set());
     setHiddenOrbitTiers(new Set());
     setForcedVisibleNodeIds(new Set());
@@ -1182,6 +1182,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
   }, []);
 
+  // Context Menu State for Right-Click on Nodes
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: string;
+    nodeName: string;
+    nodeKind: EntityKind;
+  } | null>(null);
+
   const hideNode = useCallback((nodeId: string) => {
     forceRelayoutRef.current = true;
     setHiddenNodeIds((prev) => {
@@ -1195,6 +1204,67 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       return next;
     });
     setSelectedNode((curr) => (curr?.id === nodeId ? null : curr));
+    setContextMenu(null);
+    if (cyRef.current) {
+      cyRef.current.elements().removeClass('highlighted dimmed');
+    }
+  }, []);
+
+  const hideDownstreamNodes = useCallback((rootNodeId: string) => {
+    forceRelayoutRef.current = true;
+    const downstreamIds = new Set<string>();
+    const queue = [rootNodeId];
+    const visited = new Set<string>([rootNodeId]);
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      const outgoing = rawGraphRef.current?.outAdj?.get(curr) || [];
+      for (const edge of outgoing) {
+        if (!visited.has(edge.target)) {
+          visited.add(edge.target);
+          downstreamIds.add(edge.target);
+          queue.push(edge.target);
+        }
+      }
+    }
+
+    if (downstreamIds.size > 0) {
+      setHiddenNodeIds((prev) => {
+        const next = new Set(prev);
+        for (const id of downstreamIds) next.add(id);
+        return next;
+      });
+      setForcedVisibleNodeIds((prev) => {
+        const next = new Set(prev);
+        for (const id of downstreamIds) next.delete(id);
+        return next;
+      });
+      setSelectedNode((curr) => (curr && downstreamIds.has(curr.id) ? null : curr));
+    }
+    setContextMenu(null);
+    if (cyRef.current) {
+      cyRef.current.elements().removeClass('highlighted dimmed');
+    }
+  }, []);
+
+  const hideAllOfKind = useCallback((kind: EntityKind) => {
+    forceRelayoutRef.current = true;
+    setHiddenTypes((prev) => {
+      const next = new Set(prev);
+      next.add(kind);
+      return next;
+    });
+    setForcedVisibleNodeIds((prev) => {
+      const next = new Set(prev);
+      for (const id of prev) {
+        if (rawGraphRef.current?.detailMap?.get(id)?.kind === kind) {
+          next.delete(id);
+        }
+      }
+      return next;
+    });
+    setSelectedNode((curr) => (curr?.kind === kind ? null : curr));
+    setContextMenu(null);
     if (cyRef.current) {
       cyRef.current.elements().removeClass('highlighted dimmed');
     }
@@ -2178,8 +2248,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     });
 
-    // Background click -> Deselect
+    // Background click -> Deselect & close context menu
     cy.on('tap', (evt) => {
+      setContextMenu(null);
       if (evt.target === cy) {
         setSelectedNode(null);
         setSelectedEdge(null);
@@ -2190,6 +2261,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
     // Double-click -> Drill down into Flow
     cy.on('dbltap', 'node', (evt) => {
+      setContextMenu(null);
       const node = evt.target;
       const nodeId = node.id();
       const detail = nodeDetailMap.get(nodeId);
@@ -2198,10 +2270,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     });
 
-    // Right-click / Context-tap -> Hide concrete node directly
+    // Right-click / Context-tap -> Open context menu
     cy.on('cxttap', 'node', (evt) => {
-      const nodeId = evt.target.id();
-      hideNode(nodeId);
+      const node = evt.target;
+      const nodeId = node.id();
+      const detail = nodeDetailMap.get(nodeId);
+      if (!detail) return;
+
+      const renderedPos = evt.renderedPosition;
+      setContextMenu({
+        x: renderedPos.x,
+        y: renderedPos.y,
+        nodeId: detail.id,
+        nodeName: detail.displayName || detail.name,
+        nodeKind: detail.kind,
+      });
+    });
+
+    // Also close context menu on pan or zoom
+    cy.on('pan zoom', () => {
+      setContextMenu(null);
     });
 
     // Mouseover / Mouseout hover highlights
@@ -4720,6 +4808,51 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             )}
           </div>
         </aside>
+      )}
+      {/* Context Menu for Nodes */}
+      {contextMenu && (
+        <div
+          className="domain-node-context-menu"
+          style={{
+            position: 'absolute',
+            left: `${contextMenu.x}px`,
+            top: `${contextMenu.y}px`,
+            zIndex: 1000,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="context-menu-header">
+            <span className="context-menu-title" title={contextMenu.nodeName}>
+              {contextMenu.nodeName}
+            </span>
+            <span className="context-menu-kind">{contextMenu.nodeKind}</span>
+          </div>
+          <div className="context-menu-divider" />
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => hideNode(contextMenu.nodeId)}
+          >
+            <span className="context-menu-icon">👁️‍🗨️</span>
+            <span>Hide</span>
+          </button>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => hideDownstreamNodes(contextMenu.nodeId)}
+          >
+            <span className="context-menu-icon">↘️</span>
+            <span>Hide Downstream</span>
+          </button>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => hideAllOfKind(contextMenu.nodeKind)}
+          >
+            <span className="context-menu-icon">🚫</span>
+            <span>Hide all {contextMenu.nodeKind}s</span>
+          </button>
+        </div>
       )}
       </div>
 

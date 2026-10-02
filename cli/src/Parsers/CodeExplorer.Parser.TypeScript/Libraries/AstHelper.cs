@@ -146,6 +146,13 @@ public static class AstHelper
                 }
 
                 var propText = prop.Text;
+                var classVal = FindClassFieldInitializerInAst(argNode, propText);
+                if (!string.IsNullOrEmpty(classVal))
+                {
+                    var subDecomp = TryDecomposeTemplateString(argNode, classVal);
+                    return NormalizeResolvedUrl(subDecomp ?? classVal);
+                }
+
                 var val = FindVariableInitializerInAst(argNode, propText, depth + 1, visitedVars);
                 if (val != null)
                 {
@@ -653,13 +660,22 @@ public static class AstHelper
                         return resolved;
                     }
                 }
-                // Third pass: env or config
+                // Third pass: member / identifier with non-empty resolution
+                foreach (var part in parts)
+                {
+                    if (part.Contains('.') && !part.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("env.", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("env?.", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var resolved = ResolveTemplateExpression(node, part, depth + 1);
+                        if (!string.IsNullOrEmpty(resolved)) return resolved;
+                    }
+                }
+                // Fourth pass: env or config
                 foreach (var part in parts)
                 {
                     var envMatch = Regex.Match(part, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
                     if (envMatch.Success) return envMatch.Groups[1].Value;
                 }
-                // Fourth pass: member / identifier
+                // Fifth pass: general fallback
                 foreach (var part in parts)
                 {
                     var resolved = ResolveTemplateExpression(node, part, depth + 1);
@@ -668,7 +684,20 @@ public static class AstHelper
             }
         }
 
-        // 2. Env / config: process.env.HUB_INGEST_URL, env?.HUB_INGEST_URL, config.get('HUB_INGEST_URL')
+        // 2. Member / field access: this.<prop>, ClassName.<prop>
+        if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ||
+            (expr.Contains('.') && !expr.Contains('(') && !expr.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) && !expr.StartsWith("env.", StringComparison.OrdinalIgnoreCase) && !expr.StartsWith("env?.", StringComparison.OrdinalIgnoreCase)))
+        {
+            var propName = expr.Split('.').Last().Trim();
+            var classVal = FindClassFieldInitializerInAst(node, propName);
+            if (!string.IsNullOrEmpty(classVal)) return classVal;
+            if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+            {
+                return CleanIdentifierSuffix(propName);
+            }
+        }
+
+        // 3. Env / config: process.env.HUB_INGEST_URL, env?.HUB_INGEST_URL, config.get('HUB_INGEST_URL')
         var envDirect = Regex.Match(expr, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
         if (envDirect.Success)
         {
@@ -681,18 +710,6 @@ public static class AstHelper
             return configGetMatch.Groups[1].Value;
         }
 
-        // 3. Member / field access: this.<prop>, ClassName.<prop>
-        if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ||
-            (expr.Contains('.') && !expr.Contains('(')))
-        {
-            var propName = expr.Split('.').Last().Trim();
-            var classVal = FindClassFieldInitializerInAst(node, propName);
-            if (!string.IsNullOrEmpty(classVal)) return classVal;
-            if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
-            {
-                return CleanIdentifierSuffix(propName);
-            }
-        }
 
         // 4. Method call: e.g. getHubUrl(env) or TelemetryReporter.getHubUrl(env)
         var callMatch = Regex.Match(expr, @"^(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+)\(");
@@ -860,7 +877,13 @@ public static class AstHelper
 
             if (curr.Is(TreeSitterSyntax.TypeScript.Program))
             {
-                foreach (var classDecl in curr.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)))
+                // Search direct classes and exported classes
+                var classDecls = curr.Children
+                    .SelectMany(c => c.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) 
+                        ? [c] 
+                        : (c.Is("export_statement") ? c.Children.Where(sub => sub.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)) : []));
+
+                foreach (var classDecl in classDecls)
                 {
                     var body = classDecl.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? classDecl;
                     foreach (var member in body.Children)
@@ -934,6 +957,23 @@ public static class AstHelper
                         {
                             var res = CheckMethodNode(m, methodName, depth);
                             if (res != null) return res;
+                        }
+                    }
+                    else if (child.Is("export_statement"))
+                    {
+                        foreach (var expChild in child.Children)
+                        {
+                            if (expChild.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
+                            {
+                                var expBody = expChild.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? expChild;
+                                foreach (var m in expBody.Children)
+                                {
+                                    var res = CheckMethodNode(m, methodName, depth);
+                                    if (res != null) return res;
+                                }
+                            }
+                            var expCheck = CheckMethodNode(expChild, methodName, depth);
+                            if (expCheck != null) return expCheck;
                         }
                     }
                     var checkRes = CheckMethodNode(child, methodName, depth);

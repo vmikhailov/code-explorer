@@ -95,23 +95,43 @@ public class ArchitectureViewEngine(IGraphClient db)
         using var nodesDoc = JsonDocument.Parse(nodesJson);
 
         var internalProjectsLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var projectCandidates = new List<ProjectMatchCandidate>();
 
         foreach (var elem in nodesDoc.RootElement.EnumerateArray())
         {
             var k = elem.GetStringProp("kind");
             var nid = elem.GetStringProp("id");
             var nname = elem.GetStringProp("name");
+            var npath = elem.GetStringProp("path");
             if (string.IsNullOrEmpty(nid) || string.IsNullOrEmpty(nname)) continue;
 
             if (k is "Project" or "Service" or "App" or "Worker" or "Library" or "CliTool")
             {
-                internalProjectsLookup.TryAdd(nname, nid);
-                var domain = SyntaxEnricher.CleanProjectNameToDomain(nname);
+                var isLib = elem.GetStringProp("is_library") == "true" || elem.GetStringProp("role") is "SharedLibrary" or "Test";
+                projectCandidates.Add(new ProjectMatchCandidate(nid, nname, npath, null, isLib));
 
+                internalProjectsLookup.TryAdd(nname, nid);
+                var normName = EndpointScoringEngine.NormalizeAlphanumeric(nname);
+                if (!string.IsNullOrEmpty(normName)) internalProjectsLookup.TryAdd(normName, nid);
+
+                if (!string.IsNullOrEmpty(npath))
+                {
+                    var folder = Path.GetFileName(npath.TrimEnd('/', '\\'));
+                    if (!string.IsNullOrEmpty(folder))
+                    {
+                        internalProjectsLookup.TryAdd(folder, nid);
+                        var normFolder = EndpointScoringEngine.NormalizeAlphanumeric(folder);
+                        if (!string.IsNullOrEmpty(normFolder)) internalProjectsLookup.TryAdd(normFolder, nid);
+                    }
+                }
+
+                var domain = SyntaxEnricher.CleanProjectNameToDomain(nname);
                 if (!string.IsNullOrEmpty(domain))
                 {
                     internalProjectsLookup.TryAdd(domain, nid);
                     internalProjectsLookup.TryAdd(domain.ToLowerInvariant(), nid);
+                    var normDomain = EndpointScoringEngine.NormalizeAlphanumeric(domain);
+                    if (!string.IsNullOrEmpty(normDomain)) internalProjectsLookup.TryAdd(normDomain, nid);
                 }
             }
         }
@@ -389,15 +409,41 @@ public class ArchitectureViewEngine(IGraphClient db)
                 if (!isExplicitExternal)
                 {
                     var domain = SyntaxEnricher.CleanProjectNameToDomain(name);
+                    var extIdDomain = PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id);
+                    var normName = EndpointScoringEngine.NormalizeAlphanumeric(name);
+                    var normDomain = EndpointScoringEngine.NormalizeAlphanumeric(domain);
+                    var normExtIdDomain = EndpointScoringEngine.NormalizeAlphanumeric(extIdDomain);
+
                     string? matchedProjId = null;
 
                     if (internalProjectsLookup.TryGetValue(name, out var mpId) ||
                         internalProjectsLookup.TryGetValue(domain, out mpId) ||
                         internalProjectsLookup.TryGetValue(name.ToLowerInvariant(), out mpId) ||
-                        internalProjectsLookup.TryGetValue(PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id),
-                            out mpId))
+                        internalProjectsLookup.TryGetValue(extIdDomain, out mpId) ||
+                        (!string.IsNullOrEmpty(normName) && internalProjectsLookup.TryGetValue(normName, out mpId)) ||
+                        (!string.IsNullOrEmpty(normDomain) && internalProjectsLookup.TryGetValue(normDomain, out mpId)) ||
+                        (!string.IsNullOrEmpty(normExtIdDomain) && internalProjectsLookup.TryGetValue(normExtIdDomain, out mpId)))
                     {
                         matchedProjId = mpId;
+                    }
+                    else if (name.Contains('.'))
+                    {
+                        var sub = name.Split('.', 2)[0];
+                        var normSub = EndpointScoringEngine.NormalizeAlphanumeric(sub);
+                        if (internalProjectsLookup.TryGetValue(sub, out mpId) ||
+                            (!string.IsNullOrEmpty(normSub) && internalProjectsLookup.TryGetValue(normSub, out mpId)))
+                        {
+                            matchedProjId = mpId;
+                        }
+                    }
+
+                    if (matchedProjId == null && projectCandidates.Count > 0)
+                    {
+                        var match = EndpointScoringEngine.MatchCall(name, null, null, projectCandidates);
+                        if (match.IsInternal && match.Project != null)
+                        {
+                            matchedProjId = match.Project.ProjectId;
+                        }
                     }
 
                     if (matchedProjId != null)
@@ -2812,6 +2858,17 @@ public class ArchitectureViewEngine(IGraphClient db)
             if (normP.Length > 0) lookup.TryAdd(normP, p);
             var norm = p.Name.Replace("-", "").Replace("_", "");
             if (norm.Length > 0) lookup.TryAdd(norm, p);
+
+            if (!string.IsNullOrEmpty(p.FilePath))
+            {
+                var folder = Path.GetFileName(p.FilePath.TrimEnd('/', '\\'));
+                if (!string.IsNullOrEmpty(folder))
+                {
+                    lookup.TryAdd(folder, p);
+                    var cleanFolder = folder.Replace("-", "").Replace("_", "");
+                    if (cleanFolder.Length > 0) lookup.TryAdd(cleanFolder, p);
+                }
+            }
         }
         return lookup;
     }
@@ -2827,6 +2884,16 @@ public class ArchitectureViewEngine(IGraphClient db)
         if (clean.Length > 0 && internalProjectsByName.TryGetValue(clean, out var matched))
         {
             return matched;
+        }
+
+        // Subdomain check (e.g. rule-configurator.at-systems.biz -> ruleconfigurator)
+        if (n.Contains('.'))
+        {
+            var sub = n.Split('.', 2)[0].Replace("-", "").Replace("_", "");
+            if (sub.Length > 0 && internalProjectsByName.TryGetValue(sub, out var subMatched))
+            {
+                return subMatched;
+            }
         }
 
         foreach (var (k, v) in internalProjectsByName)

@@ -1,6 +1,7 @@
 using System.Threading.Channels;
 using NUnit.Framework;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
@@ -560,4 +561,53 @@ public class MultiLanguageHttpResolutionTests
         Assert.That((bool)isMatchMethod.Invoke(layer5, [playerSvc, playerEndpoint])!, Is.True, "Admin PlayersComponent should match Lidoma.Services.Player");
         Assert.That((bool)isMatchMethod.Invoke(layer5, [gameSvc, tournamentEndpoint])!, Is.True, "Admin GamesComponent should match Lidoma.Services.Tournament");
     }
+
+    [Test]
+    public void Test_InternalService_WithCustomTldAndNestJsVersioning()
+    {
+        var layer5 = new Layer5AnalysisParser();
+        var doesProjectMatchMethod = typeof(Layer5AnalysisParser).GetMethod("DoesProjectMatchServiceDomain",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static,
+            [typeof(ProjectNode), typeof(string)])!;
+
+        var isMatchWithProjMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(ProjectNode)])!;
+
+        var ruleConfigProj = new ProjectNode("proj:rule-configurator", "rule-configurator", "src/services/rule-configurator", "typescript");
+        var postbackPartnerProj = new ProjectNode("proj:postback-partner", "postback-partner", "src/services/postback-partner", "typescript");
+
+        // 1. Verify DoesProjectMatchServiceDomain allows internal domain despite .biz / .com suffix
+        var matched = (bool)doesProjectMatchMethod.Invoke(null, [ruleConfigProj, "rule-configurator.at-systems.biz"])!;
+        Assert.That(matched, Is.True, "rule-configurator.at-systems.biz should match rule-configurator project");
+
+        var matchedPostback = (bool)doesProjectMatchMethod.Invoke(null, [postbackPartnerProj, "http://postback-partner.at-systems.biz/api"])!;
+        Assert.That(matchedPostback, Is.True, "postback-partner.at-systems.biz should match postback-partner project");
+
+        // 2. Verify third-party real domain is still rejected
+        var googleMatch = (bool)doesProjectMatchMethod.Invoke(null, [ruleConfigProj, "google.com"])!;
+        Assert.That(googleMatch, Is.False, "google.com should NOT match internal project");
+
+        // 3. Verify endpoint late-binding with /api global prefix and /v1 versioning
+        var extSvc = new ExternalServiceNode(
+            "ext:rule-configurator",
+            "rule-configurator.at-systems.biz",
+            "http",
+            "rule-configurator.at-systems.biz",
+            "/api/v1/kv/form-full-rule",
+            new() { ["file_path"] = "caller.ts" }
+        );
+
+        var endpoint = new EndpointNode(
+            "ep:form-full-rule",
+            "POST:/v1/kv/form-full-rule",
+            "src/services/rule-configurator/traffic-routing-rules.controller.ts",
+            "POST",
+            "/v1/kv/form-full-rule"
+        );
+
+        var isMatch = (bool)isMatchWithProjMethod.Invoke(layer5, [extSvc, endpoint, ruleConfigProj])!;
+        Assert.That(isMatch, Is.True, "Caller calling /api/v1/kv/form-full-rule should match endpoint /v1/kv/form-full-rule on rule-configurator");
+    }
 }
+

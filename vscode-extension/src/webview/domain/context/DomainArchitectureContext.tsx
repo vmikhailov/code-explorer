@@ -92,7 +92,7 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
   const [selectedEdge, setSelectedEdge] = useState<SelectedEdgeDetail | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(new Set());
+  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => new Set<EntityKind>(['ExternalService']));
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
   const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(new Set());
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState(false);

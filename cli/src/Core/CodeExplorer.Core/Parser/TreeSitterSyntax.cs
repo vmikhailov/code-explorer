@@ -156,6 +156,7 @@ public static class TreeSitterSyntax
         public const string Program = "program";
         public const string TemplateSubstitution = "template_substitution";
         public const string Object = "object";
+        public const string Array = "array";
         public const string Property = "property";
         public const string Identifier = "identifier";
         public const string VariableName = "variable_name";

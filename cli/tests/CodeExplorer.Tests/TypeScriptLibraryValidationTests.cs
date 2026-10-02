@@ -699,6 +699,34 @@ export class UsersController {
     }
 
     [Test]
+    public async Task Test_NestJs_VersionDecorator()
+    {
+        var code = @"
+import { Controller, Get, Post, Version } from '@nestjs/common';
+
+@Controller('kv')
+export class TrafficRoutingRulesController {
+    @Version('1')
+    @Post('/form-full-rule')
+    formFullRule() {}
+
+    @Version(['1', '2'])
+    @Get('/rules')
+    getRules() {}
+}
+";
+
+        using var ws = await TestWorkspace.CreateAsync(code);
+
+        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+        var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST" && e.RouteTemplate == "/v1/kv/form-full-rule");
+        Assert.That(postEp, Is.Not.Null, "Expected /v1/kv/form-full-rule endpoint with POST method");
+
+        var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/v1/kv/rules");
+        Assert.That(getEp, Is.Not.Null, "Expected /v1/kv/rules endpoint with GET method");
+    }
+
+    [Test]
     public async Task Test_TypeScript_CommonJsRequire()
     {
         var code = @"
@@ -1052,6 +1080,7 @@ export async function fetchTrafficBacks(baseUrl: string) {
             await using var client = new InMemoryGraphClient();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            WorkspaceIndexer.Register(new TypeScriptParser());
 
             var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
             var files = l1Result.Files;

@@ -517,8 +517,18 @@ public class Layer5AnalysisParser
 
                 if (!callAdded && methodName != null && functionSymbols.TryGetValue(methodName, out var fallbackNodeId))
                 {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
+                    // Guard against accidental cross-project fallback matches for bare method names
+                    var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+                    var targetFile = ExtractFilePathFromSymbolId(fallbackNodeId);
+                    var isSameProjectOrFile = callerFile != null && targetFile != null &&
+                        (callerFile.Equals(targetFile, StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(ConstantRegistry.ExtractProjectName(callerFile), ConstantRegistry.ExtractProjectName(targetFile), StringComparison.OrdinalIgnoreCase));
+
+                    if (isSameProjectOrFile || (callerFile == null && targetFile == null))
+                    {
+                        referenceRelationships.Add(
+                            Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
+                    }
                 }
             }
             else if (refItem.Kind == OntologyConstants.Relationships.DependsOn)
@@ -937,6 +947,13 @@ public class Layer5AnalysisParser
                 nodeToProject.TryGetValue(extService.Id, out var callerProj);
                 if (callerProj != null)
                 {
+                    // If the service domain matches the caller project itself (e.g. self URL or worker domain),
+                    // this is an internal self-reference, not an external dependency on other projects.
+                    if (DoesProjectMatchServiceDomain(callerProj, extService.DomainOrService))
+                    {
+                        continue;
+                    }
+
                     foreach (var proj in projects)
                     {
                         if (proj.Id == callerProj.Id) continue;
@@ -1038,9 +1055,16 @@ public class Layer5AnalysisParser
         return true;
     }
 
-    private static bool DoesProjectMatchServiceDomain(ProjectNode proj, string domainOrService)
+    private static readonly HashSet<string> GenericHostOrEnvNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        if (string.IsNullOrWhiteSpace(domainOrService) || domainOrService is "*" or "unknown-service" or "localhost" or "127.0.0.1" or "0.0.0.0")
+        "*", "unknown-service", "localhost", "127.0.0.1", "0.0.0.0",
+        "prod", "production", "stage", "staging", "dev", "development", "test", "testing", "local", "environment", "env",
+        "url", "http-call", "v1", "v2", "event", "response", "service", "api", "request", "httprequest", "pageurl"
+    };
+
+    private static bool IsGenericHostOrService(string? domainOrService)
+    {
+        if (string.IsNullOrWhiteSpace(domainOrService))
             return true;
 
         var d = domainOrService.Trim().ToLowerInvariant();
@@ -1051,7 +1075,55 @@ public class Layer5AnalysisParser
         var colonIdx = d.IndexOf(':');
         if (colonIdx >= 0) d = d[..colonIdx];
 
+        return string.IsNullOrWhiteSpace(d) || GenericHostOrEnvNames.Contains(d);
+    }
+
+    private static bool DoesProjectMatchServiceDomain(ProjectNode proj, string domainOrService)
+    {
+        if (string.IsNullOrWhiteSpace(domainOrService))
+            return false;
+
+        var d = domainOrService.Trim().ToLowerInvariant();
+        var protoIdx = d.IndexOf("://", StringComparison.Ordinal);
+        if (protoIdx >= 0) d = d[(protoIdx + 3)..];
+        var slashIdx = d.IndexOf('/');
+        if (slashIdx >= 0) d = d[..slashIdx];
+        var colonIdx = d.IndexOf(':');
+        if (colonIdx >= 0) d = d[..colonIdx];
+
+        if (string.IsNullOrWhiteSpace(d) || GenericHostOrEnvNames.Contains(d))
+            return false;
+
+        // 1. Direct matching: check if project name, directory name, or repo matches full host or subdomain
+        var pName = proj.Name.ToLowerInvariant();
+        var pFolder = Path.GetFileName(proj.Path.TrimEnd('/', '\\')).ToLowerInvariant();
+        var gitRepo = proj.Extensions?.TryGetValue("git_repo", out var gr) == true ? gr.ToLowerInvariant() : "";
+
+        var cand = new ProjectMatchCandidate(proj.Id, proj.Name, proj.Path, gitRepo, proj.IsLibrary);
+        var score = EndpointScoringEngine.ScoreProjectMatch(d, cand);
+        if (score >= 40.0)
+        {
+            return true;
+        }
+
+        // Check full domain (e.g. "rule-configurator")
+        if (MatchesProject(d, pName, pFolder, gitRepo))
+        {
+            return true;
+        }
+
+        // Check subdomain / first host segment (e.g. "rule-configurator" in "rule-configurator.at-systems.biz")
+        if (d.Contains('.'))
+        {
+            var subdomain = d.Split('.', 2)[0];
+            if (!string.IsNullOrEmpty(subdomain) && (EndpointScoringEngine.ScoreProjectMatch(subdomain, cand) >= 40.0 || MatchesProject(subdomain, pName, pFolder, gitRepo)))
+            {
+                return true;
+            }
+        }
+
         // Third-party external domains (e.g. google.com, telegram.org, cloudflare.com) should NEVER match internal projects
+        // ONLY reject if the domain is not an internal service match tested above.
         if (d.EndsWith(".com") || d.EndsWith(".org") || d.EndsWith(".net") || d.EndsWith(".biz") ||
             d.EndsWith(".io") || d.EndsWith(".pro") || d.EndsWith(".ru") || d.EndsWith(".dev"))
         {
@@ -1063,19 +1135,47 @@ public class Layer5AnalysisParser
             .Replace("-", "").Replace("_", "");
         cleanDomain = System.Text.RegularExpressions.Regex.Replace(cleanDomain, @"(_service|service)$", "");
 
-        var pName = proj.Name.ToLowerInvariant();
         var normP = WorkspaceConventions.NormalizeServiceName(pName);
         var cleanPName = normP.Replace("-", "").Replace("_", "");
         cleanPName = System.Text.RegularExpressions.Regex.Replace(cleanPName, @"(_service|service)$", "");
 
-        if (cleanDomain == cleanPName || cleanDomain.TrimEnd('s') == cleanPName.TrimEnd('s'))
+        if (cleanDomain.Length >= 4 && (cleanDomain == cleanPName || cleanDomain.TrimEnd('s') == cleanPName.TrimEnd('s')))
             return true;
 
         if (pName == d || pName.Replace("-", "") == d.Replace("-", "") || normP == normD)
             return true;
 
-        if (pName.EndsWith("." + d) || pName.EndsWith("." + d + "s"))
+        if (d.Length >= 4 && (pName.EndsWith("." + d) || pName.EndsWith("." + d + "s")))
             return true;
+
+        return false;
+    }
+
+    private static bool MatchesProject(string token, string pName, string pFolder, string gitRepo)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+
+        var cleanToken = token.Replace("-", "").Replace("_", "");
+
+        if (pName == token || pFolder == token || gitRepo == token)
+            return true;
+
+        var cleanPName = pName.Replace("-", "").Replace("_", "");
+        var cleanPFolder = pFolder.Replace("-", "").Replace("_", "");
+        var cleanGitRepo = gitRepo.Replace("-", "").Replace("_", "");
+
+        if (cleanPName == cleanToken || cleanPFolder == cleanToken || (!string.IsNullOrEmpty(cleanGitRepo) && cleanGitRepo == cleanToken))
+            return true;
+
+        if (cleanPName.TrimEnd('s') == cleanToken.TrimEnd('s') || cleanPFolder.TrimEnd('s') == cleanToken.TrimEnd('s'))
+            return true;
+
+        if (pName.EndsWith("." + token, StringComparison.OrdinalIgnoreCase) ||
+            pName.EndsWith("." + token + "s", StringComparison.OrdinalIgnoreCase) ||
+            pName.EndsWith($".services.{token}", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
 
         return false;
     }
@@ -1150,8 +1250,7 @@ public class Layer5AnalysisParser
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint, ProjectNode? targetProj)
     {
-        if (targetProj != null && !string.IsNullOrWhiteSpace(extService.DomainOrService) &&
-            extService.DomainOrService is not ("*" or "unknown-service"))
+        if (targetProj != null && !IsGenericHostOrService(extService.DomainOrService))
         {
             if (!DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
             {
@@ -1173,10 +1272,42 @@ public class Layer5AnalysisParser
             return false;
         }
 
+        // Root or empty path "/" is a generic fallback and must NEVER match across services unless targetProj domain matches
+        if (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*")
+        {
+            if (targetProj == null || !DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
+            {
+                return false;
+            }
+        }
+
         if (string.Equals(servicePathNorm, entryNorm, StringComparison.OrdinalIgnoreCase) ||
             MatchPaths(servicePathNorm, entryNorm, extService.DomainOrService))
         {
             return true;
+        }
+
+        var cleanPathA = "/" + servicePathNorm.Trim('/') + "/";
+        var cleanPathB = "/" + entryNorm.Trim('/') + "/";
+
+        if (cleanPathA != "//" && cleanPathB != "//")
+        {
+            if (cleanPathB.EndsWith(cleanPathA, StringComparison.OrdinalIgnoreCase))
+            {
+                var prefix = cleanPathB[..^cleanPathA.Length].Trim('/');
+                if (IsApiPrefixOnly(prefix, extService.DomainOrService))
+                {
+                    return true;
+                }
+            }
+            else if (cleanPathA.EndsWith(cleanPathB, StringComparison.OrdinalIgnoreCase))
+            {
+                var prefix = cleanPathA[..^cleanPathB.Length].Trim('/');
+                if (IsApiPrefixOnly(prefix, extService.DomainOrService))
+                {
+                    return true;
+                }
+            }
         }
 
         if (!string.IsNullOrEmpty(serviceDomainNorm) && serviceDomainNorm != "*" && serviceDomainNorm != "unknown-service")
@@ -1199,8 +1330,7 @@ public class Layer5AnalysisParser
 
     private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint, ProjectNode? targetProj)
     {
-        if (targetProj != null && !string.IsNullOrWhiteSpace(extService.DomainOrService) &&
-            extService.DomainOrService is not ("*" or "unknown-service"))
+        if (targetProj != null && !IsGenericHostOrService(extService.DomainOrService))
         {
             if (!DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
             {
@@ -1220,6 +1350,15 @@ public class Layer5AnalysisParser
         if (serviceDomainNorm is "*" or "unknown-service" && (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
         {
             return false;
+        }
+
+        // Root or empty path "/" is a generic fallback and must NEVER match across services unless targetProj domain matches
+        if (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*")
+        {
+            if (targetProj == null || !DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
+            {
+                return false;
+            }
         }
 
         if (string.Equals(servicePathNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||

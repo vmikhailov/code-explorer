@@ -263,7 +263,15 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         if (expr.Is(TreeSitterSyntax.TypeScript.MemberExpression))
         {
             var propChild = expr.GetField(TreeSitterSyntax.Fields.Property);
-            if (propChild.IsValid()) return propChild.Text;
+            var objChild = expr.GetField(TreeSitterSyntax.Fields.Object);
+            if (propChild.IsValid())
+            {
+                if (objChild.IsValid())
+                {
+                    return $"{objChild.Text}.{propChild.Text}";
+                }
+                return propChild.Text;
+            }
         }
 
         return null;
