@@ -45,7 +45,7 @@ public class NestJsLibraryParser : ISemanticExtension
 
             var name = func.Text;
             var callExpr = node.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
-            var routeVal = AstHelper.ExtractFirstStringArgument(callExpr) ?? "";
+            var routeVal = AstHelper.ExtractFirstStringArgument(callExpr, ctx?.WorkspaceId) ?? "";
 
             if (name == "SubscribeMessage") return $"ws:{routeVal.TrimStart('/')}";
             if (name is "Query" or "Mutation" or "Subscription")
@@ -91,7 +91,7 @@ public class NestJsLibraryParser : ISemanticExtension
 
             if (name != "Controller")
             {
-                var classPrefix = GetControllerPrefixForNode(node);
+                var classPrefix = GetControllerPrefixForNode(node, ctx?.WorkspaceId);
                 if (!string.IsNullOrEmpty(classPrefix))
                 {
                     routeVal = CombineRoutes(classPrefix, routeVal);
@@ -254,13 +254,14 @@ public class NestJsLibraryParser : ISemanticExtension
         return $"/{prefix}/{route}";
     }
 
-    private static string? GetControllerPrefixForNode(Node node)
+    private static string? GetControllerPrefixForNode(Node node, string? contextOrProject = null)
     {
-        var classBody = node.Parent;
-        if (!classBody.Is(TreeSitterSyntax.TypeScript.ClassBody)) return null;
-
-        var classDecl = classBody.Parent;
-        if (!classDecl.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression)) return null;
+        var classDecl = node;
+        while (classDecl.IsValid() && !classDecl.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
+        {
+            classDecl = classDecl.Parent;
+        }
+        if (!classDecl.IsValid()) return null;
 
         var candidates = new List<Node>();
         candidates.AddRange(classDecl.Children);
@@ -279,7 +280,7 @@ public class NestJsLibraryParser : ISemanticExtension
                 if (func.IsValid() && func.Text == "Controller")
                 {
                     var callExpr = c.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
-                    var prefix = AstHelper.ExtractFirstStringArgument(callExpr);
+                    var prefix = AstHelper.ExtractFirstStringArgument(callExpr, contextOrProject);
                     return !string.IsNullOrEmpty(prefix) ? prefix : "/";
                 }
             }

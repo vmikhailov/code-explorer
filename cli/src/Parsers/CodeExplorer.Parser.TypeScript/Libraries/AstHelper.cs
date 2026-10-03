@@ -386,7 +386,7 @@ public static class AstHelper
         return RouteDictionaryRegistry.NormalizeResolvedUrl(raw);
     }
 
-    public static string? ExtractFirstStringArgument(Node? callNode)
+    public static string? ExtractFirstStringArgument(Node? callNode, string? contextOrProject = null)
     {
         if (!callNode.IsValid()) return null;
 
@@ -403,10 +403,11 @@ public static class AstHelper
                 return firstArg.Text.Trim('\'', '"', '`');
             }
 
-            var firstIdent = argList.Children.FirstOrDefault(c => c.IsValid() && c.Is(TreeSitterSyntax.TypeScript.Identifier));
-            if (firstIdent.IsValid())
+            var firstArgExpr = argList.Children.FirstOrDefault(c =>
+                c.IsValid() && (c.Is(TreeSitterSyntax.TypeScript.Identifier) || c.Is(TreeSitterSyntax.TypeScript.MemberExpression)));
+            if (firstArgExpr.IsValid())
             {
-                return ResolveStringOrTemplate(firstIdent);
+                return ResolveStringOrTemplate(firstArgExpr, contextOrProject);
             }
         }
 
@@ -526,54 +527,161 @@ public static class AstHelper
                             foreach (var decl in child.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.VariableDeclarator)))
                             {
                                 var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name);
-                                if (nameNode.IsValid() && (nameNode.Text == varName || nameNode.Text == cleanVar))
+                                if (!nameNode.IsValid())
+                                {
+                                    nameNode = decl.FindChildOfType("object_pattern") ??
+                                               decl.Children.FirstOrDefault(c => c.Is("object_pattern"));
+                                }
+                                if (nameNode.IsValid())
                                 {
                                     var valNode = decl.GetField(TreeSitterSyntax.Fields.Value);
-                                    if (valNode.IsValid())
+
+                                    // Handle direct variable name match: const foo = ...
+                                    if (nameNode.Text == varName || nameNode.Text == cleanVar)
                                     {
-                                        if (IsNodeContainedWithin(node, valNode))
+                                        if (valNode.IsValid())
                                         {
-                                            continue;
-                                        }
-
-                                        if (IsStringLiteralNode(valNode))
-                                        {
-                                            var text = valNode.Text.Trim('\'', '"', '`');
-                                            if (!text.Contains('\n') && text.Length <= 500)
+                                            if (IsNodeContainedWithin(node, valNode))
                                             {
-                                                return text;
-                                            }
-                                        }
-                                        else if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
-                                        {
-                                            var callRes = ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
-                                            if (!string.IsNullOrEmpty(callRes))
-                                            {
-                                                return callRes;
+                                                continue;
                                             }
 
-                                            var funcNode = valNode.GetFunctionNode();
-                                            if (funcNode.IsValid())
+                                            if (IsStringLiteralNode(valNode))
                                             {
-                                                var propNode = funcNode.Is(TreeSitterSyntax.TypeScript.MemberExpression)
-                                                    ? funcNode.GetField(TreeSitterSyntax.Fields.Property)
-                                                    : default;
-                                                var funcName = propNode.IsValid() ? propNode.Text : funcNode.Text;
-                                                var methodRet = FindMethodReturnInAst(valNode, funcName);
-                                                if (!string.IsNullOrEmpty(methodRet)) return methodRet;
+                                                var text = valNode.Text.Trim('\'', '"', '`');
+                                                if (!text.Contains('\n') && text.Length <= 500)
+                                                {
+                                                    return text;
+                                                }
+                                            }
+                                            else if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
+                                            {
+                                                var callRes = ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
+                                                if (!string.IsNullOrEmpty(callRes))
+                                                {
+                                                    return callRes;
+                                                }
+
+                                                var funcNode = valNode.GetFunctionNode();
+                                                if (funcNode.IsValid())
+                                                {
+                                                    var propNode = funcNode.Is(TreeSitterSyntax.TypeScript.MemberExpression)
+                                                        ? funcNode.GetField(TreeSitterSyntax.Fields.Property)
+                                                        : default;
+                                                    var funcName = propNode.IsValid() ? propNode.Text : funcNode.Text;
+                                                    var methodRet = FindMethodReturnInAst(valNode, funcName);
+                                                    if (!string.IsNullOrEmpty(methodRet)) return methodRet;
+                                                }
+                                            }
+                                            else if (valNode.Is(TreeSitterSyntax.Common.BinaryExpression))
+                                            {
+                                                var left = valNode.GetField(TreeSitterSyntax.Fields.Left);
+                                                var right = valNode.GetField(TreeSitterSyntax.Fields.Right);
+                                                var leftRes = left.IsValid() ? ResolveStringOrTemplate(left, null, depth + 1, visitedVars) : null;
+                                                if (!string.IsNullOrEmpty(leftRes) && (leftRes.StartsWith("http") || leftRes.Contains('.'))) return leftRes;
+                                                var rightRes = right.IsValid() ? ResolveStringOrTemplate(right, null, depth + 1, visitedVars) : null;
+                                                if (!string.IsNullOrEmpty(rightRes)) return rightRes;
+                                                if (right.IsValid() && IsStringLiteralNode(right))
+                                                {
+                                                    return right.Text.Trim('\'', '"', '`');
+                                                }
                                             }
                                         }
-                                        else if (valNode.Is(TreeSitterSyntax.Common.BinaryExpression))
+                                    }
+                                    // Handle destructuring: const { GLOBAL_PREFIX, START_PREFIX } = HTTP_API_PREFIX_CONFIG.SMART_CPA
+                                    else if (nameNode.Is("object_pattern") && valNode.IsValid())
+                                    {
+                                        foreach (var patChild in nameNode.Children)
                                         {
-                                            var left = valNode.GetField(TreeSitterSyntax.Fields.Left);
-                                            var right = valNode.GetField(TreeSitterSyntax.Fields.Right);
-                                            var leftRes = left.IsValid() ? ResolveStringOrTemplate(left, null, depth + 1, visitedVars) : null;
-                                            if (!string.IsNullOrEmpty(leftRes) && (leftRes.StartsWith("http") || leftRes.Contains('.'))) return leftRes;
-                                            var rightRes = right.IsValid() ? ResolveStringOrTemplate(right, null, depth + 1, visitedVars) : null;
-                                            if (!string.IsNullOrEmpty(rightRes)) return rightRes;
-                                            if (right.IsValid() && IsStringLiteralNode(right))
+                                            var matchProp = false;
+                                            string? propAlias = null;
+
+                                            if (patChild.Is("shorthand_property_identifier") ||
+                                                patChild.Is(TreeSitterSyntax.TypeScript.Identifier))
                                             {
-                                                return right.Text.Trim('\'', '"', '`');
+                                                if (patChild.Text == varName || patChild.Text == cleanVar)
+                                                {
+                                                    matchProp = true;
+                                                    propAlias = patChild.Text;
+                                                }
+                                            }
+                                            else if (patChild.Is("pair_pattern") || patChild.Is(TreeSitterSyntax.TypeScript.Pair))
+                                            {
+                                                var key = patChild.GetField(TreeSitterSyntax.Fields.Key);
+                                                var val = patChild.GetField(TreeSitterSyntax.Fields.Value);
+                                                if (val.IsValid() && (val.Text == varName || val.Text == cleanVar))
+                                                {
+                                                    matchProp = true;
+                                                    propAlias = key.IsValid() ? key.Text : val.Text;
+                                                }
+                                                else if (key.IsValid() && (key.Text == varName || key.Text == cleanVar))
+                                                {
+                                                    matchProp = true;
+                                                    propAlias = key.Text;
+                                                }
+                                            }
+
+                                            if (matchProp && !string.IsNullOrEmpty(propAlias))
+                                            {
+                                                var rhsText = valNode.Text.Trim();
+                                                var fullLookupKey = $"{rhsText}.{propAlias}";
+
+                                                if (ConstantRegistry.TryResolve(null, fullLookupKey, out var resolvedVal) && !string.IsNullOrEmpty(resolvedVal))
+                                                {
+                                                    return resolvedVal;
+                                                }
+
+                                                // Check if any constant in ProjectConstants or GlobalConstants ends with .fullLookupKey or :fullLookupKey
+                                                var suffixWithDot = "." + fullLookupKey;
+                                                var suffixWithColon = ":" + fullLookupKey;
+                                                foreach (var kvp in ConstantRegistry.ProjectConstants)
+                                                {
+                                                    if (kvp.Key.EndsWith(suffixWithDot, StringComparison.OrdinalIgnoreCase) ||
+                                                        kvp.Key.EndsWith(suffixWithColon, StringComparison.OrdinalIgnoreCase) ||
+                                                        kvp.Key.Equals(fullLookupKey, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        return kvp.Value;
+                                                    }
+                                                }
+                                                foreach (var kvp in ConstantRegistry.GlobalConstants)
+                                                {
+                                                    if (kvp.Key.EndsWith(suffixWithDot, StringComparison.OrdinalIgnoreCase) ||
+                                                        kvp.Key.Equals(fullLookupKey, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        return kvp.Value;
+                                                    }
+                                                }
+
+                                                // If RHS is an identifier/member, resolve it and check
+                                                var resolvedRhs = ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
+                                                if (!string.IsNullOrEmpty(resolvedRhs))
+                                                {
+                                                    var resolvedFullKey = $"{resolvedRhs}.{propAlias}";
+                                                    if (ConstantRegistry.TryResolve(null, resolvedFullKey, out var valFromResolved) && !string.IsNullOrEmpty(valFromResolved))
+                                                    {
+                                                        return valFromResolved;
+                                                    }
+
+                                                    var resSuffixWithDot = "." + resolvedFullKey;
+                                                    var resSuffixWithColon = ":" + resolvedFullKey;
+                                                    foreach (var kvp in ConstantRegistry.ProjectConstants)
+                                                    {
+                                                        if (kvp.Key.EndsWith(resSuffixWithDot, StringComparison.OrdinalIgnoreCase) ||
+                                                            kvp.Key.EndsWith(resSuffixWithColon, StringComparison.OrdinalIgnoreCase) ||
+                                                            kvp.Key.Equals(resolvedFullKey, StringComparison.OrdinalIgnoreCase))
+                                                        {
+                                                            return kvp.Value;
+                                                        }
+                                                    }
+                                                    foreach (var kvp in ConstantRegistry.GlobalConstants)
+                                                    {
+                                                        if (kvp.Key.EndsWith(resSuffixWithDot, StringComparison.OrdinalIgnoreCase) ||
+                                                            kvp.Key.Equals(resolvedFullKey, StringComparison.OrdinalIgnoreCase))
+                                                        {
+                                                            return kvp.Value;
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }

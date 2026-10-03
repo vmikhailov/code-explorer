@@ -166,7 +166,7 @@ public static class ScanCommandHandler
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.Error.WriteLine($"Scan Error: {ex.Message}");
+            Console.Error.WriteLine($"Scan Error: {ex}");
             Console.ResetColor();
             return 1;
         }

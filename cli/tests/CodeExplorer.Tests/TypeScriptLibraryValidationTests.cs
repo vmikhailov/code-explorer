@@ -699,6 +699,64 @@ export class UsersController {
     }
 
     [Test]
+    public async Task Test_NestJs_DestructuredRoutePrefix()
+    {
+        var configCode = @"
+export const HTTP_API_PREFIX_CONFIG = {
+  API_GLOBAL_PREFIX: 'api/v1',
+  SMART_CPA: {
+    GLOBAL_PREFIX: 'smart-cpa',
+    START_PREFIX: 'campaigns/start',
+    STOP_PREFIX: 'campaigns/stop',
+    UPDATE_PREFIX: 'campaigns/update',
+  },
+};
+";
+        var controllerCode = @"
+import { Controller, Post } from '@nestjs/common';
+import { HTTP_API_PREFIX_CONFIG } from './config';
+
+const { GLOBAL_PREFIX, START_PREFIX, STOP_PREFIX, UPDATE_PREFIX } =
+  HTTP_API_PREFIX_CONFIG.SMART_CPA;
+
+@Controller(GLOBAL_PREFIX)
+export class SmartCpaController {
+  @Post(START_PREFIX)
+  start() {}
+}
+";
+        var tempDir = Path.Combine(Path.GetTempPath(), "ts_val_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var configFile = Path.Combine(tempDir, "config.ts");
+            await File.WriteAllTextAsync(configFile, configCode);
+            var controllerFile = Path.Combine(tempDir, "smart-cpa.controller.ts");
+            await File.WriteAllTextAsync(controllerFile, controllerCode);
+
+            // Pre-register constants from config.ts
+            AstConstantExtractor.ExtractAndRegister(configFile, configCode);
+
+            var parser = new TypeScriptParser();
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            var syntaxTree = await parser.ParseAsync(controllerFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var endpoints = FindNodes<EndpointNode>(syntaxTree.FileNode.Children);
+            var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
+            Assert.That(postEp, Is.Not.Null);
+            Assert.That(postEp!.RouteTemplate, Is.EqualTo("/smart-cpa/campaigns/start"));
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Test]
     public async Task Test_NestJs_VersionDecorator()
     {
         var code = @"

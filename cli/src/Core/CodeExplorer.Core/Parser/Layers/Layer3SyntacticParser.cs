@@ -234,11 +234,31 @@ public class Layer3SyntacticParser
                             try
                             {
                                 var fileText = File.ReadAllText(file.FullPath);
-                                var prefixMatch = Regex.Match(fileText, @"setGlobalPrefix\s*\(\s*['""`]([^'""`]+)['""`]");
+                                var prefixMatch = Regex.Match(fileText, @"setGlobalPrefix\s*\(\s*([^,\)]+)");
                                 if (prefixMatch.Success)
                                 {
-                                    var prefix = prefixMatch.Groups[1].Value.Trim('/');
-                                    RouteDictionaryRegistry.RegisterGlobalPrefix(project.Name, prefix);
+                                    var rawArg = prefixMatch.Groups[1].Value.Trim();
+                                    string? resolvedPrefix = null;
+                                    if (rawArg.StartsWith('\'') || rawArg.StartsWith('"') || rawArg.StartsWith('`'))
+                                    {
+                                        resolvedPrefix = rawArg.Trim('\'', '"', '`').Trim('/');
+                                    }
+                                    else
+                                    {
+                                        if (ConstantRegistry.TryResolve(project.Name, rawArg, out var constVal) && !string.IsNullOrEmpty(constVal))
+                                        {
+                                            resolvedPrefix = constVal.Trim('/');
+                                        }
+                                        else if (ConstantRegistry.TryResolve(null, rawArg, out var gVal) && !string.IsNullOrEmpty(gVal))
+                                        {
+                                            resolvedPrefix = gVal.Trim('/');
+                                        }
+                                    }
+
+                                    if (!string.IsNullOrEmpty(resolvedPrefix))
+                                    {
+                                        RouteDictionaryRegistry.RegisterGlobalPrefix(project.Name, resolvedPrefix);
+                                    }
                                 }
                             }
                             catch { }

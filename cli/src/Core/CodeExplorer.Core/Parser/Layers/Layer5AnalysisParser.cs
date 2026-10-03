@@ -1148,6 +1148,12 @@ public class Layer5AnalysisParser
         if (d.Length >= 4 && (pName.EndsWith("." + d) || pName.EndsWith("." + d + "s")))
             return true;
 
+        // Common namespace/service prefix stripped match (e.g. id-helper-nest vs helper-nest)
+        if (d.StartsWith("id-") && (pName == d[3..] || normP == d[3..]))
+            return true;
+        if (pName.StartsWith("id-") && (d == pName[3..] || normD == pName[3..]))
+            return true;
+
         return false;
     }
 

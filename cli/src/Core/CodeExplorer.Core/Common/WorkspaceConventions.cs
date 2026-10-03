@@ -533,7 +533,9 @@ public static class WorkspaceConventions
             or "exchange" or "exchangename" or "exchange-name" or "exchangekey" or "exchange-key" or "routingkey" or "routing-key"
             or "worker-name" or "workername"
             or "placeholder" or "dummy" or "test"
-            or "network-topic" or "network-sub" or "network-subscription" or "google-pub-sub-network-topic" or "google-pubsub-network-topic" or "pub-sub-network-topic" or "pubsub-network-topic"
+            or "network-topic" or "network-sub" or "network-subscription"
+            or "google-pub-sub-network" or "google-pubsub-network" or "pub-sub-network" or "pubsub-network"
+            or "google-pub-sub-network-topic" or "google-pubsub-network-topic" or "pub-sub-network-topic" or "pubsub-network-topic"
             or "undefined" or "null" or "string" or "void" or "any" or "unknown" or "never" or "object" or "boolean" or "number";
     }
 

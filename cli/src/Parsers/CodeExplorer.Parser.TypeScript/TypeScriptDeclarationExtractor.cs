@@ -54,35 +54,89 @@ public static class TypeScriptDeclarationExtractor
                 var nameNode = decl.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                                decl.FindChildOfType(TreeSitterSyntax.TypeScript.Identifier);
 
+                if (!nameNode.IsValid())
+                {
+                    nameNode = decl.FindChildOfType("object_pattern") ??
+                               decl.Children.FirstOrDefault(c => c.Type == "object_pattern");
+                }
+
                 if (nameNode.IsValid())
                 {
-                    var varName = nameNode.Text;
                     var valNode = decl.GetChildForField(TreeSitterSyntax.Fields.Value);
                     if (!valNode.IsValid() && decl.Children.Count >= 3 && decl.Children[1].Type == "=")
                     {
                         valNode = decl.Children[2];
                     }
 
-                    if (valNode.IsValid())
+                    if (nameNode.Type == "object_pattern")
                     {
-                        // Handle const Objects: const Topics = { OrderCreated: "...", ... }
-                        if (valNode.Type is TreeSitterSyntax.TypeScript.Object)
+                        if (valNode.IsValid())
                         {
-                            foreach (var pair in valNode.Children.Where(c => c.Type is TreeSitterSyntax.TypeScript.Pair))
+                            var rhsText = valNode.Text.Trim();
+                            foreach (var patChild in nameNode.Children)
                             {
-                                var keyNode = pair.GetChildForField(TreeSitterSyntax.Fields.Key) ?? pair.Children[0];
-                                var pairValNode = pair.GetChildForField(TreeSitterSyntax.Fields.Value) ?? pair.Children[^1];
-
-                                if (keyNode.IsValid())
+                                if (patChild.Type is "shorthand_property_identifier" or TreeSitterSyntax.TypeScript.Identifier)
                                 {
-                                    var cleanKey = keyNode.Text.Trim('\'', '"', '`');
-                                    register($"{varName}.{cleanKey}", pairValNode, null);
+                                    var propName = patChild.Text;
+                                    var lookupKey = $"{rhsText}.{propName}";
+                                    if (ConstantRegistry.TryResolve(null, lookupKey, out var resVal) && !string.IsNullOrEmpty(resVal))
+                                    {
+                                        register(propName, null, resVal);
+                                    }
+                                }
+                                else if (patChild.Type is "pair_pattern" or TreeSitterSyntax.TypeScript.Pair)
+                                {
+                                    var key = patChild.GetChildForField(TreeSitterSyntax.Fields.Key) ?? patChild.Children[0];
+                                    var val = patChild.GetChildForField(TreeSitterSyntax.Fields.Value) ?? patChild.Children[^1];
+                                    var propName = key.IsValid() ? key.Text : val.Text;
+                                    var aliasName = val.IsValid() ? val.Text : propName;
+                                    var lookupKey = $"{rhsText}.{propName}";
+                                    if (ConstantRegistry.TryResolve(null, lookupKey, out var resVal) && !string.IsNullOrEmpty(resVal))
+                                    {
+                                        register(aliasName, null, resVal);
+                                    }
                                 }
                             }
                         }
-                        else
+                    }
+                    else
+                    {
+                        var varName = nameNode.Text;
+
+                        if (valNode.IsValid())
                         {
-                            register(varName, valNode, null);
+                            // Handle const Objects: const Topics = { OrderCreated: "...", ... }
+                            if (valNode.Type is TreeSitterSyntax.TypeScript.Object)
+                            {
+                                void FlattenObject(string prefix, Node objNode)
+                                {
+                                    foreach (var pair in objNode.Children.Where(c => c.Type is TreeSitterSyntax.TypeScript.Pair))
+                                    {
+                                        var keyNode = pair.GetChildForField(TreeSitterSyntax.Fields.Key) ?? pair.Children[0];
+                                        var pairValNode = pair.GetChildForField(TreeSitterSyntax.Fields.Value) ?? pair.Children[^1];
+
+                                        if (keyNode.IsValid() && pairValNode.IsValid())
+                                        {
+                                            var cleanKey = keyNode.Text.Trim('\'', '"', '`');
+                                            var propPath = $"{prefix}.{cleanKey}";
+                                            if (pairValNode.Type is TreeSitterSyntax.TypeScript.Object)
+                                            {
+                                                FlattenObject(propPath, pairValNode);
+                                            }
+                                            else
+                                            {
+                                                register(propPath, pairValNode, null);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                FlattenObject(varName, valNode);
+                            }
+                            else
+                            {
+                                register(varName, valNode, null);
+                            }
                         }
                     }
                 }
