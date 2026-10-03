@@ -201,7 +201,7 @@ public static class RouteDictionaryRegistry
         return clean;
     }
 
-    public static void ScanAndRegister(string content)
+    public static void ScanServiceDomains(string content)
     {
         if (string.IsNullOrWhiteSpace(content)) return;
 
@@ -270,6 +270,13 @@ public static class RouteDictionaryRegistry
                 }
             }
         }
+    }
+
+    public static void ScanAndRegister(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+
+        ScanServiceDomains(content);
 
         // 1a-1. Top-level string/URL constant declarations:
         // const apiRoot = 'https://api.HOSTNAME/api/v1';

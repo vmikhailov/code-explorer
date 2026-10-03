@@ -42,7 +42,11 @@ public class SocketIoLibraryParser : ISemanticExtension
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
         if (_socketOnSelector.Matches(node)) return OntologyConstants.NodeLabels.EntryPoint;
-        if (_socketEmitSelector.Matches(node)) return OntologyConstants.NodeLabels.ExternalService;
+        if (_socketEmitSelector.Matches(node))
+        {
+            if (IsServerContext(node)) return null;
+            return OntologyConstants.NodeLabels.ExternalService;
+        }
         return null;
     }
 
@@ -50,6 +54,8 @@ public class SocketIoLibraryParser : ISemanticExtension
     {
         var isOn = _socketOnSelector.Matches(node);
         var isEmit = _socketEmitSelector.Matches(node);
+
+        if (isEmit && IsServerContext(node)) return null;
 
         if (isOn || isEmit)
         {
@@ -65,6 +71,41 @@ public class SocketIoLibraryParser : ISemanticExtension
             }
         }
         return null;
+    }
+
+    private static bool IsServerContext(Node node)
+    {
+        var curr = node.Parent;
+        var steps = 0;
+        while (curr.IsValid() && ++steps <= 40)
+        {
+            if (curr.Is(TreeSitterSyntax.TypeScript.CallExpression))
+            {
+                var func = curr.GetFunctionNode();
+                if (func.IsValid() && (func.Text.EndsWith(".on") || func.Text == "on"))
+                {
+                    var args = AstHelper.GetCallArguments(curr);
+                    if (args.Count > 0)
+                    {
+                        var first = AstHelper.ResolveStringOrTemplate(args[0]);
+                        if (string.Equals(first, "connection", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(first, "connect", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            if (curr.Is(TreeSitterSyntax.TypeScript.Decorator) || curr.Text.Contains("@SubscribeMessage") || curr.Text.Contains("@WebSocketGateway"))
+            {
+                return true;
+            }
+
+            curr = curr.Parent;
+        }
+
+        return false;
     }
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)

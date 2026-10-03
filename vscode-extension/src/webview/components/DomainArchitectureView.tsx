@@ -100,6 +100,7 @@ export interface DomainProjectInfo {
   name: string;
   kind?: string;
   filePath?: string;
+  lineStart?: number;
   isLibrary?: boolean;
   gitBranch?: string;
 }
@@ -128,6 +129,7 @@ export interface SelectedNodeDetail {
   language?: string;
   gitBranch?: string;
   primaryFilePath?: string;
+  primaryLineStart?: number;
   projects: DomainProjectInfo[];
   inboundCallsCount: number;
   outboundCallsCount: number;
@@ -1430,12 +1432,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         language: node.properties?.language || node.properties?.project_type,
         gitBranch: node.properties?.git_branch,
         primaryFilePath: node.filePath,
+        primaryLineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
         projects: [
           {
             id: node.id,
             name: node.name || displayName,
             kind: node.kind,
             filePath: node.filePath,
+            lineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
             isLibrary: isLib,
             gitBranch: node.properties?.git_branch,
           },
@@ -4536,7 +4540,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         <div
                           key={p.id}
                           className="inspector-subproject-item"
-                          onClick={() => p.filePath && onOpenFile?.(p.filePath, 1)}
+                          onClick={() => p.filePath && onOpenFile?.(p.filePath, p.lineStart || 1)}
                           title={p.filePath || p.name}
                         >
                           <span className="subproject-dot">•</span>
@@ -4545,6 +4549,25 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           {p.gitBranch && <span className="subproject-lib-tag" style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>🌿 {p.gitBranch}</span>}
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Physical Source Location Drill-down */}
+                {selectedNode.primaryFilePath && (
+                  <div className="inspector-section">
+                    <label className="inspector-section-label">Source Code Declaration</label>
+                    <div
+                      className="inspector-subproject-item"
+                      style={{ cursor: onOpenFile ? 'pointer' : 'default', padding: '6px 8px' }}
+                      onClick={() => onOpenFile?.(selectedNode.primaryFilePath!, selectedNode.primaryLineStart || 1)}
+                      title={`Open ${selectedNode.primaryFilePath}${selectedNode.primaryLineStart ? `:${selectedNode.primaryLineStart}` : ''}`}
+                    >
+                      <span className="subproject-dot">📄</span>
+                      <span className="subproject-name" style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+                        {selectedNode.primaryFilePath}
+                        {selectedNode.primaryLineStart ? `:${selectedNode.primaryLineStart}` : ''}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -4603,7 +4626,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   {selectedNode.primaryFilePath && onOpenFile && (
                     <button
                       className="inspector-action-btn secondary"
-                      onClick={() => onOpenFile(selectedNode.primaryFilePath!, 1)}
+                      onClick={() => onOpenFile(selectedNode.primaryFilePath!, selectedNode.primaryLineStart || 1)}
                       title="Open source file in editor"
                     >
                       Open Source

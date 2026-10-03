@@ -31,6 +31,7 @@ export interface DomainProjectInfo {
   name: string;
   kind?: string;
   filePath?: string;
+  lineStart?: number;
   isLibrary?: boolean;
   gitBranch?: string;
 }
@@ -48,6 +49,7 @@ export interface SelectedNodeDetail {
   language?: string;
   gitBranch?: string;
   primaryFilePath?: string;
+  primaryLineStart?: number;
   projects: DomainProjectInfo[];
   inboundCallsCount: number;
   outboundCallsCount: number;

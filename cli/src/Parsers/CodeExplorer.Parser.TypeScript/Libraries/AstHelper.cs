@@ -619,7 +619,41 @@ public static class AstHelper
                 {
                     return $"{resolvedBase.TrimEnd('/')}/{tail.TrimStart('/')}";
                 }
-                return $"https://{resolvedBase}/{tail.TrimStart('/')}";
+                if (resolvedBase.Contains('.'))
+                {
+                    return $"https://{resolvedBase}/{tail.TrimStart('/')}";
+                }
+                return $"{resolvedBase}/{tail.TrimStart('/')}";
+            }
+
+            // Fallback for nested property access: ${this.kvConfig.baseUrl}zones
+            if (expr.Contains('.'))
+            {
+                var dotParts = expr.Split('.');
+                if (dotParts.Length >= 2)
+                {
+                    var parentExpr = string.Join('.', dotParts[..^1]);
+                    var leafProp = dotParts[^1];
+                    var parentTypeOrVal = ResolveTemplateExpression(node, parentExpr);
+                    if (!string.IsNullOrEmpty(parentTypeOrVal))
+                    {
+                        var leafVal = FindClassFieldInitializerInAst(node, $"{parentTypeOrVal}.{leafProp}");
+                        if (string.IsNullOrEmpty(leafVal)) leafVal = FindClassFieldInitializerInAst(node, leafProp);
+                        if (!string.IsNullOrEmpty(leafVal))
+                        {
+                            if (leafVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                leafVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return $"{leafVal.TrimEnd('/')}/{tail.TrimStart('/')}";
+                            }
+                            if (leafVal.Contains('.'))
+                            {
+                                return $"https://{leafVal}/{tail.TrimStart('/')}";
+                            }
+                            return $"{leafVal}/{tail.TrimStart('/')}";
+                        }
+                    }
+                }
             }
         }
 
@@ -682,6 +716,31 @@ public static class AstHelper
                     if (!string.IsNullOrEmpty(resolved)) return resolved;
                 }
             }
+        }
+
+        // 1b. ConstantRegistry lookup: TELEGRAM_BOT_API_BASE_URL, BQ_ROUTES_CALC_API_HOST, ID_HELPER_NEST, etc.
+        if (ConstantRegistry.TryResolve(null, expr, out var constVal) && !string.IsNullOrEmpty(constVal))
+        {
+            return constVal;
+        }
+
+        if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) &&
+            ConstantRegistry.TryResolve(null, expr[5..], out var strippedVal) && !string.IsNullOrEmpty(strippedVal))
+        {
+            return strippedVal;
+        }
+
+        if (expr.Contains('.') &&
+            ConstantRegistry.TryResolve(null, expr.Split('.').Last(), out var leafVal) && !string.IsNullOrEmpty(leafVal))
+        {
+            return leafVal;
+        }
+
+        // 1c. RouteDictionaryRegistry lookup
+        if (RouteDictionaryRegistry.TryResolve(expr, out var rPath, out var rSvc))
+        {
+            var cleanPath = rPath.Split('?')[0];
+            return CombineServiceAndPath(rSvc, cleanPath);
         }
 
         // 2. Member / field access: this.<prop>, ClassName.<prop>
@@ -768,12 +827,34 @@ public static class AstHelper
 
     private static string? FindClassFieldInitializerInAst(Node node, string propName)
     {
-        var cleanProp = propName.Contains('.') ? propName.Split('.').Last().Trim() : propName.Trim();
+        string? targetClassName = null;
+        var cleanProp = propName.Trim();
+        if (cleanProp.Contains('.'))
+        {
+            var parts = cleanProp.Split('.');
+            targetClassName = parts[0];
+            cleanProp = parts[^1];
+        }
+
         var curr = node;
         while (curr.IsValid())
         {
             if (curr.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassBody))
             {
+                var classDecl = curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)
+                    ? curr
+                    : curr.Parent.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) ? curr.Parent : default;
+                if (!string.IsNullOrEmpty(targetClassName) && classDecl.IsValid())
+                {
+                    var cNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name) ??
+                                    classDecl.GetChildForField(TreeSitterSyntax.Fields.Name);
+                    if (cNameNode.IsValid() && !string.Equals(cNameNode.Text, targetClassName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        curr = curr.Parent;
+                        continue;
+                    }
+                }
+
                 var body = curr.Is(TreeSitterSyntax.TypeScript.ClassBody) ? curr : curr.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? curr;
                 foreach (var member in body.Children)
                 {
@@ -868,6 +949,19 @@ public static class AstHelper
                                         }
                                         return key;
                                     }
+
+                                    // 4. Template string or variable on RHS: e.g. `${BUNDLES_HOST}/api/trafficbacks` or `foo`
+                                    if (rhs.StartsWith('`') && rhs.EndsWith('`'))
+                                    {
+                                        var rawTpl = rhs.Trim('`');
+                                        var decomp = TryDecomposeTemplateString(curr, rawTpl);
+                                        if (!string.IsNullOrEmpty(decomp)) return decomp;
+                                    }
+                                    else
+                                    {
+                                        var resExpr = ResolveTemplateExpression(curr, rhs);
+                                        if (!string.IsNullOrEmpty(resExpr)) return resExpr;
+                                    }
                                 }
                             }
                         }
@@ -885,6 +979,16 @@ public static class AstHelper
 
                 foreach (var classDecl in classDecls)
                 {
+                    if (!string.IsNullOrEmpty(targetClassName))
+                    {
+                        var cNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name) ??
+                                        classDecl.GetChildForField(TreeSitterSyntax.Fields.Name);
+                        if (cNameNode.IsValid() && !string.Equals(cNameNode.Text, targetClassName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                    }
+
                     var body = classDecl.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? classDecl;
                     foreach (var member in body.Children)
                     {
@@ -944,18 +1048,38 @@ public static class AstHelper
     private static string? FindMethodReturnInAst(Node node, string methodName, int depth = 0)
     {
         if (depth > 4) return null;
+        string? targetClassName = null;
+        var cleanMethod = methodName.Trim();
+        if (cleanMethod.Contains('.'))
+        {
+            var parts = cleanMethod.Split('.');
+            targetClassName = parts[0];
+            cleanMethod = parts[^1];
+        }
+
         var curr = node;
         while (curr.IsValid())
         {
             if (curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) || curr.Is(TreeSitterSyntax.TypeScript.Program))
             {
+                if (!string.IsNullOrEmpty(targetClassName) && curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
+                {
+                    var cNameNode = curr.GetField(TreeSitterSyntax.Fields.Name) ??
+                                    curr.GetChildForField(TreeSitterSyntax.Fields.Name);
+                    if (cNameNode.IsValid() && !string.Equals(cNameNode.Text, targetClassName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        curr = curr.Parent;
+                        continue;
+                    }
+                }
+
                 foreach (var child in curr.Children)
                 {
                     if (child.Is("class_body"))
                     {
                         foreach (var m in child.Children)
                         {
-                            var res = CheckMethodNode(m, methodName, depth);
+                            var res = CheckMethodNode(m, cleanMethod, depth);
                             if (res != null) return res;
                         }
                     }
@@ -965,18 +1089,27 @@ public static class AstHelper
                         {
                             if (expChild.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
                             {
+                                if (!string.IsNullOrEmpty(targetClassName))
+                                {
+                                    var cNameNode = expChild.GetField(TreeSitterSyntax.Fields.Name) ??
+                                                    expChild.GetChildForField(TreeSitterSyntax.Fields.Name);
+                                    if (cNameNode.IsValid() && !string.Equals(cNameNode.Text, targetClassName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        continue;
+                                    }
+                                }
                                 var expBody = expChild.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? expChild;
                                 foreach (var m in expBody.Children)
                                 {
-                                    var res = CheckMethodNode(m, methodName, depth);
+                                    var res = CheckMethodNode(m, cleanMethod, depth);
                                     if (res != null) return res;
                                 }
                             }
-                            var expCheck = CheckMethodNode(expChild, methodName, depth);
+                            var expCheck = CheckMethodNode(expChild, cleanMethod, depth);
                             if (expCheck != null) return expCheck;
                         }
                     }
-                    var checkRes = CheckMethodNode(child, methodName, depth);
+                    var checkRes = CheckMethodNode(child, cleanMethod, depth);
                     if (checkRes != null) return checkRes;
                 }
             }

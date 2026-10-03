@@ -84,6 +84,7 @@ public class Layer3SyntacticParser
         // Phase 0: Unified ConfigStore early initialization
         ConfigStore.Clear();
         ConstantRegistry.Clear();
+        RouteDictionaryRegistry.Clear();
 
         var allProjectFileNodeIds = new HashSet<string>(filesByProjectId.Values.SelectMany(v => v).Select(f => f.Id));
         var workspaceRootFiles = l2Result.Prev.Files.Where(f => !allProjectFileNodeIds.Contains(f.Id)).ToList();
@@ -109,6 +110,48 @@ public class Layer3SyntacticParser
             }
         }
         ctx.Log($"[ConfigStore] Pre-loaded {ConfigStore.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
+
+        // Phase 0b: RouteDictionaryRegistry and early constants pre-scanning across all candidate files
+        var allCandidateFiles = new List<(string FullPath, string? ProjectName)>();
+        foreach (var wfile in workspaceRootFiles)
+        {
+            if (IsRouteOrConfigCandidate(wfile.Path)) allCandidateFiles.Add((wfile.FullPath, null));
+        }
+        foreach (var project in l2Result.Projects)
+        {
+            if (filesByProjectId.TryGetValue(project.Id, out var pFiles))
+            {
+                foreach (var pfile in pFiles)
+                {
+                    if (IsRouteOrConfigCandidate(pfile.Path)) allCandidateFiles.Add((pfile.FullPath, project.Name));
+                }
+            }
+        }
+
+        var fileContents = new List<(string Content, string? ProjectName, string FullPath)>();
+        foreach (var (fPath, pName) in allCandidateFiles)
+        {
+            try
+            {
+                if (File.Exists(fPath))
+                {
+                    var content = File.ReadAllText(fPath);
+                    RouteDictionaryRegistry.ScanServiceDomains(content);
+                    fileContents.Add((content, pName, fPath));
+                }
+            }
+            catch { }
+        }
+
+        foreach (var (content, pName, fPath) in fileContents)
+        {
+            try
+            {
+                RouteDictionaryRegistry.ScanAndRegister(content);
+                ConstantRegistry.ScanAndRegister(fPath, content, pName);
+            }
+            catch { }
+        }
 
         foreach (var project in l2Result.Projects)
         {
@@ -557,7 +600,8 @@ public class Layer3SyntacticParser
         string workspaceId)
     {
         var cleanName = name?.Trim('"', '\'', '`', ' ', ';') ?? "";
-        if (string.IsNullOrWhiteSpace(cleanName) ||
+        if (WorkspaceConventions.IsTestFilePath(relativePath) ||
+            string.IsNullOrWhiteSpace(cleanName) ||
             cleanName.Length > 256 ||
             cleanName.Contains('\n') ||
             cleanName.Contains('\r') ||
@@ -627,7 +671,12 @@ public class Layer3SyntacticParser
             foreach (var seg in segments)
             {
                 if (seg.Equals("api", StringComparison.OrdinalIgnoreCase)) continue;
-                if (seg.StartsWith("v", StringComparison.OrdinalIgnoreCase) && seg.Length <= 4 && seg.Skip(1).All(char.IsDigit)) continue;
+                if (seg.StartsWith("v", StringComparison.OrdinalIgnoreCase) && seg.Length <= 6 && seg.Skip(1).All(c => char.IsDigit(c) || c == '.')) continue;
+                if (seg.Equals("assets", StringComparison.OrdinalIgnoreCase) || seg.Equals("static", StringComparison.OrdinalIgnoreCase) || seg.Equals("public", StringComparison.OrdinalIgnoreCase))
+                {
+                    candidate = null;
+                    break;
+                }
                 candidate = seg;
                 break;
             }
@@ -638,7 +687,7 @@ public class Layer3SyntacticParser
             }
             else
             {
-                domainOrService = "*";
+                domainOrService = "unknown-service";
             }
         }
 
@@ -672,6 +721,11 @@ public class Layer3SyntacticParser
             domainOrService = normalizedDomain;
         }
 
+        if (PostIndexAnalyzer.IsGarbageExternalService(domainOrService))
+        {
+            domainOrService = "unknown-service";
+        }
+
         var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}";
 
         var ext = new Dictionary<string, string>
@@ -679,6 +733,14 @@ public class Layer3SyntacticParser
             { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
         };
         return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path, ext);
+    }
+
+    private static bool IsRouteOrConfigCandidate(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var p = path.ToLowerInvariant();
+        return (p.EndsWith(".ts") || p.EndsWith(".js") || p.EndsWith(".cs") || p.EndsWith(".go") || p.EndsWith(".py") || p.EndsWith(".json")) &&
+               (p.Contains("route") || p.Contains("const") || p.Contains("config") || p.Contains("api") || p.Contains("endpoint") || p.Contains("url") || p.Contains("env"));
     }
 
     private static string GetProjectNameFromRelativePath(string relativePath)

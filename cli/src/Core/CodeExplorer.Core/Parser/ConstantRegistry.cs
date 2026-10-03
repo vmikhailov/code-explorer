@@ -402,6 +402,25 @@ public static class ConstantRegistry
             Register(projectName, constName, constVal);
         }
 
+        // 3b. Function call initialization with string literal argument:
+        // export const BQ_ROUTES_CALC_HOST = LINK_GENERATOR('bq-routes-calc');
+        // const bundlesHost = getHost('bundles');
+        // this.ruleConfiguratorHost = this.linkGenerator('rule-configurator');
+        var funcConstMatches = Regex.Matches(content,
+            @"(?:(?:export\s+)?(?:const|let|var)\s+|this\.)([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*(?:this\.)?[A-Za-z0-9_]+\s*\(\s*['""`]([^'""`\r\n]+)['""`]\s*\)\s*;?",
+            RegexOptions.Multiline);
+
+        foreach (Match fcm in funcConstMatches)
+        {
+            var constName = fcm.Groups[1].Value.Trim();
+            var argVal = fcm.Groups[2].Value.Trim();
+            if (!string.IsNullOrEmpty(argVal))
+            {
+                Register(projectName, constName, argVal);
+                Register(projectName, $"this.{constName}", argVal);
+            }
+        }
+
         // 4. ConfigService / process.env field and constant assignments:
         // this.ruleTreeTopic = configService.getString('RULE_TREE_TOPIC');
         // this.topicName = configService.getString('EVENT_BUS_TOPIC_NAME');

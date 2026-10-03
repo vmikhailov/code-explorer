@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -91,6 +91,11 @@ public class AxiosLibraryParser : ISemanticExtension
                     {
                         var path = uri.AbsolutePath.TrimStart('/');
                         return string.IsNullOrEmpty(path) ? uri.Host : $"{uri.Host}/{path}";
+                    }
+                    if (!resolved.Contains('/') && RouteDictionaryRegistry.TryResolve(resolved, out var rPath, out var rSvc))
+                    {
+                        var cleanPath = rPath.Split('?')[0].TrimStart('/');
+                        return !string.IsNullOrEmpty(rSvc) ? $"{rSvc}/{cleanPath}" : cleanPath;
                     }
                     return resolved.TrimStart('/');
                 }

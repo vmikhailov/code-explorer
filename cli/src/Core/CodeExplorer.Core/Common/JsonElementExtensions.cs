@@ -11,6 +11,16 @@ public static class JsonElementExtensions
             : fallback;
     }
 
+    public static int? GetNullableIntProp(this JsonElement elem, string propName)
+    {
+        if (elem.TryGetProperty(propName, out var v))
+        {
+            if (v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var num)) return num;
+            if (v.ValueKind == JsonValueKind.String && int.TryParse(v.GetString(), out var parsed)) return parsed;
+        }
+        return null;
+    }
+
     public static Dictionary<string, string> ExtractProperties(this JsonElement elem, string propName = "properties")
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

@@ -2404,6 +2404,38 @@ public class PostIndexAnalyzer(IGraphClient db)
         var colonIdx = cleanKey.IndexOf(':');
         if (colonIdx >= 0) cleanKey = cleanKey[..colonIdx];
 
+        if (WorkspaceConventions.TryGetServiceAlias(cleanKey, out var aliased))
+        {
+            cleanKey = aliased.ToLowerInvariant();
+        }
+
+        if (cleanKey.StartsWith("environment.", StringComparison.OrdinalIgnoreCase))
+        {
+            cleanKey = cleanKey[12..];
+        }
+        else if (cleanKey.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
+        {
+            cleanKey = cleanKey[4..];
+        }
+        else if (cleanKey.StartsWith("config.", StringComparison.OrdinalIgnoreCase))
+        {
+            cleanKey = cleanKey[7..];
+        }
+        else if (cleanKey.Contains('.'))
+        {
+            var dotParts = cleanKey.Split('.');
+            if (dotParts.Length == 2)
+            {
+                var candidatePrefixMatch = FindMatchingServiceProject(dotParts[0], projects);
+                if (candidatePrefixMatch != null) return candidatePrefixMatch;
+            }
+        }
+
+        if (WorkspaceConventions.TryGetServiceAlias(cleanKey, out aliased))
+        {
+            cleanKey = aliased.ToLowerInvariant();
+        }
+
         var normKey = cleanKey.Replace("-", "").Replace("_", "").Replace("service", "");
         if (string.IsNullOrWhiteSpace(normKey)) return null;
 
@@ -2456,7 +2488,45 @@ public class PostIndexAnalyzer(IGraphClient db)
                              .FirstOrDefault();
         }
 
+        // 6. Typo-tolerant / Levenshtein matching (e.g. 'analitics' vs 'analytics')
+        if (normKey.Length >= 6)
+        {
+            foreach (var p in projList.Where(p => !p.IsLibrary))
+            {
+                var candDomain = SyntaxEnricher.CleanProjectNameToDomain(p.Name).ToLowerInvariant();
+                var candFolder = EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).ToLowerInvariant();
+                if ((candDomain.Length >= 6 && Math.Abs(candDomain.Length - normKey.Length) <= 1 && ComputeLevenshteinDistance(normKey, candDomain) <= 1) ||
+                    (candFolder.Length >= 6 && Math.Abs(candFolder.Length - normKey.Length) <= 1 && ComputeLevenshteinDistance(normKey, candFolder) <= 1))
+                {
+                    return p;
+                }
+            }
+        }
+
         return null;
+    }
+
+    private static int ComputeLevenshteinDistance(string s, string t)
+    {
+        if (string.IsNullOrEmpty(s)) return t?.Length ?? 0;
+        if (string.IsNullOrEmpty(t)) return s.Length;
+
+        var d = new int[s.Length + 1, t.Length + 1];
+        for (var i = 0; i <= s.Length; i++) d[i, 0] = i;
+        for (var j = 0; j <= t.Length; j++) d[0, j] = j;
+
+        for (var i = 1; i <= s.Length; i++)
+        {
+            for (var j = 1; j <= t.Length; j++)
+            {
+                var cost = (s[i - 1] == t[j - 1]) ? 0 : 1;
+                d[i, j] = Math.Min(
+                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                    d[i - 1, j - 1] + cost);
+            }
+        }
+
+        return d[s.Length, t.Length];
     }
 
     public static string ExtractDomainFromExternalServiceId(string extId)
@@ -2473,8 +2543,15 @@ public class PostIndexAnalyzer(IGraphClient db)
     {
         if (string.IsNullOrWhiteSpace(domain)) return true;
         var lower = domain.Trim().ToLowerInvariant();
-        if (lower is "*" or "unknown-service" or "httprequest" or "pageurl" or "string" or "undefined" or "null") return true;
+        if (lower is "*" or "unknown-service" or "httprequest" or "pageurl" or "string" or "undefined" or "null" or "void" or "any" or "never") return true;
+        if (lower.EndsWith('.') || lower.StartsWith('.')) return true;
         if (lower.Contains('!') || lower.EndsWith(".value") || lower.EndsWith(".id") || lower.EndsWith(".key") || lower.StartsWith("config.")) return true;
+        if (lower.Contains("global_env", StringComparison.OrdinalIgnoreCase) || lower.Contains("process.env", StringComparison.OrdinalIgnoreCase)) return true;
+        if (lower is "service" or "services" or "host" or "hostname" or "url" or "uri" or "base" or "base_url" or "base_url_v3" or "dynadot_base_url_v3"
+            or "http-call" or "not-supported" or "urlquery" or "swagger" or "api" or "prod" or "dev" or "stage" or "event" or "assets"
+            or "zones" or "realms" or "conversion" or "impression" or "antifraud" or "rtb") return true;
+        if (Regex.IsMatch(lower, @"^v\d+(\.\d+)?$")) return true;
+        if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") || lower == "test") return true;
         return false;
     }
 

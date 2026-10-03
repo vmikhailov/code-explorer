@@ -192,8 +192,12 @@ public class ArchitectureViewEngine(IGraphClient db)
             if (!string.IsNullOrEmpty(projType)) props["project_type"] = projType;
             var framework = elem.GetStringProp("framework", props.GetValueOrDefault("framework", ""));
             if (!string.IsNullOrEmpty(framework)) props["framework"] = framework;
-            var path = elem.GetStringProp("path", props.GetValueOrDefault("path", ""));
+            var path = elem.GetStringProp("path", props.GetValueOrDefault("path", props.GetValueOrDefault("file_path", "")));
             if (!string.IsNullOrEmpty(path)) props["path"] = path;
+            var lineStart = elem.GetNullableIntProp("start_line")
+                ?? (props.TryGetValue("start_line", out var slStr) && int.TryParse(slStr, out var sl) ? sl : null);
+            var lineEnd = elem.GetNullableIntProp("end_line")
+                ?? (props.TryGetValue("end_line", out var elStr) && int.TryParse(elStr, out var el) ? el : null);
             var layer = elem.GetStringProp("layer", props.GetValueOrDefault("layer", ""));
 
             if (!string.IsNullOrEmpty(layer))
@@ -283,6 +287,9 @@ public class ArchitectureViewEngine(IGraphClient db)
                         Kind = NodeKind.Database,
                         Name = cName,
                         DisplayName = dispName,
+                        FilePath = string.IsNullOrEmpty(path) ? null : path,
+                        LineStart = lineStart,
+                        LineEnd = lineEnd,
                         Properties = props
                     };
                     nodeMap[canonicalId] = node;
@@ -392,6 +399,9 @@ public class ArchitectureViewEngine(IGraphClient db)
                     Kind = NodeKind.Topic,
                     Name = name,
                     DisplayName = dispName,
+                    FilePath = string.IsNullOrEmpty(path) ? null : path,
+                    LineStart = lineStart,
+                    LineEnd = lineEnd,
                     Properties = props
                 };
                 nodeMap[id] = topicNode;
@@ -487,6 +497,9 @@ public class ArchitectureViewEngine(IGraphClient db)
                     Kind = NodeKind.ExternalService,
                     Name = name,
                     DisplayName = dispName,
+                    FilePath = string.IsNullOrEmpty(path) ? null : path,
+                    LineStart = lineStart,
+                    LineEnd = lineEnd,
                     Properties = props
                 };
                 nodeMap[id] = esNode;
@@ -582,6 +595,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                     Name = name,
                     DisplayName = dispName,
                     FilePath = string.IsNullOrEmpty(path) ? null : path,
+                    LineStart = lineStart,
+                    LineEnd = lineEnd,
                     Properties = props
                 };
                 var isLibProject = IsLibraryProject(projNode);

@@ -18,6 +18,7 @@ public static class WorkspaceConventions
     private static readonly ConcurrentBag<string> CustomRouteFunctions = [];
     private static readonly ConcurrentBag<string> CustomServicePrefixes = [];
     private static readonly ConcurrentDictionary<string, string> DatabaseAliases = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> ServiceAliases = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex DefaultRouteFunctionRegex = new(
         @"(?:resolveRoute|routeFor|serviceRoute|getRoute)\s*\(\s*['""]([^'""]+)['""]",
@@ -110,6 +111,19 @@ public static class WorkspaceConventions
                         if (!string.IsNullOrWhiteSpace(target))
                         {
                             DatabaseAliases[prop.Name.Trim()] = target.Trim();
+                        }
+                    }
+                }
+
+                if (doc.RootElement.TryGetProperty("service_aliases", out var svcAliasesEl) &&
+                    svcAliasesEl.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in svcAliasesEl.EnumerateObject())
+                    {
+                        var target = prop.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(target))
+                        {
+                            ServiceAliases[prop.Name.Trim()] = target.Trim();
                         }
                     }
                 }
@@ -365,6 +379,42 @@ public static class WorkspaceConventions
     public static bool TryGetDatabaseAlias(string name, out string alias)
     {
         return DatabaseAliases.TryGetValue(name, out alias!);
+    }
+
+    /// <summary>
+    /// Attempts to resolve a deployment or service alias configured in conventions.json (e.g. syskv -> kv).
+    /// </summary>
+    public static bool TryGetServiceAlias(string name, out string alias)
+    {
+        return ServiceAliases.TryGetValue(name, out alias!);
+    }
+
+    /// <summary>
+    /// Determines whether a source file path represents a unit test, integration test, or spec file.
+    /// </summary>
+    public static bool IsTestFilePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var normalized = path.Replace('\\', '/').ToLowerInvariant();
+        return normalized.Contains("/test/") ||
+               normalized.Contains("/tests/") ||
+               normalized.Contains("/__tests__/") ||
+               normalized.Contains("/testing/") ||
+               normalized.Contains("/specs/") ||
+               normalized.Contains("/spec/") ||
+               normalized.EndsWith(".spec.ts") ||
+               normalized.EndsWith(".spec.js") ||
+               normalized.EndsWith(".spec.jsx") ||
+               normalized.EndsWith(".spec.tsx") ||
+               normalized.EndsWith(".test.ts") ||
+               normalized.EndsWith(".test.js") ||
+               normalized.EndsWith(".test.jsx") ||
+               normalized.EndsWith(".test.tsx") ||
+               normalized.EndsWith("_test.go") ||
+               normalized.EndsWith(".tests.cs") ||
+               normalized.EndsWith("tests.cs") ||
+               normalized.EndsWith("_test.py") ||
+               normalized.EndsWith("test_.py");
     }
 
     /// <summary>
