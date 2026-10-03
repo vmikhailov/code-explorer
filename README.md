@@ -228,16 +228,7 @@ dotnet tool update -g CodeExplorer.Cli
 
 ---
 
-### 4. Homebrew (macOS & Linux)
-
-```bash
-brew tap vmikhailov/tap
-brew install ce
-```
-
----
-
-### 5. Manual Download
+### 4. Manual Download
 
 Download the pre-compiled binary for your platform from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest):
 
@@ -251,7 +242,7 @@ Download the pre-compiled binary for your platform from [GitHub Releases](https:
 
 ---
 
-### 6. Build from Source
+### 5. Build from Source
 
 If you have [.NET 10.0 SDK](https://dotnet.microsoft.com/download) installed:
 

@@ -15,6 +15,9 @@ public static class RouteDictionaryRegistry
     private static readonly ConcurrentDictionary<string, string> _aliases =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, string> _globalPrefixes =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly HashSet<string> _genericVariableNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "url", "uri", "path", "href", "link", "endpoint", "endpoints", "req", "res", "request", "response",
@@ -22,6 +25,42 @@ public static class RouteDictionaryRegistry
         "item", "file", "dir", "str", "text", "val", "value", "key", "cmd", "args", "output", "input",
         "err", "error", "msg", "message", "event", "evt", "target", "src", "dest", "base", "temp", "tmp"
     };
+
+    public static void RegisterGlobalPrefix(string? projectName, string prefix)
+    {
+        if (!string.IsNullOrWhiteSpace(projectName) && !string.IsNullOrWhiteSpace(prefix))
+        {
+            var clean = prefix.Trim().Trim('\'', '"', '`').Trim('/');
+            if (!string.IsNullOrEmpty(clean))
+            {
+                _globalPrefixes[projectName.Trim()] = clean;
+                var normProj = WorkspaceConventions.NormalizeServiceName(projectName);
+                if (!string.IsNullOrEmpty(normProj))
+                {
+                    _globalPrefixes[normProj] = clean;
+                }
+            }
+        }
+    }
+
+    public static bool TryGetGlobalPrefix(string? projectName, out string prefix)
+    {
+        prefix = string.Empty;
+        if (string.IsNullOrWhiteSpace(projectName)) return false;
+        var p = projectName.Trim();
+        if (_globalPrefixes.TryGetValue(p, out var pref))
+        {
+            prefix = pref;
+            return true;
+        }
+        var normProj = WorkspaceConventions.NormalizeServiceName(projectName);
+        if (!string.IsNullOrEmpty(normProj) && _globalPrefixes.TryGetValue(normProj, out pref))
+        {
+            prefix = pref;
+            return true;
+        }
+        return false;
+    }
 
     public static void RegisterServiceDomain(string key, string domain)
     {

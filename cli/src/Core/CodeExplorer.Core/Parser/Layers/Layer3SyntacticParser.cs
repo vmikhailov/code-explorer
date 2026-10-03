@@ -149,6 +149,14 @@ public class Layer3SyntacticParser
             {
                 RouteDictionaryRegistry.ScanAndRegister(content);
                 ConstantRegistry.ScanAndRegister(fPath, content, pName);
+
+                var prefixMatch = Regex.Match(content, @"setGlobalPrefix\s*\(\s*['""`]([^'""`]+)['""`]");
+                if (prefixMatch.Success)
+                {
+                    var prefix = prefixMatch.Groups[1].Value.Trim('/');
+                    var targetProj = pName ?? GetProjectNameFromRelativePath(fPath);
+                    RouteDictionaryRegistry.RegisterGlobalPrefix(targetProj, prefix);
+                }
             }
             catch { }
         }
@@ -214,6 +222,27 @@ public class Layer3SyntacticParser
                                 }
                             }
                         }
+
+                        // Discover setGlobalPrefix('api/v1') in bootstrap/main files
+                        if (file.Name.StartsWith("main.", StringComparison.OrdinalIgnoreCase) ||
+                            file.Name.StartsWith("app.", StringComparison.OrdinalIgnoreCase) ||
+                            file.Name.StartsWith("bootstrap.", StringComparison.OrdinalIgnoreCase) ||
+                            file.Name.StartsWith("index.", StringComparison.OrdinalIgnoreCase) ||
+                            file.Name.StartsWith("program.", StringComparison.OrdinalIgnoreCase) ||
+                            file.Name.StartsWith("startup.", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try
+                            {
+                                var fileText = File.ReadAllText(file.FullPath);
+                                var prefixMatch = Regex.Match(fileText, @"setGlobalPrefix\s*\(\s*['""`]([^'""`]+)['""`]");
+                                if (prefixMatch.Success)
+                                {
+                                    var prefix = prefixMatch.Groups[1].Value.Trim('/');
+                                    RouteDictionaryRegistry.RegisterGlobalPrefix(project.Name, prefix);
+                                }
+                            }
+                            catch { }
+                        }
                     }
 
                     parsedResults[i] = (file, syntaxTree, parentNode);
@@ -247,7 +276,7 @@ public class Layer3SyntacticParser
                 {
                     try
                     {
-                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);
+                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name);
 
                         if (componentParsers.Count > 0)
                         {
@@ -345,7 +374,7 @@ public class Layer3SyntacticParser
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<IFileParser, (List<ISemanticExtension> Active, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
 
-    public static void ProcessVisitor(SyntaxTree syntaxTree, string workspaceId, string absoluteWorkspacePath, ParsingContext? ctx = null)
+    public static void ProcessVisitor(SyntaxTree syntaxTree, string workspaceId, string absoluteWorkspacePath, ParsingContext? ctx = null, string? projectName = null)
     {
         if (syntaxTree.Tree == null) return;
 
@@ -375,7 +404,7 @@ public class Layer3SyntacticParser
             rootCounts[key] = count;
 
             var childNode = MapSyntacticSymbolToOntology(childSyntactic, Path.GetFileName(syntaxTree.FilePath),
-                relativePath, workspaceId, syntaxTree.FileNode.Id, ctx, count > 1 ? count : 0);
+                relativePath, workspaceId, syntaxTree.FileNode.Id, ctx, count > 1 ? count : 0, projectName);
             syntaxTree.FileNode.Children.Add(childNode);
         }
 
@@ -405,7 +434,8 @@ public class Layer3SyntacticParser
         string workspaceId,
         string parentScopeId,
         ParsingContext? ctx = null,
-        int overloadIndex = 0)
+        int overloadIndex = 0,
+        string? projectName = null)
     {
         var node = syntactic.Node;
         var kind = syntactic.Kind;
@@ -465,11 +495,11 @@ public class Layer3SyntacticParser
 
             if (isEndpoint)
             {
-                typedNode = CreateEndpointNode(name, node, relativePath, workspaceId, syntactic);
+                typedNode = CreateEndpointNode(name, node, relativePath, workspaceId, syntactic, projectName);
             }
             else
             {
-                typedNode = CreateEntryPointNode(name, node, relativePath, workspaceId);
+                typedNode = CreateEntryPointNode(name, node, relativePath, workspaceId, projectName);
             }
         }
         else if (kind == OntologyConstants.NodeLabels.ExternalService)
@@ -499,7 +529,7 @@ public class Layer3SyntacticParser
             count++;
             childCounts[key] = count;
 
-            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx, count > 1 ? count : 0);
+            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx, count > 1 ? count : 0, projectName);
             typedNode.Children.Add(childNode);
         }
 
@@ -523,23 +553,50 @@ public class Layer3SyntacticParser
         return typedNode;
     }
 
+    private static string CombineRoutes(string prefix, string route)
+    {
+        prefix = (prefix ?? "").Trim('/');
+        route = (route ?? "").Trim('/');
+        if (string.IsNullOrEmpty(prefix)) return "/" + route;
+        if (string.IsNullOrEmpty(route)) return "/" + prefix;
+        return $"/{prefix}/{route}";
+    }
+
     private static EndpointNode CreateEndpointNode(
         string name,
         TreeSitter.Node node,
         string relativePath,
         string workspaceId,
-        SyntacticSymbol? syntactic = null)
+        SyntacticSymbol? syntactic = null,
+        string? projectName = null)
     {
         var idx = name.IndexOf(':');
         var method = idx > 0 ? name[..idx].ToUpperInvariant() : (syntactic?.Protocol == "gRPC" ? "RPC" : "GET");
         var route = idx > 0 ? name[(idx + 1)..] : name;
+
+        var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : GetProjectNameFromRelativePath(relativePath);
+
+        // Apply project global route prefix (e.g. 'api/v1' or 'api') if discovered and not already present
+        if (!string.IsNullOrEmpty(resolvedProj) &&
+            RouteDictionaryRegistry.TryGetGlobalPrefix(resolvedProj, out var globalPrefix) &&
+            !string.IsNullOrEmpty(globalPrefix))
+        {
+            var normRoute = route.Trim('/');
+            if (!normRoute.StartsWith(globalPrefix, StringComparison.OrdinalIgnoreCase) &&
+                !normRoute.Equals("ping", StringComparison.OrdinalIgnoreCase))
+            {
+                route = CombineRoutes(globalPrefix, route);
+                name = $"{method}:{route}";
+            }
+        }
 
         var protocol = syntactic?.Protocol ?? (method is "RPC" or "GRPC" ? "gRPC" : (method is "GRAPHQL" or "QUERY" or "MUTATION" or "SUBSCRIPTION" ? "GraphQL" : "REST"));
         var operationType = syntactic?.OperationType ?? (protocol == "GraphQL"
             ? (method is "MUTATION" ? "Mutation" : (method is "SUBSCRIPTION" ? "Subscription" : "Query"))
             : (protocol == "gRPC" ? "Unary" : null));
 
-        var endpointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{method}:{route}";
+        var projPart = (!string.IsNullOrEmpty(resolvedProj) && resolvedProj != "default") ? $"{resolvedProj}:" : "";
+        var endpointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{projPart}{method}:{route}";
         return new EndpointNode(
             endpointId,
             name,
@@ -559,10 +616,11 @@ public class Layer3SyntacticParser
         string name,
         TreeSitter.Node node,
         string relativePath,
-        string workspaceId)
+        string workspaceId,
+        string? projectName = null)
     {
-        var projectName = GetProjectNameFromRelativePath(relativePath);
-        if (string.IsNullOrEmpty(projectName)) projectName = "default";
+        var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : GetProjectNameFromRelativePath(relativePath);
+        if (string.IsNullOrEmpty(resolvedProj)) resolvedProj = "default";
 
         var entryType = "grpc";
         var cleanName = name;
@@ -584,7 +642,8 @@ public class Layer3SyntacticParser
             cleanName = name[(idx + 1)..];
         }
 
-        var entryPointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{entryType}:{cleanName}";
+        var projPart = (!string.IsNullOrEmpty(resolvedProj) && resolvedProj != "default") ? $"{resolvedProj}:" : "";
+        var entryPointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{projPart}{entryType}:{cleanName}";
 
         var ext = new Dictionary<string, string>
         {
