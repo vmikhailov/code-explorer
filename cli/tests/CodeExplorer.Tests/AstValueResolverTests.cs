@@ -303,4 +303,19 @@ function fetch() {
         var res = CodeExplorer.Parser.TypeScript.Libraries.AstHelper.ResolveStringOrTemplate(args[0]);
         Assert.That(res, Is.EqualTo("/api/v1/users"));
     }
+
+    [Test]
+    public void Test_HttpApiPrefixConfig_AtsExactContent()
+    {
+        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
+        var code = File.ReadAllText(@"C:\Work\ATS\src\integrations\services\helper-nest\src\config\http-api-prefix.config.ts");
+        AstConstantExtractor.ExtractAndRegister("src/config/http-api-prefix.config.ts", code, "integration-service-helper-nest");
+        TestContext.WriteLine("Constants registered count: " + ConstantRegistry.ProjectConstants.Count);
+        foreach (var kvp in ConstantRegistry.ProjectConstants)
+        {
+            TestContext.WriteLine($"  {kvp.Key} = {kvp.Value}");
+        }
+        Assert.That(ConstantRegistry.TryResolve("integration-service-helper-nest", "HTTP_API_PREFIX_CONFIG.SMART_CPA.GLOBAL_PREFIX", out var val), Is.True);
+        Assert.That(val, Is.EqualTo("smart-cpa"));
+    }
 }

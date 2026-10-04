@@ -73,7 +73,7 @@ public class IndexerIntegrationTests
 
             var endpointCountJson = await client.ExecuteQueryAsync(
                 $"MATCH (ep:Endpoint) WHERE toString(ep.id) STARTS WITH '{wsId}:' RETURN count(ep) AS count");
-            Assert.That(endpointCountJson, Contains.Substring("\"count\": 2"));
+            Assert.That(endpointCountJson, Contains.Substring("\"count\": 1"));
 
             var implByJson = await client.ExecuteQueryAsync(
                 $"MATCH (ep:Endpoint)-[:EXPOSED_BY]->(f:Function {{name: 'charge'}}) WHERE f.id STARTS WITH '{wsId}:' RETURN ep.id AS id");

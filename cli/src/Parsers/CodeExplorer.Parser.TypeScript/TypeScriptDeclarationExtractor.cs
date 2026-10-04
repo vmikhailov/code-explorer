@@ -75,7 +75,7 @@ public static class TypeScriptDeclarationExtractor
                             var rhsText = valNode.Text.Trim();
                             foreach (var patChild in nameNode.Children)
                             {
-                                if (patChild.Type is "shorthand_property_identifier" or TreeSitterSyntax.TypeScript.Identifier)
+                                if (patChild.Type is "shorthand_property_identifier" or "shorthand_property_identifier_pattern" or TreeSitterSyntax.TypeScript.Identifier || patChild.Type.Contains("shorthand"))
                                 {
                                     var propName = patChild.Text;
                                     var lookupKey = $"{rhsText}.{propName}";

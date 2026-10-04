@@ -19,7 +19,7 @@ public class NestJsLibraryParser : ISemanticExtension
         .FirstChild
         .HasType(TreeSitterSyntax.TypeScript.CallExpression)
         .GetChildForField(TreeSitterSyntax.Fields.Function)
-        .Text("Controller|Get|Post|Put|Delete|Patch|SubscribeMessage|Query|Mutation|Subscription|GrpcMethod|GrpcStreamMethod");
+        .Text("Get|Post|Put|Delete|Patch|SubscribeMessage|Query|Mutation|Subscription|GrpcMethod|GrpcStreamMethod");
 
     private static readonly NodeSelector _decoratorCallFunctionSelector = NodeSelector.New()
         .FirstChild
@@ -89,19 +89,16 @@ public class NestJsLibraryParser : ISemanticExtension
                 return $"RPC:{rpcName}";
             }
 
-            if (name != "Controller")
+            var classPrefix = GetControllerPrefixForNode(node, ctx?.WorkspaceId);
+            if (!string.IsNullOrEmpty(classPrefix))
             {
-                var classPrefix = GetControllerPrefixForNode(node, ctx?.WorkspaceId);
-                if (!string.IsNullOrEmpty(classPrefix))
-                {
-                    routeVal = CombineRoutes(classPrefix, routeVal);
-                }
+                routeVal = CombineRoutes(classPrefix, routeVal);
+            }
 
-                var version = GetVersionForNode(node);
-                if (!string.IsNullOrEmpty(version))
-                {
-                    routeVal = CombineRoutes(version, routeVal);
-                }
+            var version = GetVersionForNode(node);
+            if (!string.IsNullOrEmpty(version))
+            {
+                routeVal = CombineRoutes(version, routeVal);
             }
 
             if (string.IsNullOrEmpty(routeVal)) routeVal = "/";
@@ -110,7 +107,7 @@ public class NestJsLibraryParser : ISemanticExtension
                 routeVal = "/" + routeVal;
             }
 
-            return $"{(name == "Controller" ? "GET" : name.ToUpperInvariant())}:{routeVal}";
+            return $"{name.ToUpperInvariant()}:{routeVal}";
         }
         return null;
     }
@@ -157,9 +154,11 @@ public class NestJsLibraryParser : ISemanticExtension
         if (classDecl.IsValid())
         {
             decorators.AddRange(classDecl.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+            decorators.AddRange(GetPrecedingDecorators(classDecl));
             if (classDecl.Parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
             {
                 decorators.AddRange(classDecl.Parent.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+                decorators.AddRange(GetPrecedingDecorators(classDecl.Parent));
             }
         }
 
@@ -265,11 +264,13 @@ public class NestJsLibraryParser : ISemanticExtension
 
         var candidates = new List<Node>();
         candidates.AddRange(classDecl.Children);
+        candidates.AddRange(GetPrecedingDecorators(classDecl));
 
         var parent = classDecl.Parent;
-        if (parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
+        if (parent.IsValid())
         {
             candidates.AddRange(parent.Children);
+            candidates.AddRange(GetPrecedingDecorators(parent));
         }
 
         foreach (var c in candidates)
@@ -397,9 +398,11 @@ public class NestJsLibraryParser : ISemanticExtension
         if (classDecl.IsValid())
         {
             decorators.AddRange(classDecl.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+            decorators.AddRange(GetPrecedingDecorators(classDecl));
             if (classDecl.Parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
             {
                 decorators.AddRange(classDecl.Parent.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+                decorators.AddRange(GetPrecedingDecorators(classDecl.Parent));
             }
         }
 

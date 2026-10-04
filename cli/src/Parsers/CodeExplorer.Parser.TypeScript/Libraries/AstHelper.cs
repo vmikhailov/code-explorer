@@ -534,7 +534,11 @@ public static class AstHelper
                                 }
                                 if (nameNode.IsValid())
                                 {
-                                    var valNode = decl.GetField(TreeSitterSyntax.Fields.Value);
+                                    var valNode = decl.GetField(TreeSitterSyntax.Fields.Value) ?? decl.GetChildForField(TreeSitterSyntax.Fields.Value);
+                                    if (!valNode.IsValid() && decl.Children.Count >= 3 && decl.Children[1].Type == "=")
+                                    {
+                                        valNode = decl.Children[2];
+                                    }
 
                                     // Handle direct variable name match: const foo = ...
                                     if (nameNode.Text == varName || nameNode.Text == cleanVar)
@@ -597,6 +601,8 @@ public static class AstHelper
                                             string? propAlias = null;
 
                                             if (patChild.Is("shorthand_property_identifier") ||
+                                                patChild.Is("shorthand_property_identifier_pattern") ||
+                                                patChild.Type.Contains("shorthand") ||
                                                 patChild.Is(TreeSitterSyntax.TypeScript.Identifier))
                                             {
                                                 if (patChild.Text == varName || patChild.Text == cleanVar)

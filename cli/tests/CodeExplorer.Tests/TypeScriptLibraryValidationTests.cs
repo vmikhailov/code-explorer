@@ -686,10 +686,7 @@ export class UsersController {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(3));
-
-        var controllerEp = endpoints.FirstOrDefault(e => e.RouteTemplate == "/users");
-        Assert.That(controllerEp, Is.Not.Null);
+        Assert.That(endpoints, Has.Count.EqualTo(2));
 
         var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/users/all");
         Assert.That(getEp, Is.Not.Null);
@@ -701,30 +698,8 @@ export class UsersController {
     [Test]
     public async Task Test_NestJs_DestructuredRoutePrefix()
     {
-        var configCode = @"
-export const HTTP_API_PREFIX_CONFIG = {
-  API_GLOBAL_PREFIX: 'api/v1',
-  SMART_CPA: {
-    GLOBAL_PREFIX: 'smart-cpa',
-    START_PREFIX: 'campaigns/start',
-    STOP_PREFIX: 'campaigns/stop',
-    UPDATE_PREFIX: 'campaigns/update',
-  },
-};
-";
-        var controllerCode = @"
-import { Controller, Post } from '@nestjs/common';
-import { HTTP_API_PREFIX_CONFIG } from './config';
-
-const { GLOBAL_PREFIX, START_PREFIX, STOP_PREFIX, UPDATE_PREFIX } =
-  HTTP_API_PREFIX_CONFIG.SMART_CPA;
-
-@Controller(GLOBAL_PREFIX)
-export class SmartCpaController {
-  @Post(START_PREFIX)
-  start() {}
-}
-";
+        var configCode = File.ReadAllText(@"C:\Work\ATS\src\integrations\services\helper-nest\src\config\http-api-prefix.config.ts");
+        var controllerCode = File.ReadAllText(@"C:\Work\ATS\src\integrations\services\helper-nest\src\smart-cpa\smart-cpa.controller.ts");
         var tempDir = Path.Combine(Path.GetTempPath(), "ts_val_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         try
@@ -734,8 +709,10 @@ export class SmartCpaController {
             var controllerFile = Path.Combine(tempDir, "smart-cpa.controller.ts");
             await File.WriteAllTextAsync(controllerFile, controllerCode);
 
-            // Pre-register constants from config.ts
-            AstConstantExtractor.ExtractAndRegister(configFile, configCode);
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            // Pre-register constants from config.ts with project name
+            AstConstantExtractor.ExtractAndRegister(configFile, configCode, "integration-service-helper-nest");
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
@@ -746,9 +723,25 @@ export class SmartCpaController {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var endpoints = FindNodes<EndpointNode>(syntaxTree.FileNode.Children);
-            var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-            Assert.That(postEp, Is.Not.Null);
-            Assert.That(postEp!.RouteTemplate, Is.EqualTo("/smart-cpa/campaigns/start"));
+            foreach (var ep in endpoints)
+            {
+                TestContext.WriteLine($"EP: {ep.Id} | {ep.HttpMethod} | {ep.RouteTemplate}");
+            }
+
+            // Must NOT create an entry point for @Controller
+            Assert.That(endpoints.Any(e => e.HttpMethod == "GET" && e.RouteTemplate == "/smart-cpa"), Is.False, "Controller decorator itself should not be an Endpoint");
+
+            var startEp = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("start"));
+            Assert.That(startEp, Is.Not.Null, "Should find start endpoint");
+            Assert.That(startEp!.RouteTemplate, Is.EqualTo("/smart-cpa/campaigns/start"));
+
+            var stopEp = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("stop"));
+            Assert.That(stopEp, Is.Not.Null, "Should find stop endpoint");
+            Assert.That(stopEp!.RouteTemplate, Is.EqualTo("/smart-cpa/campaigns/stop"));
+
+            var updateEp = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("update"));
+            Assert.That(updateEp, Is.Not.Null, "Should find update endpoint");
+            Assert.That(updateEp!.RouteTemplate, Is.EqualTo("/smart-cpa/campaigns/update"));
         }
         finally
         {
