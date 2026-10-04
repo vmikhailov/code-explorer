@@ -308,7 +308,17 @@ function fetch() {
     public void Test_HttpApiPrefixConfig_AtsExactContent()
     {
         WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
-        var code = File.ReadAllText(@"C:\Work\ATS\src\integrations\services\helper-nest\src\config\http-api-prefix.config.ts");
+        var code = @"
+export const HTTP_API_PREFIX_CONFIG = {
+  API_GLOBAL_PREFIX: 'api/v1',
+  SMART_CPA: {
+    GLOBAL_PREFIX: 'smart-cpa',
+    START_PREFIX: 'campaigns/start',
+    STOP_PREFIX: 'campaigns/stop',
+    UPDATE_PREFIX: 'campaigns/update',
+  },
+};
+";
         AstConstantExtractor.ExtractAndRegister("src/config/http-api-prefix.config.ts", code, "integration-service-helper-nest");
         TestContext.WriteLine("Constants registered count: " + ConstantRegistry.ProjectConstants.Count);
         foreach (var kvp in ConstantRegistry.ProjectConstants)

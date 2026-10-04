@@ -698,8 +698,36 @@ export class UsersController {
     [Test]
     public async Task Test_NestJs_DestructuredRoutePrefix()
     {
-        var configCode = File.ReadAllText(@"C:\Work\ATS\src\integrations\services\helper-nest\src\config\http-api-prefix.config.ts");
-        var controllerCode = File.ReadAllText(@"C:\Work\ATS\src\integrations\services\helper-nest\src\smart-cpa\smart-cpa.controller.ts");
+        var configCode = @"
+export const HTTP_API_PREFIX_CONFIG = {
+  API_GLOBAL_PREFIX: 'api/v1',
+  SMART_CPA: {
+    GLOBAL_PREFIX: 'smart-cpa',
+    START_PREFIX: 'campaigns/start',
+    STOP_PREFIX: 'campaigns/stop',
+    UPDATE_PREFIX: 'campaigns/update',
+  },
+};
+";
+        var controllerCode = @"
+import { Controller, Post } from '@nestjs/common';
+import { HTTP_API_PREFIX_CONFIG } from './config';
+
+const { GLOBAL_PREFIX, START_PREFIX, STOP_PREFIX, UPDATE_PREFIX } =
+  HTTP_API_PREFIX_CONFIG.SMART_CPA;
+
+@Controller(GLOBAL_PREFIX)
+export class SmartCpaController {
+  @Post(START_PREFIX)
+  async start() {}
+
+  @Post(STOP_PREFIX)
+  async stop() {}
+
+  @Post(UPDATE_PREFIX)
+  async update() {}
+}
+";
         var tempDir = Path.Combine(Path.GetTempPath(), "ts_val_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
         try
