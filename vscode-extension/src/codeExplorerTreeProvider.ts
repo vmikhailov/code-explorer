@@ -504,11 +504,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         );
         item.description = `${dom.boundedContextIds.length} ctx · ${dom.totalFiles} files`;
         item.tooltip = `${dom.displayName} Domain\n${dom.description || ''}\nBounded Contexts: ${dom.boundedContextIds.length}\nFiles: ${dom.totalFiles}\nEntities: ${dom.totalEntities}`;
-        item.command = {
-          command: 'codeExplorer.focusBoundedContext',
-          title: `Filter ${dom.displayName}`,
-          arguments: [dom.displayName, undefined, dom.id],
-        };
         items.push(item);
       }
     } else {
@@ -540,11 +535,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     if (c.purityPercentage > 0) details.push(`${c.purityPercentage}% pure`);
     item.description = details.join(' · ');
     item.tooltip = `Bounded Context: ${c.name}\nDomain: ${c.domainName}\n${c.summary || ''}\nEntities (${c.targetEntities.length}): ${c.targetEntities.join(', ')}`;
-    item.command = {
-      command: 'codeExplorer.focusBoundedContext',
-      title: `Open Context ${c.displayName}`,
-      arguments: [c.name, c.id, c.domainId],
-    };
     return item;
   }
 
@@ -724,14 +714,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       item.description = `${l.totalCount.toLocaleString()} ${l.layerId === 5 ? 'edges' : 'nodes'}`;
       item.iconPath = new vscode.ThemeIcon(l.icon || (l.layerId === 5 ? 'references' : 'folder'));
       item.tooltip = l.description;
-      item.command = {
-        command: 'codeExplorer.openNodeGrid',
-        title: `Browse ${l.title || l.name} in Grid`,
-        arguments: [
-          l.layerId === 5 ? 'Layer5_Relationships' : `Layer${l.layerId}`,
-          l.title || `Layer ${l.layerId}: ${l.name}`,
-        ],
-      };
       return item;
     });
   }
@@ -764,14 +746,18 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         );
         item.description = `${cat.count.toLocaleString()}`;
         item.iconPath = new vscode.ThemeIcon(cat.icon || (isRel ? 'arrow-right' : 'symbol-misc'));
-        item.tooltip = isRel
-          ? `${cat.count.toLocaleString()} ${cat.kind} relationships`
-          : `Click to browse all ${cat.count.toLocaleString()} ${cat.label} in central grid`;
-        item.command = {
-          command: 'codeExplorer.openNodeGrid',
-          title: `Browse ${cat.label} in Grid`,
-          arguments: [cat.kind, layerTitle || layer.title],
-        };
+        if (!isServiceWorkload) {
+          item.command = {
+            command: 'codeExplorer.openNodeGrid',
+            title: `Open ${cat.label} Grid`,
+            arguments: [cat.kind, layerTitle || layer.title],
+          };
+          item.tooltip = isRel
+            ? `${cat.count.toLocaleString()} ${cat.kind} relationships`
+            : `${cat.count.toLocaleString()} ${cat.label}`;
+        } else {
+          item.tooltip = `${cat.count.toLocaleString()} ${cat.label}`;
+        }
         return item;
       });
     }
@@ -810,11 +796,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       counts.push(`External APIs: ${s.externalCount}`);
       item.tooltip = `${s.serviceName} (${s.kind}${s.framework ? ` • ${s.framework}` : ''}${s.language ? ` • ${s.language}` : ''})\n` +
         counts.join(' | ');
-      item.command = {
-        command: 'codeExplorer.openNodeGrid',
-        title: `Browse ${s.serviceName} in Grid`,
-        arguments: ['all', `Layer 4 › ${s.serviceName}`, s.serviceName],
-      };
       return item;
     });
   }
@@ -840,11 +821,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       item.iconPath = new vscode.ThemeIcon(g.icon || 'folder');
       item.description = `${g.count}`;
       item.tooltip = `${g.label} (${g.count}) belonging to ${serviceName} in graph ontology`;
-      item.command = {
-        command: 'codeExplorer.openNodeGrid',
-        title: `Browse ${serviceName} ${g.label} in Grid`,
-        arguments: [kind, `${serviceName} › ${g.label}`, serviceName],
-      };
       return item;
     });
   }
@@ -876,12 +852,6 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
           title: `Go to ${it.name}`,
           arguments: [it.filePath, it.line || 1],
         };
-      } else {
-        item.command = {
-          command: 'codeExplorer.openNodeGrid',
-          title: `Browse ${it.name} in Grid`,
-          arguments: [it.kind, `${serviceName} › ${it.name}`, serviceName],
-        };
       }
       return item;
     });
@@ -893,9 +863,30 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const meta = await this.getMetadata();
     const wsRoot = this.getWorkspaceRoot();
 
-    const items: CodeExplorerTreeItem[] = [];
+    // 1. Server status + version
+    const engineVersion =
+      meta?.version ||
+      this.processManager.getBinaryManager()?.getCachedVersion() ||
+      this.processManager.getBinaryManager()?.getExtensionVersion() ||
+      '';
+    const cleanVersion = engineVersion ? (engineVersion.startsWith('v') ? engineVersion : `v${engineVersion}`) : 'Unknown';
 
-    // 1. Engine Version & Graph Update Time (with inline Refresh button)
+    const serverItem = new CodeExplorerTreeItem(
+      'management-server',
+      'Server',
+      vscode.TreeItemCollapsibleState.None
+    );
+    if (serverInfo) {
+      serverItem.description = `Online :${serverInfo.port} (${cleanVersion})`;
+      serverItem.iconPath = new vscode.ThemeIcon('pass');
+      serverItem.tooltip = `CodeExplorer daemon running at ${serverInfo.httpUrl}\nVersion: ${cleanVersion}\nUse inline buttons to restart server or check for engine updates.`;
+    } else {
+      serverItem.description = isStarting ? `Starting... (${cleanVersion})` : `Offline (${cleanVersion})`;
+      serverItem.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'circle-slash');
+      serverItem.tooltip = isStarting ? 'Daemon is launching...' : `Daemon is offline. Engine version: ${cleanVersion}`;
+    }
+
+    // 2. Graph status + last update time
     let dbMtime: Date | null = null;
     if (wsRoot) {
       try {
@@ -918,117 +909,51 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       } catch {}
     }
 
-    const engineVersion =
-      meta?.version ||
-      this.processManager.getBinaryManager()?.getCachedVersion() ||
-      this.processManager.getBinaryManager()?.getExtensionVersion() ||
-      '';
-    const cleanVersion = engineVersion ? (engineVersion.startsWith('v') ? engineVersion : `v${engineVersion}`) : 'Unknown';
     const updateStr = dbMtime ? this.formatGraphUpdateTime(dbMtime) : 'Not indexed yet';
 
-    const statusItem = new CodeExplorerTreeItem(
-      'management-status',
-      'Engine & Graph State',
-      vscode.TreeItemCollapsibleState.None
-    );
-    statusItem.description = `${cleanVersion} · ${updateStr}`;
-    statusItem.iconPath = new vscode.ThemeIcon('history');
-    statusItem.tooltip = `CodeExplorer Engine: ${cleanVersion}\nGraph Last Updated: ${dbMtime ? dbMtime.toLocaleString() : 'Not indexed yet'}\nDatabase Path: .codeexplorer/graph.db\nClick the Refresh button on this row to update status.`;
-    // Row click does not invoke command - actions are button-only!
-    items.push(statusItem);
-
-    // 2. Graph Server & Daemon
-    const serverItem = new CodeExplorerTreeItem(
-      'management-server',
-      'Graph Server',
-      vscode.TreeItemCollapsibleState.None
-    );
-    if (serverInfo) {
-      serverItem.description = `Online :${serverInfo.port}`;
-      serverItem.iconPath = new vscode.ThemeIcon('pass');
-      serverItem.tooltip = `CodeExplorer daemon running at ${serverInfo.httpUrl}\nUse the Restart button to restart the daemon.`;
-    } else {
-      serverItem.description = isStarting ? 'Starting...' : 'Offline';
-      serverItem.iconPath = new vscode.ThemeIcon(isStarting ? 'loading~spin' : 'circle-slash');
-      serverItem.tooltip = isStarting ? 'Daemon is launching...' : 'Daemon is offline.';
-    }
-    // Row click does not invoke command - actions are button-only!
-    items.push(serverItem);
-
-    // 3. Graph Database & Storage
-    const dbItem = new CodeExplorerTreeItem(
+    const graphItem = new CodeExplorerTreeItem(
       'management-graph',
-      'Graph Database',
+      'Graph',
       vscode.TreeItemCollapsibleState.None
     );
-    if (meta) {
-      dbItem.description = `${meta.totalNodes.toLocaleString()} nodes · ${meta.totalEdges.toLocaleString()} edges`;
-      dbItem.tooltip = `Storage Engine: SQLite WAL (.codeexplorer/graph.db)\nTotal Nodes: ${meta.totalNodes.toLocaleString()}\nTotal Relationships: ${meta.totalEdges.toLocaleString()}`;
+    if (meta && meta.totalNodes > 0) {
+      graphItem.description = `${meta.totalNodes.toLocaleString()} nodes · ${updateStr}`;
+      graphItem.tooltip = `Knowledge Graph Storage: .codeexplorer/graph.db\nTotal Nodes: ${meta.totalNodes.toLocaleString()}\nTotal Relationships: ${meta.totalEdges.toLocaleString()}\nLast Updated: ${dbMtime ? dbMtime.toLocaleString() : 'Unknown'}\nUse inline buttons to scan workspace incrementally or run a full re-index.`;
     } else {
-      dbItem.description = 'SQLite WAL (.codeexplorer/graph.db)';
-      dbItem.tooltip = 'Local SQLite WAL graph database';
+      graphItem.description = 'Not indexed yet';
+      graphItem.tooltip = 'Knowledge graph has not been indexed yet. Use inline button to scan workspace.';
     }
-    dbItem.iconPath = new vscode.ThemeIcon('database');
-    // Row click does not invoke command - actions are button-only!
-    items.push(dbItem);
+    graphItem.iconPath = new vscode.ThemeIcon('database');
 
-    // 4. Rescan Workspace (Incremental)
-    const rescanItem = new CodeExplorerTreeItem(
-      'management-rescan',
-      'Rescan Workspace',
-      vscode.TreeItemCollapsibleState.None
-    );
-    rescanItem.description = 'Incremental';
-    rescanItem.iconPath = new vscode.ThemeIcon('sync');
-    rescanItem.tooltip = 'Scan workspace for modified files and update graph incrementally';
-    // Row click does not invoke command - actions are button-only!
-    items.push(rescanItem);
+    // 3. Intent status + last update time
+    const bcMap = await this.getBoundedContextMap();
+    let intentMtime: Date | null = null;
+    if (wsRoot) {
+      try {
+        const intentDbPath = path.join(wsRoot, '.codeexplorer', 'graph.db');
+        if (fs.existsSync(intentDbPath)) {
+          intentMtime = fs.statSync(intentDbPath).mtime;
+        }
+      } catch {}
+    }
 
-    // 5. Rebuild Graph (Full Re-index)
-    const rebuildItem = new CodeExplorerTreeItem(
-      'management-rebuild',
-      'Rebuild Graph',
-      vscode.TreeItemCollapsibleState.None
-    );
-    rebuildItem.description = 'Clear & re-index';
-    rebuildItem.iconPath = new vscode.ThemeIcon('clear-all');
-    rebuildItem.tooltip = 'Clear graph database and re-scan the entire workspace from scratch';
-    // Row click does not invoke command - actions are button-only!
-    items.push(rebuildItem);
-
-    // 6. Distill AI Intents
     const intentItem = new CodeExplorerTreeItem(
       'management-intent',
-      'Distill AI Intents',
+      'Intents',
       vscode.TreeItemCollapsibleState.None
     );
-    intentItem.description = 'DDD domains & contexts';
-    intentItem.iconPath = new vscode.ThemeIcon('sparkle');
-    intentItem.tooltip = 'Enrich knowledge graph with architectural intents and Bounded Contexts using local SLM';
-    // Row click does not invoke command - actions are button-only!
-    items.push(intentItem);
-
-    // 7. AI Intent Model
-    const modelStatus = getModelStatus(wsRoot);
-    const isModelReady = modelStatus.exists;
-    const modelItem = new CodeExplorerTreeItem(
-      isModelReady ? 'management-model' : 'management-model-download',
-      'AI Intent Model',
-      vscode.TreeItemCollapsibleState.None
-    );
-    if (isModelReady) {
-      modelItem.description = `Ready (${modelStatus.sizeMb} MB)`;
-      modelItem.iconPath = new vscode.ThemeIcon('check');
-      modelItem.tooltip = `Model is ready at ${modelStatus.modelPath}.`;
+    if (bcMap && bcMap.hasIntents && bcMap.domains.length > 0) {
+      const intentTimeStr = intentMtime ? this.formatGraphUpdateTime(intentMtime) : updateStr;
+      intentItem.description = `${bcMap.domains.length} domains · ${intentTimeStr}`;
+      intentItem.iconPath = new vscode.ThemeIcon('sparkle');
+      intentItem.tooltip = `Architectural Intents & Bounded Contexts:\nDomains: ${bcMap.domains.length}\nBounded Contexts: ${bcMap.contexts.length}\nTotal Classified Intents: ${bcMap.totalIntents}\nLast Updated: ${intentMtime ? intentMtime.toLocaleString() : updateStr}\nUse inline buttons to distill intents or run full re-distill.`;
     } else {
-      modelItem.description = '~940 MB (not downloaded)';
-      modelItem.iconPath = new vscode.ThemeIcon('cloud-download');
-      modelItem.tooltip = 'Download local SLM model (ce-intent-v2-q4_k_m.gguf) for architectural intent distillation';
+      intentItem.description = 'Not distilled yet';
+      intentItem.iconPath = new vscode.ThemeIcon('sparkle');
+      intentItem.tooltip = 'Architectural intents have not been distilled yet. Use inline button to distill intents.';
     }
-    // Row click does not invoke command - actions are button-only!
-    items.push(modelItem);
 
-    return items;
+    return [serverItem, graphItem, intentItem];
   }
 
   private formatGraphUpdateTime(date: Date): string {

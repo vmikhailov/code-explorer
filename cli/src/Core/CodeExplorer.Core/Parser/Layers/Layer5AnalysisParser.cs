@@ -944,6 +944,14 @@ public class Layer5AnalysisParser
                 !string.IsNullOrWhiteSpace(extService.DomainOrService) &&
                 extService.DomainOrService is not ("*" or "unknown-service"))
             {
+                // If extService has a relative path without a network scheme (starts with '/'),
+                // it was a local or relative endpoint call, NOT a remote microservice host.
+                // Never synthesize cross-project dependencies based on relative paths!
+                if (extService.Path.StartsWith('/') && !extService.Path.Contains("://"))
+                {
+                    continue;
+                }
+
                 nodeToProject.TryGetValue(extService.Id, out var callerProj);
                 if (callerProj != null)
                 {
@@ -1078,6 +1086,18 @@ public class Layer5AnalysisParser
         return string.IsNullOrWhiteSpace(d) || GenericHostOrEnvNames.Contains(d);
     }
 
+    private static bool IsInferredPathSegmentDomain(ExternalServiceNode extService)
+    {
+        if (string.IsNullOrEmpty(extService.DomainOrService) || extService.DomainOrService.Contains('.'))
+            return false;
+
+        if (string.IsNullOrEmpty(extService.Path) || !extService.Path.StartsWith('/'))
+            return false;
+
+        var firstSeg = extService.Path.TrimStart('/').Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        return string.Equals(firstSeg, extService.DomainOrService, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool DoesProjectMatchServiceDomain(ProjectNode proj, string domainOrService)
     {
         if (string.IsNullOrWhiteSpace(domainOrService))
@@ -1157,23 +1177,29 @@ public class Layer5AnalysisParser
         return false;
     }
 
+    private static readonly HashSet<string> GenericProjectFolderNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "app", "src", "lib", "libs", "main", "core", "api", "client", "service"
+    };
+
     private static bool MatchesProject(string token, string pName, string pFolder, string gitRepo)
     {
         if (string.IsNullOrWhiteSpace(token)) return false;
 
         var cleanToken = token.Replace("-", "").Replace("_", "");
+        var canMatchFolder = !GenericProjectFolderNames.Contains(pFolder);
 
-        if (pName == token || pFolder == token || gitRepo == token)
+        if (pName == token || (canMatchFolder && pFolder == token) || gitRepo == token)
             return true;
 
         var cleanPName = pName.Replace("-", "").Replace("_", "");
         var cleanPFolder = pFolder.Replace("-", "").Replace("_", "");
         var cleanGitRepo = gitRepo.Replace("-", "").Replace("_", "");
 
-        if (cleanPName == cleanToken || cleanPFolder == cleanToken || (!string.IsNullOrEmpty(cleanGitRepo) && cleanGitRepo == cleanToken))
+        if (cleanPName == cleanToken || (canMatchFolder && cleanPFolder == cleanToken) || (!string.IsNullOrEmpty(cleanGitRepo) && cleanGitRepo == cleanToken))
             return true;
 
-        if (cleanPName.TrimEnd('s') == cleanToken.TrimEnd('s') || cleanPFolder.TrimEnd('s') == cleanToken.TrimEnd('s'))
+        if (cleanPName.TrimEnd('s') == cleanToken.TrimEnd('s') || (canMatchFolder && cleanPFolder.TrimEnd('s') == cleanToken.TrimEnd('s')))
             return true;
 
         if (pName.EndsWith("." + token, StringComparison.OrdinalIgnoreCase) ||
@@ -1256,7 +1282,8 @@ public class Layer5AnalysisParser
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint, ProjectNode? targetProj)
     {
-        if (targetProj != null && !IsGenericHostOrService(extService.DomainOrService))
+        var isPathSegment = IsInferredPathSegmentDomain(extService);
+        if (targetProj != null && !isPathSegment && !IsGenericHostOrService(extService.DomainOrService))
         {
             if (!DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
             {
@@ -1336,7 +1363,8 @@ public class Layer5AnalysisParser
 
     private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint, ProjectNode? targetProj)
     {
-        if (targetProj != null && !IsGenericHostOrService(extService.DomainOrService))
+        var isPathSegment = IsInferredPathSegmentDomain(extService);
+        if (targetProj != null && !isPathSegment && !IsGenericHostOrService(extService.DomainOrService))
         {
             if (!DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
             {

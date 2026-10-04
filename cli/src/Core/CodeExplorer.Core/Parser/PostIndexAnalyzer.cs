@@ -2544,6 +2544,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         if (string.IsNullOrWhiteSpace(domain)) return true;
         var lower = domain.Trim().ToLowerInvariant();
         if (lower is "*" or "unknown-service" or "httprequest" or "pageurl" or "string" or "undefined" or "null" or "void" or "any" or "never") return true;
+        if (lower.EndsWith(":*") || lower.EndsWith("/*") || lower is "127.0.0.1:*" or "localhost:*") return true;
         if (lower.EndsWith('.') || lower.StartsWith('.')) return true;
         if (lower.Contains('!') || lower.EndsWith(".value") || lower.EndsWith(".id") || lower.EndsWith(".key") || lower.StartsWith("config.")) return true;
         if (lower.Contains("global_env", StringComparison.OrdinalIgnoreCase) || lower.Contains("process.env", StringComparison.OrdinalIgnoreCase)) return true;
@@ -2582,8 +2583,47 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
+        var projectCandidates = projectList.Select(p => new ProjectMatchCandidate(p.Id, p.Name, p.Path, null, p.IsLibrary)).ToList();
+
+        var epQuery =
+            "MATCH (ep:Endpoint) RETURN ep.id AS id, ep.name AS name, json_extract(ep.properties, '$.route_template') AS route, json_extract(ep.properties, '$.http_method') AS method, json_extract(ep.properties, '$.path') AS path";
+        var epJson = await db.ExecuteQueryAsync(epQuery, null, cancellationToken);
+        using var epDoc = JsonDocument.Parse(epJson);
+        var endpointCandidates = new List<EndpointMatchCandidate>();
+        foreach (var epRow in epDoc.RootElement.EnumerateArray())
+        {
+            var epId = GetStringProp(epRow, "id");
+            var epName = GetStringProp(epRow, "name");
+            var epRoute = GetStringProp(epRow, "route");
+            var epMethod = GetStringProp(epRow, "method");
+            var epPath = GetStringProp(epRow, "path");
+
+            if (string.IsNullOrEmpty(epRoute) && !string.IsNullOrEmpty(epName) && epName.Contains(':'))
+            {
+                var parts = epName.Split(':', 2);
+                epMethod ??= parts[0];
+                epRoute = parts[1];
+            }
+
+            if (!string.IsNullOrEmpty(epId) && !string.IsNullOrEmpty(epRoute))
+            {
+                var ownerProj = !string.IsNullOrEmpty(epPath) ? Layer2ProjectParser.FindProjectForFilePath(epPath, projectList) : null;
+                endpointCandidates.Add(new EndpointMatchCandidate(epId, epRoute, epMethod, ownerProj?.Id));
+            }
+        }
+
+        var callsEpQuery = "MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) RETURN es.id AS es_id";
+        var callsEpJson = await db.ExecuteQueryAsync(callsEpQuery, null, cancellationToken);
+        using var callsEpDoc = JsonDocument.Parse(callsEpJson);
+        var servicesCallingEndpoints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var edgeRow in callsEpDoc.RootElement.EnumerateArray())
+        {
+            var esId = GetStringProp(edgeRow, "es_id");
+            if (!string.IsNullOrEmpty(esId)) servicesCallingEndpoints.Add(esId);
+        }
+
         var extQuery =
-            "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.is_external') AS is_ext";
+            "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.path') AS path, json_extract(es.properties, '$.inferred_from_path') AS inferred_from_path, json_extract(es.properties, '$.is_relative_path') AS is_relative_path, json_extract(es.properties, '$.is_external') AS is_ext";
         var extJson = await db.ExecuteQueryAsync(extQuery, null, cancellationToken);
 
         using var extDoc = JsonDocument.Parse(extJson);
@@ -2595,6 +2635,9 @@ public class PostIndexAnalyzer(IGraphClient db)
             var id = GetStringProp(row, "id");
             var name = GetStringProp(row, "name");
             var domain = GetStringProp(row, "domain");
+            var path = GetStringProp(row, "path");
+            var inferredFromPath = GetStringProp(row, "inferred_from_path");
+            var isRelativePath = GetStringProp(row, "is_relative_path");
             var isExt = GetStringProp(row, "is_ext");
 
             if (isExt == "true") continue;
@@ -2613,6 +2656,40 @@ public class PostIndexAnalyzer(IGraphClient db)
             if (matchingProj != null)
             {
                 idsToDelete.Add(id);
+                continue;
+            }
+
+            // A candidate is synthesized from a relative path if explicitly flagged, starting with '/',
+            // or if the candidate service name is simply the first segment of the path without an explicit network host.
+            var isRelative = inferredFromPath == "true" ||
+                             isRelativePath == "true" ||
+                             cand.StartsWith('/') ||
+                             (!string.IsNullOrEmpty(path) && path.StartsWith('/') &&
+                              (cand.Equals(path.Trim('/').Split('/', 2)[0], StringComparison.OrdinalIgnoreCase) || cand == "unknown-service"));
+
+            if (isRelative)
+            {
+                // If it was already late-bound to an internal endpoint, it's an internal invocation
+                if (servicesCallingEndpoints.Contains(id))
+                {
+                    idsToDelete.Add(id);
+                    continue;
+                }
+
+                // Or check via EndpointScoringEngine if the path or route matches an internal endpoint with score >= 50.0
+                if (endpointCandidates.Count > 0)
+                {
+                    var effectivePath = !string.IsNullOrEmpty(path) && path != "/" ? path : (cand.StartsWith('/') ? cand : null);
+                    if (!string.IsNullOrEmpty(effectivePath))
+                    {
+                        var match = EndpointScoringEngine.MatchCall(effectivePath, null, null, projectCandidates, endpointCandidates);
+                        if (match.IsInternal && match.EndpointScore >= 50.0)
+                        {
+                            idsToDelete.Add(id);
+                            continue;
+                        }
+                    }
+                }
             }
         }
 

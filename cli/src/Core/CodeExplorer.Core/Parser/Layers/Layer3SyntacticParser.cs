@@ -811,6 +811,12 @@ public class Layer3SyntacticParser
         {
             { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
         };
+        if (slashIdx == 0)
+        {
+            ext["is_relative_path"] = "true";
+            ext["inferred_from_path"] = "true";
+            ext["url"] = path;
+        }
         return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path, ext);
     }
 

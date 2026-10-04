@@ -37,6 +37,7 @@ public static partial class EndpointScoringEngine
     private static readonly HashSet<string> GenericHostPlaceholders = new(StringComparer.OrdinalIgnoreCase)
     {
         "*", "unknown-service", "httprequest", "pageurl", "string", "undefined", "null", "localhost", "127.0.0.1", "0.0.0.0",
+        "127.0.0.1:*", "localhost:*",
         "prod", "production", "stage", "staging", "dev", "development", "test", "testing", "local", "environment", "env",
         "url", "http-call", "v1", "v2", "event", "response", "service", "api", "request", "worker", "workers"
     };
@@ -129,10 +130,57 @@ public static partial class EndpointScoringEngine
             }
         }
 
+        // If an endpoint matched with high confidence, infer the owning project if not already resolved
+        if (bestProject == null && bestEndpoint != null && projects != null && bestEpScore >= 50.0)
+        {
+            bestProject = projects.FirstOrDefault(p => p.ProjectId == bestEndpoint.ParentProjectId);
+            if (bestProject != null && bestProjScore == 0.0)
+            {
+                bestProjScore = Math.Min(100.0, bestEpScore);
+            }
+        }
+
         // Confidence threshold: Score >= 40 indicates high confidence internal project match
         var isInternal = bestProjScore >= 40.0 || bestEpScore >= 50.0;
 
         return new MatchResult(bestProject, bestEndpoint, bestProjScore, bestEpScore, isInternal);
+    }
+
+    /// <summary>
+    /// Checks whether the target URL or path is a relative path or local route without remote host/scheme.
+    /// </summary>
+    public static bool IsRelativeOrInternalPath(string? hostOrUrl)
+    {
+        if (string.IsNullOrWhiteSpace(hostOrUrl)) return false;
+        var s = hostOrUrl.Trim();
+        return s.StartsWith('/') && !s.StartsWith("//");
+    }
+
+    /// <summary>
+    /// Determines whether a call or candidate service matches an internal endpoint with confidence >= 50.0.
+    /// </summary>
+    public static bool IsInternalEndpointMatch(
+        string? pathOrRoute,
+        string? httpMethod,
+        IEnumerable<EndpointMatchCandidate> endpoints,
+        out EndpointMatchCandidate? matchedEndpoint,
+        out double score)
+    {
+        matchedEndpoint = null;
+        score = 0.0;
+        if (string.IsNullOrWhiteSpace(pathOrRoute) || endpoints == null) return false;
+
+        foreach (var ep in endpoints)
+        {
+            var s = ScoreEndpointMatch(pathOrRoute, httpMethod, ep);
+            if (s > score)
+            {
+                score = s;
+                matchedEndpoint = ep;
+            }
+        }
+
+        return score >= 50.0;
     }
 
     /// <summary>
@@ -144,6 +192,7 @@ public static partial class EndpointScoringEngine
 
         var cleanHost = EnvPrefixRegex().Replace(host.Trim().ToLowerInvariant(), "");
         if (GenericHostPlaceholders.Contains(cleanHost)) return 0.0;
+        if (cleanHost.StartsWith('/')) return 0.0;
 
         var hostSegments = cleanHost.Split('.', StringSplitOptions.RemoveEmptyEntries);
         var primaryHostToken = hostSegments.Length > 0 ? hostSegments[0] : cleanHost;

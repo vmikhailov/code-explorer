@@ -31,6 +31,7 @@ public static class ComponentLibraryParserRegistry
 
         // Python Ecosystem
         Register(new PythonTestComponentParser());
+        Register(new FastApiComponentParser());
 
         // Go Ecosystem
         Register(new GoTestComponentParser());

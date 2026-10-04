@@ -136,6 +136,41 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
         }
 
+        var endpointCandidates = new List<EndpointMatchCandidate>();
+        try
+        {
+            var epQuery =
+                "MATCH (ep:Endpoint) RETURN ep.id AS id, ep.name AS name, json_extract(ep.properties, '$.route_template') AS route, json_extract(ep.properties, '$.http_method') AS method, json_extract(ep.properties, '$.path') AS path";
+            var epJson = await db.ExecuteQueryAsync(epQuery, null, ct);
+            using var epDoc = JsonDocument.Parse(epJson);
+            foreach (var epRow in epDoc.RootElement.EnumerateArray())
+            {
+                var epId = epRow.GetStringProp("id");
+                var epName = epRow.GetStringProp("name");
+                var epRoute = epRow.GetStringProp("route");
+                var epMethod = epRow.GetStringProp("method");
+                var epPath = epRow.GetStringProp("path");
+
+                if (string.IsNullOrEmpty(epRoute) && !string.IsNullOrEmpty(epName) && epName.Contains(':'))
+                {
+                    var parts = epName.Split(':', 2);
+                    epMethod ??= parts[0];
+                    epRoute = parts[1];
+                }
+
+                if (!string.IsNullOrEmpty(epId) && !string.IsNullOrEmpty(epRoute))
+                {
+                    var ownerProj = !string.IsNullOrEmpty(epPath)
+                        ? projectCandidates.FirstOrDefault(p => !string.IsNullOrEmpty(p.Path) && epPath.StartsWith(p.Path, StringComparison.OrdinalIgnoreCase))
+                        : null;
+                    endpointCandidates.Add(new EndpointMatchCandidate(epId, epRoute, epMethod, ownerProj?.ProjectId));
+                }
+            }
+        }
+        catch
+        {
+        }
+
         string? primaryRelationalEngine = null;
 
         foreach (var elem in nodesDoc.RootElement.EnumerateArray())
@@ -447,9 +482,11 @@ public class ArchitectureViewEngine(IGraphClient db)
                         }
                     }
 
-                    if (matchedProjId == null && projectCandidates.Count > 0)
+                    if (matchedProjId == null && (projectCandidates.Count > 0 || endpointCandidates.Count > 0))
                     {
-                        var match = EndpointScoringEngine.MatchCall(name, null, null, projectCandidates);
+                        var svcPath = props.GetValueOrDefault("path");
+                        var effectiveCall = !string.IsNullOrEmpty(svcPath) && svcPath != "/" ? svcPath : name;
+                        var match = EndpointScoringEngine.MatchCall(effectiveCall, null, null, projectCandidates, endpointCandidates);
                         if (match.IsInternal && match.Project != null)
                         {
                             matchedProjId = match.Project.ProjectId;
@@ -947,7 +984,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
         graph.Nodes.Add(centerDto);
 
-        var nodeLookup = archGraph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+        var nodeLookup = archGraph.Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var addedNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { centerId };
 
         void AddNeighborNode(GraphNodeDto src, string column, string role)
@@ -2038,9 +2075,9 @@ public class ArchitectureViewEngine(IGraphClient db)
                 }
             }
         }
-        if (bestMatch != null && bestLen > 0) return bestMatch;
+        if (bestMatch != null) return bestMatch;
 
-        // Match by Project Name segment in path
+        // Match by Project Name segment in path (only as a fallback when no project matched by path)
         foreach (var p in projList)
         {
             if (!string.IsNullOrEmpty(p.Name) && p.Name.Length > 2)
@@ -2053,16 +2090,14 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
         }
 
-        if (bestMatch != null) return bestMatch;
-
         return null;
     }
 
     public static void LiftTransitiveSemanticRelations(GraphDataDto graph)
     {
-        var nodesById = graph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+        var nodesById = graph.Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var services = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind) && !IsLibraryProject(n)).ToList();
-        var libraries = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind) && IsLibraryProject(n)).ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+        var libraries = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind) && IsLibraryProject(n)).GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
         var outEdges = new Dictionary<string, List<GraphEdgeDto>>(StringComparer.OrdinalIgnoreCase);
         var inEdges = new Dictionary<string, List<GraphEdgeDto>>(StringComparer.OrdinalIgnoreCase);
@@ -2488,7 +2523,7 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             // Tally databases, topics, downstream services, and external APIs from system context view
             var archGraph = await GetSystemContextViewAsync(includeLibraries: true, projectFilter: null, ct: ct);
-            var nodeMap = archGraph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+            var nodeMap = archGraph.Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
             var projectNodes = archGraph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
             var internalProjectsByName = BuildInternalProjectsLookup(projectNodes);
@@ -4332,7 +4367,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             return flow;
         }
 
-        var nodeLookup = archGraph.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+        var nodeLookup = archGraph.Nodes.GroupBy(n => n.Id, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { startNode.Id };
         var queue = new Queue<(string CurrentId, int Depth)>();
         queue.Enqueue((startNode.Id, 0));

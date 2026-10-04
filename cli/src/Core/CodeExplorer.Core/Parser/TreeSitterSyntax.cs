@@ -236,6 +236,11 @@ public static class TreeSitterSyntax
         public const string FormatString = "format_string";
         public const string Block = "block";
         public const string Module = "module";
+        public const string ExpressionStatement = "expression_statement";
+        public const string TypedDefaultParameter = "typed_default_parameter";
+        public const string TypedParameter = "typed_parameter";
+        public const string DefaultParameter = "default_parameter";
+        public const string Type = "type";
     }
 
     public static class Java

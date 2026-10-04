@@ -278,6 +278,7 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private static bool IsPythonDecoratorEntryPoint(Node node)
     {
+        if (FastApiLibraryParser.IsFastApiDecorator(node)) return true;
         if (!node.Is(TreeSitterSyntax.Python.Decorator)) return false;
         var call = node.FindChildOfType(TreeSitterSyntax.Python.Call);
         if (!call.IsValid()) return false;
@@ -302,6 +303,9 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private static string? ExtractPythonDecoratorRoute(Node decoratorNode)
     {
+        var fastApiRoute = FastApiLibraryParser.ExtractRoute(decoratorNode);
+        if (!string.IsNullOrEmpty(fastApiRoute)) return fastApiRoute;
+
         var call = decoratorNode.FindChildOfType(TreeSitterSyntax.Python.Call);
         if (!call.IsValid()) return null;
         var func = call.GetChildForField(TreeSitterSyntax.Fields.Function);
@@ -401,9 +405,21 @@ public class PythonFileVisitor : BaseParserVisitor
                 {
                     return attrName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head" or "urlopen";
                 }
-                if (objName.Contains("session") || objName.Contains("client") || objName.Contains("http"))
+
+                // Exclude dict properties, headers, configs, or request objects (e.g. request.headers.get, settings.session_limits.get)
+                var lowerObj = objName.ToLowerInvariant();
+                if (lowerObj.EndsWith(".headers") || lowerObj.EndsWith(".cookies") || lowerObj.EndsWith(".params") ||
+                    lowerObj.Contains("headers") || lowerObj.Contains("limits") || lowerObj.Contains("request") ||
+                    lowerObj.Contains("settings") || lowerObj.Contains("config"))
                 {
-                    return attrName is "get" or "post" or "put" or "delete" or "request" or "patch";
+                    return false;
+                }
+
+                var leafObj = lowerObj.Split('.').Last();
+                if (leafObj is "session" or "client" or "http" or "test_client" or "testclient" or "async_client" or "api_client" or "http_client" ||
+                    leafObj.EndsWith("_client") || leafObj.EndsWith("_session"))
+                {
+                    return attrName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head";
                 }
             }
         }
@@ -424,7 +440,7 @@ public class PythonFileVisitor : BaseParserVisitor
                     {
                         var kwVal = child.Children.Skip(2).FirstOrDefault() ?? child.Children.LastOrDefault();
                         var resolved = PythonAstHelper.ResolveStringOrVariable(kwVal);
-                        if (!string.IsNullOrEmpty(resolved)) return resolved;
+                        if (IsValidHttpUrlTarget(resolved)) return resolved;
                     }
                 }
                 else if (child.IsAny(TreeSitterSyntax.Python.String,
@@ -435,10 +451,25 @@ public class PythonFileVisitor : BaseParserVisitor
                                     TreeSitterSyntax.Python.Call))
                 {
                     var resolved = PythonAstHelper.ResolveStringOrVariable(child);
-                    if (!string.IsNullOrEmpty(resolved)) return resolved;
+                    if (IsValidHttpUrlTarget(resolved)) return resolved;
                 }
             }
         }
         return "http:unknown-service";
+    }
+
+    private static bool IsValidHttpUrlTarget(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return false;
+        var t = target.Trim();
+        return t.StartsWith('/') ||
+               t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+               t.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+               t.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) ||
+               t.StartsWith("wss://", StringComparison.OrdinalIgnoreCase) ||
+               t.Contains('/') ||
+               t.Contains(':') ||
+               t.Contains('{') ||
+               t.Contains('.');
     }
 }

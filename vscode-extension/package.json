@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Visual knowledge graph and codebase intelligence tool for developers and AI agents.",
-  "version": "1.21.1",
+  "version": "1.22.4",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -94,7 +94,8 @@
       },
       {
         "command": "codeExplorer.openView",
-        "title": "CodeExplorer: Open View"
+        "title": "CodeExplorer: Open View",
+        "icon": "$(play)"
       },
       {
         "command": "codeExplorer.focusNode",
@@ -108,12 +109,18 @@
       },
       {
         "command": "codeExplorer.openNodeGrid",
-        "title": "CodeExplorer: Open Node Grid"
+        "title": "CodeExplorer: Open Node Grid",
+        "icon": "$(table)"
       },
       {
         "command": "codeExplorer.distillIntents",
         "title": "CodeExplorer: Distill Architectural Intents (AI)",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "codeExplorer.reindexIntentsFull",
+        "title": "CodeExplorer: Full Re-distill Intents (Clear & Distill)",
+        "icon": "$(clear-all)"
       },
       {
         "command": "codeExplorer.downloadModel",
@@ -177,7 +184,7 @@
       "view/item/context": [
         {
           "command": "codeExplorer.refreshTree",
-          "when": "viewItem == management-status || viewItem == root-management",
+          "when": "viewItem == root-management",
           "group": "inline@1"
         },
         {
@@ -186,19 +193,19 @@
           "group": "inline@1"
         },
         {
-          "command": "codeExplorer.showGraph",
+          "command": "codeExplorer.updateEngine",
+          "when": "viewItem == management-server",
+          "group": "inline@2"
+        },
+        {
+          "command": "codeExplorer.reindex",
           "when": "viewItem == management-graph",
           "group": "inline@1"
         },
         {
-          "command": "codeExplorer.reindex",
-          "when": "viewItem == management-rescan",
-          "group": "inline@1"
-        },
-        {
           "command": "codeExplorer.reindexFull",
-          "when": "viewItem == management-rebuild",
-          "group": "inline@1"
+          "when": "viewItem == management-graph",
+          "group": "inline@2"
         },
         {
           "command": "codeExplorer.distillIntents",
@@ -206,13 +213,13 @@
           "group": "inline@1"
         },
         {
-          "command": "codeExplorer.modelStatus",
-          "when": "viewItem == management-model",
-          "group": "inline@1"
+          "command": "codeExplorer.reindexIntentsFull",
+          "when": "viewItem == management-intent",
+          "group": "inline@2"
         },
         {
-          "command": "codeExplorer.downloadModel",
-          "when": "viewItem == management-model-download",
+          "command": "codeExplorer.openNodeGrid",
+          "when": "viewItem == ontology-service",
           "group": "inline@1"
         },
         {
@@ -222,68 +229,73 @@
         },
         {
           "command": "codeExplorer.focusNode",
-          "when": "viewItem == node || viewItem == node-with-source || viewItem == ontology-service",
-          "group": "inline@1"
-        },
-        {
-          "command": "codeExplorer.openSource",
-          "when": "viewItem == node-with-source || viewItem == service-item",
+          "when": "viewItem == ontology-service",
           "group": "inline@2"
         },
         {
-          "command": "codeExplorer.reindex",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-server || viewItem == management-graph || viewItem == management-rescan || viewItem == management-rebuild || viewItem == management-intent || viewItem == management-model || viewItem == management-model-download",
-          "group": "1_actions@1"
+          "command": "codeExplorer.openView",
+          "when": "viewItem == diagram-item || viewItem == layer-group",
+          "group": "1_open@1"
         },
         {
-          "command": "codeExplorer.reindexFull",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-server || viewItem == management-graph || viewItem == management-rescan || viewItem == management-rebuild || viewItem == management-intent || viewItem == management-model || viewItem == management-model-download",
-          "group": "1_actions@2"
-        },
-        {
-          "command": "codeExplorer.distillIntents",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-server || viewItem == management-graph || viewItem == management-rescan || viewItem == management-rebuild || viewItem == management-intent || viewItem == management-model || viewItem == management-model-download || viewItem == root-domains || viewItem == domain-item || viewItem == bounded-context-item",
-          "group": "1_actions@3"
-        },
-        {
-          "command": "codeExplorer.clearIntents",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-server || viewItem == management-graph || viewItem == management-rescan || viewItem == management-rebuild || viewItem == management-intent || viewItem == management-model || viewItem == management-model-download",
-          "group": "1_actions@4"
-        },
-        {
-          "command": "codeExplorer.restartServer",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-server || viewItem == management-graph || viewItem == management-rescan || viewItem == management-rebuild || viewItem == management-intent || viewItem == management-model || viewItem == management-model-download",
-          "group": "2_server@1"
-        },
-        {
-          "command": "codeExplorer.refreshTree",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-server || viewItem == management-graph || viewItem == management-rescan || viewItem == management-rebuild || viewItem == management-intent || viewItem == management-model || viewItem == management-model-download",
-          "group": "2_server@2"
-        },
-        {
-          "command": "codeExplorer.modelStatus",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-server || viewItem == management-graph || viewItem == management-rescan || viewItem == management-rebuild || viewItem == management-intent || viewItem == management-model || viewItem == management-model-download",
-          "group": "3_ai@1"
-        },
-        {
-          "command": "codeExplorer.downloadModel",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-server || viewItem == management-graph || viewItem == management-rescan || viewItem == management-rebuild || viewItem == management-intent || viewItem == management-model || viewItem == management-model-download",
-          "group": "3_ai@2"
+          "command": "codeExplorer.openNodeGrid",
+          "when": "viewItem == ontology-service || viewItem == services-category || viewItem == node-category || viewItem == rel-category || viewItem == service-group",
+          "group": "1_open@2"
         },
         {
           "command": "codeExplorer.showGraph",
-          "when": "viewItem == root-management || viewItem == management-status || viewItem == management-graph || viewItem == root-domains || viewItem == domain-item || viewItem == bounded-context-item || viewItem == ontology-service",
-          "group": "4_views@1"
+          "when": "viewItem == root-domains || viewItem == domain-item || viewItem == bounded-context-item || viewItem == ontology-service || viewItem == management-graph",
+          "group": "1_open@3"
         },
         {
           "command": "codeExplorer.focusNode",
           "when": "viewItem == ontology-service || viewItem == node || viewItem == node-with-source",
-          "group": "4_views@2"
+          "group": "1_open@4"
         },
         {
           "command": "codeExplorer.openSource",
           "when": "viewItem == ontology-service || viewItem == service-item || viewItem == node-with-source",
-          "group": "4_views@3"
+          "group": "1_open@5"
+        },
+        {
+          "command": "codeExplorer.reindex",
+          "when": "viewItem == root-management || viewItem == management-graph",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "codeExplorer.reindexFull",
+          "when": "viewItem == root-management || viewItem == management-graph",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "codeExplorer.distillIntents",
+          "when": "viewItem == root-management || viewItem == management-intent || viewItem == root-domains || viewItem == domain-item || viewItem == bounded-context-item",
+          "group": "3_intent@1"
+        },
+        {
+          "command": "codeExplorer.reindexIntentsFull",
+          "when": "viewItem == root-management || viewItem == management-intent",
+          "group": "3_intent@2"
+        },
+        {
+          "command": "codeExplorer.clearIntents",
+          "when": "viewItem == root-management || viewItem == management-intent",
+          "group": "3_intent@3"
+        },
+        {
+          "command": "codeExplorer.restartServer",
+          "when": "viewItem == root-management || viewItem == management-server",
+          "group": "4_server@1"
+        },
+        {
+          "command": "codeExplorer.updateEngine",
+          "when": "viewItem == root-management || viewItem == management-server",
+          "group": "4_server@2"
+        },
+        {
+          "command": "codeExplorer.refreshTree",
+          "when": "viewItem == root-management || viewItem == management-server || viewItem == management-graph || viewItem == management-intent",
+          "group": "4_server@3"
         }
       ],
       "editor/title": [

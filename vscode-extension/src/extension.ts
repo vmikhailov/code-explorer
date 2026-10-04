@@ -166,12 +166,25 @@ export function activate(context: vscode.ExtensionContext) {
   // Command: Open Node Grid in Central Panel
   const openNodeGridCommand = vscode.commands.registerCommand(
     'codeExplorer.openNodeGrid',
-    async (kind: string, layerName?: string, service?: string) => {
+    async (kindOrItem: any, layerName?: string, service?: string) => {
       const workspaceRoot = getWorkspaceRoot();
       if (!workspaceRoot) {
         vscode.window.showWarningMessage('Please open a project workspace folder first.');
         return;
       }
+
+      const kind: string =
+        typeof kindOrItem === 'string'
+          ? kindOrItem
+          : kindOrItem?.data?.kind || kindOrItem?.data?.rel || '';
+      const targetLayer: string | undefined =
+        typeof kindOrItem === 'string'
+          ? layerName
+          : kindOrItem?.data?.layerTitle || layerName;
+      const targetService: string | undefined =
+        typeof kindOrItem === 'string'
+          ? service
+          : kindOrItem?.data?.serviceName || service;
 
       if (!processManager!.hasWorkspace(workspaceRoot)) {
         const choice = await vscode.window.showInformationMessage(
@@ -194,13 +207,13 @@ export function activate(context: vscode.ExtensionContext) {
           outputChannel,
           'grid',
           undefined,
-          { kind, layerTitle: layerName, service }
+          { kind, layerTitle: targetLayer, service: targetService }
         );
         panel.postMessage({
           type: 'OPEN_NODE_GRID',
           kind,
-          layerName,
-          service,
+          layerName: targetLayer,
+          service: targetService,
         });
       } catch (err: any) {
         outputChannel.appendLine(`[openNodeGrid Error] ${err.message}`);
@@ -211,12 +224,17 @@ export function activate(context: vscode.ExtensionContext) {
   // Command: Open Specific View (e.g. 'c1', 'flow', 'layers', 'semantic', 'full')
   const openViewCommand = vscode.commands.registerCommand(
     'codeExplorer.openView',
-    async (viewMode: string, project?: string) => {
+    async (viewModeOrItem: any, project?: string) => {
       const workspaceRoot = getWorkspaceRoot();
       if (!workspaceRoot) {
         vscode.window.showWarningMessage('Please open a project workspace folder first.');
         return;
       }
+
+      const viewMode: string =
+        typeof viewModeOrItem === 'string'
+          ? viewModeOrItem
+          : viewModeOrItem?.data?.viewMode || (viewModeOrItem?.itemType === 'layer-group' ? 'layers' : 'layers');
 
       if (!processManager!.hasWorkspace(workspaceRoot)) {
         const choice = await vscode.window.showInformationMessage(
@@ -300,12 +318,16 @@ export function activate(context: vscode.ExtensionContext) {
       try {
         const serverInfo = await processManager!.ensureServerStarted(workspaceRoot);
         const targetMode = isProjectKind(targetKind) ? 'flow' : 'semantic';
+        const targetProject = isProjectKind(targetKind)
+          ? (nodeIdOrItem?.data?.serviceName || (typeof nodeIdOrItem === 'string' ? nodeIdOrItem : targetId))
+          : undefined;
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,
-          targetMode
+          targetMode,
+          targetProject
         );
         panel.postMessage({
           type: 'FOCUS_NODE',
@@ -813,6 +835,31 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: Full Re-distill Intents (Clear & Distill)
+  const reindexIntentsFullCommand = vscode.commands.registerCommand(
+    'codeExplorer.reindexIntentsFull',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+      const confirm = await vscode.window.showWarningMessage(
+        'Clear & re-distill all architectural intents for this workspace?',
+        { modal: true },
+        'Clear & Re-distill'
+      );
+      if (confirm === 'Clear & Re-distill' && processManager) {
+        try {
+          await processManager.runCliCommand(workspaceRoot, ['intent', '--clear']);
+          await vscode.commands.executeCommand('codeExplorer.distillIntents');
+        } catch (err: any) {
+          vscode.window.showErrorMessage(`Failed to re-distill intents: ${err.message}`);
+        }
+      }
+    }
+  );
+
   // Command: Open Settings
   const openSettingsCommand = vscode.commands.registerCommand(
     'codeExplorer.openSettings',
@@ -840,7 +887,8 @@ export function activate(context: vscode.ExtensionContext) {
     stopIntentCommand,
     downloadModelCommand,
     modelStatusCommand,
-    clearIntentsCommand
+    clearIntentsCommand,
+    reindexIntentsFullCommand
   );
 
   // Check for extension update and show What's New prompt

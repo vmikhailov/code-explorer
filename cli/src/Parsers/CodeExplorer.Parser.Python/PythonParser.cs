@@ -24,41 +24,41 @@ public class PythonParser : IProjectParser, IFileParser
     public IReadOnlyList<PackageDescriptor> Packages { get; } =
     [
         // Frameworks
-        new PackageDescriptor("django", "Django", LibraryRole.WebFramework, "pypi", ["django"]),
-        new PackageDescriptor("flask", "Flask", LibraryRole.WebFramework, "pypi", ["flask"]),
-        new PackageDescriptor("fastapi", "FastAPI", LibraryRole.WebFramework, "pypi", ["fastapi"]),
+        new("django", "Django", LibraryRole.WebFramework, "pypi", ["django"]),
+        new("flask", "Flask", LibraryRole.WebFramework, "pypi", ["flask"]),
+        new("fastapi", "FastAPI", LibraryRole.WebFramework, "pypi", ["fastapi"]),
 
         // Databases / ORMs
-        new PackageDescriptor("sqlalchemy", "SQLAlchemy", LibraryRole.OrmOrDatabase, "pypi", ["sqlalchemy"]),
-        new PackageDescriptor("peewee", "Peewee", LibraryRole.OrmOrDatabase, "pypi", ["peewee"]),
-        new PackageDescriptor("psycopg2", "psycopg2", LibraryRole.OrmOrDatabase, "pypi", ["psycopg2", "psycopg"]),
-        new PackageDescriptor("pymysql", "PyMySQL", LibraryRole.OrmOrDatabase, "pypi", ["pymysql"]),
-        new PackageDescriptor("mysql-connector", "MySQL Connector", LibraryRole.OrmOrDatabase, "pypi", ["mysql.connector"]),
-        new PackageDescriptor("pymongo", "PyMongo", LibraryRole.OrmOrDatabase, "pypi", ["pymongo"]),
-        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "pypi", ["redis"]),
-        new PackageDescriptor("sqlite3", "sqlite3", LibraryRole.OrmOrDatabase, "pypi", ["sqlite3"]),
-        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "pypi", ["elasticsearch"]),
-        new PackageDescriptor("couchdb", "CouchDB", LibraryRole.OrmOrDatabase, "pypi", ["couchdb"]),
-        new PackageDescriptor("chromadb", "ChromaDB", LibraryRole.OrmOrDatabase, "pypi", ["chromadb"]),
-        new PackageDescriptor("pinecone", "Pinecone", LibraryRole.OrmOrDatabase, "pypi", ["pinecone-client", "pinecone"]),
-        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "pypi", ["google-cloud-bigquery", "google.cloud.bigquery"]),
-        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "pypi", ["clickhouse-connect", "clickhouse-driver"]),
+        new("sqlalchemy", "SQLAlchemy", LibraryRole.OrmOrDatabase, "pypi", ["sqlalchemy"]),
+        new("peewee", "Peewee", LibraryRole.OrmOrDatabase, "pypi", ["peewee"]),
+        new("psycopg2", "psycopg2", LibraryRole.OrmOrDatabase, "pypi", ["psycopg2", "psycopg"]),
+        new("pymysql", "PyMySQL", LibraryRole.OrmOrDatabase, "pypi", ["pymysql"]),
+        new("mysql-connector", "MySQL Connector", LibraryRole.OrmOrDatabase, "pypi", ["mysql.connector"]),
+        new("pymongo", "PyMongo", LibraryRole.OrmOrDatabase, "pypi", ["pymongo"]),
+        new("redis", "Redis", LibraryRole.OrmOrDatabase, "pypi", ["redis"]),
+        new("sqlite3", "sqlite3", LibraryRole.OrmOrDatabase, "pypi", ["sqlite3"]),
+        new("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "pypi", ["elasticsearch"]),
+        new("couchdb", "CouchDB", LibraryRole.OrmOrDatabase, "pypi", ["couchdb"]),
+        new("chromadb", "ChromaDB", LibraryRole.OrmOrDatabase, "pypi", ["chromadb"]),
+        new("pinecone", "Pinecone", LibraryRole.OrmOrDatabase, "pypi", ["pinecone-client", "pinecone"]),
+        new("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "pypi", ["google-cloud-bigquery", "google.cloud.bigquery"]),
+        new("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "pypi", ["clickhouse-connect", "clickhouse-driver"]),
 
         // Generic Cloud Services
-        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "pypi", ["stripe"]),
-        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "pypi", ["boto3"]),
-        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "pypi", ["google-cloud-", "google.cloud", "firebase-admin"]),
-        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "pypi", ["azure-", "azure."]),
+        new("stripe", "Stripe", LibraryRole.CloudSdk, "pypi", ["stripe"]),
+        new("aws", "AWS", LibraryRole.CloudSdk, "pypi", ["boto3"]),
+        new("gcp", "GCP", LibraryRole.CloudSdk, "pypi", ["google-cloud-", "google.cloud", "firebase-admin"]),
+        new("azure", "Azure", LibraryRole.CloudSdk, "pypi", ["azure-", "azure."]),
 
         // Test Frameworks
-        new PackageDescriptor("pytest", "Pytest", LibraryRole.TestFramework, "pypi", ["pytest", "pytest-*"]),
-        new PackageDescriptor("unittest", "Unittest", LibraryRole.TestFramework, "pypi", ["unittest"]),
+        new("pytest", "Pytest", LibraryRole.TestFramework, "pypi", ["pytest", "pytest-*"]),
+        new("unittest", "Unittest", LibraryRole.TestFramework, "pypi", ["unittest"]),
 
         // Generic API Clients
-        new PackageDescriptor("requests", "requests", LibraryRole.General, "pypi", ["requests"]),
-        new PackageDescriptor("urllib", "urllib", LibraryRole.General, "pypi", ["urllib.request", "urllib3", "urllib"]),
-        new PackageDescriptor("httpx", "httpx", LibraryRole.General, "pypi", ["httpx"]),
-        new PackageDescriptor("aiohttp", "aiohttp", LibraryRole.General, "pypi", ["aiohttp"])
+        new("requests", "requests", LibraryRole.General, "pypi", ["requests"]),
+        new("urllib", "urllib", LibraryRole.General, "pypi", ["urllib.request", "urllib3", "urllib"]),
+        new("httpx", "httpx", LibraryRole.General, "pypi", ["httpx"]),
+        new("aiohttp", "aiohttp", LibraryRole.General, "pypi", ["aiohttp"])
     ];
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
@@ -66,6 +66,7 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.ChromaDbLibraryParser(),
         new Libraries.CouchDbPythonLibraryParser(),
         new Libraries.ElasticsearchPythonLibraryParser(),
+        new Libraries.FastApiLibraryParser(),
         new Libraries.MysqlConnectorPythonLibraryParser(),
         new Libraries.PeeweeLibraryParser(),
         new Libraries.PineconeLibraryParser(),
@@ -80,10 +81,6 @@ public class PythonParser : IProjectParser, IFileParser
     public bool UsesTreeSitter => true;
 
     public LanguageSyntaxProfile SyntaxProfile => PythonSyntaxProfile.Instance;
-
-    public PythonParser()
-    {
-    }
 
     public bool CanParse(string fileExtension)
     {
@@ -147,13 +144,14 @@ public class PythonParser : IProjectParser, IFileParser
                         inProjectSection = true;
                         continue;
                     }
-                    else if (line.StartsWith("[") && line.EndsWith("]"))
+
+                    if (line.StartsWith("[") && line.EndsWith("]"))
                     {
                         inProjectSection = false;
                     }
 
                     if (inProjectSection)
-                      {
+                    {
                         if (line.StartsWith("name"))
                         {
                             var parts = line.Split('=', 2);
@@ -319,7 +317,7 @@ public class PythonParser : IProjectParser, IFileParser
         var projectRoot = FindPythonProjectRoot(dir, absoluteWorkspacePath);
         if (projectRoot != null)
         {
-            var internalNames = _pyRootCache.GetOrAdd(projectRoot, r => LoadLocalPythonNames(r));
+            var internalNames = _pyRootCache.GetOrAdd(projectRoot, LoadLocalPythonNames);
             var parts = importPath.Split('.');
             var firstSegment = parts[0];
 

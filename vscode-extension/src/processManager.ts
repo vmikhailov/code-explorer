@@ -7,6 +7,8 @@ import {
   BinaryManager,
   matchesEnginePattern,
   getEngineConfigFromExtensionVersion,
+  parseSemver,
+  cleanSemver,
 } from './binaryManager';
 
 export interface ServerInfo {
@@ -148,7 +150,22 @@ export class ProcessManager implements vscode.Disposable {
     const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
 
     if (this.serverInfo && this.serverProcess && !this.serverProcess.killed) {
-      if (this.serverInfo.version && !matchesEnginePattern(this.serverInfo.version, pattern)) {
+      if (this.serverInfo.version) {
+        if (matchesEnginePattern(this.serverInfo.version, pattern)) {
+          return this.serverInfo;
+        }
+
+        // Check if versions share the same major version (SemVer backward-compatible)
+        const sVer = parseSemver(this.serverInfo.version);
+        const eVer = parseSemver(extVersion);
+        if (sVer && eVer && sVer.major === eVer.major) {
+          this.outputChannel.appendLine(
+            `[ProcessManager] Active server version (v${this.serverInfo.version}) ` +
+            `differs from recommended target '${pattern}', but shares major version ${sVer.major}.x and is SemVer-compatible. Keeping active server.`
+          );
+          return this.serverInfo;
+        }
+
         this.outputChannel.appendLine(
           `[ProcessManager] Active server version (v${this.serverInfo.version}) ` +
           `does not match required pattern '${pattern}'. Restarting server...`
@@ -362,8 +379,7 @@ export class ProcessManager implements vscode.Disposable {
       try {
         const res = cp.spawnSync(cmd, [...args, '--version'], { encoding: 'utf8', timeout: 4000 });
         if (res.status === 0 && res.stdout?.trim()) {
-          const match = res.stdout.trim().match(/(\d+\.\d+\.\d+)/);
-          return match ? match[1] : res.stdout.trim().replace(/^v/, '');
+          return cleanSemver(res.stdout.trim());
         }
       } catch {
         // ignore

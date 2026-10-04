@@ -114,4 +114,63 @@ public class EndpointScoringEngineTests
         var scoreCfWorkers = EndpointScoringEngine.ScoreProjectMatch("adhub-cf-worker.mikhailov-v-atsystems.workers.dev", candidates[0]);
         Assert.That(scoreCfWorkers, Is.LessThan(40.0));
     }
+
+    [Test]
+    public void MatchCall_RelativePathMatchingInternalEndpoint_InfersOwningProjectAndScoresAsInternal()
+    {
+        var projects = new List<ProjectMatchCandidate>
+        {
+            new("ws:p::", "hearai", "c:/work/hearai", null, false),
+            new("ws:p:flutter/android/app:", "app", "c:/work/hearai/flutter/android/app", null, false)
+        };
+
+        var endpoints = new List<EndpointMatchCandidate>
+        {
+            new("ep_supervisor_onboarding", "/supervisor/onboarding", "POST", "ws:p::"),
+            new("ep_supervisor_children", "/supervisor/children", "GET", "ws:p::"),
+            new("ep_auth_me", "/auth/me", "GET", "ws:p::")
+        };
+
+        // Relative path without host: should match the internal endpoint and infer owning project hearai
+        var match = EndpointScoringEngine.MatchCall("/supervisor/onboarding", null, "POST", projects, endpoints);
+        Assert.That(match.IsInternal, Is.True);
+        Assert.That(match.Endpoint, Is.Not.Null);
+        Assert.That(match.Endpoint!.EndpointId, Is.EqualTo("ep_supervisor_onboarding"));
+        Assert.That(match.EndpointScore, Is.GreaterThanOrEqualTo(50.0));
+        Assert.That(match.Project, Is.Not.Null);
+        Assert.That(match.Project!.ProjectId, Is.EqualTo("ws:p::"));
+    }
+
+    [Test]
+    public void IsRelativeOrInternalPath_ValidatesPathsCorrectly()
+    {
+        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("/supervisor/onboarding"), Is.True);
+        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("/auth/me"), Is.True);
+        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("https://api.telegram.org"), Is.False);
+        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("http://localhost:8000"), Is.False);
+        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("//protocol-relative"), Is.False);
+        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath(""), Is.False);
+        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath(null), Is.False);
+    }
+
+    [Test]
+    public void IsInternalEndpointMatch_DetectsMatchingEndpoint()
+    {
+        var endpoints = new List<EndpointMatchCandidate>
+        {
+            new("ep_flags", "/flags/{flag_id}/resolve", "POST", "ws:p::")
+        };
+
+        var isMatch = EndpointScoringEngine.IsInternalEndpointMatch(
+            "/flags/42/resolve",
+            "POST",
+            endpoints,
+            out var matchedEp,
+            out var score);
+
+        Assert.That(isMatch, Is.True);
+        Assert.That(matchedEp, Is.Not.Null);
+        Assert.That(matchedEp!.EndpointId, Is.EqualTo("ep_flags"));
+        Assert.That(score, Is.GreaterThanOrEqualTo(50.0));
+    }
 }
