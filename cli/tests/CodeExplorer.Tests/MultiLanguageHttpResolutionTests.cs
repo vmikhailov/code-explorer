@@ -125,6 +125,32 @@ public class MultiLanguageHttpResolutionTests
         Assert.That(svc.Path, Is.EqualTo("/api/v1/items"));
     }
 
+    [Test]
+    public async Task Python_TelegramBot_And_ClientPost_ResolvesTelegramExternalService()
+    {
+        var code = """
+        async def send_alert(admin_id, text):
+            client = await _get_client()
+            await client.post(
+                f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": admin_id, "text": text}
+            )
+
+        async def bot_handler(msg):
+            await msg.answer("hello")
+            await _bot(msg).send_message(chat_id=123, text="hi")
+            await bot.send_voice(chat_id=123, voice=b"")
+        """;
+
+        var services = await ParseAndGetExternalServicesAsync(new PythonParser(), code, "telegram_service.py");
+        foreach (var s in services)
+        {
+            TestContext.Progress.WriteLine($"SERVICE: {s.DomainOrService} | {s.Id} | {s.Path}");
+        }
+        Assert.That(services, Has.Count.GreaterThan(0));
+        Assert.That(services.Any(s => s.DomainOrService == "api.telegram.org"), Is.True);
+    }
+
     // ==========================================
     // Go Tests
     // ==========================================

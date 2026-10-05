@@ -634,16 +634,37 @@ public class PostIndexAnalyzer(IGraphClient db)
             // 6. External Service invocation -> Project -> ExternalService SERVICE_CALL
             else if (kind == OntologyConstants.Relationships.ServiceCall ||
                      kind == OntologyConstants.Relationships.UsesApi ||
-                     kind == OntologyConstants.Relationships.UsesCloud)
+                     kind == OntologyConstants.Relationships.UsesCloud ||
+                     kind == OntologyConstants.Relationships.CalledBy ||
+                     kind == "CALLED_BY" ||
+                     kind == OntologyConstants.Relationships.Calls ||
+                     kind == OntologyConstants.Relationships.TransitivelyCalls)
             {
                 var isTargetExt = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.ExternalService) ||
                                   to.Contains($":{OntologyConstants.IdPrefixes.ExternalService}:") || to.Contains(":externalservice:") || to.Contains(":res:service:external:") || to.Contains(":cloud:") || to.Contains($":{OntologyConstants.IdPrefixes.CloudService}:");
+                var isSourceExt = (nodeKindsById?.GetValueOrDefault(from) == OntologyConstants.NodeLabels.ExternalService) ||
+                                  from.Contains($":{OntologyConstants.IdPrefixes.ExternalService}:") || from.Contains(":externalservice:") || from.Contains(":res:service:external:") || from.Contains(":cloud:") || from.Contains($":{OntologyConstants.IdPrefixes.CloudService}:");
+
+                string? callerId = null;
+                string? extId = null;
+
                 if (isTargetExt)
                 {
-                    var callerOwner = ResolveOwningProject(from);
-                    if (callerOwner != null && callerOwner.Id != to)
+                    callerId = from;
+                    extId = to;
+                }
+                else if (isSourceExt && (kind == OntologyConstants.Relationships.CalledBy || kind == "CALLED_BY"))
+                {
+                    callerId = to;
+                    extId = from;
+                }
+
+                if (callerId != null && extId != null)
+                {
+                    var callerOwner = ResolveOwningProject(callerId);
+                    if (callerOwner != null && callerOwner.Id != extId)
                     {
-                        var extDomain = ExtractDomainFromExternalServiceId(to);
+                        var extDomain = ExtractDomainFromExternalServiceId(extId);
                         var internalTargetProj = FindMatchingServiceProject(extDomain, projList);
 
                         if (internalTargetProj != null && callerOwner.Id != internalTargetProj.Id)
@@ -664,11 +685,11 @@ public class PostIndexAnalyzer(IGraphClient db)
                         }
                         else if (internalTargetProj == null && !IsGarbageExternalService(extDomain))
                         {
-                            if (existingEdges.Add((callerOwner.Id, to, OntologyConstants.Relationships.ServiceCall)))
+                            if (existingEdges.Add((callerOwner.Id, extId, OntologyConstants.Relationships.ServiceCall)))
                             {
                                 materializedRels.Add(new Relationship(
                                     callerOwner.Id,
-                                    to,
+                                    extId,
                                     OntologyConstants.Relationships.ServiceCall,
                                     new Dictionary<string, object>
                                     {

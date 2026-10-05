@@ -387,47 +387,71 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private static bool IsPythonHttpClientCall(Node node)
     {
-        if (!node.Is(TreeSitterSyntax.Python.Call)) return false;
-        var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
-        if (func.IsValid() && func.Id == IntPtr.Zero && node.Children.Count > 0) func = node.Children[0];
-        if (!func.IsValid()) return false;
-
-        if (func.Is(TreeSitterSyntax.Python.Attribute))
+        if (!PythonAstHelper.TryGetMemberAccess(node, out var obj, out var attrName) || obj == null || string.IsNullOrEmpty(attrName))
         {
-            var obj = func.GetChildForField(TreeSitterSyntax.Fields.Value) ?? func.GetChildForField(TreeSitterSyntax.Fields.Object) ?? (func.Children.Count > 0 ? func.Children[0] : null);
-            var attr = func.GetChildForField(TreeSitterSyntax.Python.Attribute);
-            if (obj.IsValid() && attr.IsValid())
-            {
-                var objName = obj.Text;
-                var attrName = attr.Text;
-
-                if (objName is "requests" or "httpx" or "urllib.request" or "urllib")
-                {
-                    return attrName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head" or "urlopen";
-                }
-
-                // Exclude dict properties, headers, configs, or request objects (e.g. request.headers.get, settings.session_limits.get)
-                var lowerObj = objName.ToLowerInvariant();
-                if (lowerObj.EndsWith(".headers") || lowerObj.EndsWith(".cookies") || lowerObj.EndsWith(".params") ||
-                    lowerObj.Contains("headers") || lowerObj.Contains("limits") || lowerObj.Contains("request") ||
-                    lowerObj.Contains("settings") || lowerObj.Contains("config"))
-                {
-                    return false;
-                }
-
-                var leafObj = lowerObj.Split('.').Last();
-                if (leafObj is "session" or "client" or "http" or "test_client" or "testclient" or "async_client" or "api_client" or "http_client" ||
-                    leafObj.EndsWith("_client") || leafObj.EndsWith("_session"))
-                {
-                    return attrName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head";
-                }
-            }
+            return false;
         }
+
+        string objName = obj?.Text ?? string.Empty;
+        if (objName is "requests" or "httpx" or "urllib.request" or "urllib")
+        {
+            return attrName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head" or "urlopen";
+        }
+
+        if (IsTelegramBotCall(objName, attrName))
+        {
+            return true;
+        }
+
+        // Exclude dict properties, headers, configs, or request objects (e.g. request.headers.get, settings.session_limits.get)
+        string lowerObj = objName.ToLowerInvariant();
+        if (lowerObj.EndsWith(".headers") || lowerObj.EndsWith(".cookies") || lowerObj.EndsWith(".params") ||
+            lowerObj.Contains("headers") || lowerObj.Contains("limits") || lowerObj.Contains("request") ||
+            lowerObj.Contains("settings") || lowerObj.Contains("config"))
+        {
+            return false;
+        }
+
+        var leafObj = lowerObj.Split('.').Last();
+        if (leafObj is "session" or "client" or "http" or "test_client" or "testclient" or "async_client" or "api_client" or "http_client" ||
+            leafObj.EndsWith("_client") || leafObj.EndsWith("_session"))
+        {
+            return attrName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head";
+        }
+
         return false;
+    }
+
+    private static bool IsTelegramBotCall(string objName, string attrName)
+    {
+        var lowerObj = objName.ToLowerInvariant();
+        var isBotTarget = lowerObj.Contains("bot") || lowerObj.StartsWith("_bot") ||
+                          lowerObj is "msg" or "message" or "query" or "callback_query" or "call" ||
+                          lowerObj.EndsWith("_msg") || lowerObj.EndsWith("_message");
+
+        if (!isBotTarget) return false;
+
+        return attrName is "answer" or "reply" ||
+               attrName.StartsWith("send_") ||
+               attrName.StartsWith("edit_") ||
+               attrName.StartsWith("delete_") ||
+               attrName.StartsWith("answer_") ||
+               attrName.StartsWith("get_file") ||
+               attrName.StartsWith("set_webhook") ||
+               attrName.StartsWith("delete_webhook");
     }
 
     private static string? ExtractPythonHttpClientTarget(Node node)
     {
+        if (PythonAstHelper.TryGetMemberAccess(node, out var obj, out var attrName) && obj != null && !string.IsNullOrEmpty(attrName))
+        {
+            string objName = obj?.Text ?? string.Empty;
+            if (IsTelegramBotCall(objName, attrName))
+            {
+                return $"https://api.telegram.org/bot/{attrName}";
+            }
+        }
+
         var args = node.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
         if (args.IsValid())
         {
@@ -444,6 +468,7 @@ public class PythonFileVisitor : BaseParserVisitor
                     }
                 }
                 else if (child.IsAny(TreeSitterSyntax.Python.String,
+                                    TreeSitterSyntax.Python.FormatString,
                                     TreeSitterSyntax.Python.Identifier,
                                     TreeSitterSyntax.Python.VariableName,
                                     TreeSitterSyntax.Python.BinaryOperator,

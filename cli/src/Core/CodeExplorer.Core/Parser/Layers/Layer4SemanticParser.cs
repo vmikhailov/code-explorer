@@ -79,10 +79,22 @@ public class Layer4SemanticParser
 
             foreach (var semNode in projectSemanticNodes)
             {
-                if (!project.Children.Any(c => c.Id == semNode.Id))
+                if (project.Children.All(c => c.Id != semNode.Id))
                 {
                     project.Children.Add(semNode);
                     semanticNodes.Add(semNode);
+                }
+                if (semNode is ExternalServiceNode es)
+                {
+                    semanticRelationships.Add(new Relationship(
+                        project.Id,
+                        es.Id,
+                        OntologyConstants.Relationships.ServiceCall,
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "service_call",
+                            ["is_semantic"] = "true"
+                        }));
                 }
             }
 
@@ -179,12 +191,27 @@ public class Layer4SemanticParser
 
             workloadByProjectId[project.Id] = workloadNode.Id;
 
-            // Attach project endpoints and entry points to the workload node
-            foreach (var child in project.Children.Where(c => c is EndpointNode or EntryPointNode).ToList())
+            // Attach project endpoints, entry points, and external services to the workload node
+            foreach (var child in project.Children.Where(c => c is EndpointNode or EntryPointNode or ExternalServiceNode).ToList())
             {
                 if (!workloadNode.Children.Any(c => c.Id == child.Id))
                 {
                     workloadNode.Children.Add(child);
+                }
+                if (child is ExternalServiceNode es)
+                {
+                    if (!semanticRelationships.Any(r => r.From == workloadNode.Id && r.To == es.Id && r.Kind == OntologyConstants.Relationships.ServiceCall))
+                    {
+                        semanticRelationships.Add(new Relationship(
+                            workloadNode.Id,
+                            es.Id,
+                            OntologyConstants.Relationships.ServiceCall,
+                            new Dictionary<string, object>
+                            {
+                                ["dependency_type"] = "service_call",
+                                ["is_semantic"] = "true"
+                            }));
+                    }
                 }
             }
         }

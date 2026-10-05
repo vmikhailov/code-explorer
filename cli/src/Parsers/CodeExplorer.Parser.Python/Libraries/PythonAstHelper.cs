@@ -17,7 +17,7 @@ public static class PythonAstHelper
         if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
 
         // 1. String literal / f-string
-        if (argNode.Is(TreeSitterSyntax.Python.String))
+        if (argNode.IsAny(TreeSitterSyntax.Python.String, TreeSitterSyntax.Python.FormatString, "concatenated_string", "interpolated_string"))
         {
             var text = argNode.Text.Trim('\'', '"');
             if (text.StartsWith("f'", StringComparison.OrdinalIgnoreCase) || text.StartsWith("f\"", StringComparison.OrdinalIgnoreCase) ||
@@ -203,8 +203,11 @@ public static class PythonAstHelper
         if (func.IsValid() && func.Is(TreeSitterSyntax.Python.Attribute))
         {
             methodName = func.GetChildFieldText(TreeSitterSyntax.Fields.Property) ??
+                         func.GetChildFieldText(TreeSitterSyntax.Python.Attribute) ??
                          func.Children.LastOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier))?.Text;
-            objNode = func.GetField(TreeSitterSyntax.Fields.Object) ?? func.Children.FirstOrDefault();
+            objNode = func.GetField(TreeSitterSyntax.Fields.Object) ??
+                      func.GetField(TreeSitterSyntax.Fields.Value) ??
+                      func.Children.FirstOrDefault();
             return !string.IsNullOrEmpty(methodName);
         }
         return false;

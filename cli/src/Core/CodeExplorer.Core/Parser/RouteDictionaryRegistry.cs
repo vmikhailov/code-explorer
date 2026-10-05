@@ -196,7 +196,7 @@ public static class RouteDictionaryRegistry
 
         // Replace template placeholders: ${...}, {var}, and format specifiers: %s, %d, %v, {0}
         var clean = Regex.Replace(raw, @"\$\{[^}]+\}", "*");
-        clean = Regex.Replace(clean, @"\{[a-zA-Z0-9_]+\}", "*");
+        clean = Regex.Replace(clean, @"\{[^}]+\}", "*");
         clean = Regex.Replace(clean, @"%[sdvf]", "*");
         clean = clean.Trim('\'', '"', '`', ' ');
 
@@ -204,7 +204,7 @@ public static class RouteDictionaryRegistry
         if (TryResolve(clean, out var rp, out var rs))
         {
             var cleanPath = rp.Split('?')[0];
-            cleanPath = Regex.Replace(cleanPath, @"\{[a-zA-Z0-9_]+\}", "*");
+            cleanPath = Regex.Replace(cleanPath, @"\{[^}]+\}", "*");
             return !string.IsNullOrEmpty(rs) ? $"{rs}{cleanPath}" : cleanPath;
         }
 

@@ -524,6 +524,19 @@ public class Layer3SyntacticParser
         else if (kind == OntologyConstants.NodeLabels.ExternalService)
         {
             typedNode = CreateExternalServiceNode(name, node, relativePath, workspaceId);
+            if (!string.IsNullOrEmpty(parentScopeId))
+            {
+                ctx?.AddGlobalProjectDependency(new Relationship(
+                    parentScopeId,
+                    typedNode.Id,
+                    OntologyConstants.Relationships.ServiceCall,
+                    new Dictionary<string, object>
+                    {
+                        ["dependency_type"] = "service_call",
+                        ["is_external"] = "true"
+                    }
+                ));
+            }
         }
         else if (kind == OntologyConstants.NodeLabels.Table)
         {
@@ -815,6 +828,10 @@ public class Layer3SyntacticParser
             ext["is_relative_path"] = "true";
             ext["inferred_from_path"] = "true";
             ext["url"] = path;
+        }
+        else
+        {
+            ext["is_external"] = "true";
         }
         return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path, ext);
     }
