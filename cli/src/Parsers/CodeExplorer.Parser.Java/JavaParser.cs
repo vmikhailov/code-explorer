@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Parser.Android;
 using TreeSitter;
 
 [assembly: ParserAssembly]
@@ -107,7 +108,7 @@ public class JavaParser : IProjectParser, IFileParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
-        if (CodeExplorer.Core.Parser.Android.GradleBuildScriptParser.IsMultiProjectContainer(directoryPath))
+        if (GradleBuildScriptParser.IsMultiProjectContainer(directoryPath))
         {
             return false;
         }
@@ -121,7 +122,7 @@ public class JavaParser : IProjectParser, IFileParser
 
         if (hasGradleScript)
         {
-            var info = CodeExplorer.Core.Parser.Android.GradleBuildScriptParser.ParseDirectory(directoryPath);
+            var info = GradleBuildScriptParser.ParseDirectory(directoryPath);
             if (info.IsKotlinProject || info.IsAndroidApplication || info.IsAndroidLibrary || info.IsFlutterProject)
             {
                 return false;
@@ -141,10 +142,10 @@ public class JavaParser : IProjectParser, IFileParser
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
-        var manifestPath = CodeExplorer.Core.Parser.Android.GradleBuildScriptParser.FindAndroidManifest(directoryPath);
+        var manifestPath = GradleBuildScriptParser.FindAndroidManifest(directoryPath);
         if (manifestPath != null)
         {
-            var manifest = CodeExplorer.Core.Parser.Android.AndroidManifestParser.ParseFile(manifestPath);
+            var manifest = AndroidManifestParser.ParseFile(manifestPath);
             if (!string.IsNullOrWhiteSpace(manifest?.AppLabel))
             {
                 return $"{manifest.AppLabel} (Android)";

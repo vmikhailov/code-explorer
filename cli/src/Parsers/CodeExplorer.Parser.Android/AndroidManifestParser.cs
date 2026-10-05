@@ -1,6 +1,6 @@
 using System.Xml.Linq;
 
-namespace CodeExplorer.Core.Parser.Android;
+namespace CodeExplorer.Parser.Android;
 
 public static class AndroidManifestParser
 {

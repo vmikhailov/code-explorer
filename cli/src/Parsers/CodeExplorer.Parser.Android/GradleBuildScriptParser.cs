@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace CodeExplorer.Core.Parser.Android;
+namespace CodeExplorer.Parser.Android;
 
 public record GradleBuildInfo(
     string? RootProjectName,

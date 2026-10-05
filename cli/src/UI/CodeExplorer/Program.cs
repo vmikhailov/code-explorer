@@ -3,6 +3,7 @@ using CodeExplorer.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
+using CodeExplorer.Parser.Android;
 using CodeExplorer.Parser.ColdFusion;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
@@ -38,7 +39,7 @@ public class Program
         WorkspaceIndexer.Register(new CSharpParser());
         WorkspaceIndexer.Register(new KotlinProjectParser());
         WorkspaceIndexer.Register(new KotlinFileParser());
-        WorkspaceIndexer.Register(new CodeExplorer.Core.Parser.Android.AndroidManifestFileParser());
+        WorkspaceIndexer.Register(new AndroidManifestFileParser());
         WorkspaceIndexer.Register(new JavaParser());
         WorkspaceIndexer.Register(new GoParser());
         WorkspaceIndexer.Register(new PythonParser());

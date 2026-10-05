@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Android\CodeExplorer.Parser.Android.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.CSharp\CodeExplorer.Parser.CSharp.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Go\CodeExplorer.Parser.Go.csproj" />
     <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Java\CodeExplorer.Parser.Java.csproj" />

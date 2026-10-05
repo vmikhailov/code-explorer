@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\UI\CodeExplorer\CodeExplorer.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Kotlin\CodeExplorer.Parser.Kotlin.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Android\CodeExplorer.Parser.Android.csproj" />
   </ItemGroup>
 
   <!-- Link OntologyGen source files so tests can use the extractor/renderer directly -->
