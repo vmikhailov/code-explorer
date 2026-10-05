@@ -42,8 +42,7 @@ public class WorkspaceIndexer
 
     public static IFileParser? GetParserForFile(string filePath)
     {
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        return _fileParsers.FirstOrDefault(p => p.CanParse(ext));
+        return _fileParsers.FirstOrDefault(p => p.CanParseFile(filePath));
     }
 
     public static IProjectParser? GetProjectParser(string projectType)

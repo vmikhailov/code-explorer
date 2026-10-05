@@ -598,5 +598,21 @@ public class SqliteCompilerTests
         var compNames = (string)rowsCollected[0]["compNames"]!;
         Assert.That(compNames, Does.Contain("compfn"));
     }
-}
+    [Test]
+    public void Test_StrictLabels_AvoidsOntologyFallbackSubqueries()
+    {
+        var cypher = "MATCH (s1:Service)-[:CALLS]->(s2:Service)-[:USES_DB]->(d:Database) RETURN s1.name, s2.name, d.name LIMIT 50";
+        var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(cypher);
 
+        // Standard compilation includes ontology fallback
+        var standard = SqliteCompiler.Compile(ast, strictLabels: false);
+        Assert.That(standard.Sql, Does.Contain("NOT EXISTS (SELECT 1 FROM nodes _w"));
+
+        // StrictLabels compilation produces clean, direct SQL without subqueries
+        var strict = SqliteCompiler.Compile(ast, strictLabels: true);
+        Assert.That(strict.Sql, Does.Not.Contain("NOT EXISTS"));
+        Assert.That(strict.Sql, Does.Contain("s1.kind = 'Service'"));
+        Assert.That(strict.Sql, Does.Contain("s2.kind = 'Service'"));
+        Assert.That(strict.Sql, Does.Contain("d.kind = 'Database'"));
+    }
+}

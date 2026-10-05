@@ -15,6 +15,12 @@ public interface IFileParser
     bool CanParse(string fileExtension);
 
     /// <summary>
+    /// Determines if this parser handles the given file path or file name.
+    /// Default implementation delegates to CanParse with the file extension.
+    /// </summary>
+    bool CanParseFile(string filePath) => CanParse(Path.GetExtension(filePath));
+
+    /// <summary>
     /// Indicates whether this parser uses Tree-Sitter for AST-level parsing.
     /// </summary>
     bool UsesTreeSitter { get; }

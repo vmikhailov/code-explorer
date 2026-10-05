@@ -193,8 +193,7 @@ public class Layer3SyntacticParser
             await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, async (i, ct) =>
             {
                 var file = projectFiles[i];
-                var ext = Path.GetExtension(file.Name).ToLowerInvariant();
-                var fileParser = WorkspaceIndexer._fileParsers.FirstOrDefault(p => p.CanParse(ext));
+                var fileParser = WorkspaceIndexer.GetParserForFile(file.FullPath);
                 if (fileParser == null) return;
 
                 if (!parentByChildId.TryGetValue(file.Id, out var parentNode)) return;

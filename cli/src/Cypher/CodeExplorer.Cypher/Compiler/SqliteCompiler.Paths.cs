@@ -682,24 +682,39 @@ public partial class SqliteCompiler
     private void AddNodeFiltersToConditions(NodePattern node, string nodeVar, List<string> conditions)
     {
         var nVar = EscapeVar(nodeVar);
-        if (node.Labels.Count == 1)
+        if (_strictLabels)
         {
-            conditions.Add(CompileNodeLabelPredicate(nVar, node.Labels[0]));
-        }
-        else if (node.Labels.Count > 1)
-        {
-            var anySemantic = node.Labels.Any(IsSemanticRoleLabel);
-            if (anySemantic)
+            if (node.Labels.Count == 1)
             {
-                foreach (var label in node.Labels)
-                {
-                    conditions.Add(CompileNodeLabelPredicate(nVar, label));
-                }
+                conditions.Add($"{nVar}.kind = '{node.Labels[0]}'");
             }
-            else
+            else if (node.Labels.Count > 1)
             {
                 var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
                 conditions.Add($"{nVar}.kind IN ({kinds})");
+            }
+        }
+        else
+        {
+            if (node.Labels.Count == 1)
+            {
+                conditions.Add(CompileNodeLabelPredicate(nVar, node.Labels[0]));
+            }
+            else if (node.Labels.Count > 1)
+            {
+                var anySemantic = node.Labels.Any(IsSemanticRoleLabel);
+                if (anySemantic)
+                {
+                    foreach (var label in node.Labels)
+                    {
+                        conditions.Add(CompileNodeLabelPredicate(nVar, label));
+                    }
+                }
+                else
+                {
+                    var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
+                    conditions.Add($"{nVar}.kind IN ({kinds})");
+                }
             }
         }
 

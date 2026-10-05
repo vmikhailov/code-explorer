@@ -107,6 +107,27 @@ public class JavaParser : IProjectParser, IFileParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
+        if (CodeExplorer.Core.Parser.Android.GradleBuildScriptParser.IsMultiProjectContainer(directoryPath))
+        {
+            return false;
+        }
+
+        var hasGradleScript = filesInDirectory.Any(f =>
+        {
+            var fn = Path.GetFileName(f);
+            return fn.Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("build.gradle", StringComparison.OrdinalIgnoreCase);
+        });
+
+        if (hasGradleScript)
+        {
+            var info = CodeExplorer.Core.Parser.Android.GradleBuildScriptParser.ParseDirectory(directoryPath);
+            if (info.IsKotlinProject || info.IsAndroidApplication || info.IsAndroidLibrary || info.IsFlutterProject)
+            {
+                return false;
+            }
+        }
+
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
@@ -120,6 +141,16 @@ public class JavaParser : IProjectParser, IFileParser
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
+        var manifestPath = CodeExplorer.Core.Parser.Android.GradleBuildScriptParser.FindAndroidManifest(directoryPath);
+        if (manifestPath != null)
+        {
+            var manifest = CodeExplorer.Core.Parser.Android.AndroidManifestParser.ParseFile(manifestPath);
+            if (!string.IsNullOrWhiteSpace(manifest?.AppLabel))
+            {
+                return $"{manifest.AppLabel} (Android)";
+            }
+        }
+
         var folderName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
 
         // 1. If pom.xml exists, extract artifactId
@@ -230,7 +261,10 @@ public class JavaParser : IProjectParser, IFileParser
                 {
                     props["manifest_type"] = "mobile";
                     props["framework_type"] = "mobile";
-                    props["sdk"] = "android";
+                    props["sdk"] = "Android";
+                    props["framework"] = content.Contains("dev.flutter", StringComparison.OrdinalIgnoreCase)
+                        ? "Flutter Android"
+                        : "Android";
                 }
             }
             catch

@@ -24,7 +24,8 @@ public static class WorkspaceFileFilter
 
     public static readonly HashSet<string> ManifestFileNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "package.json", "pom.xml", "go.mod", "Cargo.toml", "Directory.Build.props", "Directory.Build.targets"
+        "package.json", "pom.xml", "go.mod", "Cargo.toml", "Directory.Build.props", "Directory.Build.targets",
+        "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "AndroidManifest.xml"
     };
 
     public static bool IsExcludedDirectory(string dirName) => ExcludedDirectoryNames.Contains(dirName);
@@ -140,10 +141,11 @@ public static class WorkspaceFileFilter
     public static bool IsSupportedSourceOrConfigFile(string fileName)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        var hasParser = WorkspaceIndexer._fileParsers.Any(p => p.CanParse(ext));
+        var hasParser = WorkspaceIndexer._fileParsers.Any(p => p.CanParse(ext) || p.CanParseFile(fileName));
         var isConfigFile = ConfigurationParser.IsConfigurationFile(fileName);
+        var isAndroidManifest = fileName.Equals("AndroidManifest.xml", StringComparison.OrdinalIgnoreCase);
 
-        return hasParser || isConfigFile;
+        return hasParser || isConfigFile || isAndroidManifest;
     }
 
     /// <summary>
