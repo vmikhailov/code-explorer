@@ -1,6 +1,7 @@
 import type * as vscodeTypes from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as https from 'https';
 import * as http from 'http';
 import * as cp from 'child_process';
@@ -607,6 +608,405 @@ export function extractArchive(
   });
 }
 
+export interface DotnetToolInfo {
+  command: string;
+  args: string[];
+  version: string;
+}
+
+/**
+ * Runs a command with '--version' and returns the normalized SemVer string, or null on failure.
+ */
+export function probeCommandVersion(cmd: string, args: string[] = []): string | null {
+  try {
+    const res = cp.spawnSync(cmd, [...args, '--version'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+    });
+    const output = (res.stdout && res.stdout.trim().length > 0 ? res.stdout : res.stderr)?.trim();
+    if (res.status === 0 && output) {
+      const firstLine = output.split(/\r?\n/)[0];
+      return cleanSemver(firstLine);
+    }
+  } catch {
+    // Ignore execution failure
+  }
+  return null;
+}
+
+/**
+ * Probes for an installed CodeExplorer dotnet tool.
+ * Checks:
+ * 1. Local workspace tool manifest (.config/dotnet-tools.json)
+ * 2. Standard global dotnet tools directory (~/.dotnet/tools/ce[.exe])
+ * 3. System PATH 'ce'
+ */
+export function probeDotnetTool(
+  workspaceRoot?: string,
+  customHomelessDir?: string
+): DotnetToolInfo | null {
+  // 1. Check workspace local tool manifest: .config/dotnet-tools.json
+  if (workspaceRoot) {
+    try {
+      const localManifest = path.join(workspaceRoot, '.config', 'dotnet-tools.json');
+      if (fs.existsSync(localManifest)) {
+        const ver = probeCommandVersion('dotnet', ['tool', 'run', 'ce']);
+        if (ver) {
+          return { command: 'dotnet', args: ['tool', 'run', 'ce'], version: ver };
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 2. Check standard dotnet tools directory (~/.dotnet/tools)
+  try {
+    const home = customHomelessDir || os.homedir();
+    const isWin = process.platform === 'win32';
+    const globalToolPath = path.join(home, '.dotnet', 'tools', isWin ? 'ce.exe' : 'ce');
+    if (fs.existsSync(globalToolPath)) {
+      const ver = probeCommandVersion(globalToolPath);
+      if (ver) {
+        return { command: globalToolPath, args: [], version: ver };
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  // 3. Check system PATH 'ce'
+  try {
+    const isWin = process.platform === 'win32';
+    const checkRes = cp.spawnSync(isWin ? 'where.exe' : 'which', ['ce'], {
+      encoding: 'utf8',
+      timeout: 4000,
+      windowsHide: true,
+    });
+    if (checkRes.status === 0 && checkRes.stdout?.trim()) {
+      const sysPath = checkRes.stdout.trim().split(/\r?\n/)[0];
+      if (fs.existsSync(sysPath)) {
+        const ver = probeCommandVersion(sysPath);
+        if (ver) {
+          return { command: sysPath, args: [], version: ver };
+        }
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  return null;
+}
+
+export interface InstalledEngineCandidate {
+  command: string;
+  args: string[];
+  version: string;
+  source: 'custom' | 'dotnet-tool' | 'downloaded' | 'path' | 'bundled';
+}
+
+export interface ProbeInstalledOptions {
+  workspaceRoot?: string;
+  globalStorageBinDir?: string;
+  extensionRoot?: string;
+  customExecutablePath?: string;
+  homedir?: string;
+}
+
+/**
+ * Probes all available installed engine candidates on the machine.
+ * Sources inspected:
+ * 1. Explicitly configured path (settings / ENV)
+ * 2. Workspace dotnet tool manifest (.config/dotnet-tools.json)
+ * 3. Global dotnet tools directory (~/.dotnet/tools/ce[.exe])
+ * 4. Downloaded engine in extension global storage (<globalStorage>/bin/ce[.exe])
+ * 5. System PATH 'ce'
+ * 6. Bundled binary in extension (<extensionRoot>/bin/ce[.exe])
+ */
+export function probeAllInstalledEngines(options?: ProbeInstalledOptions): InstalledEngineCandidate[] {
+  const candidates: InstalledEngineCandidate[] = [];
+  const seenCommands = new Set<string>();
+
+  const addCandidate = (cand: InstalledEngineCandidate) => {
+    const norm = path.normalize(cand.command).toLowerCase();
+    const key = `${norm}|${cand.args.join(' ')}`;
+    if (!seenCommands.has(key)) {
+      seenCommands.add(key);
+      candidates.push(cand);
+    }
+  };
+
+  // 1. Explicit custom path or ENV if provided
+  const envPath = process.env.CE_EXECUTABLE;
+  const customTarget = options?.customExecutablePath?.trim() || envPath?.trim();
+  if (customTarget) {
+    try {
+      const resolved = path.isAbsolute(customTarget)
+        ? customTarget
+        : (options?.workspaceRoot ? path.resolve(options.workspaceRoot, customTarget) : path.resolve(customTarget));
+      if (fs.existsSync(resolved)) {
+        const isDll = resolved.endsWith('.dll');
+        const ver = isDll ? probeCommandVersion('dotnet', [resolved]) : probeCommandVersion(resolved);
+        if (ver) {
+          addCandidate({
+            command: isDll ? 'dotnet' : resolved,
+            args: isDll ? [resolved] : [],
+            version: ver,
+            source: 'custom',
+          });
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 2. Local workspace dotnet tool (.config/dotnet-tools.json)
+  if (options?.workspaceRoot) {
+    try {
+      const localManifest = path.join(options.workspaceRoot, '.config', 'dotnet-tools.json');
+      if (fs.existsSync(localManifest)) {
+        const ver = probeCommandVersion('dotnet', ['tool', 'run', 'ce']);
+        if (ver) {
+          addCandidate({
+            command: 'dotnet',
+            args: ['tool', 'run', 'ce'],
+            version: ver,
+            source: 'dotnet-tool',
+          });
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 3. Global dotnet tools directory (~/.dotnet/tools/ce[.exe])
+  try {
+    const home = options?.homedir || os.homedir();
+    const isWin = process.platform === 'win32';
+    const globalToolPath = path.join(home, '.dotnet', 'tools', isWin ? 'ce.exe' : 'ce');
+    if (fs.existsSync(globalToolPath)) {
+      const ver = probeCommandVersion(globalToolPath);
+      if (ver) {
+        addCandidate({
+          command: globalToolPath,
+          args: [],
+          version: ver,
+          source: 'dotnet-tool',
+        });
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  // 4. Downloaded engine in extension global storage (<globalStorage>/bin/ce[.exe])
+  if (options?.globalStorageBinDir) {
+    try {
+      const isWin = process.platform === 'win32';
+      const storedBin = path.join(options.globalStorageBinDir, isWin ? 'ce.exe' : 'ce');
+      if (fs.existsSync(storedBin)) {
+        let ver = probeCommandVersion(storedBin);
+        if (!ver) {
+          const verFile = path.join(options.globalStorageBinDir, 'version.json');
+          if (fs.existsSync(verFile)) {
+            const data = JSON.parse(fs.readFileSync(verFile, 'utf8'));
+            if (data.version) ver = cleanSemver(data.version);
+          }
+        }
+        if (ver) {
+          addCandidate({
+            command: storedBin,
+            args: [],
+            version: ver,
+            source: 'downloaded',
+          });
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 5. System PATH 'ce'
+  try {
+    const isWin = process.platform === 'win32';
+    const checkRes = cp.spawnSync(isWin ? 'where.exe' : 'which', ['ce'], {
+      encoding: 'utf8',
+      timeout: 4000,
+      windowsHide: true,
+    });
+    if (checkRes.status === 0 && checkRes.stdout?.trim()) {
+      const lines = checkRes.stdout.trim().split(/\r?\n/);
+      for (const line of lines) {
+        const sysPath = line.trim();
+        if (sysPath && fs.existsSync(sysPath)) {
+          const ver = probeCommandVersion(sysPath);
+          if (ver) {
+            addCandidate({
+              command: sysPath,
+              args: [],
+              version: ver,
+              source: 'path',
+            });
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  // 6. Bundled binary in extension bin/
+  if (options?.extensionRoot) {
+    try {
+      const isWin = process.platform === 'win32';
+      const bundledBin = path.join(options.extensionRoot, 'bin', isWin ? 'ce.exe' : 'ce');
+      if (fs.existsSync(bundledBin)) {
+        const ver = probeCommandVersion(bundledBin);
+        if (ver) {
+          addCandidate({
+            command: bundledBin,
+            args: [],
+            version: ver,
+            source: 'bundled',
+          });
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  return candidates;
+}
+
+/**
+ * Returns the best installed engine candidate across all probed sources.
+ * Sorts candidates by SemVer descending.
+ * Tie-breaker when versions are equal: downloaded > dotnet-tool > path > bundled.
+ * Explicit custom configuration always takes priority if present.
+ */
+export function getBestInstalledEngine(
+  input?: InstalledEngineCandidate[] | ProbeInstalledOptions
+): InstalledEngineCandidate | null {
+  const candidates = Array.isArray(input)
+    ? input
+    : probeAllInstalledEngines(input);
+
+  if (!candidates || candidates.length === 0) return null;
+
+  const custom = candidates.find((c) => c.source === 'custom');
+  if (custom) return custom;
+
+  const sourcePriority: Record<InstalledEngineCandidate['source'], number> = {
+    custom: 5,
+    downloaded: 4,
+    'dotnet-tool': 3,
+    path: 2,
+    bundled: 1,
+  };
+
+  const sorted = [...candidates].sort((a, b) => {
+    const cmp = compareSemver(b.version, a.version);
+    if (cmp !== 0) return cmp;
+    return (sourcePriority[b.source] ?? 0) - (sourcePriority[a.source] ?? 0);
+  });
+
+  return sorted[0] || null;
+}
+
+export interface EngineSelectionInput {
+  customExecutable?: { command: string; args: string[] } | null;
+  dotnetTool?: DotnetToolInfo | null;
+  downloadedEngine?: { command: string; args: string[]; version: string } | null;
+}
+
+export interface EngineSelectionResult {
+  command: string;
+  args: string[];
+  version?: string;
+  source: 'custom' | 'dotnet-tool' | 'downloaded' | 'need-download';
+  reason: string;
+}
+
+/**
+ * Decides whether to use the custom executable, local dotnet tool, or downloaded engine.
+ * Rule: If there is a local dotnet tool whose version is HIGHER than the downloaded one,
+ * it is used. If dotnet tool is not present or its version is lower, the downloaded engine is used.
+ */
+export function selectEngineExecutable(input: EngineSelectionInput): EngineSelectionResult {
+  if (input.customExecutable) {
+    return {
+      command: input.customExecutable.command,
+      args: input.customExecutable.args,
+      source: 'custom',
+      reason: 'Using explicitly configured executable path or environment override.',
+    };
+  }
+
+  const { dotnetTool, downloadedEngine } = input;
+
+  if (dotnetTool && downloadedEngine) {
+    const cmp = compareSemver(dotnetTool.version, downloadedEngine.version);
+    if (cmp > 0) {
+      return {
+        command: dotnetTool.command,
+        args: dotnetTool.args,
+        version: dotnetTool.version,
+        source: 'dotnet-tool',
+        reason: `Local dotnet tool (v${dotnetTool.version}) is higher than downloaded engine (v${downloadedEngine.version}). Using dotnet tool.`,
+      };
+    } else {
+      return {
+        command: downloadedEngine.command,
+        args: downloadedEngine.args,
+        version: downloadedEngine.version,
+        source: 'downloaded',
+        reason: `Downloaded engine (v${downloadedEngine.version}) is >= local dotnet tool (v${dotnetTool.version}). Using downloaded engine.`,
+      };
+    }
+  }
+
+  if (dotnetTool && !downloadedEngine) {
+    return {
+      command: dotnetTool.command,
+      args: dotnetTool.args,
+      version: dotnetTool.version,
+      source: 'dotnet-tool',
+      reason: `Using local dotnet tool (v${dotnetTool.version}) (no downloaded engine present).`,
+    };
+  }
+
+  if (!dotnetTool && downloadedEngine) {
+    return {
+      command: downloadedEngine.command,
+      args: downloadedEngine.args,
+      version: downloadedEngine.version,
+      source: 'downloaded',
+      reason: `Using downloaded engine (v${downloadedEngine.version}) (dotnet tool not found).`,
+    };
+  }
+
+  return {
+    command: '',
+    args: [],
+    source: 'need-download',
+    reason: 'Neither a local dotnet tool nor a downloaded engine is currently present.',
+  };
+}
+
+export interface UpdateCheckResult {
+  updated: boolean;
+  currentVersion: string | null;
+  targetVersion: string;
+  command: string;
+  message: string;
+}
+
 /**
  * Manages downloading, caching, and running the CodeExplorer CLI native engine.
  */
@@ -686,10 +1086,130 @@ export class BinaryManager {
   }
 
   /**
-   * Ensures the binary is available and matches the required version.
-   * If missing or outdated, downloads and extracts it with a VS Code progress notification.
+   * Probes and returns the currently downloaded engine info, if present on disk.
    */
-  async ensureBinary(forceUpdate = false): Promise<{ command: string; args: string[] }> {
+  getDownloadedEngine(): { command: string; args: string[]; version: string } | null {
+    const binPath = this.getStoredBinaryPath();
+    if (!binPath || !fs.existsSync(binPath)) return null;
+
+    const cached = this.getCachedVersion();
+    const probed = probeCommandVersion(binPath);
+    const version = probed || cached;
+    if (!version) return null;
+
+    return {
+      command: binPath,
+      args: [],
+      version,
+    };
+  }
+
+  /**
+   * Probes all installed engine candidates across the system (dotnet-tools, PATH, global storage, bundled)
+   * and returns the best candidate (highest semver).
+   */
+  getBestInstalledEngine(workspaceRoot?: string): InstalledEngineCandidate | null {
+    const binDir = this.getBinDir();
+    const extensionRoot = this.context?.extensionPath;
+    return getBestInstalledEngine({
+      workspaceRoot,
+      globalStorageBinDir: binDir || undefined,
+      extensionRoot,
+    });
+  }
+
+  /**
+   * Checks for engine updates against remote releases.
+   * Probes all installed engine candidates across the system first.
+   * Avoids downloading if an installed version is already the same or higher than the remote release.
+   */
+  async checkAndUpdate(forceReinstall = false, workspaceRoot?: string): Promise<UpdateCheckResult> {
+    const binDir = this.getBinDir();
+    const binPath = this.getStoredBinaryPath();
+
+    if (!binDir || !binPath) {
+      throw new Error('Extension storage context is not initialized.');
+    }
+
+    const target = resolveTargetAsset();
+    const extVersion = this.getExtensionVersion();
+    const vscode = getVsCode();
+    const config = vscode?.workspace?.getConfiguration('codeExplorer');
+    const userSetting = config?.get<string>('engineVersion', '')?.trim() || undefined;
+
+    // ALWAYS PROBE INSTALLED ENGINES FIRST BEFORE DOWNLOADING
+    const bestInstalled = this.getBestInstalledEngine(workspaceRoot);
+    const currentVersion = bestInstalled?.version || this.getCachedVersion() || null;
+
+    this.outputChannel.appendLine('[BinaryManager] Checking for CodeExplorer engine updates...');
+    if (bestInstalled) {
+      this.outputChannel.appendLine(
+        `[BinaryManager] Current best installed engine: v${bestInstalled.version} (${bestInstalled.source}) at ${bestInstalled.command}`
+      );
+    }
+
+    // Smart probe for the best available engine release containing the platform asset
+    const resolved = await probeEngineVersion(extVersion, userSetting, this.outputChannel, target.archiveName);
+    const targetVersion = resolved.version;
+
+    // Compare versions: avoid downloading if version is the same (or already newer)
+    if (!forceReinstall && currentVersion) {
+      const cmp = compareSemver(currentVersion, targetVersion);
+      if (cmp === 0 || isBuildDifferenceOnly(currentVersion, targetVersion)) {
+        const msg = `CodeExplorer engine is already up to date (v${currentVersion}${bestInstalled ? ` via ${bestInstalled.source}` : ''}).`;
+        this.outputChannel.appendLine(
+          `[BinaryManager] Engine version is the same: v${currentVersion} (remote: v${targetVersion}). Skipping download.`
+        );
+        vscode?.window?.showInformationMessage(msg);
+        return {
+          updated: false,
+          currentVersion,
+          targetVersion,
+          command: bestInstalled?.command || binPath,
+          message: msg,
+        };
+      }
+
+      if (cmp > 0) {
+        const msg = `Installed CodeExplorer engine (v${currentVersion}${bestInstalled ? ` via ${bestInstalled.source}` : ''}) is newer than remote release (v${targetVersion}).`;
+        this.outputChannel.appendLine(
+          `[BinaryManager] Installed engine (v${currentVersion}) is newer than remote release (v${targetVersion}). Skipping download.`
+        );
+        vscode?.window?.showInformationMessage(msg);
+        return {
+          updated: false,
+          currentVersion,
+          targetVersion,
+          command: bestInstalled?.command || binPath,
+          message: msg,
+        };
+      }
+    }
+
+    // Remote version is higher (or engine not installed, or forceReinstall): proceed to download!
+    await this.downloadAndExtract(resolved, target, binDir, binPath);
+
+    const msg = currentVersion
+      ? `CodeExplorer engine updated from v${currentVersion} to v${targetVersion}.`
+      : `CodeExplorer engine v${targetVersion} is ready.`;
+    vscode?.window?.showInformationMessage(msg);
+
+    return {
+      updated: true,
+      currentVersion,
+      targetVersion,
+      command: binPath,
+      message: msg,
+    };
+  }
+
+  /**
+   * Ensures the binary is available and matches the required version.
+   * ALWAYS probes all installed engines across the system first before contacting GitHub or downloading.
+   * If any installed version satisfies the required pattern, or is newer than or equal to the remote release,
+   * it uses the installed engine without downloading.
+   */
+  async ensureBinary(forceUpdate = false, workspaceRoot?: string): Promise<{ command: string; args: string[] }> {
     const binDir = this.getBinDir();
     const binPath = this.getStoredBinaryPath();
 
@@ -704,25 +1224,45 @@ export class BinaryManager {
     const userSetting = config?.get<string>('engineVersion', '')?.trim() || undefined;
     const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
 
-    const cachedVersion = this.getCachedVersion();
+    // 1. ALWAYS PROBE INSTALLED ENGINES FIRST BEFORE DOWNLOADING
+    const bestInstalled = this.getBestInstalledEngine(workspaceRoot);
 
-    // If local binary exists and satisfies the required pattern, use it immediately
-    if (!forceUpdate && fs.existsSync(binPath) && cachedVersion && matchesEnginePattern(cachedVersion, pattern)) {
+    // If local binary exists and satisfies the required pattern (or is >= extension version), use it immediately
+    if (!forceUpdate && bestInstalled && (matchesEnginePattern(bestInstalled.version, pattern) || compareSemver(bestInstalled.version, extVersion) >= 0)) {
       this.outputChannel.appendLine(
-        `[BinaryManager] Stored engine matches pattern '${pattern}': v${cachedVersion} at ${binPath}`
+        `[BinaryManager] Installed engine matches pattern '${pattern}' (or >= extension version): v${bestInstalled.version} (${bestInstalled.source}) at ${bestInstalled.command}`
       );
-      return { command: binPath, args: [] };
+      return { command: bestInstalled.command, args: bestInstalled.args };
     }
 
-    // Smart probe for the best available engine release containing the platform asset
+    // 2. Smart probe for the best available engine release containing the platform asset
+    this.outputChannel.appendLine('[BinaryManager] Probing remote engine releases...');
     const resolved = await probeEngineVersion(extVersion, userSetting, this.outputChannel, target.archiveName);
     const targetVersion = resolved.version;
 
-    if (!forceUpdate && fs.existsSync(binPath) && cachedVersion === targetVersion) {
-      this.outputChannel.appendLine(`[BinaryManager] Engine already at target version v${targetVersion}.`);
-      return { command: binPath, args: [] };
+    // 3. Compare versions: avoid downloading if installed version is >= remote target version
+    if (!forceUpdate && bestInstalled) {
+      const cmp = compareSemver(bestInstalled.version, targetVersion);
+      if (cmp >= 0 || isBuildDifferenceOnly(bestInstalled.version, targetVersion)) {
+        this.outputChannel.appendLine(
+          `[BinaryManager] Installed engine (v${bestInstalled.version}, ${bestInstalled.source}) is >= remote release (v${targetVersion}). Skipping download and using installed engine.`
+        );
+        return { command: bestInstalled.command, args: bestInstalled.args };
+      }
     }
 
+    await this.downloadAndExtract(resolved, target, binDir, binPath);
+    vscode?.window?.showInformationMessage(`CodeExplorer engine v${targetVersion} is ready.`);
+    return { command: binPath, args: [] };
+  }
+
+  private async downloadAndExtract(
+    resolved: { version: string; assetUrl?: string },
+    target: TargetInfo,
+    binDir: string,
+    binPath: string
+  ): Promise<void> {
+    const targetVersion = resolved.version;
     const downloadUrl = resolved.assetUrl || `https://github.com/${GITHUB_REPO}/releases/download/v${targetVersion}/${target.archiveName}`;
     this.outputChannel.appendLine(`[BinaryManager] Downloading engine v${targetVersion} from: ${downloadUrl}`);
 
@@ -775,6 +1315,7 @@ export class BinaryManager {
       }
     };
 
+    const vscode = getVsCode();
     if (vscode?.window?.withProgress) {
       await vscode.window.withProgress(
         {
@@ -786,11 +1327,8 @@ export class BinaryManager {
           await runDownload((inc, msg) => progress.report({ increment: inc, message: msg }));
         }
       );
-      vscode.window.showInformationMessage(`CodeExplorer engine v${targetVersion} is ready.`);
     } else {
       await runDownload();
     }
-
-    return { command: binPath, args: [] };
   }
 }

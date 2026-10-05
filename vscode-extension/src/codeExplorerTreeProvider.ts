@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { ProcessManager, ServerInfo } from './processManager';
 import { getModelStatus } from './modelManager';
+import { compareSemver, probeDotnetTool } from './binaryManager';
 
 export interface MetadataDto {
   nodeCounts: Record<string, number>;
@@ -389,7 +390,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       const domainsRoot = new CodeExplorerTreeItem(
         'root-domains',
         'Domains & Bounded Contexts',
-        vscode.TreeItemCollapsibleState.Expanded
+        vscode.TreeItemCollapsibleState.Collapsed
       );
       domainsRoot.iconPath = new vscode.ThemeIcon('symbol-namespace');
       domainsRoot.tooltip = 'Domain-Driven Design Architecture: Problem Space (Domains) › Solution Space (Bounded Contexts) › Services › Capabilities';
@@ -407,7 +408,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       const layersRoot = new CodeExplorerTreeItem(
         'root-layers',
         'Graph Layers (Ontology 1 - 5)',
-        vscode.TreeItemCollapsibleState.Expanded
+        vscode.TreeItemCollapsibleState.Collapsed
       );
       layersRoot.iconPath = new vscode.ThemeIcon('layers');
       layersRoot.tooltip = 'Decoupled 5-layer ontology graph model';
@@ -420,7 +421,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       const managementRoot = new CodeExplorerTreeItem(
         'root-management',
         'Management',
-        vscode.TreeItemCollapsibleState.Expanded
+        vscode.TreeItemCollapsibleState.Collapsed
       );
       managementRoot.iconPath = new vscode.ThemeIcon('tools');
       managementRoot.description = serverInfo
@@ -499,7 +500,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         const item = new CodeExplorerTreeItem(
           'domain-item',
           `${dom.icon || '🎯'} ${dom.displayName}`,
-          vscode.TreeItemCollapsibleState.Expanded,
+          vscode.TreeItemCollapsibleState.Collapsed,
           { domain: dom, map: bcMap }
         );
         item.description = `${dom.boundedContextIds.length} ctx · ${dom.totalFiles} files`;
@@ -864,11 +865,18 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const wsRoot = this.getWorkspaceRoot();
 
     // 1. Server status + version
-    const engineVersion =
-      meta?.version ||
-      this.processManager.getBinaryManager()?.getCachedVersion() ||
-      this.processManager.getBinaryManager()?.getExtensionVersion() ||
-      '';
+    let engineVersion = meta?.version;
+    if (!engineVersion) {
+      const best = this.processManager.getBinaryManager()?.getBestInstalledEngine(wsRoot);
+      if (best) {
+        engineVersion = best.version;
+      } else {
+        engineVersion =
+          this.processManager.getBinaryManager()?.getCachedVersion() ||
+          this.processManager.getBinaryManager()?.getExtensionVersion() ||
+          '';
+      }
+    }
     const cleanVersion = engineVersion ? (engineVersion.startsWith('v') ? engineVersion : `v${engineVersion}`) : 'Unknown';
 
     const serverItem = new CodeExplorerTreeItem(

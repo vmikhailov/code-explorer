@@ -9,6 +9,10 @@ import {
   getEngineConfigFromExtensionVersion,
   parseSemver,
   cleanSemver,
+  compareSemver,
+  probeDotnetTool,
+  selectEngineExecutable,
+  DotnetToolInfo,
 } from './binaryManager';
 
 export interface ServerInfo {
@@ -50,6 +54,13 @@ export class ProcessManager implements vscode.Disposable {
 
   getBinaryManager(): BinaryManager | undefined {
     return this.binaryManager;
+  }
+
+  private cachedDotnetTool: DotnetToolInfo | null = null;
+  private cachedExecutable: { command: string; args: string[] } | null = null;
+
+  public getCachedDotnetTool(): DotnetToolInfo | null {
+    return this.cachedDotnetTool;
   }
 
   public getServerInfo(): ServerInfo | null {
@@ -151,26 +162,22 @@ export class ProcessManager implements vscode.Disposable {
 
     if (this.serverInfo && this.serverProcess && !this.serverProcess.killed) {
       if (this.serverInfo.version) {
-        if (matchesEnginePattern(this.serverInfo.version, pattern)) {
+        // Check if a higher preferred engine (e.g. local dotnet tool) is available
+        const bestInstalled = this.binaryManager?.getBestInstalledEngine(workspaceRoot);
+        if (bestInstalled && compareSemver(bestInstalled.version, this.serverInfo.version) > 0) {
+          this.outputChannel.appendLine(
+            `[ProcessManager] Active server version (v${this.serverInfo.version}) is lower than available engine (v${bestInstalled.version}, ${bestInstalled.source}). Restarting server with higher engine...`
+          );
+          this.stopServer();
+        } else if (matchesEnginePattern(this.serverInfo.version, pattern)) {
           return this.serverInfo;
-        }
-
-        // Check if versions share the same major version (SemVer backward-compatible)
-        const sVer = parseSemver(this.serverInfo.version);
-        const eVer = parseSemver(extVersion);
-        if (sVer && eVer && sVer.major === eVer.major) {
+        } else {
           this.outputChannel.appendLine(
             `[ProcessManager] Active server version (v${this.serverInfo.version}) ` +
-            `differs from recommended target '${pattern}', but shares major version ${sVer.major}.x and is SemVer-compatible. Keeping active server.`
+            `does not match required pattern '${pattern}'. Restarting server...`
           );
-          return this.serverInfo;
+          this.stopServer();
         }
-
-        this.outputChannel.appendLine(
-          `[ProcessManager] Active server version (v${this.serverInfo.version}) ` +
-          `does not match required pattern '${pattern}'. Restarting server...`
-        );
-        this.stopServer();
       } else {
         return this.serverInfo;
       }
@@ -309,58 +316,77 @@ export class ProcessManager implements vscode.Disposable {
 
   /**
    * Resolves the executable command and arguments to launch CodeExplorer.
-   */
-  /**
-   * Resolves the executable command and arguments to launch CodeExplorer.
+   * Runs once at server start and reuses the result until the next restart.
    */
   private async findExecutable(
     workspaceRoot?: string,
     customPath?: string
   ): Promise<{ command: string; args: string[] } | null> {
-    // 1. Explicit path from settings or ENV variable (e.g. CE_DEV_EXECUTABLE from launch.json)
-    const envPath = process.env.CE_DEV_EXECUTABLE || process.env.CE_EXECUTABLE;
-    const targetPath = customPath && customPath.trim().length > 0 ? customPath.trim() : envPath;
+    if (this.cachedExecutable) {
+      return this.cachedExecutable;
+    }
+
+    const setAndReturn = (res: { command: string; args: string[] } | null) => {
+      if (res) {
+        this.cachedExecutable = res;
+      }
+      return res;
+    };
+
+    // 1. Explicit path from user settings (codeExplorer.executablePath) or CE_EXECUTABLE
+    const targetPath = customPath && customPath.trim().length > 0 ? customPath.trim() : process.env.CE_EXECUTABLE?.trim();
 
     if (targetPath) {
       const resolved = path.isAbsolute(targetPath)
         ? targetPath
         : (workspaceRoot ? path.resolve(workspaceRoot, targetPath) : path.resolve(targetPath));
 
-      // Support fallback between Debug and Release if one is built
-      const candidates = [resolved];
-      if (resolved.includes('bin_Debug_AnyCPU')) {
-        candidates.push(resolved.replace('bin_Debug_AnyCPU', 'bin_Release_AnyCPU'));
-      } else if (resolved.includes('bin_Release_AnyCPU')) {
-        candidates.push(resolved.replace('bin_Release_AnyCPU', 'bin_Debug_AnyCPU'));
-      }
-
-      const existingCandidates = candidates
-        .filter((c) => fs.existsSync(c))
-        .sort((a, b) => {
-          try {
-            return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs;
-          } catch {
-            return 0;
-          }
-        });
-
-      if (existingCandidates.length > 0) {
-        const candidate = existingCandidates[0];
-        const isDll = candidate.endsWith('.dll');
+      if (fs.existsSync(resolved)) {
+        const isDll = resolved.endsWith('.dll');
         this.outputChannel.appendLine(
-          `[ProcessManager] Using configured executable (${customPath ? 'settings' : 'ENV'}, newest): ${candidate}`
+          `[ProcessManager] Using configured executable (${customPath ? 'settings' : 'CE_EXECUTABLE'}): ${resolved}`
         );
-        return isDll ? { command: 'dotnet', args: [candidate] } : { command: candidate, args: [] };
+        const customExecutable = isDll ? { command: 'dotnet', args: [resolved] } : { command: resolved, args: [] };
+        return setAndReturn(customExecutable);
       }
     }
 
-    // 2. Managed on-demand binary via BinaryManager (preferred for version matching)
+    // 2. ALWAYS PROBE INSTALLED ENGINES FIRST BEFORE DOWNLOADING
+    const bestInstalled = this.binaryManager?.getBestInstalledEngine(workspaceRoot) || null;
+    if (bestInstalled?.source === 'dotnet-tool') {
+      this.cachedDotnetTool = {
+        command: bestInstalled.command,
+        args: bestInstalled.args,
+        version: bestInstalled.version,
+      };
+    } else {
+      this.cachedDotnetTool = probeDotnetTool(workspaceRoot);
+    }
+
+    if (bestInstalled) {
+      this.outputChannel.appendLine(
+        `[ProcessManager] Best installed engine candidate: v${bestInstalled.version} (${bestInstalled.source}) at ${bestInstalled.command}`
+      );
+      const extVersion = this.binaryManager?.getExtensionVersion() || '1.18.2';
+      const config = vscode.workspace.getConfiguration('codeExplorer');
+      const userSetting = config?.get<string>('engineVersion', '')?.trim() || undefined;
+      const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
+
+      if (matchesEnginePattern(bestInstalled.version, pattern) || compareSemver(bestInstalled.version, extVersion) >= 0) {
+        this.outputChannel.appendLine(
+          `[ProcessManager] Using installed engine matching pattern '${pattern}' (or >= extension version): ${bestInstalled.command}`
+        );
+        return setAndReturn({ command: bestInstalled.command, args: bestInstalled.args });
+      }
+    }
+
+    // 3. Neither present or needs download: use BinaryManager to ensure binary (which probes against remote release)
     if (this.binaryManager) {
       try {
-        const managed = await this.binaryManager.ensureBinary();
-        if (managed && fs.existsSync(managed.command)) {
+        const managed = await this.binaryManager.ensureBinary(false, workspaceRoot);
+        if (managed && (fs.existsSync(managed.command) || managed.command === 'dotnet')) {
           this.outputChannel.appendLine(`[ProcessManager] Using managed CodeExplorer engine: ${managed.command}`);
-          return managed;
+          return setAndReturn(managed);
         }
       } catch (err: any) {
         this.outputChannel.appendLine(
@@ -369,49 +395,16 @@ export class ProcessManager implements vscode.Disposable {
       }
     }
 
-    // 3. System PATH "ce" (ONLY if it matches the required engine pattern!)
-    const extVersion = this.binaryManager?.getExtensionVersion() || '1.18.2';
-    const config = vscode.workspace.getConfiguration('codeExplorer');
-    const userSetting = config?.get<string>('engineVersion', '')?.trim() || undefined;
-    const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
-
-    const probeVersion = (cmd: string, args: string[] = []): string | null => {
-      try {
-        const res = cp.spawnSync(cmd, [...args, '--version'], { encoding: 'utf8', timeout: 4000 });
-        if (res.status === 0 && res.stdout?.trim()) {
-          return cleanSemver(res.stdout.trim());
-        }
-      } catch {
-        // ignore
-      }
-      return null;
-    };
-
-    const isWindows = process.platform === 'win32';
-    try {
-      const checkRes = cp.spawnSync(isWindows ? 'where.exe' : 'which', ['ce'], { encoding: 'utf8' });
-      if (checkRes.status === 0 && checkRes.stdout?.trim()) {
-        const sysPath = checkRes.stdout.trim().split(/\r?\n/)[0];
-        if (fs.existsSync(sysPath)) {
-          const sysVer = probeVersion(sysPath);
-          if (sysVer && matchesEnginePattern(sysVer, pattern)) {
-            this.outputChannel.appendLine(
-              `[ProcessManager] Using system PATH executable: ${sysPath} (v${sysVer})`
-            );
-            return { command: sysPath, args: [] };
-          } else {
-            this.outputChannel.appendLine(
-              `[ProcessManager] System PATH 'ce' (v${sysVer || 'unknown'}) ` +
-              `does not match required pattern '${pattern}'. Skipping system PATH.`
-            );
-          }
-        }
-      }
-    } catch {
-      // Fallback
+    // 4. Fallback: if any installed engine exists (even if lower version), use it rather than failing
+    if (bestInstalled) {
+      this.outputChannel.appendLine(
+        `[ProcessManager] Falling back to installed engine: ${bestInstalled.command} (v${bestInstalled.version}, ${bestInstalled.source})`
+      );
+      return setAndReturn({ command: bestInstalled.command, args: bestInstalled.args });
     }
 
-    // 4. Bundled platform-specific binary in extension (legacy/offline fallback)
+    // 5. Bundled platform-specific binary in extension (legacy/offline fallback)
+    const isWindows = process.platform === 'win32';
     const binName = isWindows ? 'ce.exe' : 'ce';
     const extensionRoot = path.resolve(__dirname, '..');
     const bundledCandidate = path.resolve(extensionRoot, 'bin', binName);
@@ -425,12 +418,12 @@ export class ProcessManager implements vscode.Disposable {
         }
       }
       this.outputChannel.appendLine(`[ProcessManager] Using bundled CodeExplorer binary: ${bundledCandidate}`);
-      return { command: bundledCandidate, args: [] };
+      return setAndReturn({ command: bundledCandidate, args: [] });
     }
 
-    // 5. Fallback to system PATH command
+    // 6. Fallback to system PATH command
     this.outputChannel.appendLine('[ProcessManager] Using system PATH "ce".');
-    return { command: 'ce', args: [] };
+    return setAndReturn({ command: 'ce', args: [] });
   }
 
   stopServer(): void {
@@ -441,6 +434,7 @@ export class ProcessManager implements vscode.Disposable {
       this.serverInfo = null;
       this._onDidServerStop.fire();
     }
+    this.cachedExecutable = null;
   }
 
   dispose() {

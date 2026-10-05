@@ -474,9 +474,18 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       try {
-        await bm.ensureBinary(true);
+        const workspaceRoot = getWorkspaceRoot();
+        const result = await bm.checkAndUpdate(false, workspaceRoot);
+        if (result.updated) {
+          if (workspaceRoot && processManager?.getServerInfo()) {
+            outputChannel.appendLine('[ProcessManager] Restarting server with updated engine...');
+            processManager.stopServer();
+            await processManager.ensureServerStarted(workspaceRoot);
+          }
+          treeDataProvider.refresh();
+        }
       } catch (err: any) {
-        vscode.window.showErrorMessage(`Failed to update CodeExplorer engine: ${err?.message || err}`);
+        vscode.window.showErrorMessage(`Failed to check/update CodeExplorer engine: ${err?.message || err}`);
       }
     }
   );

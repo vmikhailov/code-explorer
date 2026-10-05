@@ -8,6 +8,11 @@ import {
   parseSemver,
   cleanSemver,
   isBuildDifferenceOnly,
+  selectEngineExecutable,
+  probeCommandVersion,
+  getBestInstalledEngine,
+  probeAllInstalledEngines,
+  InstalledEngineCandidate,
 } from './binaryManager';
 
 test('resolveTargetAsset: correctly resolves platform archives and binary names', () => {
@@ -166,3 +171,180 @@ test('compareSemver: compares versions accurately and ignores build metadata', (
   assert.ok(compareSemver('1.22.4', '1.22.4-beta.1') > 0);
   assert.ok(compareSemver('1.22.4-beta.2', '1.22.4-beta.1') > 0);
 });
+
+test('selectEngineExecutable: prioritizes local dotnet tool when version is higher than downloaded engine', () => {
+  const result = selectEngineExecutable({
+    dotnetTool: { command: '/home/user/.dotnet/tools/ce', args: [], version: '1.23.0' },
+    downloadedEngine: { command: '/home/user/.storage/bin/ce', args: [], version: '1.22.4' },
+  });
+
+  assert.equal(result.source, 'dotnet-tool');
+  assert.equal(result.command, '/home/user/.dotnet/tools/ce');
+  assert.equal(result.version, '1.23.0');
+  assert.ok(result.reason.includes('higher than downloaded engine'));
+});
+
+test('selectEngineExecutable: uses downloaded engine when version is higher than local dotnet tool', () => {
+  const result = selectEngineExecutable({
+    dotnetTool: { command: '/home/user/.dotnet/tools/ce', args: [], version: '1.20.0' },
+    downloadedEngine: { command: '/home/user/.storage/bin/ce', args: [], version: '1.23.0' },
+  });
+
+  assert.equal(result.source, 'downloaded');
+  assert.equal(result.command, '/home/user/.storage/bin/ce');
+  assert.equal(result.version, '1.23.0');
+  assert.ok(result.reason.includes('Downloaded engine'));
+});
+
+test('selectEngineExecutable: uses downloaded engine when version is equal to local dotnet tool', () => {
+  const result = selectEngineExecutable({
+    dotnetTool: { command: '/home/user/.dotnet/tools/ce', args: [], version: '1.23.0' },
+    downloadedEngine: { command: '/home/user/.storage/bin/ce', args: [], version: '1.23.0' },
+  });
+
+  assert.equal(result.source, 'downloaded');
+  assert.equal(result.command, '/home/user/.storage/bin/ce');
+  assert.equal(result.version, '1.23.0');
+});
+
+test('selectEngineExecutable: uses local dotnet tool when downloaded engine is not present', () => {
+  const result = selectEngineExecutable({
+    dotnetTool: { command: '/home/user/.dotnet/tools/ce', args: [], version: '1.23.0' },
+    downloadedEngine: null,
+  });
+
+  assert.equal(result.source, 'dotnet-tool');
+  assert.equal(result.command, '/home/user/.dotnet/tools/ce');
+  assert.equal(result.version, '1.23.0');
+});
+
+test('selectEngineExecutable: uses downloaded engine when dotnet tool is not present', () => {
+  const result = selectEngineExecutable({
+    dotnetTool: null,
+    downloadedEngine: { command: '/home/user/.storage/bin/ce', args: [], version: '1.23.0' },
+  });
+
+  assert.equal(result.source, 'downloaded');
+  assert.equal(result.command, '/home/user/.storage/bin/ce');
+  assert.equal(result.version, '1.23.0');
+});
+
+test('selectEngineExecutable: returns need-download when neither dotnet tool nor downloaded engine exists', () => {
+  const result = selectEngineExecutable({
+    dotnetTool: null,
+    downloadedEngine: null,
+  });
+
+  assert.equal(result.source, 'need-download');
+  assert.equal(result.command, '');
+});
+
+test('selectEngineExecutable: explicitly configured custom executable overrides both', () => {
+  const result = selectEngineExecutable({
+    customExecutable: { command: '/dev/cli/ce', args: [] },
+    dotnetTool: { command: '/home/user/.dotnet/tools/ce', args: [], version: '1.23.0' },
+    downloadedEngine: { command: '/home/user/.storage/bin/ce', args: [], version: '1.22.4' },
+  });
+
+  assert.equal(result.source, 'custom');
+  assert.equal(result.command, '/dev/cli/ce');
+});
+
+test('checkAndUpdate version comparison: detects equal or higher version to avoid redundant download', () => {
+  // Same version
+  const current1 = '1.23.0';
+  const target1 = '1.23.0';
+  const cmp1 = compareSemver(current1, target1);
+  const skip1 = cmp1 === 0 || isBuildDifferenceOnly(current1, target1);
+  assert.ok(skip1, 'Should skip download when versions are equal');
+
+  // Same version with build metadata/commit hash
+  const current2 = '1.23.0+6cbaaa66d2947ece7c0bf709a3f2283e7c900a1c';
+  const target2 = '1.23.0';
+  const cmp2 = compareSemver(current2, target2);
+  const skip2 = cmp2 === 0 || isBuildDifferenceOnly(current2, target2);
+  assert.ok(skip2, 'Should skip download when current has build metadata');
+
+  // Installed is higher than remote release
+  const current3 = '1.24.0';
+  const target3 = '1.23.0';
+  const cmp3 = compareSemver(current3, target3);
+  assert.ok(cmp3 > 0, 'Installed is higher than remote');
+
+  // Remote release is higher: needs update
+  const current4 = '1.22.4';
+  const target4 = '1.23.0';
+  const cmp4 = compareSemver(current4, target4);
+  assert.ok(cmp4 < 0, 'Remote is higher, needs download');
+});
+
+test('getBestInstalledEngine: selects candidate with highest SemVer across all probed sources', () => {
+  const candidates: InstalledEngineCandidate[] = [
+    { command: '/storage/bin/ce', args: [], version: '1.21.1', source: 'downloaded' },
+    { command: '/usr/bin/ce', args: [], version: '1.20.0', source: 'path' },
+    { command: '/home/user/.dotnet/tools/ce', args: [], version: '1.23.0', source: 'dotnet-tool' },
+    { command: '/ext/bin/ce', args: [], version: '1.18.0', source: 'bundled' },
+  ];
+
+  const best = getBestInstalledEngine(candidates);
+  assert.ok(best);
+  assert.equal(best.version, '1.23.0');
+  assert.equal(best.source, 'dotnet-tool');
+  assert.equal(best.command, '/home/user/.dotnet/tools/ce');
+});
+
+test('getBestInstalledEngine: breaks ties using source priority when versions are identical', () => {
+  const candidates: InstalledEngineCandidate[] = [
+    { command: '/home/user/.dotnet/tools/ce', args: [], version: '1.23.0', source: 'dotnet-tool' },
+    { command: '/storage/bin/ce', args: [], version: '1.23.0', source: 'downloaded' },
+    { command: '/usr/bin/ce', args: [], version: '1.23.0', source: 'path' },
+  ];
+
+  const best = getBestInstalledEngine(candidates);
+  assert.ok(best);
+  assert.equal(best.source, 'downloaded', 'Downloaded is preferred when versions are strictly equal');
+  assert.equal(best.command, '/storage/bin/ce');
+});
+
+test('getBestInstalledEngine: custom executable explicitly configured always takes priority', () => {
+  const candidates: InstalledEngineCandidate[] = [
+    { command: '/my/custom/ce', args: [], version: '1.19.0', source: 'custom' },
+    { command: '/home/user/.dotnet/tools/ce', args: [], version: '1.23.0', source: 'dotnet-tool' },
+    { command: '/storage/bin/ce', args: [], version: '1.24.0', source: 'downloaded' },
+  ];
+
+  const best = getBestInstalledEngine(candidates);
+  assert.ok(best);
+  assert.equal(best.source, 'custom');
+  assert.equal(best.command, '/my/custom/ce');
+});
+
+test('getBestInstalledEngine: returns null when candidates list is empty', () => {
+  const best = getBestInstalledEngine([]);
+  assert.equal(best, null);
+});
+
+test('Engine probing before download: avoids downloading if installed version is newer than remote release', () => {
+  // Scenario: Local dotnet-tool is 1.23.0, but GitHub release is 1.21.1
+  const installedVersion = '1.23.0';
+  const remoteReleaseVersion = '1.21.1';
+
+  const shouldDownload = compareSemver(installedVersion, remoteReleaseVersion) < 0;
+  assert.equal(shouldDownload, false, 'Should NOT download when installed is newer than remote release');
+});
+
+test('getBestInstalledEngine: selects 1.23.0 dotnet-tool over 1.21.1 downloaded', () => {
+  const candidates: InstalledEngineCandidate[] = [
+    { command: 'C:\\Users\\user\\AppData\\Roaming\\Code\\User\\globalStorage\\vmikhailov.code-explorer-vscode\\bin\\ce.exe', args: [], version: '1.21.1', source: 'downloaded' },
+    { command: 'C:\\Users\\user\\.dotnet\\tools\\ce.exe', args: [], version: '1.23.0', source: 'dotnet-tool' },
+  ];
+
+  const best = getBestInstalledEngine(candidates);
+  assert.ok(best);
+  assert.equal(best.version, '1.23.0');
+  assert.equal(best.source, 'dotnet-tool');
+  assert.equal(best.command, 'C:\\Users\\user\\.dotnet\\tools\\ce.exe');
+});
+
+
+
