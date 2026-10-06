@@ -42,18 +42,16 @@ public partial class SqliteCompiler : ICypherVisitor<string>
     private int _paramIndex;
     private int _varIndex;
     private int _cteIndex;
-    private readonly bool _strictLabels;
 
-    private SqliteCompiler(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, bool strictLabels = false)
+    private SqliteCompiler(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null)
     {
         _query = query;
         _initialParameters = parameters;
-        _strictLabels = strictLabels;
     }
 
-    public static SqliteCompiledQuery Compile(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, bool strictLabels = false)
+    public static SqliteCompiledQuery Compile(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, bool strictLabels = true)
     {
-        return new SqliteCompiler(query, parameters, strictLabels).Compile();
+        return new SqliteCompiler(query, parameters).Compile();
     }
 
     public SqliteCompiledQuery Compile()
@@ -466,7 +464,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
 
     private void ProcessCallClause(CallClause call)
     {
-        var subCompiler = new SqliteCompiler(call.Subquery, _initialParameters, _strictLabels);
+        var subCompiler = new SqliteCompiler(call.Subquery, _initialParameters);
         foreach (var node in _declaredNodes) subCompiler._declaredNodes.Add(node);
         foreach (var rel in _declaredRels) subCompiler._declaredRels.Add(rel);
         foreach (var (k, v) in _pathVariables) subCompiler._pathVariables[k] = v;
@@ -570,7 +568,7 @@ public partial class SqliteCompiler : ICypherVisitor<string>
         var sb = new StringBuilder(baseSql);
         foreach (var union in unions)
         {
-            var unionCompiled = new SqliteCompiler(union.Query, _initialParameters, _strictLabels).Compile();
+            var unionCompiled = new SqliteCompiler(union.Query, _initialParameters).Compile();
             foreach (var (k, v) in unionCompiled.Parameters)
             {
                 _parameters[k] = v;

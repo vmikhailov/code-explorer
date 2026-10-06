@@ -13,6 +13,8 @@ import {
   probeDotnetTool,
   selectEngineExecutable,
   DotnetToolInfo,
+  getExecutableName,
+  ensureExecutablePermissions,
 } from './binaryManager';
 
 export interface ServerInfo {
@@ -111,10 +113,14 @@ export class ProcessManager implements vscode.Disposable {
     this.outputChannel.appendLine(`[CLI] Running: ${executable.command} ${fullArgs.join(' ')}`);
 
     return new Promise<void>((resolve, reject) => {
+      const isBatch =
+        process.platform === 'win32' &&
+        (executable.command.toLowerCase().endsWith('.cmd') || executable.command.toLowerCase().endsWith('.bat'));
       const child = cp.spawn(executable.command, fullArgs, {
         cwd: workspaceRoot,
         env: { ...process.env, ASPNETCORE_ENVIRONMENT: 'Production' },
         windowsHide: true,
+        shell: isBatch,
       });
 
       if (child.stdout) {
@@ -232,10 +238,14 @@ export class ProcessManager implements vscode.Disposable {
 
     return new Promise<ServerInfo>((resolve, reject) => {
       let isReady = false;
+      const isBatch =
+        process.platform === 'win32' &&
+        (executable.command.toLowerCase().endsWith('.cmd') || executable.command.toLowerCase().endsWith('.bat'));
       const child = cp.spawn(executable.command, serverArgs, {
         cwd: workspaceRoot,
         env: { ...process.env, ASPNETCORE_ENVIRONMENT: 'Production' },
         windowsHide: true,
+        shell: isBatch,
       });
 
       this.serverProcess = child;
@@ -404,19 +414,12 @@ export class ProcessManager implements vscode.Disposable {
     }
 
     // 5. Bundled platform-specific binary in extension (legacy/offline fallback)
-    const isWindows = process.platform === 'win32';
-    const binName = isWindows ? 'ce.exe' : 'ce';
+    const binName = getExecutableName('ce');
     const extensionRoot = path.resolve(__dirname, '..');
     const bundledCandidate = path.resolve(extensionRoot, 'bin', binName);
 
     if (fs.existsSync(bundledCandidate)) {
-      if (!isWindows) {
-        try {
-          fs.chmodSync(bundledCandidate, 0o755);
-        } catch {
-          // Best effort
-        }
-      }
+      ensureExecutablePermissions(bundledCandidate);
       this.outputChannel.appendLine(`[ProcessManager] Using bundled CodeExplorer binary: ${bundledCandidate}`);
       return setAndReturn({ command: bundledCandidate, args: [] });
     }
@@ -429,7 +432,23 @@ export class ProcessManager implements vscode.Disposable {
   stopServer(): void {
     if (this.serverProcess && !this.serverProcess.killed) {
       this.outputChannel.appendLine('[Server] Stopping CodeExplorer server process...');
-      this.serverProcess.kill();
+      const pid = this.serverProcess.pid;
+      if (process.platform === 'win32' && pid) {
+        try {
+          // On Windows, terminate the entire process tree to prevent orphaned dotnet/ce processes
+          cp.spawnSync('taskkill', ['/F', '/T', '/PID', pid.toString()], {
+            windowsHide: true,
+            stdio: 'ignore',
+          });
+        } catch {
+          // Best effort
+        }
+      }
+      try {
+        this.serverProcess.kill();
+      } catch {
+        // Best effort
+      }
       this.serverProcess = null;
       this.serverInfo = null;
       this._onDidServerStop.fire();

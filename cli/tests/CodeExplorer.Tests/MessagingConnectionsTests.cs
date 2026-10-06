@@ -63,6 +63,61 @@ public class MessagingConnectionsTests
     }
 
     [Test]
+    public void Test_FindOwningProject_DoesNotMatchPackageNodes_EvenWithRootProject()
+    {
+        var rootProject = new ProjectNode("ws:project:root:", "RootApp", "", "csharp", "App", false);
+        var projects = new List<ProjectNode> { rootProject };
+
+        var packageId = "ws:pkg:gradle:com.android.tools:desugar_jdk_libs";
+        var owner = PostIndexAnalyzer.FindOwningProjectForId(packageId, projects);
+
+        Assert.That(owner, Is.Null, "Package URNs must never be resolved to an internal project");
+
+        var graphProjects = new List<CodeExplorer.Core.Protocol.GraphNodeDto>
+        {
+            new() { Id = "ws:project:root:", Name = "RootApp", FilePath = "" }
+        };
+        var graphOwner = CodeExplorer.Core.Analysis.ArchitectureViewEngine.FindOwningProject(packageId, graphProjects);
+        Assert.That(graphOwner, Is.Null, "ArchitectureViewEngine must never map a package node to an internal project");
+    }
+
+    [Test]
+    public void Test_FindOwningProject_DoesNotMatchExternalServices_EvenWithRootProject()
+    {
+        var rootProject = new ProjectNode("ws:project:root:", "RootApp", "", "csharp", "App", false);
+        var projects = new List<ProjectNode> { rootProject };
+
+        var extId = "ws:externalservice:http:api.stripe.com";
+        var owner = PostIndexAnalyzer.FindOwningProjectForId(extId, projects);
+        Assert.That(owner, Is.Null, "External services must never be resolved to an internal project");
+
+        var graphProjects = new List<CodeExplorer.Core.Protocol.GraphNodeDto>
+        {
+            new() { Id = "ws:project:root:", Name = "RootApp", FilePath = "" }
+        };
+        var graphOwner = CodeExplorer.Core.Analysis.ArchitectureViewEngine.FindOwningProject(extId, graphProjects);
+        Assert.That(graphOwner, Is.Null);
+    }
+
+    [Test]
+    public void Test_FindMatchingServiceProject_RejectsAppAndApiKeywords()
+    {
+        var projects = new List<ProjectNode>
+        {
+            new("ws:project:flutter/android/app:", "HearAI", "flutter/android/app", "kotlin", "App", false),
+            new("ws:project:backend:", "Backend", "backend", "python", "Service", false)
+        };
+
+        var appMatch = PostIndexAnalyzer.FindMatchingServiceProject("app", projects);
+        Assert.That(appMatch, Is.Null, "Keyword 'app' must never match an internal app subfolder");
+
+        var apiMatch = PostIndexAnalyzer.FindMatchingServiceProject("api", projects);
+        Assert.That(apiMatch, Is.Null, "Keyword 'api' must never match generic projects");
+
+        Assert.That(PostIndexAnalyzer.IsGarbageExternalService("app"), Is.True);
+    }
+
+    [Test]
     public void Test_NormalizeEdges_PreservesIncomingAndOutgoingMessaging()
     {
         var (inCat, inDep, inKind) = PostIndexAnalyzer.NormalizeEdgeCategory("TRIGGERS", "Topic", "Project", null, null, false);

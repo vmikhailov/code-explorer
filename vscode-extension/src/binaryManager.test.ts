@@ -13,6 +13,9 @@ import {
   getBestInstalledEngine,
   probeAllInstalledEngines,
   InstalledEngineCandidate,
+  getExecutableName,
+  findInPath,
+  ensureExecutablePermissions,
 } from './binaryManager';
 
 test('resolveTargetAsset: correctly resolves platform archives and binary names', () => {
@@ -345,6 +348,35 @@ test('getBestInstalledEngine: selects 1.23.0 dotnet-tool over 1.21.1 downloaded'
   assert.equal(best.source, 'dotnet-tool');
   assert.equal(best.command, 'C:\\Users\\user\\.dotnet\\tools\\ce.exe');
 });
+
+test('getExecutableName: returns platform-appropriate binary name', () => {
+  assert.equal(getExecutableName('ce', 'win32'), 'ce.exe');
+  assert.equal(getExecutableName('ce', 'darwin'), 'ce');
+  assert.equal(getExecutableName('ce', 'linux'), 'ce');
+  assert.equal(getExecutableName('custom', 'win32'), 'custom.exe');
+  assert.equal(getExecutableName('custom', 'linux'), 'custom');
+});
+
+test('findInPath: correctly parses and resolves candidate paths', () => {
+  // Test POSIX delimiter and resolution
+  const posixPath = '/bin:/usr/bin:/usr/local/bin';
+  const posixResults = findInPath('nonexistent-binary-12345', posixPath, 'linux');
+  assert.deepEqual(posixResults, []);
+
+  // Test Windows delimiter and extension handling
+  const winPath = 'C:\\Windows;C:\\Program Files\\dotnet';
+  const winResults = findInPath('nonexistent-binary-12345', winPath, 'win32');
+  assert.deepEqual(winResults, []);
+});
+
+test('ensureExecutablePermissions: executes safely on current host', () => {
+  // Should not throw even if path doesn't exist
+  assert.doesNotThrow(() => {
+    ensureExecutablePermissions('/nonexistent/path/ce', 'linux');
+    ensureExecutablePermissions('C:\\nonexistent\\ce.exe', 'win32');
+  });
+});
+
 
 
 

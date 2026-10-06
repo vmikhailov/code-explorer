@@ -6,6 +6,7 @@ import { CodeExplorerTreeDataProvider } from './codeExplorerTreeProvider';
 import { getModelStatus } from './modelManager';
 import { LlmBridgeService } from './services/llmBridgeService';
 import { isProjectKind } from '../../proto/types';
+import { compareSemver } from './binaryManager';
 
 let processManager: ProcessManager | null = null;
 
@@ -363,7 +364,7 @@ export function activate(context: vscode.ExtensionContext) {
       const absolutePath = path.isAbsolute(targetPath) ? targetPath : path.join(workspaceRoot, targetPath);
 
       try {
-        const doc = await vscode.workspace.openTextDocument(absolutePath);
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath));
         const editor = await vscode.window.showTextDocument(doc);
         if (targetLine && targetLine > 0) {
           const pos = new vscode.Position(targetLine - 1, 0);
@@ -476,9 +477,13 @@ export function activate(context: vscode.ExtensionContext) {
       try {
         const workspaceRoot = getWorkspaceRoot();
         const result = await bm.checkAndUpdate(false, workspaceRoot);
-        if (result.updated) {
+        const serverVer = processManager?.getServerInfo()?.version;
+        const currentEngVer = result.currentVersion;
+        const needsRestart =
+          result.updated || (serverVer && currentEngVer && compareSemver(currentEngVer, serverVer) > 0);
+        if (needsRestart) {
           if (workspaceRoot && processManager?.getServerInfo()) {
-            outputChannel.appendLine('[ProcessManager] Restarting server with updated engine...');
+            outputChannel.appendLine('[ProcessManager] Restarting server with preferred/updated engine...');
             processManager.stopServer();
             await processManager.ensureServerStarted(workspaceRoot);
           }

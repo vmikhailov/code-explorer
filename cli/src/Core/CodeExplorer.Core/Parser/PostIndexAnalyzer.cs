@@ -758,6 +758,8 @@ public class PostIndexAnalyzer(IGraphClient db)
     {
         if (string.IsNullOrEmpty(nodeId)) return null;
 
+        if (Urn.IsExternalOrPackageId(nodeId)) return null;
+
         var directProj = projects.FirstOrDefault(p => p.Id == nodeId || p.Id.TrimEnd(':') == nodeId.TrimEnd(':'));
         if (directProj != null) return directProj;
 
@@ -767,8 +769,18 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
 
         string pathPart = nodeId;
+        bool isKnownFileOrSymbolUrn = false;
         if (Urn.TryParse(nodeId, out var urn) && !string.IsNullOrEmpty(urn.Path))
         {
+            var domain = (urn.Domain ?? "").ToLowerInvariant();
+            isKnownFileOrSymbolUrn = domain is "file" or "f" or "folder" or "dir" or
+                                               "symbol" or "sym" or "type" or "function" or "fn" or "method" or "m" or
+                                               "endpoint" or "ep" or "entrypoint" or "entry" or
+                                               "project" or "p";
+            if (!isKnownFileOrSymbolUrn)
+            {
+                return null;
+            }
             pathPart = urn.Path;
         }
         else
@@ -777,6 +789,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             if (fileIdx < 0) fileIdx = nodeId.IndexOf(":file:", StringComparison.OrdinalIgnoreCase);
             if (fileIdx >= 0)
             {
+                isKnownFileOrSymbolUrn = true;
                 var markerLen = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.File}:", StringComparison.OrdinalIgnoreCase) >= 0
                     ? $":{OntologyConstants.IdPrefixes.File}:".Length
                     : ":file:".Length;
@@ -788,6 +801,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                 if (symIdx < 0) symIdx = nodeId.IndexOf(":symbol:", StringComparison.OrdinalIgnoreCase);
                 if (symIdx >= 0)
                 {
+                    isKnownFileOrSymbolUrn = true;
                     var markerLen = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.Symbol}:", StringComparison.OrdinalIgnoreCase) >= 0
                         ? $":{OntologyConstants.IdPrefixes.Symbol}:".Length
                         : ":symbol:".Length;
@@ -799,6 +813,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                     if (projIdx < 0) projIdx = nodeId.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
                     if (projIdx >= 0)
                     {
+                        isKnownFileOrSymbolUrn = true;
                         var markerLen = nodeId.IndexOf($":{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) >= 0
                             ? $":{OntologyConstants.IdPrefixes.Project}:".Length
                             : ":project:".Length;
@@ -812,12 +827,14 @@ public class PostIndexAnalyzer(IGraphClient db)
 
         ProjectNode? bestMatch = null;
         int bestLen = -1;
+        ProjectNode? rootProject = null;
+
         foreach (var p in projects)
         {
             var pPath = (p.Path ?? "").Replace('\\', '/').Trim('/');
             if (string.IsNullOrEmpty(pPath))
             {
-                if (bestLen < 0) { bestMatch = p; bestLen = 0; }
+                rootProject ??= p;
                 continue;
             }
             if (pathPart.StartsWith(pPath, StringComparison.OrdinalIgnoreCase))
@@ -833,7 +850,14 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        return bestMatch;
+        if (bestMatch != null) return bestMatch;
+
+        if (rootProject != null && isKnownFileOrSymbolUrn && !pathPart.Contains(':'))
+        {
+            return rootProject;
+        }
+
+        return null;
     }
 
     public static List<Relationship> LiftTransitiveSemanticRelations(
@@ -2415,7 +2439,7 @@ public class PostIndexAnalyzer(IGraphClient db)
     }
     public static ProjectNode? FindMatchingServiceProject(string key, IEnumerable<ProjectNode> projects)
     {
-        if (string.IsNullOrWhiteSpace(key) || key is "*" or "unknown-service") return null;
+        if (string.IsNullOrWhiteSpace(key) || key is "*" or "unknown-service" or "app" or "api") return null;
 
         var cleanKey = key.Trim().ToLowerInvariant();
         var protoIdx = cleanKey.IndexOf("://", StringComparison.Ordinal);
@@ -2424,6 +2448,11 @@ public class PostIndexAnalyzer(IGraphClient db)
         if (slashIdx >= 0) cleanKey = cleanKey[..slashIdx];
         var colonIdx = cleanKey.IndexOf(':');
         if (colonIdx >= 0) cleanKey = cleanKey[..colonIdx];
+
+        if (cleanKey is "app" or "api" or "service" or "services" || IsGarbageExternalService(cleanKey))
+        {
+            return null;
+        }
 
         if (WorkspaceConventions.TryGetServiceAlias(cleanKey, out var aliased))
         {
@@ -2570,7 +2599,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         if (lower.Contains('!') || lower.EndsWith(".value") || lower.EndsWith(".id") || lower.EndsWith(".key") || lower.StartsWith("config.")) return true;
         if (lower.Contains("global_env", StringComparison.OrdinalIgnoreCase) || lower.Contains("process.env", StringComparison.OrdinalIgnoreCase)) return true;
         if (lower is "service" or "services" or "host" or "hostname" or "url" or "uri" or "base" or "base_url" or "base_url_v3" or "dynadot_base_url_v3"
-            or "http-call" or "not-supported" or "urlquery" or "swagger" or "api" or "prod" or "dev" or "stage" or "event" or "assets"
+            or "http-call" or "not-supported" or "urlquery" or "swagger" or "api" or "app" or "prod" or "dev" or "stage" or "event" or "assets"
             or "zones" or "realms" or "conversion" or "impression" or "antifraud" or "rtb") return true;
         if (Regex.IsMatch(lower, @"^v\d+(\.\d+)?$")) return true;
         if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") || lower == "test") return true;

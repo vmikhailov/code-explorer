@@ -37,6 +37,60 @@ public readonly record struct Urn
         Line = line;
     }
 
+    public bool IsExternalOrPackage
+    {
+        get
+        {
+            var dom = Domain ?? "";
+            if (dom.Equals(OntologyConstants.IdPrefixes.Package, StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals(OntologyConstants.NodeLabels.Package, StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals("pkg", StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals("package", StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals(OntologyConstants.IdPrefixes.ExternalService, StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals(OntologyConstants.NodeLabels.ExternalService, StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals("es", StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals("externalservice", StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals(OntologyConstants.IdPrefixes.CloudService, StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals(OntologyConstants.NodeLabels.CloudService, StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals("cloud", StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals("cloudservice", StringComparison.OrdinalIgnoreCase) ||
+                dom.Equals("service_target", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (dom.Equals("res", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(SubDomain, "service", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Kind, "external", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+                if (string.Equals(SubDomain, "cloud", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    public static bool IsExternalOrPackageId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+        if (TryParse(id, out var urn) && !string.IsNullOrEmpty(urn.Domain))
+        {
+            return urn.IsExternalOrPackage;
+        }
+
+        var lower = id.ToLowerInvariant();
+        return lower.Contains(":pkg:") || lower.Contains(":package:") ||
+               lower.Contains(":es:") || lower.Contains(":externalservice:") ||
+               lower.Contains(":service_target:") || lower.Contains(":cloud:") ||
+               lower.Contains(":res:service:external:") || lower.Contains(":res:cloud:");
+    }
+
     public static bool TryParse([NotNullWhen(true)] string? raw, out Urn urn)
     {
         urn = default;

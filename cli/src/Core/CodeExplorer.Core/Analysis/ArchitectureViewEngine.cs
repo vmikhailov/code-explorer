@@ -1983,6 +1983,8 @@ public class ArchitectureViewEngine(IGraphClient db)
     {
         if (string.IsNullOrEmpty(sourceId)) return null;
 
+        if (Urn.IsExternalOrPackageId(sourceId)) return null;
+
         var projList = projects as IList<GraphNodeDto> ?? [.. projects];
         if (projList.Count == 0) return null;
 
@@ -2005,8 +2007,18 @@ public class ArchitectureViewEngine(IGraphClient db)
 
         // 3. File path resolution (e.g. ws:f:action-scheduler/src/... or ws:sym:action-scheduler/...)
         var filePath = sourceId;
+        bool isKnownFileOrSymbolUrn = false;
         if (Urn.TryParse(sourceId, out var urn) && !string.IsNullOrEmpty(urn.Path))
         {
+            var domain = (urn.Domain ?? "").ToLowerInvariant();
+            isKnownFileOrSymbolUrn = domain is "file" or "f" or "folder" or "dir" or
+                                               "symbol" or "sym" or "type" or "function" or "fn" or "method" or "m" or
+                                               "endpoint" or "ep" or "entrypoint" or "entry" or
+                                               "project" or "p";
+            if (!isKnownFileOrSymbolUrn)
+            {
+                return null;
+            }
             filePath = urn.Path;
         }
         else
@@ -2015,6 +2027,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             if (fileIdx < 0) fileIdx = filePath.IndexOf(":file:", StringComparison.OrdinalIgnoreCase);
             if (fileIdx >= 0)
             {
+                isKnownFileOrSymbolUrn = true;
                 var markerLen = filePath.IndexOf($":{OntologyConstants.IdPrefixes.File}:", StringComparison.OrdinalIgnoreCase) >= 0
                     ? $":{OntologyConstants.IdPrefixes.File}:".Length
                     : ":file:".Length;
@@ -2026,6 +2039,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                 if (symIdx < 0) symIdx = filePath.IndexOf(":symbol:", StringComparison.OrdinalIgnoreCase);
                 if (symIdx >= 0)
                 {
+                    isKnownFileOrSymbolUrn = true;
                     var markerLen = filePath.IndexOf($":{OntologyConstants.IdPrefixes.Symbol}:", StringComparison.OrdinalIgnoreCase) >= 0
                         ? $":{OntologyConstants.IdPrefixes.Symbol}:".Length
                         : ":symbol:".Length;
@@ -2037,6 +2051,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                     if (projIdx < 0) projIdx = filePath.IndexOf(":project:", StringComparison.OrdinalIgnoreCase);
                     if (projIdx >= 0)
                     {
+                        isKnownFileOrSymbolUrn = true;
                         var markerLen = filePath.IndexOf($":{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) >= 0
                             ? $":{OntologyConstants.IdPrefixes.Project}:".Length
                             : ":project:".Length;
@@ -2051,17 +2066,14 @@ public class ArchitectureViewEngine(IGraphClient db)
         // Match against project FilePath (longest match first)
         GraphNodeDto? bestMatch = null;
         int bestLen = -1;
+        GraphNodeDto? rootProject = null;
+
         foreach (var p in projList)
         {
             var pPath = (p.FilePath ?? p.Properties?.GetValueOrDefault("path") ?? "").Replace('\\', '/').TrimStart('/').TrimEnd('/');
             if (string.IsNullOrEmpty(pPath) || pPath == ".")
             {
-                // Root project matches everything with length 0 as fallback
-                if (bestLen < 0)
-                {
-                    bestMatch = p;
-                    bestLen = 0;
-                }
+                rootProject ??= p;
                 continue;
             }
 
@@ -2088,6 +2100,12 @@ public class ArchitectureViewEngine(IGraphClient db)
                     return p;
                 }
             }
+        }
+
+        // Root project matches as fallback only if source was confirmed to be a file/symbol within workspace
+        if (rootProject != null && isKnownFileOrSymbolUrn && !normFilePath.Contains(':'))
+        {
+            return rootProject;
         }
 
         return null;

@@ -699,7 +699,7 @@ public class RealLifeExecutionTests
     [Test]
     public void Test_MatchVirtualLabel_And_LabelsIntrospection()
     {
-        InsertNode("ws:1:p:billing", "Project", new()
+        InsertNode("ws:1:s:billing", "Service", new()
         {
             ["name"] = "BillingService",
             ["kind"] = "Service",

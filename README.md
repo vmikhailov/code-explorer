@@ -1,11 +1,11 @@
 # CodeExplorer (`ce`)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
+[![Homebrew](https://img.shields.io/badge/Homebrew-vmikhailov%2Ftap%2Fce-orange.svg)](https://github.com/vmikhailov/homebrew-tap)
 [![.NET Core](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
 [![NuGet](https://img.shields.io/nuget/v/CodeExplorer.Cli.svg)](https://www.nuget.org/packages/CodeExplorer.Cli)
 [![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version/vmikhailov.code-explorer-vscode.svg?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
 [![Open VSX](https://img.shields.io/open-vsx/v/vmikhailov/code-explorer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
-[![VS Code Extension](https://img.shields.io/badge/VS%20Code-Extension%20(VSIX)-blueviolet.svg)](https://github.com/vmikhailov/code-explorer/releases/latest)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Containers-success.svg)](https://github.com/vmikhailov/code-explorer)
 
 **A visual knowledge graph and codebase intelligence tool for developers and AI agents.**
@@ -180,7 +180,15 @@ Once the syntactic structure is captured:
 
 CodeExplorer is available as both an **Interactive VS Code Extension** and a **zero-dependency, single-file self-contained CLI/MCP binary** with embedded Tree-sitter parsers and SQLite engine. No external database or runtime installation is required.
 
-### 1. VS Code Extension (Recommended for Visual Exploration)
+### 1. Homebrew (macOS & Linux)
+
+```bash
+brew install vmikhailov/tap/ce
+```
+
+---
+
+### 2. VS Code Extension (Recommended for Visual Exploration)
 
 Install directly from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode) or [Open VSX](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode):
 
@@ -200,7 +208,7 @@ code --install-extension vmikhailov.code-explorer-vscode
 
 ---
 
-### 2. One-Line CLI Install (Recommended for Terminal & MCP)
+### 3. One-Line CLI Install (Alternative)
 
 **macOS & Linux (Bash / Zsh):**
 ```bash
@@ -214,7 +222,7 @@ irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/
 
 ---
 
-### 3. .NET Global Tool
+### 4. .NET Global Tool
 
 If you have [.NET SDK](https://dotnet.microsoft.com/download) installed:
 
@@ -228,7 +236,7 @@ dotnet tool update -g CodeExplorer.Cli
 
 ---
 
-### 4. Manual Download
+### 5. Manual Download
 
 Download the pre-compiled binary for your platform from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest):
 

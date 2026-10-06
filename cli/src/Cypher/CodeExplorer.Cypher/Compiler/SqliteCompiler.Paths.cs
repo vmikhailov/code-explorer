@@ -130,7 +130,7 @@ public partial class SqliteCompiler
         ProcessPathHop(
             rel, relVar, prevNode, prevVar, targetNode, targetVar,
             isOptional, isVarLen, path.IsShortestPath, joinKeyword,
-            fromAndJoins, mainWhereConditions, optionalWhereExtra);
+            fromAndJoins, mainWhereConditions, optionalWhereExtra, path.PathVariable);
 
         prevNode = targetNode;
         prevVar = targetVar;
@@ -149,7 +149,8 @@ public partial class SqliteCompiler
         string joinKeyword,
         StringBuilder fromAndJoins,
         List<string> mainWhereConditions,
-        List<string> optionalWhereExtra)
+        List<string> optionalWhereExtra,
+        string? pathVariable = null)
     {
         var prevDeclared = _declaredNodes.Contains(prevVar);
         var targetDeclared = _declaredNodes.Contains(targetVar);
@@ -160,7 +161,7 @@ public partial class SqliteCompiler
                 rel, relVar, prevNode, prevVar, targetNode, targetVar,
                 prevDeclared, targetDeclared, isOptional, joinKeyword,
                 fromAndJoins, mainWhereConditions, optionalWhereExtra,
-                isShortestPath);
+                isShortestPath, pathVariable);
         }
         else
         {
@@ -376,7 +377,8 @@ public partial class SqliteCompiler
         StringBuilder fromAndJoins,
         List<string> mainWhereConditions,
         List<string> optionalWhereExtra,
-        bool isShortestPath = false)
+        bool isShortestPath = false,
+        string? pathVariable = null)
     {
         var cteName = $"cte_rel_{_cteIndex++}";
         var minDepth = rel.Range?.Min ?? 1;
@@ -398,7 +400,8 @@ public partial class SqliteCompiler
             }
         }
 
-        BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth, startConstraint);
+        var needsPathNodes = pathVariable != null;
+        BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth, startConstraint, needsPathNodes);
 
         var relOnConditions = BuildVarLenRelConditions(cteName, relVar, prevVar, targetVar, minDepth, maxDepth, isShortestPath);
         List<string> nodeOnConditions = [];
@@ -426,13 +429,14 @@ public partial class SqliteCompiler
         List<string> relOnConditions,
         List<string> nodeOnConditions)
     {
+        var forceCrossJoin = !isOptional && (prevDeclared || targetDeclared);
         if (prevDeclared && !targetDeclared)
         {
-            ProcessVarLenForwardHop(rel, cteName, relVar, prevVar, targetNode, targetVar, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions);
+            ProcessVarLenForwardHop(rel, cteName, relVar, prevVar, targetNode, targetVar, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions, forceCrossJoin);
         }
         else if (!prevDeclared && targetDeclared)
         {
-            ProcessVarLenBackwardHop(rel, cteName, relVar, prevNode, prevVar, targetVar, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions);
+            ProcessVarLenBackwardHop(rel, cteName, relVar, prevNode, prevVar, targetVar, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions, forceCrossJoin);
         }
         else if (prevDeclared && targetDeclared)
         {
@@ -445,7 +449,8 @@ public partial class SqliteCompiler
         RelationshipPattern rel,
         int minDepth,
         int? maxDepth,
-        NodePattern? startConstraint = null)
+        NodePattern? startConstraint = null,
+        bool needsPathNodes = false)
     {
         var edgeKindPred = "1=1";
         if (rel.Types.Count == 1)
@@ -465,35 +470,42 @@ public partial class SqliteCompiler
         }
 
         var anchorSb = new StringBuilder();
+        var cols = needsPathNodes
+            ? "start_id, end_id, depth, path_visited, path_nodes"
+            : "start_id, end_id, depth, path_visited";
+        var zeroNodes = needsPathNodes ? ", json_array(id) AS path_nodes" : "";
+        var anchorNodes = needsPathNodes ? ", json_array(e.from_id, e.to_id) AS path_nodes" : "";
+        var recNodes = needsPathNodes ? ", json_insert(c.path_nodes, '$[#]', e.to_id)" : "";
+
         if (minDepth == 0)
         {
             if (startFilterConditions.Count > 0)
             {
-                anchorSb.AppendLine($"    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited, json_array(id) AS path_nodes FROM nodes _src_anc WHERE {string.Join(" AND ", startFilterConditions)}");
+                anchorSb.AppendLine($"    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited{zeroNodes} FROM nodes _src_anc WHERE {string.Join(" AND ", startFilterConditions)}");
             }
             else
             {
-                anchorSb.AppendLine("    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited, json_array(id) AS path_nodes FROM nodes");
+                anchorSb.AppendLine($"    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited{zeroNodes} FROM nodes");
             }
             anchorSb.AppendLine("    UNION ALL");
         }
 
         if (startFilterConditions.Count > 0)
         {
-            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited, json_array(e.from_id, e.to_id) AS path_nodes FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.id WHERE {string.Join(" AND ", startFilterConditions)} AND {edgeKindPred}");
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited{anchorNodes} FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.id WHERE {string.Join(" AND ", startFilterConditions)} AND {edgeKindPred}");
         }
         else
         {
-            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited, json_array(e.from_id, e.to_id) AS path_nodes FROM edges e WHERE {edgeKindPred}");
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited{anchorNodes} FROM edges e WHERE {edgeKindPred}");
         }
 
         var maxDepthCond = maxDepth.HasValue ? $" AND c.depth < {maxDepth.Value}" : "";
-        var recursiveSql = $@"    SELECT c.start_id, e.to_id, c.depth + 1, c.path_visited || e.to_id || '/', json_insert(c.path_nodes, '$[#]', e.to_id)
+        var recursiveSql = $@"    SELECT c.start_id, e.to_id, c.depth + 1, c.path_visited || e.to_id || '/'{recNodes}
     FROM {cteName} c
     CROSS JOIN edges e ON e.from_id = c.end_id
     WHERE {edgeKindPred}{maxDepthCond} AND instr(c.path_visited, '/' || e.to_id || '/') = 0";
 
-        var cteSql = $"{cteName}(start_id, end_id, depth, path_visited, path_nodes) AS (\n{anchorSb}\n    UNION ALL\n{recursiveSql}\n)";
+        var cteSql = $"{cteName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{recursiveSql}\n)";
         _ctes.Add(cteSql);
     }
 
@@ -536,14 +548,15 @@ public partial class SqliteCompiler
         StringBuilder fromAndJoins,
         List<string> optionalWhereExtra,
         List<string> relOnConditions,
-        List<string> nodeOnConditions)
+        List<string> nodeOnConditions,
+        bool forceCrossJoin = false)
     {
         var pVar = EscapeVar(prevVar);
         var tVar = EscapeVar(targetVar);
         var rVar = EscapeVar(relVar);
 
         AddVarLenHopEndpoints(rel.Direction, isForward: true, rVar, pVar, tVar, relOnConditions, nodeOnConditions);
-        FinishVarLenHop(cteName, relVar, rVar, targetVar, targetNode, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions);
+        FinishVarLenHop(cteName, relVar, rVar, targetVar, targetNode, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions, forceCrossJoin);
     }
 
     private void ProcessVarLenBackwardHop(
@@ -558,14 +571,15 @@ public partial class SqliteCompiler
         StringBuilder fromAndJoins,
         List<string> optionalWhereExtra,
         List<string> relOnConditions,
-        List<string> nodeOnConditions)
+        List<string> nodeOnConditions,
+        bool forceCrossJoin = false)
     {
         var pVar = EscapeVar(prevVar);
         var tVar = EscapeVar(targetVar);
         var rVar = EscapeVar(relVar);
 
         AddVarLenHopEndpoints(rel.Direction, isForward: false, rVar, pVar, tVar, relOnConditions, nodeOnConditions);
-        FinishVarLenHop(cteName, relVar, rVar, prevVar, prevNode, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions);
+        FinishVarLenHop(cteName, relVar, rVar, prevVar, prevNode, isOptional, joinKeyword, fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions, forceCrossJoin);
     }
 
     private static void AddVarLenHopEndpoints(
@@ -604,11 +618,12 @@ public partial class SqliteCompiler
         StringBuilder fromAndJoins,
         List<string> optionalWhereExtra,
         List<string> relOnConditions,
-        List<string> nodeOnConditions)
+        List<string> nodeOnConditions,
+        bool forceCrossJoin = false)
     {
         AddNodeFiltersToConditions(boundNode, boundVar, nodeOnConditions);
         ApplyOptionalWhereExtra(isOptional, optionalWhereExtra, nodeOnConditions);
-        EmitVarLenRelAndNodeJoin(cteName, rVar, EscapeVar(boundVar), relOnConditions, nodeOnConditions, joinKeyword, fromAndJoins);
+        EmitVarLenRelAndNodeJoin(cteName, rVar, EscapeVar(boundVar), relOnConditions, nodeOnConditions, joinKeyword, fromAndJoins, forceCrossJoin);
 
         _declaredRels.Add(relVar);
         _declaredNodes.Add(boundVar);
@@ -649,12 +664,15 @@ public partial class SqliteCompiler
         List<string> relOnConditions,
         List<string> nodeOnConditions,
         string joinKeyword,
-        StringBuilder fromAndJoins)
+        StringBuilder fromAndJoins,
+        bool forceCrossJoin = false)
     {
+        var cteJoin = forceCrossJoin ? "CROSS JOIN" : joinKeyword;
+        var nodeJoin = forceCrossJoin ? "CROSS JOIN" : joinKeyword;
         fromAndJoins.AppendLine();
-        fromAndJoins.Append($"{joinKeyword} {cteName} {rVar} ON {string.Join(" AND ", relOnConditions)}");
+        fromAndJoins.Append($"{cteJoin} {cteName} {rVar} ON {string.Join(" AND ", relOnConditions)}");
         fromAndJoins.AppendLine();
-        fromAndJoins.Append($"{joinKeyword} nodes {nodeVar} ON {string.Join(" AND ", nodeOnConditions)}");
+        fromAndJoins.Append($"{nodeJoin} nodes {nodeVar} ON {string.Join(" AND ", nodeOnConditions)}");
     }
 
     private void AddRelKindConditions(RelationshipPattern rel, string relVar, List<string> conditions)
@@ -682,88 +700,20 @@ public partial class SqliteCompiler
     private void AddNodeFiltersToConditions(NodePattern node, string nodeVar, List<string> conditions)
     {
         var nVar = EscapeVar(nodeVar);
-        if (_strictLabels)
+        if (node.Labels.Count == 1)
         {
-            if (node.Labels.Count == 1)
-            {
-                conditions.Add($"{nVar}.kind = '{node.Labels[0]}'");
-            }
-            else if (node.Labels.Count > 1)
-            {
-                var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
-                conditions.Add($"{nVar}.kind IN ({kinds})");
-            }
+            conditions.Add($"{nVar}.kind = '{node.Labels[0]}'");
         }
-        else
+        else if (node.Labels.Count > 1)
         {
-            if (node.Labels.Count == 1)
-            {
-                conditions.Add(CompileNodeLabelPredicate(nVar, node.Labels[0]));
-            }
-            else if (node.Labels.Count > 1)
-            {
-                var anySemantic = node.Labels.Any(IsSemanticRoleLabel);
-                if (anySemantic)
-                {
-                    foreach (var label in node.Labels)
-                    {
-                        conditions.Add(CompileNodeLabelPredicate(nVar, label));
-                    }
-                }
-                else
-                {
-                    var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
-                    conditions.Add($"{nVar}.kind IN ({kinds})");
-                }
-            }
+            var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
+            conditions.Add($"{nVar}.kind IN ({kinds})");
         }
 
         if (node.Properties != null)
         {
             AddNodePropertiesConditions(node.Properties, nVar, conditions);
         }
-    }
-
-    internal static bool IsSemanticRoleLabel(string label) =>
-        label.Equals("Project", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("Service", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("App", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("Library", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("Worker", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("CliTool", StringComparison.OrdinalIgnoreCase) ||
-        label.Equals("TestSuite", StringComparison.OrdinalIgnoreCase);
-
-    private const string WorkloadNodeKindsSql = "'Service', 'App', 'FrontendApp', 'Library', 'SharedLibrary', 'Worker', 'CliTool', 'TestSuite', 'Test'";
-
-    internal static string CompileNodeLabelPredicate(string nVar, string label)
-    {
-        var notHasWorkloadNode = $"NOT EXISTS (SELECT 1 FROM nodes _w WHERE _w.kind IN ({WorkloadNodeKindsSql}) AND (json_extract(_w.properties, '$.project_id') = {nVar}.id OR json_extract(_w.properties, '$.name') = json_extract({nVar}.properties, '$.name')))";
-
-        if (label.Equals("Service", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Service' OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'Service' AND {notHasWorkloadNode}))";
-        if (label.Equals("App", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind IN ('App', 'FrontendApp') OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) IN ('App', 'FrontendApp') AND {notHasWorkloadNode}))";
-        if (label.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'FrontendApp' OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'FrontendApp' AND {notHasWorkloadNode}))";
-        if (label.Equals("Library", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind IN ('Library', 'SharedLibrary') OR ({nVar}.kind = 'Project' AND (COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) IN ('Library', 'SharedLibrary') OR json_extract({nVar}.properties, '$.is_library') = 1) AND {notHasWorkloadNode}))";
-        if (label.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'SharedLibrary' OR ({nVar}.kind = 'Project' AND (COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'SharedLibrary' OR json_extract({nVar}.properties, '$.is_library') = 1) AND {notHasWorkloadNode}))";
-        if (label.Equals("Worker", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Worker' OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'Worker' AND {notHasWorkloadNode}))";
-        if (label.Equals("CliTool", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'CliTool' OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) = 'CliTool' AND {notHasWorkloadNode}))";
-        if (label.Equals("TestSuite", StringComparison.OrdinalIgnoreCase) || label.Equals("Test", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind IN ('TestSuite', 'Test') OR ({nVar}.kind = 'Project' AND COALESCE(json_extract({nVar}.properties, '$.role'), json_extract({nVar}.properties, '$.kind')) IN ('TestSuite', 'Test') AND {notHasWorkloadNode}))";
-        if (label.Equals("DatabaseMigration", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'DatabaseMigration' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'DatabaseMigration' OR json_extract({nVar}.properties, '$.role') = 'DatabaseMigration')))";
-        if (label.Equals("FunctionApp", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'FunctionApp' OR ({nVar}.kind = 'Project' AND (json_extract({nVar}.properties, '$.kind') = 'FunctionApp' OR json_extract({nVar}.properties, '$.role') = 'FunctionApp')))";
-        if (label.Equals("Project", StringComparison.OrdinalIgnoreCase))
-            return $"({nVar}.kind = 'Project' OR ({nVar}.kind IN ({WorkloadNodeKindsSql}) AND NOT EXISTS (SELECT 1 FROM nodes _p WHERE _p.kind = 'Project' AND (json_extract({nVar}.properties, '$.project_id') = _p.id OR json_extract(_p.properties, '$.name') = json_extract({nVar}.properties, '$.name')))))";
-        return $"{nVar}.kind = '{label}'";
     }
 
     private void AddNodePropertiesConditions(Dictionary<string, Expression> properties, string nVar, List<string> conditions)

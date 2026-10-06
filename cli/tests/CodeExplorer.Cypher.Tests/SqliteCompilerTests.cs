@@ -378,11 +378,12 @@ public class SqliteCompilerTests
     [Test]
     public void Test_SemanticRoleLabels_Service_App_Library_Matching()
     {
-        InsertNode("proj:svc", "Project", new() { ["name"] = "OrdersApi", ["role"] = "Service" });
-        InsertNode("proj:app", "Project", new() { ["name"] = "ShopWeb", ["role"] = "FrontendApp" });
-        InsertNode("proj:lib", "Project", new() { ["name"] = "ShopCore", ["role"] = "SharedLibrary", ["is_library"] = true });
-        InsertNode("proj:worker", "Project", new() { ["name"] = "NotificationWorker", ["role"] = "Worker" });
-        InsertNode("proj:cli", "Project", new() { ["name"] = "MigratorCli", ["role"] = "CliTool" });
+        InsertNode("proj:svc", "Service", new() { ["name"] = "OrdersApi", ["role"] = "Service" });
+        InsertNode("proj:app", "App", new() { ["name"] = "ShopWeb", ["role"] = "FrontendApp" });
+        InsertNode("proj:lib", "Library", new() { ["name"] = "ShopCore", ["role"] = "SharedLibrary", ["is_library"] = true });
+        InsertNode("proj:worker", "Worker", new() { ["name"] = "NotificationWorker", ["role"] = "Worker" });
+        InsertNode("proj:cli", "CliTool", new() { ["name"] = "MigratorCli", ["role"] = "CliTool" });
+        InsertNode("proj:generic", "Project", new() { ["name"] = "GeneralProj", ["role"] = "Project" });
 
         // 1. MATCH (s:Service)
         var svcRows = ExecuteCypher("MATCH (s:Service) RETURN s.name AS name");
@@ -409,16 +410,17 @@ public class SqliteCompilerTests
         Assert.That(cliRows, Has.Count.EqualTo(1));
         Assert.That(cliRows[0]["name"], Is.EqualTo("MigratorCli"));
 
-        // 6. MATCH (p:Project) matches all
-        var projRows = ExecuteCypher("MATCH (p:Project) WHERE p.name IN ['OrdersApi', 'ShopWeb', 'ShopCore', 'NotificationWorker', 'MigratorCli'] RETURN p.name AS name");
-        Assert.That(projRows, Has.Count.EqualTo(5));
+        // 6. MATCH (p:Project) matches Project
+        var projRows = ExecuteCypher("MATCH (p:Project) RETURN p.name AS name");
+        Assert.That(projRows, Has.Count.EqualTo(1));
+        Assert.That(projRows[0]["name"], Is.EqualTo("GeneralProj"));
 
-        // 7. WHERE p:Service filter
-        var whereRows = ExecuteCypher("MATCH (p:Project) WHERE p:Service RETURN p.name AS name");
+        // 7. WHERE s:Service filter
+        var whereRows = ExecuteCypher("MATCH (s) WHERE s:Service RETURN s.name AS name");
         Assert.That(whereRows, Has.Count.EqualTo(1));
         Assert.That(whereRows[0]["name"], Is.EqualTo("OrdersApi"));
 
-        // 8. labels(p) includes both Project and role
+        // 8. labels(s) includes both Service and Project
         var labelsRows = ExecuteCypher("MATCH (s:Service) RETURN labels(s) AS lbls");
         Assert.That(labelsRows, Has.Count.EqualTo(1));
         var lbls = (string)labelsRows[0]["lbls"]!;
@@ -461,9 +463,10 @@ public class SqliteCompilerTests
         Assert.That(cliRows, Has.Count.EqualTo(1));
         Assert.That(cliRows[0]["name"], Is.EqualTo("AdminCli"));
 
-        // 6. MATCH (p:Project) polymorphically matches ALL first-class semantic entities + Project
-        var projRows = ExecuteCypher("MATCH (p:Project) WHERE p.name IN ['BillingService', 'PortalApp', 'DomainCommon', 'AuditWorker', 'AdminCli', 'LegacyProject'] RETURN p.name AS name");
-        Assert.That(projRows, Has.Count.EqualTo(6));
+        // 6. MATCH (p:Project) matches native Project
+        var projRows = ExecuteCypher("MATCH (p:Project) RETURN p.name AS name");
+        Assert.That(projRows, Has.Count.EqualTo(1));
+        Assert.That(projRows[0]["name"], Is.EqualTo("LegacyProject"));
 
         // 7. labels(s) on native Service includes both Service and Project
         var labelsRows = ExecuteCypher("MATCH (s:Service) WHERE s.name = 'BillingService' RETURN labels(s) AS lbls");
@@ -599,20 +602,15 @@ public class SqliteCompilerTests
         Assert.That(compNames, Does.Contain("compfn"));
     }
     [Test]
-    public void Test_StrictLabels_AvoidsOntologyFallbackSubqueries()
+    public void Test_DirectLabels_GeneratesCleanSqlWithoutSubqueries()
     {
         var cypher = "MATCH (s1:Service)-[:CALLS]->(s2:Service)-[:USES_DB]->(d:Database) RETURN s1.name, s2.name, d.name LIMIT 50";
         var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(cypher);
 
-        // Standard compilation includes ontology fallback
-        var standard = SqliteCompiler.Compile(ast, strictLabels: false);
-        Assert.That(standard.Sql, Does.Contain("NOT EXISTS (SELECT 1 FROM nodes _w"));
-
-        // StrictLabels compilation produces clean, direct SQL without subqueries
-        var strict = SqliteCompiler.Compile(ast, strictLabels: true);
-        Assert.That(strict.Sql, Does.Not.Contain("NOT EXISTS"));
-        Assert.That(strict.Sql, Does.Contain("s1.kind = 'Service'"));
-        Assert.That(strict.Sql, Does.Contain("s2.kind = 'Service'"));
-        Assert.That(strict.Sql, Does.Contain("d.kind = 'Database'"));
+        var compiled = SqliteCompiler.Compile(ast);
+        Assert.That(compiled.Sql, Does.Not.Contain("NOT EXISTS"));
+        Assert.That(compiled.Sql, Does.Contain("s1.kind = 'Service'"));
+        Assert.That(compiled.Sql, Does.Contain("s2.kind = 'Service'"));
+        Assert.That(compiled.Sql, Does.Contain("d.kind = 'Database'"));
     }
 }

@@ -839,7 +839,7 @@ public partial class SqliteCompiler
     {
         if (hasLabel.Expression is IdentifierExpression id)
         {
-            return CompileNodeLabelPredicate(EscapeVar(id.Name), hasLabel.Label);
+            return $"{EscapeVar(id.Name)}.kind = '{hasLabel.Label}'";
         }
 
         return $"({VisitExpression(hasLabel.Expression)} = '{hasLabel.Label}')";
