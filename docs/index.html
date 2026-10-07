@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeExplorer (ce) — Visual Knowledge Graph & Codebase Intelligence</title>
+  <meta name="description" content="Visual knowledge graph and codebase intelligence tool for developers and AI agents. Embedded SQLite graph database with native Cypher query compilation.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       Linear-Inspired Design System Tokens (Achromatic + Precision Violet)
+       ========================================================================== */
+    :root {
+      --bg-base: #08090a;
+      --bg-panel: #0d0e10;
+      --bg-surface: #141517;
+      --bg-surface-elevated: #1a1c1e;
+      --bg-surface-hover: #212326;
+      --bg-glass: rgba(13, 14, 16, 0.75);
+
+      --border-subtle: rgba(255, 255, 255, 0.05);
+      --border-standard: rgba(255, 255, 255, 0.09);
+      --border-hover: rgba(255, 255, 255, 0.16);
+      --border-accent: rgba(113, 112, 255, 0.35);
+
+      --text-primary: #f7f8f8;
+      --text-secondary: #d0d6e0;
+      --text-tertiary: #8a8f98;
+      --text-quaternary: #62666d;
+
+      --accent-indigo: #5e6ad2;
+      --accent-violet: #7170ff;
+      --accent-hover: #828fff;
+      --accent-glow: rgba(113, 112, 255, 0.18);
+      --accent-dim: rgba(113, 112, 255, 0.1);
+
+      --status-green: #10b981;
+      --status-blue: #38bdf8;
+      --status-amber: #f59e0b;
+      --status-purple: #c084fc;
+
+      --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 10px;
+      --radius-xl: 14px;
+      --radius-2xl: 20px;
+      --radius-pill: 9999px;
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+      --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.7);
+      --shadow-glow: 0 0 35px rgba(113, 112, 255, 0.15);
+
+      --max-width: 1200px;
+      --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ==========================================================================
+       Global Reset & Base Typography
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-feature-settings: "cv01", "ss03";
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.5;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background: radial-gradient(circle at 50% 0%, rgba(94, 106, 210, 0.08) 0%, transparent 60%),
+                  radial-gradient(circle at 80% 20%, rgba(113, 112, 255, 0.04) 0%, transparent 40%),
+                  var(--bg-base);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font-family: inherit;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: inherit;
+    }
+
+    code, pre {
+      font-family: var(--font-mono);
+    }
+
+    /* Container */
+    .container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 24px;
+      width: 100%;
+    }
+
+    /* ==========================================================================
+       Header & Navigation
+       ========================================================================== */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-subtle);
+      transition: var(--transition);
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 17px;
+      letter-spacing: -0.3px;
+      color: var(--text-primary);
+    }
+
+    .brand-logo-wrap {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-standard);
+      box-shadow: 0 0 12px rgba(113, 112, 255, 0.2);
+    }
+
+    .brand-logo-wrap svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .brand-badge {
+      font-size: 11px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-tertiary);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .nav-link {
+      font-size: 14px;
+      font-weight: 450;
+      color: var(--text-tertiary);
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-link:hover {
+      color: var(--text-primary);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-standard);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-primary);
+      border-color: var(--border-hover);
+    }
+
+    .btn-primary {
+      background: var(--accent-indigo);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      box-shadow: 0 2px 10px rgba(113, 112, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+
+    .btn-lg {
+      padding: 11px 20px;
+      font-size: 14px;
+      border-radius: var(--radius-lg);
+    }
+
+    /* ==========================================================================
+       Hero Section
+       ========================================================================== */
+    .hero {
+      padding: 80px 0 50px 0;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-badge-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      transition: var(--transition);
+    }
+
+    .hero-badge-wrap:hover {
+      border-color: var(--border-accent);
+      background: rgba(113, 112, 255, 0.06);
+    }
+
+    .hero-badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--status-green);
+      box-shadow: 0 0 8px var(--status-green);
+    }
+
+    .hero-title {
+      font-size: 56px;
+      font-weight: 600;
+      line-height: 1.08;
+      letter-spacing: -1.8px;
+      color: var(--text-primary);
+      max-width: 960px;
+      margin: 0 auto 20px auto;
+    }
+
+    .hero-title span {
+      background: linear-gradient(180deg, #ffffff 40%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 19px;
+      font-weight: 400;
+      line-height: 1.55;
+      color: var(--text-tertiary);
+      max-width: 760px;
+      margin: 0 auto 36px auto;
+      letter-spacing: -0.2px;
+    }
+
+    .hero-cta-group {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 30px;
+    }
+
+    .copy-command-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-lg);
+      padding: 10px 16px;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      transition: var(--transition);
+    }
+
+    .copy-command-btn:hover {
+      border-color: var(--border-hover);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+    }
+
+    .copy-command-btn svg {
+      opacity: 0.6;
+      transition: var(--transition);
+    }
+
+    .copy-command-btn:hover svg {
+      opacity: 1;
+    }
+
+    .hero-badges-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      font-size: 12px;
+      color: var(--text-quaternary);
+      margin-bottom: 48px;
+    }
+
+    .hero-badge-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ==========================================================================
+       Interactive Cockpit Showcase / Tabbed Screen Player
+       ========================================================================== */
+    .showcase-wrapper {
+      margin: 0 auto;
+      border-radius: var(--radius-2xl);
+      background: var(--bg-panel);
+      border: 1px solid var(--border-standard);
+      box-shadow: var(--shadow-lg), var(--shadow-glow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .showcase-header {
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .showcase-window-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .win-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .win-dot.red { background: #ef4444; opacity: 0.7; }
+    .win-dot.yellow { background: #f59e0b; opacity: 0.7; }
+    .win-dot.green { background: #10b981; opacity: 0.7; }
+
+    .showcase-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 3px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .showcase-tab {
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      border-radius: var(--radius-sm);
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .showcase-tab:hover {
+      color: var(--text-primary);
+    }
+
+    .showcase-tab.active {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .showcase-meta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-quaternary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .showcase-body {
+      position: relative;
+      background: #020203;
+      min-height: 540px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .showcase-img-container {
+      position: relative;
+      width: 100%;
+      height: auto;
+      cursor: zoom-in;
+      overflow: hidden;
+    }
+
+    .showcase-img {
+      width: 100%;
+      height: auto;
+      display: block;
+      transition: transform 0.3s ease;
+    }
+
+    .showcase-img:hover {
+      transform: scale(1.006);
+    }
+
+    .showcase-overlay-bar {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      background: rgba(13, 14, 16, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-lg);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      box-shadow: var(--shadow-md);
+      z-index: 10;
+    }
+
+    .showcase-pill-list {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .showcase-feature-pill {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 3px 8px;
+      background: rgba(113, 112, 255, 0.1);
+      border: 1px solid rgba(113, 112, 255, 0.25);
+      border-radius: var(--radius-sm);
+      color: #c7d2fe;
+    }
+
+    /* Lightbox Modal */
+    .lightbox-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(16px);
+      z-index: 999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .lightbox-modal.active {
+      display: flex;
+    }
+
+    .lightbox-content {
+      max-width: 95vw;
+      max-height: 92vh;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-standard);
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.9);
+      object-fit: contain;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 24px;
+      right: 28px;
+      font-size: 28px;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      background: none;
+      border: none;
+      transition: var(--transition);
+    }
+
+    .lightbox-close:hover {
+      color: var(--text-primary);
+    }
+
+    /* ==========================================================================
+       Feature Pillars (High Density Grid)
+       ========================================================================== */
+    .section {
+      padding: 90px 0;
+      position: relative;
+    }
+
+    .section-header {
+      margin-bottom: 50px;
+    }
+
+    .section-eyebrow {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--accent-violet);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .section-title {
+      font-size: 36px;
+      font-weight: 600;
+      letter-spacing: -1px;
+      line-height: 1.15;
+      color: var(--text-primary);
+      margin-bottom: 14px;
+    }
+
+    .section-desc {
+      font-size: 16px;
+      color: var(--text-tertiary);
+      max-width: 680px;
+      line-height: 1.6;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-xl);
+      padding: 28px;
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .card:hover {
+      border-color: var(--border-hover);
+      background: rgba(255, 255, 255, 0.035);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      color: var(--accent-violet);
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 590;
+      letter-spacing: -0.3px;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+
+    .card-text {
+      font-size: 14px;
+      color: var(--text-tertiary);
+      line-height: 1.6;
+      flex-grow: 1;
+    }
+
+    .card-tag {
+      margin-top: 18px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-quaternary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ==========================================================================
+       Interactive Cypher Query Playground
+       ========================================================================== */
+    .query-playground {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-2xl);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .query-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border-subtle);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .query-presets {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .preset-btn {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text-tertiary);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      transition: var(--transition);
+    }
+
+    .preset-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--border-hover);
+    }
+
+    .preset-btn.active {
+      background: var(--accent-dim);
+      color: #ffffff;
+      border-color: var(--border-accent);
+    }
+
+    .query-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .query-split {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      min-height: 360px;
+    }
+
+    .query-editor-pane {
+      padding: 24px;
+      background: #060708;
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .query-pane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-quaternary);
+      margin-bottom: 14px;
+    }
+
+    .cypher-code-block {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.65;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      flex-grow: 1;
+      overflow-x: auto;
+    }
+
+    .cypher-keyword { color: #818cf8; font-weight: 600; }
+    .cypher-label { color: #34d399; }
+    .cypher-prop { color: #38bdf8; }
+    .cypher-string { color: #fbbf24; }
+    .cypher-rel { color: #f472b6; }
+    .cypher-comment { color: #64748b; font-style: italic; }
+
+    .query-result-pane {
+      padding: 24px;
+      background: #090a0c;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .result-stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-quaternary);
+      margin-bottom: 14px;
+    }
+
+    .result-stat-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .result-stat-val {
+      color: var(--status-green);
+      font-weight: 600;
+    }
+
+    .result-table-wrap {
+      flex-grow: 1;
+      overflow: auto;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .result-table th {
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-tertiary);
+      border-bottom: 1px solid var(--border-subtle);
+      font-weight: 500;
+    }
+
+    .result-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+    }
+
+    .result-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .badge-node {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      background: rgba(56, 189, 248, 0.1);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    /* ==========================================================================
+       AI Agent & MCP Section
+       ========================================================================== */
+    .mcp-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-2xl);
+      padding: 40px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+
+    .mcp-info h3 {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.8px;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+
+    .mcp-info p {
+      font-size: 15px;
+      color: var(--text-tertiary);
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .mcp-feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .mcp-feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .mcp-feature-item svg {
+      color: var(--accent-violet);
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+
+    .code-terminal-card {
+      background: #050607;
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      font-family: var(--font-mono);
+    }
+
+    .term-top {
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-quaternary);
+    }
+
+    .term-body {
+      padding: 18px;
+      font-size: 12px;
+      line-height: 1.65;
+      color: #94a3b8;
+      overflow-x: auto;
+    }
+
+    /* ==========================================================================
+       5-Layer Ontology Section
+       ========================================================================== */
+    .ontology-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .layer-row {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-lg);
+      padding: 18px 24px;
+      display: grid;
+      grid-template-columns: 140px 180px 1fr 200px;
+      align-items: center;
+      gap: 20px;
+      transition: var(--transition);
+    }
+
+    .layer-row:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border-hover);
+    }
+
+    .layer-number {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-violet);
+      font-weight: 500;
+    }
+
+    .layer-name {
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text-primary);
+    }
+
+    .layer-desc {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      line-height: 1.4;
+    }
+
+    .layer-nodes {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-quaternary);
+      text-align: right;
+    }
+
+    /* ==========================================================================
+       Installation & CLI Quickstart
+       ========================================================================== */
+    .install-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-2xl);
+      padding: 36px;
+    }
+
+    .install-tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .install-tab-btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      color: var(--text-tertiary);
+      transition: var(--transition);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .install-tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .install-tab-btn.active {
+      background: var(--accent-dim);
+      border-color: var(--border-accent);
+      color: #ffffff;
+    }
+
+    .install-content-pane {
+      display: none;
+    }
+
+    .install-content-pane.active {
+      display: block;
+    }
+
+    .cmd-display-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #050607;
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-lg);
+      padding: 14px 20px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #f1f5f9;
+      margin-bottom: 16px;
+    }
+
+    .cmd-text {
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .cli-cheatsheet-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+
+    .cli-cmd-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+    }
+
+    .cli-cmd-name {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent-violet);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .cli-cmd-desc {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      line-height: 1.4;
+    }
+
+    /* ==========================================================================
+       Language Support Matrix
+       ========================================================================== */
+    .lang-matrix {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .lang-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px 12px;
+      text-align: center;
+      transition: var(--transition);
+    }
+
+    .lang-item:hover {
+      border-color: var(--border-hover);
+      background: rgba(255, 255, 255, 0.04);
+      transform: translateY(-2px);
+    }
+
+    .lang-icon {
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+
+    .lang-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .lang-meta {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-quaternary);
+    }
+
+    /* ==========================================================================
+       Footer
+       ========================================================================== */
+    .footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 60px 0 40px 0;
+      margin-top: 60px;
+      background: var(--bg-panel);
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand-col p {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      margin-top: 12px;
+      max-width: 300px;
+      line-height: 1.6;
+    }
+
+    .footer-col-title {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+
+    .footer-col-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-col-links a {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      transition: var(--transition);
+    }
+
+    .footer-col-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .footer-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 24px;
+      font-size: 12px;
+      color: var(--text-quaternary);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-accent);
+      color: var(--text-primary);
+      padding: 10px 18px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: var(--transition);
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 992px) {
+      .hero-title { font-size: 42px; letter-spacing: -1.2px; }
+      .grid-3 { grid-template-columns: repeat(2, 1fr); }
+      .query-split { grid-template-columns: 1fr; }
+      .query-editor-pane { border-right: none; border-bottom: 1px solid var(--border-subtle); }
+      .mcp-box { grid-template-columns: 1fr; gap: 32px; padding: 28px; }
+      .layer-row { grid-template-columns: 100px 1fr; gap: 10px; }
+      .layer-desc, .layer-nodes { grid-column: span 2; }
+      .lang-matrix { grid-template-columns: repeat(4, 1fr); }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .cli-cheatsheet-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .hero-title { font-size: 32px; letter-spacing: -0.8px; }
+      .hero-subtitle { font-size: 16px; }
+      .nav-links { display: none; }
+      .grid-3 { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .lang-matrix { grid-template-columns: repeat(2, 1fr); }
+      .footer-grid { grid-template-columns: 1fr; }
+      .showcase-header { flex-direction: column; align-items: flex-start; }
+      .showcase-overlay-bar { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       Header / Navigation
+       ========================================================================== -->
+  <header class="header">
+    <div class="container header-inner">
+      <a href="#" class="brand">
+        <div class="brand-logo-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#E2E8F0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 4.5 L18.5 8.25 V15.75 L12 19.5 L5.5 15.75 V8.25 Z" opacity="0.45" />
+            <path d="M12 4.5 V9" opacity="0.65" />
+            <path d="M12 15 V19.5" opacity="0.65" />
+            <path d="M5.5 8.25 L9.5 10.5" opacity="0.65" />
+            <path d="M18.5 8.25 L14.5 10.5" opacity="0.65" />
+            <path d="M5.5 15.75 L9.5 13.5" opacity="0.65" />
+            <path d="M18.5 15.75 L14.5 13.5" opacity="0.65" />
+            <circle cx="12" cy="12" r="3.25" stroke="#FFFFFF" stroke-width="1.5" fill="none" />
+            <circle cx="12" cy="12" r="1.25" fill="#FFFFFF" />
+          </svg>
+        </div>
+        <span>CodeExplorer</span>
+        <span class="brand-badge">ce</span>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#cockpit" class="nav-link">VS Code Cockpit</a></li>
+        <li><a href="#features" class="nav-link">Features</a></li>
+        <li><a href="#playground" class="nav-link">Cypher Engine</a></li>
+        <li><a href="#ai-mcp" class="nav-link">AI & MCP</a></li>
+        <li><a href="#ontology" class="nav-link">Ontology</a></li>
+        <li><a href="#install" class="nav-link">Installation</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>GitHub</span>
+        </a>
+        <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+          <span>VS Code Extension</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       Hero Section
+       ========================================================================== -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge-wrap">
+        <span class="hero-badge-dot"></span>
+        <span>v1.25.0 Released • Zero-Container SQLite Graph Engine</span>
+      </div>
+
+      <h1 class="hero-title">
+        Visual Knowledge Graph for <span>Polyglot Codebases</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        Maps monoliths, microservices, and asynchronous event streams into an interactive semantic graph.
+        Queryable with native Cypher in VS Code and integrated with AI coding assistants via MCP.
+      </p>
+
+      <div class="hero-cta-group">
+        <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.583 2.167L7.208 11.25 2.75 7.625l-2 1.167v6.416l2 1.167 4.458-3.625 10.375 9.083L24 19.333V4.667l-6.417-2.5zm0 3.208l3.667 1.458v10.334l-3.667 1.458-6.583-6.625 6.583-6.625zM4.75 9.875l2.458 2-2.458 2V9.875z"/>
+          </svg>
+          <span>Install for VS Code</span>
+        </a>
+
+        <button class="copy-command-btn" onclick="copySnippet('brew install vmikhailov/tap/ce', 'Homebrew command copied!')">
+          <span style="color: var(--accent-violet);">$</span>
+          <span>brew install vmikhailov/tap/ce</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="hero-badges-row">
+        <span class="hero-badge-item">✓ Zero Containers / No Neo4j</span>
+        <span class="hero-badge-item">•</span>
+        <span class="hero-badge-item">✓ 100% Embedded SQLite</span>
+        <span class="hero-badge-item">•</span>
+        <span class="hero-badge-item">✓ Tree-sitter AST Polyglot</span>
+        <span class="hero-badge-item">•</span>
+        <span class="hero-badge-item">✓ Model Context Protocol (MCP)</span>
+      </div>
+
+      <!-- ==========================================================================
+           Interactive Cockpit Showcase / Screen Switcher
+           ========================================================================== -->
+      <div id="cockpit" class="showcase-wrapper">
+        <div class="showcase-header">
+          <div class="showcase-window-controls">
+            <span class="win-dot red"></span>
+            <span class="win-dot yellow"></span>
+            <span class="win-dot green"></span>
+            <span style="font-size: 12px; color: var(--text-tertiary); margin-left: 6px;">CodeExplorer Cockpit — VS Code</span>
+          </div>
+
+          <div class="showcase-tabs">
+            <button class="showcase-tab active" onclick="switchShowcase('orbits', this)">
+              <span>Concentric Orbits (Tiers 0–4)</span>
+            </button>
+            <button class="showcase-tab" onclick="switchShowcase('transitive', this)">
+              <span>Transitive Contraction</span>
+            </button>
+            <button class="showcase-tab" onclick="switchShowcase('projectflow', this)">
+              <span>Project Flow & C1 Context</span>
+            </button>
+          </div>
+
+          <div class="showcase-meta">
+            <span>● 54 Microservices</span>
+            <span>● 1,420 AST Nodes</span>
+          </div>
+        </div>
+
+        <div class="showcase-body">
+          <div class="showcase-img-container" onclick="openLightbox()">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png" alt="CodeExplorer Macro Architecture Concentric Orbits">
+          </div>
+
+          <div class="showcase-overlay-bar">
+            <div id="showcaseDescription">
+              <strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).
+            </div>
+            <div class="showcase-pill-list" id="showcasePills">
+              <span class="showcase-feature-pill">Live Transitive Routing</span>
+              <span class="showcase-feature-pill">Orbit Drag-and-Drop</span>
+              <span class="showcase-feature-pill">Curvature: +65</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lightbox Modal for zooming screenshots -->
+  <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png" alt="Enlarged Screenshot">
+  </div>
+
+  <!-- ==========================================================================
+       Core Feature Pillars
+       ========================================================================== -->
+  <section id="features" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-eyebrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m10 15 5-3-5-3v6z"/></svg>
+          Architecture Intelligence
+        </div>
+        <h2 class="section-title">Engineered for Massive Polyglot Repositories</h2>
+        <p class="section-desc">
+          CodeExplorer provides structural codebase comprehension without external infrastructure dependencies or cloud telemetry leakage.
+        </p>
+      </div>
+
+      <div class="grid-3">
+        <!-- Card 1 -->
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+            </svg>
+          </div>
+          <h3 class="card-title">Embedded SQLite Graph Engine</h3>
+          <p class="card-text">
+            No Neo4j, no Docker containers, and no memory-hogging background daemons. Compiles open Cypher AST queries directly to optimized SQL B-Tree index scans with sub-50ms execution.
+          </p>
+          <div class="card-tag"><span>engine:</span> <code>SqliteGraphDatabase.cs</code></div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="6"></circle>
+              <circle cx="12" cy="12" r="2"></circle>
+            </svg>
+          </div>
+          <h3 class="card-title">Concentric Orbits & Swimlanes</h3>
+          <p class="card-text">
+            Project complex microservices across 5 concentric architectural tiers. Drag-and-drop orbit rings, tune bezier curve routing factors (-200 to +200), and inspect DDD bounded contexts.
+          </p>
+          <div class="card-tag"><span>views:</span> <code>Cytoscape.js + Webview</code></div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v1"></path>
+              <path d="M18 8h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-4"></path>
+              <circle cx="8" cy="12" r="2"></circle>
+            </svg>
+          </div>
+          <h3 class="card-title">Transitive Broker Contraction</h3>
+          <p class="card-text">
+            Filter out intermediate message topics (Kafka, RabbitMQ, SQS) and CodeExplorer automatically synthesizes clean dashed <code>[SUBSCRIBES (via Topic)]</code> links, preserving flow without clutter.
+          </p>
+          <div class="card-tag"><span>feature:</span> <code>Smart Message Synthesis</code></div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </div>
+          <h3 class="card-title">Model Context Protocol (MCP)</h3>
+          <p class="card-text">
+            Give Cursor, Claude Desktop, and Copilot surgical codebase intelligence. AI agents query call-chains, blast-radius impacts, and architectural topology in 1 turn without token-wasteful grep loops.
+          </p>
+          <div class="card-tag"><span>protocols:</span> <code>stdio + SSE HTTP (/mcp)</code></div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+          </div>
+          <h3 class="card-title">Polyglot Tree-sitter AST</h3>
+          <p class="card-text">
+            Pure in-memory visitor architecture for C#, Java, TypeScript, Go, Python, ColdFusion, and inline SQL. Extracts classes, methods, endpoints, callers, entities, and late-bound CQRS pipelines.
+          </p>
+          <div class="card-tag"><span>ast:</span> <code>Tree-sitter + T-SQL ScriptDom</code></div>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="card">
+          <div class="card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v4"></path>
+              <path d="M12 18v4"></path>
+              <path d="M4.93 4.93l2.83 2.83"></path>
+              <path d="M16.24 16.24l2.83 2.83"></path>
+              <path d="M2 12h4"></path>
+              <path d="M18 12h4"></path>
+              <path d="M4.93 19.07l2.83-2.83"></path>
+              <path d="M16.24 7.76l2.83-2.83"></path>
+            </svg>
+          </div>
+          <h3 class="card-title">Local Intent Inference (GGUF)</h3>
+          <p class="card-text">
+            Enriches graph nodes with inferred business domains and architectural patterns via embedded <code>llama.cpp</code> with Vulkan GPU acceleration. Fast-applies cached intents in &lt;50ms using SHA-256 fingerprints.
+          </p>
+          <div class="card-tag"><span>inference:</span> <code>Zero-Leak Local SLM</code></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       Interactive Cypher Query Playground
+       ========================================================================== -->
+  <section id="playground" class="section" style="background: rgba(0, 0, 0, 0.25);">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-eyebrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Embedded Query Engine
+        </div>
+        <h2 class="section-title">Query Architectural Topology with Cypher</h2>
+        <p class="section-desc">
+          Test real architectural inquiries against the graph database. Fast, declarative, and structured.
+        </p>
+      </div>
+
+      <div class="query-playground">
+        <div class="query-toolbar">
+          <div class="query-presets">
+            <button class="preset-btn active" onclick="loadQueryPreset('blast_radius', this)">Downstream Blast Radius</button>
+            <button class="preset-btn" onclick="loadQueryPreset('cqrs_pipeline', this)">CQRS & Event Flow</button>
+            <button class="preset-btn" onclick="loadQueryPreset('api_to_db', this)">API Route ➔ SQL Table</button>
+            <button class="preset-btn" onclick="loadQueryPreset('cyclic_deps', this)">Cyclic Dependencies</button>
+          </div>
+
+          <div class="query-controls">
+            <button class="btn btn-ghost btn-sm" onclick="runQueryAnimation()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Execute Query</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="query-split">
+          <!-- Cypher Code Editor -->
+          <div class="query-editor-pane">
+            <div class="query-pane-header">
+              <span>Cypher Input</span>
+              <span style="color: var(--text-tertiary);">dialect: openCypher 9</span>
+            </div>
+            <pre class="cypher-code-block" id="cypherCodeDisplay">
+<span class="cypher-comment">// Find all downstream services impacted by OrderPlaced event</span>
+<span class="cypher-keyword">MATCH</span> (p:<span class="cypher-label">Service</span> {<span class="cypher-prop">name</span>: <span class="cypher-string">'OrderService'</span>})-[r:<span class="cypher-rel">EMITS</span>]->(e:<span class="cypher-label">DomainEvent</span>)
+<span class="cypher-keyword">MATCH</span> (e)<-[:<span class="cypher-rel">SUBSCRIBES</span>]-(downstream:<span class="cypher-label">Service</span>)
+<span class="cypher-keyword">OPTIONAL MATCH</span> (downstream)-[:<span class="cypher-rel">WRITES_TO</span>]->(tbl:<span class="cypher-label">Table</span>)
+<span class="cypher-keyword">RETURN</span>
+    p.name <span class="cypher-keyword">AS</span> Producer,
+    e.name <span class="cypher-keyword">AS</span> EventName,
+    downstream.name <span class="cypher-keyword">AS</span> Consumer,
+    tbl.name <span class="cypher-keyword">AS</span> TargetTable
+<span class="cypher-keyword">ORDER BY</span> Consumer</pre>
+          </div>
+
+          <!-- Query Result Output -->
+          <div class="query-result-pane">
+            <div class="query-pane-header">
+              <span>Execution Output</span>
+              <span id="execStatus" style="color: var(--status-green);">● Completed in 14.2ms</span>
+            </div>
+
+            <div class="result-stats-bar">
+              <div class="result-stat-item">
+                <span>Rows:</span>
+                <span class="result-stat-val" id="resultRowsCount">4</span>
+              </div>
+              <div class="result-stat-item">
+                <span>Scanned:</span>
+                <span class="result-stat-val" id="resultScanCount">18 nodes</span>
+              </div>
+              <div class="result-stat-item">
+                <span>Optimizer:</span>
+                <span style="color: var(--text-secondary);">Indexed SQLite B-Tree</span>
+              </div>
+            </div>
+
+            <div class="result-table-wrap">
+              <table class="result-table" id="resultTable">
+                <thead>
+                  <tr>
+                    <th>Producer</th>
+                    <th>EventName</th>
+                    <th>Consumer</th>
+                    <th>TargetTable</th>
+                  </tr>
+                </thead>
+                <tbody id="resultTableBody">
+                  <tr>
+                    <td><span class="badge-node">OrderService</span></td>
+                    <td><code>OrderPlacedEvent</code></td>
+                    <td>BillingService</td>
+                    <td><code>invoices</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge-node">OrderService</span></td>
+                    <td><code>OrderPlacedEvent</code></td>
+                    <td>InventoryService</td>
+                    <td><code>stock_items</code></td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge-node">OrderService</span></td>
+                    <td><code>OrderPlacedEvent</code></td>
+                    <td>NotificationHub</td>
+                    <td><em>null</em></td>
+                  </tr>
+                  <tr>
+                    <td><span class="badge-node">OrderService</span></td>
+                    <td><code>OrderPlacedEvent</code></td>
+                    <td>ShippingGateway</td>
+                    <td><code>shipments</code></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       Model Context Protocol (MCP) & AI Integration
+       ========================================================================== -->
+  <section id="ai-mcp" class="section">
+    <div class="container">
+      <div class="mcp-box">
+        <div class="mcp-info">
+          <div class="section-eyebrow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
+            AI Agent Architecture
+          </div>
+          <h3>Model Context Protocol (MCP) for Cursor & Claude</h3>
+          <p>
+            When AI coding assistants analyze large monorepos, brute-force file grepping fills context windows with irrelevant tokens and hallucinated connections. CodeExplorer provides surgical graph tools.
+          </p>
+
+          <ul class="mcp-feature-list">
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><strong>ce_query</strong> — Execute arbitrary Cypher queries for deep multi-hop dependency analysis.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><strong>ce_blast_radius</strong> — Determine exact downstream impact of changing an interface or class.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><strong>ce_architecture_map</strong> — Summarize macro service topologies and entry points in &lt;1,000 tokens.</span>
+            </li>
+          </ul>
+
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="https://github.com/vmikhailov/code-explorer#model-context-protocol-mcp-setup" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+              <span>Read MCP Specification</span>
+            </a>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce mcp --port 5000', 'MCP command copied!')">
+              <span>ce mcp --port 5000</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="code-terminal-card">
+          <div class="term-top">
+            <span>claude_desktop_config.json / cursor settings</span>
+            <button class="btn btn-ghost btn-sm" style="padding: 2px 8px; font-size: 11px;" onclick="copyMCPConfig()">Copy JSON</button>
+          </div>
+          <pre class="term-body" id="mcpConfigSnippet">{
+  "mcpServers": {
+    "code-explorer": {
+      "command": "ce",
+      "args": ["mcp"],
+      "env": {
+        "CE_WORKSPACE": "."
+      }
+    }
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       5-Layer Unified Semantic Ontology
+       ========================================================================== -->
+  <section id="ontology" class="section" style="background: rgba(0, 0, 0, 0.15);">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-eyebrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Semantic Structure
+        </div>
+        <h2 class="section-title">5-Layer Decoupled Graph Ontology</h2>
+        <p class="section-desc">
+          Every entity in your codebase is represented across five decoupled layers, connecting physical files to business domain concepts.
+        </p>
+      </div>
+
+      <div class="ontology-layers">
+        <div class="layer-row">
+          <div class="layer-number">LAYER 5</div>
+          <div class="layer-name">Late-Bound Layer</div>
+          <div class="layer-desc">Cross-project HTTP routes, message broker events, CQRS pipelines (MediatR/Spring), and interface implementations resolved via post-index graph passes.</div>
+          <div class="layer-nodes">:Channel, :Pipeline, :EventFlow</div>
+        </div>
+
+        <div class="layer-row">
+          <div class="layer-number">LAYER 4</div>
+          <div class="layer-name">Semantic Layer</div>
+          <div class="layer-desc">Inbound REST/gRPC/GraphQL endpoints, security roles, ORM entities mapped to physical database tables, and external egress HTTP clients.</div>
+          <div class="layer-nodes">:EntryPoint, :Table, :Policy</div>
+        </div>
+
+        <div class="layer-row">
+          <div class="layer-number">LAYER 3</div>
+          <div class="layer-name">Syntactic Layer</div>
+          <div class="layer-desc">Pure Tree-sitter AST declarations: classes, records, interfaces, methods, functions, structs, fields, and direct intra-file invocations.</div>
+          <div class="layer-nodes">:Class, :Method, :Function</div>
+        </div>
+
+        <div class="layer-row">
+          <div class="layer-number">LAYER 2</div>
+          <div class="layer-name">Project Layer</div>
+          <div class="layer-desc">Logical compilation units, internal project references, third-party NuGet/NPM/Go dependencies, and package boundary isolation.</div>
+          <div class="layer-nodes">:Project, :Package, :Module</div>
+        </div>
+
+        <div class="layer-row">
+          <div class="layer-number">LAYER 1</div>
+          <div class="layer-name">Physical Layer</div>
+          <div class="layer-desc">Workspace root, file tree, physical paths, configuration files (.env, appsettings.json, pom.xml, go.mod), and Git repository metadata.</div>
+          <div class="layer-nodes">:Workspace, :Folder, :File</div>
+        </div>
+      </div>
+
+      <!-- Languages Matrix -->
+      <div style="margin-top: 48px;">
+        <h4 style="font-size: 14px; font-weight: 500; color: var(--text-tertiary); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.8px; font-family: var(--font-mono);">
+          Supported Languages & AST Parsers
+        </h4>
+        <div class="lang-matrix">
+          <div class="lang-item">
+            <div class="lang-icon">⚡</div>
+            <div class="lang-name">C# (.NET)</div>
+            <div class="lang-meta">.NET 10 / Roslyn</div>
+          </div>
+          <div class="lang-item">
+            <div class="lang-icon">☕</div>
+            <div class="lang-name">Java</div>
+            <div class="lang-meta">Maven / Gradle</div>
+          </div>
+          <div class="lang-item">
+            <div class="lang-icon">🔷</div>
+            <div class="lang-name">TypeScript</div>
+            <div class="lang-meta">TS / TSX / NestJS</div>
+          </div>
+          <div class="lang-item">
+            <div class="lang-icon">🟨</div>
+            <div class="lang-name">JavaScript</div>
+            <div class="lang-meta">ES6 / Node / Express</div>
+          </div>
+          <div class="lang-item">
+            <div class="lang-icon">🐹</div>
+            <div class="lang-name">Go</div>
+            <div class="lang-meta">Go Modules / AST</div>
+          </div>
+          <div class="lang-item">
+            <div class="lang-icon">🐍</div>
+            <div class="lang-name">Python</div>
+            <div class="lang-meta">FastAPI / Flask / AST</div>
+          </div>
+          <div class="lang-item">
+            <div class="lang-icon">🗄️</div>
+            <div class="lang-name">SQL</div>
+            <div class="lang-meta">T-SQL ScriptDom</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       Installation & CLI Reference
+       ========================================================================== -->
+  <section id="install" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-eyebrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+          Quick Start
+        </div>
+        <h2 class="section-title">Install in Seconds</h2>
+        <p class="section-desc">
+          Single self-contained binaries for macOS, Linux, and Windows. No SDK required.
+        </p>
+      </div>
+
+      <div class="install-box">
+        <div class="install-tabs">
+          <button class="install-tab-btn active" onclick="switchInstallTab('brew', this)">Homebrew (macOS/Linux)</button>
+          <button class="install-tab-btn" onclick="switchInstallTab('vscode', this)">VS Code Extension</button>
+          <button class="install-tab-btn" onclick="switchInstallTab('win', this)">Windows PowerShell</button>
+          <button class="install-tab-btn" onclick="switchInstallTab('curl', this)">Linux/macOS Bash</button>
+          <button class="install-tab-btn" onclick="switchInstallTab('dotnet', this)">.NET Tool</button>
+        </div>
+
+        <!-- Brew Pane -->
+        <div id="install-pane-brew" class="install-content-pane active">
+          <div class="cmd-display-box">
+            <span class="cmd-text">brew install vmikhailov/tap/ce</span>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('brew install vmikhailov/tap/ce', 'Homebrew command copied!')">Copy</button>
+          </div>
+          <div style="font-size: 13px; color: var(--text-tertiary);">Installs the <code>ce</code> binary directly into your PATH with automatic shell completions.</div>
+        </div>
+
+        <!-- VS Code Pane -->
+        <div id="install-pane-vscode" class="install-content-pane">
+          <div class="cmd-display-box">
+            <span class="cmd-text">code --install-extension vmikhailov.code-explorer-vscode</span>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('code --install-extension vmikhailov.code-explorer-vscode', 'VS Code command copied!')">Copy</button>
+          </div>
+          <div style="font-size: 13px; color: var(--text-tertiary);">Bundles pre-compiled native binaries for all platforms; no external CLI setup needed.</div>
+        </div>
+
+        <!-- Windows Pane -->
+        <div id="install-pane-win" class="install-content-pane">
+          <div class="cmd-display-box">
+            <span class="cmd-text">irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.ps1 | iex</span>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.ps1 | iex', 'PowerShell command copied!')">Copy</button>
+          </div>
+          <div style="font-size: 13px; color: var(--text-tertiary);">Downloads standalone self-contained <code>ce.exe</code> and registers in Windows User PATH.</div>
+        </div>
+
+        <!-- Curl Pane -->
+        <div id="install-pane-curl" class="install-content-pane">
+          <div class="cmd-display-box">
+            <span class="cmd-text">curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.sh | bash</span>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.sh | bash', 'Bash script command copied!')">Copy</button>
+          </div>
+          <div style="font-size: 13px; color: var(--text-tertiary);">Automated architecture detection (x64 / ARM64) and direct installation to <code>~/.local/bin</code>.</div>
+        </div>
+
+        <!-- Dotnet Pane -->
+        <div id="install-pane-dotnet" class="install-content-pane">
+          <div class="cmd-display-box">
+            <span class="cmd-text">dotnet tool install -g CodeExplorer.Cli</span>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('dotnet tool install -g CodeExplorer.Cli', '.NET tool command copied!')">Copy</button>
+          </div>
+          <div style="font-size: 13px; color: var(--text-tertiary);">For developers with .NET 10 SDK already installed.</div>
+        </div>
+
+        <!-- CLI Cheatsheet -->
+        <div class="cli-cheatsheet-grid">
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce init</div>
+            <div class="cli-cmd-desc">Initialize a <code>.codeexplorer</code> workspace configuration in current repository.</div>
+          </div>
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce scan</div>
+            <div class="cli-cmd-desc">Run AST visitors across all source files and compile the SQLite graph.</div>
+          </div>
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce query "MATCH..."</div>
+            <div class="cli-cmd-desc">Execute an arbitrary Cypher query and output structured JSON or table.</div>
+          </div>
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce export -f mermaid</div>
+            <div class="cli-cmd-desc">Export macro architecture or C4 container diagrams into Mermaid syntax.</div>
+          </div>
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce mcp --port 5000</div>
+            <div class="cli-cmd-desc">Start Model Context Protocol server in HTTP/SSE streaming or stdio mode.</div>
+          </div>
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce schema</div>
+            <div class="cli-cmd-desc">Inspect active ontology node labels, relationships, and property dictionary.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       Footer
+       ========================================================================== -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand-col">
+          <div class="brand">
+            <div class="brand-logo-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#E2E8F0" stroke-width="1.5">
+                <path d="M12 4.5 L18.5 8.25 V15.75 L12 19.5 L5.5 15.75 V8.25 Z" opacity="0.45" />
+                <circle cx="12" cy="12" r="3.25" stroke="#FFFFFF" stroke-width="1.5" fill="none" />
+                <circle cx="12" cy="12" r="1.25" fill="#FFFFFF" />
+              </svg>
+            </div>
+            <span>CodeExplorer</span>
+          </div>
+          <p>
+            Visual knowledge graph and codebase intelligence engine for software architects, developers, and autonomous AI agents.
+          </p>
+        </div>
+
+        <div>
+          <div class="footer-col-title">Documentation</div>
+          <ul class="footer-col-links">
+            <li><a href="ontology.md">Live Ontology (27 Nodes)</a></li>
+            <li><a href="architecture/ontology-model.md">5-Layer Architecture Model</a></li>
+            <li><a href="architecture/ingestion-pipeline.md">Ingestion Pipeline</a></li>
+            <li><a href="sample-projects.md">Sample Repositories</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-col-title">Ecosystem</div>
+          <ul class="footer-col-links">
+            <li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li>
+            <li><a href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode" target="_blank" rel="noopener">Open VSX Registry</a></li>
+            <li><a href="https://www.nuget.org/packages/CodeExplorer.Cli" target="_blank" rel="noopener">NuGet CLI Package</a></li>
+            <li><a href="https://github.com/vmikhailov/homebrew-tap" target="_blank" rel="noopener">Homebrew Tap</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="footer-col-title">Project</div>
+          <ul class="footer-col-links">
+            <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub Repository</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>© 2026 Viacheslav Mikhailov. Open source under the MIT License.</div>
+        <div style="font-family: var(--font-mono);">ce v1.25.0 • .NET 10.0 • SQLite Graph</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Element -->
+  <div id="toast" class="toast">Copied to clipboard</div>
+
+  <!-- ==========================================================================
+       Interactive Vanilla JavaScript
+       ========================================================================== -->
+  <script>
+    // Data for Showcase Tabs
+    const showcaseData = {
+      orbits: {
+        img: 'all_services.png',
+        desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
+        pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
+      },
+      transitive: {
+        img: 'selected_services.png',
+        desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
+        pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
+      },
+      projectflow: {
+        img: 'project_flow.png',
+        desc: '<strong>Project Flow & C1 System Context:</strong> Structured service cards with incoming/outgoing metrics, registered databases, and double-click Click-to-Code jump directly into source lines.',
+        pills: ['Click-to-Code Jump', 'C1 System Context', 'Dependency Counts']
+      }
+    };
+
+    function switchShowcase(key, btn) {
+      document.querySelectorAll('.showcase-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const data = showcaseData[key];
+      if (!data) return;
+
+      const img = document.getElementById('showcaseImage');
+      img.src = data.img;
+      document.getElementById('showcaseDescription').innerHTML = data.desc;
+
+      const pillsContainer = document.getElementById('showcasePills');
+      pillsContainer.innerHTML = data.pills.map(p => `<span class="showcase-feature-pill">${p}</span>`).join('');
+    }
+
+    // Lightbox modal functions
+    function openLightbox() {
+      const activeImg = document.getElementById('showcaseImage').src;
+      document.getElementById('lightboxImg').src = activeImg;
+      document.getElementById('lightboxModal').classList.add('active');
+    }
+
+    function closeLightbox(e) {
+      if (!e || e.target.id === 'lightboxModal' || e.target.classList.contains('lightbox-close')) {
+        document.getElementById('lightboxModal').classList.remove('active');
+      }
+    }
+
+    // Query Playground Presets
+    const queryPresets = {
+      blast_radius: {
+        cypher: `// Find all downstream services impacted by OrderPlaced event
+MATCH (p:Service {name: 'OrderService'})-[r:EMITS]->(e:DomainEvent)
+MATCH (e)<-[:SUBSCRIBES]-(downstream:Service)
+OPTIONAL MATCH (downstream)-[:WRITES_TO]->(tbl:Table)
+RETURN
+    p.name AS Producer,
+    e.name AS EventName,
+    downstream.name AS Consumer,
+    tbl.name AS TargetTable
+ORDER BY Consumer`,
+        latency: '14.2ms',
+        rows: 4,
+        scanned: '18 nodes',
+        headers: ['Producer', 'EventName', 'Consumer', 'TargetTable'],
+        data: [
+          ['<span class="badge-node">OrderService</span>', '<code>OrderPlacedEvent</code>', 'BillingService', '<code>invoices</code>'],
+          ['<span class="badge-node">OrderService</span>', '<code>OrderPlacedEvent</code>', 'InventoryService', '<code>stock_items</code>'],
+          ['<span class="badge-node">OrderService</span>', '<code>OrderPlacedEvent</code>', 'NotificationHub', '<em>null</em>'],
+          ['<span class="badge-node">OrderService</span>', '<code>OrderPlacedEvent</code>', 'ShippingGateway', '<code>shipments</code>']
+        ]
+      },
+      cqrs_pipeline: {
+        cypher: `// CQRS Event Pipeline: trace command to materialized read view
+MATCH (cmd:Command {name: 'CreateCustomerCommand'})<-[:HANDLES]-(h:CommandHandler)
+MATCH (h)-[:EMITS]->(evt:Event)
+MATCH (evt)<-[:PROJECTS]-(proj:Projection)-[:UPDATES]->(view:ReadModel)
+RETURN
+    cmd.name AS Command,
+    h.name AS Handler,
+    evt.name AS EmittedEvent,
+    view.name AS MaterializedView`,
+        latency: '8.7ms',
+        rows: 2,
+        scanned: '11 nodes',
+        headers: ['Command', 'Handler', 'EmittedEvent', 'MaterializedView'],
+        data: [
+          ['<span class="badge-node">CreateCustomerCommand</span>', 'CreateCustomerHandler', '<code>CustomerCreatedEvent</code>', '<code>customer_summary_view</code>'],
+          ['<span class="badge-node">CreateCustomerCommand</span>', 'CreateCustomerHandler', '<code>CustomerAuditLogged</code>', '<code>compliance_audit_view</code>']
+        ]
+      },
+      api_to_db: {
+        cypher: `// Trace HTTP Route to physical Database Table
+MATCH (route:EntryPoint {path: '/api/v1/checkout'})
+MATCH (route)-[:DISPATCHES_TO]->(ctrl:Class)-[:CALLS*1..3]->(repo:Class)
+MATCH (repo)-[:MAPS_TO]->(table:Table)
+RETURN
+    route.path AS Route,
+    ctrl.name AS Controller,
+    repo.name AS Repository,
+    table.name AS DatabaseTable`,
+        latency: '11.5ms',
+        rows: 3,
+        scanned: '24 nodes',
+        headers: ['Route', 'Controller', 'Repository', 'DatabaseTable'],
+        data: [
+          ['<code>/api/v1/checkout</code>', 'CheckoutController', 'OrderRepository', '<code>orders</code>'],
+          ['<code>/api/v1/checkout</code>', 'CheckoutController', 'PaymentRepository', '<code>transactions</code>'],
+          ['<code>/api/v1/checkout</code>', 'CheckoutController', 'CustomerRepository', '<code>customer_accounts</code>']
+        ]
+      },
+      cyclic_deps: {
+        cypher: `// Architectural Linting: detect circular package coupling
+MATCH path = (a:Project)-[:DEPENDS_ON*2..6]->(a)
+RETURN
+    a.name AS RootProject,
+    [n IN nodes(path) | n.name] AS CycleChain,
+    length(path) AS CycleHops
+LIMIT 5`,
+        latency: '19.4ms',
+        rows: 1,
+        scanned: '42 nodes',
+        headers: ['RootProject', 'CycleChain', 'CycleHops'],
+        data: [
+          ['<span class="badge-node">AuthService.Core</span>', '<code>AuthService.Core ➔ TokenProvider ➔ SessionStore ➔ AuthService.Core</code>', '<span style="color:#ef4444; font-weight:600;">3 hops (Violation)</span>']
+        ]
+      }
+    };
+
+    function loadQueryPreset(key, btn) {
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const preset = queryPresets[key];
+      if (!preset) return;
+
+      // Colorize cypher roughly
+      const editor = document.getElementById('cypherCodeDisplay');
+      editor.innerText = preset.cypher;
+
+      document.getElementById('execStatus').innerText = `● Completed in ${preset.latency}`;
+      document.getElementById('resultRowsCount').innerText = preset.rows;
+      document.getElementById('resultScanCount').innerText = preset.scanned;
+
+      // Update table
+      const tableHead = document.querySelector('#resultTable thead tr');
+      tableHead.innerHTML = preset.headers.map(h => `<th>${h}</th>`).join('');
+
+      const tableBody = document.getElementById('resultTableBody');
+      tableBody.innerHTML = preset.data.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
+    }
+
+    function runQueryAnimation() {
+      const status = document.getElementById('execStatus');
+      status.style.color = 'var(--status-amber)';
+      status.innerText = '⟳ Compiling AST to SQL...';
+
+      setTimeout(() => {
+        status.style.color = 'var(--status-green)';
+        status.innerText = '● Completed in 9.8ms';
+        showToast('Query re-executed with SQLite AST optimizer!');
+      }, 350);
+    }
+
+    // Install Tabs Switcher
+    function switchInstallTab(tabId, btn) {
+      document.querySelectorAll('.install-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      document.querySelectorAll('.install-content-pane').forEach(p => p.classList.remove('active'));
+      const targetPane = document.getElementById(`install-pane-${tabId}`);
+      if (targetPane) targetPane.classList.add('active');
+    }
+
+    // Toast and Copy utilities
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2500);
+    }
+
+    function copySnippet(text, message = 'Copied to clipboard!') {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(message);
+      }).catch(() => {
+        showToast('Copied: ' + text);
+      });
+    }
+
+    function copyMCPConfig() {
+      const snippet = document.getElementById('mcpConfigSnippet').innerText;
+      copySnippet(snippet, 'MCP Server JSON copied!');
+    }
+
+    // Keyboard support for Lightbox
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLightbox();
+    });
+  </script>
+</body>
+</html>
