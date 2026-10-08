@@ -1463,4 +1463,93 @@ export class IdHelperService {
             }
         }
     }
+
+    [Test]
+    public async Task Test_SetGlobalPrefix_ResolvesTemplateStringWithLocalConstant()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ts_global_prefix_test_" + Guid.NewGuid().ToString("N"));
+        var srcDir = Path.Combine(tempDir, "src");
+        Directory.CreateDirectory(srcDir);
+        try
+        {
+            var mainCode = @"
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  const apiVersion = 'v1';
+  app.setGlobalPrefix(`api/${apiVersion}`);
+  await app.listen(3000);
+}
+bootstrap();
+";
+            var controllerCode = @"
+import { Controller, Post } from '@nestjs/common';
+
+@Controller('campaigns/min-bid')
+export class CampaignsController {
+  @Post()
+  async updateMinBid() {}
+}
+";
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), "{\"name\": \"adsterra-integration\"}");
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
+
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+
+            var ctrlTree = l3.SyntaxTrees.First(t => t.FilePath.Contains("campaigns.controller.ts"));
+            var endpoints = FindNodes<EndpointNode>(ctrlTree.FileNode.Children);
+            Assert.That(endpoints, Has.Count.EqualTo(1));
+
+            var ep = endpoints[0];
+            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/campaigns/min-bid"));
+            Assert.That(ep.RouteTemplate, Does.Not.Contain("${apiVersion}"));
+            Assert.That(ep.Name, Is.EqualTo("POST:/api/v1/campaigns/min-bid"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_Layer2_CopiedManifestName_AlignsWithRepositoryFolder()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ts_l2_proj_test_" + Guid.NewGuid().ToString("N"));
+        var repoDir = Path.Combine(tempWorkspace, "integration-service-adsterra-sc-nest");
+        Directory.CreateDirectory(repoDir);
+        try
+        {
+            // Manifest has copied template name
+            await File.WriteAllTextAsync(Path.Combine(repoDir, "package.json"), "{\"name\": \"integration-service-adsterra-nest\"}");
+
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+
+            Assert.That(l2.Projects, Has.Count.EqualTo(1));
+            var proj = l2.Projects[0];
+            // Must align to actual folder name instead of stale template manifest name
+            Assert.That(proj.Name, Is.EqualTo("integration-service-adsterra-sc-nest"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace)) Directory.Delete(tempWorkspace, true);
+        }
+    }
 }

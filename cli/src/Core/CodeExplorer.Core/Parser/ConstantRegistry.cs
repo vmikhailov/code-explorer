@@ -413,9 +413,9 @@ public static class ConstantRegistry
             }
         }
 
-        // 3. Top-level const string declarations: export const TABLE_NAME = 'val';
+        // 3. Const / let / var string declarations: export const TABLE_NAME = 'val'; const apiVersion = 'v1';
         var topConstMatches = Regex.Matches(content,
-            @"(?:export\s+)?const\s+([A-Za-z0-9_]+)\s*(?::\s*string)?\s*=\s*['""`]([^'""`\r\n]+)['""`]\s*;?",
+            @"(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*['""`]([^'""`\r\n]+)['""`](?:\s*as\s+const)?\s*;?",
             RegexOptions.Multiline);
 
         foreach (Match tcm in topConstMatches)

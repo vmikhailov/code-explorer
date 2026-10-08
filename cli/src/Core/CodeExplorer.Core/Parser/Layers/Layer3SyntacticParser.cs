@@ -150,12 +150,15 @@ public class Layer3SyntacticParser
                 RouteDictionaryRegistry.ScanAndRegister(content);
                 ConstantRegistry.ScanAndRegister(fPath, content, pName);
 
-                var prefixMatch = Regex.Match(content, @"setGlobalPrefix\s*\(\s*['""`]([^'""`]+)['""`]");
+                var prefixMatch = Regex.Match(content, @"setGlobalPrefix\s*\(\s*([^,\)]+)");
                 if (prefixMatch.Success)
                 {
-                    var prefix = prefixMatch.Groups[1].Value.Trim('/');
                     var targetProj = pName ?? GetProjectNameFromRelativePath(fPath);
-                    RouteDictionaryRegistry.RegisterGlobalPrefix(targetProj, prefix);
+                    var prefix = ResolveGlobalPrefix(prefixMatch.Groups[1].Value, content, targetProj);
+                    if (!string.IsNullOrEmpty(prefix))
+                    {
+                        RouteDictionaryRegistry.RegisterGlobalPrefix(targetProj, prefix);
+                    }
                 }
             }
             catch { }
@@ -236,24 +239,7 @@ public class Layer3SyntacticParser
                                 var prefixMatch = Regex.Match(fileText, @"setGlobalPrefix\s*\(\s*([^,\)]+)");
                                 if (prefixMatch.Success)
                                 {
-                                    var rawArg = prefixMatch.Groups[1].Value.Trim();
-                                    string? resolvedPrefix = null;
-                                    if (rawArg.StartsWith('\'') || rawArg.StartsWith('"') || rawArg.StartsWith('`'))
-                                    {
-                                        resolvedPrefix = rawArg.Trim('\'', '"', '`').Trim('/');
-                                    }
-                                    else
-                                    {
-                                        if (ConstantRegistry.TryResolve(project.Name, rawArg, out var constVal) && !string.IsNullOrEmpty(constVal))
-                                        {
-                                            resolvedPrefix = constVal.Trim('/');
-                                        }
-                                        else if (ConstantRegistry.TryResolve(null, rawArg, out var gVal) && !string.IsNullOrEmpty(gVal))
-                                        {
-                                            resolvedPrefix = gVal.Trim('/');
-                                        }
-                                    }
-
+                                    var resolvedPrefix = ResolveGlobalPrefix(prefixMatch.Groups[1].Value, fileText, project.Name);
                                     if (!string.IsNullOrEmpty(resolvedPrefix))
                                     {
                                         RouteDictionaryRegistry.RegisterGlobalPrefix(project.Name, resolvedPrefix);
@@ -861,7 +847,129 @@ public class Layer3SyntacticParser
         if (string.IsNullOrWhiteSpace(path)) return false;
         var p = path.ToLowerInvariant();
         return (p.EndsWith(".ts") || p.EndsWith(".js") || p.EndsWith(".cs") || p.EndsWith(".go") || p.EndsWith(".py") || p.EndsWith(".json")) &&
-               (p.Contains("route") || p.Contains("const") || p.Contains("config") || p.Contains("api") || p.Contains("endpoint") || p.Contains("url") || p.Contains("env"));
+               (p.Contains("route") || p.Contains("const") || p.Contains("config") || p.Contains("api") || p.Contains("endpoint") || p.Contains("url") || p.Contains("env") ||
+                p.Contains("main.") || p.Contains("app.") || p.Contains("bootstrap.") || p.Contains("index.") || p.Contains("program.") || p.Contains("startup."));
+    }
+
+    private static string? ResolveGlobalPrefix(string rawArg, string fileText, string? projectName)
+    {
+        if (string.IsNullOrWhiteSpace(rawArg)) return null;
+
+        var cleaned = rawArg.Trim();
+
+        // 1. If fallback pattern: expr || 'fallback'
+        var orIdx = cleaned.IndexOf("||", StringComparison.Ordinal);
+        if (orIdx >= 0)
+        {
+            var primary = cleaned[..orIdx].Trim();
+            var fallback = cleaned[(orIdx + 2)..].Trim();
+            var primaryResolved = ResolveGlobalPrefix(primary, fileText, projectName);
+            if (!string.IsNullOrEmpty(primaryResolved) && !primaryResolved.Contains("${"))
+            {
+                return primaryResolved;
+            }
+            return ResolveGlobalPrefix(fallback, fileText, projectName);
+        }
+
+        // 2. If simple string literal: 'api/v1', "api/v1", `api/v1` (without template interpolation)
+        if ((cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) ||
+            (cleaned.StartsWith('"') && cleaned.EndsWith('"')) ||
+            (cleaned.StartsWith('`') && cleaned.EndsWith('`') && !cleaned.Contains("${")))
+        {
+            return cleaned.Trim('\'', '"', '`').Trim('/');
+        }
+
+        // 3. Scan local variable declarations in fileText (e.g. const apiVersion = 'v1')
+        var localVars = new Dictionary<string, string>(StringComparer.Ordinal);
+        var varMatches = Regex.Matches(fileText, @"(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*['""`]([^'""`\r\n]+)['""`]");
+        foreach (Match m in varMatches)
+        {
+            var name = m.Groups[1].Value.Trim();
+            var val = m.Groups[2].Value.Trim();
+            localVars[name] = val;
+            if (!string.IsNullOrEmpty(projectName))
+            {
+                ConstantRegistry.Register(projectName, name, val);
+            }
+        }
+
+        string ResolveVar(string varName)
+        {
+            if (localVars.TryGetValue(varName, out var lv)) return lv;
+            if (!string.IsNullOrEmpty(projectName) && ConstantRegistry.TryResolve(projectName, varName, out var cv)) return cv;
+            if (ConstantRegistry.TryResolve(null, varName, out var gv)) return gv;
+            if (ConfigStore.TryGetConfig(projectName, varName, out var cfgVal)) return cfgVal;
+            return varName;
+        }
+
+        // 4. Template string with interpolation: `api/${apiVersion}` or `api/${apiVersion}/campaigns`
+        if (cleaned.StartsWith('`') && cleaned.EndsWith('`'))
+        {
+            var templateContent = cleaned[1..^1];
+            var resolved = Regex.Replace(templateContent, @"\$\{([A-Za-z0-9_]+)\}", m =>
+            {
+                var varName = m.Groups[1].Value;
+                var val = ResolveVar(varName);
+                return val != varName ? val : m.Value;
+            });
+
+            if (!resolved.Contains("${"))
+            {
+                return resolved.Trim('/');
+            }
+        }
+
+        // 5. String concatenation with +: 'api/' + apiVersion
+        if (cleaned.Contains('+'))
+        {
+            var parts = cleaned.Split('+');
+            var sb = new System.Text.StringBuilder();
+            var allOk = true;
+            foreach (var rawPart in parts)
+            {
+                var p = rawPart.Trim();
+                if ((p.StartsWith('\'') && p.EndsWith('\'')) ||
+                    (p.StartsWith('"') && p.EndsWith('"')) ||
+                    (p.StartsWith('`') && p.EndsWith('`')))
+                {
+                    sb.Append(p.Trim('\'', '"', '`'));
+                }
+                else if (Regex.IsMatch(p, @"^[A-Za-z0-9_]+$"))
+                {
+                    var val = ResolveVar(p);
+                    if (val != p)
+                    {
+                        sb.Append(val);
+                    }
+                    else
+                    {
+                        allOk = false;
+                        break;
+                    }
+                }
+                else
+                {
+                    allOk = false;
+                    break;
+                }
+            }
+            if (allOk && sb.Length > 0)
+            {
+                return sb.ToString().Trim('/');
+            }
+        }
+
+        // 6. Direct identifier: apiVersion or API_PREFIX
+        if (Regex.IsMatch(cleaned, @"^[A-Za-z0-9_]+$"))
+        {
+            var val = ResolveVar(cleaned);
+            if (val != cleaned)
+            {
+                return val.Trim('/');
+            }
+        }
+
+        return null;
     }
 
     private static string GetProjectNameFromRelativePath(string relativePath)

@@ -773,6 +773,23 @@ public static class AstHelper
             }
         }
 
+        // 3. General template string interpolation: /api/${apiVersion}/campaigns or ${prefix}/items
+        if (raw.Contains("${"))
+        {
+            var resolved = Regex.Replace(raw, @"\$\{([a-zA-Z0-9_\.]+)\}", m =>
+            {
+                var expr = m.Groups[1].Value.Trim();
+                var val = ResolveTemplateExpression(node, expr);
+                if (!string.IsNullOrEmpty(val)) return val;
+                if (ConstantRegistry.TryResolve(null, expr, out var cVal)) return cVal;
+                return m.Value;
+            });
+            if (!resolved.Contains("${") || resolved != raw)
+            {
+                return resolved;
+            }
+        }
+
         return null;
     }
 

@@ -227,6 +227,51 @@ public class Layer2ProjectParser
             }
         }
 
+        // Align project name with repository / root folder when a copied manifest (e.g. package.json)
+        // retains the old template's name and no actual project folder matches that name.
+        var absWorkspace = Path.GetFullPath(ctx.AbsoluteWorkspacePath).TrimEnd('/', '\\');
+        foreach (var proj in projects)
+        {
+            var fullProjPath = Path.IsPathRooted(proj.Path)
+                ? proj.Path
+                : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, proj.Path));
+            var folderName = Path.GetFileName(fullProjPath.TrimEnd('/', '\\'));
+            if (string.IsNullOrEmpty(folderName) || string.Equals(folderName, proj.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (IsGenericFolderName(folderName))
+            {
+                continue;
+            }
+
+            // Check if this project is a Git repository, workspace root, or top-level project under workspace
+            var isGitRepo = Directory.Exists(Path.Combine(fullProjPath, ".git")) || File.Exists(Path.Combine(fullProjPath, ".git"));
+            var isWorkspaceRoot = string.Equals(fullProjPath.TrimEnd('/', '\\'), absWorkspace, StringComparison.OrdinalIgnoreCase);
+            var parentDir = Path.GetDirectoryName(fullProjPath.TrimEnd('/', '\\'))?.TrimEnd('/', '\\');
+            var isTopLevelUnderWorkspace = !string.IsNullOrEmpty(parentDir) &&
+                string.Equals(parentDir, absWorkspace, StringComparison.OrdinalIgnoreCase);
+
+            if (isGitRepo || isWorkspaceRoot || isTopLevelUnderWorkspace)
+            {
+                // Only rename if there is no other project whose folder actually matches proj.Name
+                var hasMatchingFolder = projects.Any(p =>
+                {
+                    var pFullPath = Path.IsPathRooted(p.Path) ? p.Path : Path.Combine(ctx.AbsoluteWorkspacePath, p.Path);
+                    return string.Equals(Path.GetFileName(pFullPath.TrimEnd('/', '\\')), proj.Name, StringComparison.OrdinalIgnoreCase);
+                });
+
+                if (!hasMatchingFolder)
+                {
+                    var oldName = proj.Name;
+                    proj.Name = folderName;
+                    packageToProjectMap[folderName] = proj;
+                    packageToProjectMap[oldName] = proj;
+                }
+            }
+        }
+
         // Check for sibling or parent library directories if there are unresolved external packages
         var unresolvedPackages = projectDepList
             .SelectMany(p => p.DepInfo.ExternalPackages)
@@ -544,5 +589,17 @@ public class Layer2ProjectParser
         return FindProjectForFilePath(file.Path, projects)?.Id == project.Id;
     }
 
-
+    private static bool IsGenericFolderName(string folderName) =>
+        folderName.Equals("src", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("app", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("apps", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("packages", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("libs", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("libraries", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("modules", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("shared", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("build", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("test", StringComparison.OrdinalIgnoreCase) ||
+        folderName.Equals("tests", StringComparison.OrdinalIgnoreCase);
 }
