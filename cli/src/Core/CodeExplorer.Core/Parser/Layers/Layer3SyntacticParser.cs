@@ -525,7 +525,7 @@ public class Layer3SyntacticParser
         }
         else if (kind == OntologyConstants.NodeLabels.ExternalService)
         {
-            typedNode = CreateExternalServiceNode(name, node, relativePath, workspaceId);
+            typedNode = CreateExternalServiceNode(name, node, relativePath, workspaceId, parentScopeId);
             if (!string.IsNullOrEmpty(parentScopeId))
             {
                 ctx?.AddGlobalProjectDependency(new Relationship(
@@ -690,7 +690,8 @@ public class Layer3SyntacticParser
         string name,
         TreeSitter.Node node,
         string relativePath,
-        string workspaceId)
+        string workspaceId,
+        string? parentScopeId = null)
     {
         var cleanName = name?.Trim('"', '\'', '`', ' ', ';') ?? "";
         if (WorkspaceConventions.IsTestFilePath(relativePath) ||
@@ -753,8 +754,17 @@ public class Layer3SyntacticParser
         var slashIdx = domainOrService.IndexOf('/');
         if (slashIdx > 0)
         {
-            path = domainOrService[slashIdx..];
-            domainOrService = domainOrService[..slashIdx];
+            var firstSegment = domainOrService[..slashIdx].ToLowerInvariant();
+            if (firstSegment is "api" or "rest" or "v1" or "v2" or "v3" or "v4" or "v5" or "graphql")
+            {
+                domainOrService = "/" + domainOrService;
+                slashIdx = 0;
+            }
+            else
+            {
+                path = domainOrService[slashIdx..];
+                domainOrService = domainOrService[..slashIdx];
+            }
         }
         else if (slashIdx == 0)
         {
@@ -819,12 +829,20 @@ public class Layer3SyntacticParser
             domainOrService = "unknown-service";
         }
 
-        var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}";
+        var serviceScopeSuffix = domainOrService == "unknown-service"
+            ? $":{ConstantRegistry.ExtractProjectName(relativePath) ?? "generic"}"
+            : "";
+        var extServiceId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{protocol}:{domainOrService}{serviceScopeSuffix}";
 
         var ext = new Dictionary<string, string>
         {
             { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
         };
+        if (!string.IsNullOrEmpty(parentScopeId))
+        {
+            ext["caller_symbol_id"] = parentScopeId;
+        }
+
         if (slashIdx == 0)
         {
             ext["is_relative_path"] = "true";

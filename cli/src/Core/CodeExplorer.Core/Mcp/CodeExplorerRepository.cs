@@ -968,15 +968,127 @@ public class CodeExplorerRepository
             return GetStandbyMessage(format);
         }
 
+        var startResolved = await ResolveFunctionSymbolAsync(client, startFunction, cancellationToken);
+        var endResolved = await ResolveFunctionSymbolAsync(client, endFunction, cancellationToken);
+
         var depth = Math.Max(1, Math.Min(10, maxDepth));
         var query = Queries.Get("get_call_chain").Replace("{depth}", depth.ToString());
         var parameters = new Dictionary<string, object>
         {
-            ["startFunction"] = startFunction,
-            ["endFunction"] = endFunction
+            ["startFunction"] = startResolved,
+            ["endFunction"] = endResolved
         };
         var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
         return FormatCallChain(rawJson, format, startFunction, endFunction, depth);
+    }
+
+    private static async Task<string> ResolveFunctionSymbolAsync(IGraphClient client, string funcIdentifier, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(funcIdentifier)) return funcIdentifier;
+
+        try
+        {
+            // 1. Direct match by id or symbol
+            var directRows = await client.ExecuteQueryAsync(
+                "MATCH (n:Function) WHERE n.id = $id OR n.symbol = $id RETURN n.symbol AS symbol LIMIT 1",
+                new Dictionary<string, object> { ["id"] = funcIdentifier },
+                cancellationToken);
+            using (var doc = JsonDocument.Parse(directRows))
+            {
+                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+                {
+                    if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
+                    {
+                        var sym = symProp.GetString();
+                        if (!string.IsNullOrEmpty(sym)) return sym;
+                    }
+                }
+            }
+
+            // 2. Exact match by name
+            var nameRows = await client.ExecuteQueryAsync(
+                "MATCH (n:Function) WHERE n.name = $name RETURN n.symbol AS symbol LIMIT 5",
+                new Dictionary<string, object> { ["name"] = funcIdentifier },
+                cancellationToken);
+            using (var doc = JsonDocument.Parse(nameRows))
+            {
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    var len = doc.RootElement.GetArrayLength();
+                    if (len == 1)
+                    {
+                        if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
+                        {
+                            var sym = symProp.GetString();
+                            if (!string.IsNullOrEmpty(sym)) return sym;
+                        }
+                    }
+                    else if (len > 1)
+                    {
+                        for (int i = 0; i < len; i++)
+                        {
+                            if (doc.RootElement[i].TryGetProperty("symbol", out var symProp))
+                            {
+                                var sym = symProp.GetString();
+                                if (!string.IsNullOrEmpty(sym) && (sym.EndsWith($":{funcIdentifier}", StringComparison.OrdinalIgnoreCase) || sym.EndsWith($".{funcIdentifier}", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    return sym;
+                                }
+                            }
+                        }
+                        if (doc.RootElement[0].TryGetProperty("symbol", out var firstProp))
+                        {
+                            var firstSym = firstProp.GetString();
+                            if (!string.IsNullOrEmpty(firstSym)) return firstSym;
+                        }
+                    }
+                }
+            }
+
+            // 3. Match qualified name like Class.Method or symbol suffix
+            if (funcIdentifier.Contains('.'))
+            {
+                var dotMethod = funcIdentifier[(funcIdentifier.LastIndexOf('.') + 1)..];
+                var dotRows = await client.ExecuteQueryAsync(
+                    "MATCH (n:Function) WHERE n.name = $mName OR n.symbol ENDS WITH $ident RETURN n.symbol AS symbol LIMIT 5",
+                    new Dictionary<string, object> { ["mName"] = dotMethod, ["ident"] = funcIdentifier },
+                    cancellationToken);
+                using (var doc = JsonDocument.Parse(dotRows))
+                {
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+                    {
+                        if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
+                        {
+                            var sym = symProp.GetString();
+                            if (!string.IsNullOrEmpty(sym)) return sym;
+                        }
+                    }
+                }
+            }
+
+            // 4. Fallback search via contains (same as find_symbol)
+            var fuzzyRows = await client.ExecuteQueryAsync(
+                "MATCH (n:Function) WHERE n.name CONTAINS $name RETURN n.symbol AS symbol LIMIT 5",
+                new Dictionary<string, object> { ["name"] = funcIdentifier },
+                cancellationToken);
+            using (var doc = JsonDocument.Parse(fuzzyRows))
+            {
+                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() == 1)
+                {
+                    if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
+                    {
+                        var sym = symProp.GetString();
+                        if (!string.IsNullOrEmpty(sym)) return sym;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Fallback to original identifier if resolution fails
+        }
+
+        return funcIdentifier;
     }
 
     public async Task<string> ResolveCallTargetAsync(string interfaceName, string methodName, string? workspacePath = null, CancellationToken cancellationToken = default)

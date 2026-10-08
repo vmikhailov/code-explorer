@@ -95,8 +95,8 @@ public class Layer5AnalysisParser
         public IndexedBinding(string typeName, string? scopeId)
         {
             TypeName = typeName.TrimEnd('?');
-            ScopeId = scopeId;
-            ScopeMarker = string.IsNullOrEmpty(scopeId) ? null : $":{scopeId}:";
+            ScopeId = string.IsNullOrWhiteSpace(scopeId) ? null : scopeId;
+            ScopeMarker = ScopeId != null ? $":{ScopeId}:" : null;
         }
     }
 
@@ -284,55 +284,62 @@ public class Layer5AnalysisParser
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
-            if (refItem.Kind == OntologyConstants.Relationships.Implements ||
-                refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
+            try
             {
-                if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId) && refItem.ScopeSymbolId != targetNodeId)
+                if (refItem.Kind == OntologyConstants.Relationships.Implements ||
+                    refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
                 {
-                    if (refItem.Kind == OntologyConstants.Relationships.Implements)
+                    if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId) && refItem.ScopeSymbolId != targetNodeId)
                     {
-                        IOntologyRelationship rel = new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId);
-                        referenceRelationships.Add(Relationship.FromRelationship(rel));
+                        if (refItem.Kind == OntologyConstants.Relationships.Implements)
+                        {
+                            IOntologyRelationship rel = new ImplementsRelationship(refItem.ScopeSymbolId, targetNodeId);
+                            referenceRelationships.Add(Relationship.FromRelationship(rel));
+                        }
+                        else
+                        {
+                            IOntologyRelationship rel = new InheritsFromRelationship(refItem.ScopeSymbolId, targetNodeId);
+                            referenceRelationships.Add(Relationship.FromRelationship(rel));
+                        }
+
+                        inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
                     }
-                    else
+                    else if (refItem.Kind == OntologyConstants.Relationships.Implements)
                     {
-                        IOntologyRelationship rel = new InheritsFromRelationship(refItem.ScopeSymbolId, targetNodeId);
-                        referenceRelationships.Add(Relationship.FromRelationship(rel));
+                        if (endpointSymbols.TryGetValue(refItem.TargetName, out var targetEndpointId))
+                        {
+                            referenceRelationships.Add(
+                                Relationship.FromRelationship(new ExposedByRelationship(targetEndpointId,
+                                    refItem.ScopeSymbolId)));
+                        }
+                        else if (entryPointSymbols.TryGetValue(refItem.TargetName, out var targetEpId))
+                        {
+                            referenceRelationships.Add(
+                                Relationship.FromRelationship(new ImplementedByRelationship(targetEpId,
+                                    refItem.ScopeSymbolId)));
+                            inheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
+                        }
                     }
 
-                    inheritanceRels.Add((refItem.ScopeSymbolId, targetNodeId));
-                }
-                else if (refItem.Kind == OntologyConstants.Relationships.Implements)
-                {
-                    if (endpointSymbols.TryGetValue(refItem.TargetName, out var targetEndpointId))
+                    // Always map interface to implementors even if interface symbol is from an external assembly
+                    var className = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
+                    if (!string.IsNullOrEmpty(className))
                     {
-                        referenceRelationships.Add(
-                            Relationship.FromRelationship(new ExposedByRelationship(targetEndpointId,
-                                refItem.ScopeSymbolId)));
-                    }
-                    else if (entryPointSymbols.TryGetValue(refItem.TargetName, out var targetEpId))
-                    {
-                        referenceRelationships.Add(
-                            Relationship.FromRelationship(new ImplementedByRelationship(targetEpId,
-                                refItem.ScopeSymbolId)));
-                        inheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
+                        if (!interfaceToImplementors.TryGetValue(refItem.TargetName, out var implList))
+                        {
+                            implList = [];
+                            interfaceToImplementors[refItem.TargetName] = implList;
+                        }
+                        if (!implList.Contains(className))
+                        {
+                            implList.Add(className);
+                        }
                     }
                 }
-
-                // Always map interface to implementors even if interface symbol is from an external assembly
-                var className = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
-                if (!string.IsNullOrEmpty(className))
-                {
-                    if (!interfaceToImplementors.TryGetValue(refItem.TargetName, out var implList))
-                    {
-                        implList = [];
-                        interfaceToImplementors[refItem.TargetName] = implList;
-                    }
-                    if (!implList.Contains(className))
-                    {
-                        implList.Add(className);
-                    }
-                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                ctx.LogDebug($"[Layer5] Failed to resolve inheritance reference '{refItem.TargetName}': {ex.Message}");
             }
         }
 
@@ -417,6 +424,9 @@ public class Layer5AnalysisParser
                 continue;
             }
 
+            try
+            {
+
             if (refItem.Kind == OntologyConstants.Relationships.Calls)
             {
                 var targetName = refItem.TargetName;
@@ -439,8 +449,8 @@ public class Layer5AnalysisParser
                             for (int i = 0; i < candidates.Count; i++)
                             {
                                 var candidate = candidates[i];
-                                if (candidate.ScopeId != null &&
-                                    (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker!, StringComparison.Ordinal) ||
+                                if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
+                                    (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
                                      refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
                                      refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
                                      refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
@@ -459,8 +469,8 @@ public class Layer5AnalysisParser
                             for (int i = 0; i < globalCandidates.Count; i++)
                             {
                                 var candidate = globalCandidates[i];
-                                if (candidate.ScopeId != null &&
-                                    (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker!, StringComparison.Ordinal) ||
+                                if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
+                                    (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
                                      refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
                                      refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
                                      refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
@@ -777,6 +787,11 @@ public class Layer5AnalysisParser
                     }
                 }
             }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                ctx.LogDebug($"[Layer5] Failed to resolve reference '{refItem.TargetName}': {ex.Message}");
+            }
         }
 
         if (newTopicNodes.Count > 0)
@@ -924,6 +939,15 @@ public class Layer5AnalysisParser
                     lateBoundRels.Add(rel);
                     matchedEndpoint = true;
                     boundServicesCount++;
+
+                    // Also bind directly from caller function if known
+                    if (extService.Extensions != null &&
+                        extService.Extensions.TryGetValue("caller_symbol_id", out var callerId) &&
+                        !string.IsNullOrEmpty(callerId))
+                    {
+                        ctx.LogDebug($"[Layer5] [LateBinding] Direct Binding Function '{callerId}' to Endpoint '{endpoint.Id}'");
+                        lateBoundRels.Add(Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Id)));
+                    }
 
                     // Synthesize Project -> Project DEPENDS_ON relationship
                     nodeToProject.TryGetValue(extService.Id, out var callerProj);

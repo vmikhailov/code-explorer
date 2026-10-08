@@ -1,9 +1,12 @@
 using System.Threading.Channels;
 using NUnit.Framework;
 using CodeExplorer.Common;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
@@ -1308,6 +1311,156 @@ export async function fetchTrafficBacks(baseUrl: string) {
         finally
         {
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_Axios_BaseUrlResolution_FromClass_AndDirectFunctionCallsEndpoint()
+    {
+        var serviceCode = @"
+import axios from 'axios';
+
+export class IdHelperService {
+  private readonly _baseUrl: string;
+  private client: any;
+
+  constructor(private readonly config: any) {
+    this._baseUrl = config.get('ID_HELPER_NEST');
+    this.client = axios.create({ baseURL: this._baseUrl });
+  }
+
+  async startCampaign(data: any) {
+    return this.client.post('/api/v1/smart-cpa/campaigns/start', data);
+  }
+}
+";
+        var tempDir = Path.Combine(Path.GetTempPath(), "ts_axios_baseurl_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var serviceFile = Path.Combine(tempDir, "id-helper.service.ts");
+            await File.WriteAllTextAsync(serviceFile, serviceCode);
+
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            var parser = new TypeScriptParser();
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            var tree = await parser.ParseAsync(serviceFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(tree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, "listener");
+
+            var extServices = FindNodes<ExternalServiceNode>(tree.FileNode.Children);
+            Assert.That(extServices, Has.Count.EqualTo(1));
+
+            var es = extServices[0];
+            Assert.That(es.DomainOrService, Is.EqualTo("id_helper_nest"), "BaseURL from this._baseUrl and config.get('ID_HELPER_NEST') must be resolved");
+            Assert.That(es.Path, Is.EqualTo("/api/v1/smart-cpa/campaigns/start"));
+            Assert.That(es.Extensions, Is.Not.Null);
+            Assert.That(es.Extensions!.ContainsKey("caller_symbol_id"), Is.True);
+            Assert.That(es.Extensions["caller_symbol_id"], Does.Contain("startCampaign"));
+
+            // Test LateBinding generates direct CALLS_ENDPOINT from calling function
+            var targetEp = new EndpointNode(
+                "helper-nest:ep:POST:/api/v1/smart-cpa/campaigns/start",
+                "POST /api/v1/smart-cpa/campaigns/start",
+                "src/smart-cpa/smart-cpa.controller.ts",
+                "POST",
+                "/api/v1/smart-cpa/campaigns/start"
+            );
+            var helperNestProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+                "integration-service-helper-nest",
+                "integration-service-helper-nest",
+                "src/integrations/services/helper-nest",
+                "npm"
+            );
+
+            var l5Parser = new Layer5AnalysisParser();
+            var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
+            var matches = (bool)isMatchMethod.Invoke(l5Parser, [es, targetEp, helperNestProj])!;
+            Assert.That(matches, Is.True);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_Layer5_IndexedBinding_EmptyScopeId_DoesNotThrow()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ts_l5_emptyscope_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            // Add raw type binding with empty ScopeId (e.g. from ColdFusion or anonymous scope)
+            ctx.RawTypeBindings.Add(new RawTypeBinding("myService", "MyService", "test.ts", ""));
+            ctx.AddGlobalReferences([
+                new Reference("ws:sym:test.ts:Function:testCaller:1", "myService.doWork", OntologyConstants.Relationships.Calls)
+            ]);
+
+            var l5Parser = new Layer5AnalysisParser();
+            var resolveMethod = typeof(Layer5AnalysisParser).GetMethod("ResolveAndUploadGlobalReferencesAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            
+            // Must complete without throwing ArgumentNullException (value cannot be null in String.IndexOf)
+            Assert.DoesNotThrowAsync(async () =>
+            {
+                var rels = (List<Relationship>)await (Task<List<Relationship>>)resolveMethod.Invoke(l5Parser, [ctx])!;
+                Assert.That(rels, Is.Not.Null);
+            });
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_GetCallChain_ResolvesShortFunctionNames()
+    {
+        var tempDb = Path.Combine(Path.GetTempPath(), $"ce_test_callchain_{Guid.NewGuid():N}.db");
+        try
+        {
+            using var client = new SqliteGraphClient(tempDb);
+            var fn1 = new FunctionNode(
+                "ws:sym:links.ts:Function:getWeightedPayoutToPostbackLinks:10",
+                "getWeightedPayoutToPostbackLinks",
+                "ws:sym:links.ts:Function:getWeightedPayoutToPostbackLinks:10",
+                "links.ts",
+                "links.ts",
+                10, 20, 0, 0
+            );
+            var fn2 = new FunctionNode(
+                "ws:sym:links.ts:Function:getPostbackLink:30",
+                "getPostbackLink",
+                "ws:sym:links.ts:Function:getPostbackLink:30",
+                "links.ts",
+                "links.ts",
+                30, 40, 0, 0
+            );
+            await client.UploadNodesAsync([Node.FromNode(fn1), Node.FromNode(fn2)]);
+            await client.UploadRelationshipsAsync([
+                new Relationship(fn1.Id, fn2.Id, OntologyConstants.Relationships.Calls, [])
+            ]);
+
+            var repo = new CodeExplorer.Core.Mcp.CodeExplorerRepository(client);
+            var result = await repo.GetCallChainAsync("getWeightedPayoutToPostbackLinks", "getPostbackLink", format: "json");
+            
+            Assert.That(result, Does.Contain("getWeightedPayoutToPostbackLinks"));
+            Assert.That(result, Does.Contain("getPostbackLink"));
+            Assert.That(result, Does.Not.Contain("No call chain found"));
+        }
+        finally
+        {
+            if (File.Exists(tempDb))
+            {
+                try { File.Delete(tempDb); } catch { }
+            }
         }
     }
 }

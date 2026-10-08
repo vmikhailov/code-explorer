@@ -89,6 +89,7 @@ graph TD
     Function -->|DECLARED_IN| File
     Function -->|CALLS| Function
     Function -->|USES_TYPE| Type
+    Function -->|CALLS_ENDPOINT| Endpoint
     Library -->|LOCATED_IN| Folder
     Library -->|LOCATED_IN| Workspace
     Library -->|DEPLOYED_BY| Project
@@ -500,6 +501,7 @@ graph TD
 | `DECLARED_IN` | `File` |
 | `CALLS` | `Function` |
 | `USES_TYPE` | `Type` |
+| `CALLS_ENDPOINT` | `Endpoint` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -839,6 +841,7 @@ graph TD
 | :--- | :--- |
 | `App` | `CONTAINS` |
 | `ExternalService` | `CALLS_ENDPOINT` |
+| `Function` | `CALLS_ENDPOINT` |
 | `Service` | `CONTAINS` |
 
 **Properties:**
