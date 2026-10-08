@@ -182,6 +182,27 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ---
 
+## 🛡️ EPIC 6: Semantic Invariant Gates (SIG) & Architectural Ratchets
+
+> Full specification: [semantic-invariant-gates-plan.md](semantic-invariant-gates-plan.md)
+
+- [ ] **6.1 Core Models & Serialization (`CodeExplorer.Core`)**:
+  - `SemanticGate`, `GateViolation`, `GateCheckResult`, `GateBaseline` models.
+  - Line-shift immune `GateFingerprintGenerator` (`SHA256(gate_id + path + symbol + target)`).
+  - YAML gate loader (`.codeexplorer/gates/*.yaml`) and JSON baseline loader.
+- [ ] **6.2 Gate Engine & Monotonic Ratchet (`CodeExplorer.Core`)**:
+  - `GateExecutionEngine`: Execute Cypher queries via `CodeExplorerRepository` with Zero-Match contract (0 rows = PASS).
+  - `RatchetService`: Detect new violations vs tolerated debt; detect stale baseline entries.
+- [ ] **6.3 CLI `ce gate` Command (`CodeExplorer.UI`)**:
+  - Subcommands: `ce gate check`, `ce gate list`, `ce gate ratchet --update`, `ce gate init`.
+  - ANSI formatted violation tables + JSON/SARIF output + proper exit codes for CI/pre-commit.
+- [ ] **6.4 Agent MCP Tool `check_semantic_gates` (`Core/Mcp`)**:
+  - Expose fast gate checks to AI agents via `ce mcp` with actionable remediation guidance.
+- [ ] **6.5 Standard Built-in Gate Library**:
+  - Clean Architecture transport purity, mutation chokepoints, dead endpoints, circular dependencies.
+
+---
+
 ## 📋 Master Task Checklist
 
 | ID | Area | Task | Priority | Status |
@@ -213,3 +234,8 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 | **4.1** | Concurrency | Incremental file watcher & semantic AST differ (`ce index --watch`) | Medium | ✅ Completed |
 | **4.2** | Concurrency | Read-only connection pool for MCP tools | Medium | ⏳ Pending |
 | **5.1** | Testing | Synthetic 100k-node benchmark graph for CI | Low | ✅ Completed |
+| **6.1** | Core/Gates | Create `SemanticGate`, `GateViolation`, YAML/JSON models & fingerprinting | 🚨 Urgent | ⏳ Pending |
+| **6.2** | Core/Gates | Implement `GateExecutionEngine` & `RatchetService` (monotonic baseline) | 🚨 Urgent | ⏳ Pending |
+| **6.3** | CLI | Implement `ce gate check/list/ratchet/init` CLI commands | High | ⏳ Pending |
+| **6.4** | Agent/MCP | Implement `check_semantic_gates` MCP tool with actionable remediation | High | ⏳ Pending |
+| **6.5** | Library | Built-in starter gates (transport purity, chokepoint, dead endpoints) | Medium | ⏳ Pending |

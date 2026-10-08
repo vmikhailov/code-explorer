@@ -411,6 +411,8 @@ public class Layer3SyntacticParser
 
         var mainVisitor = fileParser.CreateVisitor(syntaxTree.Tree.RootNode, activeSemanticExtensions, relativePath,
             absoluteWorkspacePath, fileParser, registry);
+        mainVisitor.ProjectName = projectName;
+        mainVisitor.Context = ctx;
 
         mainVisitor.Visit(syntaxTree.Tree.RootNode);
 

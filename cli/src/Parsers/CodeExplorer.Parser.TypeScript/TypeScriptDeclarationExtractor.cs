@@ -54,13 +54,7 @@ public static class TypeScriptDeclarationExtractor
                 var nameNode = decl.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                                decl.FindChildOfType(TreeSitterSyntax.TypeScript.Identifier);
 
-                if (!nameNode.IsValid())
-                {
-                    nameNode = decl.FindChildOfType("object_pattern") ??
-                               decl.Children.FirstOrDefault(c => c.Type == "object_pattern");
-                }
-
-                if (nameNode.IsValid())
+                if (nameNode.IsValid() && nameNode.Type != "object_pattern")
                 {
                     var valNode = decl.GetChildForField(TreeSitterSyntax.Fields.Value);
                     if (!valNode.IsValid() && decl.Children.Count >= 3 && decl.Children[1].Type == "=")
@@ -68,75 +62,41 @@ public static class TypeScriptDeclarationExtractor
                         valNode = decl.Children[2];
                     }
 
-                    if (nameNode.Type == "object_pattern")
-                    {
-                        if (valNode.IsValid())
-                        {
-                            var rhsText = valNode.Text.Trim();
-                            foreach (var patChild in nameNode.Children)
-                            {
-                                if (patChild.Type is "shorthand_property_identifier" or "shorthand_property_identifier_pattern" or TreeSitterSyntax.TypeScript.Identifier || patChild.Type.Contains("shorthand"))
-                                {
-                                    var propName = patChild.Text;
-                                    var lookupKey = $"{rhsText}.{propName}";
-                                    if (ConstantRegistry.TryResolve(null, lookupKey, out var resVal) && !string.IsNullOrEmpty(resVal))
-                                    {
-                                        register(propName, null, resVal);
-                                    }
-                                }
-                                else if (patChild.Type is "pair_pattern" or TreeSitterSyntax.TypeScript.Pair)
-                                {
-                                    var key = patChild.GetChildForField(TreeSitterSyntax.Fields.Key) ?? patChild.Children[0];
-                                    var val = patChild.GetChildForField(TreeSitterSyntax.Fields.Value) ?? patChild.Children[^1];
-                                    var propName = key.IsValid() ? key.Text : val.Text;
-                                    var aliasName = val.IsValid() ? val.Text : propName;
-                                    var lookupKey = $"{rhsText}.{propName}";
-                                    if (ConstantRegistry.TryResolve(null, lookupKey, out var resVal) && !string.IsNullOrEmpty(resVal))
-                                    {
-                                        register(aliasName, null, resVal);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        var varName = nameNode.Text;
+                    var varName = nameNode.Text;
 
-                        if (valNode.IsValid())
+                    if (valNode.IsValid())
+                    {
+                        // Handle const Objects: const Topics = { OrderCreated: "...", ... }
+                        if (valNode.Type is TreeSitterSyntax.TypeScript.Object)
                         {
-                            // Handle const Objects: const Topics = { OrderCreated: "...", ... }
-                            if (valNode.Type is TreeSitterSyntax.TypeScript.Object)
+                            void FlattenObject(string prefix, Node objNode)
                             {
-                                void FlattenObject(string prefix, Node objNode)
+                                foreach (var pair in objNode.Children.Where(c => c.Type is TreeSitterSyntax.TypeScript.Pair))
                                 {
-                                    foreach (var pair in objNode.Children.Where(c => c.Type is TreeSitterSyntax.TypeScript.Pair))
-                                    {
-                                        var keyNode = pair.GetChildForField(TreeSitterSyntax.Fields.Key) ?? pair.Children[0];
-                                        var pairValNode = pair.GetChildForField(TreeSitterSyntax.Fields.Value) ?? pair.Children[^1];
+                                    var keyNode = pair.GetChildForField(TreeSitterSyntax.Fields.Key) ?? pair.Children[0];
+                                    var pairValNode = pair.GetChildForField(TreeSitterSyntax.Fields.Value) ?? pair.Children[^1];
 
-                                        if (keyNode.IsValid() && pairValNode.IsValid())
+                                    if (keyNode.IsValid() && pairValNode.IsValid())
+                                    {
+                                        var cleanKey = keyNode.Text.Trim('\'', '"', '`');
+                                        var propPath = $"{prefix}.{cleanKey}";
+                                        if (pairValNode.Type is TreeSitterSyntax.TypeScript.Object)
                                         {
-                                            var cleanKey = keyNode.Text.Trim('\'', '"', '`');
-                                            var propPath = $"{prefix}.{cleanKey}";
-                                            if (pairValNode.Type is TreeSitterSyntax.TypeScript.Object)
-                                            {
-                                                FlattenObject(propPath, pairValNode);
-                                            }
-                                            else
-                                            {
-                                                register(propPath, pairValNode, null);
-                                            }
+                                            FlattenObject(propPath, pairValNode);
+                                        }
+                                        else
+                                        {
+                                            register(propPath, pairValNode, null);
                                         }
                                     }
                                 }
+                            }
 
-                                FlattenObject(varName, valNode);
-                            }
-                            else
-                            {
-                                register(varName, valNode, null);
-                            }
+                            FlattenObject(varName, valNode);
+                        }
+                        else
+                        {
+                            register(varName, valNode, null);
                         }
                     }
                 }

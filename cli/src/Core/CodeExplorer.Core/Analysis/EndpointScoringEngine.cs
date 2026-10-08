@@ -45,12 +45,21 @@ public static partial class EndpointScoringEngine
     private static readonly string[] CommonPrefixes =
     [
         "internal-service-",
+        "internal_service_",
         "integration-service-",
+        "integration_service_",
         "backend-service-",
+        "backend_service_",
         "core-service-",
+        "core_service_",
         "service-",
+        "service_",
         "svc-",
-        "app-"
+        "svc_",
+        "app-",
+        "app_",
+        "id-",
+        "id_"
     ];
 
     private static readonly string[] CommonSuffixes =

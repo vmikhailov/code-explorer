@@ -55,16 +55,18 @@ public static class AstHelper
                 return null;
             }
 
-            if (ConstantRegistry.TryResolve(contextOrProject, varName, out var cVal) && !string.IsNullOrEmpty(cVal))
-            {
-                return cVal;
-            }
-
-            var val = FindVariableInitializerInAst(argNode, varName, depth + 1, visitedVars);
+            // 1. Check local AST lexical scope first (file-local and function-local bindings)
+            var val = FindVariableInitializerInAst(argNode, varName, depth + 1, visitedVars, contextOrProject);
             if (val != null)
             {
                 var subDecomp = TryDecomposeTemplateString(argNode, val);
                 return NormalizeResolvedUrl(subDecomp ?? val);
+            }
+
+            // 2. Fall back to ConstantRegistry
+            if (ConstantRegistry.TryResolve(contextOrProject, varName, out var cVal) && !string.IsNullOrEmpty(cVal))
+            {
+                return cVal;
             }
 
             if (varName.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
@@ -493,12 +495,12 @@ public static class AstHelper
         return false;
     }
 
-    public static string? FindVariableInitializerInAst(Node node, string varName)
+    public static string? FindVariableInitializerInAst(Node node, string varName, string? contextOrProject = null)
     {
-        return FindVariableInitializerInAst(node, varName, 0, null);
+        return FindVariableInitializerInAst(node, varName, 0, null, contextOrProject);
     }
 
-    public static string? FindVariableInitializerInAst(Node node, string varName, int depth, HashSet<string>? visitedVars)
+    public static string? FindVariableInitializerInAst(Node node, string varName, int depth, HashSet<string>? visitedVars, string? contextOrProject = null)
     {
         if (depth > MaxRecursionDepth) return null;
         visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
@@ -560,7 +562,7 @@ public static class AstHelper
                                             }
                                             else if (valNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
                                             {
-                                                var callRes = ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
+                                                var callRes = ResolveStringOrTemplate(valNode, contextOrProject, depth + 1, visitedVars);
                                                 if (!string.IsNullOrEmpty(callRes))
                                                 {
                                                     return callRes;
@@ -581,9 +583,9 @@ public static class AstHelper
                                             {
                                                 var left = valNode.GetField(TreeSitterSyntax.Fields.Left);
                                                 var right = valNode.GetField(TreeSitterSyntax.Fields.Right);
-                                                var leftRes = left.IsValid() ? ResolveStringOrTemplate(left, null, depth + 1, visitedVars) : null;
+                                                var leftRes = left.IsValid() ? ResolveStringOrTemplate(left, contextOrProject, depth + 1, visitedVars) : null;
                                                 if (!string.IsNullOrEmpty(leftRes) && (leftRes.StartsWith("http") || leftRes.Contains('.'))) return leftRes;
-                                                var rightRes = right.IsValid() ? ResolveStringOrTemplate(right, null, depth + 1, visitedVars) : null;
+                                                var rightRes = right.IsValid() ? ResolveStringOrTemplate(right, contextOrProject, depth + 1, visitedVars) : null;
                                                 if (!string.IsNullOrEmpty(rightRes)) return rightRes;
                                                 if (right.IsValid() && IsStringLiteralNode(right))
                                                 {
@@ -632,7 +634,7 @@ public static class AstHelper
                                                 var rhsText = valNode.Text.Trim();
                                                 var fullLookupKey = $"{rhsText}.{propAlias}";
 
-                                                if (ConstantRegistry.TryResolve(null, fullLookupKey, out var resolvedVal) && !string.IsNullOrEmpty(resolvedVal))
+                                                if (ConstantRegistry.TryResolve(contextOrProject, fullLookupKey, out var resolvedVal) && !string.IsNullOrEmpty(resolvedVal))
                                                 {
                                                     return resolvedVal;
                                                 }
@@ -659,11 +661,11 @@ public static class AstHelper
                                                 }
 
                                                 // If RHS is an identifier/member, resolve it and check
-                                                var resolvedRhs = ResolveStringOrTemplate(valNode, null, depth + 1, visitedVars);
+                                                var resolvedRhs = ResolveStringOrTemplate(valNode, contextOrProject, depth + 1, visitedVars);
                                                 if (!string.IsNullOrEmpty(resolvedRhs))
                                                 {
                                                     var resolvedFullKey = $"{resolvedRhs}.{propAlias}";
-                                                    if (ConstantRegistry.TryResolve(null, resolvedFullKey, out var valFromResolved) && !string.IsNullOrEmpty(valFromResolved))
+                                                    if (ConstantRegistry.TryResolve(contextOrProject, resolvedFullKey, out var valFromResolved) && !string.IsNullOrEmpty(valFromResolved))
                                                     {
                                                         return valFromResolved;
                                                     }

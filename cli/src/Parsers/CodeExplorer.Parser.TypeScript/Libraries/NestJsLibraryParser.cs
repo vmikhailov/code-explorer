@@ -36,16 +36,19 @@ public class NestJsLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
+
+    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
     {
         if (_decoratorEntryPointSelector.Matches(node))
         {
             var func = _decoratorCallFunctionSelector.Select(node);
             if (!func.IsValid()) return null;
 
+            var projectContext = projectName ?? ctx?.WorkspaceId;
             var name = func.Text;
             var callExpr = node.FindChildOfType(TreeSitterSyntax.TypeScript.CallExpression);
-            var routeVal = AstHelper.ExtractFirstStringArgument(callExpr, ctx?.WorkspaceId) ?? "";
+            var routeVal = AstHelper.ExtractFirstStringArgument(callExpr, projectContext) ?? "";
 
             if (name == "SubscribeMessage") return $"ws:{routeVal.TrimStart('/')}";
             if (name is "Query" or "Mutation" or "Subscription")
@@ -89,7 +92,7 @@ public class NestJsLibraryParser : ISemanticExtension
                 return $"RPC:{rpcName}";
             }
 
-            var classPrefix = GetControllerPrefixForNode(node, ctx?.WorkspaceId);
+            var classPrefix = GetControllerPrefixForNode(node, projectContext);
             if (!string.IsNullOrEmpty(classPrefix))
             {
                 routeVal = CombineRoutes(classPrefix, routeVal);

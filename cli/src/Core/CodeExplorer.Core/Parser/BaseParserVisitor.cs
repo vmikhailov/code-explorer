@@ -15,6 +15,8 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     public IFileParser FileParser { get; }
     public SemanticExtensionRegistry ExtensionRegistry { get; }
     public SemanticExtensionRegistry LibraryRegistry => ExtensionRegistry;
+    public string? ProjectName { get; set; }
+    public ParsingContext? Context { get; set; }
 
     public void ResolveAndInjectExtension(string importPath)
     {
@@ -256,7 +258,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
             if (isMatch)
             {
-                var name = lp.ExtractIdentifier(node, null!);
+                var name = lp.ExtractIdentifier(node, Context!, ProjectName);
                 if (name != null) return name;
             }
         }

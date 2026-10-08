@@ -1168,11 +1168,26 @@ public class Layer5AnalysisParser
         if (d.Length >= 4 && (pName.EndsWith("." + d) || pName.EndsWith("." + d + "s")))
             return true;
 
-        // Common namespace/service prefix stripped match (e.g. id-helper-nest vs helper-nest)
-        if (d.StartsWith("id-") && (pName == d[3..] || normP == d[3..]))
-            return true;
-        if (pName.StartsWith("id-") && (d == pName[3..] || normD == pName[3..]))
-            return true;
+        // Common namespace/service prefix stripped match (e.g. id-helper-nest or id_helper_nest vs helper-nest)
+        var dWithoutId = d.StartsWith("id-") || d.StartsWith("id_") ? d[3..] : null;
+        if (dWithoutId != null)
+        {
+            var cleanDWithoutId = dWithoutId.Replace("-", "").Replace("_", "");
+            if (pName == dWithoutId || normP == dWithoutId || pFolder == dWithoutId ||
+                cleanPName == cleanDWithoutId || MatchesProject(dWithoutId, pName, pFolder, gitRepo))
+            {
+                return true;
+            }
+        }
+        var pWithoutId = pName.StartsWith("id-") || pName.StartsWith("id_") ? pName[3..] : null;
+        if (pWithoutId != null)
+        {
+            var cleanPWithoutId = pWithoutId.Replace("-", "").Replace("_", "");
+            if (d == pWithoutId || normD == pWithoutId || cleanDomain == cleanPWithoutId || MatchesProject(pWithoutId, d, d, ""))
+            {
+                return true;
+            }
+        }
 
         return false;
     }

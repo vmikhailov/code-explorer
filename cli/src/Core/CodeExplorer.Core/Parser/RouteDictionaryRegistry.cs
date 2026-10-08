@@ -222,7 +222,7 @@ public static class RouteDictionaryRegistry
             return clean;
         }
 
-        // If it contains a slash, extract the path part starting with '/' unless prefix is known service domain
+        // If it contains a slash, extract the path part starting with '/' only if prefix is an authority/host (contains '.' or ':')
         var slashIdx = clean.IndexOf('/');
         if (slashIdx > 0)
         {
@@ -234,7 +234,11 @@ public static class RouteDictionaryRegistry
             {
                 return clean;
             }
-            return clean[slashIdx..];
+            if (prefix.Contains('.') || prefix.Contains(':'))
+            {
+                return clean[slashIdx..];
+            }
+            return clean;
         }
 
         return clean;

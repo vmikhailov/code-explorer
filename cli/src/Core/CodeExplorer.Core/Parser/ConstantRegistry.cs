@@ -66,6 +66,14 @@ public static class ConstantRegistry
                 _projectConstants[$"{domain}:{cleanKey}"] = cleanVal;
             }
 
+            var stripped = CodeExplorer.Core.Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
+            if (!string.IsNullOrWhiteSpace(stripped) && !stripped.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                _projectConstants[$"{stripped}:{cleanKey}"] = cleanVal;
+                var normStripped = stripped.Replace("-", "_");
+                _projectConstants[$"{normStripped}:{cleanKey}"] = cleanVal;
+            }
+
             // Only promote to global lookup if it is qualified or PascalCase / SCREAMING_SNAKE_CASE (constants)
             if (cleanKey.Contains(':') || cleanKey.Contains('.') || cleanKey.Contains("__") ||
                 (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])))
@@ -105,6 +113,21 @@ public static class ConstantRegistry
             {
                 value = dVal;
                 return true;
+            }
+            var stripped = CodeExplorer.Core.Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
+            if (!string.IsNullOrWhiteSpace(stripped))
+            {
+                if (_projectConstants.TryGetValue($"{stripped}:{cleanKey}", out var sVal))
+                {
+                    value = sVal;
+                    return true;
+                }
+                var normStripped = stripped.Replace("-", "_");
+                if (_projectConstants.TryGetValue($"{normStripped}:{cleanKey}", out var nsVal))
+                {
+                    value = nsVal;
+                    return true;
+                }
             }
         }
 

@@ -67,6 +67,11 @@ public interface ISemanticExtension
     string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
 
     /// <summary>
+    /// Extracts the identifier/name of the matched behavior node with optional project context.
+    /// </summary>
+    string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx);
+
+    /// <summary>
     /// Collects references inside a scope for this extension's nodes.
     /// </summary>
     void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }

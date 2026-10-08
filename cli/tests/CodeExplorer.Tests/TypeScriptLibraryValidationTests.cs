@@ -778,6 +778,140 @@ export class SmartCpaController {
     }
 
     [Test]
+    public async Task Test_NestJs_MultipleControllers_DestructuringAndInterServiceLinking()
+    {
+        var configCode = @"
+export const HTTP_API_PREFIX_CONFIG = {
+  API_GLOBAL_PREFIX: 'api/v1',
+  OTHER: {
+    GLOBAL_PREFIX: 'other',
+    START_PREFIX: 'start',
+    STOP_PREFIX: 'stop',
+    UPDATE_PREFIX: 'update',
+  },
+  SMART_CPA: {
+    GLOBAL_PREFIX: 'smart-cpa',
+    START_PREFIX: 'campaigns/start',
+    STOP_PREFIX: 'campaigns/stop',
+    UPDATE_PREFIX: 'campaigns/update',
+  },
+};
+";
+        var otherControllerCode = @"
+import { Controller, Post } from '@nestjs/common';
+import { HTTP_API_PREFIX_CONFIG } from './config';
+
+const { GLOBAL_PREFIX, START_PREFIX } = HTTP_API_PREFIX_CONFIG.OTHER;
+
+@Controller(GLOBAL_PREFIX)
+export class OtherController {
+  @Post(START_PREFIX)
+  async start() {}
+}
+";
+        var smartCpaControllerCode = @"
+import { Controller, Post } from '@nestjs/common';
+import { HTTP_API_PREFIX_CONFIG } from './config';
+
+const { GLOBAL_PREFIX, START_PREFIX, STOP_PREFIX, UPDATE_PREFIX } =
+  HTTP_API_PREFIX_CONFIG.SMART_CPA;
+
+@Controller(GLOBAL_PREFIX)
+export class SmartCpaController {
+  @Post(START_PREFIX)
+  async start() {}
+
+  @Post(STOP_PREFIX)
+  async stop() {}
+
+  @Post(UPDATE_PREFIX)
+  async update() {}
+}
+";
+        var tempDir = Path.Combine(Path.GetTempPath(), "ts_multictrl_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var configFile = Path.Combine(tempDir, "config.ts");
+            await File.WriteAllTextAsync(configFile, configCode);
+            var otherControllerFile = Path.Combine(tempDir, "other.controller.ts");
+            await File.WriteAllTextAsync(otherControllerFile, otherControllerCode);
+            var smartCpaControllerFile = Path.Combine(tempDir, "smart-cpa.controller.ts");
+            await File.WriteAllTextAsync(smartCpaControllerFile, smartCpaControllerCode);
+
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            var projectName = "integration-service-helper-nest";
+            AstConstantExtractor.ExtractAndRegister(configFile, configCode, projectName);
+
+            var parser = new TypeScriptParser();
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            // Register global prefix for the project
+            RouteDictionaryRegistry.RegisterGlobalPrefix(projectName, "api/v1");
+
+            // Process other.controller.ts first
+            var otherTree = await parser.ParseAsync(otherControllerFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(otherTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, projectName);
+
+            // Then process smart-cpa.controller.ts
+            var smartCpaTree = await parser.ParseAsync(smartCpaControllerFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(smartCpaTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, projectName);
+
+            var otherEndpoints = FindNodes<EndpointNode>(otherTree.FileNode.Children);
+            var smartCpaEndpoints = FindNodes<EndpointNode>(smartCpaTree.FileNode.Children);
+
+            // Verify other controller routes
+            var otherStart = otherEndpoints.FirstOrDefault(e => e.HttpMethod == "POST");
+            Assert.That(otherStart, Is.Not.Null);
+            Assert.That(otherStart!.RouteTemplate, Is.EqualTo("/api/v1/other/start"));
+
+            // Verify smart-cpa controller routes - MUST NOT be /other/... or /start
+            var startEp = smartCpaEndpoints.FirstOrDefault(e => e.RouteTemplate.Contains("start"));
+            Assert.That(startEp, Is.Not.Null);
+            Assert.That(startEp!.RouteTemplate, Is.EqualTo("/api/v1/smart-cpa/campaigns/start"));
+
+            var stopEp = smartCpaEndpoints.FirstOrDefault(e => e.RouteTemplate.Contains("stop"));
+            Assert.That(stopEp, Is.Not.Null);
+            Assert.That(stopEp!.RouteTemplate, Is.EqualTo("/api/v1/smart-cpa/campaigns/stop"));
+
+            var updateEp = smartCpaEndpoints.FirstOrDefault(e => e.RouteTemplate.Contains("update"));
+            Assert.That(updateEp, Is.Not.Null);
+            Assert.That(updateEp!.RouteTemplate, Is.EqualTo("/api/v1/smart-cpa/campaigns/update"));
+
+            // Verify Inter-Service linking: ExternalService call from bundle to helper-nest
+            var extService = new ExternalServiceNode(
+                "bundle:es:http:id_helper_nest",
+                "id_helper_nest",
+                "http",
+                "id_helper_nest",
+                "/api/v1/smart-cpa/campaigns/start"
+            );
+            var helperNestProject = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+                "integration-service-helper-nest",
+                "integration-service-helper-nest",
+                "src/integrations/services/helper-nest",
+                "npm"
+            );
+
+            var l5Parser = new Layer5AnalysisParser();
+            var doesMatchProjMethod = typeof(Layer5AnalysisParser).GetMethod("DoesProjectMatchServiceDomain", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static, [typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode), typeof(string)])!;
+            var projMatches = (bool)doesMatchProjMethod.Invoke(null, [helperNestProject, extService.DomainOrService])!;
+            Assert.That(projMatches, Is.True, "id_helper_nest should match project integration-service-helper-nest");
+
+            var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
+            var endpointMatches = (bool)isMatchMethod.Invoke(l5Parser, [extService, startEp, helperNestProject])!;
+            Assert.That(endpointMatches, Is.True, "ExternalService /api/v1/smart-cpa/campaigns/start should match smart-cpa endpoint");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Test]
     public async Task Test_NestJs_VersionDecorator()
     {
         var code = @"
