@@ -36,52 +36,52 @@
 
 #### 📦 [DapperLib/Dapper](https://github.com/DapperLib/Dapper) — ⭐ 18,385 (2026-09-12)
 * **Architectural Pattern:** `Extension Methods / Dynamic IL / Fast Object Mapping`
-* **Why Test in CodeExplorer:** Компактный micro-ORM: генерация IL кода на лету, расширения для IDbConnection, замер точности маппинга типов.
+* **Why Test in CodeExplorer:** Compact micro-ORM: on-the-fly IL code generation, extension methods for `IDbConnection`, and evaluation of type mapping precision.
 * **Clone Command:** `git clone --depth 1 https://github.com/DapperLib/Dapper.git`
 
 #### 📦 [App-vNext/Polly](https://github.com/App-vNext/Polly) — ⭐ 14,236 (2026-09-14)
 * **Architectural Pattern:** `Fluent Policy Pipeline / Strategy Pattern`
-* **Why Test in CodeExplorer:** Пайплайны стратегий (Retry, Circuit Breaker, Timeout, Fallback), богатый generic интерфейс, чистый асинхронный код.
+* **Why Test in CodeExplorer:** Strategy execution pipelines (Retry, Circuit Breaker, Timeout, Fallback), rich generic interfaces, and clean async control flow.
 * **Clone Command:** `git clone --depth 1 https://github.com/App-vNext/Polly.git`
 
 #### 📦 [spectreconsole/spectre.console](https://github.com/spectreconsole/spectre.console) — ⭐ 11,621 (2026-09-15)
 * **Architectural Pattern:** `ANSI Parsing / Widget Hierarchy / Fluent API`
-* **Why Test in CodeExplorer:** Консольные виджеты, деревья, таблицы, разбор ANSI разметки, отличная модульная объектная модель.
+* **Why Test in CodeExplorer:** Console widgets, trees, tables, ANSI markup parser, and modular object-oriented domain hierarchy.
 * **Clone Command:** `git clone --depth 1 https://github.com/spectreconsole/spectre.console.git`
 
 #### 📦 [AutoMapper/AutoMapper](https://github.com/AutoMapper/AutoMapper) — ⭐ 10,189 (2026-09-09)
 * **Architectural Pattern:** `Expression Tree Compiler / Reflection Engine`
-* **Why Test in CodeExplorer:** Компиляция деревьев выражений (Expression Trees), вывод типов, сопоставление свойств объектов.
+* **Why Test in CodeExplorer:** Expression tree compilation, type inference, and object property mapping validation.
 * **Clone Command:** `git clone --depth 1 https://github.com/AutoMapper/AutoMapper.git`
 
 #### 📦 [Humanizr/Humanizer](https://github.com/Humanizr/Humanizer) — ⭐ 9,881 (2026-09-11)
 * **Architectural Pattern:** `Extension-First Utility Architecture`
-* **Why Test in CodeExplorer:** Сотни расширений для базовых типов (string, DateTime, TimeSpan, enum), локализационные ресурсы.
+* **Why Test in CodeExplorer:** Hundreds of extension methods for primitive types (`string`, `DateTime`, `TimeSpan`, `enum`) and localized resource patterns.
 * **Clone Command:** `git clone --depth 1 https://github.com/Humanizr/Humanizer.git`
 
 #### 📦 [MessagePack-CSharp/MessagePack-CSharp](https://github.com/MessagePack-CSharp/MessagePack-CSharp) — ⭐ 6,780 (2026-09-15)
 * **Architectural Pattern:** `High-Perf Zero-Alloc Buffers / Dynamic CodeGen`
-* **Why Test in CodeExplorer:** Работа с Span<T>, Memory<T>, динамическая генерация сериализаторов, оптимизация под нулевые аллокации.
+* **Why Test in CodeExplorer:** Deep usage of `Span<T>` and `Memory<T>`, dynamic serializer generation, and zero-allocation memory pooling.
 * **Clone Command:** `git clone --depth 1 https://github.com/MessagePack-CSharp/MessagePack-CSharp.git`
 
 #### 📦 [dotnet-state-machine/stateless](https://github.com/dotnet-state-machine/stateless) — ⭐ 6,260 (2026-04-04)
 * **Architectural Pattern:** `Hierarchical State Pattern / Fluent Builder`
-* **Why Test in CodeExplorer:** Иерархические конечные автоматы, типизированные триггеры, лямбда-переходы, минимум зависимостей (~3k LOC).
+* **Why Test in CodeExplorer:** Hierarchical finite state machines, strongly-typed triggers, lambda transitions, and minimal external dependencies (~3k LOC).
 * **Clone Command:** `git clone --depth 1 https://github.com/dotnet-state-machine/stateless.git`
 
 #### 📦 [morelinq/MoreLINQ](https://github.com/morelinq/MoreLINQ) — ⭐ 3,836 (2025-11-25)
 * **Architectural Pattern:** `Iterator Functions / Lazy Evaluation Pipelines`
-* **Why Test in CodeExplorer:** Десятки операторов над IEnumerable<T>: отложенное вычисление (yield return), обработка граничных условий.
+* **Why Test in CodeExplorer:** Dozens of custom operators on `IEnumerable<T>`: deferred execution (`yield return`) and defensive edge-case handling.
 * **Clone Command:** `git clone --depth 1 https://github.com/morelinq/MoreLINQ.git`
 
 #### 📦 [fluentassertions/fluentassertions](https://github.com/fluentassertions/fluentassertions) — ⭐ 3,815 (2026-09-15)
 * **Architectural Pattern:** `Fluent Chaining / Recursive Equivalence`
-* **Why Test in CodeExplorer:** Рекурсивное сравнение графов объектов, цепочки методов Fluent API, перегрузка операторов.
+* **Why Test in CodeExplorer:** Recursive object graph equivalence comparison, Fluent API method chaining, and operator overloading.
 * **Clone Command:** `git clone --depth 1 https://github.com/fluentassertions/fluentassertions.git`
 
 #### 📦 [dotnet/command-line-api](https://github.com/dotnet/command-line-api) — ⭐ 3,675 (2026-09-15)
 * **Architectural Pattern:** `Hierarchical Command Tree / Tokenizer`
-* **Why Test in CodeExplorer:** Официальная библиотека парсинга CLI: дерево команд, связывание аргументов с моделями, middleware парсинга.
+* **Why Test in CodeExplorer:** Official .NET CLI parsing framework: command tree hierarchies, model binding, and parsing middleware pipelines.
 * **Clone Command:** `git clone --depth 1 https://github.com/dotnet/command-line-api.git`
 
 ## 🔹 TypeScript (10 Compact Projects)
@@ -103,52 +103,52 @@
 
 #### 📦 [reduxjs/redux](https://github.com/reduxjs/redux) — ⭐ 61,486 (2026-09-08)
 * **Architectural Pattern:** `Functional / Pure Reducers / Middleware Pipeline`
-* **Why Test in CodeExplorer:** Канонический образец функциональной архитектуры: чистые функции, композиция middleware, ~2k строк чистейшего кода.
+* **Why Test in CodeExplorer:** Canonical functional architecture exemplar: pure reducer functions, middleware composition, ~2k LOC of immaculate code.
 * **Clone Command:** `git clone --depth 1 https://github.com/reduxjs/redux.git`
 
 #### 📦 [colinhacks/zod](https://github.com/colinhacks/zod) — ⭐ 43,953 (2026-09-14)
 * **Architectural Pattern:** `Type Inference Engine / Composability`
-* **Why Test in CodeExplorer:** Вершина системы типов TypeScript: вывод сложных типов (`z.infer<T>`), парсинг и валидация без внешних зависимостей.
+* **Why Test in CodeExplorer:** Pinnacle of TypeScript's type system: recursive type inference (`z.infer<T>`), parsing, and schema validation with zero runtime dependencies.
 * **Clone Command:** `git clone --depth 1 https://github.com/colinhacks/zod.git`
 
 #### 📦 [preactjs/preact](https://github.com/preactjs/preact) — ⭐ 38,868 (2026-09-15)
 * **Architectural Pattern:** `Micro Virtual DOM / Diffing Algorithm`
-* **Why Test in CodeExplorer:** Полноценный React-совместимый Virtual DOM всего в 3 кБ: алгоритмы дифф-сравнения деревьев, хуки, компонентный жизненный цикл.
+* **Why Test in CodeExplorer:** Complete React-compatible Virtual DOM in just 3 kB: tree diffing algorithms, hooks, and component lifecycles.
 * **Clone Command:** `git clone --depth 1 https://github.com/preactjs/preact.git`
 
 #### 📦 [fastify/fastify](https://github.com/fastify/fastify) — ⭐ 37,145 (2026-09-15)
 * **Architectural Pattern:** `Plugin Tree / JSON Schema Compilation`
-* **Why Test in CodeExplorer:** Дерево плагинов (Avvio), прекомпиляция схем валидации (fast-json-stringify), быстрый роутер.
+* **Why Test in CodeExplorer:** Hierarchical plugin tree (Avvio), pre-compiled JSON validation schemas (fast-json-stringify), and fast radix router.
 * **Clone Command:** `git clone --depth 1 https://github.com/fastify/fastify.git`
 
 #### 📦 [drizzle-team/drizzle-orm](https://github.com/drizzle-team/drizzle-orm) — ⭐ 35,777 (2026-09-15)
 * **Architectural Pattern:** `SQL AST Builder / Schema Compiler`
-* **Why Test in CodeExplorer:** Построение SQL-запросов на уровне типов TS: строгая проверка колонок, отношений, генерация миграций.
+* **Why Test in CodeExplorer:** Type-level SQL query construction: compile-time schema validation of columns, relations, and migration generation.
 * **Clone Command:** `git clone --depth 1 https://github.com/drizzle-team/drizzle-orm.git`
 
 #### 📦 [honojs/hono](https://github.com/honojs/hono) — ⭐ 32,197 (2026-09-15)
 * **Architectural Pattern:** `RegExp Router / Multi-Target Runtime`
-* **Why Test in CodeExplorer:** Легковесный современный веб-фреймворк под Node, Deno, Bun и Cloudflare: сверхбыстрый роутер на регексах, контекст.
+* **Why Test in CodeExplorer:** Ultra-lightweight modern web framework across Node, Deno, Bun, and Cloudflare Workers: regex-based routing and context composition.
 * **Clone Command:** `git clone --depth 1 https://github.com/honojs/hono.git`
 
 #### 📦 [lucide-icons/lucide](https://github.com/lucide-icons/lucide) — ⭐ 24,529 (2026-09-14)
 * **Architectural Pattern:** `Multi-Package Component Generator`
-* **Why Test in CodeExplorer:** Пайплайн кодогенерации: SVG узлы транслируются в типизированные React/Vue/Svelte компоненты.
+* **Why Test in CodeExplorer:** Code-generation pipeline translating SVG vector nodes into typed React, Vue, and Svelte components.
 * **Clone Command:** `git clone --depth 1 https://github.com/lucide-icons/lucide.git`
 
 #### 📦 [sindresorhus/ky](https://github.com/sindresorhus/ky) — ⭐ 17,071 (2026-09-14)
 * **Architectural Pattern:** `Fetch Wrapper / Hook Chain Architecture`
-* **Why Test in CodeExplorer:** Элегантная обертка над native Fetch: хуки `beforeRequest`/`afterResponse`, таймауты, retry логика.
+* **Why Test in CodeExplorer:** Elegant wrapper over native Fetch: `beforeRequest`/`afterResponse` hook chains, timeouts, and retry policies.
 * **Clone Command:** `git clone --depth 1 https://github.com/sindresorhus/ky.git`
 
 #### 📦 [paulmillr/chokidar](https://github.com/paulmillr/chokidar) — ⭐ 12,239 (2026-08-16)
 * **Architectural Pattern:** `OS Event Normalization / Debouncing`
-* **Why Test in CodeExplorer:** Нормализация файловых событий ОС (fsevents/inotify/win32), управление таймерами, устранение дубликатов.
+* **Why Test in CodeExplorer:** OS filesystem event normalization (fsevents, inotify, win32), timer throttling, and duplicate suppression.
 * **Clone Command:** `git clone --depth 1 https://github.com/paulmillr/chokidar.git`
 
 #### 📦 [sindresorhus/ora](https://github.com/sindresorhus/ora) — ⭐ 9,747 (2026-06-22)
 * **Architectural Pattern:** `ANSI Stream Engine / Event Loop TTY`
-* **Why Test in CodeExplorer:** Компактная TUI утилита: управление потоком stdout, ANSI escape последовательности, очистка терминала.
+* **Why Test in CodeExplorer:** Compact TUI utility: stdout stream management, ANSI escape sequences, and terminal clearing.
 * **Clone Command:** `git clone --depth 1 https://github.com/sindresorhus/ora.git`
 
 ## 🔹 Go (10 Compact Projects)
@@ -170,52 +170,52 @@
 
 #### 📦 [charmbracelet/bubbletea](https://github.com/charmbracelet/bubbletea) — ⭐ 44,972 (2026-09-09)
 * **Architectural Pattern:** `Elm Architecture (Model-Update-View)`
-* **Why Test in CodeExplorer:** Идеальная архитектура: строгий цикл Init -> Update -> View, асинхронные команды `tea.Cmd`, чистые структуры данных.
+* **Why Test in CodeExplorer:** Exemplary architecture: strict Init -> Update -> View loop, asynchronous `tea.Cmd` commands, and pure data structures.
 * **Clone Command:** `git clone --depth 1 https://github.com/charmbracelet/bubbletea.git`
 
 #### 📦 [spf13/cobra](https://github.com/spf13/cobra) — ⭐ 44,604 (2026-07-11)
 * **Architectural Pattern:** `Hierarchical Command Tree / POSIX Flags`
-* **Why Test in CodeExplorer:** Стандарт индустрии для CLI на Go: дерево команд `*cobra.Command`, наследование флагов, хуки исполнения.
+* **Why Test in CodeExplorer:** Industry standard for Go CLI development: `*cobra.Command` tree, flag inheritance, and execution hooks.
 * **Clone Command:** `git clone --depth 1 https://github.com/spf13/cobra.git`
 
 #### 📦 [stretchr/testify](https://github.com/stretchr/testify) — ⭐ 26,204 (2026-09-02)
 * **Architectural Pattern:** `Assertion Engine / Dynamic Mock Objects`
-* **Why Test in CodeExplorer:** Проверка вызовов через рефлексию (reflect), генерация mock-объектов, сравнение структур.
+* **Why Test in CodeExplorer:** Reflection-based call assertions (`reflect`), dynamic mock generation, and deep struct equivalence checking.
 * **Clone Command:** `git clone --depth 1 https://github.com/stretchr/testify.git`
 
 #### 📦 [gorilla/websocket](https://github.com/gorilla/websocket) — ⭐ 24,869 (2025-03-19)
 * **Architectural Pattern:** `Framing & Masking / Connection Loop`
-* **Why Test in CodeExplorer:** Низкоуровневая реализация протокола RFC 6455: фрейминг, маскирование байт, потоковое чтение/запись.
+* **Why Test in CodeExplorer:** Low-level RFC 6455 protocol implementation: frame parsing, byte masking, and streaming I/O.
 * **Clone Command:** `git clone --depth 1 https://github.com/gorilla/websocket.git`
 
 #### 📦 [uber-go/zap](https://github.com/uber-go/zap) — ⭐ 24,652 (2026-08-31)
 * **Architectural Pattern:** `Zero-Allocation Memory Pooling / Core Encoder`
-* **Why Test in CodeExplorer:** Экстремальная оптимизация памяти: `sync.Pool`, строгая типизация полей (Field), буферизация байт.
+* **Why Test in CodeExplorer:** Extreme memory optimization: `sync.Pool`, strongly-typed contextual fields, and direct byte buffering.
 * **Clone Command:** `git clone --depth 1 https://github.com/uber-go/zap.git`
 
 #### 📦 [go-chi/chi](https://github.com/go-chi/chi) — ⭐ 22,831 (2026-09-08)
 * **Architectural Pattern:** `Radix Tree / Context Propagation`
-* **Why Test in CodeExplorer:** Эталон чистого Go: роутер на префиксном дереве, стандартный `http.Handler`, сквозная передача контекста.
+* **Why Test in CodeExplorer:** Benchmark of idiomatic Go: radix tree HTTP router, standard `http.Handler` chaining, and end-to-end `context.Context` propagation.
 * **Clone Command:** `git clone --depth 1 https://github.com/go-chi/chi.git`
 
 #### 📦 [pion/webrtc](https://github.com/pion/webrtc) — ⭐ 16,780 (2026-09-15)
 * **Architectural Pattern:** `PeerConnection / RTP/RTCP Networking`
-* **Why Test in CodeExplorer:** Чистая Go реализация WebRTC без C-зависимостей: сетевые сокеты, шифрование DTLS/SRTP, медиа-треки.
+* **Why Test in CodeExplorer:** Pure Go WebRTC implementation without C dependencies: network sockets, DTLS/SRTP encryption, and media tracks.
 * **Clone Command:** `git clone --depth 1 https://github.com/pion/webrtc.git`
 
 #### 📦 [tidwall/gjson](https://github.com/tidwall/gjson) — ⭐ 15,557 (2026-08-28)
 * **Architectural Pattern:** `Zero-Alloc String Scanning / Path Syntax`
-* **Why Test in CodeExplorer:** Поиск значений в JSON строке без парсинга всего документа и без аллокаций: токенайзер, синтаксис путей a.b.c.
+* **Why Test in CodeExplorer:** Zero-allocation JSON search without parsing the full document: fast tokenizer and `a.b.c` path syntax.
 * **Clone Command:** `git clone --depth 1 https://github.com/tidwall/gjson.git`
 
 #### 📦 [etcd-io/bbolt](https://github.com/etcd-io/bbolt) — ⭐ 9,744 (2026-09-15)
 * **Architectural Pattern:** `B+ Tree Storage Engine / Memory Mapped File`
-* **Why Test in CodeExplorer:** Гениальная архитектура БД на ~4k строк: структура B+ дерева, ACID транзакции через `mmap()`, бакеты.
+* **Why Test in CodeExplorer:** Brilliant embedded DB engine in ~4k LOC: B+ tree structure, ACID transactions via `mmap()`, and hierarchical buckets.
 * **Clone Command:** `git clone --depth 1 https://github.com/etcd-io/bbolt.git`
 
 #### 📦 [alecthomas/chroma](https://github.com/alecthomas/chroma) — ⭐ 5,034 (2026-09-15)
 * **Architectural Pattern:** `Lexer Pipeline / Token Formatter Engine`
-* **Why Test in CodeExplorer:** Парсинг исходного кода: лексеры на регулярных выражениях, токенизация, цветовое форматирование в HTML/ANSI.
+* **Why Test in CodeExplorer:** Source code syntax highlighting: regex lexers, token stream generation, and HTML/ANSI color formatters.
 * **Clone Command:** `git clone --depth 1 https://github.com/alecthomas/chroma.git`
 
 ## 🔹 Java (10 Compact Projects)
@@ -237,52 +237,52 @@
 
 #### 📦 [square/okhttp](https://github.com/square/okhttp) — ⭐ 47,059 (2026-09-15)
 * **Architectural Pattern:** `Interceptor Chain / Connection Pooling`
-* **Why Test in CodeExplorer:** Классический паттерн Chain of Responsibility: перехватчики запросов, пулинг сокетов, кэширование.
+* **Why Test in CodeExplorer:** Classic Chain of Responsibility pattern: request/response interceptors, socket connection pooling, and HTTP caching.
 * **Clone Command:** `git clone --depth 1 https://github.com/square/okhttp.git`
 
 #### 📦 [square/retrofit](https://github.com/square/retrofit) — ⭐ 43,938 (2026-09-09)
 * **Architectural Pattern:** `Dynamic Proxy / Annotation Processing`
-* **Why Test in CodeExplorer:** Динамические прокси Java (`Proxy.newProxyInstance`), преобразование аннотаций интерфейса в HTTP вызовы.
+* **Why Test in CodeExplorer:** Dynamic Java proxies (`Proxy.newProxyInstance`), translating interface annotations into typed HTTP calls.
 * **Clone Command:** `git clone --depth 1 https://github.com/square/retrofit.git`
 
 #### 📦 [google/gson](https://github.com/google/gson) — ⭐ 24,236 (2026-09-14)
 * **Architectural Pattern:** `TypeAdapter Pipeline / Reflection Factory`
-* **Why Test in CodeExplorer:** Конвейер `TypeAdapter`, обход полей через рефлексию, типобезопасные фабрики сериализации.
+* **Why Test in CodeExplorer:** Streaming `TypeAdapter` pipeline, reflection-based field traversal, and type-safe serialization factories.
 * **Clone Command:** `git clone --depth 1 https://github.com/google/gson.git`
 
 #### 📦 [resilience4j/resilience4j](https://github.com/resilience4j/resilience4j) — ⭐ 10,760 (2026-08-31)
 * **Architectural Pattern:** `Functional Composition / Event-Driven State`
-* **Why Test in CodeExplorer:** Функциональный подход в Java (Vavr): композиция функций декораторов, конечные автоматы Circuit Breaker.
+* **Why Test in CodeExplorer:** Functional programming in Java (Vavr): higher-order decorator composition and Circuit Breaker finite state machines.
 * **Clone Command:** `git clone --depth 1 https://github.com/resilience4j/resilience4j.git`
 
 #### 📦 [mapstruct/mapstruct](https://github.com/mapstruct/mapstruct) — ⭐ 7,692 (2026-08-07)
 * **Architectural Pattern:** `Annotation Processor (JSR 269)`
-* **Why Test in CodeExplorer:** Кодогенерация на этапе компиляции: генерация реализаций мапперов без применения рефлексии в рантайме.
+* **Why Test in CodeExplorer:** Compile-time code generation: generating type-safe bean mapper implementations without runtime reflection overhead.
 * **Clone Command:** `git clone --depth 1 https://github.com/mapstruct/mapstruct.git`
 
 #### 📦 [auth0/java-jwt](https://github.com/auth0/java-jwt) — ⭐ 6,235 (2026-09-14)
 * **Architectural Pattern:** `Token Encoder & Verifier / Crypto Algorithms`
-* **Why Test in CodeExplorer:** Криптографические алгоритмы HMAC/RSA/ECDSA, парсинг JSON payload, верификация клеймов.
+* **Why Test in CodeExplorer:** Cryptographic signing algorithms (HMAC, RSA, ECDSA), JSON payload parsing, and token claims verification.
 * **Clone Command:** `git clone --depth 1 https://github.com/auth0/java-jwt.git`
 
 #### 📦 [javaparser/javaparser](https://github.com/javaparser/javaparser) — ⭐ 6,149 (2026-09-15)
 * **Architectural Pattern:** `Visitor Pattern / AST Manipulation`
-* **Why Test in CodeExplorer:** Парсер синтаксиса Java на самой Java: паттерн Visitor, обход узлов AST, разрешение типов (SymbolSolver).
+* **Why Test in CodeExplorer:** Java syntax parser written in Java: Visitor pattern, AST node navigation, and type resolution (`SymbolSolver`).
 * **Clone Command:** `git clone --depth 1 https://github.com/javaparser/javaparser.git`
 
 #### 📦 [uber/NullAway](https://github.com/uber/NullAway) — ⭐ 4,104 (2026-09-16)
 * **Architectural Pattern:** `Compiler Plugin / Dataflow Analysis`
-* **Why Test in CodeExplorer:** Плагин компилятора javac: статический анализ потока данных (dataflow analysis), обнаружение null dereferences.
+* **Why Test in CodeExplorer:** Javac compiler plugin: static dataflow analysis and compile-time null dereference detection.
 * **Clone Command:** `git clone --depth 1 https://github.com/uber/NullAway.git`
 
 #### 📦 [RoaringBitmap/RoaringBitmap](https://github.com/RoaringBitmap/RoaringBitmap) — ⭐ 3,930 (2026-09-10)
 * **Architectural Pattern:** `Hybrid Run-Length / Array / Bitset Engine`
-* **Why Test in CodeExplorer:** Высокопроизводительные битовые массивы: сжатие данных, побитовые булевы операции (AND, OR, XOR), SIMD.
+* **Why Test in CodeExplorer:** High-performance compressed bitsets: run-length data compression, bitwise boolean operations (AND, OR, XOR), and SIMD.
 * **Clone Command:** `git clone --depth 1 https://github.com/RoaringBitmap/RoaringBitmap.git`
 
 #### 📦 [cbeust/jcommander](https://github.com/cbeust/jcommander) — ⭐ 2,024 (2026-04-15)
 * **Architectural Pattern:** `Annotation-Driven Parameter Binding`
-* **Why Test in CodeExplorer:** Декларативное связывание аргументов командной строки через аннотации `@Parameter`, конвертеры типов.
+* **Why Test in CodeExplorer:** Declarative CLI argument parsing via `@Parameter` annotations, type converters, and validation.
 * **Clone Command:** `git clone --depth 1 https://github.com/cbeust/jcommander.git`
 
 ## 🔹 Python (10 Compact Projects)
@@ -304,63 +304,63 @@
 
 #### 📦 [Textualize/rich](https://github.com/Textualize/rich) — ⭐ 57,368 (2026-06-23)
 * **Architectural Pattern:** `Renderable Protocol / Console Layout Grid`
-* **Why Test in CodeExplorer:** Протокол `__rich_console__`, раскладка таблиц и панелей в терминале, парсинг ANSI и стилей.
+* **Why Test in CodeExplorer:** `__rich_console__` protocol, terminal table/panel layout grids, and ANSI color/style parsing.
 * **Clone Command:** `git clone --depth 1 https://github.com/Textualize/rich.git`
 
 #### 📦 [psf/requests](https://github.com/psf/requests) — ⭐ 54,304 (2026-09-07)
 * **Architectural Pattern:** `Transport Adapter Pattern / Session Pooling`
-* **Why Test in CodeExplorer:** Классика чистого Python: адаптеры транспорта (`HTTPAdapter`), сессии, пулы соединений urllib3 (~4k строк).
+* **Why Test in CodeExplorer:** Canonical Python API design: transport adapters (`HTTPAdapter`), sessions, and urllib3 connection pool orchestration (~4k LOC).
 * **Clone Command:** `git clone --depth 1 https://github.com/psf/requests.git`
 
 #### 📦 [tqdm/tqdm](https://github.com/tqdm/tqdm) — ⭐ 31,339 (2026-09-11)
 * **Architectural Pattern:** `Iterator Decorator / Terminal Control`
-* **Why Test in CodeExplorer:** Умный генератор-обертка: переопределение `__iter__`, измерение скорости, динамический вывод в stderr.
+* **Why Test in CodeExplorer:** Intelligent generator wrapper: `__iter__` method overriding, throughput smoothing, and dynamic stderr terminal updates.
 * **Clone Command:** `git clone --depth 1 https://github.com/tqdm/tqdm.git`
 
 #### 📦 [pallets/click](https://github.com/pallets/click) — ⭐ 17,667 (2026-09-12)
 * **Architectural Pattern:** `Decorator-Driven Command Tree / Context`
-* **Why Test in CodeExplorer:** Дерево команд на декораторах (`@click.command`), управление контекстом (`click.Context`), типы параметров.
+* **Why Test in CodeExplorer:** Composable decorator-based command trees (`@click.command`), execution contexts (`click.Context`), and custom parameter types.
 * **Clone Command:** `git clone --depth 1 https://github.com/pallets/click.git`
 
 #### 📦 [encode/starlette](https://github.com/encode/starlette) — ⭐ 12,618 (2026-09-12)
 * **Architectural Pattern:** `ASGI Protocol / Middleware Stack`
-* **Why Test in CodeExplorer:** Основа FastAPI: асинхронный интерфейс ASGI, цепочки middleware, HTTP и WebSocket роутинг.
+* **Why Test in CodeExplorer:** The async backbone of FastAPI: ASGI interfaces, middleware pipelines, and HTTP/WebSocket route resolution.
 * **Clone Command:** `git clone --depth 1 https://github.com/encode/starlette.git`
 
 #### 📦 [coleifer/peewee](https://github.com/coleifer/peewee) — ⭐ 11,986 (2026-09-14)
 * **Architectural Pattern:** `Metaclass Model Registry / SQL Node Tree`
-* **Why Test in CodeExplorer:** Компактный ORM (~7k строк): метаклассы для моделей, дерево узлов SQL выражений (Node), контекст транзакций.
+* **Why Test in CodeExplorer:** Compact, expressive ORM (~7k LOC): metaclasses for model declarations, SQL expression AST nodes (`Node`), and transaction management.
 * **Clone Command:** `git clone --depth 1 https://github.com/coleifer/peewee.git`
 
 #### 📦 [pallets/jinja](https://github.com/pallets/jinja) — ⭐ 11,779 (2025-06-14)
 * **Architectural Pattern:** `Lexer -> Parser -> Python Bytecode Compiler`
-* **Why Test in CodeExplorer:** Компиляция шаблонов в байткод Python: лексер, парсер грамматики шаблонов, среда песочницы (Sandbox).
+* **Why Test in CodeExplorer:** Compiles templates directly into Python bytecode: lexer, template grammar parser, and sandboxed execution environment.
 * **Clone Command:** `git clone --depth 1 https://github.com/pallets/jinja.git`
 
 #### 📦 [bottlepy/bottle](https://github.com/bottlepy/bottle) — ⭐ 8,789 (2026-09-15)
 * **Architectural Pattern:** `Single-File Web Framework / Router Engine`
-* **Why Test in CodeExplorer:** Полный веб-фреймворк в одном файле: собственный роутер, шаблонизатор, адаптеры серверов (~4k строк).
+* **Why Test in CodeExplorer:** Complete web framework in a single file: built-in router, templating engine, and WSGI server adapters (~4k LOC).
 * **Clone Command:** `git clone --depth 1 https://github.com/bottlepy/bottle.git`
 
 #### 📦 [marshmallow-code/marshmallow](https://github.com/marshmallow-code/marshmallow) — ⭐ 7,238 (2026-09-15)
 * **Architectural Pattern:** `Schema Field Declaration / Validation`
-* **Why Test in CodeExplorer:** Декларативные схемы, валидация данных, вложенные поля (Nested), трансформация данных.
+* **Why Test in CodeExplorer:** Declarative schemas, serialization/deserialization pipelines, nested fields (`Nested`), and data transformation rules.
 * **Clone Command:** `git clone --depth 1 https://github.com/marshmallow-code/marshmallow.git`
 
 #### 📦 [samuelcolvin/watchfiles](https://github.com/samuelcolvin/watchfiles) — ⭐ 2,533 (2026-09-03)
 * **Architectural Pattern:** `Rust Extension (Notify) / Async Iterator`
-* **Why Test in CodeExplorer:** Интеграция Python с Rust через PyO3, асинхронный генератор событий изменения файлов.
+* **Why Test in CodeExplorer:** Python/Rust integration via PyO3: asynchronous file change event generator and cross-platform OS notifications.
 * **Clone Command:** `git clone --depth 1 https://github.com/samuelcolvin/watchfiles.git`
 
 ---
 
-## ⚡ Преимущества компактного бенчмарка для AI-Агента
+## ⚡ Advantages of the Compact Benchmark for AI Agents
 
-1. **Мгновенное клонирование и индексация (1–5 секунд):**
-   Каждый проект занимает от 1 до 15 МБ, клонируется с `--depth 1` моментально и парсится без риска исчерпания RAM.
+1. **Instantaneous Cloning and Indexing (1–5 seconds):**
+   Each project ranges from 1 to 15 MB, clones instantly with `--depth 1`, and parses without risk of memory pressure.
 
-2. **Высокая концентрация идиоматического кода:**
-   В небольших библиотеках авторы уделяют максимум внимания чистоте API, строгой типизации, дженерикам и паттернам (отсутствует лишний legacy-код и гигантские сгенерированные файлы).
+2. **High Density of Idiomatic Code:**
+   In focused micro-libraries, authors prioritize public API elegance, strict typing, generics, and foundational patterns without legacy baggage or massive auto-generated files.
 
-3. **Идеально для итеративной отладки парсеров (Feedback Loop):**
-   Модель может за один диалоговый шаг прогнать индексацию, получить компактный отчёт об ошибках парсинга, исправить грамматику Tree-sitter / Roslyn в CodeExplorer и сразу же перезапустить тесты.
+3. **Ideal Feedback Loop for AST Parser Iteration:**
+   An AI agent can clone, index, inspect parser diagnostics, adjust Tree-sitter or Roslyn visitor grammars in CodeExplorer, and re-test within a single conversation turn.

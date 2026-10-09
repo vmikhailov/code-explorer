@@ -1,4 +1,11 @@
-# Generic Architecture & Codebase De-Hack Plan
+# [ARCHIVED] Generic Architecture & Codebase De-Hack Plan
+
+> [!NOTE]
+> **Status: Completed & Archived (v1.27.0)**.
+> All project-specific hardcoded keywords, service prefixes, table aliases, and heuristics were completely removed and replaced with generic graph topology algorithms and workspace configuration (`.codeexplorer/domains.json` and `conventions.json`).
+> This document is retained solely for historical reference.
+
+---
 
 ## 1. Problem Statement & Motivation
 

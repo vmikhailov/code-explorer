@@ -1,8 +1,10 @@
-# CodeExplorer: Universal Semantic Value Resolution & Zero-Hack Cleanup Plan 🎯
+# [ARCHIVED] Universal Semantic Value Resolution & Zero-Hack Cleanup Plan 🎯
 
-> **Status:** Implemented & Verified in v1.11.10 ✅  
-> **Target Release:** v1.11.10  
-> **Tracking Epic:** [docs/roadmap/todo.md](./todo.md) (EPIC 0)
+> [!NOTE]
+> **Status: Completed & Archived (v1.11.10)**.
+> The Universal AST (UAST) coordinate system, hierarchical `ConfigStore`, two-pass declaration discovery, and reaching definitions local data-flow analyzer were implemented and verified in v1.11.10.
+> This document is retained solely for historical reference.
+> Tracking Epic: [docs/roadmap/todo.md](../roadmap/todo.md) (EPIC 0).
 
 ---
 

@@ -1,4 +1,11 @@
-# Feature Plan: Strongly-Typed Cypher Queries (`QueryAsync<T>`)
+# Proposal: Strongly-Typed Cypher Queries (`QueryAsync<T>`)
+
+> [!NOTE]
+> **Status: Active Proposal 📋**  
+> **Target Components:** `CodeExplorer.Core`, `CodeExplorer.Cypher`  
+> Proposes introducing zero-allocation, strongly-typed Cypher query execution (`QueryAsync<T>`) to eliminate JSON boxing/parsing bottlenecks across `PostIndexAnalyzer`, `ArchitectureViewEngine`, and MCP handlers.
+
+---
 
 ## 1. Problem Statement
 Currently, `IGraphClient.ExecuteQueryAsync` returns a serialized JSON `string`. Callers across the codebase (e.g. `PostIndexAnalyzer`, `ArchitectureViewEngine`, `DiagramExporter`, MCP handlers) repeatedly:

@@ -5,7 +5,7 @@ This document defines the official **5-Layer Graph Ontology** architecture for *
 By separating these concerns, CodeExplorer can perform surgical graph updates (such as pruning and re-indexing a single file's syntax tree) without affecting physical directory tracking or cascading deletions across the runtime architecture map.
 
 > [!TIP]
-> For the complete, auto-generated list of all 27 node types, 30 relationships, and their properties, refer to the [Live Ontology Reference](../ontology.md).
+> For the complete, auto-generated list of all 32 node types, relationships, and their properties, refer to the [Live Ontology Reference](../ontology.md).
 
 ---
 

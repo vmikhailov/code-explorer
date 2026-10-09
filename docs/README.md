@@ -1,6 +1,6 @@
 # CodeExplorer Documentation Portal 📚
 
-Welcome to the **CodeExplorer (`ce`)** documentation suite. This portal organizes architectural specifications, system designs, roadmap tracking, and technical references.
+Welcome to the **CodeExplorer (`ce`)** documentation suite. This portal organizes architectural specifications, system designs, benchmark registries, roadmap tracking, and technical references.
 
 ---
 
@@ -9,11 +9,12 @@ Welcome to the **CodeExplorer (`ce`)** documentation suite. This portal organize
 ```
 docs/
 ├── README.md                                 # This Documentation Portal & Index
-├── ontology.md                               # Live Auto-Generated Ontology Reference
+├── ontology.md                               # Live Auto-Generated Ontology Reference (32 Nodes)
+├── index.html                                # Web Documentation & Interactive Landing Page
+├── logo.svg, favicon.svg                     # Vector Branding Assets
 ├── all_services.png                          # Macro Architecture & Concentric Orbits
 ├── selected_services.png                     # Sub-Graph Neighborhood & Orbit Legend Reordering
 ├── project_flow.png                          # Project Flow, Service Cards & C1 System Context
-├── graph-example.png                         # Knowledge Graph Visual Diagram
 │
 ├── architecture/                             # Core Technical Architecture & Foundations
 │   ├── ontology-model.md                     # 5-Layer Decoupled Graph Ontology Specification
@@ -22,14 +23,24 @@ docs/
 │
 ├── proposals/                                # Active Technical Proposals & Design Specs
 │   ├── cross-service-detection.md            # Cross-Service & Messaging Channel Detection
-│   └── vscode-extension-design.md            # Interactive VS Code & Antigravity Cockpit
+│   ├── vscode-extension-design.md            # Interactive VS Code & Antigravity Cockpit
+│   └── typed-cypher-queries-plan.md          # Strongly-Typed Cypher Queries (QueryAsync<T>)
 │
 ├── roadmap/                                  # Engineering Milestones & Task Tracking
-│   └── README.md                             # Unified Engineering Roadmap, Specs & Backlog
+│   ├── README.md                             # Unified Engineering Roadmap, Specs & Backlog
+│   ├── todo.md                               # Active Engineering Task Checklist & Epics
+│   └── semantic-invariant-gates-plan.md      # Semantic Invariant Gates (SIG) Guardrail Specification
+│
+├── benchmarks/                               # Polyglot Repositories for Autonomous Testing
+│   ├── README.md                             # Benchmark Methodology & Evaluation Guide
+│   ├── flagship-projects.md                  # Top 50 Flagship Projects (Monorepos, Full Stacks)
+│   └── compact-projects.md                   # Top 50 Compact Idiomatic Libraries (~1k–25k LOC)
 │
 └── archive/                                  # Completed Historical Plans & Task Specs
-    ├── library-parser-extraction.md          # Completed: Extraction of 5 Library Parsers
-    └── self-descriptive-ontology-plan.md     # Completed: OntologyGen Build Integration Plan
+    ├── domain-cleanup-and-generic-architecture-plan.md # Generic Architecture & De-Hack Plan (v1.27.0)
+    ├── semantic-resolution-and-hacks-cleanup-plan.md   # Universal Value Resolution & UAST (v1.11.10)
+    ├── library-parser-extraction.md          # Extraction of 5 Library Parsers
+    └── self-descriptive-ontology-plan.md     # OntologyGen Build Integration Plan
 ```
 
 ---
@@ -38,13 +49,21 @@ docs/
 
 | Document | Category | Status | Target Audience | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| [**`ontology.md`**](ontology.md) | Reference | **Live (Generated)** | All / AI Agents | Auto-generated dictionary of all 27 node types, 30 relationships, properties, and ID schemes. |
+| [**`ontology.md`**](ontology.md) | Reference | **Live (Generated)** | All / AI Agents | Auto-generated dictionary of all 32 node types, relationships, properties, and ID schemes. |
 | [**`architecture/ontology-model.md`**](architecture/ontology-model.md) | Architecture | **Active Standard** | Engine Developers / Architects | 5-layer decoupled graph architecture (Physical, Project, Syntactic, Semantic, Late-bound). |
 | [**`architecture/ingestion-pipeline.md`**](architecture/ingestion-pipeline.md) | Architecture | **Active Standard** | Core Developers | 5-stage sequential pipeline (`WorkspaceIndexer`), Tree-sitter visitors, and async channel persistence. |
 | [**`architecture/query-engine.md`**](architecture/query-engine.md) | Architecture | **Active Standard** | Graph Developers | SQLite schema (`nodes`, `edges`), B-Tree indexing, Cypher-to-SQL compiler, and timeout bounds. |
 | [**`proposals/cross-service-detection.md`**](proposals/cross-service-detection.md) | Proposals | **Active Design** | Parser Contributors | Design for dynamic HTTP templates, suffix matching, GCP Pub/Sub, and WebSocket event tracing. |
 | [**`proposals/vscode-extension-design.md`**](proposals/vscode-extension-design.md) | Proposals | **Active Design** | Extension Developers | Architecture for interactive Cytoscape.js webview extension and live LSP bridge. |
-| [**`roadmap/README.md`**](roadmap/README.md) | Roadmap | **Active Master** | All Contributors / AI Agents | Unified roadmap: delivered milestones, active MCP & CLI semantic architecture spec, and engineering backlog. |
+| [**`proposals/typed-cypher-queries-plan.md`**](proposals/typed-cypher-queries-plan.md) | Proposals | **Active Proposal** | Core Developers | Zero-allocation strongly-typed query execution (`QueryAsync<T>`) to replace JSON boxing. |
+| [**`roadmap/README.md`**](roadmap/README.md) | Roadmap | **Active Master** | All Contributors / AI Agents | Unified roadmap: delivered milestones, active MCP & CLI semantic architecture spec, and backlog. |
+| [**`roadmap/todo.md`**](roadmap/todo.md) | Roadmap | **Active Checklist** | Contributors / AI Agents | Granular engineering task list, active epics, and release checklists. |
+| [**`roadmap/semantic-invariant-gates-plan.md`**](roadmap/semantic-invariant-gates-plan.md) | Roadmap | **Active Milestone** | Architects / QA | Declarative Cypher-based architectural guardrails and monotonic debt ratchets. |
+| [**`benchmarks/README.md`**](benchmarks/README.md) | Benchmarks | **Active Standard** | AI Agents / Testers | Overview of the 5-language benchmark suites and autonomous testing workflow. |
+| [**`benchmarks/flagship-projects.md`**](benchmarks/flagship-projects.md) | Benchmarks | **Active Reference** | AI Agents / Testers | Top 50 large-scale, high-star open source projects for stress-testing scale and memory. |
+| [**`benchmarks/compact-projects.md`**](benchmarks/compact-projects.md) | Benchmarks | **Active Reference** | AI Agents / Testers | Top 50 compact, idiomatic libraries (~1k–25k LOC) for sub-second parser iteration loops. |
+| [**`archive/domain-cleanup-and-generic-architecture-plan.md`**](archive/domain-cleanup-and-generic-architecture-plan.md) | Archive | **Completed Historical** | Historical Reference | Plan for eliminating project-specific keywords and making domain clustering generic (v1.27.0). |
+| [**`archive/semantic-resolution-and-hacks-cleanup-plan.md`**](archive/semantic-resolution-and-hacks-cleanup-plan.md) | Archive | **Completed Historical** | Historical Reference | Plan for universal AST value resolution, constant propagation, and ConfigStore (v1.11.10). |
 | [**`archive/library-parser-extraction.md`**](archive/library-parser-extraction.md) | Archive | **Completed Historical** | Historical Reference | Step-by-step extraction plan for NestJS, Express, Fetch, AspNetCore, and HttpClient parsers. |
 | [**`archive/self-descriptive-ontology-plan.md`**](archive/self-descriptive-ontology-plan.md) | Archive | **Completed Historical** | Historical Reference | Initial design plan for the Roslyn-based `OntologyGen` build tool. |
 
@@ -55,7 +74,8 @@ docs/
 - **New to CodeExplorer's internals?** Start with [5-Layer Graph Ontology](architecture/ontology-model.md) and the [Ingestion Pipeline](architecture/ingestion-pipeline.md).
 - **Writing or debugging Cypher queries?** Read the [Query Engine Guide](architecture/query-engine.md) and check available nodes in the [Live Ontology Reference](ontology.md).
 - **Contributing a new language or framework parser?** Consult [Ingestion Pipeline: Stage 3 & 4](architecture/ingestion-pipeline.md) and [Cross-Service Detection](proposals/cross-service-detection.md).
-- **Tracking progress or picking up tasks?** Review the [Engineering Roadmap & Backlog](roadmap/README.md).
+- **Tracking progress or picking up tasks?** Review the [Engineering Roadmap & Backlog](roadmap/README.md) and [Active Todo Checklist](roadmap/todo.md).
+- **Testing or benchmarking parser coverage?** Check out the [Benchmark Evaluation Suites](benchmarks/README.md).
 
 ---
 

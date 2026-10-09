@@ -75,7 +75,7 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ## 🎯 EPIC 0: Universal Semantic Value Resolution & Zero-Hack Cleanup
 
-> **Detailed Specification:** See [**`semantic-resolution-and-hacks-cleanup-plan.md`**](./semantic-resolution-and-hacks-cleanup-plan.md).
+> **Detailed Specification:** See [**`semantic-resolution-and-hacks-cleanup-plan.md`**](../archive/semantic-resolution-and-hacks-cleanup-plan.md).
 
 - [x] **0.6 Unified ConfigStore in Layer 2/3**:
   - Relocate configuration parsing (`appsettings*.json`, `.env*`, `application*.yml/properties`) before AST file parsing.
