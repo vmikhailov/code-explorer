@@ -244,6 +244,11 @@ public static class OntologyUploader
             return new CalledByRelationship(child.Id, parentId); // ExternalService -> CALLED_BY -> Function
         }
 
+        if (child.Kind == OntologyConstants.NodeLabels.CallLiteral)
+        {
+            return new PassesLiteralRelationship(parentId, child.Id);
+        }
+
         if (IsCodeEntityKind(child.Kind))
         {
             if (IsFileNodeId(parentId))
@@ -302,7 +307,9 @@ public static class OntologyUploader
                lower.Contains($":{OntologyConstants.IdPrefixes.Query}:") ||
                lower.Contains(":query:") ||
                lower.Contains($":{OntologyConstants.IdPrefixes.Table}:") ||
-               lower.Contains(":table:");
+               lower.Contains(":table:") ||
+               lower.Contains($":{OntologyConstants.IdPrefixes.CallLiteral}:") ||
+               lower.Contains(":lit:");
     }
 
     private static bool IsCodeEntityKind(string kind)
@@ -312,7 +319,8 @@ public static class OntologyUploader
                kind == OntologyConstants.NodeLabels.Member ||
                kind == OntologyConstants.NodeLabels.Query ||
                kind == OntologyConstants.NodeLabels.Procedure ||
-               kind == OntologyConstants.NodeLabels.Table;
+               kind == OntologyConstants.NodeLabels.Table ||
+               kind == OntologyConstants.NodeLabels.CallLiteral;
     }
 
     private static bool IsProjectNodeId(string id)
@@ -338,6 +346,7 @@ public static class OntologyUploader
             return d is OntologyConstants.IdPrefixes.Symbol or "symbol"
                      or OntologyConstants.IdPrefixes.Query or "query"
                      or OntologyConstants.IdPrefixes.Procedure or "procedure"
+                     or OntologyConstants.IdPrefixes.CallLiteral or "lit"
                      || id.Contains(":function:") || id.Contains(":Function:");
         }
         return false;

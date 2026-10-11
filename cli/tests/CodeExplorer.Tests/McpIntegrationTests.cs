@@ -379,6 +379,21 @@ public class McpIntegrationTests
     }
 
     [Test]
+    public async Task Test_CheckSemanticGates()
+    {
+        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"format\": \"markdown\"}", 21);
+        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-P-B-001\", \"format\": \"json\"}", 22);
+        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-M-I-001\", \"includeTolerated\": true, \"groupBy\": \"file\", \"format\": \"markdown\"}", 25);
+    }
+
+    [Test]
+    public async Task Test_ListSemanticGates()
+    {
+        await CallToolAndAssertSuccessAsync("list_semantic_gates", "{\"format\": \"markdown\"}", 23);
+        await CallToolAndAssertSuccessAsync("list_semantic_gates", "{\"format\": \"json\"}", 24);
+    }
+
+    [Test]
     public async Task Test_InspectDataLineage_AtsProject_Performance()
     {
         var atsDbPath = Environment.GetEnvironmentVariable("ATS_GRAPH_DB_PATH");

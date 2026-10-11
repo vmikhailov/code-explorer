@@ -207,7 +207,7 @@ public class IncrementalIndexingTests
             var batchesReceived = 0;
             var tcs = new TaskCompletionSource<bool>();
 
-            using var watcher = new CodeExplorer.Core.Parser.FileWatcher(tempDir, batch =>
+            using var watcher = new FileWatcher(tempDir, batch =>
             {
                 Interlocked.Increment(ref batchesReceived);
                 tcs.TrySetResult(true);
@@ -369,7 +369,7 @@ public class IncrementalIndexingTests
     [Test]
     public async Task Test_TypeScript_NewlineInsertion_ZeroStructuralChanges()
     {
-        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_ts_newline_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -434,10 +434,10 @@ public class IncrementalIndexingTests
     [Test]
     public void Test_IsCandidateSourceFile_Preserves_test_env_js_And_test_calculation_ts()
     {
-        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
-        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.JavaScriptParser());
-        WorkspaceIndexer.Register(new CodeExplorer.Parser.Python.PythonParser());
-        WorkspaceIndexer.Register(new CodeExplorer.Parser.Go.GoParser());
+        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.Register(new Parser.TypeScript.JavaScriptParser());
+        WorkspaceIndexer.Register(new Parser.Python.PythonParser());
+        WorkspaceIndexer.Register(new Parser.Go.GoParser());
 
         // Files that MUST be recognized as candidate source files
         Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("bq-routes-calculation/test_env.js"), Is.True,
@@ -467,7 +467,7 @@ public class IncrementalIndexingTests
     [Test]
     public async Task Test_Sqlite_Persists_AstSnapshot_And_SeparateProcessIncrementalScan_PreservesGraph_OnNewline()
     {
-        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_sqlite_incremental_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -491,7 +491,7 @@ public class IncrementalIndexingTests
             await File.WriteAllTextAsync(tsFile, initialCode);
 
             // Phase 1: Full index with Client 1 (Process 1)
-            var client1 = new CodeExplorer.Core.Database.SqliteGraphClient(dbFile);
+            var client1 = new Core.Database.SqliteGraphClient(dbFile);
             var indexer1 = new WorkspaceIndexer(client1);
             await indexer1.IndexAsync(tempDir, clear: false);
 
@@ -518,7 +518,7 @@ public class IncrementalIndexingTests
             await File.WriteAllTextAsync(tsFile, modifiedCode);
 
             // Phase 3: Separate CLI process (Client 2, Indexer 2) runs incremental scan
-            var client2 = new CodeExplorer.Core.Database.SqliteGraphClient(dbFile);
+            var client2 = new Core.Database.SqliteGraphClient(dbFile);
             var indexer2 = new WorkspaceIndexer(client2);
 
             var countsBefore = await client2.GetGraphCountsAsync();

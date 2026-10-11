@@ -44,7 +44,7 @@ public class ConfigureCommandHandler : BaseCommandHandler
             var detected = ToolDetector.DetectInstalledTools(wsRoot);
             if (detected.Count == 0)
             {
-                Console.WriteLine("⚠️ No installed AI tools were automatically detected on this system.");
+                Console.WriteLine("Warning: No installed AI tools were automatically detected on this system.");
                 Console.WriteLine("You can configure any tool explicitly by specifying its name:");
                 ShowAvailableTargetsHelp();
                 return 0;

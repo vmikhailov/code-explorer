@@ -29,6 +29,7 @@ graph TD
     end
 
     subgraph Layer3 ["Layer 3: Syntactic Structure"]
+        CallLiteral["CallLiteral"]
         Function["Function"]
         Member["Member"]
         ProjectSyntax["ProjectSyntax"]
@@ -64,6 +65,7 @@ graph TD
     App -->|CONTAINS| EntryPoint
     App -->|CONTAINS| Endpoint
     App -->|CONTAINS| ApiInUse
+    CallLiteral -->|DECLARED_IN| File
     CliTool -->|LOCATED_IN| Folder
     CliTool -->|LOCATED_IN| Workspace
     CliTool -->|DEPLOYED_BY| Project
@@ -275,6 +277,7 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `CallLiteral` | `DECLARED_IN` |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
@@ -489,6 +492,30 @@ graph TD
 ---
 
 ### 📂 Layer 3: Syntactic Structure
+
+#### `CallLiteral`
+
+> Represents a raw literal argument passed directly into a method or constructor invocation.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name or representation of the literal argument. |
+| `Value` | `string` | The raw string value of the literal. |
+| `Callee` | `string` | The method or callee being invoked. |
+| `ArgIndex` | `int` | The index of the argument (0-indexed). |
+| `FilePath` | `string` | The relative file path where the call occurs. |
+| `Line` | `int` | The 1-indexed line number of the argument. |
+| `Column` | `int` | The 1-indexed column number of the argument. |
+
+---
 
 #### `Function`
 
@@ -1172,6 +1199,7 @@ graph TD
 | `INHERITS_FROM` | Links a class/interface to its base class or inherited interface. |
 | `LOCATED_IN` | Links a project to the physical folder or files structure where it is located. |
 | `OF_TYPE` | Links a member variable or field to its declared type. |
+| `PASSES_LITERAL` | Links a calling function or scope to a literal argument passed directly into an invocation. |
 | `PERSISTED_IN` | Links an ORM entity or model class to its physical database table. |
 | `POTENTIAL_TYPE` | Links a variable or parameter to concrete classes that implement its declared interface type. |
 | `PRODUCES` | Indicates that a library project builds and produces a package. |
@@ -1207,6 +1235,7 @@ graph TD
 | Layer 2: Project Boundary | `Package` | `{workspaceId}:pkg:{ecosystem}:{packageName}` |
 | Layer 2: Project Boundary | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |
 | Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:ps` |
+| Layer 3: Syntactic Structure | `CallLiteral` | `{workspaceId}:lit:{filePath}:{line}:{col}` |
 | Layer 3: Syntactic Structure | `Function` | `{workspaceId}:sym:{filePath}:Function:{name}:{line}` |
 | Layer 3: Syntactic Structure | `Member` | `{workspaceId}:sym:{filePath}:Member:{name}:{line}` |
 | Layer 3: Syntactic Structure | `ProjectSyntax` | `{workspaceId}:p:{relativeProjectDir}:syntax` |

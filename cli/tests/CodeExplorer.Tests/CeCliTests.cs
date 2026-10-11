@@ -297,4 +297,50 @@ public class CeCliTests
         Assert.That(BaseCommandHandler.HasFileName("path/to/package.json", "package.json", "pom.xml"), Is.True);
         Assert.That(BaseCommandHandler.HasFileName("path/to/other.txt", "package.json"), Is.False);
     }
+
+    [Test]
+    public async Task CeCli_Gate_Workflow_InitListCheckRatchet()
+    {
+        // 1. Initialize workspace
+        var (initCode, initOut, _) = await RunCliAsync("init", "--dir", _tempDir);
+        Assert.That(initCode, Is.EqualTo(0));
+
+        // 2. Gate init - scaffold starter gates
+        var (gateInitCode, gateInitOut, _) = await RunCliAsync("gate", "init", "--dir", _tempDir);
+        Assert.That(gateInitCode, Is.EqualTo(0));
+        Assert.That(gateInitOut, Does.Contain("Initialized"));
+
+        // 3. Create dummy file and scan
+        var srcDir = Path.Combine(_tempDir, "src");
+        Directory.CreateDirectory(srcDir);
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "sample.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "Program.cs"), "class Program { static void Main() {} }");
+
+        var (scanCode, _, _) = await RunCliAsync("scan", _tempDir);
+        Assert.That(scanCode, Is.EqualTo(0));
+
+        // 4. Gate list
+        var (listCode, listOut, _) = await RunCliAsync("gate", "list", "--dir", _tempDir);
+        Assert.That(listCode, Is.EqualTo(0));
+        Assert.That(listOut, Does.Contain("SIG-P-B-001"));
+
+        // 5. Gate check (against dummy workspace)
+        var (checkCode, checkOut, checkErr) = await RunCliAsync("gate", "check", "--dir", _tempDir);
+        Assert.That(checkCode, Is.EqualTo(0), $"Check failed with out:\n{checkOut}\nerr:\n{checkErr}");
+        Assert.That(checkOut, Does.Contain("Semantic Invariant Gates Evaluation"));
+
+        // 6. Gate ratchet check
+        var (ratchetCode, _, _) = await RunCliAsync("gate", "ratchet", "--dir", _tempDir);
+        Assert.That(ratchetCode, Is.EqualTo(0));
+
+        // 7. Gate violations check (empty or populated)
+        var (violCode, violOut, _) = await RunCliAsync("gate", "violations", "--dir", _tempDir);
+        Assert.That(violCode, Is.EqualTo(0));
+        Assert.That(violOut, Does.Contain("Architectural Violations"));
+
+        // 8. Gate violations with --group-by file
+        var (grpCode, grpOut, _) = await RunCliAsync("gate", "violations", "--group-by", "file", "--dir", _tempDir);
+        Assert.That(grpCode, Is.EqualTo(0));
+        Assert.That(grpOut, Does.Contain("Violations Summary Grouped by 'file'"));
+    }
 }

@@ -1448,7 +1448,7 @@ export class IdHelperService {
                 new Relationship(fn1.Id, fn2.Id, OntologyConstants.Relationships.Calls, [])
             ]);
 
-            var repo = new CodeExplorer.Core.Mcp.CodeExplorerRepository(client);
+            var repo = new Core.Mcp.CodeExplorerRepository(client);
             var result = await repo.GetCallChainAsync("getWeightedPayoutToPostbackLinks", "getPostbackLink", format: "json");
             
             Assert.That(result, Does.Contain("getWeightedPayoutToPostbackLinks"));

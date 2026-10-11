@@ -12,6 +12,8 @@ By introducing **Semantic Invariant Gates (SIG)**, CodeExplorer becomes an activ
 - **Sub-Second Local Pre-Commit / CI Checks**: Fast execution (< 50ms) directly over SQLite.
 - **Autonomous AI-Agent Guardrails**: Native MCP tool `check_semantic_gates` allowing agents to self-verify code changes before commit.
 
+> **Theoretical Taxonomy & Architectural Model:** See [Fractal Orthogonal Invariant Matrix (FOIM)](fractal-orthogonal-invariant-matrix.md) for the complete $5 \times 4$ taxonomy across Method, Class, Module, Service, and System scopes.
+
 ---
 
 ## 2. Directory Layout & Architecture

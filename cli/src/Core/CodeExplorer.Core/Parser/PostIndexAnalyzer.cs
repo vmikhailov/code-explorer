@@ -1559,8 +1559,9 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        if (l4Result.SemanticStructure != null) CollectDbNodes(l4Result.SemanticStructure);
-        if (l4Result.Prev.Prev.Prev.Workspace != null) CollectDbNodes(l4Result.Prev.Prev.Prev.Workspace);
+        CollectDbNodes(l4Result.SemanticStructure);
+        CollectDbNodes(l4Result.Prev.Prev.Prev.Workspace);
+        
         foreach (var p in l4Result.Prev.Prev.Projects) CollectDbNodes(p);
         foreach (var f in l4Result.Prev.Prev.Prev.Files) CollectDbNodes(f);
 

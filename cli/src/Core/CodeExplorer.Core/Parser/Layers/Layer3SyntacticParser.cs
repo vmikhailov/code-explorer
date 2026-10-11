@@ -457,17 +457,17 @@ public class Layer3SyntacticParser
         if (kind == "Class")
         {
             typedNode = new TypeNode(symbolId, name, symbolId, fileName, relativePath,
-                node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column, "class");
+                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "class");
         }
         else if (kind == "Interface")
         {
             typedNode = new TypeNode(symbolId, name, symbolId, fileName, relativePath,
-                node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column, "interface");
+                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "interface");
         }
         else if (kind == OntologyConstants.NodeLabels.Function)
         {
             typedNode = new FunctionNode(symbolId, name, symbolId, fileName, relativePath,
-                node.StartPosition.Row, node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column);
+                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1);
         }
         else if (kind == OntologyConstants.NodeLabels.Query)
         {
@@ -535,6 +535,17 @@ public class Layer3SyntacticParser
             }
             var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{resolvedName.ToLowerInvariant()}";
             typedNode = new TableNode(tableId, resolvedName, relativePath);
+        }
+        else if (kind == OntologyConstants.NodeLabels.CallLiteral)
+        {
+            var val = syntactic.Properties.GetValueOrDefault("value") ?? syntactic.Name;
+            var callee = syntactic.Properties.GetValueOrDefault("callee") ?? "";
+            var argIdx = int.TryParse(syntactic.Properties.GetValueOrDefault("arg_index"), out var ai) ? ai : 0;
+            var line = int.TryParse(syntactic.Properties.GetValueOrDefault("line"), out var ln) ? ln : node.StartPosition.Row + 1;
+            var col = int.TryParse(syntactic.Properties.GetValueOrDefault("column"), out var cl) ? cl : node.StartPosition.Column + 1;
+            var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{line}:{col}";
+
+            typedNode = new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col);
         }
         else
         {
@@ -667,7 +678,9 @@ public class Layer3SyntacticParser
 
         var ext = new Dictionary<string, string>
         {
-            { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
+            { "file_path", relativePath },
+            { "start_line", (node.StartPosition.Row + 1).ToString() },
+            { "start_col", (node.StartPosition.Column + 1).ToString() }
         };
         return new EntryPointNode(entryPointId, cleanName, relativePath, entryType, ext);
     }
@@ -822,7 +835,9 @@ public class Layer3SyntacticParser
 
         var ext = new Dictionary<string, string>
         {
-            { "file_path", relativePath }, { "start_line", node.StartPosition.Row.ToString() }
+            { "file_path", relativePath },
+            { "start_line", (node.StartPosition.Row + 1).ToString() },
+            { "start_col", (node.StartPosition.Column + 1).ToString() }
         };
         if (!string.IsNullOrEmpty(parentScopeId))
         {

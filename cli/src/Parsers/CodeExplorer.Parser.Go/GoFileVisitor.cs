@@ -216,10 +216,10 @@ public class GoFileVisitor : BaseParserVisitor
                     scope,
                     isConstant,
                     "",
-                    node.StartPosition.Row,
-                    node.EndPosition.Row,
-                    node.StartPosition.Column,
-                    node.EndPosition.Column
+                    node.StartPosition.Row + 1,
+                    node.EndPosition.Row + 1,
+                    node.StartPosition.Column + 1,
+                    node.EndPosition.Column + 1
                 ));
             }
         }
@@ -262,10 +262,10 @@ public class GoFileVisitor : BaseParserVisitor
                         scope,
                         false,
                         "",
-                        node.StartPosition.Row,
-                        node.EndPosition.Row,
-                        node.StartPosition.Column,
-                        node.EndPosition.Column
+                        node.StartPosition.Row + 1,
+                        node.EndPosition.Row + 1,
+                        node.StartPosition.Column + 1,
+                        node.EndPosition.Column + 1
                     ));
                 }
             }

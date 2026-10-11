@@ -49,7 +49,13 @@ public class Program
         WorkspaceIndexer.Register(new ColdFusionProjectParser());
         WorkspaceIndexer.Register(new ColdFusionFileParser());
 
-        var parseResult = CommandLineParser.Default.ParseArguments(args, [
+        using var parser = new CommandLineParser(settings =>
+        {
+            settings.HelpWriter = Console.Error;
+            settings.CaseInsensitiveEnumValues = true;
+        });
+
+        var parseResult = parser.ParseArguments(args, [
             typeof(InitOptions),
             typeof(ScanOptions),
             typeof(IndexOptions),
@@ -72,7 +78,8 @@ public class Program
             typeof(DomainOptions),
             typeof(TestOptions),
             typeof(CoverageOptions),
-            typeof(ConfigureOptions)
+            typeof(ConfigureOptions),
+            typeof(GateOptions)
         ]);
 
         if (parseResult is Parsed<object> parsed)
@@ -99,6 +106,7 @@ public class Program
                 DomainOptions opts => await DomainCommandHandler.HandleAsync(opts),
                 TestOptions opts => await TestCommandHandler.HandleAsync(opts),
                 CoverageOptions opts => await CoverageCommandHandler.HandleAsync(opts),
+                GateOptions opts => await GateCommandHandler.HandleAsync(opts),
                 _ => 1
             };
         }

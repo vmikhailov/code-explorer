@@ -247,11 +247,11 @@ func Fetch() {
         var call = tree!.RootNode.FindDescendantOfType("call_expression");
         Assert.That(call.IsValid(), Is.True);
 
-        var args = CodeExplorer.Parser.Go.Libraries.GoAstHelper.GetCallArguments(call);
+        var args = Parser.Go.Libraries.GoAstHelper.GetCallArguments(call);
         Assert.That(args.Count, Is.GreaterThan(0));
 
         // Must terminate safely without StackOverflowException
-        var res = CodeExplorer.Parser.Go.Libraries.GoAstHelper.ResolveStringOrVariable(args[0]);
+        var res = Parser.Go.Libraries.GoAstHelper.ResolveStringOrVariable(args[0]);
         Assert.That(res, Is.EqualTo("/api/v1/orders"));
     }
 
@@ -271,11 +271,11 @@ def fetch():
         var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.Python.Call);
         Assert.That(call.IsValid(), Is.True);
 
-        var args = CodeExplorer.Parser.Python.Libraries.PythonAstHelper.GetCallArguments(call);
+        var args = Parser.Python.Libraries.PythonAstHelper.GetCallArguments(call);
         Assert.That(args.Count, Is.GreaterThan(0));
 
         // Must terminate safely without StackOverflowException
-        var res = CodeExplorer.Parser.Python.Libraries.PythonAstHelper.ResolveStringOrVariable(args[0]);
+        var res = Parser.Python.Libraries.PythonAstHelper.ResolveStringOrVariable(args[0]);
         Assert.That(res, Is.EqualTo("/api/v1/items"));
     }
 
@@ -296,18 +296,18 @@ function fetch() {
         var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.TypeScript.CallExpression);
         Assert.That(call.IsValid(), Is.True);
 
-        var args = CodeExplorer.Parser.TypeScript.Libraries.AstHelper.GetCallArguments(call);
+        var args = Parser.TypeScript.Libraries.AstHelper.GetCallArguments(call);
         Assert.That(args.Count, Is.GreaterThan(0));
 
         // Must terminate safely without StackOverflowException
-        var res = CodeExplorer.Parser.TypeScript.Libraries.AstHelper.ResolveStringOrTemplate(args[0]);
+        var res = Parser.TypeScript.Libraries.AstHelper.ResolveStringOrTemplate(args[0]);
         Assert.That(res, Is.EqualTo("/api/v1/users"));
     }
 
     [Test]
     public void Test_HttpApiPrefixConfig_AtsExactContent()
     {
-        WorkspaceIndexer.Register(new CodeExplorer.Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.Register(new TypeScriptParser());
         var code = @"
 export const HTTP_API_PREFIX_CONFIG = {
   API_GLOBAL_PREFIX: 'api/v1',

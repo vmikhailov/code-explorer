@@ -3,6 +3,9 @@ using CodeExplorer.Core.Analysis.Testing;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Diagrams;
+using CodeExplorer.Core.Gates.Engine;
+using CodeExplorer.Core.Gates.Models;
+using CodeExplorer.Core.Gates.Storage;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Cypher.Parser;
@@ -1863,5 +1866,300 @@ public class CodeExplorerRepository
 
         return JsonSerializer.Serialize(
             new { status = "success", nodesIngested, relationshipsIngested = relsIngested }, CompactJsonOptions);
+    }
+
+    public async Task<string> CheckSemanticGatesAsync(
+        string? gateId = null,
+        string? scope = null,
+        string? dimension = null,
+        bool includeTolerated = false,
+        int limit = 50,
+        string? fileFilter = null,
+        string? groupBy = null,
+        string format = "markdown",
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetDir = workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory();
+        var ws = WorkspaceLocator.Find(targetDir);
+        var effectivePath = ws?.RootDirectory ?? Path.GetFullPath(targetDir);
+
+        var client = await ResolveClientAsync(effectivePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        var gateRepo = new FileGateRepository(effectivePath);
+        var engine = new GateExecutionEngine(client, gateRepo);
+
+        InvariantScope? scopeFilter = !string.IsNullOrWhiteSpace(scope) && Enum.TryParse<InvariantScope>(scope, true, out var s) ? s : null;
+        InvariantDimension? dimFilter = !string.IsNullOrWhiteSpace(dimension) && Enum.TryParse<InvariantDimension>(dimension, true, out var d) ? d : null;
+
+        if (!string.IsNullOrWhiteSpace(gateId))
+        {
+            var singleGate = await gateRepo.GetGateByIdAsync(gateId, cancellationToken);
+            if (singleGate == null)
+            {
+                return format.Equals("json", StringComparison.OrdinalIgnoreCase)
+                    ? JsonSerializer.Serialize(new { error = $"Gate '{gateId}' not found." }, CompactJsonOptions)
+                    : $"⚠️ **Gate Not Found**: No gate with ID '{gateId}' is registered.";
+            }
+
+            var singleResult = await engine.CheckGateAsync(singleGate, cancellationToken);
+            return FormatSingleGateResult(singleResult, includeTolerated, limit, fileFilter, groupBy, format);
+        }
+
+        var suiteResult = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter, cancellationToken);
+        return FormatSuiteResult(suiteResult, format);
+    }
+
+    public async Task<string> ListSemanticGatesAsync(
+        string format = "markdown",
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetDir = workspacePath ?? DefaultWorkspacePath ?? Directory.GetCurrentDirectory();
+        var ws = WorkspaceLocator.Find(targetDir);
+        var effectivePath = ws?.RootDirectory ?? Path.GetFullPath(targetDir);
+
+        var gateRepo = new FileGateRepository(effectivePath);
+        var allGates = await gateRepo.GetAllGatesAsync(cancellationToken);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.Serialize(new
+            {
+                totalGates = allGates.Count,
+                gates = allGates.Select(g => new
+                {
+                    g.Id,
+                    Scope = g.Scope.ToString(),
+                    Dimension = g.Dimension.ToString(),
+                    Coordinate = g.CoordinateCode,
+                    g.Name,
+                    Severity = g.Severity.ToString(),
+                    g.Source,
+                    g.Description,
+                    g.Remediation
+                })
+            }, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"# Semantic Invariant Gates ({allGates.Count})\n");
+        sb.AppendLine("| ID | Scope | Dimension | Name | Severity | Source |");
+        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- |");
+        foreach (var g in allGates)
+        {
+            sb.AppendLine($"| `{g.Id}` | {g.Scope} | {g.Dimension} | **{g.Name}** | `{g.Severity}` | {g.Source} |");
+        }
+        sb.AppendLine();
+        sb.AppendLine("> Use `check_semantic_gates` tool with `gateId` or `scope` to evaluate these architectural invariants.");
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string FormatSingleGateResult(GateCheckResult result, bool includeTolerated, int limit, string? fileFilter, string? groupBy, string format)
+    {
+        var toleratedFp = new HashSet<string>(result.ToleratedViolations.Select(t => t.Fingerprint));
+        var candidates = result.Violations.Where(v =>
+        {
+            var isTol = toleratedFp.Contains(v.Fingerprint);
+            if (!includeTolerated && isTol) return false;
+            if (!string.IsNullOrWhiteSpace(fileFilter) && (v.File == null || !v.File.Contains(fileFilter, StringComparison.OrdinalIgnoreCase))) return false;
+            return true;
+        }).ToList();
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrWhiteSpace(groupBy))
+            {
+                var gb = groupBy.Trim().ToLowerInvariant();
+                var groups = gb switch
+                {
+                    "callee" or "target" => candidates.GroupBy(v => ExtractCallee(v.Target)).Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList(),
+                    "symbol" => candidates.GroupBy(v => v.Symbol ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList(),
+                    _ => candidates.GroupBy(v => v.File ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList()
+                };
+
+                return JsonSerializer.Serialize(new
+                {
+                    gateId = result.Gate.Id,
+                    name = result.Gate.Name,
+                    status = result.Status.ToString(),
+                    groupBy = gb,
+                    totalViolations = candidates.Count,
+                    groups = groups.Take(limit > 0 ? limit : int.MaxValue)
+                }, new JsonSerializerOptions { WriteIndented = true });
+            }
+
+            return JsonSerializer.Serialize(new
+            {
+                result.Gate,
+                Status = result.Status.ToString(),
+                result.BaselineCount,
+                ViolationsCount = result.Violations.Count,
+                NewViolationsCount = result.NewViolations.Count,
+                ToleratedCount = result.ToleratedViolations.Count,
+                Violations = candidates.Take(limit > 0 ? limit : int.MaxValue)
+            }, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        var sb = new System.Text.StringBuilder();
+        var icon = result.Status switch
+        {
+            GateCheckStatus.Passed => "✅",
+            GateCheckStatus.PassedTolerated => "⚠️",
+            GateCheckStatus.FailedNew => "❌",
+            _ => "💥"
+        };
+
+        sb.AppendLine($"### {icon} Gate `{result.Gate.Id}`: {result.Gate.Name}");
+        sb.AppendLine($"- **Status**: `{result.Status}`");
+        sb.AppendLine($"- **Scope & Dimension**: {result.Gate.Scope} / {result.Gate.Dimension} ({result.Gate.CoordinateCode})");
+        sb.AppendLine($"- **Severity**: `{result.Gate.Severity}`");
+        sb.AppendLine($"- **Violations**: {result.Violations.Count} (New: {result.NewViolations.Count}, Tolerated Baseline: {result.ToleratedViolations.Count})");
+        sb.AppendLine($"- **Duration**: {result.Duration.TotalMilliseconds:F1}ms\n");
+
+        if (!string.IsNullOrEmpty(result.Gate.Description))
+        {
+            sb.AppendLine($"> {result.Gate.Description}\n");
+        }
+
+        if (!string.IsNullOrWhiteSpace(groupBy))
+        {
+            var gb = groupBy.Trim().ToLowerInvariant();
+            var groups = gb switch
+            {
+                "callee" or "target" => candidates.GroupBy(v => ExtractCallee(v.Target)).Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList(),
+                "symbol" => candidates.GroupBy(v => v.Symbol ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList(),
+                _ => candidates.GroupBy(v => v.File ?? "(unknown)").Select(g => new { Key = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count).ToList()
+            };
+
+            sb.AppendLine($"#### Violations Summary Grouped by `{gb}` ({candidates.Count} total):");
+            sb.AppendLine($"| Count | {gb.ToUpperInvariant()} |");
+            sb.AppendLine("| :--- | :--- |");
+            foreach (var g in groups.Take(limit > 0 ? limit : 50))
+            {
+                sb.AppendLine($"| {g.Count} | `{g.Key}` |");
+            }
+            if (groups.Count > (limit > 0 ? limit : 50))
+            {
+                sb.AppendLine($"\n*... and {groups.Count - (limit > 0 ? limit : 50)} more groups.*");
+            }
+            sb.AppendLine();
+        }
+        else if (result.NewViolations.Count > 0 || (includeTolerated && candidates.Count > 0))
+        {
+            var displayList = candidates.Take(limit > 0 ? limit : 50).ToList();
+            var title = result.NewViolations.Count > 0 && !includeTolerated ? "#### ❌ New Violations (Blocking):" : $"#### Architectural Violations (Showing {displayList.Count} of {candidates.Count}):";
+            sb.AppendLine(title);
+            foreach (var v in displayList)
+            {
+                var isTol = toleratedFp.Contains(v.Fingerprint);
+                var tag = isTol ? "[TOL]" : "[NEW]";
+                var loc = v.Location != "-" ? $"`{v.Location}`" : "";
+                var target = !string.IsNullOrEmpty(v.Target) ? $" → `{v.Target}`" : "";
+                sb.AppendLine($"- {tag} {loc} **{v.Symbol}**{target}: {v.Message}");
+            }
+            if (candidates.Count > displayList.Count)
+            {
+                sb.AppendLine($"- *... and {candidates.Count - displayList.Count} more violations (use limit parameter for more)*");
+            }
+            sb.AppendLine();
+        }
+        else if (result.Violations.Count > 0)
+        {
+            sb.AppendLine($"> 💡 **Tolerated Debt**: {result.Violations.Count} violations are tolerated by baseline. Run with `includeTolerated: true` or `groupBy: 'file'` to inspect.");
+        }
+
+        if (!string.IsNullOrEmpty(result.Gate.Remediation) && result.NewViolations.Count > 0)
+        {
+            sb.AppendLine($"💡 **Remediation**: {result.Gate.Remediation}\n");
+        }
+
+        if (result.CanRatchetDown)
+        {
+            sb.AppendLine($"> 📉 **Ratchet Opportunity**: Active violations ({result.Violations.Count}) are less than baseline ({result.BaselineCount}). Run `ce gate ratchet --update` to lock down technical debt.");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string FormatSuiteResult(GateSuiteResult suite, string format)
+    {
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.Serialize(suite, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        var sb = new System.Text.StringBuilder();
+        var banner = suite.IsSuccess
+            ? (suite.ToleratedViolationsCount > 0 ? "⚠️ **Semantic Gates: Passed with Tolerated Debt**" : "✅ **Semantic Gates: All Invariants Satisfied**")
+            : "❌ **Semantic Gates: Architectural Violations Detected**";
+
+        sb.AppendLine($"# {banner}\n");
+        sb.AppendLine($"- **Total Gates Evaluated**: {suite.TotalGates}");
+        sb.AppendLine($"- **Passed**: {suite.PassedCount} | **Failed**: {suite.FailedCount}");
+        sb.AppendLine($"- **New Violations**: {suite.NewViolationsCount} | **Tolerated Baseline Debt**: {suite.ToleratedViolationsCount}");
+        sb.AppendLine($"- **Evaluation Time**: {suite.TotalDuration.TotalMilliseconds:F1}ms\n");
+
+        sb.AppendLine("| ID | Scope | Dimension | Gate Name | Status | Violations |");
+        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- |");
+        foreach (var r in suite.Results)
+        {
+            var stIcon = r.Status switch
+            {
+                GateCheckStatus.Passed => "✅ PASS",
+                GateCheckStatus.PassedTolerated => "⚠️ TOLERATED",
+                GateCheckStatus.FailedNew => "❌ FAIL",
+                _ => "💥 ERR"
+            };
+            var vCount = r.NewViolations.Count > 0 ? $"**{r.NewViolations.Count} new**" : $"{r.Violations.Count}";
+            sb.AppendLine($"| `{r.Gate.Id}` | {r.Gate.Scope} | {r.Gate.Dimension} | {r.Gate.Name} | {stIcon} | {vCount} |");
+        }
+        sb.AppendLine();
+
+        var failedGates = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
+        if (failedGates.Count > 0)
+        {
+            sb.AppendLine("## 🚨 Blocking Architectural Violations:\n");
+            foreach (var fg in failedGates)
+            {
+                sb.AppendLine($"### `{fg.Gate.Id}`: {fg.Gate.Name}");
+                if (!string.IsNullOrEmpty(fg.ErrorMessage))
+                {
+                    sb.AppendLine($"- **Error**: `{fg.ErrorMessage}`");
+                }
+                foreach (var v in fg.NewViolations.Take(10))
+                {
+                    var loc = v.Location != "-" ? $"`{v.Location}`" : "";
+                    var target = !string.IsNullOrEmpty(v.Target) ? $" → `{v.Target}`" : "";
+                    sb.AppendLine($"- {loc} **{v.Symbol}**{target}: {v.Message}");
+                }
+                if (fg.NewViolations.Count > 10)
+                {
+                    sb.AppendLine($"- *...and {fg.NewViolations.Count - 10} more violations*");
+                }
+                if (!string.IsNullOrEmpty(fg.Gate.Remediation))
+                {
+                    sb.AppendLine($"💡 **Remediation**: {fg.Gate.Remediation}\n");
+                }
+            }
+        }
+
+        if (suite.RatchetOpportunities > 0)
+        {
+            sb.AppendLine($"> 📉 **{suite.RatchetOpportunities} gate(s) have fewer violations than allowed by baseline.** Run `ce gate ratchet --update` to ratchet down technical debt.");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string ExtractCallee(string? target)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return "(unknown)";
+        var idx = target.IndexOf('(');
+        return idx > 0 ? target[..idx].Trim() : target.Trim();
     }
 }

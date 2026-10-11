@@ -33,7 +33,15 @@ public record Node(string Id, string Kind, Dictionary<string, object> Properties
         {
             foreach (var kvp in node.Extensions)
             {
-                properties[kvp.Key] = kvp.Value;
+                if (int.TryParse(kvp.Value, out var intVal) &&
+                    (kvp.Key.EndsWith("_line") || kvp.Key.EndsWith("_col") || kvp.Key is "line" or "column" or "arg_index" or "start_line" or "end_line"))
+                {
+                    properties[kvp.Key] = intVal;
+                }
+                else
+                {
+                    properties[kvp.Key] = kvp.Value;
+                }
             }
         }
 

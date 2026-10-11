@@ -625,11 +625,11 @@ public class MyEntity { public int Id { get; set; } }
     {
         var parserAssemblies = new[]
         {
-            typeof(CodeExplorer.Parser.CSharp.CSharpParser).Assembly,
-            typeof(CodeExplorer.Parser.Go.GoParser).Assembly,
-            typeof(CodeExplorer.Parser.Python.PythonParser).Assembly,
-            typeof(CodeExplorer.Parser.Java.JavaParser).Assembly,
-            typeof(CodeExplorer.Parser.TypeScript.TypeScriptParser).Assembly
+            typeof(CSharpParser).Assembly,
+            typeof(Parser.Go.GoParser).Assembly,
+            typeof(Parser.Python.PythonParser).Assembly,
+            typeof(JavaParser).Assembly,
+            typeof(TypeScriptParser).Assembly
         };
 
         var allExtensions = parserAssemblies

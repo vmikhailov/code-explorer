@@ -380,6 +380,17 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     protected override string? FindCallName(Node callNode)
     {
+        if (callNode.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
+        {
+            var typeNode = callNode.GetField(TreeSitterSyntax.Fields.Type) ??
+                           callNode.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));
+            if (typeNode.IsValid())
+            {
+                return $"new {typeNode.Text}";
+            }
+            return null;
+        }
+
         var expr = callNode.GetFunctionNode();
         if (!expr.IsValid()) return null;
 
@@ -452,10 +463,10 @@ public class CSharpFileVisitor : BaseParserVisitor
                 scope,
                 isConstant,
                 "",
-                node.StartPosition.Row,
-                node.EndPosition.Row,
-                node.StartPosition.Column,
-                node.EndPosition.Column
+                node.StartPosition.Row + 1,
+                node.EndPosition.Row + 1,
+                node.StartPosition.Column + 1,
+                node.EndPosition.Column + 1
             ));
 
             if (node.Is(TreeSitterSyntax.CSharp.PropertyDeclaration))

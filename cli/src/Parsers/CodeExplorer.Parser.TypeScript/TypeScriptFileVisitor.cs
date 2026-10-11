@@ -329,8 +329,8 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 var isConstant = IsTypeScriptConstant(node);
                 var scope = DetermineTypeScriptScope(node);
 
-                RawVariables.Add(new RawVariable(name, initializerText, scope, isConstant, "", node.StartPosition.Row,
-                    node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column));
+                RawVariables.Add(new RawVariable(name, initializerText, scope, isConstant, "", node.StartPosition.Row + 1,
+                    node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1));
 
                 var typeAnnotation = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation)) ??
                                      nameNode?.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation));
@@ -371,8 +371,8 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 var isConstant = false;
                 var scope = "class";
 
-                RawVariables.Add(new RawVariable(name, initializerText, scope, isConstant, "", node.StartPosition.Row,
-                    node.EndPosition.Row, node.StartPosition.Column, node.EndPosition.Column));
+                RawVariables.Add(new RawVariable(name, initializerText, scope, isConstant, "", node.StartPosition.Row + 1,
+                    node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1));
 
                 var typeAnnotation = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation));
 

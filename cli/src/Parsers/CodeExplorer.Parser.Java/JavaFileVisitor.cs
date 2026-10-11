@@ -277,10 +277,10 @@ public class JavaFileVisitor : BaseParserVisitor
                         scope,
                         isConstant,
                         "",
-                        declarator.StartPosition.Row,
-                        declarator.EndPosition.Row,
-                        declarator.StartPosition.Column,
-                        declarator.EndPosition.Column
+                        declarator.StartPosition.Row + 1,
+                        declarator.EndPosition.Row + 1,
+                        declarator.StartPosition.Column + 1,
+                        declarator.EndPosition.Column + 1
                     ));
 
                     RawTypeBindings.Add(new RawTypeBinding(varName, typeName, "", SymbolStack.Peek().Name));

@@ -434,9 +434,176 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 {
                     currentScope.References.Add(new Reference("", callName, "CALLS"));
                 }
+
+                CollectCallLiteralArguments(node, callName, currentScope);
             }
 
             base.VisitCallExpression(node, depth);
         });
+    }
+
+    protected virtual void CollectCallLiteralArguments(Node callNode, string? callName, SyntacticSymbol currentScope)
+    {
+        if (RelativePath.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
+            RelativePath.Contains("test", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        callName ??= FindCallName(callNode);
+        if (string.IsNullOrEmpty(callName) || IsExcludedCall(callName))
+        {
+            return;
+        }
+
+        var argsNode = callNode.FindChildOfType(TreeSitterSyntax.Common.ArgumentList) ??
+                       callNode.FindChildOfType(TreeSitterSyntax.Common.Arguments);
+
+        if (!argsNode.IsValid())
+        {
+            argsNode = callNode.Children.FirstOrDefault(c => c.Type.Contains("argument"));
+        }
+
+        if (!argsNode.IsValid()) return;
+
+        var argIndex = 0;
+        foreach (var child in argsNode.Children)
+        {
+            if (child.Type is "(" or ")" or "," or ";" or "{" or "}")
+            {
+                continue;
+            }
+
+            var exprNode = child;
+            if (child.Type == "argument")
+            {
+                var valueCandidate = child.Children.LastOrDefault(c => c.Type is not "name_colon" and not ":" and not ",");
+                if (valueCandidate.IsValid())
+                {
+                    exprNode = valueCandidate;
+                }
+            }
+
+            if (IsStringLiteralNode(exprNode))
+            {
+                var cleaned = CleanStringLiteral(exprNode.Text);
+
+                if (!string.IsNullOrWhiteSpace(cleaned) &&
+                    !NestedSqlParser.TryParseSql(cleaned, out _, out _))
+                {
+                    var line = exprNode.StartPosition.Row + 1;
+                    var col = exprNode.StartPosition.Column + 1;
+                    var displayName = cleaned.Length > 80 ? cleaned[..77] + "..." : cleaned;
+
+                    var literalSymbol = new SyntacticSymbol(OntologyConstants.NodeLabels.CallLiteral, displayName, exprNode)
+                    {
+                        Text = cleaned
+                    };
+                    literalSymbol.Properties["value"] = cleaned;
+                    literalSymbol.Properties["callee"] = callName;
+                    literalSymbol.Properties["arg_index"] = argIndex.ToString();
+                    literalSymbol.Properties["file_path"] = RelativePath;
+                    literalSymbol.Properties["line"] = line.ToString();
+                    literalSymbol.Properties["column"] = col.ToString();
+
+                    currentScope.Children.Add(literalSymbol);
+                }
+            }
+
+            argIndex++;
+        }
+    }
+
+    private static readonly HashSet<string> ExcludedMethodNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // 1. Logging framework methods
+        "Log", "LogError", "LogWarning", "LogInformation", "LogDebug", "LogTrace", "LogCritical",
+        "WriteLine", "Write", "Print", "Printf", "Println", "Debug", "Trace", "Fail",
+        // 2. String & Path manipulation / formatting
+        "Format", "Join", "Concat", "Split", "Replace", "StartsWith", "EndsWith", "Contains",
+        "Includes", "IndexOf", "LastIndexOf", "Trim", "TrimStart", "TrimEnd", "ToString",
+        "PadLeft", "PadRight", "Substring", "Slice", "Combine", "Match", "Matches",
+        // 3. Reflection / Type checking
+        "nameof", "GetType", "typeof"
+    };
+
+    protected static bool IsExcludedCall(string callName)
+    {
+        var simpleName = callName;
+        if (simpleName.Contains('.'))
+        {
+            simpleName = simpleName[(simpleName.LastIndexOf('.') + 1)..];
+        }
+
+        if (ExcludedMethodNames.Contains(simpleName))
+        {
+            return true;
+        }
+
+        if (callName.Contains("Logger", StringComparison.OrdinalIgnoreCase) ||
+            callName.Contains("Console", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("Debug.", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("Trace.", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("Path.", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("string.", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("String.", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Exception constructors and guards
+        if (simpleName.EndsWith("Exception", StringComparison.OrdinalIgnoreCase) ||
+            simpleName.StartsWith("Throw", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("throw new ", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("new Argument", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    protected bool IsStringLiteralNode(Node node)
+    {
+        if (!node.IsValid()) return false;
+        var type = node.Type;
+
+        if (Profile.StringLiterals.Contains(type)) return true;
+
+        if (type is "string_literal" or "verbatim_string_literal" or "raw_string_literal" or "string" or "character_literal")
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    protected static string CleanStringLiteral(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        var s = text.Trim();
+
+        if (s.StartsWith("\"\"\"") && s.EndsWith("\"\"\"") && s.Length >= 6)
+        {
+            return s[3..^3].Trim('\r', '\n');
+        }
+        if (s.StartsWith("@\"") && s.EndsWith("\"") && s.Length >= 3)
+        {
+            return s[2..^1].Replace("\"\"", "\"");
+        }
+        if (s.StartsWith("$\"") && s.EndsWith("\"") && s.Length >= 3)
+        {
+            return s[2..^1];
+        }
+        if (s.StartsWith('"') && s.EndsWith('"') && s.Length >= 2)
+        {
+            return s[1..^1];
+        }
+        if (s.StartsWith('\'') && s.EndsWith('\'') && s.Length >= 2)
+        {
+            return s[1..^1];
+        }
+
+        return s;
     }
 }

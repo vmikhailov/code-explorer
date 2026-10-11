@@ -268,12 +268,12 @@ public class FastApiParserTests
 
         Assert.That(ep.RequiredRoles, Is.EqualTo("admin,metrics:read"));
 
-        var callsRefs = ep.References.Where(r => r.Kind == CodeExplorer.Core.Common.OntologyConstants.Relationships.Calls).ToList();
+        var callsRefs = ep.References.Where(r => r.Kind == Core.Common.OntologyConstants.Relationships.Calls).ToList();
         var depNames = callsRefs.Select(r => r.TargetName).ToList();
         Assert.That(depNames, Does.Contain("get_db"));
         Assert.That(depNames, Does.Contain("get_current_user"));
 
-        var triggerRef = ep.References.FirstOrDefault(r => r.Kind == CodeExplorer.Core.Common.OntologyConstants.Relationships.Triggers);
+        var triggerRef = ep.References.FirstOrDefault(r => r.Kind == Core.Common.OntologyConstants.Relationships.Triggers);
         Assert.That(triggerRef, Is.Not.Null);
         Assert.That(triggerRef!.TargetName, Is.EqualTo("admin_view"));
     }
@@ -296,8 +296,8 @@ public class FastApiParserTests
 
         var result = componentParser.AnalyzeManifest(context);
         Assert.That(result.ComponentId, Is.EqualTo("fastapi"));
-        Assert.That(result.Role, Is.EqualTo(CodeExplorer.Core.Parser.LibraryRole.WebService));
-        Assert.That(result.Capabilities, Is.EqualTo(CodeExplorer.Core.Parser.Components.ComponentCapabilities.HttpEndpoints));
+        Assert.That(result.Role, Is.EqualTo(LibraryRole.WebService));
+        Assert.That(result.Capabilities, Is.EqualTo(Core.Parser.Components.ComponentCapabilities.HttpEndpoints));
         Assert.That(result.Metadata["web_framework"], Is.EqualTo("fastapi"));
     }
 }

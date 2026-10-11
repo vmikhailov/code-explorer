@@ -73,11 +73,11 @@ public class MessagingConnectionsTests
 
         Assert.That(owner, Is.Null, "Package URNs must never be resolved to an internal project");
 
-        var graphProjects = new List<CodeExplorer.Core.Protocol.GraphNodeDto>
+        var graphProjects = new List<Core.Protocol.GraphNodeDto>
         {
             new() { Id = "ws:project:root:", Name = "RootApp", FilePath = "" }
         };
-        var graphOwner = CodeExplorer.Core.Analysis.ArchitectureViewEngine.FindOwningProject(packageId, graphProjects);
+        var graphOwner = Core.Analysis.ArchitectureViewEngine.FindOwningProject(packageId, graphProjects);
         Assert.That(graphOwner, Is.Null, "ArchitectureViewEngine must never map a package node to an internal project");
     }
 
@@ -91,11 +91,11 @@ public class MessagingConnectionsTests
         var owner = PostIndexAnalyzer.FindOwningProjectForId(extId, projects);
         Assert.That(owner, Is.Null, "External services must never be resolved to an internal project");
 
-        var graphProjects = new List<CodeExplorer.Core.Protocol.GraphNodeDto>
+        var graphProjects = new List<Core.Protocol.GraphNodeDto>
         {
             new() { Id = "ws:project:root:", Name = "RootApp", FilePath = "" }
         };
-        var graphOwner = CodeExplorer.Core.Analysis.ArchitectureViewEngine.FindOwningProject(extId, graphProjects);
+        var graphOwner = Core.Analysis.ArchitectureViewEngine.FindOwningProject(extId, graphProjects);
         Assert.That(graphOwner, Is.Null);
     }
 

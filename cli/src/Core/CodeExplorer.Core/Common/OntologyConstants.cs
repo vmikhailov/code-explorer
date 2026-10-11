@@ -38,6 +38,7 @@ public static class OntologyConstants
         public const string Counter = "Counter";
         public const string Domain = "Domain";
         public const string TestSuite = "TestSuite";
+        public const string CallLiteral = "CallLiteral";
     }
 
     public static class IdPrefixes
@@ -71,6 +72,7 @@ public static class OntologyConstants
         public const string ApiInUse = "api";
         public const string Domain = "dom";
         public const string TestSuite = "suite";
+        public const string CallLiteral = "lit";
     }
 
     public static class Layers
@@ -106,6 +108,7 @@ public static class OntologyConstants
         public const string AttributedTo = "ATTRIBUTED_TO";
         public const string Defines = "DEFINES";
         public const string Declares = "DECLARES";
+        public const string PassesLiteral = "PASSES_LITERAL";
 
         // Transitive architectural macro-relationships (C4 Level)
         public const string IntegratesWith = "INTEGRATES_WITH";
