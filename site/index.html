@@ -528,17 +528,24 @@
       height: auto;
       cursor: zoom-in;
       overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 36px 10% 72px;
     }
 
     .showcase-img {
       width: 100%;
+      max-width: 980px;
       height: auto;
       display: block;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
       transition: transform 0.3s ease;
     }
 
     .showcase-img:hover {
-      transform: scale(1.006);
+      transform: scale(1.01);
     }
 
     .showcase-overlay-bar {
@@ -1609,6 +1616,7 @@
       .footer-grid { grid-template-columns: 1fr; }
       .showcase-header { flex-direction: column; align-items: flex-start; }
       .showcase-overlay-bar { flex-direction: column; align-items: flex-start; }
+      .showcase-img-container { padding: 16px 4% 56px; }
     }
   </style>
 </head>
