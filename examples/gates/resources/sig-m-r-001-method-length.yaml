@@ -12,7 +12,7 @@ query: |
   WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
     AND NOT coalesce(f.is_test, false)
   RETURN 
-    coalesce(f.file_path, f.path) AS file,
+    coalesce(f.path, f.file_path) AS file,
     coalesce(f.start_line, 1) AS line,
     coalesce(f.start_col, 1) AS column,
     f.name AS symbol,

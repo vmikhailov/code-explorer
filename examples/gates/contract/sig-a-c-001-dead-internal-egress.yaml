@@ -12,7 +12,7 @@ query: |
   WHERE es.is_internal = true
     AND NOT (:Endpoint { path: es.path })
   RETURN 
-    coalesce(caller.file_path, caller.path) AS file,
+    coalesce(caller.path, caller.file_path) AS file,
     coalesce(caller.start_line, 1) AS line,
     caller.name AS symbol,
     es.path AS target,

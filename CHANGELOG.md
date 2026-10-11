@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.3] - 2026-10-11
+
+### Fixed
+- **Gate File Path Resolution (`coalesce(f.path, f.file_path)`)**:
+  - Prioritized `f.path` over `f.file_path` in `SIG-M-R-001`, `SIG-M-I-004`, and `SIG-A-C-001` queries to ensure violations emit full workspace-relative paths rather than bare file names.
+  - Fixes clickable 2D IDE file:line:col navigation and ensures unique, non-colliding SHA-256 baseline fingerprints across subdirectories.
+
+---
+
 ## [1.34.2] - 2026-10-11
 
 ### Added
