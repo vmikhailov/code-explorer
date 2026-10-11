@@ -148,25 +148,21 @@ public class ParsingContext
 
     private void ReportNodesProgressIfNeeded()
     {
-        var nowTicks = Environment.TickCount64;
-        if (_nodesPersisted - _lastReportedNodes >= 10000 ||
-            (nowTicks - _lastNodeReportTicks >= 1000 && _nodesPersisted != _lastReportedNodes))
+        if (_nodesPersisted - _lastReportedNodes >= 10000)
         {
             Log($"[PersistenceProgress] Saved: {_nodesPersisted} nodes to database...");
             _lastReportedNodes = _nodesPersisted;
-            _lastNodeReportTicks = nowTicks;
+            _lastNodeReportTicks = Environment.TickCount64;
         }
     }
 
     private void ReportRelationshipsProgressIfNeeded()
     {
-        var nowTicks = Environment.TickCount64;
-        if (_relsPersisted - _lastReportedRels >= 10000 ||
-            (nowTicks - _lastRelReportTicks >= 1000 && _relsPersisted != _lastReportedRels))
+        if (_relsPersisted - _lastReportedRels >= 10000)
         {
             Log($"[PersistenceProgress] Saved: {_relsPersisted} relationships to database...");
             _lastReportedRels = _relsPersisted;
-            _lastRelReportTicks = nowTicks;
+            _lastRelReportTicks = Environment.TickCount64;
         }
     }
 

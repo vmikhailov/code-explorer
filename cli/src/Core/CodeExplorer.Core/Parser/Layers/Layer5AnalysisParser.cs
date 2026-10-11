@@ -959,7 +959,7 @@ public class Layer5AnalysisParser
             }
         }
 
-        ctx.Log($"[Layer5] [LateBinding] Found {entryPoints.Count} EntryPoints, {endpoints.Count} Endpoints, and {externalServices.Count} ExternalServices.");
+        ctx.LogDebug($"[Layer5] [LateBinding] Found {entryPoints.Count} EntryPoints, {endpoints.Count} Endpoints, and {externalServices.Count} ExternalServices.");
 
         var lateBoundRels = new List<Relationship>();
         var addedProjectDeps = new HashSet<(string From, string To)>();
@@ -991,7 +991,7 @@ public class Layer5AnalysisParser
                     {
                         if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                         {
-                            ctx.Log($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via entrypoint '{entryPoint.Name}'");
+                            ctx.LogDebug($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via entrypoint '{entryPoint.Name}'");
                             lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
                         }
                     }
@@ -1031,7 +1031,7 @@ public class Layer5AnalysisParser
                     {
                         if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                         {
-                            ctx.Log($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.RouteTemplate}'");
+                            ctx.LogDebug($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.RouteTemplate}'");
                             lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
                         }
                     }
@@ -1079,7 +1079,7 @@ public class Layer5AnalysisParser
                         {
                             if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
                             {
-                                ctx.Log($"[Layer5] [LateBinding] Inferred project dependency: Project '{callerProj.Name}' -> Project '{proj.Name}' via service domain '{extService.DomainOrService}'");
+                                ctx.LogDebug($"[Layer5] [LateBinding] Inferred project dependency: Project '{callerProj.Name}' -> Project '{proj.Name}' via service domain '{extService.DomainOrService}'");
                                 lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, proj.Id, new() { ["dependency_type"] = "service_call" })));
                             }
                         }

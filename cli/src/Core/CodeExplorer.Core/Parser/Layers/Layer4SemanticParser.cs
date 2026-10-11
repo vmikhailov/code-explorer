@@ -38,7 +38,7 @@ public class Layer4SemanticParser
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
             nProject++;
-            ctx.Log($"[Layer4] Enriching project {nProject} of {l3Result.Prev.Projects.Count} at:'{project.Path}' with semantic information...");
+            ctx.LogDebug($"[Layer4] Enriching project {nProject} of {l3Result.Prev.Projects.Count} at:'{project.Path}' with semantic information...");
 
             // Find project parser
             var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
@@ -255,7 +255,7 @@ public class Layer4SemanticParser
 
         // 3. Upload the entire Workspace Node tree using OntologyUploader
         ctx.CancellationToken.ThrowIfCancellationRequested();
-        ctx.Log("[Layer4] Uploading the entire Workspace Node tree...");
+        ctx.LogDebug("[Layer4] Uploading the entire Workspace Node tree...");
         await OntologyUploader.UploadNodeTreeAsync(l3Result.Prev.Prev.Workspace, null, ctx);
 
         ctx.Log($"[Layer4] Semantic enrichment pass complete. Identified {semanticNodes.Count} semantic nodes.");

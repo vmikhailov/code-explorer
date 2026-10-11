@@ -223,7 +223,7 @@ public class PostIndexAnalyzer(IGraphClient db)
 
         if (directProjectRels.Count > 0)
         {
-            ctx.Log($"[PostIndexAnalyzer] Materializing {directProjectRels.Count} direct project relationships into SQLite graph...");
+            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {directProjectRels.Count} direct project relationships into SQLite graph...");
             await ctx.DbClient.UploadRelationshipsAsync(directProjectRels);
             ctx.AddRelsCount(directProjectRels.Count);
             allCombinedRels.AddRange(directProjectRels);
@@ -236,7 +236,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         );
         if (liftedSemanticRels.Count > 0)
         {
-            ctx.Log($"[PostIndexAnalyzer] Materializing {liftedSemanticRels.Count} transitive semantic relationships into SQLite graph...");
+            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {liftedSemanticRels.Count} transitive semantic relationships into SQLite graph...");
             await ctx.DbClient.UploadRelationshipsAsync(liftedSemanticRels);
             ctx.AddRelsCount(liftedSemanticRels.Count);
         }
@@ -1753,7 +1753,7 @@ public class PostIndexAnalyzer(IGraphClient db)
 
         if (canonicalDbNodes.Count > 0)
         {
-            ctx.Log($"[PostIndexAnalyzer] Materializing {canonicalDbNodes.Count} canonical Database nodes into graph...");
+            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalDbNodes.Count} canonical Database nodes into graph...");
             await ctx.DbClient.UploadNodesAsync([.. canonicalDbNodes.Values.Select(Node.FromNode)]);
             ctx.AddNodesCount(canonicalDbNodes.Count);
         }
@@ -1837,7 +1837,7 @@ public class PostIndexAnalyzer(IGraphClient db)
 
         if (canonicalRels.Count > 0)
         {
-            ctx.Log($"[PostIndexAnalyzer] Materializing {canonicalRels.Count} direct project->canonical database relationships...");
+            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalRels.Count} direct project->canonical database relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(canonicalRels);
             ctx.AddRelsCount(canonicalRels.Count);
         }

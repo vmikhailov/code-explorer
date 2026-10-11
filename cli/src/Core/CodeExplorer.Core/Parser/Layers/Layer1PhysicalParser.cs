@@ -140,14 +140,14 @@ public class Layer1PhysicalParser
 
         if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
         {
-            ctx.Log($"[Layer1] GitIgnore: Ignoring directory '{relativeDir}'");
+            ctx.LogDebug($"[Layer1] GitIgnore: Ignoring directory '{relativeDir}'");
             return;
         }
 
         var libmanPath = Path.Combine(currentDir, "libman.json");
         if (File.Exists(libmanPath))
         {
-            WorkspaceFileFilter.RegisterLibManExclusions(libmanPath, currentDir, ctx.AbsoluteWorkspacePath, gitignore, ctx.Log);
+            WorkspaceFileFilter.RegisterLibManExclusions(libmanPath, currentDir, ctx.AbsoluteWorkspacePath, gitignore, ctx.LogDebug);
         }
 
         var currentParentNode = parentNode;

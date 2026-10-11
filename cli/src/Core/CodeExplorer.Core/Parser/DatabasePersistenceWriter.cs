@@ -8,7 +8,7 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
     public DatabasePersistenceWriter(ParsingContext ctx)
     {
         _ctx = ctx;
-        _ctx.Log("Starting background database persistence loop...");
+        _ctx.LogDebug("Starting background database persistence loop...");
         _consumerTask = Task.Run(ConsumeChannelAsync);
     }
 

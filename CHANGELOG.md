@@ -5,6 +5,20 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.6] - 2026-10-11
+
+### Fixed
+- **Updated Node Removal During Rescan**:
+  - Automatically prune stale graph nodes and edges (`ClearWorkspaceAsync`) for modified files with structural changes before re-indexing, ensuring deleted or renamed symbols do not linger as ghost nodes in SQLite.
+
+### Changed
+- **Log Noise Reduction During Rescan**:
+  - Removed 1-second interval timer persistence logging in `ParsingContext`, restricting persistence progress reports to 10,000-item milestones.
+  - Demoted per-project parsing (`Layer3`) and enrichment (`Layer4`) loops, per-endpoint late-binding synthesis (`Layer5`), and intermediate database materialization logs to debug level.
+  - Truncated long file/manifest lists in `WorkspaceIndexer` and demoted verbose structural diff reasons to debug level while maintaining concise status reporting at information level.
+
+---
+
 ## [1.34.5] - 2026-10-11
 
 ### Changed

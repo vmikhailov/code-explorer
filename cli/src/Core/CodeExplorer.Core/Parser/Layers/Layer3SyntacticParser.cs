@@ -128,7 +128,7 @@ public class Layer3SyntacticParser
                 }
             }
         }
-        ctx.Log($"[ConfigStore] Pre-loaded {ConfigStore.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
+        ctx.LogDebug($"[ConfigStore] Pre-loaded {ConfigStore.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
 
         // Phase 0b: RouteDictionaryRegistry and early constants pre-scanning across all candidate files
         var allCandidateFiles = new List<(string FullPath, string? ProjectName)>();
@@ -193,7 +193,7 @@ public class Layer3SyntacticParser
             nProject++;
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
-            ctx.Log($"[Layer3] Parsing project {nProject} of {l2Result.Projects.Count} at:'{project.Path}'...");
+            ctx.LogDebug($"[Layer3] Parsing project {nProject} of {l2Result.Projects.Count} at:'{project.Path}'...");
 
             var projectSyntaxId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{project.Path}:syntax";
             var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", project.Path);

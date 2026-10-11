@@ -335,18 +335,24 @@ public class WorkspaceIndexer
 
         if (changedManifests.Count > 0)
         {
+            var manifestDesc = changedManifests.Count <= 3
+                ? string.Join(", ", changedManifests)
+                : $"{string.Join(", ", changedManifests.Take(3))} (+{changedManifests.Count - 3} more)";
             _logger.LogInformation(
                 "[Incremental:Decision] Full rescan triggered: Project manifest modified ({Manifests}). Reindexing workspace structure...",
-                string.Join(", ", changedManifests));
+                manifestDesc);
             await IndexAsync(targetPath, workspaceRoot, clear: false, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
             return true;
         }
 
         if (changeset.Deleted.Count > 0)
         {
+            var filesDesc = changeset.Deleted.Count <= 3
+                ? string.Join(", ", changeset.Deleted)
+                : $"{string.Join(", ", changeset.Deleted.Take(3))} (+{changeset.Deleted.Count - 3} more)";
             _logger.LogInformation(
                 "[Incremental] Pruning {Count} deleted file(s) from graph and registry: {Files}",
-                changeset.Deleted.Count, string.Join(", ", changeset.Deleted));
+                changeset.Deleted.Count, filesDesc);
             await _dbClient.DeleteFileRegistryEntriesAsync(changeset.Deleted, cancellationToken);
             foreach (var del in changeset.Deleted)
             {
@@ -358,10 +364,14 @@ public class WorkspaceIndexer
         var workspaceId = await _dbClient.GetOrCreateWorkspaceIdAsync(absoluteWorkspacePath);
         var filesToUpdateRegistry = new List<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)>();
         var structuralReasons = new List<string>();
+        var modifiedWithStructuralChanges = new List<string>();
 
         if (changeset.Added.Count > 0)
         {
-            var addedReason = $"New file(s) added ({changeset.Added.Count}): [{string.Join(", ", changeset.Added)}]";
+            var addedDesc = changeset.Added.Count <= 3
+                ? string.Join(", ", changeset.Added)
+                : $"{string.Join(", ", changeset.Added.Take(3))} (+{changeset.Added.Count - 3} more)";
+            var addedReason = $"New file(s) added ({changeset.Added.Count}): [{addedDesc}]";
             _logger.LogInformation("[Incremental:Decision] Structural change detected: {Reason}", addedReason);
             structuralReasons.Add(addedReason);
         }
@@ -389,8 +399,10 @@ public class WorkspaceIndexer
                 }
 
                 var reason = $"No prior AST snapshot in database for '{relPath}' and AST parsing failed.";
-                _logger.LogInformation("[Incremental:Decision] Full rescan triggered for '{File}': {Reason}", relPath, reason);
+                _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
+                _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, reason);
                 structuralReasons.Add(reason);
+                modifiedWithStructuralChanges.Add(relPath);
                 continue;
             }
 
@@ -398,8 +410,10 @@ public class WorkspaceIndexer
             if (newSnapshot == null)
             {
                 var reason = $"No AST parser available or syntax parsing failed for '{relPath}'.";
-                _logger.LogInformation("[Incremental:Decision] Full rescan triggered for '{File}': {Reason}", relPath, reason);
+                _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
+                _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, reason);
                 structuralReasons.Add(reason);
+                modifiedWithStructuralChanges.Add(relPath);
                 continue;
             }
 
@@ -450,8 +464,10 @@ public class WorkspaceIndexer
             }
 
             var fullReason = $"Structural changes in '{relPath}': {string.Join(" | ", fileChangeReasons)}";
-            _logger.LogInformation("[Incremental:Decision] Full rescan triggered for '{File}': {Reason}", relPath, fullReason);
+            _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
+            _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, fullReason);
             structuralReasons.Add(fullReason);
+            modifiedWithStructuralChanges.Add(relPath);
         }
 
         if (filesToUpdateRegistry.Count > 0)
@@ -461,9 +477,23 @@ public class WorkspaceIndexer
 
         if (structuralReasons.Count > 0)
         {
+            if (modifiedWithStructuralChanges.Count > 0)
+            {
+                _logger.LogInformation(
+                    "[Incremental] Removing stale graph nodes for {Count} updated file(s)...",
+                    modifiedWithStructuralChanges.Count);
+
+                foreach (var mod in modifiedWithStructuralChanges)
+                {
+                    await _dbClient.ClearWorkspaceAsync(mod);
+                }
+            }
+
             _logger.LogInformation(
-                "[Incremental:Decision] Executing full graph update due to {Count} structural trigger(s):\n  * {Reasons}",
-                structuralReasons.Count,
+                "[Incremental:Decision] Executing graph update due to {Count} structural trigger(s)...",
+                structuralReasons.Count);
+            _logger.LogDebug(
+                "[Incremental:Decision] Structural triggers:\n  * {Reasons}",
                 string.Join("\n  * ", structuralReasons));
 
             await IndexAsync(targetPath, workspaceRoot, clear: false, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
@@ -577,7 +607,7 @@ public class WorkspaceIndexer
 
     private void LogPersistenceSummary(ParsingContext ctx)
     {
-        ctx.Log(
+        ctx.LogDebug(
             $"All background channel persistence writes completed! Total parsed: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
     }
 }
