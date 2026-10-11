@@ -906,11 +906,196 @@
     /* ==========================================================================
        Semantic Invariant Gates (SIG) Section
        ========================================================================== */
+    .sig-pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .sig-pillar-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      transition: var(--transition);
+      position: relative;
+    }
+
+    .sig-pillar-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .sig-pillar-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--accent-violet);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sig-pillar-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+
+    .sig-pillar-desc {
+      font-size: 13.5px;
+      color: var(--text-tertiary);
+      line-height: 1.55;
+      flex-grow: 1;
+      margin-bottom: 16px;
+    }
+
+    .sig-pillar-formula {
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #38bdf8;
+      overflow-x: auto;
+    }
+
+    .foim-table-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-xl);
+      padding: 28px;
+      margin-bottom: 36px;
+      overflow-x: auto;
+    }
+
+    .foim-table-header-wrap {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .foim-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    .foim-table th {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-standard);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .foim-table td {
+      padding: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-tertiary);
+      vertical-align: top;
+      line-height: 1.5;
+    }
+
+    .foim-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .foim-code-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      background: rgba(129, 140, 248, 0.12);
+      color: #818cf8;
+      border: 1px solid rgba(129, 140, 248, 0.25);
+    }
+
+    .sig-bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 36px;
+    }
+
+    .sig-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-xl);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sig-card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sig-card-desc {
+      font-size: 13.5px;
+      color: var(--text-tertiary);
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+
+    .sig-cli-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .sig-cli-item {
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      font-size: 12.5px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .sig-cli-item code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #38bdf8;
+    }
+
+    .sig-cli-item span {
+      color: var(--text-quaternary);
+      font-size: 11.5px;
+    }
+
     .gate-dimensions-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 18px;
-      margin-bottom: 40px;
+      margin-bottom: 36px;
     }
 
     .gate-dim-card {
@@ -1585,7 +1770,9 @@
     @media (max-width: 992px) {
       .hero-title { font-size: 42px; letter-spacing: -1.2px; }
       .grid-3 { grid-template-columns: repeat(2, 1fr); }
-            .query-split { grid-template-columns: 1fr; }
+      .sig-pillars-grid { grid-template-columns: 1fr; }
+      .sig-bottom-grid { grid-template-columns: 1fr; }
+      .query-split { grid-template-columns: 1fr; }
       .gate-dimensions-grid { grid-template-columns: repeat(2, 1fr); }
       .gate-split { grid-template-columns: 1fr; }
       .gate-editor-pane { border-right: none; border-bottom: 1px solid var(--border-subtle); }
@@ -1636,7 +1823,7 @@
           </svg>
         </div>
         <span>CodeExplorer</span>
-        <span class="brand-badge">ce</span>
+        <span class="brand-badge">v1.34</span>
       </a>
 
       <ul class="nav-links">
@@ -1668,11 +1855,6 @@
        ========================================================================== -->
   <section class="hero">
     <div class="container">
-      <div class="hero-badge-wrap">
-        <span class="hero-badge-dot"></span>
-        <span>v1.25.0 Released • Zero-Container SQLite Graph Engine</span>
-      </div>
-
       <h1 class="hero-title">
         Visual Knowledge Graph for <span>Polyglot Codebases</span>
       </h1>
@@ -2024,9 +2206,116 @@
         </div>
         <h2 class="section-title">Semantic Invariant Gates (SIG)</h2>
         <p class="section-desc">
-          Transform openCypher queries from passive codebase observation into active, automated architectural guardrails.
-          Enforce layer boundaries, eliminate cyclic package coupling, block breaking contract changes, and freeze legacy debt with monotonic ratchets directly in CI/CD and AI agent loops.
+          Architecture is not static documentation in a wiki — it is an executable, continuously verified property graph contract.
+          CodeExplorer turns openCypher queries into automated CI/CD guardrails that enforce Clean Architecture boundaries, eliminate cyclic package couplings, block breaking API drifts, and freeze legacy debt with cryptographic monotonic ratchets directly in developer workflows and AI agent loops.
         </p>
+      </div>
+
+      <!-- Core Pillars: 3 Foundational Invariants -->
+      <div class="sig-pillars-grid">
+        <div class="sig-pillar-card">
+          <div class="sig-pillar-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+            Foundation 01 • Matrix Space
+          </div>
+          <h3 class="sig-pillar-title">Fractal Orthogonal Invariant Matrix (FOIM)</h3>
+          <p class="sig-pillar-desc">
+            Rules are mapped into a deterministic coordinate space: 5 hierarchical Scopes (System, Service, Module, Class, Method) &times; 4 architectural Dimensions (Boundaries, Contract, Rules, Resources). Provides unbroken governance from multi-repo distributed network topologies down to AST call literals.
+          </p>
+          <div class="sig-pillar-formula">
+            <code>Identifier: SIG-&lt;Scope&gt;-&lt;Dimension&gt;-&lt;Index3Digits&gt;</code>
+          </div>
+        </div>
+
+        <div class="sig-pillar-card">
+          <div class="sig-pillar-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+            Foundation 02 • Evaluation Contract
+          </div>
+          <h3 class="sig-pillar-title">Strict Zero-Match Contract</h3>
+          <p class="sig-pillar-desc">
+            No fragile regex heuristics or AST visitor boilerplates. Gates operate on mathematical zero-match: 0 rows returned = PASS; &ge; 1 rows = VIOLATION. Every violation yields standard 2D IDE coordinates (<code>file:line:column</code>) with offending symbols, violation targets, and actionable remediation instructions.
+          </p>
+          <div class="sig-pillar-formula">
+            <code>RETURN file, line, column, symbol, target, message</code>
+          </div>
+        </div>
+
+        <div class="sig-pillar-card">
+          <div class="sig-pillar-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Foundation 03 • Debt Cryptography
+          </div>
+          <h3 class="sig-pillar-title">Line-Shift Immune Fingerprinting</h3>
+          <p class="sig-pillar-desc">
+            Adding comments, formatting code, or adding imports above a violation shifts line numbers. CodeExplorer hashes semantic identity rather than volatile line numbers. Baseline snapshots never break due to code refactorings, eliminating false alarms in pull requests.
+          </p>
+          <div class="sig-pillar-formula">
+            <code>SHA256(GateId + FilePath + Symbol + Target)</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOIM Matrix Detailed Table -->
+      <div class="foim-table-card">
+        <div class="foim-table-header-wrap">
+          <div>
+            <h3 style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; letter-spacing: -0.3px;">
+              FOIM Architectural Classification Matrix
+            </h3>
+            <p style="font-size: 13px; color: var(--text-tertiary); max-width: 720px; line-height: 1.5;">
+              Every architectural rule in CodeExplorer is explicitly classified across scope hierarchy and architectural focus, avoiding vague linter rules in favor of rigorous structural constraints.
+            </p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <span class="foim-code-badge">5 Scopes</span>
+            <span class="foim-code-badge">4 Dimensions</span>
+            <span class="foim-code-badge">Declarative OpenCypher</span>
+          </div>
+        </div>
+
+        <table class="foim-table">
+          <thead>
+            <tr>
+              <th style="width: 130px;">Scope & Level</th>
+              <th style="width: 210px;">Granularity & Graph Entities</th>
+              <th style="width: 170px;">Dimension Focus</th>
+              <th>Real-World Invariant Example & Rule Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="foim-code-badge">System (A)</span></td>
+              <td><code>:Service</code>, <code>:Topic</code>, <code>:Database</code>, cross-service RPC</td>
+              <td><strong>Boundaries &amp; Topology</strong></td>
+              <td>Prevent circular distributed event publish/subscribe chains; enforce API gateway single-entry ingress without bypass.</td>
+            </tr>
+            <tr>
+              <td><span class="foim-code-badge">Service (S)</span></td>
+              <td><code>:Service</code>, <code>:Worker</code>, <code>:App</code>, <code>:CliTool</code> executables</td>
+              <td><strong>Resources &amp; Boundaries</strong></td>
+              <td>Forbid frontend apps or background workers from executing synchronous queries directly against foreign microservice databases.</td>
+            </tr>
+            <tr>
+              <td><span class="foim-code-badge">Module (P)</span></td>
+              <td><code>:Project</code>, <code>:Library</code>, compilation units, NuGet / npm packages</td>
+              <td><strong>Clean Architecture Boundaries</strong></td>
+              <td>Enforce unidirectional layer hierarchy: Domain and Application core libraries must not reference Infrastructure or UI packages.</td>
+            </tr>
+            <tr>
+              <td><span class="foim-code-badge">Class (C)</span></td>
+              <td><code>:Type</code>, classes, interfaces, structs, visitor hierarchies</td>
+              <td><strong>Rules &amp; Implementation</strong></td>
+              <td>In-memory AST visitors and compiler passes must remain pure: disallow direct invocation of filesystem (<code>File</code>, <code>Directory</code>) or network I/O.</td>
+            </tr>
+            <tr>
+              <td><span class="foim-code-badge">Method (M)</span></td>
+              <td><code>:Function</code>, <code>:Endpoint</code>, constructors, <code>:CallLiteral</code></td>
+              <td><strong>Contract &amp; Rules Hygiene</strong></td>
+              <td>Detect raw hardcoded string literals passed to critical business domain methods; verify public API endpoints return typed DTOs instead of raw DB entities.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- 4 Invariant Dimensions Grid -->
@@ -2096,10 +2385,11 @@
       <div class="gate-playground">
         <div class="gate-toolbar">
           <div class="gate-presets">
-            <button class="gate-preset-btn active" onclick="loadGatePreset('boundaries', this)">Layer Boundaries (SIG-B-004)</button>
-            <button class="gate-preset-btn" onclick="loadGatePreset('topology', this)">Cyclic Coupling (SIG-T-001)</button>
-            <button class="gate-preset-btn" onclick="loadGatePreset('egress', this)">Direct DB Access (SIG-R-003)</button>
-            <button class="gate-preset-btn" onclick="loadGatePreset('ratchet', this)">Monotonic Ratchet (SIG-B-002)</button>
+            <button class="gate-preset-btn active" onclick="loadGatePreset('boundaries', this)">Layer Boundaries (SIG-P-B-004)</button>
+            <button class="gate-preset-btn" onclick="loadGatePreset('topology', this)">Cyclic Coupling (SIG-P-T-001)</button>
+            <button class="gate-preset-btn" onclick="loadGatePreset('visitor', this)">Visitor IO Purity (SIG-C-I-001)</button>
+            <button class="gate-preset-btn" onclick="loadGatePreset('literal', this)">No Call Literals (SIG-M-I-001)</button>
+            <button class="gate-preset-btn" onclick="loadGatePreset('ratchet', this)">Monotonic Ratchet (SIG-P-B-002)</button>
           </div>
 
           <div class="query-controls">
@@ -2221,6 +2511,63 @@
       <span class="yaml-bullet">-</span> <span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Evaluate Semantic Invariant Gates</span>
         <span class="yaml-key">run</span><span class="yaml-colon">:</span> <span class="yaml-str">ce gate check --fail-on-new</span>
       <span class="yaml-comment"># Exits with non-zero exit code if PR introduces any new architecture violations</span></pre>
+        </div>
+      </div>
+
+      <!-- Bottom Architecture Blocks: Categorization & AI Agent Integration -->
+      <div class="sig-bottom-grid">
+        <!-- Card 1: Architectural vs Platform Categorization -->
+        <div class="sig-card">
+          <div class="sig-pillar-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            Taxonomy & Categorization
+          </div>
+          <h3 class="sig-card-title">Architectural vs. Platform Gates</h3>
+          <p class="sig-card-desc">
+            CodeExplorer clearly partitions invariants by their portability and ecosystem domain. Universal structural laws sit alongside runtime-specific driver guardrails without mixing concerns.
+          </p>
+
+          <div class="sig-cli-list">
+            <div class="sig-cli-item">
+              <code>.codeexplorer/gates/architectural/*.yaml</code>
+              <span><strong>Category: Architectural (platform: agnostic)</strong> — Pure structural patterns: Hexagonal layer separation, DAG acyclicity, CQRS pipeline integrity, and AST visitor purity.</span>
+            </div>
+            <div class="sig-cli-item">
+              <code>.codeexplorer/gates/platform/&lt;platform&gt;/*.yaml</code>
+              <span><strong>Category: Platform (platform: dotnet | node | go | python)</strong> — Framework-specific rules: banning raw <code>Microsoft.Data.Sqlite</code> or <code>better-sqlite3</code> in core packages.</span>
+            </div>
+            <div class="sig-cli-item">
+              <code>ce gate check --category architectural --platform dotnet</code>
+              <span>Granular CI execution flags allowing specialized matrix verification in polyglot repositories.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: AI Agent Guardrails & Zero-Container Toolchain -->
+        <div class="sig-card">
+          <div class="sig-pillar-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="12 8 8 12 12 16 12 8"/></svg>
+            Automated Guardrails & Toolchain
+          </div>
+          <h3 class="sig-card-title">Zero-Container CI & AI Agent Loop</h3>
+          <p class="sig-card-desc">
+            Autonomous AI coding assistants (Claude Code, Cursor, Copilot, Hermes) write code rapidly but frequently create subtle architectural erosion. SIG acts as an instant structural validation loop.
+          </p>
+
+          <div class="sig-cli-list">
+            <div class="sig-cli-item">
+              <code>ce gate check --json</code>
+              <span>Emits machine-readable violation diagnostics with exact <code>file:line:col</code> and actionable <code>remediation</code> text for autonomous agent self-correction.</span>
+            </div>
+            <div class="sig-cli-item">
+              <code>ce gate ratchet --update -g &lt;gate-id&gt;</code>
+              <span>Updates baseline snapshots for specific gates, lowering debt ceilings monotonically as refactoring merges.</span>
+            </div>
+            <div class="sig-cli-item">
+              <code>ce gate violations --group-by file</code>
+              <span>Lists all active violations grouped by source file path or category for rapid triage.</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2565,7 +2912,7 @@
 
       <div class="footer-bottom">
         <div>© 2026 Viacheslav Mikhailov. Open source under the MIT License.</div>
-        <div style="font-family: var(--font-mono);">ce v1.28.0 • .NET 10.0 • SQLite Graph</div>
+        <div style="font-family: var(--font-mono);">ce v1.34 • .NET 10.0 • SQLite Graph</div>
       </div>
     </div>
   </footer>
@@ -2802,6 +3149,86 @@ ratchet:
             symbol: 'Billing.Core ⇄ Order.Contracts',
             msg: 'Cyclic dependency cycle: <code>Billing.Core ➔ Order.Contracts ➔ Billing.Core</code>',
             remediation: 'Extract common invoice models into independent <code>Shared.Kernel</code> package'
+          }
+        ]
+      },
+      visitor: {
+        id: 'SIG-C-I-001',
+        yaml: `id: SIG-C-I-001
+scope: Class
+dimension: Rules
+severity: Error
+category: Architectural
+platform: agnostic
+description: "In-memory AST visitors and compiler passes must remain pure. Direct filesystem or network I/O is strictly forbidden."
+remediation: "Pass pre-read syntax trees or buffers to the visitor. Extract I/O operations into an outer pipeline stage."
+
+query: |
+  MATCH (cls:Type)-[:CONTAINS]->(fn:Function)-[:CALLS]->(io:Function)
+  WHERE cls.name CONTAINS 'Visitor'
+    AND (io.name STARTS WITH 'File.' OR io.name STARTS WITH 'Directory.' OR io.name STARTS WITH 'HttpClient.')
+  RETURN
+    fn.file_path AS file,
+    fn.line AS line,
+    cls.name + '.' + fn.name AS symbol,
+    io.name AS target,
+    'AST Visitor method ' + fn.name + ' performs forbidden I/O call: ' + io.name AS message
+
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-C-I-001.json`,
+        statusBadge: '<span class="badge-status-fail">FAILED NEW [1 FORBIDDEN I/O CALL]</span>',
+        execStatus: '● Evaluated in 9.4ms (Exit Code 1)',
+        execColor: 'var(--status-amber)',
+        statNew: '1 (Fails CI)',
+        statTolerated: '0 (Baseline)',
+        violations: [
+          {
+            file: 'src/Compiler/Syntax/AstSemanticVisitor.cs:114',
+            badge: '<span class="gate-v-badge-new">NEW VIOLATION</span>',
+            symbol: 'AstSemanticVisitor.VisitClassDeclaration',
+            msg: 'Pure visitor method invokes synchronous filesystem I/O <code>File.ReadAllText()</code>',
+            remediation: 'Pass pre-read source buffer via parse context instead of reading disk in AST walk'
+          }
+        ]
+      },
+      literal: {
+        id: 'SIG-M-I-001',
+        yaml: `id: SIG-M-I-001
+scope: Method
+dimension: Rules
+severity: Warning
+category: Architectural
+platform: agnostic
+description: "Business domain methods must not receive raw hardcoded literal strings. Use configuration keys or strongly typed enums."
+remediation: "Extract hardcoded string literals into strongly typed domain constants or configuration options."
+
+query: |
+  MATCH (fn:Function)-[r:PASSES_LITERAL]->(lit:CallLiteral)
+  WHERE NOT (coalesce(fn.file_path, '') CONTAINS 'Test' OR coalesce(fn.file_path, '') CONTAINS 'Spec')
+    AND lit.value STARTS WITH 'http://'
+  RETURN
+    fn.file_path AS file,
+    r.line AS line,
+    fn.name AS symbol,
+    lit.value AS target,
+    'Method ' + fn.name + ' passes hardcoded insecure URL literal to argument ' + r.param AS message
+
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-I-001.json`,
+        statusBadge: '<span class="badge-status-fail">FAILED NEW [1 HARDCODED LITERAL]</span>',
+        execStatus: '● Evaluated in 13.1ms (Exit Code 1)',
+        execColor: 'var(--status-amber)',
+        statNew: '1 (Fails CI)',
+        statTolerated: '0 (Baseline)',
+        violations: [
+          {
+            file: 'src/Domain/Payments/PaymentGatewayClient.cs:57',
+            badge: '<span class="gate-v-badge-new">NEW VIOLATION</span>',
+            symbol: 'PaymentGatewayClient.Initialize',
+            msg: 'Passes unencrypted URL literal <code>"http://api.internal.pay/v1"</code> to endpoint argument',
+            remediation: 'Inject secure endpoint configuration via <code>IOptions&lt;PaymentGatewayConfig&gt;</code>'
           }
         ]
       },
