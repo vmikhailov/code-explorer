@@ -829,15 +829,6 @@ public class Layer5AnalysisParser
 
         topicName = topicName.Trim('\'', '"', '`');
 
-        if (symbols.TypeSymbols.TryGetValue(topicName, out var targetTopicTypeId))
-        {
-            var rel = refItem.Kind == OntologyConstants.Relationships.PublishesTo
-                ? (IOntologyRelationship)new PublishesToRelationship(refItem.ScopeSymbolId, targetTopicTypeId)
-                : (IOntologyRelationship)new SubscribesToRelationship(refItem.ScopeSymbolId, targetTopicTypeId);
-            referenceRelationships.Add(Relationship.FromRelationship(rel));
-            return;
-        }
-
         var isInternal = brokerType is "mediatr" or "cqrs";
         var topicId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
 
