@@ -8,7 +8,7 @@ severity: Error
 description: Services must not make HTTP calls to internal system routes that are not exposed by any active service endpoint.
 remediation: Update the HTTP call to a valid endpoint or register the missing endpoint handler in the target service.
 query: |
-  MATCH (caller:Function)-[:CALLS]->(es:ExternalService)
+  MATCH (es:ExternalService)-[:CALLED_BY]->(caller)
   WHERE es.is_internal = true
     AND NOT (:Endpoint { path: es.path })
   RETURN 

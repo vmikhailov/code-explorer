@@ -1820,4 +1820,68 @@ export class CampaignsController {
         Assert.That(businessLiterals[0].Value, Is.EqualTo("HARDCODED_BUSINESS_STATUS"));
         Assert.That(businessLiterals[0].Callee, Does.Contain("processOrder"));
     }
+
+    [Test]
+    public async Task Test_SemanticClassification_FormAccess_Storage_WebAPI_TestId_State()
+    {
+        var code = @"
+export class SampleComponent {
+  private count = signal('default_state');
+
+  submit() {
+    const email = this.form.get('email');
+    const token = localStorage.getItem('auth_token');
+    window.open('https://example.com/help');
+    const el = menuTestId('navbar_menu_id');
+    this.orderService.doWork('VALID_BUSINESS_ID');
+  }
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(code);
+        var literals = FindNodes<CallLiteralNode>(ws.FileNode.Children);
+
+        var formLit = literals.FirstOrDefault(l => l.Value == "email");
+        Assert.That(formLit, Is.Not.Null);
+        Assert.That(formLit!.Role, Is.EqualTo(CallSemanticRole.FormAccess));
+
+        var storageLit = literals.FirstOrDefault(l => l.Value == "auth_token");
+        Assert.That(storageLit, Is.Not.Null);
+        Assert.That(storageLit!.Role, Is.EqualTo(CallSemanticRole.Storage));
+
+        var webApiLit = literals.FirstOrDefault(l => l.Value == "https://example.com/help");
+        Assert.That(webApiLit, Is.Not.Null);
+        Assert.That(webApiLit!.Role, Is.EqualTo(CallSemanticRole.WebAPI));
+
+        var testIdLit = literals.FirstOrDefault(l => l.Value == "navbar_menu_id");
+        Assert.That(testIdLit, Is.Not.Null);
+        Assert.That(testIdLit!.Role, Is.EqualTo(CallSemanticRole.TestIdentifier));
+
+        var stateLit = literals.FirstOrDefault(l => l.Value == "default_state");
+        Assert.That(stateLit, Is.Not.Null);
+        Assert.That(stateLit!.Role, Is.EqualTo(CallSemanticRole.State));
+
+        var businessLits = literals.Where(l => l.Role == CallSemanticRole.Business).ToList();
+        Assert.That(businessLits, Has.Count.EqualTo(1));
+        Assert.That(businessLits[0].Value, Is.EqualTo("VALID_BUSINESS_ID"));
+    }
+
+    [Test]
+    public async Task Test_ExportConst_ResolvedInFetchCall()
+    {
+        var code = @"
+export const DEFAULT_CATALOG_URL = 'http://localhost:3000';
+
+export async function importScenarios() {
+  const response = await fetch(`${DEFAULT_CATALOG_URL}/api/v1/config/scenarios`);
+  return response.json();
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(code);
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        Assert.That(extServices, Has.Count.EqualTo(1));
+        var es = extServices[0];
+        Assert.That(es.DomainOrService, Is.EqualTo("localhost"));
+        Assert.That(es.Path, Is.EqualTo("/api/v1/config/scenarios"));
+        Assert.That(es.Extensions?["is_internal"], Is.EqualTo("true"));
+    }
 }

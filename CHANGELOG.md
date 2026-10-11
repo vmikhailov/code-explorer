@@ -5,6 +5,27 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.0] - 2026-10-11
+
+### Added
+- **Extended Semantic Classification for Call Literals & Attributes**:
+  - Added specialized semantic roles (`FormAccess`, `Storage`, `WebAPI`, `TestIdentifier`, `State`) to `CallSemanticClassifier`.
+  - Automatically classifies Angular Reactive Forms (`this.form.get('field')`, `fb.group`), browser storage (`localStorage.getItem`, `sessionStorage`), browser Web APIs (`window.open`, `document.querySelector`), test attributes/IDs (`data-testid`, `testId`), and state signals (`signal`, `computed`).
+  - Drastically suppresses remaining framework noise in `SIG-M-I-001` (Disallow Hardcoded Arguments) by isolating business logic from UI/browser primitives.
+- **Internal Egress Attribution (`is_internal`)**:
+  - Sets boolean `is_internal = true` on `ExternalServiceNode` for relative endpoints (`/api/...`) and loopback bindings (`localhost`, `127.0.0.1`).
+
+### Fixed
+- **Cypher Parser Single-Node Pattern Expressions & Pattern Predicates**:
+  - Fixed OpenCypher grammar in `GraphPatternExpression` to accept anonymous single-node pattern expressions in `WHERE` and `EXISTS` clauses (e.g. `NOT (:Endpoint { path: es.path })`), while preserving single-identifier label checks (`(n:Function)`).
+- **Dead Internal Egress Invariant Gate (`SIG-A-C-001`)**:
+  - Fixed Cypher query syntax and directionality in `examples/gates/contract/sig-a-c-001-dead-internal-egress.yaml` to inspect `(es:ExternalService)-[:CALLED_BY]->(caller)` against active endpoints.
+- **Top-Level `export const` Variable Resolution in TypeScript AST**:
+  - Fixed `AstHelper.FindVariableInitializerInAst` to unwrap `export_statement` nodes, ensuring exported URL/route constants (`export const DEFAULT_CATALOG_URL = ...`) are resolved across modules regardless of workspace structure.
+  - Forwarded project context through `FetchLibraryParser` and `AngularHttpLibraryParser`.
+
+---
+
 ## [1.33.1] - 2026-10-11
 
 ### Added

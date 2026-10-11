@@ -628,4 +628,30 @@ public class SqliteCompilerTests
         Assert.That(Convert.ToInt64(rows[0]["loc"]), Is.EqualTo(16));
         Assert.That((string)rows[0]["label"]!, Is.EqualTo("Length: 16"));
     }
+
+    [Test]
+    public void Test_SingleNodePatternPredicate_InWhereClause()
+    {
+        InsertNode("es:users", "ExternalService", new() { ["name"] = "UsersClient", ["path"] = "/api/v1/users" });
+        InsertNode("es:orders", "ExternalService", new() { ["name"] = "OrdersClient", ["path"] = "/api/v1/orders" });
+        InsertNode("ep:users", "Endpoint", new() { ["name"] = "UsersEndpoint", ["path"] = "/api/v1/users" });
+
+        // 1. NOT (:Endpoint { path: es.path })
+        var rowsPattern = ExecuteCypher(@"
+            MATCH (es:ExternalService)
+            WHERE NOT (:Endpoint { path: es.path })
+            RETURN es.name AS name
+        ");
+        Assert.That(rowsPattern, Has.Count.EqualTo(1));
+        Assert.That((string)rowsPattern[0]["name"]!, Is.EqualTo("OrdersClient"));
+
+        // 2. NOT exists((:Endpoint { path: es.path }))
+        var rowsExists = ExecuteCypher(@"
+            MATCH (es:ExternalService)
+            WHERE NOT exists((:Endpoint { path: es.path }))
+            RETURN es.name AS name
+        ");
+        Assert.That(rowsExists, Has.Count.EqualTo(1));
+        Assert.That((string)rowsExists[0]["name"]!, Is.EqualTo("OrdersClient"));
+    }
 }

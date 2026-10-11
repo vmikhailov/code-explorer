@@ -914,7 +914,13 @@ public class Layer3SyntacticParser
         {
             ext["is_relative_path"] = "true";
             ext["inferred_from_path"] = "true";
+            ext["is_internal"] = "true";
             ext["url"] = path;
+        }
+        else if (domainOrService is "localhost" or "127.0.0.1" || domainOrService.StartsWith("localhost:") || domainOrService.StartsWith("127.0.0.1:"))
+        {
+            ext["is_internal"] = "true";
+            ext["is_external"] = "false";
         }
         else
         {
@@ -929,6 +935,7 @@ public class Layer3SyntacticParser
         var p = path.ToLowerInvariant();
         return (p.EndsWith(".ts") || p.EndsWith(".js") || p.EndsWith(".cs") || p.EndsWith(".go") || p.EndsWith(".py") || p.EndsWith(".json")) &&
                (p.Contains("route") || p.Contains("const") || p.Contains("config") || p.Contains("api") || p.Contains("endpoint") || p.Contains("url") || p.Contains("env") ||
+                p.Contains("client") || p.Contains("service") || p.Contains("importer") || p.Contains("catalog") || p.Contains("gateway") || p.Contains("http") ||
                 p.Contains("main.") || p.Contains("app.") || p.Contains("bootstrap.") || p.Contains("index.") || p.Contains("program.") || p.Contains("startup."));
     }
 

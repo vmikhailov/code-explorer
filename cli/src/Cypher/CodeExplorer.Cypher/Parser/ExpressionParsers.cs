@@ -197,7 +197,7 @@ public static class ExpressionParsers
 
     public static TokenListParser<CypherToken, Expression> GraphPatternExpression { get; } =
         (from path in PatternParsers.Path
-         where path.Chain.Count > 0
+         where path.Chain.Count > 0 || path.Head.Properties != null || (path.Head.Variable == null && path.Head.Labels.Count > 0)
          select (Expression)new PatternExpression(path)).Try();
 
     public static TokenListParser<CypherToken, Expression> PatternComprehension { get; } =

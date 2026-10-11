@@ -24,6 +24,11 @@ public static class CallSemanticRole
     public const string Exception = "Exception";
     public const string Reflection = "Reflection";
     public const string Decorator = "Decorator";
+    public const string FormAccess = "FormAccess";
+    public const string Storage = "Storage";
+    public const string WebAPI = "WebAPI";
+    public const string TestIdentifier = "TestIdentifier";
+    public const string State = "State";
 }
 
 /// <summary>
@@ -204,7 +209,52 @@ public static class CallSemanticClassifier
             return (CallSemanticRole.Assertion, false);
         }
 
-        // 11. Default: Business logic
+        // 11. Form access (Angular reactive forms, form groups, form controls)
+        if (receiver.Contains("form") || receiver.Contains("control") || receiver == "fb" || receiver.Contains("formbuilder") ||
+            methodName is "addControl" or "removeControl" or "setControl" ||
+            ((receiver.EndsWith("group") || receiver.EndsWith("form")) && (methodName is "get" or "has" or "patchValue" or "setValue" or "getRawValue")))
+        {
+            if (methodName is "get" or "has" or "getRawValue" or "patchValue" or "setValue" or "group" or "control" or "addControl" or "removeControl" or "setControl")
+            {
+                return (CallSemanticRole.FormAccess, false);
+            }
+        }
+
+        // 12. Client storage (localStorage, sessionStorage)
+        if (receiver.Contains("localstorage") || receiver.Contains("sessionstorage") || receiver.Contains("storage") || receiver == "prefs" || receiver.Contains("cookies"))
+        {
+            if (methodName is "getItem" or "setItem" or "removeItem" or "hasItem" or "clear" or "get" or "set")
+            {
+                return (CallSemanticRole.Storage, false);
+            }
+        }
+
+        // 13. Web API / Browser DOM calls
+        if (receiver is "window" or "document" or "navigator" || receiver.EndsWith(".window") || receiver.EndsWith(".document") || receiver.StartsWith("window.") || receiver.StartsWith("document."))
+        {
+            if (methodName is "open" or "addEventListener" or "removeEventListener" or "postMessage" or "getElementById" or "querySelector" or "querySelectorAll" or "createElement" or "setAttribute" or "getAttribute" or "alert" or "confirm" or "prompt")
+            {
+                return (CallSemanticRole.WebAPI, false);
+            }
+        }
+
+        // 14. Test automation identifiers / QA attributes
+        if (methodName.EndsWith("TestId", StringComparison.OrdinalIgnoreCase) ||
+            methodName.StartsWith("getByTestId", StringComparison.OrdinalIgnoreCase) ||
+            methodName.StartsWith("findByTestId", StringComparison.OrdinalIgnoreCase) ||
+            methodName.Equals("testId", StringComparison.OrdinalIgnoreCase))
+        {
+            return (CallSemanticRole.TestIdentifier, false);
+        }
+
+        // 15. Reactive state & signals (Angular / Solid / Preact)
+        if (methodName is "signal" or "computed" ||
+            (receiver.Contains("signal") && methodName is "set" or "update" or "mutate"))
+        {
+            return (CallSemanticRole.State, false);
+        }
+
+        // 16. Default: Business logic
         return (CallSemanticRole.Business, false);
     }
 

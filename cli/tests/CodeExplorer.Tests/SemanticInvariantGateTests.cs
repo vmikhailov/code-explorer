@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Models;
@@ -623,6 +624,61 @@ public class SemanticInvariantGateTests
         Assert.That(res.Violations.Count, Is.EqualTo(1));
         Assert.That(res.Violations[0].Symbol, Is.EqualTo("Exception"));
         Assert.That(res.Violations[0].Message, Does.Contain("Empty catch block without an explanatory comment"));
+    }
+
+    [Test]
+    public async Task Test_Gate_SigAC001_FlagsDeadInternalEgress()
+    {
+        var dbPath = Path.Combine(_tempWorkspace, "graph.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        await client.CreateIndicesAsync();
+
+        var fnNode = new Node("fn:1", OntologyConstants.NodeLabels.Function, new()
+        {
+            ["name"] = "FetchOrders",
+            ["path"] = "src/orderService.ts",
+            ["file_path"] = "src/orderService.ts",
+            ["start_line"] = 10
+        });
+
+        var esDead = new Node("es:dead", OntologyConstants.NodeLabels.ExternalService, new()
+        {
+            ["name"] = "DeadOrdersClient",
+            ["path"] = "/api/v1/non-existent-orders",
+            ["is_internal"] = true
+        });
+
+        var esValid = new Node("es:valid", OntologyConstants.NodeLabels.ExternalService, new()
+        {
+            ["name"] = "ValidUsersClient",
+            ["path"] = "/api/v1/users",
+            ["is_internal"] = true
+        });
+
+        var epNode = new Node("ep:users", OntologyConstants.NodeLabels.Endpoint, new()
+        {
+            ["name"] = "GetUsers",
+            ["path"] = "/api/v1/users"
+        });
+
+        await client.UploadNodesAsync([fnNode, esDead, esValid, epNode]);
+
+        var rel1 = new Relationship("es:dead", "fn:1", OntologyConstants.Relationships.CalledBy);
+        var rel2 = new Relationship("es:valid", "fn:1", OntologyConstants.Relationships.CalledBy);
+        await client.UploadRelationshipsAsync([rel1, rel2]);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-A-C-001");
+        Assert.That(gate, Is.Not.Null);
+
+        var res = await engine.CheckGateAsync(gate);
+        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
+        Assert.That(res.Violations.Count, Is.EqualTo(1));
+        Assert.That(res.Violations[0].Symbol, Is.EqualTo("FetchOrders"));
+        Assert.That(res.Violations[0].Target, Is.EqualTo("/api/v1/non-existent-orders"));
+        Assert.That(res.Violations[0].Message, Does.Contain("Internal HTTP call to non-existent endpoint /api/v1/non-existent-orders"));
     }
 
     private class MockGateDbClient : IGraphClient

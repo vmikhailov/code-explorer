@@ -42,7 +42,7 @@ public record Node(string Id, string Kind, Dictionary<string, object> Properties
                 {
                     properties[kvp.Key] = longVal;
                 }
-                else if (bool.TryParse(kvp.Value, out var boolVal) && kvp.Key is "is_test" or "is_library" or "is_empty" or "has_comment" or "is_decorator")
+                else if (bool.TryParse(kvp.Value, out var boolVal) && kvp.Key is "is_test" or "is_library" or "is_empty" or "has_comment" or "is_decorator" or "is_internal")
                 {
                     properties[kvp.Key] = boolVal;
                 }

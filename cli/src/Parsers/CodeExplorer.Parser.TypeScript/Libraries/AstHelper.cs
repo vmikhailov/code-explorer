@@ -524,9 +524,23 @@ public static class AstHelper
                 {
                     foreach (var child in curr.Children)
                     {
-                        if (child.IsAny(TreeSitterSyntax.TypeScript.LexicalDeclaration, TreeSitterSyntax.TypeScript.VariableDeclaration))
+                        var targetNode = child;
+                        if (targetNode.Is("export_statement"))
                         {
-                            foreach (var decl in child.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.VariableDeclarator)))
+                            var decl = targetNode.GetChildForField("declaration");
+                            if (decl.IsValid())
+                            {
+                                targetNode = decl;
+                            }
+                            else
+                            {
+                                targetNode = targetNode.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.LexicalDeclaration, TreeSitterSyntax.TypeScript.VariableDeclaration));
+                            }
+                        }
+
+                        if (targetNode.IsValid() && targetNode.IsAny(TreeSitterSyntax.TypeScript.LexicalDeclaration, TreeSitterSyntax.TypeScript.VariableDeclaration))
+                        {
+                            foreach (var decl in targetNode.Children.Where(c => c.Is(TreeSitterSyntax.TypeScript.VariableDeclarator)))
                             {
                                 var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name);
                                 if (!nameNode.IsValid())

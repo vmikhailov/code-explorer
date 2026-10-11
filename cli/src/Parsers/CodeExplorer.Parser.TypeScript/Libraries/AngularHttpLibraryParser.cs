@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -72,7 +72,9 @@ public class AngularHttpLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
+
+    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
     {
         if (IsHttpCallNode(node))
         {
@@ -93,7 +95,8 @@ public class AngularHttpLibraryParser : ISemanticExtension
                     }
                 }
 
-                var resolved = AstHelper.ResolveStringOrTemplate(urlArg);
+                var projectContext = projectName ?? ctx?.WorkspaceId;
+                var resolved = AstHelper.ResolveStringOrTemplate(urlArg, projectContext);
                 if (!string.IsNullOrWhiteSpace(resolved))
                 {
                     if (Uri.TryCreate(resolved, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host))

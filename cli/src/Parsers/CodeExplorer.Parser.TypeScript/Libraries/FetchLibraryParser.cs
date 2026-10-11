@@ -41,14 +41,17 @@ public class FetchLibraryParser : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
+
+    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
     {
         if (_fetchCallSelector.Matches(node))
         {
             var firstArg = _callFirstStringArgSelector.Select(node);
             if (firstArg.IsValid())
             {
-                var resolved = AstHelper.ResolveStringOrTemplate(firstArg);
+                var projectContext = projectName ?? ctx?.WorkspaceId;
+                var resolved = AstHelper.ResolveStringOrTemplate(firstArg, projectContext);
                 if (!string.IsNullOrWhiteSpace(resolved))
                 {
                     return resolved;
