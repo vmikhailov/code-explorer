@@ -55,10 +55,6 @@ public class ArchitectureViewEngine(IGraphClient db)
         };
     }
 
-    /// <summary>
-    /// C1: System Context View.
-    /// Retrieves top-level executable services, external APIs, databases, and message topics with materialized macro-edges.
-    /// </summary>
     private sealed record SystemContextDiscoveryState(
         Dictionary<string, string> InternalProjectsLookup,
         List<ProjectMatchCandidate> ProjectCandidates,
@@ -950,6 +946,10 @@ public class ArchitectureViewEngine(IGraphClient db)
         }
     }
 
+    /// <summary>
+    /// C1: System Context View.
+    /// Retrieves top-level executable services, external APIs, databases, and message topics with materialized macro-edges.
+    /// </summary>
     public async Task<GraphDataDto> GetSystemContextViewAsync(
         bool includeLibraries = false,
         string? projectFilter = null,
