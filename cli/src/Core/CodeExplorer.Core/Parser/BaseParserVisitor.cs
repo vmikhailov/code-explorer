@@ -220,6 +220,12 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             return;
         }
 
+        if (Profile.CatchClauses.Contains(type))
+        {
+            VisitCatchClause(node, depth);
+            return;
+        }
+
         VisitDefault(node, depth);
     }
 
@@ -441,8 +447,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected virtual void CollectCallLiteralArguments(Node callNode, string? callName, SyntacticSymbol currentScope)
     {
-        if (RelativePath.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
-            RelativePath.Contains("test", StringComparison.OrdinalIgnoreCase))
+        if (IsTestSourcePath(RelativePath))
         {
             return;
         }
@@ -520,6 +525,114 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             CollectCallLiteralArguments(node, attrName, currentScope);
         }
         base.VisitAttribute(node, depth);
+    }
+
+    protected override void VisitCatchClause(Node node, int depth)
+    {
+        if (IsTestSourcePath(RelativePath))
+        {
+            VisitChildren(node, depth);
+            return;
+        }
+
+        string? exType = null;
+        Node? bodyBlock = null;
+
+        foreach (var child in node.Children)
+        {
+            var cType = child.Type;
+            if (cType is "catch_declaration" or "catch_formal_parameter")
+            {
+                foreach (var grandChild in child.Children)
+                {
+                    if (grandChild.Type is "type_identifier" or "identifier" or "qualified_name" or "generic_name")
+                    {
+                        exType = grandChild.Text;
+                        break;
+                    }
+                }
+            }
+            else if (cType is "block" or "statement_block")
+            {
+                bodyBlock = child;
+            }
+            else if (cType is "identifier" && exType == null)
+            {
+                exType = child.Text;
+            }
+            else if (cType is "as_pattern")
+            {
+                var first = child.Children.FirstOrDefault();
+                if (first != null && first.IsValid()) exType = first.Text;
+            }
+        }
+
+        var statementCount = 0;
+        var hasComment = false;
+
+        if (bodyBlock != null && bodyBlock.IsValid())
+        {
+            var text = bodyBlock.Text;
+            if (text.Contains("//") || text.Contains("/*") || text.Contains("#"))
+            {
+                hasComment = true;
+            }
+
+            foreach (var child in bodyBlock.Children)
+            {
+                var cType = child.Type;
+                if (cType is "{" or "}" or ":" or ";")
+                {
+                    continue;
+                }
+
+                if (cType.Contains("comment"))
+                {
+                    hasComment = true;
+                    continue;
+                }
+
+                // In Python, pass_statement is the syntactical placeholder for an empty block
+                if (cType == "pass_statement")
+                {
+                    continue;
+                }
+
+                statementCount++;
+            }
+        }
+
+        var isEmpty = statementCount == 0;
+        var currentScope = SymbolStack.Peek();
+        var catchSymbol = new SyntacticSymbol(OntologyConstants.NodeLabels.CatchClause, exType ?? "catch", node);
+        catchSymbol.Properties["exception_type"] = exType ?? "";
+        catchSymbol.Properties["is_empty"] = isEmpty.ToString().ToLowerInvariant();
+        catchSymbol.Properties["has_comment"] = hasComment.ToString().ToLowerInvariant();
+        catchSymbol.Properties["statement_count"] = statementCount.ToString();
+        catchSymbol.Properties["line"] = (node.StartPosition.Row + 1).ToString();
+        catchSymbol.Properties["column"] = (node.StartPosition.Column + 1).ToString();
+
+        currentScope.Children.Add(catchSymbol);
+
+        VisitChildren(node, depth);
+    }
+
+    /// <summary>
+    /// Test sources must not feed CallLiteral (and thus SIG-M-I-001). The old check only looked for
+    /// "test" in the path, so Angular/Nest `*.spec.ts` files passed; since call literals are now also
+    /// collected at file scope (`describe('…')`, `it('…')` sit in top-level callbacks), every spec
+    /// title became a "hardcoded literal".
+    /// </summary>
+    protected static bool IsTestSourcePath(string relativePath)
+    {
+        if (string.IsNullOrEmpty(relativePath)) return false;
+        var normalized = relativePath.Replace('\\', '/');
+        if (normalized.Contains("test", StringComparison.OrdinalIgnoreCase)) return true;
+        var fileName = Path.GetFileName(normalized);
+        return (!string.IsNullOrEmpty(fileName) && fileName.Contains(".spec.", StringComparison.OrdinalIgnoreCase)) ||
+               normalized.Contains("/e2e/", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("/__mocks__/", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("/cypress/", StringComparison.OrdinalIgnoreCase);
     }
 
     protected bool IsStringLiteralNode(Node node)

@@ -73,6 +73,11 @@ public static class CSharpSyntaxProfile
             "base_list"
         }.ToFrozenSet(),
 
+        CatchClauses = new[]
+        {
+            "catch_clause"
+        }.ToFrozenSet(),
+
         StringLiterals = new[]
         {
             "string_literal",

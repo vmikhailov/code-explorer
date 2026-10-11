@@ -556,6 +556,75 @@ public class SemanticInvariantGateTests
         Assert.That(res.Violations[0].Message, Does.Contain("HARDCODED_PAYMENT_STATUS"));
     }
 
+    [Test]
+    public async Task Test_Gate_SigMI005_FlagsEmptyCatchWithoutComment_AllowsCommentedOrHandled()
+    {
+        var srcDir = Path.Combine(_tempWorkspace, "Services");
+        Directory.CreateDirectory(srcDir);
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "Services.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+        var csharpFile = Path.Combine(srcDir, "WorkerService.cs");
+        await File.WriteAllTextAsync(csharpFile, """
+            using System;
+
+            public class WorkerService
+            {
+                public void RunBad()
+                {
+                    try
+                    {
+                        Console.WriteLine("Bad");
+                    }
+                    catch (Exception ex)
+                    {
+                    }
+                }
+
+                public void RunGoodCommented()
+                {
+                    try
+                    {
+                        Console.WriteLine("Good");
+                    }
+                    catch (Exception)
+                    {
+                        // ignored: expected transient failure
+                    }
+                }
+
+                public void RunGoodHandled()
+                {
+                    try
+                    {
+                        Console.WriteLine("Good");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.Message);
+                    }
+                }
+            }
+            """);
+
+        var dbPath = Path.Combine(_tempWorkspace, "graph.db");
+        await using var client = new SqliteGraphClient(dbPath);
+
+        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-I-005");
+
+        var res = await engine.CheckGateAsync(gate);
+        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
+        Assert.That(res.Violations.Count, Is.EqualTo(1));
+        Assert.That(res.Violations[0].Symbol, Is.EqualTo("Exception"));
+        Assert.That(res.Violations[0].Message, Does.Contain("Empty catch block without an explanatory comment"));
+    }
+
     private class MockGateDbClient : IGraphClient
     {
         public string QueryResponse { get; set; } = "[]";

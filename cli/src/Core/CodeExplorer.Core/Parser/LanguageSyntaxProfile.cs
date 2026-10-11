@@ -21,6 +21,7 @@ public class LanguageSyntaxProfile
     public FrozenSet<string> Parameters { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> Imports { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> Inheritance { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> CatchClauses { get; init; } = FrozenSet<string>.Empty;
 
     // Expressions
     public FrozenSet<string> Calls { get; init; } = FrozenSet<string>.Empty;
@@ -37,4 +38,5 @@ public class LanguageSyntaxProfile
     public bool IsMemberAccess(string nodeType) => MemberAccessExpressions.Contains(nodeType);
     public bool IsElementAccess(string nodeType) => ElementAccessExpressions.Contains(nodeType);
     public bool IsCall(string nodeType) => Calls.Contains(nodeType);
+    public bool IsCatchClause(string nodeType) => CatchClauses.Contains(nodeType);
 }

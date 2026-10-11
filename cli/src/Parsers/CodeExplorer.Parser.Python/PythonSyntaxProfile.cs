@@ -55,6 +55,11 @@ public static class PythonSyntaxProfile
 
         Inheritance = FrozenSet<string>.Empty,
 
+        CatchClauses = new[]
+        {
+            "except_clause"
+        }.ToFrozenSet(),
+
         StringLiterals = new[]
         {
             "string"

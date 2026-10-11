@@ -31,17 +31,20 @@ public class FileGateRepository : IGateRepository
 
             foreach (var file in files)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var relFile = Path.GetRelativePath(_workspacePath, file).Replace('\\', '/');
                 try
                 {
                     var content = await File.ReadAllTextAsync(file, cancellationToken);
-                    var relFile = Path.GetRelativePath(_workspacePath, file).Replace('\\', '/');
                     var gate = GateSerializer.DeserializeGate(content, relFile);
+                    if (gatesById.TryGetValue(gate.Id, out var existing))
+                    {
+                        Console.Error.WriteLine($"[Gate Warning] Duplicate gate ID '{gate.Id}' found in '{relFile}' (overriding earlier gate from '{existing.Source}').");
+                    }
                     gatesById[gate.Id] = gate;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore or log malformed gate files
+                    Console.Error.WriteLine($"[Gate Warning] Failed to load gate from '{relFile}': {ex.Message}");
                 }
             }
         }
@@ -67,8 +70,10 @@ public class FileGateRepository : IGateRepository
             var json = await File.ReadAllTextAsync(baselinePath, cancellationToken);
             return GateSerializer.DeserializeBaseline(json);
         }
-        catch
+        catch (Exception ex)
         {
+            var relPath = Path.GetRelativePath(_workspacePath, baselinePath).Replace('\\', '/');
+            Console.Error.WriteLine($"[Gate Warning] Failed to load baseline from '{relPath}': {ex.Message}");
             return null;
         }
     }

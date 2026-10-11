@@ -1,4 +1,4 @@
-id: SIG-S-B-001
+id: SIG-A-B-002
 category: Architectural
 platform: agnostic
 scope: System
@@ -18,4 +18,4 @@ query: |
     'Database table ' + t.name + ' is accessed directly by multiple services (' + p1.name + ' and ' + p2.name + ')' AS message
 ratchet:
   enabled: true
-  baseline: baselines/SIG-S-B-001.json
+  baseline: baselines/SIG-A-B-002.json

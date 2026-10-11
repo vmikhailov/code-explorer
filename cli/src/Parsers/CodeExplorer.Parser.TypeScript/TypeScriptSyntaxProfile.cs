@@ -84,6 +84,11 @@ public static class TypeScriptSyntaxProfile
             "implements_clause"
         }.ToFrozenSet(),
 
+        CatchClauses = new[]
+        {
+            "catch_clause"
+        }.ToFrozenSet(),
+
         StringLiterals = new[]
         {
             "string"

@@ -5,7 +5,7 @@ scope: Module
 dimension: Boundaries
 name: Pipeline Layer Strict Hierarchy
 severity: Error
-description: Enforces unidirectional pipeline flow: parser stage N must not depend on or call higher-order parser stages.
+description: "Enforces unidirectional pipeline flow: parser stage N must not depend on or call higher-order parser stages."
 remediation: Remove references to higher pipeline layers. Use decoupled events, abstractions, or move shared data structures into Core/Common.
 query: |
   MATCH (src)-[:CALLS|USES_TYPE]->(tgt)

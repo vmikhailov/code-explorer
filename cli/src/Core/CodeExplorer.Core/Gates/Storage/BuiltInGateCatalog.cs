@@ -321,6 +321,36 @@ public static class BuiltInGateCatalog
                 Baseline = "baselines/SIG-M-I-002.json"
             },
             Source = "BuiltIn"
+        },
+
+        new SemanticGate
+        {
+            Id = "SIG-M-I-005",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
+            Scope = InvariantScope.Method,
+            Dimension = InvariantDimension.Rules,
+            Name = "No Empty Catch Blocks",
+            Severity = GateSeverity.Warning,
+            Description = "Catches must not silently suppress exceptions without at least an explanatory comment or handling logic.",
+            Remediation = "Log or handle the exception appropriately, rethrow it, or add an explanatory comment (e.g. `// ignored: expected transient condition`) explaining why it is safe to swallow.",
+            Query = """
+                MATCH (c:CatchClause)
+                WHERE c.is_empty = true AND c.has_comment = false AND NOT coalesce(c.is_test, false)
+                RETURN 
+                  c.file_path AS file,
+                  c.line AS line,
+                  c.column AS column,
+                  coalesce(c.exception_type, 'catch') AS symbol,
+                  'catch' AS target,
+                  'Empty catch block without an explanatory comment suppresses errors silently' AS message
+                """,
+            Ratchet = new GateRatchetSettings
+            {
+                Enabled = true,
+                Baseline = "baselines/SIG-M-I-005.json"
+            },
+            Source = "BuiltIn"
         }
     ];
 }

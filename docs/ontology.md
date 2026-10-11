@@ -30,6 +30,7 @@ graph TD
 
     subgraph Layer3 ["Layer 3: Syntactic Structure"]
         CallLiteral["CallLiteral"]
+        CatchClause["CatchClause"]
         Function["Function"]
         Member["Member"]
         ProjectSyntax["ProjectSyntax"]
@@ -66,6 +67,7 @@ graph TD
     App -->|CONTAINS| Endpoint
     App -->|CONTAINS| ApiInUse
     CallLiteral -->|DECLARED_IN| File
+    CatchClause -->|DECLARED_IN| File
     CliTool -->|LOCATED_IN| Folder
     CliTool -->|LOCATED_IN| Workspace
     CliTool -->|DEPLOYED_BY| Project
@@ -286,6 +288,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `CallLiteral` | `DECLARED_IN` |
+| `CatchClause` | `DECLARED_IN` |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
@@ -537,6 +540,34 @@ graph TD
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `Role` | `string` | The semantic role of the literal argument (e.g. Business, Routing, ParamBinding, Config, Logging, QueryBuilder, DI). |
 | `IsDecorator` | `bool` | Indicates whether the literal argument occurs within a decorator or attribute. |
+
+---
+
+#### `CatchClause`
+
+> Represents a catch or except block in structured exception handling.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The identifier or descriptor of the catch clause. |
+| `ExceptionType` | `string` | The declared exception type caught by this block, if specified. |
+| `FilePath` | `string` | The relative file path where the catch clause occurs. |
+| `Line` | `int` | The 1-indexed line number where the catch clause starts. |
+| `Column` | `int` | The 1-indexed column number where the catch clause starts. |
+| `IsEmpty` | `bool` | Indicates whether the catch body contains no executable statements. |
+| `HasComment` | `bool` | Indicates whether an empty catch block contains an explanatory comment. |
+| `StatementCount` | `int` | The number of executable statements inside the catch body. |
+| `IsTest` | `bool` | Indicates whether the catch clause occurs within test code. |
+| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectName` | `string?` | The name of the enclosing project. |
 
 ---
 
@@ -1269,6 +1300,7 @@ graph TD
 | Layer 2: Project Boundary | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |
 | Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:ps` |
 | Layer 3: Syntactic Structure | `CallLiteral` | `{workspaceId}:lit:{filePath}:{line}:{col}` |
+| Layer 3: Syntactic Structure | `CatchClause` | `{workspaceId}:catch:{filePath}:{line}:{col}` |
 | Layer 3: Syntactic Structure | `Function` | `{workspaceId}:sym:{filePath}:Function:{name}:{line}` |
 | Layer 3: Syntactic Structure | `Member` | `{workspaceId}:sym:{filePath}:Member:{name}:{line}` |
 | Layer 3: Syntactic Structure | `ProjectSyntax` | `{workspaceId}:p:{relativeProjectDir}:syntax` |

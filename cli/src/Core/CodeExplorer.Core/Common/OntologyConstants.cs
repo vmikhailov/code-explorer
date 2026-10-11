@@ -39,6 +39,7 @@ public static class OntologyConstants
         public const string Domain = "Domain";
         public const string TestSuite = "TestSuite";
         public const string CallLiteral = "CallLiteral";
+        public const string CatchClause = "CatchClause";
     }
 
     public static class IdPrefixes
@@ -73,6 +74,7 @@ public static class OntologyConstants
         public const string Domain = "dom";
         public const string TestSuite = "suite";
         public const string CallLiteral = "lit";
+        public const string CatchClause = "catch";
     }
 
     public static class Layers

@@ -5,6 +5,25 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.1] - 2026-10-11
+
+### Added
+- **Catch Clause Layer 3 AST Modeling & `SIG-M-I-005` (No Empty Catch Blocks)**:
+  - Introduced `CatchClauseNode` into Layer 3 syntactic AST across C#, TypeScript/JavaScript, Java, and Python.
+  - Automatically detects empty catch/except blocks (`is_empty`) while intelligently recognizing explanatory comments (`has_comment`) like `// ignored: expected fallback` or `/* expected */`.
+  - Added architectural invariant gate `SIG-M-I-005` in `examples/gates/rules/sig-m-i-005-no-empty-catch.yaml` to prevent silent exception swallowing without documentation or handling.
+- **Fail-Visible Gate Loading & Duplicate ID Diagnostics in `FileGateRepository`**:
+  - Emits descriptive warnings to `Console.Error` when YAML deserialization fails or when duplicate gate IDs are detected, eliminating silent gate drops.
+
+### Fixed
+- **Test File Exclusion from `CallLiteralNode` and `CatchClauseNode`**:
+  - Enhanced `IsTestSourcePath` to reliably exclude `*.spec.ts`, `/e2e/`, `/__mocks__/`, `/cypress/` alongside path-based test markers, eliminating 1,600+ false-positive literal violations from spec titles in NestJS/Angular.
+- **Gate ID Collision & YAML Formatting in `examples/gates/`**:
+  - Renamed `sig-s-b-001-database-ownership.yaml` to canonical `SIG-A-B-002` (`boundaries/sig-a-b-002-database-ownership.yaml`) adhering to FOIM System scope.
+  - Quoted description in `sig-p-b-001-pipeline-layer-hierarchy.yaml` to ensure strict YAML compliance.
+
+---
+
 ## [1.33.0] - 2026-10-11
 
 ### Added

@@ -78,6 +78,11 @@ public static class JavaSyntaxProfile
             "extends_interfaces"
         }.ToFrozenSet(),
 
+        CatchClauses = new[]
+        {
+            "catch_clause"
+        }.ToFrozenSet(),
+
         StringLiterals = new[]
         {
             "string_literal",

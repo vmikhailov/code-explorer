@@ -105,13 +105,17 @@ public static class OntologyUploader
             }
         }
 
-        // Special: If CallLiteral, link it to File via DECLARED_IN
-        if (node.Kind == OntologyConstants.NodeLabels.CallLiteral)
+        // Special: If CallLiteral or CatchClause, link it to File via DECLARED_IN
+        if (node.Kind is OntologyConstants.NodeLabels.CallLiteral or OntologyConstants.NodeLabels.CatchClause)
         {
             var filePath = node.Path;
             if (string.IsNullOrEmpty(filePath) && node is CallLiteralNode cln)
             {
                 filePath = cln.FilePath;
+            }
+            else if (string.IsNullOrEmpty(filePath) && node is CatchClauseNode ccn)
+            {
+                filePath = ccn.FilePath;
             }
             if (!string.IsNullOrEmpty(filePath))
             {
@@ -338,8 +342,10 @@ public static class OntologyUploader
                lower.Contains(":query:") ||
                lower.Contains($":{OntologyConstants.IdPrefixes.Table}:") ||
                lower.Contains(":table:") ||
-               lower.Contains($":{OntologyConstants.IdPrefixes.CallLiteral}:") ||
-               lower.Contains(":lit:");
+                lower.Contains($":{OntologyConstants.IdPrefixes.CallLiteral}:") ||
+                lower.Contains(":lit:") ||
+                lower.Contains($":{OntologyConstants.IdPrefixes.CatchClause}:") ||
+                lower.Contains(":catch:");
     }
 
     private static bool IsCodeEntityKind(string kind)
@@ -350,7 +356,8 @@ public static class OntologyUploader
                kind == OntologyConstants.NodeLabels.Query ||
                kind == OntologyConstants.NodeLabels.Procedure ||
                kind == OntologyConstants.NodeLabels.Table ||
-               kind == OntologyConstants.NodeLabels.CallLiteral;
+               kind == OntologyConstants.NodeLabels.CallLiteral ||
+               kind == OntologyConstants.NodeLabels.CatchClause;
     }
 
     private static bool IsProjectNodeId(string id)
@@ -377,6 +384,7 @@ public static class OntologyUploader
                      or OntologyConstants.IdPrefixes.Query or "query"
                      or OntologyConstants.IdPrefixes.Procedure or "procedure"
                      or OntologyConstants.IdPrefixes.CallLiteral or "lit"
+                     or OntologyConstants.IdPrefixes.CatchClause or "catch"
                      || id.Contains(":function:") || id.Contains(":Function:");
         }
         return false;

@@ -39,7 +39,7 @@ This directory contains production-ready Semantic Invariant Gate definitions org
 
 ### 1. Boundaries (`boundaries/`)
 - [`sig-c-b-001-controller-database-purity.yaml`](./boundaries/sig-c-b-001-controller-database-purity.yaml): Controllers must not directly execute database queries or access ORM repositories.
-- [`sig-s-b-001-database-ownership.yaml`](./boundaries/sig-s-b-001-database-ownership.yaml): A database table must not be queried or mutated directly by multiple distinct microservices.
+- [`sig-a-b-002-database-ownership.yaml`](./boundaries/sig-a-b-002-database-ownership.yaml): A database table must not be queried or mutated directly by multiple distinct microservices.
 - [`sig-s-b-002-no-circular-http.yaml`](./boundaries/sig-s-b-002-no-circular-http.yaml): Prohibits synchronous circular HTTP service calls (`A -> B -> A`).
 
 ### 2. Contract (`contract/`)
@@ -51,8 +51,10 @@ This directory contains production-ready Semantic Invariant Gate definitions org
 - [`sig-m-r-001-method-length.yaml`](./resources/sig-m-r-001-method-length.yaml): Functions and methods must not exceed 500 lines of code.
 
 ### 4. Rules (`rules/`)
+- [`sig-m-i-001-no-hardcoded-literals.yaml`](./rules/sig-m-i-001-no-hardcoded-literals.yaml): Forbids hardcoded business literals while permitting classified roles (Routing, Config, Logging, DI, etc.).
 - [`sig-m-i-003-no-raw-sql.yaml`](./rules/sig-m-i-003-no-raw-sql.yaml): Prohibits raw SQL query execution via `queryRunner.query(...)` or `dataSource.query(...)`.
 - [`sig-m-i-004-no-process-exit.yaml`](./rules/sig-m-i-004-no-process-exit.yaml): Prohibits `process.exit()` in web services to prevent ungraceful container termination.
+- [`sig-m-i-005-no-empty-catch.yaml`](./rules/sig-m-i-005-no-empty-catch.yaml): Prohibits empty catch blocks without an explanatory comment.
 - [`sig-p-i-001-circular-dependency.yaml`](./rules/sig-p-i-001-circular-dependency.yaml): Inter-package and inter-project dependencies must form an acyclic directed graph (DAG).
 
 ### 5. Compiler / Tool Dogfooding (`code-explorer/`)

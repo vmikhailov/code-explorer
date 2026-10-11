@@ -24,6 +24,7 @@ public abstract class TreeSitterAstVisitor
     protected virtual void VisitStringLiteral(Node node, int depth) => VisitChildren(node, depth);
     protected virtual void VisitParameter(Node node, int depth) => VisitChildren(node, depth);
     protected virtual void VisitInheritanceClause(Node node, int depth) => VisitChildren(node, depth);
+    protected virtual void VisitCatchClause(Node node, int depth) => VisitChildren(node, depth);
     protected virtual void VisitDefault(Node node, int depth) => VisitChildren(node, depth);
 
     protected virtual void VisitChildren(Node node, int depth)
