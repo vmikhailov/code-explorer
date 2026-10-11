@@ -1,0 +1,24 @@
+id: SIG-S-B-001
+category: Platform
+platform: dotnet
+scope: Service
+dimension: Boundaries
+name: Storage Interface Abstraction Invariance
+severity: Error
+description: Domain logic must interact with the graph database solely via abstract IGraphClient without concrete downcasting.
+remediation: Remove casts to SqliteGraphClient and raw SQLite DDL/DML. Use Cypher queries or declare maintenance abstractions.
+query: |
+  MATCH (parser)-[:CALLS|USES_TYPE]->(concreteDb:Type)
+  WHERE (parser.symbol CONTAINS 'Parser/' OR parser.file_path CONTAINS 'Parser/')
+    AND concreteDb.name IN ['SqliteGraphClient', 'SqliteConnection', 'SqliteCommand']
+    AND NOT coalesce(parser.is_test, false)
+  RETURN 
+    coalesce(parser.symbol, parser.file_path) AS file,
+    coalesce(parser.start_line, 0) AS line,
+    coalesce(parser.start_col, 0) AS column,
+    parser.name AS symbol,
+    concreteDb.name AS target,
+    'High-level parser directly couples to concrete SQLite storage implementation instead of IGraphClient' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-S-B-001.json

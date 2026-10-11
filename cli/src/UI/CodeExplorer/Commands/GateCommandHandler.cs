@@ -25,7 +25,8 @@ public class GateCommandHandler : BaseCommandHandler
         if (action == "init")
         {
             var created = await repo.InitStarterGatesAsync(opts.Update);
-            PrintSuccess($"Initialized {created} architectural starter gate(s) in '{Path.Combine(ws.RootDirectory, ".codeexplorer", "gates")}'.");
+            PrintSuccess($"Initialized gate directories in '{Path.Combine(ws.RootDirectory, ".codeexplorer", "gates")}'.");
+            Console.WriteLine("Created template '.codeexplorer/gates/example-gate.yaml.example'. Copy and customize YAML manifests to activate gates.");
             return 0;
         }
 
@@ -44,6 +45,13 @@ public class GateCommandHandler : BaseCommandHandler
             if (dimFilter.HasValue) allGates = allGates.Where(g => g.Dimension == dimFilter.Value).ToList();
             if (categoryFilter.HasValue) allGates = allGates.Where(g => g.Category == categoryFilter.Value).ToList();
             if (!string.IsNullOrWhiteSpace(platformFilter)) allGates = allGates.Where(g => string.Equals(g.Platform, platformFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (allGates.Count == 0 && !opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("No semantic gates configured in this workspace.");
+                Console.WriteLine("Create gate YAML manifests in '.codeexplorer/gates/' or run 'ce gate init'.");
+                return 0;
+            }
 
             if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
             {
@@ -242,6 +250,13 @@ public class GateCommandHandler : BaseCommandHandler
         {
             Console.WriteLine(JsonSerializer.Serialize(suite, new JsonSerializerOptions { WriteIndented = true }));
             return suite.IsSuccess ? 0 : 1;
+        }
+
+        if (suite.TotalGates == 0)
+        {
+            Console.WriteLine("No semantic gates configured in this workspace.");
+            Console.WriteLine("Add gate YAML manifests to '.codeexplorer/gates/' or run 'ce gate init'.");
+            return 0;
         }
 
         if (opts.Format.Equals(FormatMarkdown, StringComparison.OrdinalIgnoreCase))

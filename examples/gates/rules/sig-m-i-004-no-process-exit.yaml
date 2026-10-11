@@ -1,0 +1,24 @@
+id: SIG-M-I-004
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Rules
+name: Prohibit Abrupt Process Exit in Services
+severity: Error
+description: Microservices running inside Node.js containers must not invoke process.exit() in service logic or request handlers, as this terminates the pod bypassing graceful shutdown.
+remediation: Throw a domain exception or return an error response instead of calling process.exit().
+query: |
+  MATCH (caller:Function)-[:CALLS]->(target)
+  WHERE (target.name = 'process.exit' OR target.name = 'exit')
+    AND NOT coalesce(caller.is_test, false)
+    AND NOT caller.file_path CONTAINS 'cli'
+    AND NOT caller.file_path CONTAINS 'main.ts'
+  RETURN 
+    coalesce(caller.file_path, caller.path) AS file,
+    coalesce(caller.start_line, 1) AS line,
+    caller.name AS symbol,
+    'process.exit' AS target,
+    'Prohibited process.exit() invocation inside service logic' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-I-004.json

@@ -1,0 +1,23 @@
+id: SIG-M-R-001
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Resources
+name: Function and Method Length Ceiling
+severity: Warning
+description: Functions and methods exceeding 500 lines indicate excessive complexity and resource usage.
+remediation: Refactor long methods into smaller cohesive functions or pipeline steps.
+query: |
+  MATCH (f:Function)
+  WHERE f.line_count > 500
+    AND NOT coalesce(f.is_test, false)
+  RETURN 
+    coalesce(f.file_path, f.path) AS file,
+    coalesce(f.start_line, 1) AS line,
+    0 AS column,
+    f.name AS symbol,
+    toString(f.line_count) + ' lines' AS target,
+    'Function ' + f.name + ' exceeds 500 lines threshold (' + toString(f.line_count) + ' lines)' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-R-001.json

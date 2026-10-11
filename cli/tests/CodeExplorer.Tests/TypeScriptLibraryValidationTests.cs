@@ -1552,4 +1552,272 @@ export class CampaignsController {
             if (Directory.Exists(tempWorkspace)) Directory.Delete(tempWorkspace, true);
         }
     }
+
+    [Test]
+    public async Task Test_Adsterra_SingleRepoScan_ProjectAndEndpoints()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "adsterra-sc-nest");
+        var srcDir = Path.Combine(tempWorkspace, "src");
+        Directory.CreateDirectory(srcDir);
+        try
+        {
+            var mainCode = @"
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  const apiVersion = 'v1';
+  app.setGlobalPrefix(`api/${apiVersion}`);
+  await app.listen(3000);
+}
+bootstrap();
+";
+            var controllerCode = @"
+import { Controller, Post } from '@nestjs/common';
+
+@Controller('campaigns/min-bid')
+export class CampaignsController {
+  @Post()
+  async updateMinBid() {}
+}
+";
+            await File.WriteAllTextAsync(Path.Combine(tempWorkspace, "package.json"), "{\"name\": \"integration-service-adsterra-nest\"}");
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
+
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+            var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+
+            Assert.That(l2.Projects, Has.Count.EqualTo(1));
+            var proj = l2.Projects[0];
+            Assert.That(proj.Name, Is.EqualTo("adsterra-sc-nest"));
+
+            var endpoints = l3.SyntaxTrees.SelectMany(t => FindNodes<EndpointNode>(t.FileNode.Children)).ToList();
+            Assert.That(endpoints, Has.Count.EqualTo(1));
+            var ep = endpoints[0];
+            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/campaigns/min-bid"));
+            Assert.That(ep.RouteTemplate, Does.Not.Contain("${apiVersion}"));
+            Assert.That(ep.Id, Does.Contain("adsterra-sc-nest"));
+            Assert.That(ep.Id, Does.Not.Contain("integration-service-adsterra-nest"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace)) Directory.Delete(tempWorkspace, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_Adsterra_NestedProjectFolder_AlignsNameAndEndpoints()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ats_monorepo_" + Guid.NewGuid().ToString("N"));
+        var nestedRepoDir = Path.Combine(tempWorkspace, "services", "adsterra-sc-nest");
+        var srcDir = Path.Combine(nestedRepoDir, "src");
+        Directory.CreateDirectory(srcDir);
+        try
+        {
+            var mainCode = @"
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  const apiVersion = process.env.API_VERSION || 'v1';
+  app.setGlobalPrefix(`api/${apiVersion}`);
+  await app.listen(3000);
+}
+bootstrap();
+";
+            var controllerCode = @"
+import { Controller, Post } from '@nestjs/common';
+
+@Controller('campaigns/min-bid')
+export class CampaignsController {
+  @Post()
+  async updateMinBid() {}
+}
+";
+            // Manifest has old copied template name without '-sc-'
+            await File.WriteAllTextAsync(Path.Combine(nestedRepoDir, "package.json"), "{\"name\": \"integration-service-adsterra-nest\"}");
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
+
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+
+            Assert.That(l2.Projects, Has.Count.EqualTo(1));
+            var proj = l2.Projects[0];
+            // Must align to folder name 'adsterra-sc-nest' despite being nested at services/adsterra-sc-nest
+            Assert.That(proj.Name, Is.EqualTo("adsterra-sc-nest"));
+
+            var endpoints = l3.SyntaxTrees.SelectMany(t => FindNodes<EndpointNode>(t.FileNode.Children)).ToList();
+            Assert.That(endpoints, Has.Count.EqualTo(1));
+            var ep = endpoints[0];
+            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/campaigns/min-bid"));
+            Assert.That(ep.RouteTemplate, Does.Not.Contain("${apiVersion}"));
+            Assert.That(ep.Id, Does.Contain("adsterra-sc-nest"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace)) Directory.Delete(tempWorkspace, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_Adsterra_DoubleQuoteOrUnexpanded_ResolvesToV1()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "adsterra_quote_test_" + Guid.NewGuid().ToString("N"));
+        var srcDir = Path.Combine(tempWorkspace, "src");
+        Directory.CreateDirectory(srcDir);
+        try
+        {
+            var mainCode = @"
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.setGlobalPrefix('api/${apiVersion}');
+  await app.listen(3000);
+}
+bootstrap();
+";
+            var controllerCode = @"
+import { Controller, Post } from '@nestjs/common';
+
+@Controller('campaigns/min-bid')
+export class CampaignsController {
+  @Post()
+  async updateMinBid() {}
+}
+";
+            await File.WriteAllTextAsync(Path.Combine(tempWorkspace, "package.json"), "{\"name\": \"adsterra-sc-nest\"}");
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
+            await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
+
+            WorkspaceIndexer.Register(new TypeScriptParser());
+
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+
+            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+
+            var endpoints = l3.SyntaxTrees.SelectMany(t => FindNodes<EndpointNode>(t.FileNode.Children)).ToList();
+            Assert.That(endpoints, Has.Count.EqualTo(1));
+            var ep = endpoints[0];
+            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/campaigns/min-bid"));
+            Assert.That(ep.RouteTemplate, Does.Not.Contain("${apiVersion}"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace)) Directory.Delete(tempWorkspace, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_Angular_RxResource_ArrowFunction_CallerProvenance()
+    {
+        var code = @"
+import { HttpClient } from '@angular/common/http';
+import { rxResource } from '@angular/core';
+
+export class TrackerApiService {
+  constructor(private http: HttpClient) {}
+
+  readonly cpmStats = rxResource({
+    loader: () => this.http.get('https://bff.at-systems.biz/cpm-stats')
+  });
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(code);
+
+        var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
+        var loaderFunc = functions.FirstOrDefault(f => f.Name == "cpmStats.loader");
+        Assert.That(loaderFunc, Is.Not.Null, "Expected 'cpmStats.loader' to be registered as a Function symbol");
+
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        Assert.That(extServices, Is.Not.Empty);
+
+        var bffService = extServices.FirstOrDefault(e => e.Name.Contains("bff.at-systems.biz"));
+        Assert.That(bffService, Is.Not.Null);
+        Assert.That(bffService!.Path, Does.Contain("cpm-stats"));
+        Assert.That(bffService.Extensions, Is.Not.Null);
+        Assert.That(bffService.Extensions!.ContainsKey("caller_symbol_id"), Is.True);
+        Assert.That(bffService.Extensions["caller_symbol_id"], Does.Contain("cpmStats.loader"));
+    }
+
+    [Test]
+    public async Task Test_CallLiteral_ExcludesDecoratorsLoggersConfigAndQueryBuilders()
+    {
+        var code = @"
+import { Controller, Get, Param } from '@nestjs/common';
+
+@Controller('campaigns')
+export class CampaignsController {
+  @Get(':id')
+  async getCampaign(@Param('id') id: string) {
+    clog('fetching campaign');
+    config.getOrThrow('DATABASE_URL');
+    dataSource.createQueryBuilder('c');
+    orderService.processOrder('HARDCODED_BUSINESS_STATUS');
+  }
+}
+";
+        using var ws = await TestWorkspace.CreateAsync(code);
+
+        var literals = FindNodes<CallLiteralNode>(ws.FileNode.Children);
+
+        // Decorators @Controller, @Get and @Param are classified into Routing and ParamBinding roles
+        var controllerLit = literals.FirstOrDefault(l => l.Value == "campaigns");
+        Assert.That(controllerLit, Is.Not.Null);
+        Assert.That(controllerLit!.Role, Is.EqualTo(CallSemanticRole.Routing));
+        Assert.That(controllerLit.IsDecorator, Is.True);
+
+        var getLit = literals.FirstOrDefault(l => l.Value == ":id");
+        Assert.That(getLit, Is.Not.Null);
+        Assert.That(getLit!.Role, Is.EqualTo(CallSemanticRole.Routing));
+        Assert.That(getLit.IsDecorator, Is.True);
+
+        var paramLit = literals.FirstOrDefault(l => l.Value == "id");
+        Assert.That(paramLit, Is.Not.Null);
+        Assert.That(paramLit!.Role, Is.EqualTo(CallSemanticRole.ParamBinding));
+        Assert.That(paramLit.IsDecorator, Is.True);
+
+        // Logger, Config and QueryBuilder literals are classified into their respective roles
+        var logLit = literals.FirstOrDefault(l => l.Value == "fetching campaign");
+        Assert.That(logLit, Is.Not.Null);
+        Assert.That(logLit!.Role, Is.EqualTo(CallSemanticRole.Logging));
+
+        var configLit = literals.FirstOrDefault(l => l.Value == "DATABASE_URL");
+        Assert.That(configLit, Is.Not.Null);
+        Assert.That(configLit!.Role, Is.EqualTo(CallSemanticRole.Config));
+
+        var qbLit = literals.FirstOrDefault(l => l.Value == "c");
+        Assert.That(qbLit, Is.Not.Null);
+        Assert.That(qbLit!.Role, Is.EqualTo(CallSemanticRole.QueryBuilder));
+
+        // Only the legitimate business argument literal is classified as Business
+        var businessLiterals = literals.Where(l => l.Role == CallSemanticRole.Business).ToList();
+        Assert.That(businessLiterals, Has.Count.EqualTo(1));
+        Assert.That(businessLiterals[0].Value, Is.EqualTo("HARDCODED_BUSINESS_STATUS"));
+        Assert.That(businessLiterals[0].Callee, Does.Contain("processOrder"));
+    }
 }

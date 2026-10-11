@@ -294,14 +294,55 @@ public partial class SqliteCompiler
 
     private static string VisitAddOperator(Expression leftExpr, Expression rightExpr, string leftSql, string rightSql)
     {
-        // If both are numbers, use +
-        if (leftExpr is NumberLiteralExpression && rightExpr is NumberLiteralExpression)
+        if (IsDefinitelyString(leftExpr) || IsDefinitelyString(rightExpr))
+        {
+            return $"({leftSql} || {rightSql})";
+        }
+
+        if (IsDefinitelyNumeric(leftExpr) || IsDefinitelyNumeric(rightExpr))
         {
             return $"({leftSql} + {rightSql})";
         }
 
-        // In Cypher, + on strings or variables concatenates strings
+        // In Cypher, + on strings or variables defaults to string concatenation
         return $"({leftSql} || {rightSql})";
+    }
+
+    private static bool IsDefinitelyString(Expression expr)
+    {
+        return expr switch
+        {
+            StringLiteralExpression => true,
+            FunctionCallExpression func when func.FunctionName.Equals("toString", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("substring", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("trim", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("toLower", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("toUpper", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("replace", StringComparison.OrdinalIgnoreCase) => true,
+            BinaryExpression bin when bin.Operator == BinaryOperator.Add && (IsDefinitelyString(bin.Left) || IsDefinitelyString(bin.Right)) => true,
+            _ => false
+        };
+    }
+
+    private static bool IsDefinitelyNumeric(Expression expr)
+    {
+        return expr switch
+        {
+            NumberLiteralExpression => true,
+            UnaryExpression unary when unary.Operator is UnaryOperator.Minus or UnaryOperator.Plus => true,
+            BinaryExpression bin when bin.Operator is BinaryOperator.Subtract or BinaryOperator.Multiply or BinaryOperator.Divide or BinaryOperator.Modulo or BinaryOperator.Power => true,
+            BinaryExpression bin when bin.Operator == BinaryOperator.Add && (IsDefinitelyNumeric(bin.Left) || IsDefinitelyNumeric(bin.Right)) => true,
+            FunctionCallExpression func when func.FunctionName.Equals("size", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("length", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("count", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("toInteger", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("toFloat", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("abs", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("round", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("ceil", StringComparison.OrdinalIgnoreCase) ||
+                                                   func.FunctionName.Equals("floor", StringComparison.OrdinalIgnoreCase) => true,
+            _ => false
+        };
     }
 
     private string VisitUnary(UnaryExpression unary)

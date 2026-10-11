@@ -206,7 +206,17 @@ public class Layer1PhysicalParser
             var absoluteFilePath = fileInfo.FullName.Replace('\\', '/');
             var fileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relativeFile}";
             var fileName = fileInfo.Name;
-            var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath);
+            var sizeBytes = fileInfo.Length;
+            int? lineCount = null;
+            try
+            {
+                lineCount = File.ReadLines(fileInfo.FullName).Count();
+            }
+            catch
+            {
+                // Fallback for locked or unreadable files
+            }
+            var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes);
 
             currentParentNode.Children.Add(fileNode);
             files.Add(fileNode);

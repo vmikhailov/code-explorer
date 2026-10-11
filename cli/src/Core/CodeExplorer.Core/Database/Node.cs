@@ -34,9 +34,13 @@ public record Node(string Id, string Kind, Dictionary<string, object> Properties
             foreach (var kvp in node.Extensions)
             {
                 if (int.TryParse(kvp.Value, out var intVal) &&
-                    (kvp.Key.EndsWith("_line") || kvp.Key.EndsWith("_col") || kvp.Key is "line" or "column" or "arg_index" or "start_line" or "end_line" or "stage_order"))
+                    (kvp.Key.EndsWith("_line") || kvp.Key.EndsWith("_col") || kvp.Key is "line" or "column" or "arg_index" or "start_line" or "end_line" or "stage_order" or "loc" or "line_count"))
                 {
                     properties[kvp.Key] = intVal;
+                }
+                else if (long.TryParse(kvp.Value, out var longVal) && kvp.Key is "size_bytes")
+                {
+                    properties[kvp.Key] = longVal;
                 }
                 else if (bool.TryParse(kvp.Value, out var boolVal) && kvp.Key is "is_test" or "is_library")
                 {

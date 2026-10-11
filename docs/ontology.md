@@ -302,6 +302,8 @@ graph TD
 | `IsTest` | `bool` | Indicates whether the file is part of a test suite or test project. |
 | `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
+| `LineCount` | `int?` | Total lines of code in this file. |
+| `SizeBytes` | `long?` | Size of the file in bytes. |
 
 ---
 
@@ -533,6 +535,8 @@ graph TD
 | `IsTest` | `bool` | Indicates whether the call occurs within test code. |
 | `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
+| `Role` | `string` | The semantic role of the literal argument (e.g. Business, Routing, ParamBinding, Config, Logging, QueryBuilder, DI). |
+| `IsDecorator` | `bool` | Indicates whether the literal argument occurs within a decorator or attribute. |
 
 ---
 
@@ -582,6 +586,7 @@ graph TD
 | `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
+| `Loc` | `int?` | Lines of code span for this function. |
 
 ---
 
@@ -720,6 +725,7 @@ graph TD
 | `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
+| `Loc` | `int?` | Lines of code span for this type declaration. |
 
 ---
 

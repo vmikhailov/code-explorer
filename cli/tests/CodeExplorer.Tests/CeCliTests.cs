@@ -319,10 +319,26 @@ public class CeCliTests
         var (scanCode, _, _) = await RunCliAsync("scan", _tempDir);
         Assert.That(scanCode, Is.EqualTo(0));
 
-        // 4. Gate list
+        // 4. Gate list (initially empty, then with custom workspace gate)
+        var (emptyListCode, emptyListOut, _) = await RunCliAsync("gate", "list", "--dir", _tempDir);
+        Assert.That(emptyListCode, Is.EqualTo(0));
+        Assert.That(emptyListOut, Does.Contain("No semantic gates configured"));
+
+        var gateDir = Path.Combine(_tempDir, ".codeexplorer", "gates");
+        Directory.CreateDirectory(gateDir);
+        await File.WriteAllTextAsync(Path.Combine(gateDir, "sig-test-001.yaml"), """
+            id: SIG-TEST-001
+            category: Architectural
+            platform: agnostic
+            scope: System
+            dimension: Rules
+            name: Test Gate
+            query: "MATCH (n:Type) WHERE n.name = 'NonExistent' RETURN n.name AS symbol, n.file_path AS file, n.start_line AS line, 'target' AS target, 'msg' AS message"
+            """);
+
         var (listCode, listOut, _) = await RunCliAsync("gate", "list", "--dir", _tempDir);
         Assert.That(listCode, Is.EqualTo(0));
-        Assert.That(listOut, Does.Contain("SIG-P-B-001"));
+        Assert.That(listOut, Does.Contain("SIG-TEST-001"));
 
         // 5. Gate check (against dummy workspace)
         var (checkCode, checkOut, checkErr) = await RunCliAsync("gate", "check", "--dir", _tempDir);

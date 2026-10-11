@@ -1,0 +1,23 @@
+id: SIG-M-I-003
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Rules
+name: Raw SQL Execution Prohibition
+severity: Error
+description: Methods must not execute raw SQL queries via queryRunner.query or dataSource.query. Use type-safe repository methods, migrations, or dedicated storage services.
+remediation: Migrate raw SQL strings to repository methods, typed query builders, or database procedures.
+query: |
+  MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
+  WHERE (lit.callee CONTAINS 'queryRunner.query' OR lit.callee CONTAINS 'dataSource.query' OR lit.callee = 'query')
+    AND NOT coalesce(caller.is_test, false)
+  RETURN 
+    lit.file_path AS file,
+    lit.line AS line,
+    lit.column AS column,
+    coalesce(caller.name, 'unknown') AS symbol,
+    lit.callee AS target,
+    'Raw SQL query execution detected via ' + lit.callee + ': ' + substring(lit.value, 0, 40) AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-I-003.json

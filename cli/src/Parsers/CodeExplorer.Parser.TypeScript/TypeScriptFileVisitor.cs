@@ -119,6 +119,36 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         }
     }
 
+    /// <summary>
+    /// Name of the nearest declaration that owns an object literal containing <paramref name="pair"/>:
+    /// a class field, variable or outer object key. Stops at block/class/program boundaries.
+    /// </summary>
+    private static string? FindOwningDeclarationName(Node pair)
+    {
+        var current = pair.Parent;
+        for (var hops = 0; current.IsValid() && hops < 8; hops++, current = current.Parent)
+        {
+            if (current.IsAny(TreeSitterSyntax.TypeScript.ClassBody, TreeSitterSyntax.TypeScript.StatementBlock,
+                    TreeSitterSyntax.TypeScript.Program))
+            {
+                return null;
+            }
+
+            if (current.IsAny(TreeSitterSyntax.TypeScript.PublicFieldDefinition, TreeSitterSyntax.TypeScript.PropertyDefinition,
+                    TreeSitterSyntax.TypeScript.VariableDeclarator))
+            {
+                return current.GetChildFieldText(TreeSitterSyntax.Fields.Name);
+            }
+
+            if (current.Id != pair.Parent?.Id && current.Is(TreeSitterSyntax.TypeScript.Pair))
+            {
+                return current.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim('\'', '"', '`');
+            }
+        }
+
+        return null;
+    }
+
     private static Node? GetNextNamedSibling(Node node)
     {
         var parent = node.Parent;
@@ -177,6 +207,32 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                     var leftText = parent.GetChildFieldText(TreeSitterSyntax.Fields.Left);
                     if (leftText != null) return leftText;
                 }
+                // Class field initialised with a function: `load = (id) => this.http.get(...)`.
+                else if (parent.IsAny(TreeSitterSyntax.TypeScript.PublicFieldDefinition, TreeSitterSyntax.TypeScript.PropertyDefinition))
+                {
+                    var fieldName = parent.GetChildFieldText(TreeSitterSyntax.Fields.Name);
+                    if (!string.IsNullOrEmpty(fieldName)) return fieldName;
+                }
+                // Function as an object-literal property value: `rxResource({ loader: () => http.get(...) })`,
+                // NgRx/React Query option objects, handler maps. Qualified with the declaration that owns
+                // the object literal (`plansResource.loader`) so sibling resources in one class stay distinct.
+                else if (parent.Is(TreeSitterSyntax.TypeScript.Pair))
+                {
+                    var key = parent.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim('\'', '"', '`');
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        var owner = FindOwningDeclarationName(parent);
+                        return owner != null ? $"{owner}.{key}" : key;
+                    }
+                }
+            }
+
+            // An unnamed arrow (e.g. a `map`/`subscribe` callback) is not a declaration: it must not become a
+            // Function named after its first parameter (`ids.map(id => ...)` used to yield `Function:id`).
+            // Its calls stay attributed to the enclosing function/method.
+            if (node.Is(TreeSitterSyntax.TypeScript.ArrowFunction))
+            {
+                return null;
             }
         }
 

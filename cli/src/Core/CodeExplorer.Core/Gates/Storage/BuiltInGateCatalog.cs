@@ -7,7 +7,9 @@ namespace CodeExplorer.Core.Gates.Storage;
 /// </summary>
 public static class BuiltInGateCatalog
 {
-    public static IReadOnlyList<SemanticGate> GetDefaultGates() =>
+    public static IReadOnlyList<SemanticGate> GetDefaultGates() => [];
+
+    public static IReadOnlyList<SemanticGate> GetExampleGates() =>
     [
         new SemanticGate
         {
@@ -183,7 +185,8 @@ public static class BuiltInGateCatalog
             Remediation = "Propagate caller_symbol_id when synthesizing external service calls so that callers link directly to endpoints.",
             Query = """
                 MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint)
-                WHERE NOT EXISTS((:Function)-[:CALLS]->(es))
+                WHERE NOT EXISTS((es)-[:CALLED_BY]->(:Function))
+                  AND NOT EXISTS((:Function)-[:CALLS]->(es))
                   AND NOT EXISTS((:Function)-[:CALLS_ENDPOINT]->(ep))
                 RETURN 
                   es.file_path AS file,
@@ -235,19 +238,20 @@ public static class BuiltInGateCatalog
             Platform = "agnostic",
             Scope = InvariantScope.Module,
             Dimension = InvariantDimension.Rules,
-            Name = "Circular Package Dependency Shield",
+            Name = "Circular Dependency Shield",
             Severity = GateSeverity.Error,
-            Description = "Inter-package dependencies must form an acyclic directed graph (DAG).",
+            Description = "Inter-package and inter-project dependencies must form an acyclic directed graph (DAG).",
             Remediation = "Break the circular dependency cycle using interfaces, events, or moving shared dependencies to a common leaf module.",
             Query = """
-                MATCH (p1:Package)-[:DEPENDS_ON*1..3]->(p2:Package)
-                WHERE (p2)-[:DEPENDS_ON*1..3]->(p1) AND p1.id <> p2.id
+                MATCH (p1)-[:DEPENDS_ON*1..3]->(p2)
+                WHERE (p1:Package OR p1:Project) AND (p2:Package OR p2:Project)
+                  AND (p2)-[:DEPENDS_ON*1..3]->(p1) AND p1.id <> p2.id
                 RETURN 
                   p1.name AS file,
                   1 AS line,
                   p1.name AS symbol,
                   p2.name AS target,
-                  'Circular package dependency detected between packages' AS message
+                  'Circular dependency detected between packages or projects' AS message
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -271,6 +275,7 @@ public static class BuiltInGateCatalog
             Query = """
                 MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
                 WHERE NOT coalesce(caller.is_test, false) AND NOT coalesce(lit.is_test, false)
+                  AND coalesce(lit.role, 'Business') = 'Business'
                 RETURN 
                   lit.file_path AS file,
                   lit.line AS line,
@@ -283,6 +288,37 @@ public static class BuiltInGateCatalog
             {
                 Enabled = true,
                 Baseline = "baselines/SIG-M-I-001.json"
+            },
+            Source = "BuiltIn"
+        },
+
+        new SemanticGate
+        {
+            Id = "SIG-M-I-002",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
+            Scope = InvariantScope.Method,
+            Dimension = InvariantDimension.Rules,
+            Name = "Method Length Limitation",
+            Severity = GateSeverity.Error,
+            Description = "Methods must not exceed 500 lines of code to prevent monster/god methods and maintain readability and single responsibility.",
+            Remediation = "Refactor long methods into smaller focused helper functions, sub-routines, or dedicated pipeline/handler classes.",
+            Query = """
+                MATCH (f:Function)
+                WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
+                  AND NOT coalesce(f.is_test, false)
+                RETURN 
+                  coalesce(f.path, f.file_path) AS file,
+                  coalesce(f.start_line, 1) AS line,
+                  coalesce(f.start_col, 1) AS column,
+                  f.name AS symbol,
+                  toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines' AS target,
+                  'Method ' + f.name + ' exceeds maximum allowed length of 500 lines (' + toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines)' AS message
+                """,
+            Ratchet = new GateRatchetSettings
+            {
+                Enabled = true,
+                Baseline = "baselines/SIG-M-I-002.json"
             },
             Source = "BuiltIn"
         }

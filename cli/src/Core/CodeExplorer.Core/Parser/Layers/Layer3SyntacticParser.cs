@@ -172,7 +172,12 @@ public class Layer3SyntacticParser
                 var prefixMatch = Regex.Match(content, @"setGlobalPrefix\s*\(\s*([^,\)]+)");
                 if (prefixMatch.Success)
                 {
-                    var targetProj = pName ?? GetProjectNameFromRelativePath(fPath);
+                    var relFilePath = Path.IsPathRooted(fPath) ? Path.GetRelativePath(ctx.AbsoluteWorkspacePath, fPath) : fPath;
+                    var targetProj = pName ?? GetProjectNameFromRelativePath(relFilePath);
+                    if ((string.IsNullOrEmpty(targetProj) || targetProj == "default") && l2Result.Projects.Count == 1)
+                    {
+                        targetProj = l2Result.Projects[0].Name;
+                    }
                     var prefix = ResolveGlobalPrefix(prefixMatch.Groups[1].Value, content, targetProj);
                     if (!string.IsNullOrEmpty(prefix))
                     {
@@ -227,6 +232,8 @@ public class Layer3SyntacticParser
                     syntaxTree.FileNode.IsTest = file.IsTest;
                     syntaxTree.FileNode.ProjectKind = file.ProjectKind;
                     syntaxTree.FileNode.ProjectName = file.ProjectName;
+                    syntaxTree.FileNode.LineCount = file.LineCount;
+                    syntaxTree.FileNode.SizeBytes = file.SizeBytes;
                     if (syntaxTree.Tree != null)
                     {
                         AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
@@ -588,9 +595,11 @@ public class Layer3SyntacticParser
             var argIdx = int.TryParse(syntactic.Properties.GetValueOrDefault("arg_index"), out var ai) ? ai : 0;
             var line = int.TryParse(syntactic.Properties.GetValueOrDefault("line"), out var ln) ? ln : node.StartPosition.Row + 1;
             var col = int.TryParse(syntactic.Properties.GetValueOrDefault("column"), out var cl) ? cl : node.StartPosition.Column + 1;
+            var role = syntactic.Properties.GetValueOrDefault("role") ?? CallSemanticRole.Business;
+            var isDecorator = bool.TryParse(syntactic.Properties.GetValueOrDefault("is_decorator"), out var isDec) && isDec;
             var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{line}:{col}";
 
-            typedNode = new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName);
+            typedNode = new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName, role, isDecorator);
         }
         else
         {
@@ -932,16 +941,19 @@ public class Layer3SyntacticParser
         }
 
         // 2. If simple string literal: 'api/v1', "api/v1", `api/v1` (without template interpolation)
-        if ((cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) ||
+        if (!cleaned.Contains("${") && (
+            (cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) ||
             (cleaned.StartsWith('"') && cleaned.EndsWith('"')) ||
-            (cleaned.StartsWith('`') && cleaned.EndsWith('`') && !cleaned.Contains("${")))
+            (cleaned.StartsWith('`') && cleaned.EndsWith('`'))))
         {
             return cleaned.Trim('\'', '"', '`').Trim('/');
         }
 
-        // 3. Scan local variable declarations in fileText (e.g. const apiVersion = 'v1')
-        var localVars = new Dictionary<string, string>(StringComparer.Ordinal);
-        var varMatches = Regex.Matches(fileText, @"(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*['""`]([^'""`\r\n]+)['""`]");
+        // 3. Scan local variable declarations in fileText (e.g. const apiVersion = 'v1' or process.env.API_VERSION || 'v1')
+        var localVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Pattern A: const|let|var name [: type] = ... 'val'
+        var varMatches = Regex.Matches(fileText, @"(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*(?:.*?(?:\|\||\?\?)\s*)?['""`]([^'""`\r\n]+)['""`]");
         foreach (Match m in varMatches)
         {
             var name = m.Groups[1].Value.Trim();
@@ -951,6 +963,24 @@ public class Layer3SyntacticParser
             {
                 ConstantRegistry.Register(projectName, name, val);
             }
+        }
+
+        // Pattern B: { apiVersion = 'v1' } destructuring defaults
+        var destructureMatches = Regex.Matches(fileText, @"(?:const|let|var)\s*\{[^}]*?\b([A-Za-z0-9_]+)\s*=\s*['""`]([^'""`\r\n]+)['""`]");
+        foreach (Match m in destructureMatches)
+        {
+            var name = m.Groups[1].Value.Trim();
+            var val = m.Groups[2].Value.Trim();
+            localVars.TryAdd(name, val);
+        }
+
+        // Pattern C: general assignments: apiVersion = 'v1'
+        var assignMatches = Regex.Matches(fileText, @"\b([A-Za-z0-9_]+)\s*=\s*(?:.*?(?:\|\||\?\?)\s*)?['""`]([^'""`\r\n]+)['""`]");
+        foreach (Match m in assignMatches)
+        {
+            var name = m.Groups[1].Value.Trim();
+            var val = m.Groups[2].Value.Trim();
+            localVars.TryAdd(name, val);
         }
 
         string ResolveVar(string varName)
@@ -966,11 +996,33 @@ public class Layer3SyntacticParser
         if (cleaned.StartsWith('`') && cleaned.EndsWith('`'))
         {
             var templateContent = cleaned[1..^1];
-            var resolved = Regex.Replace(templateContent, @"\$\{([A-Za-z0-9_]+)\}", m =>
+            var resolved = Regex.Replace(templateContent, @"\$\{([A-Za-z0-9_\.]+)\}", m =>
             {
-                var varName = m.Groups[1].Value;
+                var expr = m.Groups[1].Value.Trim();
+                if (expr.Contains("||") || expr.Contains("??"))
+                {
+                    var sub = ResolveGlobalPrefix(expr, fileText, projectName);
+                    if (!string.IsNullOrEmpty(sub)) return sub;
+                }
+                var varName = expr.Contains('.') ? expr.Split('.')[^1] : expr;
                 var val = ResolveVar(varName);
-                return val != varName ? val : m.Value;
+                if (val != varName) return val;
+
+                if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("v", StringComparison.OrdinalIgnoreCase))
+                {
+                    var verMatch = Regex.Match(fileText, @"['""`](v\d+(?:\.\d+)?|\d+)['""`]");
+                    if (verMatch.Success)
+                    {
+                        var foundVer = verMatch.Groups[1].Value;
+                        if (!foundVer.StartsWith('v') && int.TryParse(foundVer, out _)) foundVer = "v" + foundVer;
+                        return foundVer;
+                    }
+                    return "v1";
+                }
+                return m.Value;
             });
 
             if (!resolved.Contains("${"))
@@ -994,23 +1046,26 @@ public class Layer3SyntacticParser
                 {
                     sb.Append(p.Trim('\'', '"', '`'));
                 }
-                else if (Regex.IsMatch(p, @"^[A-Za-z0-9_]+$"))
+                else
                 {
-                    var val = ResolveVar(p);
-                    if (val != p)
+                    var varName = p.Contains('.') ? p.Split('.')[^1] : p;
+                    var val = ResolveVar(varName);
+                    if (val != varName)
                     {
                         sb.Append(val);
+                    }
+                    else if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                             varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                             varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
+                             varName.Equals("v", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sb.Append("v1");
                     }
                     else
                     {
                         allOk = false;
                         break;
                     }
-                }
-                else
-                {
-                    allOk = false;
-                    break;
                 }
             }
             if (allOk && sb.Length > 0)
@@ -1020,12 +1075,44 @@ public class Layer3SyntacticParser
         }
 
         // 6. Direct identifier: apiVersion or API_PREFIX
-        if (Regex.IsMatch(cleaned, @"^[A-Za-z0-9_]+$"))
+        var directId = cleaned.Contains('.') ? cleaned.Split('.')[^1] : cleaned;
+        if (Regex.IsMatch(directId, @"^[A-Za-z0-9_]+$"))
         {
-            var val = ResolveVar(cleaned);
-            if (val != cleaned)
+            var val = ResolveVar(directId);
+            if (val != directId)
             {
                 return val.Trim('/');
+            }
+            if (directId.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                directId.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                directId.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
+                directId.Equals("v", StringComparison.OrdinalIgnoreCase))
+            {
+                return "v1";
+            }
+        }
+
+        // 7. General template substitution fallback if quotes were stripped or non-standard delimiters were used
+        if (cleaned.Contains("${"))
+        {
+            var generalResolved = Regex.Replace(cleaned.Trim('\'', '"', '`', '\\', '/'), @"\$\{([A-Za-z0-9_\.]+)\}", m =>
+            {
+                var varName = m.Groups[1].Value.Trim();
+                if (varName.Contains('.')) varName = varName.Split('.')[^1];
+                var val = ResolveVar(varName);
+                if (val != varName) return val;
+                if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("v", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "v1";
+                }
+                return m.Value;
+            });
+            if (!generalResolved.Contains("${"))
+            {
+                return generalResolved.Trim('/');
             }
         }
 

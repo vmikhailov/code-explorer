@@ -1,0 +1,24 @@
+id: SIG-M-C-001
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Contract
+name: No Hardcoded Localhost in Non-Test Code
+severity: Error
+description: Production code must obtain host addresses from environment configuration rather than hardcoding localhost or 127.0.0.1.
+remediation: Use ConfigService, environment variables, or service discovery for host endpoints.
+query: |
+  MATCH (es:ExternalService)
+  WHERE (es.name CONTAINS 'localhost' OR es.name CONTAINS '127.0.0.1')
+    AND NOT coalesce(es.is_test, false)
+    AND NOT es.file_path CONTAINS 'test'
+    AND NOT es.file_path CONTAINS 'spec'
+  RETURN 
+    coalesce(es.file_path, 'unknown') AS file,
+    coalesce(es.start_line, 1) AS line,
+    es.name AS symbol,
+    'localhost' AS target,
+    'Hardcoded localhost reference detected in production code: ' + es.name AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-C-001.json

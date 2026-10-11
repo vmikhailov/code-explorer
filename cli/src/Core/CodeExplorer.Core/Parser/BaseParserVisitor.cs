@@ -421,22 +421,19 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         {
             var currentScope = SymbolStack.Peek();
 
-            if (currentScope.Kind != "file")
+            foreach (var libParser in LibraryParsers)
             {
-                foreach (var libParser in LibraryParsers)
-                {
-                    libParser.CollectReferences(node, "", currentScope.References, null!);
-                }
-
-                var callName = FindCallName(node);
-
-                if (!string.IsNullOrEmpty(callName))
-                {
-                    currentScope.References.Add(new Reference("", callName, "CALLS"));
-                }
-
-                CollectCallLiteralArguments(node, callName, currentScope);
+                libParser.CollectReferences(node, "", currentScope.References, null!);
             }
+
+            var callName = FindCallName(node);
+
+            if (!string.IsNullOrEmpty(callName) && currentScope.Kind != "file")
+            {
+                currentScope.References.Add(new Reference("", callName, "CALLS"));
+            }
+
+            CollectCallLiteralArguments(node, callName, currentScope);
 
             base.VisitCallExpression(node, depth);
         });
@@ -451,13 +448,11 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         }
 
         callName ??= FindCallName(callNode);
-        if (string.IsNullOrEmpty(callName) || IsExcludedCall(callName))
-        {
-            return;
-        }
+        var (role, isDecorator) = CallSemanticClassifier.Classify(callNode, callName);
 
         var argsNode = callNode.FindChildOfType(TreeSitterSyntax.Common.ArgumentList) ??
-                       callNode.FindChildOfType(TreeSitterSyntax.Common.Arguments);
+                       callNode.FindChildOfType(TreeSitterSyntax.Common.Arguments) ??
+                       callNode.FindChildOfType("attribute_argument_list");
 
         if (!argsNode.IsValid())
         {
@@ -469,13 +464,13 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         var argIndex = 0;
         foreach (var child in argsNode.Children)
         {
-            if (child.Type is "(" or ")" or "," or ";" or "{" or "}")
+            if (child.Type is "(" or ")" or "," or ";" or "{" or "}" or "[" or "]")
             {
                 continue;
             }
 
             var exprNode = child;
-            if (child.Type == "argument")
+            if (child.Type is "argument" or "attribute_argument")
             {
                 var valueCandidate = child.Children.LastOrDefault(c => c.Type is not "name_colon" and not ":" and not ",");
                 if (valueCandidate.IsValid())
@@ -500,11 +495,13 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                         Text = cleaned
                     };
                     literalSymbol.Properties["value"] = cleaned;
-                    literalSymbol.Properties["callee"] = callName;
+                    literalSymbol.Properties["callee"] = callName ?? "";
                     literalSymbol.Properties["arg_index"] = argIndex.ToString();
                     literalSymbol.Properties["file_path"] = RelativePath;
                     literalSymbol.Properties["line"] = line.ToString();
                     literalSymbol.Properties["column"] = col.ToString();
+                    literalSymbol.Properties["role"] = role;
+                    literalSymbol.Properties["is_decorator"] = isDecorator ? "true" : "false";
 
                     currentScope.Children.Add(literalSymbol);
                 }
@@ -514,61 +511,15 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         }
     }
 
-    private static readonly HashSet<string> ExcludedMethodNames = new(StringComparer.OrdinalIgnoreCase)
+    protected override void VisitAttribute(Node node, int depth)
     {
-        // 1. Logging and console output methods
-        "Log", "LogError", "LogWarning", "LogInformation", "LogDebug", "LogTrace", "LogCritical",
-        "WriteLine", "Write", "Print", "Printf", "Println", "Debug", "Trace", "Fail",
-        "PrintSuccess", "PrintError", "PrintWarning", "Markup", "MarkupLine", "MarkupLineInterpolated",
-
-        // 2. String, StringBuilder & Path manipulation / formatting
-        "Format", "Join", "Concat", "Split", "Replace", "StartsWith", "EndsWith", "Contains",
-        "Includes", "IndexOf", "LastIndexOf", "Trim", "TrimStart", "TrimEnd", "ToString",
-        "PadLeft", "PadRight", "Substring", "Slice", "Combine", "Match", "Matches",
-        "Append", "AppendLine", "AppendFormat", "AppendJoin",
-        "Equals", "Compare", "CompareTo", "ReferenceEquals",
-
-        // 3. Reflection / Type checking
-        "nameof", "GetType", "typeof"
-    };
-
-    protected static bool IsExcludedCall(string callName)
-    {
-        var simpleName = callName;
-        if (simpleName.Contains('.'))
+        var attrName = node.Children.FirstOrDefault(c => c.Type.Contains("identifier"))?.Text ?? node.Text;
+        if (!string.IsNullOrEmpty(attrName))
         {
-            simpleName = simpleName[(simpleName.LastIndexOf('.') + 1)..];
+            var currentScope = SymbolStack.Peek();
+            CollectCallLiteralArguments(node, attrName, currentScope);
         }
-
-        if (ExcludedMethodNames.Contains(simpleName))
-        {
-            return true;
-        }
-
-        if (callName.Contains("Logger", StringComparison.OrdinalIgnoreCase) ||
-            callName.Contains("Console", StringComparison.OrdinalIgnoreCase) ||
-            callName.Contains("StringBuilder", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("sb.", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("builder.", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("Debug.", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("Trace.", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("Path.", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("string.", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("String.", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        // Exception constructors and guards
-        if (simpleName.EndsWith("Exception", StringComparison.OrdinalIgnoreCase) ||
-            simpleName.StartsWith("Throw", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("throw new ", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("new Argument", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        base.VisitAttribute(node, depth);
     }
 
     protected bool IsStringLiteralNode(Node node)

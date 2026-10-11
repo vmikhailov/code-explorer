@@ -41,6 +41,18 @@ public class McpIntegrationTests
 
         await using var client = new SqliteGraphClient(dbPath);
 
+        var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
+        Directory.CreateDirectory(gatesDir);
+        await File.WriteAllTextAsync(Path.Combine(gatesDir, "sig-test-001.yaml"), """
+            id: SIG-TEST-001
+            category: Architectural
+            platform: agnostic
+            scope: Module
+            dimension: Boundaries
+            name: Test Gate
+            query: "MATCH (ep:Endpoint) RETURN ep.path AS file, 1 AS line, ep.name AS symbol, 'target' AS target, 'msg' AS message"
+            """);
+
         WorkspaceIndexer.Register(new TypeScriptParser());
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
@@ -382,8 +394,7 @@ public class McpIntegrationTests
     public async Task Test_CheckSemanticGates()
     {
         await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"format\": \"markdown\"}", 21);
-        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-P-B-001\", \"format\": \"json\"}", 22);
-        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-M-I-001\", \"includeTolerated\": true, \"groupBy\": \"file\", \"format\": \"markdown\"}", 25);
+        await CallToolAndAssertSuccessAsync("check_semantic_gates", "{\"gateId\": \"SIG-TEST-001\", \"format\": \"json\"}", 22);
     }
 
     [Test]

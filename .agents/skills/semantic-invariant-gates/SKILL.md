@@ -37,11 +37,10 @@ Every invariant lives at a coordinate `[Scope, Dimension]` in the FOIM space:
 
 | Code | Dimension | Architectural Focus | Question Answered |
 | :--- | :--- | :--- | :--- |
-| **B** | **Boundaries** | Encapsulation & isolation | Who may talk to whom? (No direct DB calls from UI) |
-| **T** | **Topology** | Graph shape & connectivity | Are there cycles, orphan nodes, or dead endpoints? |
-| **C** | **Contract** | Typing & interfaces | Are contracts explicit, valid, and bijectional? |
-| **L** | **Lifecycle** | State, resource, & async | Are resources disposed? Are transactions scoped? |
-| **I** | **Rules** | Implementation constraints | Are constants hardcoded? Are visitors IO-pure? |
+| **C** | **Contract** | Typing, interfaces, API protocol fidelity | Are contracts explicit, valid, and type-safe? |
+| **I** | **Rules** | Implementation constraints & hygiene | Are constants hardcoded? Are visitors IO-pure? |
+| **R** | **Resources** | Resource & complexity control, metrics | Are methods within complexity limits? Are resources bounded? |
+| **B** | **Boundaries** | Scope boundaries, encapsulation, layer isolation | Who may talk to whom? (No direct DB calls from UI) |
 
 **Identifier Convention**:
 `SIG-<ScopeCode>-<DimensionCode>-<Index3Digits>`

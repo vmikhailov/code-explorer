@@ -1,0 +1,24 @@
+id: SIG-P-B-001
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: Pipeline Layer Strict Hierarchy
+severity: Error
+description: Enforces unidirectional pipeline flow: parser stage N must not depend on or call higher-order parser stages.
+remediation: Remove references to higher pipeline layers. Use decoupled events, abstractions, or move shared data structures into Core/Common.
+query: |
+  MATCH (src)-[:CALLS|USES_TYPE]->(tgt)
+  WHERE NOT coalesce(src.is_test, false)
+    AND src.stage_order IS NOT NULL
+    AND tgt.stage_order IS NOT NULL
+    AND src.stage_order < tgt.stage_order
+  RETURN 
+    coalesce(src.symbol, src.file_path) AS file,
+    coalesce(src.start_line, 0) AS line,
+    src.name AS symbol,
+    tgt.name AS target,
+    'Pipeline stage violation: component depends on higher-order pipeline layer' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-001.json

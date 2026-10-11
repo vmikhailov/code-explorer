@@ -613,4 +613,19 @@ public class SqliteCompilerTests
         Assert.That(compiled.Sql, Does.Contain("s2.kind = 'Service'"));
         Assert.That(compiled.Sql, Does.Contain("d.kind = 'Database'"));
     }
+
+    [Test]
+    public void Test_ArithmeticAddition_EvaluatesNumerically()
+    {
+        InsertNode("fn:math", "Function", new() { ["name"] = "MathFn", ["start_line"] = 10, ["end_line"] = 25 });
+
+        var rows = ExecuteCypher(@"
+            MATCH (f:Function) WHERE f.name = 'MathFn'
+            RETURN (f.end_line - f.start_line + 1) AS loc,
+                   'Length: ' + toString(f.end_line - f.start_line + 1) AS label
+        ");
+        Assert.That(rows, Has.Count.EqualTo(1));
+        Assert.That(Convert.ToInt64(rows[0]["loc"]), Is.EqualTo(16));
+        Assert.That((string)rows[0]["label"]!, Is.EqualTo("Length: 16"));
+    }
 }

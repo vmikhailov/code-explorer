@@ -1,0 +1,22 @@
+id: SIG-S-B-002
+category: Architectural
+platform: agnostic
+scope: Service
+dimension: Boundaries
+name: Inter-Service HTTP Call Acyclicity
+severity: Error
+description: Synchronous circular HTTP dependencies between services are prohibited.
+remediation: Break the cycle using asynchronous message queues (events/topics) or extract shared data into a dedicated service.
+query: |
+  MATCH (s1:Service)-[:CALLS_ENDPOINT]->(e1:Endpoint)<-[:EXPOSES]-(s2:Service),
+        (s2:Service)-[:CALLS_ENDPOINT]->(e2:Endpoint)<-[:EXPOSES]-(s1:Service)
+  WHERE s1.name < s2.name
+  RETURN 
+    s1.path AS file,
+    0 AS line,
+    s1.name AS symbol,
+    s2.name AS target,
+    'Circular HTTP dependency detected between ' + s1.name + ' and ' + s2.name AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-S-B-002.json

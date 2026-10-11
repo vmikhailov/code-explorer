@@ -1,0 +1,21 @@
+id: SIG-S-B-001
+category: Architectural
+platform: agnostic
+scope: System
+dimension: Boundaries
+name: Database Table Ownership Isolation
+severity: Error
+description: In a microservice ecosystem, each service owns its database tables. A database table must not be queried or mutated directly by multiple distinct microservices.
+remediation: Expose a dedicated service API or event stream instead of allowing multiple services to query the same database table.
+query: |
+  MATCH (p1:Project)-[:CONTAINS*1..3]->(q1:Query)-[:DEPENDS_ON]->(t:Table)<-[:DEPENDS_ON]-(q2:Query)<-[:CONTAINS*1..3]-(p2:Project)
+  WHERE p1.id < p2.id AND p1.kind = 'Service' AND p2.kind = 'Service'
+  RETURN 
+    p1.name AS file,
+    1 AS line,
+    p1.name AS symbol,
+    t.name + ' (shared with ' + p2.name + ')' AS target,
+    'Database table ' + t.name + ' is accessed directly by multiple services (' + p1.name + ' and ' + p2.name + ')' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-S-B-001.json

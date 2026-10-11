@@ -5,6 +5,28 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.0] - 2026-10-11
+
+### Added
+- **Semantic Role Classification for Call Literals & Attributes**:
+  - Introduced `CallSemanticClassifier` to categorize AST call argument literals and attributes into semantic roles (`Routing`, `ParamBinding`, `Config`, `Logging`, `QueryBuilder`, `DI`, `Security`, `OrmMapping`, `Validation`, `Formatting`, `Exception`, `Business`).
+  - Stored `role` and `is_decorator` directly on `CallLiteralNode` in Layer 3 syntactic AST graph.
+  - Symmetrically extracted C# attributes alongside TypeScript/NestJS/Angular decorators.
+  - Refactored `SIG-M-I-001` (Disallow Hardcoded Arguments) to target business literals (`coalesce(lit.role, 'Business') = 'Business'`), eliminating noise from framework decorators, config getters (`config.getOrThrow`), query builders (`createQueryBuilder`), and loggers.
+- **Categorized Starter Gate Catalog in `examples/gates/`**:
+  - Decoupled starter gates from the default `ce gate check` engine execution; organized starter examples into `examples/gates/architectural/` and `examples/gates/platform/`.
+  - Repositories now evaluate only explicitly configured repository gates in `.codeexplorer/gates/`.
+
+### Fixed
+- **TypeScript Arrow Function Caller Provenance & Callback Filtering**:
+  - Resolved function attribution for arrow callbacks in class field initializers and object literal pairs (`rxResource({ loader: () => ... })`, `plansResource.loader`, `load = () => ...`).
+  - Suppressed spurious function node creation for anonymous callbacks (`ids.map(id => ...)`, `filter(el => ...)`), eliminating hundreds of false-positive function scopes (`Function:id`, `Function:el`) and misattributed `CALLS` edges.
+  - Resolved false-positive unanchored endpoint warnings in `SIG-A-B-001`.
+- **FOIM Dimension Alignment**:
+  - Unified the 4 canonical FOIM dimensions across CLI options, MCP documentation, and `.agents/skills/semantic-invariant-gates/SKILL.md`: `Contract` (C), `Rules` (I), `Resources` (R), `Boundaries` (B).
+
+---
+
 ## [1.31.0] - 2026-10-11
 
 ### Added

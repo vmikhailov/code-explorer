@@ -235,14 +235,14 @@ public class SemanticInvariantGateTests
     {
         var repo = new FileGateRepository(_tempWorkspace);
 
-        // BuiltIns are present out of the box
+        // No surprise built-ins out of the box (workspace is clean by default)
         var allBuiltIns = await repo.GetAllGatesAsync();
-        Assert.That(allBuiltIns.Count, Is.GreaterThanOrEqualTo(8));
-        Assert.That(allBuiltIns.Any(g => g.Id == "SIG-P-B-001"), Is.True);
+        Assert.That(allBuiltIns, Is.Empty);
 
-        // Init starter gates
+        // Init starter gates directory and template
         var createdCount = await repo.InitStarterGatesAsync();
-        Assert.That(createdCount, Is.GreaterThanOrEqualTo(8));
+        Assert.That(createdCount, Is.EqualTo(1));
+        Assert.That(File.Exists(Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "example-gate.yaml.example")), Is.True);
 
         // Add custom workspace gate
         var customGatePath = Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "SIG-CUSTOM-001.yaml");
@@ -264,20 +264,18 @@ public class SemanticInvariantGateTests
     }
 
     [Test]
-    public async Task FileGateRepository_InitStarterGates_OrganizesIntoCategories()
+    public async Task FileGateRepository_InitStarterGates_CreatesDirectoriesAndTemplate()
     {
         var repo = new FileGateRepository(_tempWorkspace);
         var count = await repo.InitStarterGatesAsync();
-        Assert.That(count, Is.GreaterThanOrEqualTo(8));
+        Assert.That(count, Is.EqualTo(1));
 
-        var archDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "architectural");
-        var platDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "platform", "dotnet");
+        var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
+        var baselinesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "baselines");
 
-        Assert.That(Directory.Exists(archDir), Is.True);
-        Assert.That(Directory.Exists(platDir), Is.True);
-
-        Assert.That(Directory.GetFiles(archDir, "*.yaml").Length, Is.GreaterThanOrEqualTo(7));
-        Assert.That(Directory.GetFiles(platDir, "*.yaml").Length, Is.GreaterThanOrEqualTo(1));
+        Assert.That(Directory.Exists(gatesDir), Is.True);
+        Assert.That(Directory.Exists(baselinesDir), Is.True);
+        Assert.That(File.Exists(Path.Combine(gatesDir, "example-gate.yaml.example")), Is.True);
     }
 
     [Test]
@@ -413,7 +411,7 @@ public class SemanticInvariantGateTests
         var repo = new FileGateRepository(_tempWorkspace);
         var engine = new GateExecutionEngine(client, repo);
 
-        var gate = (await repo.GetAllGatesAsync()).FirstOrDefault(g => g.Id == "SIG-M-I-001");
+        var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-I-001");
         Assert.That(gate, Is.Not.Null);
 
         // 1. Check without baseline -> fails with exactly 3 new violations
@@ -437,6 +435,125 @@ public class SemanticInvariantGateTests
         Assert.That(res2.Status, Is.EqualTo(GateCheckStatus.PassedTolerated));
         Assert.That(res2.NewViolations, Is.Empty);
         Assert.That(res2.ToleratedViolations.Count, Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task Gate_SIG_M_I_002_DetectsMethodsExceeding500Lines()
+    {
+        var srcDir = Path.Combine(_tempWorkspace, "Services").Replace('\\', '/');
+        Directory.CreateDirectory(srcDir);
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "Services.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"/>");
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("namespace MyTestApp;");
+        sb.AppendLine("public class LongService {");
+        sb.AppendLine("    public void MonsterMethod() {");
+        for (int i = 0; i < 510; i++)
+        {
+            sb.AppendLine($"        int x_{i} = {i};");
+        }
+        sb.AppendLine("    }");
+        sb.AppendLine("    public void ShortMethod() {");
+        sb.AppendLine("        int a = 1;");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "LongService.cs"), sb.ToString());
+
+        var dbPath = Path.Combine(_tempWorkspace, "graph.db");
+        await using var client = new SqliteGraphClient(dbPath);
+
+        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-I-002");
+        Assert.That(gate, Is.Not.Null);
+
+        var res1 = await engine.CheckGateAsync(gate!);
+        Assert.That(res1.Status, Is.EqualTo(GateCheckStatus.FailedNew));
+        Assert.That(res1.Violations.Count, Is.EqualTo(1));
+        Assert.That(res1.Violations[0].Symbol, Is.EqualTo("MonsterMethod"));
+        Assert.That(res1.Violations[0].Target, Does.Contain("lines"));
+        Assert.That(res1.Violations[0].Message, Does.Contain("MonsterMethod"));
+
+        // Save baseline -> passes as tolerated
+        var baseline = RatchetService.CreateUpdatedBaseline(gate!, res1.Violations);
+        await repo.SaveBaselineAsync(baseline, gate!);
+
+        var res2 = await engine.CheckGateAsync(gate!);
+        Assert.That(res2.Status, Is.EqualTo(GateCheckStatus.PassedTolerated));
+        Assert.That(res2.NewViolations, Is.Empty);
+        Assert.That(res2.ToleratedViolations.Count, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Test_Gate_SigMI001_OnlyFlagsBusinessLiterals_ExcludesClassifiedRoles()
+    {
+        var srcDir = Path.Combine(_tempWorkspace, "OrderApi");
+        Directory.CreateDirectory(srcDir);
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "OrderApi.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+
+        var code = """
+        using System;
+        using Microsoft.AspNetCore.Mvc;
+        using Microsoft.Extensions.Logging;
+        using Microsoft.Extensions.Configuration;
+
+        [ApiController]
+        [Route("api/orders")]
+        public class OrderController : ControllerBase
+        {
+            private readonly ILogger _logger;
+            private readonly IConfiguration _config;
+            private readonly OrderService _orderService;
+
+            public OrderController(ILogger logger, IConfiguration config, OrderService orderService)
+            {
+                _logger = logger;
+                _config = config;
+                _orderService = orderService;
+            }
+
+            [HttpGet("{id}")]
+            public IActionResult GetOrder([FromQuery(Name = "filter")] string filter)
+            {
+                _logger.LogInformation("Getting order with filter: {Filter}", filter);
+                var conn = _config.GetConnectionString("DefaultConnection");
+                _orderService.Process("HARDCODED_PAYMENT_STATUS");
+                return Ok();
+            }
+        }
+
+        public class OrderService
+        {
+            public void Process(string status) {}
+        }
+        """;
+
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "OrderController.cs"), code);
+
+        var dbPath = Path.Combine(_tempWorkspace, "graph.db");
+        await using var client = new SqliteGraphClient(dbPath);
+
+        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-I-001");
+        Assert.That(gate, Is.Not.Null);
+
+        var res = await engine.CheckGateAsync(gate!);
+        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
+        Assert.That(res.Violations.Count, Is.EqualTo(1));
+        Assert.That(res.Violations[0].Symbol, Is.EqualTo("GetOrder"));
+        Assert.That(res.Violations[0].Message, Does.Contain("HARDCODED_PAYMENT_STATUS"));
     }
 
     private class MockGateDbClient : IGraphClient

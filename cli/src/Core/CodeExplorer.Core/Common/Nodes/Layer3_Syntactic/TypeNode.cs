@@ -36,11 +36,12 @@ public record TypeNode(
     string? ProjectKind = null,
     string? ProjectName = null,
     int? StageOrder = null,
+    int? Loc = null,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
     public TypeNode(string id, string name, string symbol, string filePath, string path, int startLine, int endLine, int startCol, int endCol, string typeKind, Dictionary<string, string>? extensions = null)
-        : this(id, name, symbol, filePath, path, startLine, endLine, startCol, endCol, typeKind, false, null, null, null, extensions)
+        : this(id, name, symbol, filePath, path, startLine, endLine, startCol, endCol, typeKind, false, null, null, null, null, extensions)
     {
     }
 
@@ -55,6 +56,9 @@ public record TypeNode(
 
     [JsonPropertyName("stage_order"), OntologyProperty("Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex).")]
     public int? StageOrder { get; set; } = StageOrder;
+
+    [JsonPropertyName("loc"), OntologyProperty("Lines of code span for this type declaration.")]
+    public int? Loc { get; set; } = Loc ?? Math.Max(1, EndLine - StartLine + 1);
 
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.Type;

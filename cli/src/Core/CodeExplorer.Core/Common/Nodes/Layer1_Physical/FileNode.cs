@@ -21,11 +21,13 @@ public record FileNode(
     bool IsTest,
     string? ProjectKind = null,
     string? ProjectName = null,
+    int? LineCount = null,
+    long? SizeBytes = null,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
     public FileNode(string id, string name, string path, string fullPath, Dictionary<string, string>? extensions = null)
-        : this(id, name, path, fullPath, false, null, null, extensions)
+        : this(id, name, path, fullPath, false, null, null, null, null, extensions)
     {
     }
 
@@ -37,6 +39,12 @@ public record FileNode(
 
     [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
     public string? ProjectName { get; set; } = ProjectName;
+
+    [JsonPropertyName("line_count"), OntologyProperty("Total lines of code in this file.")]
+    public int? LineCount { get; set; } = LineCount;
+
+    [JsonPropertyName("size_bytes"), OntologyProperty("Size of the file in bytes.")]
+    public long? SizeBytes { get; set; } = SizeBytes;
 
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.File;

@@ -1,0 +1,23 @@
+id: SIG-P-B-002
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: Database Driver Isolation
+severity: Error
+description: Storage infrastructure drivers are leaf components and must not reference domain logic, parsers, or analyzers.
+remediation: Remove calls to domain parsers from database drivers. Drivers must only execute graph commands passed to them.
+query: |
+  MATCH (driver)-[:CALLS|USES_TYPE]->(domain:Type)
+  WHERE (driver.symbol CONTAINS 'Database/' OR driver.file_path CONTAINS 'Database/')
+    AND (domain.symbol CONTAINS 'CodeExplorer.Core/Parser/' OR domain.name IN ['PostIndexAnalyzer', 'WorkspaceIndexer'])
+    AND NOT coalesce(driver.is_test, false)
+  RETURN 
+    coalesce(driver.symbol, driver.file_path) AS file,
+    coalesce(driver.start_line, 0) AS line,
+    driver.name AS symbol,
+    domain.name AS target,
+    'Storage infrastructure driver illegally references high-level domain parser/analyzer' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-002.json

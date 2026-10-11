@@ -1,0 +1,25 @@
+id: SIG-C-I-001
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Rules
+name: In-Memory AST Visitor IO Purity
+severity: Error
+description: Tree-sitter visitors must remain pure in-memory AST traversals and must not perform disk IO or invoke workspace indexer operations.
+remediation: Eliminate synchronous File/Directory operations from visitors. Extract data during visitor traversal and perform disk IO in pipeline layers.
+query: |
+  MATCH (v:Type)-[:CALLS]->(target)
+  WHERE (v.name CONTAINS 'Visitor' OR v.symbol CONTAINS 'Visitor')
+    AND (target.name IN ['File', 'Directory', 'Path', 'FileStream', 'StreamReader']
+         OR target.name CONTAINS 'System.IO'
+         OR target.name = 'WorkspaceIndexer')
+    AND NOT coalesce(v.is_test, false)
+  RETURN 
+    coalesce(v.file_path, v.symbol) AS file,
+    coalesce(v.start_line, 0) AS line,
+    v.name AS symbol,
+    target.name AS target,
+    'In-memory AST visitor performs prohibited synchronous IO/indexing side-effects' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-C-I-001.json

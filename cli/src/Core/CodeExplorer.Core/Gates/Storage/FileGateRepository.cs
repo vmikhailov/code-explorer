@@ -23,13 +23,7 @@ public class FileGateRepository : IGateRepository
     {
         var gatesById = new Dictionary<string, SemanticGate>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Load BuiltIn defaults first
-        foreach (var bg in BuiltInGateCatalog.GetDefaultGates())
-        {
-            gatesById[bg.Id] = bg;
-        }
-
-        // 2. Discover workspace gates
+        // Discover workspace gates in .codeexplorer/gates/
         if (Directory.Exists(_gatesDir))
         {
             var files = Directory.GetFiles(_gatesDir, "*.yaml", SearchOption.AllDirectories)
@@ -103,34 +97,41 @@ public class FileGateRepository : IGateRepository
             Directory.CreateDirectory(_baselinesDir);
         }
 
-        var count = 0;
-        foreach (var gate in BuiltInGateCatalog.GetDefaultGates())
+        var exampleFile = Path.Combine(_gatesDir, "example-gate.yaml.example");
+        if (!File.Exists(exampleFile) || overwrite)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var fileName = $"{gate.Id.ToLowerInvariant()}-{gate.Name.ToLowerInvariant().Replace(' ', '-')}.yaml";
-            var subDir = gate.Category == GateCategory.Architectural
-                ? Path.Combine(_gatesDir, "architectural")
-                : Path.Combine(_gatesDir, "platform", gate.Platform.ToLowerInvariant());
-
-            if (!Directory.Exists(subDir))
-            {
-                Directory.CreateDirectory(subDir);
-            }
-
-            var targetPath = Path.Combine(subDir, fileName);
-            var legacyPath = Path.Combine(_gatesDir, fileName);
-
-            if ((File.Exists(targetPath) || File.Exists(legacyPath)) && !overwrite)
-            {
-                continue;
-            }
-
-            var yaml = GateSerializer.SerializeGate(gate);
-            await File.WriteAllTextAsync(targetPath, yaml, cancellationToken);
-            count++;
+            var exampleYaml = """
+                # Semantic Invariant Gate Example Template
+                # To activate this gate, rename this file to .yaml and customize the Cypher query.
+                id: SIG-M-I-002
+                category: Architectural
+                platform: agnostic
+                scope: Method
+                dimension: Rules
+                name: Method Length Limitation
+                severity: Error
+                description: Methods must not exceed 500 lines of code.
+                remediation: Refactor long methods into smaller focused helper functions or handlers.
+                query: |
+                  MATCH (f:Function)
+                  WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
+                    AND NOT coalesce(f.is_test, false)
+                  RETURN 
+                    coalesce(f.path, f.file_path) AS file,
+                    coalesce(f.start_line, 1) AS line,
+                    coalesce(f.start_col, 1) AS column,
+                    f.name AS symbol,
+                    toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines' AS target,
+                    'Method ' + f.name + ' exceeds maximum allowed length of 500 lines' AS message
+                ratchet:
+                  enabled: true
+                  baseline: baselines/SIG-M-I-002.json
+                """;
+            await File.WriteAllTextAsync(exampleFile, exampleYaml, cancellationToken);
+            return 1;
         }
 
-        return count;
+        return 0;
     }
 
     private string ResolveBaselinePath(SemanticGate gate)

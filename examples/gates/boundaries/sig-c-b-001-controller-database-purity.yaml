@@ -1,0 +1,21 @@
+id: SIG-C-B-001
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: Clean Architecture Transport Controller Purity
+severity: Error
+description: Controllers and HTTP transport endpoints must not directly execute database queries or mutate ORM tables.
+remediation: Delegate data persistence to a service or repository layer; controllers must not call database contexts directly.
+query: |
+  MATCH (ep:Endpoint)-[:CALLS*1..2]->(q:Query)
+  WHERE ep.file_path CONTAINS 'controller' OR ep.file_path CONTAINS 'controllers/'
+  RETURN 
+    ep.file_path AS file,
+    coalesce(ep.start_line, 1) AS line,
+    ep.name AS symbol,
+    q.name AS target,
+    'Controller endpoint ' + ep.name + ' directly executes database query ' + q.name + ' bypassing service layer' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-C-B-001.json

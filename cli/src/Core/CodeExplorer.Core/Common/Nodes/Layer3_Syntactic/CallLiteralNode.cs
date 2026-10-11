@@ -25,11 +25,13 @@ public record CallLiteralNode(
     bool IsTest,
     string? ProjectKind = null,
     string? ProjectName = null,
+    string Role = "Business",
+    bool IsDecorator = false,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
     public CallLiteralNode(string id, string name, string value, string callee, int argIndex, string filePath, int line, int column, Dictionary<string, string>? extensions = null)
-        : this(id, name, value, callee, argIndex, filePath, line, column, false, null, null, extensions)
+        : this(id, name, value, callee, argIndex, filePath, line, column, false, null, null, "Business", false, extensions)
     {
     }
 
@@ -41,6 +43,12 @@ public record CallLiteralNode(
 
     [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
     public string? ProjectName { get; set; } = ProjectName;
+
+    [JsonPropertyName("role"), OntologyProperty("The semantic role of the literal argument (e.g. Business, Routing, ParamBinding, Config, Logging, QueryBuilder, DI).")]
+    public string Role { get; set; } = Role;
+
+    [JsonPropertyName("is_decorator"), OntologyProperty("Indicates whether the literal argument occurs within a decorator or attribute.")]
+    public bool IsDecorator { get; set; } = IsDecorator;
 
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.CallLiteral;

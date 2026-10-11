@@ -20,7 +20,7 @@ public class GateOptions : ITargetOption
     [Option('s', "scope", Required = false, HelpText = "Scope filter ('Method', 'Class', 'Module', 'Service', 'System').")]
     public string? Scope { get; set; }
 
-    [Option('d', "dimension", Required = false, HelpText = "Dimension filter ('Contract', 'Rules', 'Resources', 'Boundaries').")]
+    [Option('d', "dimension", Required = false, HelpText = "Dimension filter ('Boundaries', 'Rules', 'Contract', 'Resources').")]
     public string? Dimension { get; set; }
 
     [Option('f', "format", Required = false, Default = "table", HelpText = "Output format: 'table', 'markdown', 'json'.")]

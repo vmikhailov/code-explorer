@@ -1,0 +1,23 @@
+id: SIG-A-B-001
+category: Architectural
+platform: agnostic
+scope: System
+dimension: Contract
+name: Call Lineage Provenance
+severity: Warning
+description: Every external interaction must be provably rooted in an atomic calling function or endpoint handler.
+remediation: Ensure external service invocations are wrapped inside a function, method, or resource loader.
+query: |
+  MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint)
+  WHERE NOT EXISTS((es)-[:CALLED_BY]->(:Function))
+    AND NOT EXISTS((:Function)-[:CALLS]->(es))
+    AND NOT EXISTS((:Function)-[:CALLS_ENDPOINT]->(ep))
+  RETURN 
+    es.file_path AS file,
+    coalesce(es.start_line, 0) AS line,
+    es.name AS symbol,
+    ep.name AS target,
+    'Dangling cross-service interaction: external call cannot be attributed to an atomic calling function' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-A-B-001.json

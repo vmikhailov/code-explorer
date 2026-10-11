@@ -178,6 +178,7 @@ public static class RouteDictionaryRegistry
         _routes.Clear();
         _serviceDomains.Clear();
         _aliases.Clear();
+        _globalPrefixes.Clear();
     }
 
     public static string NormalizeResolvedUrl(string raw)

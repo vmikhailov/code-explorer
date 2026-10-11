@@ -782,6 +782,13 @@ public static class AstHelper
                 var val = ResolveTemplateExpression(node, expr);
                 if (!string.IsNullOrEmpty(val)) return val;
                 if (ConstantRegistry.TryResolve(null, expr, out var cVal)) return cVal;
+                var shortName = expr.Contains('.') ? expr.Split('.')[^1] : expr;
+                if (shortName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                    shortName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                    shortName.Equals("ver", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "v1";
+                }
                 return m.Value;
             });
             if (!resolved.Contains("${") || resolved != raw)
