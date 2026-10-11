@@ -355,6 +355,37 @@ public static class BuiltInGateCatalog
 
         new SemanticGate
         {
+            Id = "SIG-M-R-001",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
+            Scope = InvariantScope.Method,
+            Dimension = InvariantDimension.Resources,
+            Name = "Method Length Ceiling",
+            Severity = GateSeverity.Error,
+            Description = "Methods and functions must not exceed 500 lines of code to maintain readability and prevent monolithic implementations.",
+            Remediation = "Refactor oversized methods into smaller, focused helper functions, sub-routines, or dedicated pipeline/handler classes.",
+            Query = """
+                MATCH (f:Function)
+                WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
+                  AND NOT coalesce(f.is_test, false)
+                RETURN 
+                  coalesce(f.file_path, f.path) AS file,
+                  coalesce(f.start_line, 1) AS line,
+                  coalesce(f.start_col, 1) AS column,
+                  f.name AS symbol,
+                  toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines' AS target,
+                  'Method ' + f.name + ' exceeds maximum allowed length of 500 lines (' + toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines)' AS message
+                """,
+            Ratchet = new GateRatchetSettings
+            {
+                Enabled = true,
+                Baseline = "baselines/SIG-M-R-001.json"
+            },
+            Source = "BuiltIn"
+        },
+
+        new SemanticGate
+        {
             Id = "SIG-M-I-005",
             Category = GateCategory.Architectural,
             Platform = "agnostic",

@@ -9,15 +9,15 @@ description: Functions and methods exceeding 500 lines indicate excessive comple
 remediation: Refactor long methods into smaller cohesive functions or pipeline steps.
 query: |
   MATCH (f:Function)
-  WHERE f.line_count > 500
+  WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
     AND NOT coalesce(f.is_test, false)
   RETURN 
     coalesce(f.file_path, f.path) AS file,
     coalesce(f.start_line, 1) AS line,
-    0 AS column,
+    coalesce(f.start_col, 1) AS column,
     f.name AS symbol,
-    toString(f.line_count) + ' lines' AS target,
-    'Function ' + f.name + ' exceeds 500 lines threshold (' + toString(f.line_count) + ' lines)' AS message
+    toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines' AS target,
+    'Function ' + f.name + ' exceeds 500 lines threshold (' + toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines)' AS message
 ratchet:
   enabled: true
   baseline: baselines/SIG-M-R-001.json

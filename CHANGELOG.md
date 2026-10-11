@@ -5,6 +5,20 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.2] - 2026-10-11
+
+### Added
+- **Dogfooding Gate: Method Length Ceiling (`SIG-M-R-001`)**:
+  - Added `sig-m-r-001-method-length.yaml` to `examples/gates/code-explorer/` to enforce that methods and functions must not exceed 500 lines of code.
+  - Registered `SIG-M-R-001` (Scope: `Method`, Dimension: `Resources`) in `BuiltInGateCatalog.cs`.
+  - Added `Gate_SIG_M_R_001_DetectsMethodsExceeding500Lines` test in `SemanticInvariantGateTests.cs`.
+
+### Fixed
+- **Method Length Property in Resources Gate**:
+  - Corrected query in `examples/gates/resources/sig-m-r-001-method-length.yaml` from invalid property `f.line_count` to canonical `coalesce(f.loc, f.end_line - f.start_line + 1)`.
+
+---
+
 ## [1.34.1] - 2026-10-11
 
 ### Added

@@ -63,3 +63,4 @@ Internal gates used by CodeExplorer itself to enforce AST parser purity and pipe
 - [`sig-p-b-002-database-driver-isolation.yaml`](./code-explorer/sig-p-b-002-database-driver-isolation.yaml)
 - [`sig-s-b-001-storage-driver-abstraction.yaml`](./code-explorer/sig-s-b-001-storage-driver-abstraction.yaml)
 - [`sig-c-i-001-visitor-io-purity.yaml`](./code-explorer/sig-c-i-001-visitor-io-purity.yaml)
+- [`sig-m-r-001-method-length.yaml`](./code-explorer/sig-m-r-001-method-length.yaml)

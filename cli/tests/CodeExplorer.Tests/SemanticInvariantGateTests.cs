@@ -492,6 +492,59 @@ public class SemanticInvariantGateTests
     }
 
     [Test]
+    public async Task Gate_SIG_M_R_001_DetectsMethodsExceeding500Lines()
+    {
+        var srcDir = Path.Combine(_tempWorkspace, "ServicesR").Replace('\\', '/');
+        Directory.CreateDirectory(srcDir);
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "ServicesR.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"/>");
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("namespace MyTestApp;");
+        sb.AppendLine("public class LongServiceR {");
+        sb.AppendLine("    public void MonsterMethod() {");
+        for (int i = 0; i < 510; i++)
+        {
+            sb.AppendLine($"        int x_{i} = {i};");
+        }
+        sb.AppendLine("    }");
+        sb.AppendLine("    public void ShortMethod() {");
+        sb.AppendLine("        int a = 1;");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+
+        await File.WriteAllTextAsync(Path.Combine(srcDir, "LongServiceR.cs"), sb.ToString());
+
+        var dbPath = Path.Combine(_tempWorkspace, "graph_r.db");
+        await using var client = new SqliteGraphClient(dbPath);
+
+        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-R-001");
+        Assert.That(gate, Is.Not.Null);
+
+        var res1 = await engine.CheckGateAsync(gate!);
+        Assert.That(res1.Status, Is.EqualTo(GateCheckStatus.FailedNew));
+        Assert.That(res1.Violations.Count, Is.EqualTo(1));
+        Assert.That(res1.Violations[0].Symbol, Is.EqualTo("MonsterMethod"));
+        Assert.That(res1.Violations[0].Target, Does.Contain("lines"));
+        Assert.That(res1.Violations[0].Message, Does.Contain("MonsterMethod"));
+
+        // Save baseline -> passes as tolerated
+        var baseline = RatchetService.CreateUpdatedBaseline(gate!, res1.Violations);
+        await repo.SaveBaselineAsync(baseline, gate!);
+
+        var res2 = await engine.CheckGateAsync(gate!);
+        Assert.That(res2.Status, Is.EqualTo(GateCheckStatus.PassedTolerated));
+        Assert.That(res2.NewViolations, Is.Empty);
+        Assert.That(res2.ToleratedViolations.Count, Is.EqualTo(1));
+    }
+
+    [Test]
     public async Task Test_Gate_SigMI001_OnlyFlagsBusinessLiterals_ExcludesClassifiedRoles()
     {
         var srcDir = Path.Combine(_tempWorkspace, "OrderApi");
