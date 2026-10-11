@@ -330,19 +330,22 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 4px 12px;
+      padding: 5px 14px;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border-standard);
       border-radius: var(--radius-pill);
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-secondary);
+      text-decoration: none;
       margin-bottom: 24px;
       transition: var(--transition);
+      cursor: pointer;
     }
 
     .hero-badge-wrap:hover {
-      border-color: var(--border-accent);
-      background: rgba(113, 112, 255, 0.06);
+      border-color: var(--accent-violet);
+      background: rgba(113, 112, 255, 0.08);
+      color: var(--text-primary);
     }
 
     .hero-badge-dot {
@@ -1864,6 +1867,15 @@
         It combines interactive architecture visualization in VS Code, a fast CLI with OpenCypher queries, and Semantic Invariant Gates (SIG) to prevent architectural drift in CI.
         A built-in MCP server supplies this structural ground truth directly to AI coding agents.
       </p>
+
+      <div style="margin-bottom: 24px;">
+        <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="hero-badge-wrap" style="margin-bottom: 0;">
+          <span class="hero-badge-dot"></span>
+          <span>v1.34 Released</span>
+          <span style="color: var(--text-muted); opacity: 0.5;">•</span>
+          <span>View on GitHub &rarr;</span>
+        </a>
+      </div>
 
       <div class="hero-cta-group">
         <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
