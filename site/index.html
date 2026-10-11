@@ -519,7 +519,7 @@
 
     .showcase-body {
       position: relative;
-      background: #0d101b;
+      background: #0d101a;
       min-height: 540px;
       display: flex;
       flex-direction: column;
@@ -531,16 +531,11 @@
       height: auto;
       cursor: zoom-in;
       overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 36px 10% 72px;
-      background: #0d101b;
+      background: #0d101a;
     }
 
     .showcase-img {
       width: 100%;
-      max-width: 980px;
       height: auto;
       display: block;
     }
@@ -1800,7 +1795,6 @@
       .footer-grid { grid-template-columns: 1fr; }
       .showcase-header { flex-direction: column; align-items: flex-start; }
       .showcase-overlay-bar { flex-direction: column; align-items: flex-start; }
-      .showcase-img-container { padding: 16px 4% 56px; }
     }
   </style>
 </head>
@@ -1939,7 +1933,7 @@
 
         <div class="showcase-body">
           <div class="showcase-img-container" onclick="openLightbox()">
-            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v9" alt="CodeExplorer Macro Architecture Concentric Orbits">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v10" alt="CodeExplorer Macro Architecture Concentric Orbits">
           </div>
 
           <div class="showcase-overlay-bar">
@@ -1960,7 +1954,7 @@
   <!-- Lightbox Modal for zooming screenshots -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v9" alt="Enlarged Screenshot">
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v10" alt="Enlarged Screenshot">
   </div>
 
   <!-- ==========================================================================
@@ -2940,12 +2934,12 @@
     // Data for Showcase Tabs
     const showcaseData = {
       orbits: {
-        img: 'all_services.png?v=v9',
+        img: 'all_services.png?v=v10',
         desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
         pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
       },
       transitive: {
-        img: 'selected_services.png?v=v9',
+        img: 'selected_services.png?v=v10',
         desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
         pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
       },
