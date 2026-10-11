@@ -1750,14 +1750,14 @@
 
         <div class="showcase-body">
           <div class="showcase-img-container" onclick="openLightbox()">
-            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=clean" alt="CodeExplorer Macro Architecture Concentric Orbits">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v2" alt="CodeExplorer Macro Architecture Concentric Orbits">
           </div>
 
           <div class="showcase-overlay-bar">
             <div id="showcaseDescription">
               <strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).
             </div>
-            <div class="showcase-pill-list" id="showcasePills">
+            <div id="showcasePills" class="showcase-pill-list">
               <span class="showcase-feature-pill">Live Transitive Routing</span>
               <span class="showcase-feature-pill">Orbit Drag-and-Drop</span>
               <span class="showcase-feature-pill">Curvature: +65</span>
@@ -1771,7 +1771,7 @@
   <!-- Lightbox Modal for zooming screenshots -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=clean" alt="Enlarged Screenshot">
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v2" alt="Enlarged Screenshot">
   </div>
 
   <!-- ==========================================================================
@@ -2586,17 +2586,17 @@
     // Data for Showcase Tabs
     const showcaseData = {
       orbits: {
-        img: 'all_services.png?v=clean',
+        img: 'all_services.png?v=v2',
         desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
         pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
       },
       transitive: {
-        img: 'selected_services.png?v=clean',
+        img: 'selected_services.png?v=v2',
         desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
         pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
       },
       projectflow: {
-        img: 'project_flow.png?v=clean',
+        img: 'project_flow.png?v=v2',
         desc: '<strong>Project Flow & C1 System Context:</strong> Structured service cards with incoming/outgoing metrics, registered databases, and double-click Click-to-Code jump directly into source lines.',
         pills: ['Click-to-Code Jump', 'C1 System Context', 'Dependency Counts']
       }
