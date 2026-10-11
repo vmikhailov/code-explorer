@@ -8,11 +8,9 @@
 [![Open VSX](https://img.shields.io/open-vsx/v/vmikhailov/code-explorer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Containers-success.svg)](https://github.com/vmikhailov/code-explorer)
 
-**A visual knowledge graph and codebase intelligence tool for developers and AI agents.**
+**A portable codebase intelligence tool that compiles polyglot code, endpoints, message queues, and databases into a unified dependency graph.**
 
-CodeExplorer maps complex polyglot repositories, microservices, and monorepos into an **interactive visual knowledge graph**. It is powered by an **embedded SQLite graph database with native Cypher query compilation** and requires no external dependencies, Docker containers, or complex configuration.
-
-It helps architects map event-driven systems, engineers refactor legacy services, and AI coding assistants (such as Cursor, Claude, and Copilot) reason across multi-hop dependencies to improve codebase comprehension.
+CodeExplorer combines **interactive architecture visualization in VS Code**, a fast **CLI with OpenCypher queries**, and **Semantic Invariant Gates (SIG)** to prevent architectural drift and ratchet technical debt directly in CI. A built-in **Model Context Protocol (MCP)** server supplies this exact structural ground truth directly to AI coding agents.
 
 ---
 
